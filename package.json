@@ -1,0 +1,13 @@
+{
+  "name": "nursing-assessment-support",
+  "version": "1.0.0",
+  "description": "看護アセスメント支援システム（共有学習バックエンド付き）",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
