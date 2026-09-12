@@ -103,30 +103,63 @@
     // ------------------------------------------------------------------------
     // 事例研究用途のため、個人情報の遮断は行わず、カードの本文・タグ付け・
     // どの欄に割り振られたか・どう編集されたかを、そのままサーバーに送って
-    // 全利用者で共有する。サーバー側は同じ形の辞書(learning-dict.json)と、
-    // 生のイベント履歴(case-log.json)の両方を保存する。
+    // 全利用者で共有する。学習内容はこのブラウザ（localStorage）には保存せず、
+    // フォルダ内にあらかじめ用意された学習専用ファイルだけに保存・蓄積していく。
+    // サーバー側は同じ形の辞書(learning-dict.json)と、生のイベント履歴
+    // (case-log.json)の両方をこの1組のファイルに保存する（都度新しいファイルは作らない）。
     //   - learning-dict: テキストごとの「現在の学習結果」（S/O・ヘンダーソン
     //     タグ・欄・直前の編集）。次回同じ/似た文章が出てきたときの自動分類に使う。
+    //     ページを開いた時に自動で全件読み込み、変更のたびに自動でこのファイルへ反映される。
     //   - case-log: いつ・何が・どう変わったかの生ログ。事例研究でそのまま
     //     時系列の分析対象にできる。
+    // サーバー（server.js）を起動していない場合は学習専用ファイルに触れられないため、
+    // 学習内容はその場限り（画面を離れると失われる）になる。
     // ==========================================================================
     const API_BASE = '/api';
-    let sharedLearningDict = {}; // { [text]: { preferredType, preferredCols, preferredHendersonIds, lastEditedFrom, updatedAt } }
+    // { [text]: { preferredType, preferredCols, preferredHendersonIds, typeVotes, hendersonVotes, lastEditedFrom, updatedAt } }
+    // typeVotes / hendersonVotes は「同じ文章に対して同じ編集が何回行われたか」のカウント（例:｛s:2, o:1｝）。
+    // 新規の自動振り分け（'create'）は投票に数えず、ユーザーが実際に選び直した場合だけ加算することで、
+    // 自動振り分けよりユーザーの編集を優先し、さらに票数が多いものほど次回の抽出で優先されるようにする。
+    let sharedLearningDict = {};
+
+    // 投票（typeVotes / hendersonVotes）の中から最多得票の値を選ぶ。同数の場合は先に記録された方を優先する。
+    function pickTopVote(votes) {
+      if (!votes) return null;
+      let best = null, bestCount = 0;
+      for (const [key, count] of Object.entries(votes)) {
+        if (count > bestCount) { best = key; bestCount = count; }
+      }
+      return best;
+    }
 
     async function loadSharedLearningDict() {
       try {
         const res = await fetch(`${API_BASE}/learning-dict`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         sharedLearningDict = await res.json();
-        // サーバー側の学習結果をローカル学習辞書にもマージしておく（同じ形なのでそのまま使い回せる）
+        // 学習内容はこのブラウザには保存しないため、学習専用ファイル（サーバー）の内容が
+        // そのまま学習辞書になる。既存キーがあれば（起動直後の再取得等）そちらを優先する。
         globalAppData.learningUserDict = { ...sharedLearningDict, ...globalAppData.learningUserDict };
       } catch (e) {
-        console.warn('共有学習データの取得に失敗しました（サーバー未接続の場合はローカル学習のみで動作します）:', e);
+        console.warn('学習専用ファイルの読み込みに失敗しました（サーバーが起動していないか、通信できません。学習内容はこの表示中のみ有効で、保存されません）:', e);
       }
     }
 
-    // action: 'create' | 'type' | 'tagAdd' | 'tagRemove' | 'col' | 'edit'
+    // 学習によって「何がどう変わったか」をユーザー自身が確認できるよう、サーバーへの送信とは別に
+    // このブラウザ内にも変更履歴を保存しておく（サーバー未接続でも履歴が見られるようにするため）。
+    const LEARNING_HISTORY_KEY = 'nursing_learning_history';
+    const LEARNING_HISTORY_MAX = 300;
+    let learningHistory = [];
+    try { learningHistory = JSON.parse(localStorage.getItem(LEARNING_HISTORY_KEY) || '[]'); } catch (e) { learningHistory = []; }
+    function addLearningHistoryEntry(text, action, payload) {
+      learningHistory.push({ at: new Date().toISOString(), text, action, payload });
+      if (learningHistory.length > LEARNING_HISTORY_MAX) learningHistory = learningHistory.slice(-LEARNING_HISTORY_MAX);
+      try { localStorage.setItem(LEARNING_HISTORY_KEY, JSON.stringify(learningHistory)); } catch (e) { console.warn('学習履歴の保存に失敗しました:', e); }
+    }
+
+    // action: 'create' | 'type' | 'tagAdd' | 'tagRemove' | 'col' | 'edit' | 'delete'
     async function reportLearningEvent(text, action, payload) {
+      addLearningHistoryEntry(text, action, payload); // サーバーの成否によらず、必ずローカル履歴には残す
       try {
         const res = await fetch(`${API_BASE}/learning-event`, {
           method: 'POST',
@@ -160,10 +193,13 @@
 
     let globalAppData = {
       patients: persistedPatients?.patients || [
-        { id: 'patient_1', title: '患者A', items: [], sourceText: '', labEvaluationResult: '', referenceNotes: [] }
+        { id: 'patient_1', title: '患者A', items: [], sourceText: '', labEvaluationResult: '', referenceNotes: [], archived: false, updatedAt: null }
       ],
       currentPatientId: persistedPatients?.currentPatientId || 'patient_1',
-      learningUserDict: JSON.parse(localStorage.getItem('nursing_learning_dict') || '{}'),
+      // 学習内容はこのブラウザ（localStorage）には保存せず、フォルダ内の学習専用ファイル
+      // （data/learning-dict.json）だけに保存する。起動時に loadSharedLearningDict() が
+      // そのファイルの内容をまるごと取得してここに読み込む（サーバー未起動時は空のまま）。
+      learningUserDict: {},
       apiKey: localStorage.getItem('gemini_api_key') || '',
       notebookContent: DEFAULT_NOTEBOOK_CONTENT // 編集機能は廃止し、アップロード済みの基準表を統合した固定内容を使用
     };
@@ -184,9 +220,36 @@
 
     function getCurrentPatient() {
       let p = globalAppData.patients.find(x => x.id === globalAppData.currentPatientId);
-      if (!p) { p = globalAppData.patients[0]; globalAppData.currentPatientId = p.id; }
+      if (!p) { p = globalAppData.patients.find(x => !x.archived) || globalAppData.patients[0]; globalAppData.currentPatientId = p.id; }
       if (!p.referenceNotes) p.referenceNotes = []; // 古い保存データとの互換性維持
+      if (p.archived === undefined) p.archived = false;
       return p;
+    }
+
+    // 「n分前」「n時間前」のような相対時刻表示（患者一覧・ヘッダーの最終更新表示用）
+    function formatRelativeTime(iso) {
+      if (!iso) return '';
+      const diffMs = Date.now() - new Date(iso).getTime();
+      const min = Math.floor(diffMs / 60000);
+      if (min < 1) return 'たった今';
+      if (min < 60) return `${min}分前`;
+      const hr = Math.floor(min / 60);
+      if (hr < 24) return `${hr}時間前`;
+      const day = Math.floor(hr / 24);
+      if (day < 7) return `${day}日前`;
+      const d = new Date(iso);
+      return `${d.getMonth() + 1}/${d.getDate()}`;
+    }
+
+    function updateSaveStatus() {
+      const el = document.getElementById('save-status-time');
+      if (el) el.textContent = `保存済み ${new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+
+    function updateCurrentPatientMeta() {
+      const cp = getCurrentPatient();
+      const el = document.getElementById('current-patient-updated');
+      if (el) el.textContent = cp.updatedAt ? `(更新: ${formatRelativeTime(cp.updatedAt)})` : '';
     }
 
     function showToast(message, type = 'info') {
@@ -202,6 +265,26 @@
       toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${message}</span>`;
       DOM.toastContainer.appendChild(toast);
       setTimeout(() => { toast.classList.replace('toast-enter', 'toast-exit'); setTimeout(() => toast.remove(), 300); }, 3000);
+    }
+
+    // 削除・リセット系の操作の直後に「元に戻す」ボタン付きトーストを出す共通処理。
+    // undoFn は元に戻す処理そのもの（呼び出し側でsaveDataAndSync等の再描画も行う）。
+    function showUndoToast(message, undoFn) {
+      const toast = document.createElement('div');
+      toast.className = 'toast-enter p-3 rounded-[var(--radius-sm)] border text-xs font-medium flex items-center gap-3 panel-shadow';
+      toast.style.cssText = 'background:var(--surface);color:var(--ink);border-color:var(--line);pointer-events:auto;';
+      toast.innerHTML = `<i class="fa-solid fa-clock-rotate-left text-[var(--ink-muted)]"></i><span class="flex-1">${escapeHtml(message)}</span><button class="font-bold text-[var(--accent)] hover:underline whitespace-nowrap">元に戻す</button>`;
+      const undoBtn = toast.querySelector('button');
+      let dismissed = false;
+      const dismiss = () => { if (dismissed) return; dismissed = true; toast.classList.replace('toast-enter', 'toast-exit'); setTimeout(() => toast.remove(), 300); };
+      undoBtn.addEventListener('click', () => {
+        undoFn();
+        saveDataAndSync();
+        dismiss();
+        showToast('元に戻しました', 'info');
+      });
+      DOM.toastContainer.appendChild(toast);
+      setTimeout(dismiss, 6000);
     }
 
     // 汎用ダイアログ（window.prompt / window.confirm の代替。見た目をアプリ全体と統一する）
@@ -248,13 +331,18 @@
     function persistData() {
       const cp = getCurrentPatient();
       cp.sourceText = DOM.sourceText.value;
-      localStorage.setItem('nursing_learning_dict', JSON.stringify(globalAppData.learningUserDict));
+      cp.updatedAt = new Date().toISOString();
+      // 学習内容はブラウザ（localStorage）には保存しない。学習専用ファイル（data/learning-dict.json）への
+      // 反映は、変更のたびに reportLearningEvent() が個別に、ページを閉じる時に beforeunload の
+      // sendBeacon がまとめて、それぞれサーバーへ送ることで行う。
       try {
         sessionStorage.setItem(PATIENTS_STORAGE_KEY, JSON.stringify({ patients: globalAppData.patients, currentPatientId: globalAppData.currentPatientId }));
       } catch (e) {
         // 容量超過などで保存できない場合も画面表示自体は続行する
         console.warn('カルテデータの自動保存に失敗しました（ブラウザの保存容量が不足している可能性があります）:', e);
       }
+      updateSaveStatus();
+      updateCurrentPatientMeta();
     }
 
     function saveDataAndSync() {
@@ -269,22 +357,42 @@
       DOM.sourceText.value = cp.sourceText || '';
       DOM.labEvalContent.innerHTML = cp.labEvaluationResult || '「検査値AI総合評価」ボタンを押すと、入力されたOデータ中の検査値をノートブックの基準に基づいて自動抽出し、臨床的意味を評価します。';
       DOM.currentPatientTitle.textContent = cp.title;
+
+      // 前回のAI分析結果（矛盾チェック・看護診断候補・経時変化サマリー）があれば患者切り替え時にも復元する
+      const contradictionPanel = document.getElementById('contradiction-panel');
+      if (cp.contradictionResult) { contradictionPanel.classList.remove('hidden'); document.getElementById('contradiction-content').innerHTML = cp.contradictionResult; }
+      else { contradictionPanel.classList.add('hidden'); document.getElementById('contradiction-content').innerHTML = ''; }
+      const diagnosisPanel = document.getElementById('diagnosis-panel');
+      if (cp.diagnosisResult) { diagnosisPanel.classList.remove('hidden'); document.getElementById('diagnosis-content').innerHTML = cp.diagnosisResult; }
+      else { diagnosisPanel.classList.add('hidden'); document.getElementById('diagnosis-content').innerHTML = ''; }
+      const timelinePanel = document.getElementById('timeline-panel');
+      if (cp.timelineResult) { timelinePanel.classList.remove('hidden'); document.getElementById('timeline-content').innerHTML = cp.timelineResult; }
+      else { timelinePanel.classList.add('hidden'); document.getElementById('timeline-content').innerHTML = ''; }
+
+      selectedCardIds.clear();
+      boardSearchTerm = '';
+      const searchInput = document.getElementById('board-search');
+      if (searchInput) searchInput.value = '';
+
       renderPatientTabs();
       renderSoBoard();
       renderAssessmentTable();
       renderReferenceList();
+      updateCurrentPatientMeta();
     }
 
     function renderPatientTabs() {
       const frag = document.createDocumentFragment();
-      globalAppData.patients.forEach(pat => {
+      // アーカイブ済みのページはタブには出さない（「一覧」から確認・復元できる）
+      const visible = globalAppData.patients.filter(pat => !pat.archived);
+      visible.forEach(pat => {
         const isActive = pat.id === globalAppData.currentPatientId;
         const btn = document.createElement('div');
         btn.className = `patient-chip ${isActive ? 'active' : ''}`;
         btn.innerHTML = `
           <i class="fa-solid fa-user-injured text-[9px]"></i>
           <span onclick="switchPatient('${pat.id}')">${escapeHtml(pat.title)}</span>
-          ${globalAppData.patients.length > 1 ? `<button onclick="deletePatient('${pat.id}', event)" class="icon-btn danger" title="ページ削除"><i class="fa-solid fa-xmark text-[9px]"></i></button>` : ''}
+          ${visible.length > 1 ? `<button onclick="deletePatient('${pat.id}', event)" class="icon-btn danger" title="アーカイブする（「一覧」からいつでも復元できます）"><i class="fa-solid fa-box-archive text-[9px]"></i></button>` : ''}
         `;
         frag.appendChild(btn);
       });
@@ -302,7 +410,7 @@
       const title = await openDialog({ title: '新しい患者ページを作成', inputValue: `患者${globalAppData.patients.length + 1}`, placeholder: '患者名またはページ名', confirmLabel: '作成する' });
       if (!title) return;
       const newId = 'patient_' + Date.now();
-      globalAppData.patients.push({ id: newId, title: title.trim(), items: [], sourceText: '', labEvaluationResult: '', referenceNotes: [] });
+      globalAppData.patients.push({ id: newId, title: title.trim(), items: [], sourceText: '', labEvaluationResult: '', referenceNotes: [], archived: false, updatedAt: null });
       globalAppData.currentPatientId = newId;
       persistData();
       loadLocalState();
@@ -321,19 +429,330 @@
       }
     });
 
-    window.deletePatient = async function(patId, e) {
+    // タブ上の「アーカイブ」ボタンは、誤操作でも「一覧」からすぐ復元できるようアーカイブ扱いにする
+    // （完全な削除は「一覧」モーダルの削除ボタンからのみ行う）
+    window.deletePatient = function(patId, e) {
       e.stopPropagation();
-      if (globalAppData.patients.length <= 1) return showToast('最後のページは削除できません', 'error');
-      const target = globalAppData.patients.find(p => p.id === patId);
-      const confirmed = await openDialog({ title: 'ページを削除しますか？', message: `「${target ? target.title : ''}」を削除します。この操作は元に戻せません。`, confirmLabel: '削除する', danger: true });
-      if (confirmed) {
-        globalAppData.patients = globalAppData.patients.filter(p => p.id !== patId);
-        if (globalAppData.currentPatientId === patId) globalAppData.currentPatientId = globalAppData.patients[0].id;
-        persistData();
-        loadLocalState();
-        showToast('ページを削除しました', 'info');
-      }
+      archivePatient(patId);
     };
+
+    window.archivePatient = function(id) {
+      const p = globalAppData.patients.find(x => x.id === id);
+      if (!p) return;
+      const nonArchivedCount = globalAppData.patients.filter(x => !x.archived).length;
+      if (!p.archived && nonArchivedCount <= 1) return showToast('最後のページはアーカイブできません', 'error');
+      p.archived = true;
+      const wasCurrent = globalAppData.currentPatientId === id;
+      if (wasCurrent) {
+        const next = globalAppData.patients.find(x => !x.archived);
+        if (next) globalAppData.currentPatientId = next.id;
+      }
+      persistData();
+      loadLocalState();
+      renderPatientListModal();
+      showUndoToast(`「${p.title}」をアーカイブしました`, () => {
+        p.archived = false;
+        if (wasCurrent) globalAppData.currentPatientId = id;
+        loadLocalState();
+        renderPatientListModal();
+      });
+    };
+
+    window.unarchivePatient = function(id) {
+      const p = globalAppData.patients.find(x => x.id === id);
+      if (!p) return;
+      p.archived = false;
+      persistData();
+      renderPatientTabs();
+      renderPatientListModal();
+      showToast(`「${p.title}」を復元しました`, 'success');
+    };
+
+    window.switchPatientFromList = function(id) {
+      switchPatient(id);
+      renderPatientListModal();
+    };
+
+    window.hardDeletePatientFromList = async function(id) {
+      const target = globalAppData.patients.find(p => p.id === id);
+      if (globalAppData.patients.length <= 1) return showToast('最後のページは削除できません', 'error');
+      const confirmed = await openDialog({ title: '完全に削除しますか？', message: `「${target ? target.title : ''}」のデータを完全に削除します。アーカイブと違い、この操作は元に戻せません。`, confirmLabel: '完全に削除する', danger: true });
+      if (!confirmed) return;
+      const idx = globalAppData.patients.findIndex(p => p.id === id);
+      if (idx === -1) return;
+      globalAppData.patients.splice(idx, 1);
+      if (globalAppData.currentPatientId === id) {
+        const next = globalAppData.patients.find(x => !x.archived) || globalAppData.patients[0];
+        globalAppData.currentPatientId = next.id;
+      }
+      persistData();
+      loadLocalState();
+      renderPatientListModal();
+      showToast('完全に削除しました', 'info');
+    };
+
+    // ==========================================================================
+    // 患者ページ一覧モーダル：検索・並び替え・アーカイブ表示切り替え
+    // ==========================================================================
+    function renderPatientListModal() {
+      const body = document.getElementById('patient-list-body');
+      if (!body) return;
+      const term = (document.getElementById('patient-list-search').value || '').trim().toLowerCase();
+      const showArchived = document.getElementById('patient-list-show-archived').checked;
+      const sortMode = document.getElementById('patient-list-sort').value;
+      let list = globalAppData.patients.filter(p => showArchived || !p.archived);
+      if (term) list = list.filter(p => p.title.toLowerCase().includes(term));
+      list = list.slice().sort((a, b) => sortMode === 'name' ? a.title.localeCompare(b.title, 'ja') : (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+
+      if (list.length === 0) {
+        const p = document.createElement('p');
+        p.className = 'text-xs text-[var(--ink-muted)] text-center py-6';
+        p.textContent = '該当する患者ページがありません。';
+        body.replaceChildren(p);
+        return;
+      }
+      const frag = document.createDocumentFragment();
+      list.forEach(pat => {
+        const row = document.createElement('div');
+        row.className = `flex items-center justify-between gap-2 p-2 rounded-[var(--radius-sm)] border ${pat.id === globalAppData.currentPatientId ? 'border-[var(--accent)]' : 'border-[var(--line)]'}`;
+        row.style.background = pat.id === globalAppData.currentPatientId ? 'var(--accent-soft)' : 'var(--surface)';
+        row.innerHTML = `
+          <div class="min-w-0 flex-1 cursor-pointer" onclick="switchPatientFromList('${pat.id}')">
+            <div class="text-xs font-semibold text-[var(--ink)] truncate">${escapeHtml(pat.title)}${pat.archived ? ' <span class="text-[9px] text-[var(--ink-muted)] font-normal">(アーカイブ済み)</span>' : ''}</div>
+            <div class="text-[10px] text-[var(--ink-muted)]">${pat.updatedAt ? formatRelativeTime(pat.updatedAt) : '更新履歴なし'}・${(pat.items || []).length}件のカード</div>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            ${pat.archived
+              ? `<button onclick="unarchivePatient('${pat.id}')" class="icon-btn-outline" title="復元"><i class="fa-solid fa-box-open"></i></button>`
+              : `<button onclick="archivePatient('${pat.id}')" class="icon-btn-outline" title="アーカイブ"><i class="fa-solid fa-box-archive"></i></button>`}
+            <button onclick="hardDeletePatientFromList('${pat.id}')" class="icon-btn-outline danger" title="完全に削除"><i class="fa-solid fa-trash-can"></i></button>
+          </div>
+        `;
+        frag.appendChild(row);
+      });
+      body.replaceChildren(frag);
+    }
+
+    document.getElementById('btn-patient-list').addEventListener('click', () => {
+      document.getElementById('patient-list-search').value = '';
+      document.getElementById('patient-list-show-archived').checked = false;
+      renderPatientListModal();
+      document.getElementById('modal-patient-list').classList.remove('hidden');
+    });
+    document.getElementById('btn-close-patient-list').addEventListener('click', () => document.getElementById('modal-patient-list').classList.add('hidden'));
+    document.getElementById('patient-list-search').addEventListener('input', renderPatientListModal);
+    document.getElementById('patient-list-sort').addEventListener('change', renderPatientListModal);
+    document.getElementById('patient-list-show-archived').addEventListener('change', renderPatientListModal);
+    document.getElementById('modal-patient-list').addEventListener('click', e => { if (e.target.id === 'modal-patient-list') document.getElementById('modal-patient-list').classList.add('hidden'); });
+
+    // ===== 学習データ管理（パスワード保護） =====
+    // 分類ボード／総合アセスメント表とは別の入り口（ヘッダーの「学習データ管理」ボタン）から、
+    // 全利用者共有の学習内容（learningUserDict）を一覧・編集・削除できるようにする。
+    // 保存・読み込みは個別ファイルを都度作るのではなく、サーバー側の学習専用ファイル
+    // （data/learning-dict.json）に自動で反映される（ページを開いた時に自動読込／変更のたびに自動保存）。
+    const ADMIN_PASSWORD = '1739';
+    // 一度パスワードを通したら、このタブを閉じて新しくページを開き直すまでは再入力を求めない。
+    // （sessionStorageなので、リロードでは保持され、新しいタブ/ウィンドウで開き直すと消える＝再度パスワードが必要）
+    const ADMIN_UNLOCK_KEY = 'nursing_admin_unlocked';
+    const adminPasswordModal = document.getElementById('modal-admin-password');
+    const adminPasswordInput = document.getElementById('input-admin-password');
+    const adminPasswordError = document.getElementById('admin-password-error');
+    const adminModal = document.getElementById('modal-admin');
+
+    function openAdminPasswordModal() {
+      adminPasswordInput.value = '';
+      adminPasswordError.classList.add('hidden');
+      adminPasswordModal.classList.remove('hidden');
+      setTimeout(() => adminPasswordInput.focus(), 30);
+    }
+    function closeAdminPasswordModal() { adminPasswordModal.classList.add('hidden'); }
+    function switchAdminTab(tab) {
+      const isList = tab === 'list';
+      document.getElementById('admin-tab-btn-list').classList.toggle('active', isList);
+      document.getElementById('admin-tab-btn-history').classList.toggle('active', !isList);
+      document.getElementById('admin-panel-list').classList.toggle('hidden', !isList);
+      document.getElementById('admin-panel-list').classList.toggle('flex', isList);
+      document.getElementById('admin-panel-history').classList.toggle('hidden', isList);
+      document.getElementById('admin-panel-history').classList.toggle('flex', !isList);
+      if (!isList) renderAdminHistoryList();
+    }
+    function openAdminPanel() {
+      document.getElementById('admin-learning-search').value = '';
+      document.getElementById('admin-history-search').value = '';
+      renderAdminLearningList();
+      switchAdminTab('list');
+      adminModal.classList.remove('hidden');
+    }
+    function submitAdminPassword() {
+      if (adminPasswordInput.value === ADMIN_PASSWORD) {
+        try { sessionStorage.setItem(ADMIN_UNLOCK_KEY, '1'); } catch (e) { /* 保存できなくても今回のパスワード確認自体は成立させる */ }
+        closeAdminPasswordModal();
+        openAdminPanel();
+      } else {
+        adminPasswordError.classList.remove('hidden');
+        adminPasswordInput.value = '';
+        adminPasswordInput.focus();
+      }
+    }
+
+    document.getElementById('btn-open-admin').addEventListener('click', () => {
+      let unlocked = false;
+      try { unlocked = sessionStorage.getItem(ADMIN_UNLOCK_KEY) === '1'; } catch (e) { unlocked = false; }
+      if (unlocked) openAdminPanel(); else openAdminPasswordModal();
+    });
+    document.getElementById('btn-close-admin-password').addEventListener('click', closeAdminPasswordModal);
+    document.getElementById('btn-cancel-admin-password').addEventListener('click', closeAdminPasswordModal);
+    document.getElementById('btn-submit-admin-password').addEventListener('click', submitAdminPassword);
+    adminPasswordInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitAdminPassword(); } });
+    adminPasswordModal.addEventListener('click', e => { if (e.target === adminPasswordModal) closeAdminPasswordModal(); });
+
+    document.getElementById('btn-close-admin').addEventListener('click', () => adminModal.classList.add('hidden'));
+    adminModal.addEventListener('click', e => { if (e.target === adminModal) adminModal.classList.add('hidden'); });
+    document.getElementById('admin-learning-search').addEventListener('input', renderAdminLearningList);
+    document.getElementById('admin-tab-btn-list').addEventListener('click', () => switchAdminTab('list'));
+    document.getElementById('admin-tab-btn-history').addEventListener('click', () => switchAdminTab('history'));
+    document.getElementById('admin-history-search').addEventListener('input', renderAdminHistoryList);
+
+    function renderAdminLearningList() {
+      const listEl = document.getElementById('admin-learning-list');
+      const countEl = document.getElementById('admin-learning-count');
+      const term = (document.getElementById('admin-learning-search').value || '').trim().toLowerCase();
+      const dict = globalAppData.learningUserDict || {};
+      let entries = Object.entries(dict).filter(([text]) => !!text);
+      if (term) entries = entries.filter(([text]) => text.toLowerCase().includes(term));
+      countEl.textContent = `${entries.length}件（全${Object.keys(dict).length}件）`;
+
+      if (entries.length === 0) {
+        listEl.innerHTML = '<p class="text-xs text-[var(--ink-muted)] text-center py-6">学習データがありません。</p>';
+        return;
+      }
+      const typeColorOf = t => t === 's' ? 'var(--gold)' : (t === 'o' ? 'var(--slate)' : (t === 'unnecessary' ? 'var(--brick)' : 'var(--ink-muted)'));
+      const typeLabelOf = t => t === 's' ? 'S' : (t === 'o' ? 'O' : (t === 'unnecessary' ? '不要' : t));
+
+      const frag = document.createDocumentFragment();
+      entries.forEach(([text, learned]) => {
+        // typeVotes / hendersonVotes（同じ編集が繰り返された回数）があればそれを表示し、
+        // 古い形式のデータ（votesを持たない）は preferredType / preferredHendersonIds をそのまま表示する。
+        const typeVotes = learned?.typeVotes || {};
+        const topType = pickTopVote(typeVotes) || learned?.preferredType || null;
+        const typeEntries = Object.keys(typeVotes).length > 0
+          ? Object.entries(typeVotes).filter(([, c]) => c > 0).sort((a, b) => b[1] - a[1])
+          : (learned?.preferredType ? [[learned.preferredType, 1]] : []);
+        const typeChipsHtml = typeEntries.length > 0
+          ? typeEntries.map(([t, c]) => {
+              const isTop = t === topType;
+              return `<span class="field-chip" style="background:${isTop ? typeColorOf(t) : 'var(--line-soft)'};color:${isTop ? '#fff' : 'var(--ink-muted)'};">${escapeHtml(typeLabelOf(t))}${c > 1 ? ` ×${c}` : ''}</span>`;
+            }).join('')
+          : `<span class="field-chip" style="background:var(--ink-muted);color:#fff;">未設定</span>`;
+
+        const hendersonVotes = learned?.hendersonVotes || {};
+        const tagEntries = Object.keys(hendersonVotes).length > 0
+          ? Object.entries(hendersonVotes).filter(([, c]) => c > 0).sort((a, b) => b[1] - a[1])
+          : (learned?.preferredHendersonIds || []).map(hId => [String(hId), 1]);
+        const tagChipsHtml = tagEntries.map(([hIdStr, c]) => {
+          const name = hendersonNameOf(Number(hIdStr));
+          return `<span class="tag-chip">${escapeHtml(name)}${c > 1 ? ` ×${c}` : ''}</span>`;
+        }).join('');
+
+        const row = document.createElement('div');
+        row.className = 'flex items-start justify-between gap-2 p-2 rounded-[var(--radius-sm)] border border-[var(--line)]';
+        row.innerHTML = `
+          <div class="min-w-0 flex-1">
+            <div class="text-xs text-[var(--ink)] break-words">${escapeHtml(text)}</div>
+            <div class="flex items-center flex-wrap gap-1 mt-1">
+              ${typeChipsHtml}
+              ${tagChipsHtml}
+            </div>
+          </div>
+          <button class="icon-btn-outline danger shrink-0 admin-delete-learning-btn" data-text="${escapeHtml(text)}" title="この学習内容を削除"><i class="fa-solid fa-trash-can"></i></button>
+        `;
+        frag.appendChild(row);
+      });
+      listEl.replaceChildren(frag);
+    }
+
+    async function deleteAdminLearningEntry(text) {
+      const confirmed = await openDialog({ title: 'この学習内容を削除しますか？', message: text, confirmLabel: '削除する', danger: true });
+      if (!confirmed) return;
+      delete globalAppData.learningUserDict[text];
+      saveDataAndSync();
+      reportLearningEvent(text, 'delete', {}); // フォルダ内の学習専用ファイル（data/learning-dict.json）からも削除する
+      renderAdminLearningList();
+      showToast('学習内容を削除しました', 'success');
+    }
+    // クリックされた削除ボタンのdata-text属性から対象を判定する（イベント委譲）。
+    // テキストに引用符等の特殊文字が含まれてもHTML属性が壊れないよう、inline onclickではなくこちらを使う。
+    document.getElementById('admin-learning-list').addEventListener('click', e => {
+      const btn = e.target.closest('.admin-delete-learning-btn');
+      if (btn) deleteAdminLearningEntry(btn.dataset.text);
+    });
+
+    // 学習データの保存・読み込みは、都度ファイルを作る／選ぶのではなく自動化されている：
+    //   ・ページを開いた時：起動時に loadSharedLearningDict() がフォルダ内の学習専用ファイル
+    //     （data/learning-dict.json）からすべてのデータを自動で読み込む。
+    //   ・変更のたびに：分類・タグ付け・削除などの操作ごとに reportLearningEvent() が
+    //     即座にその1ファイルへ反映する（新しいファイルは作らず、同じファイルに追加・削除する）。
+    //   ・ページを閉じる時：beforeunloadで念のためまとめて同期する（通信できていなかった分の保険）。
+
+    // 変更履歴（学習した結果、何がどう変わったか）の表示
+    const ADMIN_ACTION_LABELS = { create: '新規登録', type: '分類変更', tagAdd: 'タグ追加', tagRemove: 'タグ削除', col: '欄の変更', edit: 'テキスト編集', delete: '削除' };
+    const ADMIN_TYPE_LABELS = { s: 'S', o: 'O', unnecessary: '不要', unclassified: '未分類', undefined: '未設定' };
+    function hendersonNameOf(hId) { return HENDERSON_NEEDS.find(n => n.id === hId)?.name || `項目${hId}`; }
+    function assessmentColLabel(col) { return col === 'preadmission' ? '入院前' : (col === 'postadmission' ? '入院後' : (col === 'missing' ? '不足情報' : '未分類')); }
+    function formatHistoryDetail(entry) {
+      const p = entry.payload || {};
+      switch (entry.action) {
+        case 'type': return `${ADMIN_TYPE_LABELS[p.from] || '未設定'} → ${ADMIN_TYPE_LABELS[p.type] || p.type}${p.voteCount > 1 ? `（この選択は${p.voteCount}回目・×${p.voteCount}）` : ''}`;
+        case 'tagAdd': return `「${hendersonNameOf(p.hendersonId)}」を追加${p.voteCount > 1 ? `（×${p.voteCount}）` : ''}`;
+        case 'tagRemove': return `「${hendersonNameOf(p.hendersonId)}」を削除${typeof p.voteCount === 'number' ? `（残り×${p.voteCount}）` : ''}`;
+        case 'col': return `「${hendersonNameOf(p.hendersonId)}」の欄 → ${assessmentColLabel(p.col)}`;
+        case 'edit': return `「${entry.text}」→「${p.newText}」`;
+        case 'create': return `初期分類: ${ADMIN_TYPE_LABELS[p.type] || p.type}${(p.hendersonIds || []).length ? ' / タグ: ' + p.hendersonIds.map(hendersonNameOf).join('、') : ''}`;
+        case 'delete': return '学習内容を削除';
+        default: return JSON.stringify(p);
+      }
+    }
+    function renderAdminHistoryList() {
+      const listEl = document.getElementById('admin-history-list');
+      const countEl = document.getElementById('admin-history-count');
+      const term = (document.getElementById('admin-history-search').value || '').trim().toLowerCase();
+      let entries = learningHistory.slice().reverse(); // 新しい変更を上に表示
+      if (term) entries = entries.filter(e =>
+        e.text.toLowerCase().includes(term) ||
+        formatHistoryDetail(e).toLowerCase().includes(term) ||
+        (ADMIN_ACTION_LABELS[e.action] || e.action).toLowerCase().includes(term)
+      );
+      countEl.textContent = `${entries.length}件（全${learningHistory.length}件）`;
+
+      if (entries.length === 0) {
+        listEl.innerHTML = '<p class="text-xs text-[var(--ink-muted)] text-center py-6">まだ変更履歴がありません。カードのタイプやタグを変更すると、ここに記録されていきます。</p>';
+        return;
+      }
+      const frag = document.createDocumentFragment();
+      entries.forEach(entry => {
+        const time = new Date(entry.at).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        const row = document.createElement('div');
+        row.className = 'flex flex-col gap-0.5 p-2 rounded-[var(--radius-sm)] border border-[var(--line)]';
+        row.innerHTML = `
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="time-chip">${escapeHtml(time)}</span>
+            <span class="tag-chip">${escapeHtml(ADMIN_ACTION_LABELS[entry.action] || entry.action)}</span>
+          </div>
+          <div class="text-[11px] text-[var(--ink-muted)] break-words">${escapeHtml(entry.text)}</div>
+          <div class="text-xs text-[var(--ink)] break-words">${escapeHtml(formatHistoryDetail(entry))}</div>
+        `;
+        frag.appendChild(row);
+      });
+      listEl.replaceChildren(frag);
+    }
+    document.getElementById('btn-admin-clear-history').addEventListener('click', async () => {
+      const confirmed = await openDialog({ title: 'このブラウザに保存されている変更履歴を消去しますか？', message: '現在の学習内容（タグ・分類の状態）自体は消えません。', confirmLabel: '消去する', danger: true });
+      if (!confirmed) return;
+      learningHistory = [];
+      try { localStorage.setItem(LEARNING_HISTORY_KEY, JSON.stringify(learningHistory)); } catch (e) { /* noop */ }
+      renderAdminHistoryList();
+      showToast('変更履歴を消去しました', 'success');
+    });
 
     DOM.tabSoBoard.addEventListener('click', () => switchView('so'));
     DOM.tabAssessment.addEventListener('click', () => switchView('assessment'));
@@ -350,84 +769,94 @@
       if (viewName === 'reference') renderReferenceList();
     }
 
+    // 総合アセスメント表のS/Oバッジから、分類ボード側の同じカードへジャンプして一瞬ハイライトする
+    window.jumpToBoardCard = function(itemId) {
+      switchView('so');
+      requestAnimationFrame(() => {
+        const el = document.getElementById(itemId);
+        if (!el) return;
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('card-flash');
+        setTimeout(() => el.classList.remove('card-flash'), 1600);
+      });
+    };
+
     DOM.sourceText.addEventListener('input', () => saveDataAndSync());
     document.getElementById('btn-load-sample').addEventListener('click', () => { DOM.sourceText.value = SAMPLE_TEXT; saveDataAndSync(); });
 
-    // Googleドキュメント用書き出し機能（未分類も含めて全て見やすく一覧化）
+    // テキスト書き出し機能（未分類も含めて全て見やすく一覧化し、.txtファイルとしてダウンロードする）
+    // AI分析結果はHTML（<br>や<b>タグ）で保持しているため、プレーンテキストに変換してから並べる。
+    function htmlToPlainText(htmlStr) {
+      if (!htmlStr) return '（未実施）';
+      return htmlStr
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+        .split('\n').map(l => l.trim()).filter(Boolean).join('\n');
+    }
+    function docSection(title) { return `\n■ ${title}\n${'-'.repeat(40)}\n`; }
+    function docList(items) { return items.length ? items.map(t => `・${t}`).join('\n') + '\n' : '（登録なし）\n'; }
+
     document.getElementById('btn-export-docs').addEventListener('click', () => {
       const cp = getCurrentPatient();
-      const formatLine = i => `・ [${i.timestamp}]${i.fieldLabel ? ` [${i.fieldLabel}]` : ''} ${i.text}\n`;
-      let docText = `【看護アセスメント・記録整理シート：${cp.title}】\n\n`;
+      const formatLine = i => `[${i.timestamp}]${i.fieldLabel ? ` [${i.fieldLabel}]` : ''} ${i.text}`;
 
-      docText += `■ 1. 検査データ臨床評価・アセスメントノート\n`;
-      docText += (DOM.labEvalContent.innerText || '未評価') + `\n\n`;
+      let body = `看護アセスメント・記録整理シート：${cp.title}\n`;
+      body += `出力日時: ${new Date().toLocaleString('ja-JP')}\n`;
+
+      body += docSection('1. 検査データ臨床評価・アセスメントノート');
+      body += htmlToPlainText(DOM.labEvalContent.innerHTML) + '\n';
 
       const structuredItems = cp.items.filter(i => i.type !== 'unnecessary' && i.fieldLabel);
       if (structuredItems.length > 0) {
-        docText += `■ 2. 現病歴・既往歴・診断名・保険等\n`;
+        body += docSection('2. 現病歴・既往歴・診断名・保険等');
+        const lines = [];
         FIELD_LABELS.forEach(f => {
-          const matching = structuredItems.filter(i => i.fieldLabel === f.key);
-          matching.forEach(i => docText += `・ [${f.label}] ${i.text}\n`);
+          structuredItems.filter(i => i.fieldLabel === f.key).forEach(i => lines.push(`[${f.label}] ${i.text}`));
         });
-        docText += `\n`;
+        body += docList(lines);
       }
 
-      docText += `■ 3. 主観的情報 (Sデータ)\n`;
-      const sItems = cp.items.filter(i => i.type === 's');
-      if (sItems.length > 0) {
-        sItems.forEach(i => docText += formatLine(i));
-      } else {
-        docText += `（登録なし）\n`;
-      }
-      docText += `\n`;
+      body += docSection('3. 主観的情報（Sデータ）');
+      body += docList(cp.items.filter(i => i.type === 's').map(formatLine));
 
-      docText += `■ 4. 客観的情報 (Oデータ)\n`;
-      const oItems = cp.items.filter(i => i.type === 'o');
-      if (oItems.length > 0) {
-        oItems.forEach(i => docText += formatLine(i));
-      } else {
-        docText += `（登録なし）\n`;
-      }
-      docText += `\n`;
+      body += docSection('4. 客観的情報（Oデータ）');
+      body += docList(cp.items.filter(i => i.type === 'o').map(formatLine));
 
-      docText += `■ 5. 未分類のカード\n`;
-      const unclassifiedItems = cp.items.filter(i => i.type === 'unclassified');
-      if (unclassifiedItems.length > 0) {
-        unclassifiedItems.forEach(i => docText += formatLine(i));
-      } else {
-        docText += `（未分類のカードはありません）\n`;
-      }
-      docText += `\n`;
+      body += docSection('5. 未分類のカード');
+      body += docList(cp.items.filter(i => i.type === 'unclassified').map(formatLine));
 
-      docText += `■ 6. ヘンダーソン14項目別アセスメント整理\n`;
+      body += docSection('6. ヘンダーソン14項目別アセスメント整理');
       HENDERSON_NEEDS.forEach(need => {
         const matching = cp.items.filter(i => i.type !== 'unnecessary' && i.hendersonIds?.includes(need.id));
-        if (matching.length > 0) {
-          docText += `【${need.name}】\n`;
-          matching.forEach(i => {
-            const col = i.assessmentCols?.[need.id] || 'unclassified';
-            const colName = col === 'preadmission' ? '入院前' : (col === 'postadmission' ? '入院後' : (col === 'missing' ? '不足情報' : '未分類'));
-            docText += `  - [${colName}] [${i.type.toUpperCase()}]${i.fieldLabel ? ` [${i.fieldLabel}]` : ''}${i.aiSuggested ? ` [AI推定]` : ''} ${i.text}\n`;
-          });
-        }
+        if (matching.length === 0) return;
+        body += `\n【${need.name}】\n`;
+        body += docList(matching.map(i => {
+          const col = i.assessmentCols?.[need.id] || 'unclassified';
+          const colName = col === 'preadmission' ? '入院前' : (col === 'postadmission' ? '入院後' : (col === 'missing' ? '不足情報' : '未分類'));
+          return `[${colName}] [${i.type.toUpperCase()}]${i.fieldLabel ? ` [${i.fieldLabel}]` : ''}${i.aiSuggested ? ' [AI推定]' : ''} ${i.text}`;
+        }));
       });
+
+      // AI分析ツールの結果（実施済みのものだけ載せる）
+      if (cp.contradictionResult) { body += docSection('7. S/O矛盾チェック結果（AI）'); body += htmlToPlainText(cp.contradictionResult) + '\n'; }
+      if (cp.diagnosisResult) { body += docSection('8. 看護診断候補（AI提案）'); body += htmlToPlainText(cp.diagnosisResult) + '\n'; }
+      if (cp.timelineResult) { body += docSection('9. 経時変化サマリー（AI）'); body += htmlToPlainText(cp.timelineResult) + '\n'; }
 
       const notes = cp.referenceNotes || [];
       if (notes.length > 0) {
-        docText += `\n■ 7. 参考データ\n`;
-        notes.forEach(n => docText += `【${n.title}】\n${n.text}\n\n`);
+        body += docSection('10. 参考データ');
+        notes.forEach(n => { body += `\n【${n.title}】\n${n.text}\n`; });
       }
 
-      navigator.clipboard.writeText(docText).then(() => {
-        showToast('Googleドキュメント向けのレイアウトでクリップボードにコピーしました！', 'success');
-      }).catch(() => {
-        const blob = new Blob([docText], { type: 'text/plain;charset=utf-8' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `${cp.title}_看護アセスメント.txt`;
-        a.click();
-        showToast('テキストファイルをダウンロードしました', 'success');
-      });
+      const safeTitle = (cp.title || 'カルテ').replace(/[\\/:*?"<>|]/g, '_');
+      const blob = new Blob([body], { type: 'text/plain;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${safeTitle}_看護アセスメント.txt`;
+      a.click();
+      showToast('テキストファイル（.txt）を自動ダウンロードしました。Googleドキュメントでも「ファイル→開く→アップロード」でそのまま開けます', 'success');
     });
 
     function detectMultipleHendersonTags(text) {
@@ -768,6 +1197,130 @@ ${labTexts || '(なし)'}
       }
     };
 
+    // AI分析ツールのドロップダウンメニュー開閉
+    const aiToolsToggle = document.getElementById('btn-ai-tools-toggle');
+    if (aiToolsToggle) {
+      aiToolsToggle.addEventListener('click', e => {
+        e.stopPropagation();
+        document.getElementById('ai-tools-menu').classList.toggle('hidden');
+      });
+      document.addEventListener('click', e => {
+        const menu = document.getElementById('ai-tools-menu');
+        if (menu && !menu.classList.contains('hidden') && !e.target.closest('#ai-tools-menu') && !e.target.closest('#btn-ai-tools-toggle')) menu.classList.add('hidden');
+      });
+    }
+    window.closeAiToolsMenu = () => document.getElementById('ai-tools-menu')?.classList.add('hidden');
+
+    // 「S/O矛盾チェック」：SデータとOデータの間で内容が食い違っていないかをAIに確認してもらう
+    window.checkContradictionsAI = async function() {
+      const cp = getCurrentPatient();
+      const activeItems = cp.items.filter(i => i.type === 's' || i.type === 'o');
+      const panel = document.getElementById('contradiction-panel');
+      const content = document.getElementById('contradiction-content');
+      if (activeItems.length < 2) return showToast('S/Oのカードが少ないためチェックできません', 'error');
+      panel.classList.remove('hidden');
+      content.innerHTML = `<div class="flex items-center text-[var(--ink-muted)]"><i class="fa-solid fa-spinner fa-spin mr-2"></i> S/Oデータの矛盾を確認中...</div>`;
+      if (!globalAppData.apiKey) {
+        content.innerHTML = `<span class="text-[var(--ink-muted)]">この機能はAPIキー設定時のみ利用できます（「API設定」からGemini APIキーを登録してください）。</span>`;
+        return;
+      }
+      const list = activeItems.map(i => `[${i.type.toUpperCase()}] [${i.timestamp}] ${i.text}`).join('\n');
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${globalAppData.apiKey}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: `あなたは熟練した看護師長です。以下は患者のSデータ（主観的情報＝患者の発言）とOデータ（客観的情報＝観察所見・検査値）の一覧です。SデータとOデータの間で内容が食い違っている、あるいは併せて考えると注意が必要な組み合わせがあれば指摘してください。矛盾が見当たらない場合はその旨を一言述べてください。\n\n【S/Oデータ一覧】\n${list}\n\n出力は簡潔な箇条書きで、根拠となった発言・所見を引用しながら記述してください。強調したい語のみ太字(**語**)にし、それ以外の記号は使わないでください。` }] }] })
+        });
+        if (!res.ok) throw new Error(`Gemini API error (HTTP ${res.status})`);
+        const data = await res.json();
+        const resultText = (data.candidates?.[0]?.content?.parts?.[0]?.text || '結果を取得できませんでした。').replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+        content.innerHTML = resultText;
+        cp.contradictionResult = resultText;
+        saveDataAndSync();
+        showToast('矛盾チェックが完了しました', 'success');
+      } catch (err) {
+        console.warn('Contradiction check error:', err);
+        content.innerHTML = `<span class="text-[var(--brick)]">チェック中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。</span>`;
+        showToast('矛盾チェックに失敗しました', 'error');
+      }
+    };
+
+    // 「看護診断候補を提案」：ヘンダーソン項目別のアセスメント内容から看護診断の候補をAIに挙げてもらう
+    window.suggestNursingDiagnosesAI = async function() {
+      const cp = getCurrentPatient();
+      const activeItems = cp.items.filter(i => i.type !== 'unnecessary');
+      const panel = document.getElementById('diagnosis-panel');
+      const content = document.getElementById('diagnosis-content');
+      if (activeItems.length === 0) return showToast('カードがありません。先にカルテを分類してください', 'error');
+      panel.classList.remove('hidden');
+      content.innerHTML = `<div class="flex items-center text-[var(--ink-muted)]"><i class="fa-solid fa-spinner fa-spin mr-2"></i> アセスメント内容から看護診断候補を検討中...</div>`;
+      if (!globalAppData.apiKey) {
+        content.innerHTML = `<span class="text-[var(--ink-muted)]">この機能はAPIキー設定時のみ利用できます（「API設定」からGemini APIキーを登録してください）。</span>`;
+        return;
+      }
+      const perNeedText = HENDERSON_NEEDS.map(need => {
+        const matching = activeItems.filter(i => i.hendersonIds?.includes(need.id));
+        if (matching.length === 0) return null;
+        return `${need.name}\n` + matching.map(i => `- [${i.type.toUpperCase()}] ${i.text}`).join('\n');
+      }).filter(Boolean).join('\n\n');
+      if (!perNeedText) { content.innerHTML = `<span class="text-[var(--ink-muted)]">ヘンダーソンタグが付いたカードがありません。先にタグ付けしてください。</span>`; return; }
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${globalAppData.apiKey}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: `あなたは熟練した看護師長・指導者です。以下はヘンダーソン14の基本的欲求ごとに整理された患者のアセスメント情報です。この内容から、想定される看護診断の候補を優先度が高いと思われる順に2〜4個程度提案してください。各候補には診断名・関連するアセスメント根拠・簡単な理由を含めてください。\n\n【ヘンダーソン項目別アセスメント情報】\n${perNeedText}\n\n出力は簡潔な箇条書きで、診断名のみ太字(**診断名**)で示してください。` }] }] })
+        });
+        if (!res.ok) throw new Error(`Gemini API error (HTTP ${res.status})`);
+        const data = await res.json();
+        const resultText = (data.candidates?.[0]?.content?.parts?.[0]?.text || '結果を取得できませんでした。').replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+        content.innerHTML = resultText;
+        cp.diagnosisResult = resultText;
+        saveDataAndSync();
+        showToast('看護診断候補の提案が完了しました', 'success');
+      } catch (err) {
+        console.warn('Diagnosis suggestion error:', err);
+        content.innerHTML = `<span class="text-[var(--brick)]">生成中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。</span>`;
+        showToast('看護診断候補の生成に失敗しました', 'error');
+      }
+    };
+
+    // 「経時変化サマリー」：入院前後で記録がどう変化したかをヘンダーソン項目ごとにAIが要約する
+    window.generateTimelineSummaryAI = async function() {
+      const cp = getCurrentPatient();
+      const activeItems = cp.items.filter(i => i.type !== 'unnecessary');
+      const panel = document.getElementById('timeline-panel');
+      const content = document.getElementById('timeline-content');
+      panel.classList.remove('hidden');
+      content.innerHTML = `<div class="flex items-center text-[var(--ink-muted)]"><i class="fa-solid fa-spinner fa-spin mr-2"></i> 入院前後の変化を要約中...</div>`;
+      if (!globalAppData.apiKey) {
+        content.innerHTML = `<span class="text-[var(--ink-muted)]">この機能はAPIキー設定時のみ利用できます（「API設定」からGemini APIキーを登録してください）。</span>`;
+        return;
+      }
+      const perNeedText = HENDERSON_NEEDS.map(need => {
+        const matching = activeItems.filter(i => i.hendersonIds?.includes(need.id));
+        const pre = matching.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === 'preadmission').map(i => i.text);
+        const post = matching.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === 'postadmission').map(i => i.text);
+        if (pre.length === 0 && post.length === 0) return null;
+        return `${need.name}\n入院前: ${pre.join(' / ') || '(記録なし)'}\n入院後: ${post.join(' / ') || '(記録なし)'}`;
+      }).filter(Boolean).join('\n\n');
+      if (!perNeedText) { content.innerHTML = `<span class="text-[var(--ink-muted)]">入院前・入院後に振り分けられたカードがありません。総合アセスメント表で「前」「後」に分類してください。</span>`; return; }
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${globalAppData.apiKey}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: `あなたは熟練した看護師です。以下はヘンダーソン14の基本的欲求ごとの、入院前と入院後の記録の比較です。項目ごとに入院前後でどのように変化したかを簡潔にまとめてください。変化が読み取れない項目は省略して構いません。\n\n${perNeedText}\n\n出力は項目名のみ太字(**項目名**)にした簡潔な箇条書きでお願いします。` }] }] })
+        });
+        if (!res.ok) throw new Error(`Gemini API error (HTTP ${res.status})`);
+        const data = await res.json();
+        const resultText = (data.candidates?.[0]?.content?.parts?.[0]?.text || '結果を取得できませんでした。').replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+        content.innerHTML = resultText;
+        cp.timelineResult = resultText;
+        saveDataAndSync();
+        showToast('経時変化サマリーを生成しました', 'success');
+      } catch (err) {
+        console.warn('Timeline summary error:', err);
+        content.innerHTML = `<span class="text-[var(--brick)]">生成中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。</span>`;
+        showToast('経時変化サマリーの生成に失敗しました', 'error');
+      }
+    };
+
     // 不足情報欄にAI推定カードを1件追加する共通処理（AI推定であることが分かるよう aiSuggested フラグを付ける）
     function pushMissingInfoCard(hendersonId, text) {
       const cp = getCurrentPatient();
@@ -788,7 +1341,8 @@ ${labTexts || '(なし)'}
     function renderSoBoard() {
       const cp = getCurrentPatient();
       const columns = { unclassified: document.createDocumentFragment(), s: document.createDocumentFragment(), o: document.createDocumentFragment(), unnecessary: document.createDocumentFragment() };
-      const counts = { unclassified: 0, s: 0, o: 0 };
+      const totalCounts = { unclassified: 0, s: 0, o: 0 };
+      const shownCounts = { unclassified: 0, s: 0, o: 0 };
 
       // タグ未設定のカードを列の先頭に浮上させ、編集しやすくする（未設定同士・設定済み同士の並び順は維持）
       const sortedItems = cp.items
@@ -800,12 +1354,17 @@ ${labTexts || '(なし)'}
         .map(x => x.item);
 
       sortedItems.forEach(item => {
+        if (item.type !== 'unnecessary') totalCounts[item.type]++;
+        if (!itemMatchesSearch(item, boardSearchTerm)) return; // 検索語に一致しないカードは列に表示しない
         columns[item.type].appendChild(createCardElement(item));
-        if (item.type !== 'unnecessary') counts[item.type]++;
+        if (item.type !== 'unnecessary') shownCounts[item.type]++;
       });
 
       Object.keys(columns).forEach(key => document.getElementById(`col-${key}`).replaceChildren(columns[key]));
-      ['unclassified', 's', 'o'].forEach(key => document.getElementById(`badge-count-${key}`).textContent = counts[key]);
+      ['unclassified', 's', 'o'].forEach(key => {
+        document.getElementById(`badge-count-${key}`).textContent = boardSearchTerm ? `${shownCounts[key]}/${totalCounts[key]}` : totalCounts[key];
+      });
+      renderBulkActionBar();
     }
 
     function createCardElement(item) {
@@ -813,10 +1372,17 @@ ${labTexts || '(なし)'}
       card.id = item.id;
       card.draggable = true;
       const isUntagged = isUntaggedItem(item);
-      card.className = `rec-card active:cursor-grabbing relative group ${item.type === 'unnecessary' ? 'opacity-60 line-through text-[var(--ink-muted)]' : ''}`;
-      if (isUntagged) card.style.cssText = 'border:1.5px solid var(--brick);background:var(--brick-soft);';
+      const isSelected = selectedCardIds.has(item.id);
+      card.className = `rec-card cursor-pointer active:cursor-grabbing relative group ${item.type === 'unnecessary' ? 'opacity-60 line-through text-[var(--ink-muted)]' : ''} ${isSelected ? 'card-selected' : ''}`;
+      if (isUntagged && !isSelected) card.style.cssText = 'border:1.5px solid var(--brick);background:var(--brick-soft);';
       card.ondragstart = e => { e.dataTransfer.setData('text/plain', item.id); card.classList.add('card-dragging'); };
       card.ondragend = () => card.classList.remove('card-dragging');
+      // カードクリックで選択（数字キーでのタグ追加対象にする）。Ctrl/Cmdクリックで複数選択に追加。
+      // ボタン・セレクト等の操作要素の上でのクリックは選択に影響させない。
+      card.addEventListener('click', e => {
+        if (e.target.closest('button, select, a, input')) return;
+        toggleCardSelection(item.id, e.ctrlKey || e.metaKey || e.shiftKey);
+      });
 
       const tagsHtml = (item.hendersonIds || []).map(hId => {
         const need = HENDERSON_NEEDS.find(n => n.id === hId);
@@ -851,6 +1417,104 @@ ${labTexts || '(なし)'}
       return card;
     }
 
+    // ==========================================================================
+    // 分類ボード：カード選択・数字キーでのタグ追加・複数選択一括操作
+    // ==========================================================================
+    let selectedCardIds = new Set();
+    let boardSearchTerm = '';
+
+    function toggleCardSelection(id, additive) {
+      if (!additive) {
+        // 単独クリック: 同じカードだけが選択されていれば選択解除、それ以外は単独選択に切り替える
+        if (selectedCardIds.size === 1 && selectedCardIds.has(id)) selectedCardIds.clear();
+        else { selectedCardIds.clear(); selectedCardIds.add(id); }
+      } else {
+        if (selectedCardIds.has(id)) selectedCardIds.delete(id); else selectedCardIds.add(id);
+      }
+      renderSoBoard();
+    }
+    window.clearSelection = function() { selectedCardIds.clear(); renderSoBoard(); };
+
+    function renderBulkActionBar() {
+      const bar = document.getElementById('bulk-action-bar');
+      if (!bar) return;
+      if (selectedCardIds.size === 0) { bar.classList.add('hidden'); return; }
+      bar.classList.remove('hidden');
+      document.getElementById('bulk-action-count').textContent = `${selectedCardIds.size}件選択中`;
+    }
+
+    window.bulkSetType = function(type) {
+      const cp = getCurrentPatient();
+      let count = 0;
+      cp.items.forEach(i => { if (selectedCardIds.has(i.id)) { i.type = type; count++; } });
+      selectedCardIds.clear();
+      saveDataAndSync();
+      showToast(`${count}件を変更しました`, 'success');
+    };
+
+    window.bulkAddTag = function(hIdStr) {
+      if (!hIdStr) return;
+      const hId = parseInt(hIdStr, 10);
+      const cp = getCurrentPatient();
+      let count = 0;
+      cp.items.forEach(i => {
+        if (selectedCardIds.has(i.id)) {
+          if (!(i.hendersonIds || (i.hendersonIds = [])).includes(hId)) { i.hendersonIds.push(hId); (i.assessmentCols = i.assessmentCols || {})[hId] = 'unclassified'; }
+          count++;
+        }
+      });
+      saveDataAndSync();
+      showToast(`${count}件に「${HENDERSON_NEEDS.find(n => n.id === hId)?.name.replace(/^\d+\.\s*/, '')}」タグを追加しました`, 'success');
+    };
+
+    // 分類ボード内のカード検索（本文・時刻・付与済みタグ名で絞り込み）
+    function itemMatchesSearch(item, term) {
+      if (!term) return true;
+      const t = term.toLowerCase();
+      if ((item.text || '').toLowerCase().includes(t)) return true;
+      if (item.timestamp && item.timestamp.toLowerCase().includes(t)) return true;
+      const tagNames = (item.hendersonIds || []).map(hId => HENDERSON_NEEDS.find(n => n.id === hId)?.name || '').join(' ');
+      return tagNames.toLowerCase().includes(t);
+    }
+
+    const boardSearchInput = document.getElementById('board-search');
+    if (boardSearchInput) boardSearchInput.addEventListener('input', e => { boardSearchTerm = e.target.value.trim(); renderSoBoard(); });
+
+    // タグ選択肢を一括操作バーに反映（ヘンダーソン14項目は固定なので起動時に一度だけ）
+    const bulkTagSelect = document.getElementById('bulk-tag-select');
+    if (bulkTagSelect) HENDERSON_NEEDS.forEach(n => {
+      const opt = document.createElement('option');
+      opt.value = n.id;
+      opt.textContent = n.name;
+      bulkTagSelect.appendChild(opt);
+    });
+
+    // カードを1件だけ選択している状態で数字キーを押すと、その数字をヘンダーソン番号としてタグ付けする
+    // （0.5秒以内に2桁目が来れば10〜14として扱う。入力欄にフォーカスがある間や、分類ボード非表示時は無効）
+    let keyBuffer = '';
+    let keyBufferTimeout = null;
+    document.addEventListener('keydown', e => {
+      const activeTag = document.activeElement?.tagName;
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') return;
+      if (!DOM.viewSoBoard || DOM.viewSoBoard.classList.contains('hidden')) return;
+      if (e.key === 'Escape' && selectedCardIds.size > 0) { selectedCardIds.clear(); renderSoBoard(); return; }
+      if (selectedCardIds.size !== 1) return;
+      if (/^[0-9]$/.test(e.key)) {
+        keyBuffer += e.key;
+        clearTimeout(keyBufferTimeout);
+        keyBufferTimeout = setTimeout(() => {
+          const hId = parseInt(keyBuffer, 10);
+          keyBuffer = '';
+          if (hId >= 1 && hId <= 14) {
+            const id = [...selectedCardIds][0];
+            window.addHendersonTag(id, String(hId));
+            showToast(`「${HENDERSON_NEEDS.find(n => n.id === hId)?.name.replace(/^\d+\.\s*/, '')}」タグを追加しました（数字キー）`, 'success');
+          }
+        }, 500);
+        e.preventDefault();
+      }
+    });
+
     window.editItemText = async function(id) {
       const item = getCurrentPatient().items.find(i => i.id === id);
       if (!item) return;
@@ -870,10 +1534,13 @@ ${labTexts || '(なし)'}
       const hId = parseInt(hIdStr, 10), item = getCurrentPatient().items.find(i => i.id === id);
       if (item && !(item.hendersonIds || (item.hendersonIds = [])).includes(hId)) {
         item.hendersonIds.push(hId); item.assessmentCols[hId] = 'unclassified';
+        // 「同じタグ付けが何回選ばれたか」を票として数え、票のあるタグ（0票超）を優先タグとして扱う
         const learned = globalAppData.learningUserDict[item.text] = { ...globalAppData.learningUserDict[item.text] };
-        learned.preferredHendersonIds = Array.from(new Set([...(learned.preferredHendersonIds || []), hId]));
+        learned.hendersonVotes = { ...(learned.hendersonVotes || {}) };
+        learned.hendersonVotes[hId] = (learned.hendersonVotes[hId] || 0) + 1;
+        learned.preferredHendersonIds = Object.entries(learned.hendersonVotes).filter(([, c]) => c > 0).map(([k]) => Number(k));
         saveDataAndSync();
-        reportLearningEvent(item.text, 'tagAdd', { hendersonId: hId });
+        reportLearningEvent(item.text, 'tagAdd', { hendersonId: hId, voteCount: learned.hendersonVotes[hId] });
       }
     };
 
@@ -883,35 +1550,67 @@ ${labTexts || '(なし)'}
         item.hendersonIds = item.hendersonIds.filter(idNum => idNum !== hId);
         delete item.assessmentCols[hId];
         const learned = globalAppData.learningUserDict[item.text] = { ...globalAppData.learningUserDict[item.text] };
-        learned.preferredHendersonIds = (learned.preferredHendersonIds || []).filter(idNum => idNum !== hId);
+        learned.hendersonVotes = { ...(learned.hendersonVotes || {}) };
+        learned.hendersonVotes[hId] = Math.max(0, (learned.hendersonVotes[hId] || 0) - 1);
+        learned.preferredHendersonIds = Object.entries(learned.hendersonVotes).filter(([, c]) => c > 0).map(([k]) => Number(k));
         saveDataAndSync();
-        reportLearningEvent(item.text, 'tagRemove', { hendersonId: hId });
+        reportLearningEvent(item.text, 'tagRemove', { hendersonId: hId, voteCount: learned.hendersonVotes[hId] });
       }
     };
 
     window.setItemType = function(id, type) {
       const item = getCurrentPatient().items.find(i => i.id === id);
       if (item) {
+        const prevType = item.type;
         item.type = type;
-        globalAppData.learningUserDict[item.text] = { ...globalAppData.learningUserDict[item.text], preferredType: type };
-        saveDataAndSync();
         if (type !== 'unnecessary') {
-          showToast(`分類(${type})を学習しました`);
-          reportLearningEvent(item.text, 'type', { type }); // 全利用者で共有する学習データとして送信（研究用途のため本文も含む）
+          // 「不要」判定は分類の学習には数えない（S/Oどちらでもない一時的な判断のため）。
+          // 同じ文章に同じ分類（S/O等）が繰り返し選ばれた回数を票として数え、最多得票を優先分類にする。
+          const learned = globalAppData.learningUserDict[item.text] = { ...globalAppData.learningUserDict[item.text] };
+          learned.typeVotes = { ...(learned.typeVotes || {}) };
+          learned.typeVotes[type] = (learned.typeVotes[type] || 0) + 1;
+          learned.preferredType = pickTopVote(learned.typeVotes);
+          saveDataAndSync();
+          const voteCount = learned.typeVotes[type];
+          showToast(`分類(${type})を学習しました${voteCount > 1 ? `（×${voteCount}）` : ''}`);
+          reportLearningEvent(item.text, 'type', { type, from: prevType, voteCount }); // 全利用者で共有する学習データとして送信（研究用途のため本文も含む）
+        } else {
+          saveDataAndSync();
+          const patId = getCurrentPatient().id;
+          showUndoToast('不要判定にしました', () => {
+            const p = globalAppData.patients.find(x => x.id === patId);
+            const it = p?.items.find(i => i.id === id);
+            if (it) it.type = prevType;
+          });
         }
       }
     };
 
     window.deleteItem = function(id) {
       const cp = getCurrentPatient();
-      cp.items = cp.items.filter(i => i.id !== id);
+      const idx = cp.items.findIndex(i => i.id === id);
+      if (idx === -1) return;
+      const [removed] = cp.items.splice(idx, 1);
+      const patId = cp.id;
+      selectedCardIds.delete(id);
       saveDataAndSync();
+      showUndoToast('カードを削除しました', () => {
+        const p = globalAppData.patients.find(x => x.id === patId);
+        if (p) p.items.splice(Math.min(idx, p.items.length), 0, removed);
+      });
     };
 
     window.clearUnnecessary = function() {
       const cp = getCurrentPatient();
+      const removed = cp.items.filter(i => i.type === 'unnecessary');
+      if (removed.length === 0) return showToast('不要な情報はありません', 'info');
       cp.items = cp.items.filter(i => i.type !== 'unnecessary');
-      saveDataAndSync(); showToast('不必要な情報を全消去しました');
+      const patId = cp.id;
+      saveDataAndSync();
+      showUndoToast(`不要な情報を${removed.length}件消去しました`, () => {
+        const p = globalAppData.patients.find(x => x.id === patId);
+        if (p) p.items.push(...removed);
+      });
     };
 
     window.allowDrop = e => e.preventDefault();
@@ -962,6 +1661,32 @@ ${labTexts || '(なし)'}
         frag.appendChild(tr);
       });
       document.getElementById('assessment-tbody').replaceChildren(frag);
+      renderAssessmentProgress(activeItems);
+    }
+
+    // ヘンダーソン14項目のうち「情報あり」「不足情報あり」「未入力」がそれぞれ何件かを
+    // セグメント帯（14マス）とサマリー文で表示する
+    function renderAssessmentProgress(activeItems) {
+      const bar = document.getElementById('assessment-progress-bar');
+      const summary = document.getElementById('assessment-progress-summary');
+      if (!bar || !summary) return;
+      let ok = 0, missing = 0, empty = 0;
+      const frag = document.createDocumentFragment();
+      HENDERSON_NEEDS.forEach(need => {
+        const matching = activeItems.filter(i => i.hendersonIds?.includes(need.id));
+        let state = 'empty';
+        if (matching.length > 0) {
+          state = matching.some(i => (i.assessmentCols?.[need.id] || 'unclassified') === 'missing') ? 'missing' : 'ok';
+        }
+        if (state === 'ok') ok++; else if (state === 'missing') missing++; else empty++;
+        const seg = document.createElement('div');
+        seg.className = 'h-2 rounded-[3px] flex-1';
+        seg.title = `${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}：${state === 'ok' ? '情報あり' : state === 'missing' ? '不足情報あり' : '未入力'}`;
+        seg.style.background = state === 'ok' ? 'var(--accent)' : state === 'missing' ? 'var(--brick)' : 'var(--line)';
+        frag.appendChild(seg);
+      });
+      bar.replaceChildren(frag);
+      summary.textContent = `情報あり ${ok}/14　不足あり ${missing}件　未入力 ${empty}件`;
     }
 
     function renderAssessmentCellCard(item, hId, seqLabel) {
@@ -969,10 +1694,11 @@ ${labTexts || '(なし)'}
       const isS = item.type === 's';
       const isO = item.type === 'o';
       // Sは金、Oは藍と色分けし、通し番号(S-1/O-2等)を太字ラベルで表示。カード左端にも同色のバーを付けて色でも一目で判別できるようにする
+      // バッジをクリックすると分類ボード側の該当カードへジャンプ・ハイライトする
       const badge = isS
-        ? `<span class="px-1.5 py-[1px] rounded-[var(--radius-sm)] font-bold text-[9px] tracking-tight" style="background:var(--gold);color:#fff;">${seqLabel || 'S'}</span>`
+        ? `<span onclick="jumpToBoardCard('${item.id}')" class="px-1.5 py-[1px] rounded-[var(--radius-sm)] font-bold text-[9px] tracking-tight cursor-pointer" title="分類ボードの該当カードを表示" style="background:var(--gold);color:#fff;">${seqLabel || 'S'}</span>`
         : (isO
-          ? `<span class="px-1.5 py-[1px] rounded-[var(--radius-sm)] font-bold text-[9px] tracking-tight" style="background:var(--slate);color:#fff;">${seqLabel || 'O'}</span>`
+          ? `<span onclick="jumpToBoardCard('${item.id}')" class="px-1.5 py-[1px] rounded-[var(--radius-sm)] font-bold text-[9px] tracking-tight cursor-pointer" title="分類ボードの該当カードを表示" style="background:var(--slate);color:#fff;">${seqLabel || 'O'}</span>`
           : '');
       const cardBg = isS ? 'var(--gold-soft)' : (isO ? 'var(--slate-soft)' : 'var(--surface)');
       const accentColor = isS ? 'var(--gold)' : (isO ? 'var(--slate)' : 'var(--line)');
@@ -1107,8 +1833,16 @@ ${labTexts || '(なし)'}
       const confirmed = await openDialog({ title: '参考データを削除しますか？', confirmLabel: '削除する', danger: true });
       if (!confirmed) return;
       const cp = getCurrentPatient();
-      cp.referenceNotes = (cp.referenceNotes || []).filter(n => n.id !== id);
-      saveDataAndSync(); showToast('参考データを削除しました');
+      cp.referenceNotes = cp.referenceNotes || [];
+      const idx = cp.referenceNotes.findIndex(n => n.id === id);
+      if (idx === -1) return;
+      const [removed] = cp.referenceNotes.splice(idx, 1);
+      const patId = cp.id;
+      saveDataAndSync();
+      showUndoToast('参考データを削除しました', () => {
+        const p = globalAppData.patients.find(x => x.id === patId);
+        if (p) { p.referenceNotes = p.referenceNotes || []; p.referenceNotes.splice(Math.min(idx, p.referenceNotes.length), 0, removed); }
+      });
     };
 
     const referenceOcrInput = document.getElementById('reference-ocr-input');
@@ -1161,7 +1895,7 @@ ${labTexts || '(なし)'}
             if (parsed.learningUserDict) globalAppData.learningUserDict = parsed.learningUserDict;
             // notebookContent は編集不可の固定基準のため、読み込みファイルの値では上書きしない
           } else if (Array.isArray(parsed)) {
-            globalAppData.patients = [{ id: 'patient_1', title: '読み込みデータ', items: parsed, sourceText: '', labEvaluationResult: '', referenceNotes: [] }];
+            globalAppData.patients = [{ id: 'patient_1', title: '読み込みデータ', items: parsed, sourceText: '', labEvaluationResult: '', referenceNotes: [], archived: false, updatedAt: null }];
             globalAppData.currentPatientId = 'patient_1';
           }
           persistData(); loadLocalState(); showToast('データを読み込みました', 'success');
@@ -1178,8 +1912,13 @@ ${labTexts || '(なし)'}
     document.getElementById('btn-close-settings').addEventListener('click', () => document.getElementById('modal-settings').classList.add('hidden'));
     document.getElementById('btn-save-settings').addEventListener('click', () => { globalAppData.apiKey = document.getElementById('input-api-key').value.trim(); localStorage.setItem('gemini_api_key', globalAppData.apiKey); document.getElementById('modal-settings').classList.add('hidden'); showToast('設定を保存しました', 'success'); });
     window.resetLearningData = async () => {
-      const confirmed = await openDialog({ title: 'ローカルの学習データをリセットしますか？', message: 'このブラウザに保存されているS/O振り分け等の学習キャッシュを消去します（全利用者共有の学習データはサーバー側に残ります）。この操作は元に戻せません。', confirmLabel: 'リセットする', danger: true });
-      if (confirmed) { globalAppData.learningUserDict = {}; saveDataAndSync(); showToast('ローカルの学習データをリセットしました'); }
+      const confirmed = await openDialog({ title: '今の画面の学習内容をリセットしますか？', message: '現在表示されているS/O振り分け等の学習内容をこの画面上から消去します（元に戻すにはページを再度開いてください）。', confirmLabel: 'リセットする', danger: true });
+      if (confirmed) {
+        const old = globalAppData.learningUserDict;
+        globalAppData.learningUserDict = {};
+        saveDataAndSync();
+        showUndoToast('学習データをリセットしました', () => { globalAppData.learningUserDict = old; });
+      }
     };
 
     const ocrDropzone = document.getElementById('ocr-dropzone'), ocrFileInput = document.getElementById('ocr-file-input');
@@ -1214,6 +1953,27 @@ ${labTexts || '(なし)'}
       };
       reader.readAsDataURL(file);
     }
+
+    // カルテ内容はタブを閉じると消える（sessionStorageのため）。何か入力・登録済みの状態でタブを
+    // 閉じよう／離脱しようとした場合は、ブラウザ標準の確認ダイアログで一声かける。
+    // あわせて、学習内容（learningUserDict）をフォルダ内の学習専用ファイル（data/learning-dict.json）に
+    // 念のためまとめて同期しておく。通常は変更のたびに即座に送信済みだが、通信できていなかった分の保険。
+    window.addEventListener('beforeunload', e => {
+      try {
+        const blob = new Blob([JSON.stringify(globalAppData.learningUserDict)], { type: 'application/json' });
+        navigator.sendBeacon(`${API_BASE}/learning-dict/sync`, blob);
+      } catch (err) { /* サーバー未接続などの場合は何もしない（ブラウザ内学習には影響なし） */ }
+
+      const hasData = globalAppData.patients.some(p =>
+        (p.items && p.items.length > 0) ||
+        (p.referenceNotes && p.referenceNotes.length > 0) ||
+        (p.sourceText && p.sourceText.trim().length > 0)
+      );
+      if (hasData) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
 
     loadLocalState();
     loadSharedLearningDict(); // 起動時に一度、共有学習データ（全利用者分）を取得してローカル学習にマージ
