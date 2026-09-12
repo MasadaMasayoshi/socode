@@ -14,10 +14,39 @@
       --slate-soft: #E7EDF2;
       --brick: #9C4A3C;
       --brick-soft: #F3E5E1;
+      --line-strong: #cfc8b8;
+      --accent-line: #D7E2DC;
+      --icon-muted: #C9C2B2;
+      --brick-line: #E7CFC8;
+      --zebra: #EFEBDF;
       --radius-sm: 6px;
       --radius: 10px;
       --radius-lg: 14px;
       --shadow: 0 1px 2px rgba(38,36,32,0.06), 0 4px 14px rgba(38,36,32,0.05);
+    }
+    /* ダークモード（夜勤帯での使用を想定）。ヘッダーの月アイコンで切り替え、localStorageに好みを保存する。 */
+    html[data-theme="dark"] {
+      --paper: #1B1A17;
+      --surface: #242320;
+      --ink: #ECE8DE;
+      --ink-muted: #A79C87;
+      --line: #3A382F;
+      --line-soft: #2C2A24;
+      --accent: #5AA38C;
+      --accent-dark: #4C8A76;
+      --accent-soft: #1E2E29;
+      --gold: #D3AD68;
+      --gold-soft: #2E2717;
+      --slate: #8CADC8;
+      --slate-soft: #1E2730;
+      --brick: #D48A78;
+      --brick-soft: #2E1E1A;
+      --line-strong: #4A473C;
+      --accent-line: #345048;
+      --icon-muted: #6B6555;
+      --brick-line: #4A332C;
+      --zebra: #221F1A;
+      --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 4px 14px rgba(0,0,0,0.3);
     }
     * { font-family: 'IBM Plex Sans JP', 'Hiragino Sans', sans-serif; }
     .font-display { font-family: 'Source Serif 4', 'IBM Plex Sans JP', serif; }
@@ -64,13 +93,13 @@
     .badge-count { margin-left: .4rem; padding: .05rem .45rem; border-radius: 999px; font-size: .625rem; font-weight: 600; background: var(--line-soft); color: var(--ink-muted); }
 
     .rec-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); font-size: .7rem; padding: .55rem; display: flex; flex-direction: column; gap: .4rem; cursor: grab; transition: border-color .15s ease, box-shadow .15s ease; }
-    .rec-card:hover { border-color: #cfc8b8; box-shadow: var(--shadow); }
+    .rec-card:hover { border-color: var(--line-strong); box-shadow: var(--shadow); }
 
-    .tag-chip { display: inline-flex; align-items: center; gap: .25rem; background: var(--accent-soft); border: 1px solid #D7E2DC; color: var(--accent-dark); padding: .1rem .45rem; border-radius: var(--radius-sm); font-size: .625rem; font-weight: 500; margin-top: .15rem; }
+    .tag-chip { display: inline-flex; align-items: center; gap: .25rem; background: var(--accent-soft); border: 1px solid var(--accent-line); color: var(--accent-dark); padding: .1rem .45rem; border-radius: var(--radius-sm); font-size: .625rem; font-weight: 500; margin-top: .15rem; }
     .time-chip { background: var(--line-soft); color: var(--ink-muted); border: 1px solid var(--line); padding: .05rem .4rem; border-radius: var(--radius-sm); font-size: .625rem; font-weight: 600; }
     .field-chip { padding: .05rem .4rem; border-radius: var(--radius-sm); font-size: .625rem; font-weight: 700; border: 1px solid transparent; white-space: nowrap; }
 
-    .icon-btn { color: #C9C2B2; transition: color .15s ease; padding: 0 .15rem; }
+    .icon-btn { color: var(--icon-muted); transition: color .15s ease; padding: 0 .15rem; }
     .icon-btn:hover { color: var(--accent); }
     .icon-btn.danger:hover { color: var(--brick); }
 
@@ -87,7 +116,7 @@
     .type-btn-restore:hover { background: var(--accent); color: #fff; }
     .icon-btn-outline { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); border: 1.5px solid var(--line); color: var(--ink-muted); font-size: .625rem; transition: all .15s ease; }
     .icon-btn-outline:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
-    .icon-btn-outline.danger { border-color: #E7CFC8; color: var(--brick); }
+    .icon-btn-outline.danger { border-color: var(--brick-line); color: var(--brick); }
     .icon-btn-outline.danger:hover { background: var(--brick-soft); border-color: var(--brick); }
 
     .modal-surface { background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--line); box-shadow: 0 20px 50px rgba(38,36,32,0.18); }
@@ -95,7 +124,7 @@
     table.assess-table th { font-family: 'Source Serif 4', serif; font-weight: 600; }
     /* 基本欲求列: ヘンダーソン14項目を数字バッジ+項目名で見やすく。偶数行は背景を少し変えて縞にし、行の境目を目で追いやすくする */
     table.assess-table .need-cell { transition: background-color .15s ease; }
-    table.assess-table tbody tr:nth-child(even) .need-cell { background: #EFEBDF; }
+    table.assess-table tbody tr:nth-child(even) .need-cell { background: var(--zebra); }
     table.assess-table tbody tr:hover .need-cell { background: var(--accent-soft); }
     table.assess-table tbody tr:hover .need-number { background: var(--accent-dark); }
 
@@ -104,6 +133,17 @@
     .card-selected { outline: 2px solid var(--accent); outline-offset: 1px; box-shadow: 0 0 0 3px var(--accent-soft); }
     @keyframes flashHighlight { 0%, 100% { box-shadow: none; } 15%, 55% { box-shadow: 0 0 0 4px var(--accent-soft), 0 0 0 2px var(--accent); } }
     .card-flash { animation: flashHighlight 1.6s ease; }
+
+    /* 自動分類の信頼度バッジ（カード上）：学習結果がない/類似一致/票が拮抗している場合に小さく表示し、
+       ユーザーに再確認を促す。完全一致で学習済み（confident）の場合は何も表示しない。 */
+    .confidence-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 999px; font-size: .55rem; font-weight: 700; cursor: help; line-height: 1; }
+    .confidence-fuzzy { background: var(--slate-soft); color: var(--slate); }
+    .confidence-tied { background: var(--brick-soft); color: var(--brick); }
+    .confidence-rule { background: var(--line-soft); color: var(--ink-muted); }
+
+    /* 学習データ管理：票数を手動で+/-調整するための小さなボタン */
+    .vote-adjust-btn { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 3px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-muted); font-size: .6rem; line-height: 1; cursor: pointer; }
+    .vote-adjust-btn:hover { border-color: var(--accent); color: var(--accent); }
 
     /* 総合アセスメント表の印刷・PDF保存用レイアウト（他のビューやボタン類は非表示にする） */
     @media print {
