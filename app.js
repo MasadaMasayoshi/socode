@@ -141,11 +141,28 @@
       }
     }
 
+    // ページを更新（リロード）した場合は入力済みのカルテ内容を保持しつつ、
+    // ブラウザ／タブを閉じて新しくアクセスし直した場合は保持しないようにしたいので、
+    // localStorageではなくタブ単位で消えるsessionStorageに患者データ一式を保存する。
+    const PATIENTS_STORAGE_KEY = 'nursing_patients_data';
+    function loadPersistedPatients() {
+      try {
+        const raw = sessionStorage.getItem(PATIENTS_STORAGE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.patients) && parsed.patients.length) return parsed;
+      } catch (e) {
+        console.warn('保存済みのカルテデータの読み込みに失敗しました:', e);
+      }
+      return null;
+    }
+    const persistedPatients = loadPersistedPatients();
+
     let globalAppData = {
-      patients: [
+      patients: persistedPatients?.patients || [
         { id: 'patient_1', title: '患者A', items: [], sourceText: '', labEvaluationResult: '', referenceNotes: [] }
       ],
-      currentPatientId: 'patient_1',
+      currentPatientId: persistedPatients?.currentPatientId || 'patient_1',
       learningUserDict: JSON.parse(localStorage.getItem('nursing_learning_dict') || '{}'),
       apiKey: localStorage.getItem('gemini_api_key') || '',
       notebookContent: DEFAULT_NOTEBOOK_CONTENT // 編集機能は廃止し、アップロード済みの基準表を統合した固定内容を使用
@@ -232,6 +249,12 @@
       const cp = getCurrentPatient();
       cp.sourceText = DOM.sourceText.value;
       localStorage.setItem('nursing_learning_dict', JSON.stringify(globalAppData.learningUserDict));
+      try {
+        sessionStorage.setItem(PATIENTS_STORAGE_KEY, JSON.stringify({ patients: globalAppData.patients, currentPatientId: globalAppData.currentPatientId }));
+      } catch (e) {
+        // 容量超過などで保存できない場合も画面表示自体は続行する
+        console.warn('カルテデータの自動保存に失敗しました（ブラウザの保存容量が不足している可能性があります）:', e);
+      }
     }
 
     function saveDataAndSync() {
