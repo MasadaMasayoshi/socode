@@ -98,3 +98,21 @@
     table.assess-table tbody tr:nth-child(even) .need-cell { background: #EFEBDF; }
     table.assess-table tbody tr:hover .need-cell { background: var(--accent-soft); }
     table.assess-table tbody tr:hover .need-number { background: var(--accent-dark); }
+
+    /* 分類ボード: クリックで選択したカードの見た目、および総合アセスメント表から
+       ジャンプしてきた際に一瞬ハイライトするフラッシュ演出 */
+    .card-selected { outline: 2px solid var(--accent); outline-offset: 1px; box-shadow: 0 0 0 3px var(--accent-soft); }
+    @keyframes flashHighlight { 0%, 100% { box-shadow: none; } 15%, 55% { box-shadow: 0 0 0 4px var(--accent-soft), 0 0 0 2px var(--accent); } }
+    .card-flash { animation: flashHighlight 1.6s ease; }
+
+    /* 総合アセスメント表の印刷・PDF保存用レイアウト（他のビューやボタン類は非表示にする） */
+    @media print {
+      header, #view-so-board, #view-reference, .btn, #toast-container, #bulk-action-bar, #modal-patient-list { display: none !important; }
+      body { padding: 0 !important; background: #fff !important; }
+      main { padding: 0 !important; max-width: none !important; }
+      #view-assessment { display: flex !important; border: none !important; box-shadow: none !important; padding: 0 !important; }
+      table.assess-table { font-size: 8.5pt; }
+      table.assess-table th, table.assess-table td { border: 1px solid #999 !important; }
+      .need-cell, .need-number { background: #fff !important; color: #000 !important; }
+      .need-number { border: 1px solid #000; background: #fff !important; color: #000 !important; }
+    }
