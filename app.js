@@ -904,17 +904,28 @@ ${labTexts || '(なし)'}
 
       HENDERSON_NEEDS.forEach(need => {
         const matching = activeItems.filter(i => i.hendersonIds?.includes(need.id));
-        const categorize = col => matching.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === col).map(i => renderAssessmentCellCard(i, need.id)).join('');
 
+        // その欲求の行の中で、上から出てくる順にS/Oそれぞれ通し番号を振る（S-1, S-2 / O-1, O-2 ...）
+        let sSeq = 0, oSeq = 0;
+        const seqLabels = {};
+        matching.forEach(i => {
+          if (i.type === 's') seqLabels[i.id] = `S-${++sSeq}`;
+          else if (i.type === 'o') seqLabels[i.id] = `O-${++oSeq}`;
+        });
+
+        const categorize = col => matching.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === col).map(i => renderAssessmentCellCard(i, need.id, seqLabels[i.id])).join('');
+
+        const needLabel = need.name.replace(/^\d+\.\s*/, '');
         const tr = document.createElement('tr');
         tr.className = "border-b border-[var(--line)] hover:bg-[var(--paper)]/60";
         tr.innerHTML = `
-          <td class="border border-[var(--line)] p-3 bg-[var(--paper)] align-top w-44">
-            <div class="flex items-start space-x-2">
-              <div class="w-6 h-6 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] flex items-center justify-center shrink-0 mt-0.5">
-                <i class="fa-solid ${need.icon} text-xs"></i>
+          <td class="need-cell border border-[var(--line)] p-3 bg-[var(--paper)] align-top w-56">
+            <div class="flex items-start gap-2.5">
+              <span class="need-number shrink-0 w-7 h-7 rounded-full bg-[var(--accent)] text-white font-display font-semibold text-[13px] flex items-center justify-center">${need.id}</span>
+              <div class="flex items-start gap-1.5 min-w-0 pt-0.5">
+                <i class="fa-solid ${need.icon} text-[var(--accent)] text-[11px] shrink-0 mt-0.5"></i>
+                <span class="text-[12.5px] leading-snug font-semibold text-[var(--ink)] break-words font-sans">${needLabel}</span>
               </div>
-              <span class="text-xs leading-normal font-semibold text-[var(--ink)] break-words font-sans">${need.name}</span>
             </div>
           </td>
           <td class="border border-[var(--line)] p-1.5 align-top min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'unclassified')"><div class="space-y-1.5">${categorize('unclassified')}</div></td>
@@ -930,9 +941,18 @@ ${labTexts || '(なし)'}
       document.getElementById('assessment-tbody').replaceChildren(frag);
     }
 
-    function renderAssessmentCellCard(item, hId) {
+    function renderAssessmentCellCard(item, hId, seqLabel) {
       const currentCol = item.assessmentCols?.[hId] || 'unclassified';
-      const badge = item.type === 's' ? '<span class="px-1 rounded-[var(--radius-sm)] font-bold text-[8px]" style="background:var(--gold-soft);color:var(--gold);">S</span>' : (item.type === 'o' ? '<span class="px-1 rounded-[var(--radius-sm)] font-bold text-[8px]" style="background:var(--slate-soft);color:var(--slate);">O</span>' : '');
+      const isS = item.type === 's';
+      const isO = item.type === 'o';
+      // Sは金、Oは藍と色分けし、通し番号(S-1/O-2等)を太字ラベルで表示。カード左端にも同色のバーを付けて色でも一目で判別できるようにする
+      const badge = isS
+        ? `<span class="px-1.5 py-[1px] rounded-[var(--radius-sm)] font-bold text-[9px] tracking-tight" style="background:var(--gold);color:#fff;">${seqLabel || 'S'}</span>`
+        : (isO
+          ? `<span class="px-1.5 py-[1px] rounded-[var(--radius-sm)] font-bold text-[9px] tracking-tight" style="background:var(--slate);color:#fff;">${seqLabel || 'O'}</span>`
+          : '');
+      const cardBg = isS ? 'var(--gold-soft)' : (isO ? 'var(--slate-soft)' : 'var(--surface)');
+      const accentColor = isS ? 'var(--gold)' : (isO ? 'var(--slate)' : 'var(--line)');
       const time = item.timestamp && item.timestamp !== "日時不明" ? `<span class="text-[8px] text-[var(--ink-muted)] bg-[var(--line-soft)] px-1 rounded-[var(--radius-sm)] font-semibold">${escapeHtml(item.timestamp)}</span>` : '';
       const fieldDef = item.fieldLabel ? FIELD_LABELS.find(f => f.key === item.fieldLabel) : null;
       const fieldTag = fieldDef ? `<span class="text-[8px] px-1 rounded-[var(--radius-sm)] font-bold" style="background:${fieldDef.bg};color:${fieldDef.color};">${escapeHtml(fieldDef.label)}</span>` : '';
@@ -947,10 +967,10 @@ ${labTexts || '(なし)'}
       };
 
       return `
-        <div id="asc_${item.id}_${hId}" draggable="true" ondragstart="handleAssessmentDragStart(event, '${item.id}')" ondragend="handleAssessmentDragEnd(event)" class="bg-[var(--surface)] p-1.5 rounded-[var(--radius-sm)] border ${item.aiSuggested ? 'border-dashed' : ''} border-[var(--line)] text-[10px] flex flex-col gap-1 cursor-grab active:cursor-grabbing hover:border-[var(--accent)] transition">
+        <div id="asc_${item.id}_${hId}" draggable="true" ondragstart="handleAssessmentDragStart(event, '${item.id}')" ondragend="handleAssessmentDragEnd(event)" class="p-1.5 rounded-[var(--radius-sm)] border ${item.aiSuggested ? 'border-dashed' : ''} border-[var(--line)] text-[10px] flex flex-col gap-1 cursor-grab active:cursor-grabbing hover:border-[var(--accent)] transition" style="background:${cardBg};border-left-width:3px;border-left-color:${accentColor};">
           <div class="flex items-start justify-between gap-1">
             <div class="flex items-start gap-1 flex-1 min-w-0">
-              <div class="shrink-0 mt-0.5 flex items-center gap-0.5 flex-wrap">${aiTag} ${fieldTag} ${badge} ${time}</div>
+              <div class="shrink-0 mt-0.5 flex items-center gap-0.5 flex-wrap">${badge} ${aiTag} ${fieldTag} ${time}</div>
               <span class="text-[var(--ink)] font-medium break-words leading-tight">${escapeHtml(item.text)}</span>
             </div>
             <div class="flex items-center space-x-1 shrink-0">
