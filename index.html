@@ -25,12 +25,18 @@
         <button id="btn-new-patient" class="btn btn-ghost shrink-0" title="新しい患者ページを作成">
           <i class="fa-solid fa-plus"></i> 新規ページ
         </button>
+        <button id="btn-patient-list" class="btn btn-ghost shrink-0" title="患者ページ一覧・検索・アーカイブ管理">
+          <i class="fa-solid fa-list"></i> 一覧
+        </button>
       </div>
 
       <!-- 設定・保存・書き出し（NotebookLM連携は内部で固定適用しており、UIには表示しない） -->
       <div class="flex items-center gap-1.5">
         <button id="btn-open-settings" class="btn btn-outline" style="border-bottom:2px solid var(--ink-muted);">
           <i class="fa-solid fa-gear" style="color:var(--ink-muted);"></i> API設定
+        </button>
+        <button id="btn-open-admin" class="btn btn-outline" style="border-bottom:2px solid var(--brick);" title="学習内容・データの管理（パスワードが必要です）">
+          <i class="fa-solid fa-user-shield" style="color:var(--brick);"></i> 学習データ管理
         </button>
         <span class="w-px h-5 bg-[var(--line)] mx-0.5"></span>
         <button id="btn-save-data" class="btn btn-outline" style="border-bottom:2px solid var(--slate);">
@@ -40,7 +46,7 @@
           <i class="fa-solid fa-folder-open" style="color:var(--gold);"></i> 読込
           <input type="file" id="input-load-data" accept=".json" class="hidden">
         </label>
-        <button id="btn-export-docs" class="btn btn-primary" title="Googleドキュメントに貼り付けやすい形式でコピー">
+        <button id="btn-export-docs" class="btn btn-primary" title="テキスト(.txt)ファイルを自動ダウンロードします。Googleドキュメントでもそのまま開けます">
           <i class="fa-solid fa-file-lines"></i> Docs書き出し
         </button>
       </div>
@@ -59,8 +65,10 @@
           参考データ
         </button>
       </div>
-      <div class="text-xs text-[var(--ink-muted)] flex items-center">
-        <i class="fa-solid fa-hospital-user text-[var(--accent)] mr-1.5"></i> 表示中カルテ: <span id="current-patient-title-label" class="ml-1 text-[var(--ink)] font-semibold">患者A</span>
+      <div class="text-xs text-[var(--ink-muted)] flex items-center gap-3">
+        <span class="flex items-center whitespace-nowrap"><i class="fa-solid fa-hospital-user text-[var(--accent)] mr-1.5"></i> 表示中カルテ: <span id="current-patient-title-label" class="ml-1 text-[var(--ink)] font-semibold">患者A</span></span>
+        <span id="current-patient-updated" class="whitespace-nowrap"></span>
+        <span id="save-status" class="flex items-center gap-1 whitespace-nowrap"><i class="fa-solid fa-circle-check text-[var(--accent)] text-[9px]"></i><span id="save-status-time">未保存</span></span>
       </div>
     </div>
   </header>
@@ -100,7 +108,17 @@
       </section>
 
       <!-- 分類カラム（未分類 / Sデータ / Oデータ / 不必要な情報） -->
-      <section class="xl:w-3/4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div class="xl:w-3/4 flex flex-col gap-3 min-w-0">
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="relative flex-1 min-w-[180px]">
+            <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-muted)] text-[11px]"></i>
+            <input type="text" id="board-search" class="field pl-7" placeholder="カードの内容・タグ名で検索...">
+          </div>
+          <span class="text-[10px] text-[var(--ink-muted)] leading-snug">
+            <i class="fa-solid fa-circle-info mr-0.5"></i>カードをクリックで選択→数字キー(1〜14)でタグ追加／Ctrl(⌘)+クリックで複数選択
+          </span>
+        </div>
+      <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         <!-- 未分類 -->
         <div class="surface flex flex-col h-[680px]">
           <div class="col-header">
@@ -145,6 +163,7 @@
           <div id="col-unnecessary" class="flex-1 p-2 overflow-y-auto space-y-2" ondragover="allowDrop(event)" ondrop="handleDrop(event, 'unnecessary')"></div>
         </div>
       </section>
+      </div>
     </div>
 
     <!-- 2. 総合アセスメント表 ビュー -->
@@ -156,13 +175,31 @@
           </h2>
         </div>
         <div class="flex items-center space-x-2">
-          <button onclick="evaluateMissingInfoAI()" class="btn btn-outline" style="border-bottom:2px solid var(--brick);" title="入院前後の記録差分・医学的所見・参考データから不足情報を推定します">
-            <i class="fa-solid fa-magnifying-glass" style="color:var(--brick);"></i> 不足情報をAI推定
-          </button>
-          <button onclick="evaluateLabValuesAI()" class="btn btn-primary">
-            <i class="fa-solid fa-flask-vial"></i> 検査値AI総合評価
+          <div class="relative">
+            <button id="btn-ai-tools-toggle" class="btn btn-outline" style="border-bottom:2px solid var(--accent);">
+              <i class="fa-solid fa-wand-magic-sparkles" style="color:var(--accent);"></i> AI分析ツール <i class="fa-solid fa-chevron-down text-[9px] ml-1"></i>
+            </button>
+            <div id="ai-tools-menu" class="hidden absolute right-0 mt-1 w-60 bg-[var(--surface)] border border-[var(--line)] rounded-[var(--radius)] shadow-lg z-40 py-1 flex flex-col">
+              <button onclick="evaluateLabValuesAI(); closeAiToolsMenu();" class="text-left px-3 py-2 text-xs hover:bg-[var(--paper)] flex items-center gap-2"><i class="fa-solid fa-flask-vial text-[var(--accent)] w-4"></i> 検査値AI総合評価</button>
+              <button onclick="evaluateMissingInfoAI(); closeAiToolsMenu();" class="text-left px-3 py-2 text-xs hover:bg-[var(--paper)] flex items-center gap-2"><i class="fa-solid fa-magnifying-glass text-[var(--brick)] w-4"></i> 不足情報をAI推定</button>
+              <button onclick="checkContradictionsAI(); closeAiToolsMenu();" class="text-left px-3 py-2 text-xs hover:bg-[var(--paper)] flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-[var(--gold)] w-4"></i> S/O矛盾チェック</button>
+              <button onclick="suggestNursingDiagnosesAI(); closeAiToolsMenu();" class="text-left px-3 py-2 text-xs hover:bg-[var(--paper)] flex items-center gap-2"><i class="fa-solid fa-clipboard-list text-[var(--slate)] w-4"></i> 看護診断候補を提案</button>
+              <button onclick="generateTimelineSummaryAI(); closeAiToolsMenu();" class="text-left px-3 py-2 text-xs hover:bg-[var(--paper)] flex items-center gap-2"><i class="fa-solid fa-clock-rotate-left text-[var(--accent-dark)] w-4"></i> 経時変化サマリー</button>
+            </div>
+          </div>
+          <button onclick="window.print()" class="btn btn-outline" title="総合アセスメント表を印刷・PDF保存します">
+            <i class="fa-solid fa-print"></i> 印刷 / PDF
           </button>
         </div>
+      </div>
+
+      <!-- アセスメント進捗バー -->
+      <div id="assessment-progress" class="flex flex-col gap-1.5">
+        <div class="flex items-center justify-between text-[11px] text-[var(--ink-muted)]">
+          <span class="font-semibold text-[var(--ink)]">アセスメント進捗（ヘンダーソン14項目）</span>
+          <span id="assessment-progress-summary"></span>
+        </div>
+        <div id="assessment-progress-bar" class="flex gap-1"></div>
       </div>
 
       <!-- 検査値評価サマリーパネル -->
@@ -176,6 +213,25 @@
           「検査値AI総合評価」ボタンを押すと、入力されたOデータ中の検査値をノートブックの基準に基づいて自動抽出し、臨床的意味を評価します。
         </div>
         <p class="text-[10px] text-[var(--accent-dark)]/70 leading-relaxed"><i class="fa-solid fa-circle-info mr-1"></i>AIによる参考情報であり、臨床判断の代替にはなりません。最終評価は必ず医療従事者が行ってください。</p>
+      </div>
+
+      <!-- S/O矛盾チェックパネル -->
+      <div id="contradiction-panel" class="hidden bg-[var(--gold-soft)] border border-[#E9DBB8] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
+        <span class="text-xs font-semibold flex items-center" style="color:var(--gold);"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i> S/O矛盾チェック結果（AI）</span>
+        <div id="contradiction-content" class="text-xs text-[var(--ink)] leading-relaxed bg-white/90 p-3 rounded-[var(--radius-sm)] border border-[#E9DBB8] min-h-[40px]"></div>
+      </div>
+
+      <!-- 看護診断候補パネル -->
+      <div id="diagnosis-panel" class="hidden bg-[var(--slate-soft)] border border-[#CBD9E6] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
+        <span class="text-xs font-semibold flex items-center" style="color:var(--slate);"><i class="fa-solid fa-clipboard-list mr-1.5"></i> 看護診断候補（AI提案）</span>
+        <div id="diagnosis-content" class="text-xs text-[var(--ink)] leading-relaxed bg-white/90 p-3 rounded-[var(--radius-sm)] border border-[#CBD9E6] min-h-[40px]"></div>
+        <p class="text-[10px] leading-relaxed" style="color:var(--slate);"><i class="fa-solid fa-circle-info mr-1"></i>AIによる参考候補です。最終的な看護診断の決定・優先順位付けは必ず医療従事者が行ってください。</p>
+      </div>
+
+      <!-- 経時変化サマリーパネル -->
+      <div id="timeline-panel" class="hidden bg-[var(--accent-soft)] border border-[#D7E2DC] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
+        <span class="text-xs font-semibold text-[var(--accent-dark)] flex items-center"><i class="fa-solid fa-clock-rotate-left mr-1.5"></i> 経時変化サマリー（AI）</span>
+        <div id="timeline-content" class="text-xs text-[var(--ink)] leading-relaxed bg-white/90 p-3 rounded-[var(--radius-sm)] border border-[#D7E2DC] min-h-[40px]"></div>
       </div>
 
       <div class="overflow-x-auto">
@@ -247,6 +303,70 @@
     </div>
   </div>
 
+  <!-- 学習データ管理：パスワード入力モーダル -->
+  <div id="modal-admin-password" class="hidden fixed inset-0 z-[65] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+    <div class="modal-surface max-w-xs w-full p-5 flex flex-col gap-3">
+      <div class="flex items-center justify-between border-b border-[var(--line-soft)] pb-2">
+        <h3 class="font-display font-semibold text-sm text-[var(--ink)] flex items-center">
+          <i class="fa-solid fa-lock text-[var(--brick)] mr-2 text-xs"></i> パスワードを入力
+        </h3>
+        <button id="btn-close-admin-password" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <p class="text-[11px] text-[var(--ink-muted)]">学習内容・データの閲覧／編集にはパスワードが必要です。</p>
+      <input type="password" id="input-admin-password" class="field font-mono" placeholder="パスワード">
+      <p id="admin-password-error" class="hidden text-[11px] text-[var(--brick)]">パスワードが違います</p>
+      <div class="flex justify-end gap-2 pt-1">
+        <button id="btn-cancel-admin-password" class="btn btn-outline">キャンセル</button>
+        <button id="btn-submit-admin-password" class="btn btn-primary">開く</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 学習データ管理モーダル（本体） -->
+  <div id="modal-admin" class="hidden fixed inset-0 z-[65] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+    <div class="modal-surface max-w-2xl w-full p-5 flex flex-col gap-3" style="max-height:85vh;">
+      <div class="flex items-center justify-between border-b border-[var(--line-soft)] pb-2 shrink-0">
+        <h3 class="font-display font-semibold text-sm text-[var(--ink)] flex items-center">
+          <i class="fa-solid fa-user-shield text-[var(--brick)] mr-2 text-xs"></i> 学習データ管理
+        </h3>
+        <button id="btn-close-admin" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- 「現在の学習内容一覧」と「学習によってどう変わったかの変更履歴」を切り替える -->
+      <div class="flex items-center gap-1 shrink-0">
+        <button id="admin-tab-btn-list" class="tab-pill active">現在の学習内容</button>
+        <button id="admin-tab-btn-history" class="tab-pill">変更履歴（学習でどう変わったか）</button>
+      </div>
+
+      <div id="admin-panel-list" class="flex flex-col gap-3" style="flex:1; min-height:0;">
+        <div class="flex items-center justify-between gap-2 shrink-0">
+          <input type="text" id="admin-learning-search" class="field flex-1" placeholder="登録内容を検索...">
+          <span id="admin-learning-count" class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap"></span>
+        </div>
+        <div id="admin-learning-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
+      </div>
+
+      <div id="admin-panel-history" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
+        <div class="flex items-center justify-between gap-2 shrink-0">
+          <input type="text" id="admin-history-search" class="field flex-1" placeholder="変更履歴を検索...">
+          <span id="admin-history-count" class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap"></span>
+        </div>
+        <div id="admin-history-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
+        <button id="btn-admin-clear-history" class="btn btn-outline self-start shrink-0" style="border-bottom:2px solid var(--ink-muted);">
+          <i class="fa-solid fa-broom"></i> このブラウザの変更履歴を消去
+        </button>
+      </div>
+
+      <div class="border-t border-[var(--line-soft)] pt-3 flex flex-wrap items-center justify-between gap-2 shrink-0">
+        <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed flex items-center gap-1.5">
+          <i class="fa-solid fa-circle-info"></i>
+          学習データはフォルダ内の学習専用ファイルに自動で保存・読み込みされます（都度ファイルは作成されません）。
+        </p>
+        <button onclick="resetLearningData()" class="btn btn-danger-ghost border border-[var(--brick-soft)]">すべての学習履歴を消去</button>
+      </div>
+    </div>
+  </div>
+
   <!-- API設定モーダル -->
   <div id="modal-settings" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface max-w-md w-full p-5 flex flex-col gap-4">
@@ -295,6 +415,37 @@
         <button id="dialog-confirm" class="btn btn-primary">OK</button>
       </div>
     </div>
+  </div>
+
+  <!-- 患者ページ一覧・検索・アーカイブ管理モーダル -->
+  <div id="modal-patient-list" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+    <div class="modal-surface max-w-lg w-full p-5 flex flex-col gap-3">
+      <div class="flex items-center justify-between border-b border-[var(--line-soft)] pb-2">
+        <h3 class="font-display font-semibold text-sm text-[var(--ink)]">患者ページ一覧</h3>
+        <button id="btn-close-patient-list" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="flex items-center gap-2">
+        <input type="text" id="patient-list-search" class="field flex-1" placeholder="患者名で検索...">
+        <select id="patient-list-sort" class="field w-auto text-xs">
+          <option value="updated">更新順</option>
+          <option value="name">名前順</option>
+        </select>
+      </div>
+      <label class="flex items-center gap-1.5 text-[11px] text-[var(--ink-muted)]">
+        <input type="checkbox" id="patient-list-show-archived"> アーカイブ済みも表示
+      </label>
+      <div id="patient-list-body" class="flex flex-col gap-1.5 overflow-y-auto pr-1" style="max-height:50vh;"></div>
+    </div>
+  </div>
+
+  <!-- 複数選択時の一括操作バー -->
+  <div id="bulk-action-bar" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[65] bg-[var(--ink)] text-white rounded-[var(--radius)] shadow-lg px-4 py-2.5 flex items-center flex-wrap justify-center gap-2 text-xs max-w-[95vw]">
+    <span id="bulk-action-count" class="font-semibold mr-1 whitespace-nowrap">0件選択中</span>
+    <button onclick="bulkSetType('s')" class="btn" style="background:var(--gold);color:#fff;">→S</button>
+    <button onclick="bulkSetType('o')" class="btn" style="background:var(--slate);color:#fff;">→O</button>
+    <select id="bulk-tag-select" onchange="bulkAddTag(this.value); this.value='';" class="text-[10px] rounded-[var(--radius-sm)] px-1.5 py-1.5 text-[var(--ink)] border-0"><option value="">＋タグ追加</option></select>
+    <button onclick="bulkSetType('unnecessary')" class="btn btn-outline" style="color:var(--ink);background:#fff;">不要にする</button>
+    <button onclick="clearSelection()" class="btn btn-ghost text-white hover:bg-white/10">選択解除</button>
   </div>
 
   <!-- トースト通知コンテナ -->
