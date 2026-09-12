@@ -11,6 +11,18 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <script>
+    // ダークモードの初期適用（画面が一瞬だけ元のテーマで表示される「ちらつき」を防ぐため、
+    // CSS読み込み直後・本文描画前にこの小さなスクリプトで先に data-theme を決めてしまう）。
+    (function () {
+      try {
+        var saved = localStorage.getItem('nursing_theme');
+        if (saved === 'dark' || saved === 'light') {
+          document.documentElement.setAttribute('data-theme', saved);
+        }
+      } catch (e) { /* localStorageが使えない場合は既定（ライト）のまま */ }
+    })();
+  </script>
 </head>
 <body class="min-h-screen flex flex-col pb-24">
 
@@ -32,6 +44,10 @@
 
       <!-- 設定・保存・書き出し（NotebookLM連携は内部で固定適用しており、UIには表示しない） -->
       <div class="flex items-center gap-1.5">
+        <span id="presence-indicator" class="btn btn-ghost cursor-default" style="pointer-events:none;" title="現在この画面を開いているタブ・端末の数の目安です（同じ人が複数タブ・複数端末で開いている場合はその分だけ数えられます）">
+          <i class="fa-solid fa-users" style="color:var(--accent);"></i> <span id="presence-count">-</span>人が接続中
+        </span>
+        <span class="w-px h-5 bg-[var(--line)] mx-0.5"></span>
         <button id="btn-open-settings" class="btn btn-outline" style="border-bottom:2px solid var(--ink-muted);">
           <i class="fa-solid fa-gear" style="color:var(--ink-muted);"></i> API設定
         </button>
@@ -48,6 +64,10 @@
         </label>
         <button id="btn-export-docs" class="btn btn-primary" title="テキスト(.txt)ファイルを自動ダウンロードします。Googleドキュメントでもそのまま開けます">
           <i class="fa-solid fa-file-lines"></i> Docs書き出し
+        </button>
+        <span class="w-px h-5 bg-[var(--line)] mx-0.5"></span>
+        <button id="btn-toggle-theme" class="icon-btn-outline" title="ダークモード切り替え（夜勤帯向け）">
+          <i class="fa-solid fa-moon"></i>
         </button>
       </div>
     </div>
@@ -185,6 +205,7 @@
               <button onclick="checkContradictionsAI(); closeAiToolsMenu();" class="text-left px-3 py-2 text-xs hover:bg-[var(--paper)] flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-[var(--gold)] w-4"></i> S/O矛盾チェック</button>
               <button onclick="suggestNursingDiagnosesAI(); closeAiToolsMenu();" class="text-left px-3 py-2 text-xs hover:bg-[var(--paper)] flex items-center gap-2"><i class="fa-solid fa-clipboard-list text-[var(--slate)] w-4"></i> 看護診断候補を提案</button>
               <button onclick="generateTimelineSummaryAI(); closeAiToolsMenu();" class="text-left px-3 py-2 text-xs hover:bg-[var(--paper)] flex items-center gap-2"><i class="fa-solid fa-clock-rotate-left text-[var(--accent-dark)] w-4"></i> 経時変化サマリー</button>
+              <button onclick="generateCarePlanAI(); closeAiToolsMenu();" class="text-left px-3 py-2 text-xs hover:bg-[var(--paper)] flex items-center gap-2"><i class="fa-solid fa-notes-medical text-[var(--brick)] w-4"></i> 看護計画を自動生成</button>
             </div>
           </div>
           <button onclick="window.print()" class="btn btn-outline" title="総合アセスメント表を印刷・PDF保存します">
@@ -232,6 +253,13 @@
       <div id="timeline-panel" class="hidden bg-[var(--accent-soft)] border border-[#D7E2DC] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
         <span class="text-xs font-semibold text-[var(--accent-dark)] flex items-center"><i class="fa-solid fa-clock-rotate-left mr-1.5"></i> 経時変化サマリー（AI）</span>
         <div id="timeline-content" class="text-xs text-[var(--ink)] leading-relaxed bg-white/90 p-3 rounded-[var(--radius-sm)] border border-[#D7E2DC] min-h-[40px]"></div>
+      </div>
+
+      <!-- 看護計画（ケアプラン）自動生成パネル -->
+      <div id="careplan-panel" class="hidden bg-[var(--brick-soft)] border border-[var(--brick-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
+        <span class="text-xs font-semibold flex items-center" style="color:var(--brick);"><i class="fa-solid fa-notes-medical mr-1.5"></i> 看護計画（AI自動生成）</span>
+        <div id="careplan-content" class="text-xs text-[var(--ink)] leading-relaxed bg-white/90 p-3 rounded-[var(--radius-sm)] border border-[var(--brick-line)] min-h-[40px]"></div>
+        <p class="text-[10px] leading-relaxed" style="color:var(--brick);"><i class="fa-solid fa-circle-info mr-1"></i>AIによる叩き台です。個別性を踏まえた最終的な看護計画の決定は必ず医療従事者が行ってください。</p>
       </div>
 
       <div class="overflow-x-auto">
@@ -336,6 +364,7 @@
       <div class="flex items-center gap-1 shrink-0">
         <button id="admin-tab-btn-list" class="tab-pill active">現在の学習内容</button>
         <button id="admin-tab-btn-history" class="tab-pill">変更履歴（学習でどう変わったか）</button>
+        <button id="admin-tab-btn-caselog" class="tab-pill">事例ログ（研究用）</button>
       </div>
 
       <div id="admin-panel-list" class="flex flex-col gap-3" style="flex:1; min-height:0;">
@@ -355,6 +384,28 @@
         <button id="btn-admin-clear-history" class="btn btn-outline self-start shrink-0" style="border-bottom:2px solid var(--ink-muted);">
           <i class="fa-solid fa-broom"></i> このブラウザの変更履歴を消去
         </button>
+      </div>
+
+      <!-- 事例ログ（case-log.json）ビューア：サーバー側に蓄積された生の変更ログを、研究用に検索・閲覧する -->
+      <div id="admin-panel-caselog" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
+        <div class="flex items-center justify-between gap-2 shrink-0 flex-wrap">
+          <input type="text" id="admin-caselog-search" class="field flex-1" placeholder="事例ログを検索（本文・操作種別）...">
+          <select id="admin-caselog-action-filter" class="field w-auto text-xs">
+            <option value="">すべての操作</option>
+            <option value="create">新規登録</option>
+            <option value="type">分類変更</option>
+            <option value="tagAdd">タグ追加</option>
+            <option value="tagRemove">タグ削除</option>
+            <option value="col">欄の変更</option>
+            <option value="edit">テキスト編集</option>
+            <option value="delete">削除</option>
+            <option value="adjustTypeVote">票の手動修正(分類)</option>
+            <option value="adjustHendersonVote">票の手動修正(タグ)</option>
+          </select>
+          <span id="admin-caselog-count" class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap"></span>
+        </div>
+        <div id="admin-caselog-stats" class="text-[11px] text-[var(--ink-muted)] shrink-0"></div>
+        <div id="admin-caselog-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
       </div>
 
       <div class="border-t border-[var(--line-soft)] pt-3 flex flex-wrap items-center justify-between gap-2 shrink-0">
