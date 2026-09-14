@@ -62,8 +62,11 @@
           <i class="fa-solid fa-folder-open" style="color:var(--gold);"></i> 読込
           <input type="file" id="input-load-data" accept=".json" class="hidden">
         </label>
-        <button id="btn-export-docs" class="btn btn-primary" title="テキスト(.txt)ファイルを自動ダウンロードします。Googleドキュメントでもそのまま開けます">
-          <i class="fa-solid fa-file-lines"></i> Docs書き出し
+        <button id="btn-export-docs" class="btn btn-primary" title="Word文書ファイル(.doc)を自動ダウンロードします。Word・Googleドキュメントでそのまま開けます">
+          <i class="fa-solid fa-file-word"></i> Word書き出し
+        </button>
+        <button id="btn-export-pdf" class="btn btn-primary" style="background:var(--brick);border-color:var(--brick);" title="書式付きの文書を新しいタブで開き、印刷ダイアログからPDFとして保存できます">
+          <i class="fa-solid fa-file-pdf"></i> PDF書き出し
         </button>
         <span class="w-px h-5 bg-[var(--line)] mx-0.5"></span>
         <button id="btn-toggle-theme" class="icon-btn-outline" title="ダークモード切り替え（夜勤帯向け）">
@@ -135,7 +138,7 @@
             <input type="text" id="board-search" class="field pl-7" placeholder="カードの内容・タグ名で検索...">
           </div>
           <span class="text-[10px] text-[var(--ink-muted)] leading-snug">
-            <i class="fa-solid fa-circle-info mr-0.5"></i>カードをクリックで選択→数字キー(1〜14)でタグ追加／Ctrl(⌘)+クリックで複数選択
+            <i class="fa-solid fa-circle-info mr-0.5"></i>カードをクリックで選択→数字キー(1〜14)でタグ追加／Ctrl(⌘)+クリックで複数選択、またはカード左上のチェックボックスのタップで複数選択（スマホ・タブレットでも使えます）
           </span>
         </div>
       <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -212,15 +215,6 @@
             <i class="fa-solid fa-print"></i> 印刷 / PDF
           </button>
         </div>
-      </div>
-
-      <!-- アセスメント進捗バー -->
-      <div id="assessment-progress" class="flex flex-col gap-1.5">
-        <div class="flex items-center justify-between text-[11px] text-[var(--ink-muted)]">
-          <span class="font-semibold text-[var(--ink)]">アセスメント進捗（ヘンダーソン14項目）</span>
-          <span id="assessment-progress-summary"></span>
-        </div>
-        <div id="assessment-progress-bar" class="flex gap-1"></div>
       </div>
 
       <!-- 検査値評価サマリーパネル -->
@@ -360,11 +354,15 @@
         <button id="btn-close-admin" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
       </div>
 
-      <!-- 「現在の学習内容一覧」と「学習によってどう変わったかの変更履歴」を切り替える -->
-      <div class="flex items-center gap-1 shrink-0">
+      <!-- 「現在の学習内容一覧」と「学習によってどう変わったかの変更履歴」を切り替える。
+           タブ数が増えても崩れないよう折り返し可能にしている（flex-wrap）。 -->
+      <div class="flex items-center gap-1 flex-wrap shrink-0">
         <button id="admin-tab-btn-list" class="tab-pill active">現在の学習内容</button>
-        <button id="admin-tab-btn-history" class="tab-pill">変更履歴（学習でどう変わったか）</button>
-        <button id="admin-tab-btn-caselog" class="tab-pill">事例ログ（研究用）</button>
+        <button id="admin-tab-btn-history" class="tab-pill">変更履歴</button>
+        <button id="admin-tab-btn-caselog" class="tab-pill">事例ログ</button>
+        <button id="admin-tab-btn-extraction" class="tab-pill">抽出前の文章</button>
+        <button id="admin-tab-btn-reports" class="tab-pill">情報カードの報告</button>
+        <button id="admin-tab-btn-criteria" class="tab-pill">抽出基準</button>
       </div>
 
       <div id="admin-panel-list" class="flex flex-col gap-3" style="flex:1; min-height:0;">
@@ -401,11 +399,53 @@
             <option value="delete">削除</option>
             <option value="adjustTypeVote">票の手動修正(分類)</option>
             <option value="adjustHendersonVote">票の手動修正(タグ)</option>
+            <option value="merge">カード統合</option>
           </select>
           <span id="admin-caselog-count" class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap"></span>
         </div>
         <div id="admin-caselog-stats" class="text-[11px] text-[var(--ink-muted)] shrink-0"></div>
         <div id="admin-caselog-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
+      </div>
+
+      <!-- 抽出前の文章ビューア：「分類開始」を押すたびの、抽出前の生のカルテ・記録テキストの履歴 -->
+      <div id="admin-panel-extraction" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
+        <div class="flex items-center justify-between gap-2 shrink-0">
+          <input type="text" id="admin-extraction-search" class="field flex-1" placeholder="抽出前の文章を検索（本文・患者名）...">
+          <span id="admin-extraction-count" class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap"></span>
+        </div>
+        <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
+          <i class="fa-solid fa-circle-info"></i> 「分類開始」を押すたびに、その時点で入力欄にあった文章がそのまま記録されます（閲覧のみで削除機能はありません）。
+        </p>
+        <div id="admin-extraction-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
+      </div>
+
+      <!-- 情報カードの不具合報告ビューア：カード右上の報告ボタンから送られた内容の一覧＋AIによる要約 -->
+      <div id="admin-panel-reports" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
+        <div class="flex items-center justify-between gap-2 shrink-0">
+          <input type="text" id="admin-reports-search" class="field flex-1" placeholder="報告内容を検索（本文・コメント・患者名）...">
+          <span id="admin-reports-count" class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap"></span>
+        </div>
+        <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
+          <i class="fa-solid fa-circle-info"></i> 情報カードの「報告」ボタンから送られた内容の一覧です（閲覧のみで削除機能はありません）。同じ人がページを閉じるまでに送った複数件は1つの投稿としてまとめて表示されます。
+        </p>
+        <div class="flex items-center gap-2 shrink-0 flex-wrap">
+          <button id="btn-summarize-reports" class="btn btn-outline" style="color:var(--brick);background:#fff;"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>AIで要約（抽出ロジック修正のヒント）</button>
+        </div>
+        <div id="admin-reports-summary" class="hidden text-xs text-[var(--ink)] leading-relaxed bg-[var(--brick-soft)]/40 border border-[#EFD9CE] rounded-[var(--radius)] p-3 shrink-0" style="max-height:220px; overflow-y:auto;"></div>
+        <div id="admin-reports-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
+      </div>
+
+      <!-- 抽出基準：NotebookLM基準ノート自体は編集不可の固定内容だが、それに上乗せしてAIへの
+           抽出・分類の指示に反映される「追加の要望」をここから追加・編集・削除できる（全利用者共有）。 -->
+      <div id="admin-panel-criteria" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
+        <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
+          <i class="fa-solid fa-circle-info"></i> NotebookLM基準ノートに加えて、AIによる自動抽出・分類（S/O判定、ヘンダーソンタグ付け、検査値評価、不足情報推定）に反映してほしいルールをここから追加・編集できます。内容は全利用者・全端末に共有されます。
+        </p>
+        <div id="list-extra-criteria" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
+        <div class="flex gap-1 items-end shrink-0">
+          <textarea id="input-extra-criteria" rows="2" class="field resize-none flex-1" placeholder="例：内服薬の副作用に関する記載は見落とさず抽出してほしい"></textarea>
+          <button id="btn-add-extra-criteria" class="btn btn-primary shrink-0">追加</button>
+        </div>
       </div>
 
       <div class="border-t border-[var(--line-soft)] pt-3 flex flex-wrap items-center justify-between gap-2 shrink-0">
@@ -431,6 +471,9 @@
         <label class="block text-xs font-medium text-[var(--ink)] mb-1">Gemini API Key</label>
         <input type="password" id="input-api-key" class="field font-mono mb-2" placeholder="AIzaSy...">
         <p class="text-[10px] text-[var(--ink-muted)]">OCR機能に使用します（ローカル保存）。</p>
+      </div>
+      <div class="border-t border-[var(--line-soft)] pt-3">
+        <p class="text-[10px] text-[var(--ink-muted)]"><i class="fa-solid fa-circle-info"></i> AIによる抽出・分類基準への追加の要望は、「学習データ管理」画面（パスワード保護）の「抽出基準」タブから追加・編集できます。</p>
       </div>
       <div class="border-t border-[var(--line-soft)] pt-3">
         <label class="block text-xs font-medium text-[var(--brick)] mb-1">学習データのリセット</label>
@@ -490,13 +533,88 @@
   </div>
 
   <!-- 複数選択時の一括操作バー -->
-  <div id="bulk-action-bar" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[65] bg-[var(--ink)] text-white rounded-[var(--radius)] shadow-lg px-4 py-2.5 flex items-center flex-wrap justify-center gap-2 text-xs max-w-[95vw]">
+  <!-- 常に「濃い色の帯＋白いボタン」の配色で表示する固定デザインのため、テーマで反転する var(--ink) は
+       使わず#262420（ライトモードのinkと同じ色）を直接指定する。var(--ink)を使うとダークモード時に
+       帯の背景が明るい色に反転し、白文字が背景に溶けて見えなくなってしまう（内側の白いボタンの
+       文字色も同様に、暗くならず見えなくなる）。 -->
+  <div id="bulk-action-bar" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[65] bg-[#262420] text-white rounded-[var(--radius)] shadow-lg px-4 py-2.5 flex items-center flex-wrap justify-center gap-2 text-xs max-w-[95vw]">
     <span id="bulk-action-count" class="font-semibold mr-1 whitespace-nowrap">0件選択中</span>
     <button onclick="bulkSetType('s')" class="btn" style="background:var(--gold);color:#fff;">→S</button>
     <button onclick="bulkSetType('o')" class="btn" style="background:var(--slate);color:#fff;">→O</button>
-    <select id="bulk-tag-select" onchange="bulkAddTag(this.value); this.value='';" class="text-[10px] rounded-[var(--radius-sm)] px-1.5 py-1.5 text-[var(--ink)] border-0"><option value="">＋タグ追加</option></select>
-    <button onclick="bulkSetType('unnecessary')" class="btn btn-outline" style="color:var(--ink);background:#fff;">不要にする</button>
+    <select id="bulk-tag-select" onchange="bulkAddTag(this.value); this.value='';" class="text-[10px] rounded-[var(--radius-sm)] px-1.5 py-1.5 border-0" style="color:#262420;background:#fff;"><option value="">＋タグ追加</option></select>
+    <button id="btn-bulk-merge" onclick="openMergeModal()" class="btn btn-outline" style="color:#262420;background:#fff;" title="選択した2件以上のカードを1枚にまとめる"><i class="fa-solid fa-layer-group mr-1"></i>統合</button>
+    <button onclick="bulkSetType('unnecessary')" class="btn btn-outline" style="color:#262420;background:#fff;">不要にする</button>
     <button onclick="clearSelection()" class="btn btn-ghost text-white hover:bg-white/10">選択解除</button>
+  </div>
+
+  <!-- 複数カードの統合モーダル -->
+  <div id="modal-merge" class="hidden fixed inset-0 z-[68] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+    <div class="modal-surface max-w-lg w-full p-5 flex flex-col gap-3" style="max-height:88vh;">
+      <div class="flex items-center justify-between border-b border-[var(--line-soft)] pb-2 shrink-0">
+        <h3 class="font-display font-semibold text-sm text-[var(--ink)] flex items-center">
+          <i class="fa-solid fa-layer-group text-[var(--accent)] mr-2 text-xs"></i> カードを統合
+        </h3>
+        <button id="btn-close-merge" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="overflow-y-auto pr-1" style="flex:1; min-height:0;">
+        <div class="mb-3">
+          <label class="block text-xs font-medium text-[var(--ink)] mb-1">統合するカード（<span id="merge-source-count">0</span>件）</label>
+          <div id="merge-source-list" class="flex flex-col gap-0.5 max-h-28 overflow-y-auto border border-[var(--line-soft)] rounded-[var(--radius-sm)] p-1.5"></div>
+        </div>
+        <div class="mb-3">
+          <label class="block text-xs font-medium text-[var(--ink)] mb-1">統合後の内容（編集できます）</label>
+          <textarea id="merge-text" rows="4" class="field resize-none"></textarea>
+        </div>
+        <div class="mb-3">
+          <label class="block text-xs font-medium text-[var(--ink)] mb-1">分類</label>
+          <div class="flex gap-3 text-xs">
+            <label class="flex items-center gap-1"><input type="radio" name="merge-type" value="unclassified"> 未分類</label>
+            <label class="flex items-center gap-1"><input type="radio" name="merge-type" value="s"> S</label>
+            <label class="flex items-center gap-1"><input type="radio" name="merge-type" value="o"> O</label>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-[var(--ink)] mb-1">ヘンダーソンタグ</label>
+          <div id="merge-tags-list" class="flex flex-wrap gap-1.5"></div>
+        </div>
+      </div>
+      <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
+        <i class="fa-solid fa-circle-info"></i> 元のカードそれぞれの分類・タグの学習内容は統合後のカードに引き継がれ、ここで選んだ分類・タグも新しい学習として記録されます。
+      </p>
+      <div class="flex justify-end gap-2 shrink-0">
+        <button id="btn-cancel-merge" class="btn btn-outline">キャンセル</button>
+        <button id="btn-confirm-merge" class="btn btn-primary">統合する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 情報カードの不具合報告モーダル：カードの書き込みが変だと感じた時に、その内容をサイト側に送る -->
+  <div id="modal-card-report" class="hidden fixed inset-0 z-[62] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+    <div class="modal-surface max-w-md w-full p-5 flex flex-col gap-3" style="max-height:85vh;">
+      <div class="flex items-center justify-between border-b border-[var(--line-soft)] pb-2 shrink-0">
+        <h3 class="font-display font-semibold text-sm text-[var(--ink)] flex items-center">
+          <i class="fa-solid fa-flag text-[var(--brick)] mr-2 text-xs"></i> 情報カードの不具合を報告
+        </h3>
+        <button id="btn-close-card-report" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="overflow-y-auto pr-1" style="flex:1; min-height:0;">
+        <div class="mb-3">
+          <label class="block text-xs font-medium text-[var(--ink)] mb-1">対象のカード内容</label>
+          <p id="card-report-target-text" class="text-xs text-[var(--ink)] bg-[var(--paper)] border border-[var(--line-soft)] rounded-[var(--radius-sm)] p-2 whitespace-pre-wrap break-words"></p>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-[var(--ink)] mb-1">どこが変か・気になった点（任意）</label>
+          <textarea id="card-report-comment" rows="3" class="field resize-none" placeholder="例：検査値と単位が別カードになっている／分類がSではなくOのはず、など"></textarea>
+        </div>
+      </div>
+      <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
+        <i class="fa-solid fa-circle-info"></i> このページを閉じるまでに送った複数件の報告は、1人分の投稿としてまとめて記録されます。
+      </p>
+      <div class="flex justify-end gap-2 shrink-0">
+        <button id="btn-cancel-card-report" class="btn btn-outline">キャンセル</button>
+        <button id="btn-confirm-card-report" class="btn btn-primary">送信する</button>
+      </div>
+    </div>
   </div>
 
   <!-- トースト通知コンテナ -->
