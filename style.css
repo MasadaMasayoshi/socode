@@ -105,8 +105,6 @@
 
     .type-btn { font-size: .625rem; font-weight: 700; padding: .15rem .5rem; border-radius: var(--radius-sm); border: 1.5px solid var(--line); color: var(--ink-muted); background: var(--surface); transition: all .15s ease; }
     .type-btn:hover { border-color: var(--accent); color: var(--accent); }
-    .type-btn.active-s { background: var(--gold); border-color: var(--gold); color: #fff; }
-    .type-btn.active-o { background: var(--slate); border-color: var(--slate); color: #fff; }
     /* カードの操作ボタンは常に色つきの枠を出し、何のボタンか一目で分かるようにする */
     .type-btn-s { border-color: var(--gold); color: var(--gold); }
     .type-btn-s:hover { background: var(--gold); color: #fff; }
@@ -133,6 +131,12 @@
     .card-selected { outline: 2px solid var(--accent); outline-offset: 1px; box-shadow: 0 0 0 3px var(--accent-soft); }
     @keyframes flashHighlight { 0%, 100% { box-shadow: none; } 15%, 55% { box-shadow: 0 0 0 4px var(--accent-soft), 0 0 0 2px var(--accent); } }
     .card-flash { animation: flashHighlight 1.6s ease; }
+
+    /* カード左上の選択チェックボックス：Ctrl/Cmd/Shiftキーが無いスマートフォン・タブレットでも
+       タップだけで複数選択できるようにするための操作要素。当たり判定を見た目より少し広く取る
+       （負のマージンで周囲のレイアウトを崩さずタップ領域だけ広げる）。 */
+    .card-select-wrap { display: inline-flex; align-items: center; justify-content: center; padding: 5px; margin: -5px; cursor: pointer; }
+    .card-select-checkbox { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
 
     /* 自動分類の信頼度バッジ（カード上）：学習結果がない/類似一致/票が拮抗している場合に小さく表示し、
        ユーザーに再確認を促す。完全一致で学習済み（confident）の場合は何も表示しない。 */
