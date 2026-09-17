@@ -2704,10 +2704,19 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       return cleaned;
     }
 
+    // 「創部：出血なし。」のように「創部」という一語だけの見出しでは、周術期の記録に複数
+    // 存在しうる創（腹部の手術創、吻合部、ドレーン刺入部等）のうちどれを指すか分からなくなる
+    // （利用者からの指摘：「なんの創部なのかがわからなくなってる」）。「吻合部・胃管ドレーン」
+    // 「左腹腔ドレーン」のように他の部位名とセットで書かれている場合は対象外とし、「創部」が
+    // 単独で見出しとして使われている場合に限り、周術期看護で最も一般的に指す腹部の手術創
+    // であることを明示する（ユーザーへの確認の上での対応）。
+    const BARE_WOUND_LABEL_REGEX = /^創部[:：]/;
     function cleanExtractedPhrase(str) {
       if (!str) return '';
       let cleaned = str.trim().replace(/^[\]\)\]〕』】〉、。・,\.\-\s〜〜]+/g, '').replace(/[,\-\s〜〜（〈〔『【「『]+$/g, '');
-      return formatLabValueString(cleaned);
+      cleaned = formatLabValueString(cleaned);
+      cleaned = cleaned.replace(BARE_WOUND_LABEL_REGEX, '腹部創部（手術創）：');
+      return cleaned;
     }
 
     // 見出しラベルが付いていない一般的な文章（行頭の残り・見出しに属さない残りの文章等）は、
