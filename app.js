@@ -188,7 +188,16 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       "Dダイマー": { unit: "μg/mL", ref: "1.0以下" },
       "BNP": { unit: "pg/mL", ref: "18.4以下" },
       "PT-INR": { unit: "", ref: "0.9〜1.1" },
-      "HbA1c": { unit: "%", ref: "4.6〜6.2" }
+      "HbA1c": { unit: "%", ref: "4.6〜6.2" },
+      // TP（総蛋白）・Alb（アルブミン）・γGTPは、AST/ALT等と並んで肝機能・栄養状態の
+      // 血液検査でよく登場する項目だが、これまで登録が無く、表形式で貼り付けた際に
+      // 項目名だけのカードが値と結合されずに残ってしまっていた（利用者からの指摘：
+      // 「検査値をしっかり分類するように」）。
+      "TP": { unit: "g/dL", ref: "6.6〜8.1" },
+      "Alb": { unit: "g/dL", ref: "3.8〜5.2" },
+      // γGTPは男女で基準値が分かれることが多いが、Hb等の既存項目と同様にこの一覧では
+      // 性別を分けない大まかな目安の範囲として扱う（既存のHb等と同じ簡略化の考え方）。
+      "γGTP": { unit: "U/L", ref: "9〜50" }
     };
 
     // ==========================================================================
@@ -212,7 +221,10 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       ['WBC', '\\d+[\\d,]*'], ['CRP', '\\d+\\.?\\d*'], ['HbA1c', '\\d+\\.?\\d*'], ['Hb', '\\d+\\.?\\d*'],
       ['RBC', '\\d+[\\d,]*'], ['Plt', '\\d+[\\d,]*'], ['BUN', '\\d+\\.?\\d*'], ['Cre', '\\d+\\.?\\d*'],
       ['Na', '\\d+'], ['K', '\\d+\\.?\\d*'], ['Cl', '\\d+'], ['AST', '\\d+'], ['ALT', '\\d+'],
-      ['Dダイマー', '\\d+\\.?\\d*'], ['BNP', '\\d+\\.?\\d*'], ['PT-INR', '\\d+\\.?\\d*']
+      ['Dダイマー', '\\d+\\.?\\d*'], ['BNP', '\\d+\\.?\\d*'], ['PT-INR', '\\d+\\.?\\d*'],
+      // TP・Alb・γGTPを追加（LAB_STANDARDSの説明を参照）。「TP」は前方一致で他のキーと
+      // 競合しないため並び順を問わないが、他の項目とまとめて分かりやすい位置に置く。
+      ['TP', '\\d+\\.?\\d*'], ['Alb', '\\d+\\.?\\d*'], ['γGTP', '\\d+\\.?\\d*']
     ];
     const LAB_REGEX_SOURCE = LAB_KEY_NUM_PATTERNS.map(([key, numPattern]) => {
       const unit = LAB_STANDARDS[key] ? LAB_STANDARDS[key].unit : '';
@@ -260,8 +272,14 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     // 検査値カードとして結合する。直後の行が数値でない場合、項目名だけでは意味のある情報に
     // ならないため（日付だけの断片と同じ考え方で）カード化しない。
     // ==========================================================================
+    // 項目名の行には「WBC(白血球数)」「AST(GOT)」のように、英語略語の後ろに日本語名や
+    // 別名を括弧書きで添えることが多いが、以前はこの括弧書きが無い完全一致（例：「WBC」だけ）
+    // しか認識できず、括弧付きの行は「項目名だけの行」と判定されずに値と結合されずに残ってしまい、
+    // 「WBC(白血球数)」のような見出し語だけの意味の無いカードになっていた（利用者からの指摘：
+    // 「検査値をしっかり分類するように」）。項目名の直後に括弧書きの補足があっても、その後に
+    // コロン・行末が続く限り「項目名だけの行」として認識できるようにする。
     const BARE_LAB_KEY_REGEX = new RegExp(
-      '^(?:' + LAB_KEY_NUM_PATTERNS.map(([k]) => escapeRegExp(k)).join('|') + '|体温|血圧|脈拍|SpO2)[:：]?\\s*$', 'i'
+      '^(?:' + LAB_KEY_NUM_PATTERNS.map(([k]) => escapeRegExp(k)).join('|') + '|体温|血圧|脈拍|SpO2)(?:[（(][^）)]*[）)])?[:：]?\\s*$', 'i'
     );
     // 表からのコピー貼り付けでは、項目名の行の後に「基準値」の行、続けて「実測値」の行、というように
     // 2行以上に渡って値だけの行が続くことがある（例:1行目「RBC」、2行目「4.35〜5.55 ×10^6/μL」＝基準値、
@@ -404,6 +422,11 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       // かつinferAssessmentColumnで入院前として一括して振り分けられるようにする。
       { key: "氏名", label: "氏名", color: "var(--slate)", bg: "var(--slate-soft)", icon: "fa-id-card", type: "o" },
       { key: "年齢", label: "年齢", color: "var(--slate)", bg: "var(--slate-soft)", icon: "fa-calendar-days", type: "o" },
+      // 「性別」は氏名・年齢と並んで冒頭の基本情報にまとめて書かれることが多いが、これまで
+      // 見出しラベルとして未登録だったため、単独の見出し語として構造化されず、値が無い場合に
+      // 見出し語だけが本文として残ってしまう不具合の一因になっていた（下のisBareFieldHeaderOnly
+      // 参照）。氏名・年齢と同様の基本情報として登録する。
+      { key: "性別", label: "性別", color: "var(--slate)", bg: "var(--slate-soft)", icon: "fa-venus-mars", type: "o" },
       { key: "現病歴", label: "現病歴", color: "var(--slate)", bg: "var(--slate-soft)", icon: "fa-notes-medical", type: "o" },
       { key: "既往歴", label: "既往歴", color: "var(--slate)", bg: "var(--slate-soft)", icon: "fa-clock-rotate-left", type: "o" },
       { key: "家族関係", label: "家族関係", color: "var(--slate)", bg: "var(--slate-soft)", icon: "fa-people-roof", type: "o" },
@@ -499,6 +522,21 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       return FIELD_LABEL_DEFAULT_TAGS[fieldLabel] || [];
     }
 
+    // 「氏名　年齢　性別」のような表形式の見出し行で、対応する値が見つからない（AIが値を
+    // 見つけられず見出し語自体をtextとして返してしまう等の）場合、見出し語だけが本文として
+    // 残ってしまい、「氏名」「年齢」「性別」としか表示されず何の情報にもならないカードが
+    // 作られてしまう不具合があった（利用者からの指摘：「学習データ管理からほかのユーザーが
+    // 作成したページを閲覧することができません」→実際には閲覧はできていたが、カードの
+    // 内容が見出し語だけで実質的な情報が無かった）。見出し語のみの文字列には値が無く、
+    // カード化しても意味が無いため、他の空文字判定と同様にここで除外する。
+    // FIELD_LABELSに登録済みの見出し語すべてに加え、性別は上で登録したため既に含まれるが、
+    // 将来見出し語registryが変わっても対応できるよう明示的にSetを組み立てる。
+    const BARE_FIELD_HEADER_WORDS = new Set(FIELD_LABELS.map(f => f.key));
+    function isBareFieldHeaderOnly(str) {
+      const trimmed = (str || '').replace(/[:：]\s*$/, '').trim();
+      return BARE_FIELD_HEADER_WORDS.has(trimmed);
+    }
+
     // ==========================================================================
     // 総合アセスメント表の「入院前」「入院後」欄への初期振り分け
     // ------------------------------------------------------------------------
@@ -527,7 +565,7 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       // 「受け持ち前の引継ぎ情報」（入院・手術より前の時点で、受け持ちを始めるにあたって
       // 申し送られる基本情報）であるため、既往歴等と同様に入院前として振り分ける。
       if (fieldLabel === '現病歴' || fieldLabel === '既往歴' || fieldLabel === '生活歴'
-        || fieldLabel === '氏名' || fieldLabel === '年齢' || fieldLabel === '診断名'
+        || fieldLabel === '氏名' || fieldLabel === '年齢' || fieldLabel === '性別' || fieldLabel === '診断名'
         || fieldLabel === '手術術式' || fieldLabel === '感染症') return 'preadmission';
       if (fieldLabel === '治療方針' || fieldLabel === '治療内容') return 'postadmission';
       return null;
@@ -3112,7 +3150,7 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
             // （以前は「入院日」だけを対象外としていたが、単なる日付だけのカードが作られてしまうという
             // 指摘を受けたため、見出しの種類にかかわらず統一的に判定する）。
             const isDateOnlyContent = isDateOnlyText(content);
-            if (content.length >= 1 && !isDateOnlyContent) {
+            if (content.length >= 1 && !isDateOnlyContent && !isBareFieldHeaderOnly(content)) {
               // 既往歴は「53歳 卵巣嚢腫、50歳代 胆石症 (症状がないため経過観察中)」のように
               // 「◯歳（代）＋病名」の組が読点で列挙されることが多く、これを1枚のカードに
               // まとめてしまうと個々の既往（診断）ごとのタグ付けができない。年齢表記が
@@ -3283,6 +3321,10 @@ ${text}
               if (!pi.text) return;
               const cleanedText = cleanExtractedPhrase(pi.text);
               if (cleanedText.length < 2) return;
+              // AIが表形式の見出し行（「氏名 年齢 性別」等）から値を見つけられず、見出し語
+              // そのものをtextとして返してしまう場合がある。実質的な情報が無いため除外する
+              // （isBareFieldHeaderOnlyの説明を参照）。
+              if (isBareFieldHeaderOnly(cleanedText)) return;
               const validFieldLabel = FIELD_LABELS.some(f => f.key === pi.fieldLabel) ? pi.fieldLabel : null;
               // 日付・時刻だけの断片はプロンプトで除外を指示しているが、AIが誤って出力した場合に備え、
               // ローカル抽出（groupClinicalPhrasesWithTimestamps）と同じ条件で二重にフィルタする。
@@ -3364,7 +3406,7 @@ ${text}
       let addedCount = 0;
       groupClinicalPhrasesWithTimestamps(text).forEach(chunk => {
         const cleanedText = cleanExtractedPhrase(chunk.text);
-        if (cleanedText.length < 2 || cp.items.some(i => i.text === cleanedText && i.timestamp === chunk.timestamp)) return;
+        if (cleanedText.length < 2 || isBareFieldHeaderOnly(cleanedText) || cp.items.some(i => i.text === cleanedText && i.timestamp === chunk.timestamp)) return;
         let userLearned = globalAppData.learningUserDict[cleanedText]; // ロード時に共有学習辞書とマージ済み
         let predictionSource = null;
         let fuzzyMatchedText = null;
@@ -4908,6 +4950,7 @@ if (typeof module !== 'undefined' && module.exports) {
     isEmptyColonHeaderLine,
     hasOwnFieldLabelPrefix,
     isBareStatusWord,
+    isBareFieldHeaderOnly,
     splitByNakatenList,
     splitIndependentActionPhrases,
     splitEnumeratedPhrases,
