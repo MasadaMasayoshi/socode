@@ -57,6 +57,16 @@
 //   対策として、IPアドレスごとのレート制限（rateLimit）・文字数上限（capString）・
 //   同一セッションからの1グループあたりの件数上限（CARD_REPORT_MAX_ITEMS_PER_GROUP）を設けている。
 //
+// data/reference-sources.json … NotebookLM等の外部の参照元を「名前＋リンク（URL）＋
+//   （任意で）貼り付けた内容」の形で積み上げる配列。NotebookLMには個人利用者が取得できる
+//   公開APIが無く（2026年9月時点、企業向けのGemini Enterprise版のみで組織のライセンスが
+//   必要）、「APIキーを取得してリンクを貼るだけで内容を自動取得する」という連携は
+//   技術的に作れない。そのため名前とリンクを登録し、内容はコピー＆ペーストで貼り付けて
+//   もらう方式にしている。学習データ管理画面の「分類基準」タブから追加・編集・削除でき、
+//   全利用者に共有される。貼り付けられた内容（content）だけが、フロントエンド側の
+//   buildEffectiveNotebookContent()経由でAIへの指示文に統合される（リンクのみで内容が
+//   未貼付のものは一覧に残るが、AIの分類には反映されない）。
+//
 // data/*-archive.json（case-log-archive.json / extraction-log-archive.json /
 //   card-reports-archive.json）… 上記3つの追記専用ログのうち、ARCHIVE_THRESHOLD_DAYS
 //   （既定90日）より古くなったエントリーを自動整理（runArchiving、24時間おきに実行）で
@@ -81,6 +91,9 @@ const DICT_FILE = path.join(DATA_DIR, 'learning-dict.json');
 const LOG_FILE = path.join(DATA_DIR, 'case-log.json');
 const PATIENTS_FILE = path.join(DATA_DIR, 'patients.json');
 const CRITERIA_FILE = path.join(DATA_DIR, 'extraction-criteria.json');
+const NOTEBOOK_CONTENT_FILE = path.join(DATA_DIR, 'notebook-content.json');
+const REFERENCE_SOURCES_FILE = path.join(DATA_DIR, 'reference-sources.json');
+const PATIENT_SNAPSHOT_FILE = path.join(DATA_DIR, 'patient-snapshots.json');
 const EXTRACTION_LOG_FILE = path.join(DATA_DIR, 'extraction-log.json');
 const CARD_REPORTS_FILE = path.join(DATA_DIR, 'card-reports.json');
 // 自動整理（アーカイブ）先。古くなった記録は下の3ファイルから消すのではなく、こちらへ
@@ -88,6 +101,7 @@ const CARD_REPORTS_FILE = path.join(DATA_DIR, 'card-reports.json');
 const CASE_LOG_ARCHIVE_FILE = path.join(DATA_DIR, 'case-log-archive.json');
 const EXTRACTION_LOG_ARCHIVE_FILE = path.join(DATA_DIR, 'extraction-log-archive.json');
 const CARD_REPORTS_ARCHIVE_FILE = path.join(DATA_DIR, 'card-reports-archive.json');
+const PATIENT_SNAPSHOT_ARCHIVE_FILE = path.join(DATA_DIR, 'patient-snapshots-archive.json');
 
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -102,10 +116,96 @@ function loadJson(file, fallback) {
   }
 }
 
+// app.js側のDEFAULT_NOTEBOOK_CONTENT（基準ノート本体の初期値）の先頭には元々、
+// このノートの作成元になったNotebookLMノートへのリンクが説明文として埋め込まれていた
+// （「【NotebookLM 基準ノート: https://.../preview】」）。これは自動取得されるわけではない
+// 単なる説明テキストで、これまでは編集も削除もできなかった。参照元リンク機能を追加した際に、
+// このリンクも「参照元」の一覧に登録しておき、他の参照元と同じように編集・削除できるようにする
+// （reference-sources.jsonがまだ存在しない＝初回起動時にだけ、この初期値でファイルが作られる。
+// 　一度作られた後は、利用者がこの一覧上で編集・削除した内容がそのまま保持される）。
+// 胃がん（胃切除術）周術期看護に関する追加の参照元。利用者が最初に提示したNotebookLMの2つの
+// ノートはrobots.txtにより自動取得不可で、利用者自身も開けない/使えないリンクだったため
+// コード上の出典表記からは除外し、実際に内容を統合できたGoogle Docsソースのみを出典として
+// 残す（利用者からの指示：「使用できないリンクはコードから除外していいですよ」）。
+// 最終的にはGoogle Docsの内容をテキストファイルで共有してもらい、重複除去・NotebookLMの
+// UI提案文（「〜整理してみますか？」等）を除いた上でここに統合している。DEFAULT_NOTEBOOK_CONTENT
+// （app.js）側には、AI分類のタグ付けに直結する要点（ヘンダーソン項目との対応など）を優先して
+// まとめており、ここではそれを補うより詳しい臨床的な背景（組織分類・TNM/Stage・初発症状時の
+// 看護等）を保持する。
+const GASTRIC_CANCER_REFERENCE_CONTENT = `胃がん（胃切除術）周術期看護 参考資料
+（元資料：Google Docsソース https://docs.google.com/document/d/1bzNk5nDwyJTohdFfgk5pDFRBpJIpiAD2ycA48MIrzXw/edit?usp=sharing）
+
+■ 胃がんの定義・確定診断
+胃がんは消化器系悪性腫瘍の一つで、日本国内では罹患率が第1位、死亡率は肺がんに次いで高い。確定診断は内視鏡検査等で取得した検体の細胞診または組織診（生検）による。
+
+■ 組織型分類（胃癌取扱い規約）
+分化型癌：乳頭腺癌（pap）、管状腺癌（tub1, tub2）。未分化型癌：低分化腺癌（por1, por2）、印環細胞癌（sig）等。1病変内に複数の組織型が混在する場合は量的に優勢な組織像で分類する。
+
+■ 深達度による分類
+早期胃がん：粘膜層（pT1a）または粘膜下層（pT1b）にとどまる病変。進行胃がん：筋層以降（筋層・漿膜下層・漿膜等）まで浸潤した病変。
+
+■ TNM分類とStage
+T（Primary Tumor）＝原発腫瘍の深達度、N（Regional Lymph Nodes）＝胃周囲リンパ節転移の程度・個数、M（Distant Metastasis）＝遠隔転移。この3要素の組み合わせでStage I〜IVが決定される。
+Stage I（IA・IB）：早期胃がん中心。リンパ節転移リスクが極めて低い場合はESD（内視鏡的粘膜下層剥離術）、それ以外は腹腔鏡・ロボット手術による胃切除。
+Stage II・III：筋層深部浸潤またはリンパ節転移を伴う進行胃がん。リンパ節郭清を伴う手術＋術後補助化学療法（再発予防）や術前化学療法。
+Stage IV：肝・肺・腹膜・遠隔リンパ節への遠隔転移。原則切除手術ではなく、バイオマーカー検査（HER2, PD-L1, CLDN18.2等）に基づく薬物療法が第一選択。
+日本胃癌学会『胃癌治療ガイドライン』では、リンパ節転移リスクが1％未満と推定され外科的胃切除と同等の成績が得られる病変を「絶対適応病変」として内視鏡的切除（EMR/ESD）の対象とする。
+
+■ 転移様式
+リンパ節転移：胃周囲や主要血管沿いのリンパ節へ広がる。早期胃がんでも粘膜下層浸潤（SM浸潤）・潰瘍併存（UL1）・未分化型成分・脈管侵襲があるとリスクが高まり、リンパ節郭清を伴う胃切除術が必要となる。
+血行性転移（遠隔転移）：肝臓・肺等への転移。大動脈周囲リンパ節転移も含めステージIVと診断され、薬物療法（抗がん剤・分子標的薬・免疫チェックポイント阻害薬）が中心となる。
+腹膜播種（癌性腹膜炎）：漿膜を破って腹腔内に散らばる転移。難治性腹水・イレウス・尿管閉塞を伴う癌性腹膜炎となり、緩和ケアを含む全身管理が必要。ダグラス窩への定着はシュニッツラー転移、卵巣転移はクルッケンベルグ腫瘍と呼ばれる。
+
+■ 原因・リスク要因
+H. pylori感染（最大の要因。慢性活動性胃炎・萎縮性胃炎・腸上皮化生を経て分化型腺癌等のリスクが上昇。除菌後も異時性胃がんのリスクは継続するため長期経過観察が必要）、塩分過剰摂取、喫煙、加齢、遺伝的要素。
+
+■ 症状
+初期・早期：無症状で経過することが多く、検診で発見されることが多い。
+初発・軽度症状：腹部不快感、腹部膨満感、心窩部痛、胸やけ、悪心、食欲不振、食事と無関係な鈍痛。
+進行に伴う症状：潰瘍出血によるタール便・貧血（めまい、立ちくらみ、眼球結膜の貧血）、噴門部がんによる嚥下困難・つかえ感、幽門部がんによる幽門狭窄・頻回な嘔吐、進行性の体重減少。
+
+■ 症状発症・初発受診時の看護（周術期以前）
+バイタルサインと自覚症状のアセスメント（心窩部痛・胸やけ・悪心嘔吐の程度と食事との関連、貧血症状・タール便・吐血の有無、ショック徴候の迅速な評価）。
+栄養状態・消化吸収障害の評価（食事摂取量・体重変化、脱水・低栄養の程度、噴門部がんによる誤嚥防止、幽門部がんによる絶飲食・補液管理の判断）。
+心理的ケア（病名告知・検査治療への不安や不確定要素の受け止め）。
+検査・処置の説明と管理（上部消化管内視鏡・造影検査に必要な絶飲食(NPO)の遵守、下剤等の前処置指導）。
+
+■ 周術期の主要合併症の原因・要因・症状（まとめ）
+①呼吸器合併症（無気肺・肺炎）：全身麻酔による換気量低下・気道分泌物増加、創部痛による喀痰困難、喫煙歴が要因。SpO2低下、呼吸数異常、チアノーゼ、発熱、副雑音、喀痰困難が症状。
+②消化器合併症（麻痺性・癒着性イレウス）：麻酔薬による腸蠕動低下、離床の遅れ、腸管の癒着・閉塞が要因。腹部膨満、悪心嘔吐、排ガス・排便停止、腹痛が症状。
+③術後せん妄：準備要因（高年齢・認知機能低下）、誘発要因（手術侵襲・麻酔・低酸素血症・疼痛）、促進要因（身体的拘束感・環境変化・睡眠障害）が複合。急性発症・日内変動を特徴とし、過活動型（興奮・妄想・自己抜去）と低活動型（活気低下・傾眠）がある。
+
+■ NotebookLMチャット出力からの統合に関する注記
+本資料は複数回のNotebookLM出力に同一内容の繰り返し（周術期看護フレームワークの3期構成が3回、術前管理・治療・検査診断の指針が2回ずつ等）が含まれていたため重複を除去し、NotebookLMインターフェース側の追加提案文（「〜について整理してみますか？」等）を取り除いた、実質的な内容のみを統合したものである。`;
+
+const DEFAULT_REFERENCE_SOURCES = [
+  {
+    id: 'refsrc_default_notebooklm',
+    title: 'NotebookLM 基準ノート',
+    url: 'https://notebook.google.com/notebook/7015c97f-8d93-419e-9871-a6e6f2b00b44/preview',
+    content: '',
+    addedAt: new Date().toISOString()
+  },
+  {
+    id: 'refsrc_gastric_cancer_perioperative',
+    title: '胃がん周術期看護 判断基準（Google Docsソース）',
+    url: 'https://docs.google.com/document/d/1bzNk5nDwyJTohdFfgk5pDFRBpJIpiAD2ycA48MIrzXw/edit?usp=sharing',
+    content: GASTRIC_CANCER_REFERENCE_CONTENT,
+    addedAt: new Date().toISOString()
+  }
+];
+
 let learningDict = loadJson(DICT_FILE, {});
 let caseLog = loadJson(LOG_FILE, []);
 let patientsDict = loadJson(PATIENTS_FILE, {}); // { [patientId]: 患者データ（items・sourceText等を含む） }
 let extractionCriteria = loadJson(CRITERIA_FILE, []); // [{ id, text, addedAt }] AI抽出・分類に使う追加の要望（全利用者共有）
+let notebookContentData = loadJson(NOTEBOOK_CONTENT_FILE, { text: null, updatedAt: null }); // { text, updatedAt } NotebookLM基準ノート本体（全利用者共有）。textがnullの間はクライアント側の初期値(DEFAULT_NOTEBOOK_CONTENT)を使う
+let referenceSources = loadJson(REFERENCE_SOURCES_FILE, DEFAULT_REFERENCE_SOURCES); // [{ id, title, url, content, addedAt, updatedAt }] 参照元リンク（NotebookLM等。全利用者共有）。ファイルが無い初回起動時のみDEFAULT_REFERENCE_SOURCESを使う
+// [{ id, clientId, patientId, patientTitle, items, sourceText, closedAt }] タブを閉じた時点の患者カルテのスナップショット履歴。
+// patients.json側は他端末とカード単位でマージされ続ける「最新の共有カルテ」だが、ここはその時点の
+// 内容を上書きせずそのまま記録として積み重ねる（学習データ管理画面から後で振り返れるようにするため）。
+let patientSnapshots = loadJson(PATIENT_SNAPSHOT_FILE, []);
+let patientSnapshotsArchive = loadJson(PATIENT_SNAPSHOT_ARCHIVE_FILE, []);
 let extractionLog = loadJson(EXTRACTION_LOG_FILE, []); // [{ id, patientId, patientTitle, text, extractedCount, at }] 分類開始のたびの「抽出前の文章」履歴
 let cardReports = loadJson(CARD_REPORTS_FILE, []); // [{ id, sessionId, patientId, patientTitle, items: [{cardText, comment, at}], createdAt, updatedAt }] 情報カードの不具合報告
 let caseLogArchive = loadJson(CASE_LOG_ARCHIVE_FILE, []);
@@ -120,6 +220,10 @@ const PERSISTED_FILES = [
   { file: LOG_FILE, get: () => caseLog },
   { file: PATIENTS_FILE, get: () => patientsDict },
   { file: CRITERIA_FILE, get: () => extractionCriteria },
+  { file: NOTEBOOK_CONTENT_FILE, get: () => notebookContentData },
+  { file: REFERENCE_SOURCES_FILE, get: () => referenceSources },
+  { file: PATIENT_SNAPSHOT_FILE, get: () => patientSnapshots },
+  { file: PATIENT_SNAPSHOT_ARCHIVE_FILE, get: () => patientSnapshotsArchive },
   { file: EXTRACTION_LOG_FILE, get: () => extractionLog },
   { file: CARD_REPORTS_FILE, get: () => cardReports },
   { file: CASE_LOG_ARCHIVE_FILE, get: () => caseLogArchive },
@@ -617,6 +721,114 @@ app.delete('/api/extraction-criteria/:id', async (req, res) => {
   res.json(extractionCriteria);
 });
 
+// NotebookLM基準ノート本体（notebookContent）。textがnullの場合はまだ誰も保存しておらず、
+// クライアント側の初期値（DEFAULT_NOTEBOOK_CONTENT）を使うべきことを示す。
+app.get('/api/notebook-content', (req, res) => {
+  res.json(notebookContentData);
+});
+
+app.put('/api/notebook-content', rateLimit('notebook-content', { windowMs: 60000, max: 20 }), async (req, res) => {
+  const { text } = req.body || {};
+  if (typeof text !== 'string' || !text.trim()) {
+    return res.status(400).json({ error: 'text is required' });
+  }
+  notebookContentData = { text: capString(text.trim(), 50000), updatedAt: new Date().toISOString() };
+  await persist();
+  res.json(notebookContentData);
+});
+
+// 参照元リンク（NotebookLM等）。NotebookLMには個人利用者が取得できる公開APIが無いため、
+// ここではリンクの自動取得は行わず、利用者が貼り付けたtitle/url/contentをそのまま保存する。
+// title・urlは必須（一覧表示の見出し・リンク先として必要）、contentは任意
+// （貼り付けがあればAIへの指示文に統合され、無ければリンクのみの一覧として残る）。
+app.get('/api/reference-sources', (req, res) => {
+  res.json(referenceSources);
+});
+
+app.post('/api/reference-sources', rateLimit('reference-sources', { windowMs: 60000, max: 30 }), async (req, res) => {
+  const { title, url, content } = req.body || {};
+  if (typeof title !== 'string' || !title.trim()) {
+    return res.status(400).json({ error: 'title is required' });
+  }
+  if (typeof url !== 'string' || !url.trim()) {
+    return res.status(400).json({ error: 'url is required' });
+  }
+  const entry = {
+    id: 'refsrc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    title: capString(title.trim(), 200),
+    url: capString(url.trim(), 2000),
+    content: capString((typeof content === 'string' ? content.trim() : ''), 30000),
+    addedAt: new Date().toISOString()
+  };
+  referenceSources.push(entry);
+  await persist();
+  res.json(referenceSources);
+});
+
+app.put('/api/reference-sources/:id', rateLimit('reference-sources', { windowMs: 60000, max: 30 }), async (req, res) => {
+  const { id } = req.params;
+  const { title, url, content } = req.body || {};
+  if (typeof title !== 'string' || !title.trim()) {
+    return res.status(400).json({ error: 'title is required' });
+  }
+  if (typeof url !== 'string' || !url.trim()) {
+    return res.status(400).json({ error: 'url is required' });
+  }
+  const entry = referenceSources.find(r => r.id === id);
+  if (!entry) {
+    return res.status(404).json({ error: 'not found' });
+  }
+  entry.title = capString(title.trim(), 200);
+  entry.url = capString(url.trim(), 2000);
+  entry.content = capString((typeof content === 'string' ? content.trim() : ''), 30000);
+  entry.updatedAt = new Date().toISOString();
+  await persist();
+  res.json(referenceSources);
+});
+
+app.delete('/api/reference-sources/:id', async (req, res) => {
+  const { id } = req.params;
+  referenceSources = referenceSources.filter(r => r.id !== id);
+  await persist();
+  res.json(referenceSources);
+});
+
+// ---- タブを閉じた時点の患者カルテのスナップショット（全利用者共有・学習データ管理画面から閲覧） ----
+// beforeunloadのsendBeaconから送られてくる想定（Content-Typeがtext/plainになるため type: () => true で
+// 強制的にJSONとして解釈する。他のbeforeunload系エンドポイントと同じ扱い）。
+// patients.json（PUT /api/patients/:id）は他端末のカードとマージされ続ける「最新の共有カルテ」だが、
+// ここは「その端末がタブを閉じた瞬間、何をどう分類していたか」をマージせずそのまま記録として積み重ねる。
+const PATIENT_SNAPSHOT_MAX_PATIENTS_PER_REQUEST = 50; // 1回の送信で記録する患者数の上限（暴走防止）
+const PATIENT_SNAPSHOT_MAX_ITEMS_PER_PATIENT = 500; // 1患者あたりのカード数の上限（暴走防止）
+
+app.post('/api/patient-snapshot', express.json({ limit: '8mb', type: () => true }), rateLimit('patient-snapshot', { windowMs: 60000, max: 60 }), async (req, res) => {
+  const { clientId, patients } = req.body || {};
+  if (!Array.isArray(patients) || patients.length === 0) {
+    return res.status(400).json({ error: 'patients is required' });
+  }
+  const at = new Date().toISOString();
+  const entries = patients
+    .filter(p => p && typeof p === 'object' && typeof p.patientId === 'string' && p.patientId)
+    .slice(0, PATIENT_SNAPSHOT_MAX_PATIENTS_PER_REQUEST)
+    .map(p => ({
+      id: 'snap_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+      clientId: typeof clientId === 'string' ? clientId : null,
+      patientId: p.patientId,
+      patientTitle: capString(typeof p.patientTitle === 'string' ? p.patientTitle : '', 200),
+      items: Array.isArray(p.items) ? p.items.slice(0, PATIENT_SNAPSHOT_MAX_ITEMS_PER_PATIENT) : [],
+      sourceText: capString(typeof p.sourceText === 'string' ? p.sourceText : '', 50000),
+      closedAt: at
+    }));
+  if (entries.length === 0) return res.status(400).json({ error: 'no valid patient snapshots' });
+  patientSnapshots.push(...entries);
+  await persist();
+  res.json({ ok: true, count: entries.length });
+});
+
+app.get('/api/patient-snapshots', (req, res) => {
+  res.json(patientSnapshots);
+});
+
 // ---- 抽出前の文章の履歴（「分類開始」を押すたびに蓄積・全利用者共有） ----
 // 患者カルテ本体(patients.json)側のsourceTextは、その患者の「最新の1回分」しか保持しない
 // （新しい文章を貼り付けて上書きすると、以前入力していた文章は残らない）。
@@ -712,7 +924,7 @@ function isOlderThanThresholdDays(isoString, thresholdDays) {
 
 // 起動時・定期実行の両方から呼ばれる。実際に何か移した場合のみpersist()する。
 async function runArchiving() {
-  let movedCaseLog = 0, movedExtractionLog = 0, movedCardReports = 0;
+  let movedCaseLog = 0, movedExtractionLog = 0, movedCardReports = 0, movedSnapshots = 0;
 
   const oldCaseLogEntries = caseLog.filter(e => isOlderThanThresholdDays(e.at, ARCHIVE_THRESHOLD_DAYS));
   if (oldCaseLogEntries.length > 0) {
@@ -737,9 +949,16 @@ async function runArchiving() {
     movedCardReports = oldReportGroups.length;
   }
 
-  if (movedCaseLog > 0 || movedExtractionLog > 0 || movedCardReports > 0) {
+  const oldSnapshotEntries = patientSnapshots.filter(e => isOlderThanThresholdDays(e.closedAt, ARCHIVE_THRESHOLD_DAYS));
+  if (oldSnapshotEntries.length > 0) {
+    patientSnapshotsArchive = patientSnapshotsArchive.concat(oldSnapshotEntries);
+    patientSnapshots = patientSnapshots.filter(e => !isOlderThanThresholdDays(e.closedAt, ARCHIVE_THRESHOLD_DAYS));
+    movedSnapshots = oldSnapshotEntries.length;
+  }
+
+  if (movedCaseLog > 0 || movedExtractionLog > 0 || movedCardReports > 0 || movedSnapshots > 0) {
     await persist();
-    console.log(`自動整理: 事例ログ${movedCaseLog}件・抽出前の文章${movedExtractionLog}件・情報カードの報告${movedCardReports}件をアーカイブへ退避しました`);
+    console.log(`自動整理: 事例ログ${movedCaseLog}件・抽出前の文章${movedExtractionLog}件・情報カードの報告${movedCardReports}件・カルテスナップショット${movedSnapshots}件をアーカイブへ退避しました`);
   }
 }
 
@@ -752,6 +971,9 @@ app.get('/api/extraction-log/archive', (req, res) => {
 });
 app.get('/api/card-reports/archive', (req, res) => {
   res.json(cardReportsArchive);
+});
+app.get('/api/patient-snapshots/archive', (req, res) => {
+  res.json(patientSnapshotsArchive);
 });
 
 // このファイルを直接実行した時（`node server.js` / `npm start`）だけサーバーを起動する。
