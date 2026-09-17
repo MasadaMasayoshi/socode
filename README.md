@@ -1,4 +1,4 @@
-[README.md](https://github.com/user-attachments/files/32320981/README.md)
+[README.md](https://github.com/user-attachments/files/32339309/README.md)
 # 看護アセスメント支援システム
 
 ## ファイル構成
@@ -177,14 +177,26 @@ npm test
 
 ## 公開（デプロイ）する場合
 
-Node.jsが動くホスティングであればどこでも構いません。例：
+GitHubにソースコードを置くだけでは、他の人がブラウザで開ける「動いているアプリ」にはなりません（GitHub自体はコードを見せる場所で、Expressサーバーは動きません）。実際に動くURLをクラスメイトや先生と共有するには、Node.jsが動くホスティングにデプロイする必要があります。
 
-- **Render / Railway / Fly.io** など：リポジトリを接続し、Build Command なし・Start Command を `npm start` に設定するだけで動きます。
-- **自前のVPS**：`npm install --production` → `npm start`（`pm2` 等でプロセス管理することを推奨）。
+### 無料構成：Render + MongoDB Atlas（推奨）
+
+Render・Railway・Fly.io等の無料枠は、再起動・再デプロイのたびにディスクの中身が消える前提のため、`data/*.json`のファイル保存のままだと「共有学習」等のデータがいつか消えてしまいます。そこで、保存先だけをMongoDB Atlasの無料枠（M0クラスタ、期限なしでずっと無料・512MB）に切り替えられるようにしてあります。
+
+1. **MongoDB Atlasで無料クラスタを作る**（https://www.mongodb.com/ でアカウント作成 → 無料のM0クラスタを作成）。「Database Access」でユーザー名・パスワードを設定し、「Network Access」で `0.0.0.0/0`（どこからでも接続可）を許可してから、「Connect」→ドライバ「Node.js」を選んで接続文字列（`mongodb+srv://...`）をコピーする。
+2. **Renderでこのリポジトリを接続する**（https://render.com/ でアカウント作成 → New → Web Service → GitHubリポジトリを選択）。Build Command は空欄（自動で`npm install`が実行されます）、Start Command は `npm start`。
+3. **Renderの環境変数（Environment）に `MONGODB_URI` を追加**し、値に手順1でコピーした接続文字列を貼り付ける（`<password>`の部分は実際のパスワードに置き換える）。これを設定するだけで、`server.js`は自動的に保存先をMongoDBへ切り替えます（未設定時はこれまで通りローカルのJSONファイルを使うので、ローカル開発・自動テストへの影響はありません）。
+4. デプロイ完了後に表示されるURL（`https://xxxxx.onrender.com`のような形）が、みんなに共有できるURLです。
+
+無料枠は15分操作が無いとスリープし、次にアクセスした人が最初だけ1分程度待ちますが、それ以外は無料でフル機能（共有学習・カルテ共有・分類基準・NotebookLM基準ノート等）が動きます。
+
+### その他のホスティング
+
+- **自前のVPS等**：`npm install --production` → `npm start`（`pm2` 等でプロセス管理することを推奨）。ディスクが永続する環境であれば、`MONGODB_URI`を設定せずこれまで通り`data/*.json`のままでも問題ありません。
 
 ### 本番運用に向けて、あわせて検討してほしいこと
 
-- **`data/*.json` はファイルベースの簡易保存です。** アクセスが増える・複数サーバーで動かす場合はSQLiteやPostgres等に置き換えてください（読み書きは `server.js` の `loadJson` / `persist` にまとまっています）。
-- **HTTPS化**は必須です（多くのホスティングでは自動で付きます）。
+- **`data/*.json`はファイルベースの簡易保存です。** 無料ホスティングではディスクが再起動で消えるため、上記のMongoDB Atlas（`MONGODB_URI`環境変数）への切り替えを推奨します。アクセスが増えてMongoDB Atlasの無料枠（512MB）を超える場合は、有料プランへの変更や別のDBサービスへの置き換えを検討してください（保存処理は`server.js`の`persist` / `loadFromMongo`にまとまっています）。
+- **HTTPS化**は必須です（Render等では自動で付きます）。
 - Gemini APIキーは今まで通り**利用者ごとにブラウザ内保存**です。複数の医療者が同じ画面を使う環境では、それぞれが自分のAPIキーを入力する運用になります。
 - 今回は「事例研究用途で個人情報は気にしなくてよい」という前提で、カード本文をそのまま共有・保存する設計にしています。本番の患者記録で公開運用する場合は、匿名化やアクセス制限など別途の対策を検討してください。
