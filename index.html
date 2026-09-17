@@ -42,8 +42,11 @@
         </button>
       </div>
 
-      <!-- 設定・保存・書き出し（NotebookLM連携は内部で固定適用しており、UIには表示しない） -->
-      <div class="flex items-center gap-1.5">
+      <!-- 設定・保存・書き出し（NotebookLM連携は内部で固定適用しており、UIには表示しない）。
+           親要素がflex-wrapのため、画面が狭くこの行だけ折り返されて単独の行になった場合、
+           justify-betweenは1つしかない要素を左端に置いてしまう（右寄せに見えなくなる）。
+           ml-autoを付けることで、折り返した場合も含めて常にこのボタン群が右端に来るようにする。 -->
+      <div class="flex items-center gap-1.5 ml-auto">
         <span id="presence-indicator" class="btn btn-ghost cursor-default" style="pointer-events:none;" title="現在この画面を開いているタブ・端末の数の目安です（同じ人が複数タブ・複数端末で開いている場合はその分だけ数えられます）">
           <i class="fa-solid fa-users" style="color:var(--accent);"></i> <span id="presence-count">-</span>人が接続中
         </span>
@@ -360,9 +363,11 @@
         <button id="admin-tab-btn-list" class="tab-pill active">現在の学習内容</button>
         <button id="admin-tab-btn-history" class="tab-pill">変更履歴</button>
         <button id="admin-tab-btn-caselog" class="tab-pill">事例ログ</button>
-        <button id="admin-tab-btn-extraction" class="tab-pill">抽出前の文章</button>
+        <button id="admin-tab-btn-extraction" class="tab-pill">分類前の文章</button>
         <button id="admin-tab-btn-reports" class="tab-pill">情報カードの報告</button>
-        <button id="admin-tab-btn-criteria" class="tab-pill">抽出基準</button>
+        <button id="admin-tab-btn-criteria" class="tab-pill">分類基準</button>
+        <button id="admin-tab-btn-snapshots" class="tab-pill">カルテスナップショット</button>
+        <button id="admin-tab-btn-localonly" class="tab-pill">ローカル保存のカルテ</button>
       </div>
 
       <div id="admin-panel-list" class="flex flex-col gap-3" style="flex:1; min-height:0;">
@@ -407,10 +412,10 @@
         <div id="admin-caselog-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
       </div>
 
-      <!-- 抽出前の文章ビューア：「分類開始」を押すたびの、抽出前の生のカルテ・記録テキストの履歴 -->
+      <!-- 分類前の文章ビューア：「分類開始」を押すたびの、分類前の生のカルテ・記録テキストの履歴 -->
       <div id="admin-panel-extraction" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
         <div class="flex items-center justify-between gap-2 shrink-0">
-          <input type="text" id="admin-extraction-search" class="field flex-1" placeholder="抽出前の文章を検索（本文・患者名）...">
+          <input type="text" id="admin-extraction-search" class="field flex-1" placeholder="分類前の文章を検索（本文・患者名）...">
           <span id="admin-extraction-count" class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap"></span>
         </div>
         <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
@@ -429,29 +434,94 @@
           <i class="fa-solid fa-circle-info"></i> 情報カードの「報告」ボタンから送られた内容の一覧です（閲覧のみで削除機能はありません）。同じ人がページを閉じるまでに送った複数件は1つの投稿としてまとめて表示されます。
         </p>
         <div class="flex items-center gap-2 shrink-0 flex-wrap">
-          <button id="btn-summarize-reports" class="btn btn-outline" style="color:var(--brick);background:#fff;"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>AIで要約（抽出ロジック修正のヒント）</button>
+          <button id="btn-summarize-reports" class="btn btn-outline" style="color:var(--brick);background:#fff;"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>AIで要約（分類ロジック修正のヒント）</button>
         </div>
         <div id="admin-reports-summary" class="hidden text-xs text-[var(--ink)] leading-relaxed bg-[var(--brick-soft)]/40 border border-[#EFD9CE] rounded-[var(--radius)] p-3 shrink-0" style="max-height:220px; overflow-y:auto;"></div>
         <div id="admin-reports-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
       </div>
 
-      <!-- 抽出基準：NotebookLM基準ノート自体は編集不可の固定内容だが、それに上乗せしてAIへの
-           抽出・分類の指示に反映される「追加の要望」をここから追加・編集・削除できる（全利用者共有）。 -->
-      <div id="admin-panel-criteria" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
-        <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
-          <i class="fa-solid fa-circle-info"></i> NotebookLM基準ノートに加えて、AIによる自動抽出・分類（S/O判定、ヘンダーソンタグ付け、検査値評価、不足情報推定）に反映してほしいルールをここから追加・編集できます。内容は全利用者・全端末に共有されます。
-        </p>
-        <div id="list-extra-criteria" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
-        <div class="flex gap-1 items-end shrink-0">
-          <textarea id="input-extra-criteria" rows="2" class="field resize-none flex-1" placeholder="例：内服薬の副作用に関する記載は見落とさず抽出してほしい"></textarea>
-          <button id="btn-add-extra-criteria" class="btn btn-primary shrink-0">追加</button>
+      <!-- 分類基準：NotebookLM基準ノート本体を直接編集できるほか、それに上乗せしてAIへの
+           分類の指示に反映される「追加の要望」も追加・編集・削除できる（いずれも全利用者共有）。
+           学習データ（learningUserDict）から繰り返し確認された分類・タグの傾向は、
+           buildEffectiveNotebookContent()内で自動的に基準ノートへ統合されるため、
+           ここでの編集内容と学習結果はAIへの指示文の中で常に統合された状態で使われる。 -->
+      <div id="admin-panel-criteria" class="hidden flex-col gap-3 overflow-y-auto" style="flex:1; min-height:0;">
+        <div class="flex flex-col gap-1.5 shrink-0">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-[11px] font-semibold text-[var(--ink)]">基準ノート本体</p>
+            <button id="btn-save-notebook-content" class="btn btn-primary" style="padding:2px 10px;font-size:10px;">保存</button>
+          </div>
+          <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed">
+            <i class="fa-solid fa-circle-info"></i> AIによる自動分類（S/O判定、ヘンダーソンタグ付け、検査値評価、不足情報推定）の根拠になる基準ノート本体です。内容は全利用者・全端末に共有されます。これまでの学習データ（S/O・タグの修正）から繰り返し確認された傾向は、保存内容と自動的に統合されてAIへの指示に反映されるため、ここに書き足す必要はありません。
+          </p>
+          <textarea id="input-notebook-content" rows="9" class="field resize-y text-[11px]" style="font-family:inherit;"></textarea>
         </div>
+        <div class="border-t border-[var(--line-soft)] pt-3 flex flex-col gap-1.5" style="flex:1; min-height:200px;">
+          <p class="text-[11px] font-semibold text-[var(--ink)] shrink-0">追加の分類基準（現場からの要望）</p>
+          <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
+            <i class="fa-solid fa-circle-info"></i> 基準ノート本体とは別に、コードを直接編集せずに追加できる分類ルールです。内容は全利用者・全端末に共有されます。
+          </p>
+          <div id="list-extra-criteria" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:150px;"></div>
+          <div class="flex gap-1 items-end shrink-0">
+            <textarea id="input-extra-criteria" rows="2" class="field resize-none flex-1" placeholder="例：内服薬の副作用に関する記載は見落とさず分類してほしい"></textarea>
+            <button id="btn-add-extra-criteria" class="btn btn-primary shrink-0">追加</button>
+          </div>
+        </div>
+
+        <!-- 参照元リンク：NotebookLM等の外部の参照元を「名前＋リンク」として登録する。
+             NotebookLMには個人が使える公開APIが無いため内容の自動取得はできず、内容は
+             コピー＆ペーストで貼り付ける方式（貼り付けた内容だけがAIの分類に反映される）。 -->
+        <div class="border-t border-[var(--line-soft)] pt-3 flex flex-col gap-1.5" style="flex:1; min-height:200px;">
+          <p class="text-[11px] font-semibold text-[var(--ink)] shrink-0">参照元リンク（NotebookLM等）</p>
+          <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
+            <i class="fa-solid fa-circle-info"></i> NotebookLMには個人が使える公開APIが無く、リンクを貼るだけでの内容の自動取得はできません。名前とリンクを登録し、内容はNotebookLM等からコピーしてここに貼り付けてください（貼り付けた内容が、基準ノート本体・追加の分類基準と同様にAIの分類に反映されます。内容が未貼付でもリンク自体は一覧に残ります）。内容は全利用者・全端末に共有されます。
+          </p>
+          <div id="list-reference-sources" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:150px;"></div>
+          <div class="flex flex-col gap-1 shrink-0">
+            <div class="flex gap-1">
+              <input type="text" id="input-reference-source-title" class="field flex-1" placeholder="名前（例：看護アセスメント基準ノート）">
+              <input type="text" id="input-reference-source-url" class="field flex-1" placeholder="リンク（URL）">
+            </div>
+            <div class="flex gap-1 items-end">
+              <textarea id="input-reference-source-content" rows="2" class="field resize-none flex-1" placeholder="（任意）NotebookLM等の内容をコピーして貼り付け"></textarea>
+              <button id="btn-add-reference-source" class="btn btn-primary shrink-0">追加</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- カルテスナップショット：自分やほかの利用者がタブを閉じた（＝編集を終えた）瞬間の
+           患者カルテ（S/Oカードの内容一式）をそのまま振り返れる、閲覧専用の履歴。
+           patients.json（最新の共有カルテ）とは別に、上書きされずに積み重ねて記録される。
+           ログイン機能が無いため「誰が」はブラウザタブ単位の識別子(clientId)の一部でのみ区別できる。 -->
+      <div id="admin-panel-snapshots" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
+        <div class="flex items-center justify-between gap-2 shrink-0">
+          <input type="text" id="admin-snapshots-search" class="field flex-1" placeholder="患者名で検索...">
+          <span id="admin-snapshots-count" class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap"></span>
+        </div>
+        <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
+          <i class="fa-solid fa-circle-info"></i> タブを閉じるたびに、その時点のカルテ内容がそのまま記録されます（閲覧のみで削除機能はありません）。「編集した人」はログイン機能が無いため区別できず、タブごとの識別子の一部のみを表示します。行をクリックすると、その時点のカード内容を展開して確認できます。
+        </p>
+        <div id="admin-snapshots-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
+      </div>
+
+      <!-- サーバーに一度も同期できていない（このブラウザのlocalStorageにしかない）カルテの一覧。
+           通常の「カルテ一覧」（パスワード不要）には表示されず、ここからのみ内容を確認・復帰できる。 -->
+      <div id="admin-panel-localonly" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
+        <div class="flex items-center justify-between gap-2 shrink-0">
+          <input type="text" id="admin-localonly-search" class="field flex-1" placeholder="患者名で検索...">
+          <span id="admin-localonly-count" class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap"></span>
+        </div>
+        <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
+          <i class="fa-solid fa-circle-info"></i> サーバーに一度も保存できていない（このブラウザだけに残っている）カルテの一覧です。通常のカルテ一覧には表示されません。行をクリックすると内容を展開でき、右のボタンで実際にそのカルテを開いて編集を再開できます。
+        </p>
+        <div id="admin-localonly-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
       </div>
 
       <div class="border-t border-[var(--line-soft)] pt-3 flex flex-wrap items-center justify-between gap-2 shrink-0">
         <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed flex items-center gap-1.5">
           <i class="fa-solid fa-circle-info"></i>
-          学習データはフォルダ内の学習専用ファイルに自動で保存・読み込みされます（都度ファイルは作成されません）。
+          学習データはフォルダ内の学習専用ファイル（全利用者共有）とこのブラウザ内の両方に自動で保存・読み込みされます（都度ファイルは作成されません）。
         </p>
         <button onclick="resetLearningData()" class="btn btn-danger-ghost border border-[var(--brick-soft)]">すべての学習履歴を消去</button>
       </div>
@@ -473,7 +543,7 @@
         <p class="text-[10px] text-[var(--ink-muted)]">OCR機能に使用します（ローカル保存）。</p>
       </div>
       <div class="border-t border-[var(--line-soft)] pt-3">
-        <p class="text-[10px] text-[var(--ink-muted)]"><i class="fa-solid fa-circle-info"></i> AIによる抽出・分類基準への追加の要望は、「学習データ管理」画面（パスワード保護）の「抽出基準」タブから追加・編集できます。</p>
+        <p class="text-[10px] text-[var(--ink-muted)]"><i class="fa-solid fa-circle-info"></i> AIによる分類基準への追加の要望は、「学習データ管理」画面（パスワード保護）の「分類基準」タブから追加・編集できます。</p>
       </div>
       <div class="border-t border-[var(--line-soft)] pt-3">
         <label class="block text-xs font-medium text-[var(--brick)] mb-1">学習データのリセット</label>
@@ -529,6 +599,7 @@
         <input type="checkbox" id="patient-list-show-archived"> アーカイブ済みも表示
       </label>
       <div id="patient-list-body" class="flex flex-col gap-1.5 overflow-y-auto pr-1" style="max-height:50vh;"></div>
+      <p id="patient-list-localonly-note" class="hidden text-[10px] text-[var(--ink-muted)] border-t border-[var(--line-soft)] pt-2"></p>
     </div>
   </div>
 
