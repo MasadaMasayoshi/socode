@@ -75,6 +75,17 @@
 //
 // データの永続化は単純なJSONファイルです。件数が増えてきたらSQLite等へ
 // 置き換えてください（読み書きは loadJson/persist にまとまっています）。
+//
+// ---- 無料ホスティング（Render等）向けのMongoDB Atlas対応について ----
+// Render・Railway・Fly.io等の無料枠は、再起動・再デプロイのたびにディスクの中身が
+// 消えてしまう前提のため、上記のJSONファイル保存だけだと「共有学習」で貯まったデータが
+// いつか消えてしまう。これを避けるため、環境変数 MONGODB_URI が設定されている場合は、
+// 保存先をこのファイル保存ではなくMongoDB Atlas（無料のM0クラスタ）へ自動的に切り替える
+// （getMongoCollection/loadFromMongo/persist参照）。MONGODB_URIが未設定の場合（ローカル開発・
+// 自動テストを含む）は、これまで通りdata/以下のJSONファイルにそのまま保存する。
+// どちらの保存先でも、上のPERSISTED_FILESに登録した各データ（learningDict等）を
+// そのままの形（1つのJSONオブジェクト・配列）で1件のドキュメント/ファイルとして保存する
+// だけなので、既存のAPI・分類・マージ等のロジックは一切変更していない。
 // ============================================================================
 
 const express = require('express');
@@ -83,6 +94,12 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// MongoDB Atlas（無料枠）への接続文字列。設定されていればデータの保存先をMongoDBに切り替える
+// （未設定ならこれまで通りローカルのJSONファイルに保存する。ローカル開発・自動テストでは
+// 通常設定しない）。接続先のデータベース名はMONGODB_DB_NAMEで変更できる（既定値あり）。
+const MONGODB_URI = process.env.MONGODB_URI || '';
+const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'nursing_assessment';
 
 // NURSING_DATA_DIRを指定すると保存先フォルダを切り替えられる（自動テストが本番のdata/フォルダを
 // 汚さないよう、一時フォルダを指すために使う。通常の起動では指定不要で、これまで通りdata/を使う）。
@@ -212,41 +229,87 @@ let caseLogArchive = loadJson(CASE_LOG_ARCHIVE_FILE, []);
 let extractionLogArchive = loadJson(EXTRACTION_LOG_ARCHIVE_FILE, []);
 let cardReportsArchive = loadJson(CARD_REPORTS_ARCHIVE_FILE, []);
 
-// 保存対象ファイルの一覧。getは常にその時点の最新の値を返す（再代入されるlet変数をクロージャで
-// 参照するため、後から reassign されても正しく最新の内容を保存できる）。起動時のファイル作成
-// チェックと persist() の両方でこの一覧を使い回し、ファイルを1つ増減する際の変更箇所を1か所にまとめる。
+// 保存対象データの一覧。getは常にその時点の最新の値を返し、setはMongoDBから読み込んだ内容で
+// 変数を丸ごと入れ替える（いずれも再代入されるlet変数をクロージャで参照するため、後から
+// reassign されても正しく最新の内容を保存・反映できる）。mongoIdはMongoDB利用時の
+// ドキュメントの_id（ファイル名の代わり）。起動時のファイル作成チェック・persist()・
+// loadFromMongo()のすべてでこの一覧を使い回し、データを1つ増減する際の変更箇所を1か所にまとめる。
 const PERSISTED_FILES = [
-  { file: DICT_FILE, get: () => learningDict },
-  { file: LOG_FILE, get: () => caseLog },
-  { file: PATIENTS_FILE, get: () => patientsDict },
-  { file: CRITERIA_FILE, get: () => extractionCriteria },
-  { file: NOTEBOOK_CONTENT_FILE, get: () => notebookContentData },
-  { file: REFERENCE_SOURCES_FILE, get: () => referenceSources },
-  { file: PATIENT_SNAPSHOT_FILE, get: () => patientSnapshots },
-  { file: PATIENT_SNAPSHOT_ARCHIVE_FILE, get: () => patientSnapshotsArchive },
-  { file: EXTRACTION_LOG_FILE, get: () => extractionLog },
-  { file: CARD_REPORTS_FILE, get: () => cardReports },
-  { file: CASE_LOG_ARCHIVE_FILE, get: () => caseLogArchive },
-  { file: EXTRACTION_LOG_ARCHIVE_FILE, get: () => extractionLogArchive },
-  { file: CARD_REPORTS_ARCHIVE_FILE, get: () => cardReportsArchive },
+  { mongoId: 'learning-dict', file: DICT_FILE, get: () => learningDict, set: v => { learningDict = v; } },
+  { mongoId: 'case-log', file: LOG_FILE, get: () => caseLog, set: v => { caseLog = v; } },
+  { mongoId: 'patients', file: PATIENTS_FILE, get: () => patientsDict, set: v => { patientsDict = v; } },
+  { mongoId: 'extraction-criteria', file: CRITERIA_FILE, get: () => extractionCriteria, set: v => { extractionCriteria = v; } },
+  { mongoId: 'notebook-content', file: NOTEBOOK_CONTENT_FILE, get: () => notebookContentData, set: v => { notebookContentData = v; } },
+  { mongoId: 'reference-sources', file: REFERENCE_SOURCES_FILE, get: () => referenceSources, set: v => { referenceSources = v; } },
+  { mongoId: 'patient-snapshots', file: PATIENT_SNAPSHOT_FILE, get: () => patientSnapshots, set: v => { patientSnapshots = v; } },
+  { mongoId: 'patient-snapshots-archive', file: PATIENT_SNAPSHOT_ARCHIVE_FILE, get: () => patientSnapshotsArchive, set: v => { patientSnapshotsArchive = v; } },
+  { mongoId: 'extraction-log', file: EXTRACTION_LOG_FILE, get: () => extractionLog, set: v => { extractionLog = v; } },
+  { mongoId: 'card-reports', file: CARD_REPORTS_FILE, get: () => cardReports, set: v => { cardReports = v; } },
+  { mongoId: 'case-log-archive', file: CASE_LOG_ARCHIVE_FILE, get: () => caseLogArchive, set: v => { caseLogArchive = v; } },
+  { mongoId: 'extraction-log-archive', file: EXTRACTION_LOG_ARCHIVE_FILE, get: () => extractionLogArchive, set: v => { extractionLogArchive = v; } },
+  { mongoId: 'card-reports-archive', file: CARD_REPORTS_ARCHIVE_FILE, get: () => cardReportsArchive, set: v => { cardReportsArchive = v; } },
 ];
 
 // 学習専用ファイルを起動時点でフォルダ内に必ず用意しておく（初回アクセス前でも
 // data/learning-dict.json・data/case-log.json・data/patients.json・data/extraction-criteria.json・
 // data/extraction-log.json・data/card-reports.json・各アーカイブファイルが存在する状態にし、
 // 以後はこの1つのファイルに追加・削除を重ねていく。新しいファイルを都度作ることはしない）。
-ensureDataDir();
-PERSISTED_FILES.forEach(({ file, get }) => {
-  if (!fs.existsSync(file)) fs.writeFileSync(file, JSON.stringify(get(), null, 2));
-});
+// MongoDBを使う場合（MONGODB_URI設定時）はこのファイル作成自体が不要かつ無意味（無料ホスティングの
+// ディスクは再起動で消える前提のため）なので、ローカルのJSONファイルを使う場合のみ実行する。
+if (!MONGODB_URI) {
+  ensureDataDir();
+  PERSISTED_FILES.forEach(({ file, get }) => {
+    if (!fs.existsSync(file)) fs.writeFileSync(file, JSON.stringify(get(), null, 2));
+  });
+}
+
+// ---- MongoDB Atlas接続（MONGODB_URI設定時のみ使う）----
+// "mongodb"パッケージは、ローカル開発・自動テスト（MONGODB_URI未設定）では一切requireされない
+// （このサンドボックス環境や、npm installしていない環境でもserver.js自体は問題なく動く）。
+// 実際にRenderなど本番環境でMONGODB_URIを設定してnpm installした場合にのみ、遅延require
+// （関数の中でrequireする）によって読み込まれる。
+let mongoCollectionPromise = null;
+function getMongoCollection() {
+  if (!MONGODB_URI) return Promise.resolve(null);
+  if (!mongoCollectionPromise) {
+    mongoCollectionPromise = (async () => {
+      const { MongoClient } = require('mongodb');
+      const client = new MongoClient(MONGODB_URI);
+      await client.connect();
+      console.log(`MongoDB Atlas（データベース: ${MONGODB_DB_NAME}）に接続しました。`);
+      return client.db(MONGODB_DB_NAME).collection('app_state');
+    })();
+  }
+  return mongoCollectionPromise;
+}
+
+// サーバー起動時に一度だけ、MongoDB上にある前回までの保存内容を読み込み、対応するlet変数へ
+// 反映する（ドキュメントがまだ無いデータ＝初回起動時はloadJsonで設定済みの既定値のまま残す）。
+async function loadFromMongo() {
+  const collection = await getMongoCollection();
+  if (!collection) return;
+  const docs = await collection.find({ _id: { $in: PERSISTED_FILES.map(p => p.mongoId) } }).toArray();
+  const dataById = new Map(docs.map(d => [d._id, d.data]));
+  PERSISTED_FILES.forEach(({ mongoId, set }) => {
+    if (dataById.has(mongoId)) set(dataById.get(mongoId));
+  });
+}
+
 // 書き込みが競合しないよう、保存処理を1本のPromiseチェーンで直列化する
 let writeQueue = Promise.resolve();
 function persist() {
-  writeQueue = writeQueue.then(() => {
-    ensureDataDir();
-    return Promise.all(PERSISTED_FILES.map(({ file, get }) =>
-      fs.promises.writeFile(file, JSON.stringify(get(), null, 2))
-    ));
+  writeQueue = writeQueue.then(async () => {
+    if (MONGODB_URI) {
+      const collection = await getMongoCollection();
+      await Promise.all(PERSISTED_FILES.map(({ mongoId, get }) =>
+        collection.updateOne({ _id: mongoId }, { $set: { data: get() } }, { upsert: true })
+      ));
+    } else {
+      ensureDataDir();
+      await Promise.all(PERSISTED_FILES.map(({ file, get }) =>
+        fs.promises.writeFile(file, JSON.stringify(get(), null, 2))
+      ));
+    }
   }).catch(err => console.error('データの保存に失敗しました:', err));
   return writeQueue;
 }
@@ -979,12 +1042,24 @@ app.get('/api/patient-snapshots/archive', (req, res) => {
 // このファイルを直接実行した時（`node server.js` / `npm start`）だけサーバーを起動する。
 // tests/ から require('../server.js') して app やロジック関数だけをテストする場合は、
 // 実際にポートを待ち受けたり定期処理(setInterval)を開始したりしない（テストがすぐ終了できるように）。
-if (require.main === module) {
+// MongoDB利用時（MONGODB_URI設定時）は、前回までの保存内容の読み込み（loadFromMongo）が
+// 完了してからでないとapp.listen()しない（読み込み中に古い/空のデータへリクエストが
+// 来てしまわないようにするため）。
+async function startServer() {
+  if (MONGODB_URI) {
+    await loadFromMongo();
+  }
   runArchiving(); // 起動のたびに一度実行し、長期間再起動していなかった場合でもすぐ整理する
   setInterval(runArchiving, ARCHIVE_INTERVAL_MS);
 
   app.listen(PORT, () => {
-    console.log(`看護アセスメント支援システム サーバー起動: http://localhost:${PORT}`);
+    console.log(`看護アセスメント支援システム サーバー起動: http://localhost:${PORT}（保存先: ${MONGODB_URI ? 'MongoDB Atlas' : 'ローカルのJSONファイル'}）`);
+  });
+}
+if (require.main === module) {
+  startServer().catch(err => {
+    console.error('サーバーの起動に失敗しました:', err);
+    process.exit(1);
   });
 }
 
