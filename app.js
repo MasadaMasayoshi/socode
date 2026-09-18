@@ -597,7 +597,14 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     // 　それらすべてに書き込むように」）。
     const SECTION_HEADER_KEYS = [
       "年齢・社会的・文化的状況", "知的能力・身体的ならびに身体的能力", "受け持つまでの経過と状態",
-      "血液検査", "画像検査等", "治療方針・治療内容等"
+      "血液検査", "画像検査等", "治療方針・治療内容等",
+      // 「帰室時の状況」（手術室から病室に戻った直後の観察をまとめる章タイトル）を追加。
+      // この直後には【バイタルサイン】【Spo2】のように自前のラベルを持つカードと、
+      // 「声を掛けると開眼し、「ああ」と短く返事をするのみ。」のようにラベルを持たない
+      // 意識レベル・症状の観察が混在する。ラベルの無いカードだけ章タイトルが補われる
+      // ため、後者が「帰室時の状況: 声を掛けると開眼し…」のように、術後帰室直後の
+      // 観察であることが分かる文になる（利用者からの報告事例）。
+      "帰室時の状況"
     ];
     const UNNECESSARY_BOILERPLATE_KEYS = [...UNNECESSARY_ADMIN_KEYS, ...SECTION_HEADER_PASSTHROUGH_KEYS, ...SECTION_HEADER_KEYS];
     const UNNECESSARY_BOILERPLATE_REGEX = new RegExp(
@@ -3031,6 +3038,21 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       return counts.filter(c => c === max).length > 1;
     }
 
+    // formatLabValueStringが数値の直後に続く文字列（単位のはずの部分）を検証するための正規表現。
+    // 【原因と修正】以前は数値を捕捉した後に続く文字列を検証せず無条件に捨てて正式な単位に
+    // 置き換えていたため、「511万/uL」「41.8%」のような正しくOCRされた単位表記だけでなく、
+    // 「60g/21」（おそらく「6.0g/dL」の「.」と「dL」がOCRで失われ、小数点の位置も分からなく
+    // なった破損表記）のような、単位として認識できない残骸まで無条件に切り捨てて「60 g/dL」
+    // という誤った数値を作り出してしまう恐れがあった（利用者からの報告：術前検査結果の表で
+    // 「TP」という項目名の行自体が消え、値の行「60g/21」だけがラベルの無いカードとして残っていた
+    // 実例の調査で発覚。原因は「TP」＋「60g/21」の結合を試みる際、値の行が単位として認識できず
+    // 結合自体に失敗し、項目名の行が読み進める側で捨てられてしまっていたこと）。
+    // 数値の直後の残りが、既知の単位（万・×10^n表記・g/dL等）や上下矢印(↑↓)等の組み合わせで
+    // 説明できる場合に限って変換を行い、説明できない残骸が残る場合は数値を誤って作り出すより
+    // 元の文字列をそのまま残す方が安全と判断し、変換しない。
+    const LAB_VALUE_TRAILING_UNIT_REGEX =
+      /^\s*万?\s*(?:×\s*10\s*\^?\s*\d+)?\s*(?:\/[μu从µ]L|\/mm3|\/mm³|\/μl|\/mL|g\/dL|mg\/dL|U\/L|\/L|mE[qa]\/L|mmol\/L|μg\/mL|pg\/mL|fL|%|℃|°C|°c|mmHg|回\/分|秒)?\s*[↑↓HLhl]?\.?\s*$/i;
+
     function formatLabValueString(str) {
       if (!str) return str;
       const cleaned = str.trim();
@@ -3053,8 +3075,19 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         // 「｛」「{」に誤認識されることがある（例：「WBC{白血球数)」。BARE_LAB_KEY_REGEXと同様、
         // 開き括弧・閉じ括弧をそれぞれ独立した候補として扱うことで、開閉の組み合わせが
         // 一致していないOCR誤認識にも対応する（利用者からのアップロード文書で発覚）。
-        const match = cleaned.match(new RegExp(`^(${escapeRegExp(key)})(\\s*[（(｛{][^）)｝}]*[）)｝}])?[\\s:=]+([\\d.,]+)`, 'i'));
+        // 【原因と修正】表を貼り付けた際に空白が失われ「WBC11600」「Plt23」「Na140mEq/L」
+        // のように項目名と数値の間の区切り文字が一切無くなることがある。LAB_ITEM_NAME_REGEX
+        // （検査値として検出しタグを提案する側）は既にこの区切り無しの表記に対応済みだったが、
+        // formatLabValueString（基準値を補う側）は区切り文字を1文字以上要求する`+`のままだった
+        // ため、検出（タグ付け）はされるのに基準値だけが永久に補われないという不一致が生じていた
+        // （利用者からの報告：WBC11600・RBC4587・Hb12.2g/dl・Ht37.2%・Plt23・AST2・ALT250U/L・
+        // Na140mEq/Lに基準値が付かない）。区切り文字を0文字以上（`*`）に緩め、両者の判定基準を揃える。
+        const match = cleaned.match(new RegExp(`^(${escapeRegExp(key)})(\\s*[（(｛{][^）)｝}]*[）)｝}])?[\\s:=]*([\\d.,]+)`, 'i'));
         if (match) {
+          // 数値の直後に続く残り（本来は単位のはずの部分）が、既知の単位表記として説明できない
+          // 場合は変換しない（LAB_VALUE_TRAILING_UNIT_REGEXの説明を参照）。
+          const trailing = cleaned.slice(match[0].length);
+          if (!LAB_VALUE_TRAILING_UNIT_REGEX.test(trailing)) continue;
           const alias = match[2] || '';
           return `${match[1]}${alias} ${match[3]} ${info.unit} (基準値: ${info.ref} ${info.unit})`;
         }
@@ -3256,6 +3289,20 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       // （利用者からのアップロード文書で発覚：「15分」「30分」等が見出し語を失った意味の無い
       // 単独カードとして残っていた）。
       const BARE_DURATION_REGEX = /^\d+(?:分|時間|秒|日)$/;
+      // 「バイタルサインは血圧140/85mmHgに落ち着く。」のように、文中の検査値・バイタル部分
+      // （血圧140/85mmHg等）は既にこの行の検査値抽出（labRegex）で個別のカードとして
+      // 切り出されている。しかし残った「バイタルサインは」＋「に落ち着く。」等の言い回しの
+      // 部分には、値が抜き取られた後は実質的な観察内容が何も残っておらず、それ単独では
+      // ヘンダーソンのどの項目にも一致しないため「患者背景（基本情報／医学情報）」の受け皿に
+      // 誤って振り分けられてしまっていた（利用者からのアップロード文書で発覚：「バイタルサインは
+      // に落ち着く。」というカードが、値を含む本来の「血圧140/85mmHg」カードとは無関係な、
+      // 意味の読み取れない別カードとして残っていた）。
+      // 「バイタルサイン」で始まり、かつヘンダーソン14項目のどのキーワードにも一致しない断片は、
+      // 値が既に別カードに切り出された後の意味の無い残骸とみなし、BARE_DURATION_REGEX等と同様に
+      // 直前のカード（切り出された検査値・バイタルカード）へつなぎ戻すか、つなぎ戻す先が無ければ
+      // 捨てる（「バイタルサインを測定した。」のように他に検査値を伴わない単独の文はこの経路を
+      // 通らないため誤って消えることはない）。
+      const BARE_VITAL_LABEL_REMNANT_REGEX = /^バイタルサイン/;
       // 助詞・接続表現から始まる断片、および日付だけの断片は新規カードにしない。
       // 同じ行で直前に抜き出したカードがあれば、そこへ文章をつなぎ戻して1枚に統合する。
       // つなぎ戻す先がない場合は、情報として使えないので中途半端なカードとして残さずに捨てる。
@@ -3267,7 +3314,15 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         // この経路はfieldMatches判定を経由しないため、既存のisBareFieldHeaderOnlyガードが
         // 効いていなかった）。
         if (isBareFieldHeaderOnly(fragmentText)) return;
-        if (UNNATURAL_START_REGEX.test(fragmentText) || isDateOnlyText(fragmentText) || BARE_DURATION_REGEX.test(fragmentText)) {
+        // 「バイタルサインを測定した。」のように、同じ行に検査値・バイタルの実測値が
+        // 元から無い（＝この行から既に切り出されたカードが無い）場合は、たとえ
+        // ヘンダーソンのキーワードに一致しなくても、つなぎ戻す先の無い独立した文として
+        // 通常どおり1枚のカードに残す（値が既に別カードに切り出された後の残骸である
+        // ことが確定している場合＝extracted.length > lineStartIndexの場合に限定する）。
+        const isMeaninglessVitalRemnant = extracted.length > lineStartIndex &&
+          BARE_VITAL_LABEL_REMNANT_REGEX.test(fragmentText) &&
+          detectMultipleHendersonTags(fragmentText).length === 0;
+        if (UNNATURAL_START_REGEX.test(fragmentText) || isDateOnlyText(fragmentText) || BARE_DURATION_REGEX.test(fragmentText) || isMeaninglessVitalRemnant) {
           if (extracted.length > lineStartIndex) {
             const prev = extracted[extracted.length - 1];
             prev.text = cleanExtractedPhrase(prev.text + fragmentText);
@@ -3371,11 +3426,21 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         // 独立し、以降の箇条書き項目がまとめてその区切りに属することを示す書式）にも対応する。
         // 半角の[ ]だけでなく、Wordのコピー貼り付けでよく使われる全角の【】にも対応する。
         const PHASE_MARKER_WORD = '(?:入院時|入院前|術前|術中|術後)';
+        // 「【入院当日】」「【入院2日目】」のように、日付・時刻ではなく入院からの経過日数で
+        // 区切りを表す見出し・時系列マーカーも、上の「術前」「術後」等と同様に扱う必要がある
+        // （利用者からのアップロード文書で発覚：この形式の見出し行が時系列マーカーとして
+        // 認識されず、見出し語だけの意味の無いカードとして残り、しかもヘンダーソンの
+        // どの項目にも一致しないため「患者背景」に誤って振り分けられていた）。
+        // 下の「\d+日目」だけでは「入院」の分だけ手前にずれてしまい一致できない
+        // （「\d+日目」は行頭が直接数字であることを前提とするため）ため、「入院」を
+        // 含めた形を別の候補として追加する。
+        const ADMISSION_DAY_MARKER_WORD = '(?:入院当日|入院\\d+日目)';
         const TIME_MARKER_REGEX = new RegExp(
           '^[\\[【]?(' +
             '\\d{1,2}[:時]\\d{2}(?:分)?' +
             '|(?:\\d{1,4}年)?\\d{1,2}月\\d{1,2}日(?:\\s*[\\(（][月火水木金土日][\\)）])?' +
             '|' + PHASE_MARKER_WORD + '(?:\\s*[・、,\\/]\\s*' + PHASE_MARKER_WORD + ')*' +
+            '|' + ADMISSION_DAY_MARKER_WORD +
             '|\\d+日目' +
             '|検査データ' +
           ')[\\]】]?\\s*'
@@ -3578,6 +3643,29 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
               });
             }
             li = nextIdx - 1; // 消費した値の行の直前まで読み進める（forループのli++で次の未処理行へ進む）
+          } else if (isKnownBareLabKey) {
+            // 値の行が既知の形式（BARE_LAB_VALUE_REGEX）に一致しなかった場合でも、項目名の行
+            // 自体を静かに消してしまうと、項目名だけが失われ、直後の値がラベルの無い意味不明な
+            // 断片として残ってしまう（利用者からの報告事例：術前検査結果の表で「TP」＋「60g/21」
+            // （おそらく「6.0g/dL」がOCRで小数点・単位を失った表記）の行の組で、値が単位として
+            // 認識できず結合に失敗し、「TP」という項目名の行自体が丸ごと消えていた）。
+            // 直後の行が数字から始まる短い行であれば、単位表記が破損したOCR起因の値である
+            // 可能性が高いため、生の文字列のまま項目名と結合する（LAB_VALUE_TRAILING_UNIT_REGEXの
+            // 説明の通り、formatLabValueStringは単位として説明できない残骸があれば数値を
+            // 作り出さずそのまま残すため、誤った基準値付きの数値を作ってしまう心配は無い）。
+            // 数字から始まらない・次の行が見つからない場合は値との結合自体を諦め、それでも
+            // 項目名だけは（無かったことにせず）カードとして残す。
+            let peekIdx = li + 1;
+            while (peekIdx < lines.length && lines[peekIdx].trim() === '') peekIdx++;
+            const rawCandidate = peekIdx < lines.length ? lines[peekIdx].trim() : '';
+            if (rawCandidate && rawCandidate.length <= 15 && /^[0-9０-９]/.test(rawCandidate)) {
+              const merged = cleanExtractedPhrase(`${keyName} ${rawCandidate}`);
+              if (merged.length >= 2) pushExtracted({ text: merged, timestamp: globalTimestamp, isLabOrVital: true });
+              li = peekIdx;
+            } else {
+              const aloneKey = cleanExtractedPhrase(keyName);
+              if (aloneKey.length >= 2) pushExtracted({ text: aloneKey, timestamp: globalTimestamp, isLabOrVital: true });
+            }
           }
           continue;
         }
@@ -3706,10 +3794,18 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       // ようにするため）。それ以外の「不要な情報」（学籍番号等の事務情報や、「(バイタルサイン)」の
       // ように別の話題への切り替わりを示すマーカー等）が現れた場合は、章タイトルの対象範囲が
       // そこで終わったとみなしてリセットする。
+      // 【原因と修正】「＜帰室時の状況）」のような山括弧見出し（TIME_MARKER_REGEXとは別の、
+      // ＜＞<>で囲まれた区切り見出し）は、山括弧・閉じ側の記号（＞>）)）を残したまま
+      // item.textに格納される（山括弧見出しの検出処理はブラケットを剥がさないため）。
+      // このため、SECTION_HEADER_KEYSに登録した見出し語（例：「帰室時の状況」）と文字列として
+      // 一致せず、章タイトルとして認識できなかった（利用者からの報告：「帰室時の状況」の直後の
+      // 「声を掛けると開眼し、「ああ」と短く返事をするのみ。」が、どの状況の観察か分からない
+      // まま単独のカードとして残っていた）。末尾のコロンだけでなく、山括弧の開き・閉じの記号も
+      // 剥がしてから比較することで、山括弧形式の見出しもSECTION_HEADER_KEYSと一致できるようにする。
       let currentSectionLabel = null;
       extracted.forEach(item => {
         if (item.isUnnecessaryBoilerplate) {
-          const bareText = item.text.replace(/[:：]\s*$/, '').trim();
+          const bareText = item.text.replace(/[:：]\s*$/, '').replace(/^[＜<]\s*/, '').replace(/\s*[＞>）)]$/, '').trim();
           if (SECTION_HEADER_KEYS.includes(bareText) || isEmptyColonHeaderLine(item.text)) {
             currentSectionLabel = bareText;
           } else if (!SECTION_HEADER_PASSTHROUGH_KEYS.includes(bareText)) {
