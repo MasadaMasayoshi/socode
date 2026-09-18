@@ -807,22 +807,6 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     const patientSyncTimers = {};
     const PATIENT_SYNC_DEBOUNCE_MS = 800; // カルテ本文の入力中など、変更のたびに毎回送らないよう少し待ってまとめて送る
 
-    // ==========================================================================
-    // 「ローカル保存のみ（サーバーに一度も同期できていない）」カルテの判定
-    // ------------------------------------------------------------------------
-    // このブラウザのlocalStorageにしかないカルテ（サーバー未接続時に作成・編集されたものなど）は、
-    // 通常の「カルテ一覧」（パスワード不要・全員が開ける画面）には出さず、「学習データ管理」画面
-    // （パスワード保護）からのみ閲覧できるようにする。サーバーに一度でも存在が確認できたIDは
-    // ここに記録し、以後はそちらの一覧に表示する。
-    // サーバーへ一度も接続できていない場合（起動直後・サーバー未起動等）は、まだ判定材料がなく
-    // 「ローカルにしかない」と確定できないため、誤って全件を隠さないようにフィルタ自体を働かせない。
-    const knownServerPatientIds = new Set();
-    let serverReachableForPatients = false;
-    function isPatientLocalOnly(patient) {
-      if (!serverReachableForPatients) return false;
-      return !knownServerPatientIds.has(patient.id);
-    }
-
     function schedulePatientSync(patientId) {
       if (!patientId) return;
       if (patientSyncTimers[patientId]) clearTimeout(patientSyncTimers[patientId]);
@@ -838,10 +822,6 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
           body: JSON.stringify(patient)
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        // 保存に成功した＝サーバーにこの患者が存在することが確定したので、
-        // 「ローカル保存のみ」判定から外し、通常のカルテ一覧に表示してよいものとして記録する。
-        serverReachableForPatients = true;
-        knownServerPatientIds.add(patientId);
         // サーバー側は、他端末が同じ患者を同時に編集していた場合、カード単位で
         // マージした結果（他端末だけが持っていたカードを消さずに残した結果）を返す。
         // それをこの端末にも反映しておかないと、次にこの端末が保存するまで
@@ -890,10 +870,6 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         const res = await fetch(`${API_BASE}/patients`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const serverPatientsDict = await res.json();
-        // サーバーへの接続が確認できたので、以後「ローカル保存のみ」判定を有効にしてよい。
-        // サーバーが実際に持っているIDは、このカルテ一覧に表示してよいものとして記録する。
-        serverReachableForPatients = true;
-        Object.keys(serverPatientsDict).forEach(id => knownServerPatientIds.add(id));
         // 【修正】以前はここで「患者カルテをまるごと」比較し、updatedAtが新しい方をそのまま
         // 採用していたため、サーバー側が新しいと判定されるとこのブラウザだけが知っている
         // カードごと丸ごと消えてしまうことがあった。mergePatientRecordClientでカード単位に
@@ -910,21 +886,6 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
           if (!globalAppData.patients.some(p => p.id === globalAppData.currentPatientId)) {
             globalAppData.currentPatientId = (globalAppData.patients.find(p => !p.archived) || globalAppData.patients[0]).id;
           }
-        }
-        // 起動直後にlocalStorageから復元したcurrentPatientIdが、実は「サーバーに一度も
-        // 同期されなかったローカル限定のカルテ」（前回のセッションでの編集がそのまま残ったもの）
-        // だった場合、renderPatientTabs等は「今まさに編集中のカルテだから」という理由で
-        // それを例外的に表示し続けてしまう。しかしここはページ読み込み直後の初期化処理であり、
-        // 利用者がこのカルテを能動的に選んで編集を再開したわけではないため、その例外は
-        // 適用すべきではない。サーバーにも存在する通常のカルテに切り替えることで、
-        // 前回の編集内容は通常の画面からは見えなくなり、「学習データ管理」からのみ
-        // 閲覧できる状態に戻す。
-        const restoredCurrent = globalAppData.patients.find(p => p.id === globalAppData.currentPatientId);
-        if (restoredCurrent && isPatientLocalOnly(restoredCurrent)) {
-          const fallback = globalAppData.patients.find(p => !p.archived && !isPatientLocalOnly(p))
-            || globalAppData.patients.find(p => !p.archived)
-            || globalAppData.patients[0];
-          if (fallback) globalAppData.currentPatientId = fallback.id;
         }
       } catch (e) {
         console.warn('患者カルテの共有ファイルの読み込みに失敗しました（サーバーが起動していないか、通信できません。このブラウザ内のカルテのみで動作します）:', e);
@@ -948,17 +909,13 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       // 参照元リンクは、内容（content）が貼り付けられているものだけをAIへの指示文に統合する
       // （リンクだけで内容が未貼付のものは、利用者が後で見返すための一覧としては表示するが、
       // 　AIが根拠として参照できる文章が無いため、指示文には含めない）。
-      // サーバー共有分・ローカル保存のみの分の両方を統合する。ローカル保存のみの参照元は
-      // 他の利用者には共有されないが、この端末での分類には引き続き活用できるようにする
-      // （「サーバーで公開しない」＝他端末・他利用者に見えないようにする、という意味であり、
-      // 　このブラウザ自身の分類に使えなくする意味ではない）。
-      const referenceSourcesText = [...(globalAppData.referenceSources || []), ...(globalAppData.localReferenceSources || [])]
+      const referenceSourcesText = (globalAppData.referenceSources || [])
         .filter(r => (r.content || '').trim())
         .map(r => `【参照元: ${r.title}${r.url ? ` (${r.url})` : ''}】\n${r.content.trim()}`)
         .join('\n\n');
       let content = globalAppData.notebookContent;
       if (extras) content += `\n\n【利用者からの追加の抽出・分類基準（現場からの要望・全員共有）】\n${extras}`;
-      if (referenceSourcesText) content += `\n\n【学習データ管理から登録された参照元（全員共有＋このブラウザのみのローカル保存分）】\n${referenceSourcesText}`;
+      if (referenceSourcesText) content += `\n\n【学習データ管理から登録された参照元（全員共有）】\n${referenceSourcesText}`;
       if (trend) content += `\n\n【学習データから見えている傾向（過去の修正で繰り返し確認された分類・タグの傾向。参考情報として、基準ノート・追加の分類基準を優先しつつ判断してください）】\n${trend}`;
       return content;
     }
@@ -1174,26 +1131,9 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         globalAppData.referenceSources = await res.json();
       } catch (e) {
-        console.warn('参照元リンクの読み込みに失敗しました（サーバーが起動していないか、通信できません。ローカル保存分のみで表示します）:', e);
+        console.warn('参照元リンクの読み込みに失敗しました（サーバーが起動していないか、通信できません）:', e);
       } finally {
-        // サーバーから取得できなかった場合でも、ローカル保存のみの参照元は
-        // このブラウザに残っているため、一覧を再描画して表示する。
         renderReferenceSourcesList();
-      }
-    }
-
-    // ローカル保存のみの参照元（サーバーに接続できなかったため、このブラウザのlocalStorageにだけ
-    // 保存されているもの）は、他の参照元と見分けられるよう 'localrefsrc_' というID接頭辞で管理する。
-    // このIDを持つ項目は、以後の編集・削除も一切サーバーへ送信せず、常にローカルのみで処理する
-    // （＝一度ローカル保存になったものは、サーバーが後から使えるようになっても自動で公開されない）。
-    function isLocalReferenceSourceId(id) {
-      return typeof id === 'string' && id.startsWith('localrefsrc_');
-    }
-    function persistLocalReferenceSources() {
-      try {
-        localStorage.setItem(LOCAL_REFERENCE_SOURCES_STORAGE_KEY, JSON.stringify(globalAppData.localReferenceSources || []));
-      } catch (e) {
-        console.warn('ローカル参照元データの保存に失敗しました:', e);
       }
     }
 
@@ -1209,29 +1149,12 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         renderReferenceSourcesList();
         return 'server';
       } catch (e) {
-        // サーバーを通じて保存できなかった場合、入力内容を失わないよう、このブラウザの
-        // localStorageにのみ保存する（他の利用者・他端末には共有されない）。
-        console.warn('参照元リンクをサーバーへ保存できなかったため、ローカル保存に切り替えます:', e);
-        const entry = {
-          id: 'localrefsrc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
-          title, url, content, addedAt: new Date().toISOString()
-        };
-        globalAppData.localReferenceSources = [...(globalAppData.localReferenceSources || []), entry];
-        persistLocalReferenceSources();
-        renderReferenceSourcesList();
-        return 'local';
+        console.warn('参照元リンクをサーバーへ保存できませんでした:', e);
+        return 'error';
       }
     }
 
     window.deleteReferenceSource = async function(id) {
-      if (isLocalReferenceSourceId(id)) {
-        globalAppData.localReferenceSources = (globalAppData.localReferenceSources || []).filter(r => r.id !== id);
-        persistLocalReferenceSources();
-        if (editingReferenceSourceId === id) editingReferenceSourceId = null;
-        renderReferenceSourcesList();
-        showToast('参照元を削除しました（このブラウザのみ）', 'success');
-        return;
-      }
       try {
         const res = await fetch(`${API_BASE}/reference-sources/${encodeURIComponent(id)}`, { method: 'DELETE' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1265,16 +1188,6 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       if (!title) return showToast('名前を入力してください', 'error');
       if (!url) return showToast('リンク（URL）を入力してください', 'error');
 
-      if (isLocalReferenceSourceId(id)) {
-        globalAppData.localReferenceSources = (globalAppData.localReferenceSources || []).map(r =>
-          r.id === id ? { ...r, title, url, content, updatedAt: new Date().toISOString() } : r
-        );
-        persistLocalReferenceSources();
-        editingReferenceSourceId = null;
-        renderReferenceSourcesList();
-        showToast('参照元を更新しました（このブラウザのみ）', 'success');
-        return;
-      }
       try {
         const res = await fetch(`${API_BASE}/reference-sources/${encodeURIComponent(id)}`, {
           method: 'PUT',
@@ -1295,16 +1208,12 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     function renderReferenceSourcesList() {
       const el = document.getElementById('list-reference-sources');
       if (!el) return;
-      // サーバー共有分とローカル保存のみの分をあわせて表示する（ローカル保存分は
-      // サーバーには一切送信されないが、登録した本人が見返せるよう同じ一覧に表示し、
-      // 「ローカルのみ」であることが分かるようラベルを付ける）。
-      const items = [...(globalAppData.referenceSources || []), ...(globalAppData.localReferenceSources || [])];
+      const items = globalAppData.referenceSources || [];
       if (items.length === 0) {
         el.innerHTML = `<p class="text-[10px] text-[var(--ink-muted)]">まだ参照元リンクは登録されていません。</p>`;
         return;
       }
       el.innerHTML = items.map(r => {
-        const isLocal = isLocalReferenceSourceId(r.id);
         if (r.id === editingReferenceSourceId) {
           return `
             <div class="flex flex-col gap-1.5 p-1.5 rounded-[var(--radius-sm)] border border-[var(--accent)] text-[11px]" style="background:var(--surface);">
@@ -1319,14 +1228,12 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
           `;
         }
         const contentPreview = (r.content || '').trim();
-        const localBadge = isLocal ? `<span class="field-chip" style="background:var(--ink-muted);color:#fff;font-size:8px;padding:1px 5px;margin-left:4px;"><i class="fa-solid fa-lock"></i> ローカルのみ（未共有）</span>` : '';
         return `
-          <div class="flex items-start justify-between gap-2 p-1.5 rounded-[var(--radius-sm)] border ${isLocal ? 'border-dashed' : ''} border-[var(--line-soft)] text-[11px]" style="background:var(--surface);">
+          <div class="flex items-start justify-between gap-2 p-1.5 rounded-[var(--radius-sm)] border border-[var(--line-soft)] text-[11px]" style="background:var(--surface);">
             <div class="flex-1 min-w-0">
-              <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer" class="font-semibold text-[var(--accent-dark)] break-words hover:underline"><i class="fa-solid fa-link text-[9px] mr-1"></i>${escapeHtml(r.title)}</a>${localBadge}
+              <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer" class="font-semibold text-[var(--accent-dark)] break-words hover:underline"><i class="fa-solid fa-link text-[9px] mr-1"></i>${escapeHtml(r.title)}</a>
               <div class="text-[9px] text-[var(--ink-muted)] break-all mt-0.5">${escapeHtml(r.url)}</div>
               ${contentPreview ? `<div class="text-[10px] text-[var(--ink)] break-words mt-1 line-clamp-2" style="opacity:.8;">${escapeHtml(contentPreview.slice(0, 200))}${contentPreview.length > 200 ? '…' : ''}</div>` : `<div class="text-[9px] text-[var(--ink-muted)] mt-1"><i class="fa-solid fa-triangle-exclamation"></i> 内容が未貼付のため、分類には反映されません（リンクのみ）</div>`}
-              ${isLocal ? `<div class="text-[9px] mt-1" style="color:var(--ink-muted);"><i class="fa-solid fa-circle-info"></i> サーバーに接続できなかったため、このブラウザにのみ保存されています。他の利用者には共有されません。</div>` : ''}
             </div>
             <div class="flex items-center gap-1 shrink-0">
               <button onclick="startEditReferenceSource('${r.id}')" class="icon-btn" title="この参照元を編集"><i class="fa-solid fa-pen text-[9px]"></i></button>
@@ -1450,26 +1357,6 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     }
     const persistedLearningDict = loadPersistedLearningDict();
 
-    // 参照元リンク（NotebookLM等）も、サーバーに接続できない場合はこのブラウザの
-    // localStorageにだけ保存し、入力内容を失わないようにする。この「ローカル保存のみ」の
-    // 参照元は、他の利用者・他端末には共有されない（サーバー側のreference-sources.jsonには
-    // 一切送信しない）。サーバーが後から使えるようになっても、自動でサーバー側へ公開する
-    // ことはせず、ローカル保存のままにする（サーバー共有にしたい場合は、利用者自身が
-    // 削除してから改めてサーバー接続時に追加し直す想定）。
-    const LOCAL_REFERENCE_SOURCES_STORAGE_KEY = 'nursing_local_reference_sources';
-    function loadPersistedLocalReferenceSources() {
-      try {
-        const raw = localStorage.getItem(LOCAL_REFERENCE_SOURCES_STORAGE_KEY);
-        if (!raw) return [];
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed;
-      } catch (e) {
-        console.warn('保存済みのローカル参照元データの読み込みに失敗しました:', e);
-      }
-      return [];
-    }
-    const persistedLocalReferenceSources = loadPersistedLocalReferenceSources();
-
     let globalAppData = {
       patients: persistedPatients?.patients || [
         { id: 'patient_1', title: '患者A', items: [], sourceText: '', labEvaluationResult: '', referenceNotes: [], archived: false, updatedAt: null, deletedItemIds: [] }
@@ -1489,10 +1376,7 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       additionalCriteria: [],
       // 参照元リンク（NotebookLM等）。名前＋URL＋（任意で）貼り付けた内容の一覧。
       // サーバー側 data/reference-sources.json に保存され、全利用者で共有される。
-      referenceSources: [],
-      // サーバーに保存できなかった（サーバー未接続時に追加した）参照元。このブラウザの
-      // localStorageにのみ保存され、他の利用者には共有されない。
-      localReferenceSources: persistedLocalReferenceSources || []
+      referenceSources: []
     };
 
     const DOM = {
@@ -1871,13 +1755,7 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     function renderPatientTabs() {
       const frag = document.createDocumentFragment();
       // アーカイブ済みのページはタブには出さない（「一覧」から確認・復元できる）。
-      // 【原因と修正】サーバーに未同期の「ローカル保存のみ」のカルテは、パスワード不要の
-      // 「カルテ一覧」モーダルからは既に非表示にしていた（isPatientLocalOnly参照）が、
-      // 画面上部に常時表示されるこのページタブ一覧には同じ制限をかけていなかったため、
-      // 以前ローカルでのみ作成・編集したカルテのタブがそのまま残って誰でも開けてしまっていた。
-      // 一覧モーダルと同じ条件（現在開いているページ自身は作業を続けられるよう例外）で
-      // フィルタし、「学習データ管理」からのみ閲覧できるようにする。
-      const visible = globalAppData.patients.filter(pat => !pat.archived && (pat.id === globalAppData.currentPatientId || !isPatientLocalOnly(pat)));
+      const visible = globalAppData.patients.filter(pat => !pat.archived);
       visible.forEach(pat => {
         const isActive = pat.id === globalAppData.currentPatientId;
         const btn = document.createElement('div');
@@ -1999,22 +1877,8 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       const showArchived = document.getElementById('patient-list-show-archived').checked;
       const sortMode = document.getElementById('patient-list-sort').value;
       let list = globalAppData.patients.filter(p => showArchived || !p.archived);
-      // サーバーに一度も同期できていない（ローカル保存のみの）カルテは、この一覧では見せない。
-      // ただし今まさに編集中のカルテ（currentPatientId）だけは、自分の作業として引き続き表示する。
-      const hiddenLocalOnlyCount = list.filter(p => p.id !== globalAppData.currentPatientId && isPatientLocalOnly(p)).length;
-      list = list.filter(p => p.id === globalAppData.currentPatientId || !isPatientLocalOnly(p));
       if (term) list = list.filter(p => p.title.toLowerCase().includes(term));
       list = list.slice().sort((a, b) => sortMode === 'name' ? a.title.localeCompare(b.title, 'ja') : (b.updatedAt || '').localeCompare(a.updatedAt || ''));
-
-      const localOnlyNote = document.getElementById('patient-list-localonly-note');
-      if (localOnlyNote) {
-        if (hiddenLocalOnlyCount > 0) {
-          localOnlyNote.textContent = `サーバーに未同期のカルテが${hiddenLocalOnlyCount}件あります（この一覧には表示されません。内容は「学習データ管理」から確認できます）。`;
-          localOnlyNote.classList.remove('hidden');
-        } else {
-          localOnlyNote.classList.add('hidden');
-        }
-      }
 
       if (list.length === 0) {
         const p = document.createElement('p');
@@ -2079,7 +1943,7 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     }
     function closeAdminPasswordModal() { adminPasswordModal.classList.add('hidden'); }
     function switchAdminTab(tab) {
-      const isList = tab === 'list', isHistory = tab === 'history', isCaselog = tab === 'caselog', isTrends = tab === 'trends', isReports = tab === 'reports', isCriteria = tab === 'criteria', isSnapshots = tab === 'snapshots', isLocalOnly = tab === 'localonly';
+      const isList = tab === 'list', isHistory = tab === 'history', isCaselog = tab === 'caselog', isTrends = tab === 'trends', isReports = tab === 'reports', isCriteria = tab === 'criteria', isSnapshots = tab === 'snapshots';
       document.getElementById('admin-tab-btn-list').classList.toggle('active', isList);
       document.getElementById('admin-tab-btn-history').classList.toggle('active', isHistory);
       document.getElementById('admin-tab-btn-caselog').classList.toggle('active', isCaselog);
@@ -2087,7 +1951,6 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       document.getElementById('admin-tab-btn-reports').classList.toggle('active', isReports);
       document.getElementById('admin-tab-btn-criteria').classList.toggle('active', isCriteria);
       document.getElementById('admin-tab-btn-snapshots').classList.toggle('active', isSnapshots);
-      document.getElementById('admin-tab-btn-localonly').classList.toggle('active', isLocalOnly);
       document.getElementById('admin-panel-list').classList.toggle('hidden', !isList);
       document.getElementById('admin-panel-list').classList.toggle('flex', isList);
       document.getElementById('admin-panel-history').classList.toggle('hidden', !isHistory);
@@ -2102,8 +1965,6 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       document.getElementById('admin-panel-criteria').classList.toggle('flex', isCriteria);
       document.getElementById('admin-panel-snapshots').classList.toggle('hidden', !isSnapshots);
       document.getElementById('admin-panel-snapshots').classList.toggle('flex', isSnapshots);
-      document.getElementById('admin-panel-localonly').classList.toggle('hidden', !isLocalOnly);
-      document.getElementById('admin-panel-localonly').classList.toggle('flex', isLocalOnly);
       if (isHistory) renderAdminHistoryList();
       if (isCaselog) loadAndRenderCaseLog();
       if (isTrends) renderLearningTrendsList();
@@ -2112,8 +1973,6 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       if (isCriteria) { editingCriteriaId = null; editingReferenceSourceId = null; loadNotebookContent(); loadSharedCriteria(); loadReferenceSources(); }
       // カルテスナップショットタブを開くたびに再取得し、他端末がタブを閉じた分も見えるようにする
       if (isSnapshots) loadAndRenderPatientSnapshots();
-      // ローカル保存のみのカルテタブを開くたびに再描画し、直前の編集内容を反映する
-      if (isLocalOnly) renderLocalOnlyPatientsList();
     }
     function openAdminPanel() {
       document.getElementById('admin-learning-search').value = '';
@@ -2155,7 +2014,6 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     document.getElementById('admin-tab-btn-reports').addEventListener('click', () => switchAdminTab('reports'));
     document.getElementById('admin-tab-btn-criteria').addEventListener('click', () => switchAdminTab('criteria'));
     document.getElementById('admin-tab-btn-snapshots').addEventListener('click', () => switchAdminTab('snapshots'));
-    document.getElementById('admin-tab-btn-localonly').addEventListener('click', () => switchAdminTab('localonly'));
     document.getElementById('admin-history-search').addEventListener('input', renderAdminHistoryList);
     document.getElementById('admin-caselog-search').addEventListener('input', renderCaseLogList);
     document.getElementById('admin-caselog-action-filter').addEventListener('change', renderCaseLogList);
@@ -2554,77 +2412,6 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       const id = btn.dataset.id;
       if (expandedSnapshotIds.has(id)) expandedSnapshotIds.delete(id); else expandedSnapshotIds.add(id);
       renderPatientSnapshotsList();
-    });
-
-    // ===== ローカル保存のみのカルテビューア =====
-    // サーバーに一度も同期できていない（このブラウザのlocalStorageにしかない）カルテは、
-    // 通常の「カルテ一覧」からは見えないようにしている（isPatientLocalOnly参照）。
-    // その代わりに、ここ「学習データ管理」画面（パスワード保護）からだけ内容を確認・復帰できる。
-    const expandedLocalOnlyPatientIds = new Set();
-    function renderLocalOnlyPatientsList() {
-      const listEl = document.getElementById('admin-localonly-list');
-      const countEl = document.getElementById('admin-localonly-count');
-      if (!listEl) return;
-      const term = (document.getElementById('admin-localonly-search').value || '').trim().toLowerCase();
-      let entries = globalAppData.patients.filter(p => isPatientLocalOnly(p));
-      const totalCount = entries.length;
-      if (term) entries = entries.filter(p => (p.title || '').toLowerCase().includes(term));
-      entries = entries.slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
-      countEl.textContent = `${entries.length}件（全${totalCount}件）`;
-
-      if (entries.length === 0) {
-        listEl.innerHTML = '<p class="text-xs text-[var(--ink-muted)] text-center py-6">ローカル保存のみのカルテはありません（サーバーに同期済みのカルテは通常のカルテ一覧に表示されます）。</p>';
-        return;
-      }
-      const typeLabelOf = t => t === 's' ? 'S' : (t === 'o' ? 'O' : (t === 'unnecessary' ? '不要' : t || '未分類'));
-      const frag = document.createDocumentFragment();
-      entries.forEach(pat => {
-        const items = Array.isArray(pat.items) ? pat.items : [];
-        const isExpanded = expandedLocalOnlyPatientIds.has(pat.id);
-        const time = pat.updatedAt ? formatRelativeTime(pat.updatedAt) : '更新履歴なし';
-        const row = document.createElement('div');
-        row.className = 'flex flex-col gap-1.5 p-2 rounded-[var(--radius-sm)] border border-[var(--line)]';
-        row.innerHTML = `
-          <div class="flex items-center gap-1.5 flex-wrap justify-between">
-            <button class="localonly-toggle-btn flex items-center gap-1.5 flex-wrap text-left min-w-0" data-id="${escapeHtml(pat.id)}" style="cursor:pointer;">
-              <i class="fa-solid ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'} text-[10px] text-[var(--ink-muted)]"></i>
-              <span class="tag-chip">${escapeHtml(pat.title || '(無題)')}</span>
-              <span class="field-chip" style="background:var(--accent-soft);color:var(--accent-dark);">${items.length}件のカード</span>
-              <span class="text-[10px] text-[var(--ink-muted)]">${escapeHtml(time)}</span>
-            </button>
-            <button class="localonly-open-btn icon-btn-outline shrink-0" data-id="${escapeHtml(pat.id)}" title="このカルテを開く"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
-          </div>
-          ${isExpanded ? `
-            <div class="flex flex-col gap-1 pl-4 border-l-2 border-[var(--line-soft)]">
-              ${items.length === 0 ? '<p class="text-[11px] text-[var(--ink-muted)]">カードはありませんでした。</p>' : items.map(it => `
-                <div class="text-[11px] text-[var(--ink)] flex items-start gap-1.5">
-                  <span class="field-chip shrink-0" style="background:var(--line-soft);color:var(--ink-muted);">${escapeHtml(typeLabelOf(it.type))}</span>
-                  <span class="break-words">${escapeHtml(it.text || '')}</span>
-                  ${Array.isArray(it.hendersonIds) && it.hendersonIds.length ? `<span class="text-[10px] text-[var(--ink-muted)] shrink-0">(${it.hendersonIds.map(hendersonNameOf).join('/')})</span>` : ''}
-                </div>
-              `).join('')}
-              ${pat.sourceText ? `<p class="text-[10px] text-[var(--ink-muted)] mt-1">元の文章:</p><pre class="text-[11px] text-[var(--ink)] whitespace-pre-wrap break-words font-sans bg-[var(--paper)] border border-[var(--line-soft)] rounded-[var(--radius-sm)] p-2" style="max-height:150px; overflow-y:auto;">${escapeHtml(pat.sourceText)}</pre>` : ''}
-            </div>
-          ` : ''}
-        `;
-        frag.appendChild(row);
-      });
-      listEl.replaceChildren(frag);
-    }
-    document.getElementById('admin-localonly-search').addEventListener('input', renderLocalOnlyPatientsList);
-    document.getElementById('admin-localonly-list').addEventListener('click', e => {
-      const openBtn = e.target.closest('.localonly-open-btn');
-      if (openBtn) {
-        const id = openBtn.dataset.id;
-        document.getElementById('modal-admin').classList.add('hidden');
-        switchPatient(id);
-        return;
-      }
-      const toggleBtn = e.target.closest('.localonly-toggle-btn');
-      if (!toggleBtn) return;
-      const id = toggleBtn.dataset.id;
-      if (expandedLocalOnlyPatientIds.has(id)) expandedLocalOnlyPatientIds.delete(id); else expandedLocalOnlyPatientIds.add(id);
-      renderLocalOnlyPatientsList();
     });
 
     // ===== 情報カードの不具合報告ビューア（card-reports.json）=====
@@ -5272,11 +5059,11 @@ ${labTexts || '(なし)'}
       if (!title) return showToast('名前を入力してください', 'error');
       if (!url) return showToast('リンク（URL）を入力してください', 'error');
       const result = await addReferenceSource(title, url, content);
-      titleInput.value = ''; urlInput.value = ''; contentInput.value = '';
       if (result === 'server') {
+        titleInput.value = ''; urlInput.value = ''; contentInput.value = '';
         showToast('参照元を追加しました（全員に共有されます）', 'success');
-      } else if (result === 'local') {
-        showToast('サーバーに接続できなかったため、このブラウザにのみ保存しました（他の利用者には共有されません）', 'info');
+      } else {
+        showToast('サーバーに接続できなかったため保存できませんでした。時間を置いて再度お試しください', 'error');
       }
     });
     window.resetLearningData = async () => {

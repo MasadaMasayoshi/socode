@@ -370,7 +370,6 @@
         <button id="admin-tab-btn-reports" class="tab-pill">情報カードの報告</button>
         <button id="admin-tab-btn-criteria" class="tab-pill">分類基準</button>
         <button id="admin-tab-btn-snapshots" class="tab-pill">カルテスナップショット</button>
-        <button id="admin-tab-btn-localonly" class="tab-pill">ローカル保存のカルテ</button>
       </div>
 
       <div id="admin-panel-list" class="flex flex-col gap-3" style="flex:1; min-height:0;">
@@ -509,19 +508,6 @@
         <div id="admin-snapshots-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
       </div>
 
-      <!-- サーバーに一度も同期できていない（このブラウザのlocalStorageにしかない）カルテの一覧。
-           通常の「カルテ一覧」（パスワード不要）には表示されず、ここからのみ内容を確認・復帰できる。 -->
-      <div id="admin-panel-localonly" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
-        <div class="flex items-center justify-between gap-2 shrink-0">
-          <input type="text" id="admin-localonly-search" class="field flex-1" placeholder="患者名で検索...">
-          <span id="admin-localonly-count" class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap"></span>
-        </div>
-        <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
-          <i class="fa-solid fa-circle-info"></i> サーバーに一度も保存できていない（このブラウザだけに残っている）カルテの一覧です。通常のカルテ一覧には表示されません。行をクリックすると内容を展開でき、右のボタンで実際にそのカルテを開いて編集を再開できます。
-        </p>
-        <div id="admin-localonly-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
-      </div>
-
       <div class="border-t border-[var(--line-soft)] pt-3 flex flex-wrap items-center justify-between gap-2 shrink-0">
         <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed flex items-center gap-1.5">
           <i class="fa-solid fa-circle-info"></i>
@@ -603,7 +589,6 @@
         <input type="checkbox" id="patient-list-show-archived"> アーカイブ済みも表示
       </label>
       <div id="patient-list-body" class="flex flex-col gap-1.5 overflow-y-auto pr-1" style="max-height:50vh;"></div>
-      <p id="patient-list-localonly-note" class="hidden text-[10px] text-[var(--ink-muted)] border-t border-[var(--line-soft)] pt-2"></p>
     </div>
   </div>
 
