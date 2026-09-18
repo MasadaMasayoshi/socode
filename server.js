@@ -401,6 +401,20 @@ function capArrayByByteSize(arr, maxBytes) {
   return arr.slice(start);
 }
 
+// 事例ログ（caseLog／caseLogArchive）と情報カードの報告（cardReports／cardReportsArchive）は、
+// カルテスナップショット（patientSnapshots）と同じ「積み上げるだけで削除機能を持たない」配列
+// でありながら、これまでバイト数上限（capArrayByByteSize）を適用していなかった（90日基準の
+// アーカイブ移動（runArchiving）はするが、移動先のアーカイブ自体も無制限に増え続ける）。
+// 利用者からの報告：長期間の運用でMongoDB Atlas無料枠（0.5GB）の容量を使い切ってしまい、
+// 本番環境（Render）へのデプロイ・書き込みができなくなった。事例ログは全利用者・全操作
+// （カード作成・編集・タグ変更等）1件ごとに記録され続けるため、実際には運用歴が長くなるほど
+// 一番増えやすいデータである。patientSnapshotsと同じ安全策をこの2種類にも適用し、今後の
+// 肥大化を防ぐ（既に肥大化した分は、Atlas側で古いアーカイブを手動で削除するなどの対応も別途必要）。
+const CASE_LOG_MAX_BYTES = 6 * 1024 * 1024;
+const CASE_LOG_ARCHIVE_MAX_BYTES = 12 * 1024 * 1024;
+const CARD_REPORTS_MAX_BYTES = 6 * 1024 * 1024;
+const CARD_REPORTS_ARCHIVE_MAX_BYTES = 12 * 1024 * 1024;
+
 // ---- API ----
 
 // 共有学習辞書をまるごと返す（起動時にフロントエンドがローカル学習とマージする）
@@ -431,6 +445,7 @@ app.post('/api/learning-event', rateLimit('learning-event', { windowMs: 60000, m
   if (action === 'delete') {
     delete learningDict[text];
     caseLog.push({ at: eventAt, text, action, payload: payload || null });
+    caseLog = capArrayByByteSize(caseLog, CASE_LOG_MAX_BYTES);
     await persist();
     return res.json({ ok: true, dict: learningDict });
   }
@@ -541,6 +556,7 @@ app.post('/api/learning-event', rateLimit('learning-event', { windowMs: 60000, m
   entry.updatedAt = eventAt;
 
   caseLog.push({ at: eventAt, text, action, payload: payload || null });
+  caseLog = capArrayByByteSize(caseLog, CASE_LOG_MAX_BYTES);
 
   await persist();
   res.json({ ok: true, dict: learningDict });
@@ -967,6 +983,7 @@ app.post('/api/card-reports', rateLimit('card-reports', { windowMs: 60000, max: 
     };
     cardReports.push(group);
   }
+  cardReports = capArrayByByteSize(cardReports, CARD_REPORTS_MAX_BYTES);
   await persist();
   res.json(group);
 });
@@ -1017,7 +1034,8 @@ async function runArchiving() {
 
   // 90日基準の年齢だけでは「短期間に大量発生」して先にMongoDBの1ドキュメント上限（16MB）へ
   // 達するケースを防げないため、定期整理のたびにバイト数上限でも間引く（間引かれた分は
-  // 古い記録が失われるが、静かに保存が全滅するよりは望ましい）。
+  // 古い記録が失われるが、静かに保存が全滅するよりは望ましい）。事例ログ・情報カードの報告
+  // （アーカイブ側含む）も、カルテスナップショットと同じ理由でここで間引く。
   const beforePatientSnapshotsBytes = JSON.stringify(patientSnapshots).length;
   patientSnapshots = capArrayByByteSize(patientSnapshots, PATIENT_SNAPSHOT_MAX_BYTES);
   const trimmedSnapshots = beforePatientSnapshotsBytes !== JSON.stringify(patientSnapshots).length;
@@ -1025,9 +1043,24 @@ async function runArchiving() {
   patientSnapshotsArchive = capArrayByByteSize(patientSnapshotsArchive, PATIENT_SNAPSHOT_ARCHIVE_MAX_BYTES);
   const trimmedArchive = beforeArchiveBytes !== JSON.stringify(patientSnapshotsArchive).length;
 
-  if (movedCaseLog > 0 || movedCardReports > 0 || movedSnapshots > 0 || trimmedSnapshots || trimmedArchive) {
+  const beforeCaseLogBytes = JSON.stringify(caseLog).length;
+  caseLog = capArrayByByteSize(caseLog, CASE_LOG_MAX_BYTES);
+  const trimmedCaseLog = beforeCaseLogBytes !== JSON.stringify(caseLog).length;
+  const beforeCaseLogArchiveBytes = JSON.stringify(caseLogArchive).length;
+  caseLogArchive = capArrayByByteSize(caseLogArchive, CASE_LOG_ARCHIVE_MAX_BYTES);
+  const trimmedCaseLogArchive = beforeCaseLogArchiveBytes !== JSON.stringify(caseLogArchive).length;
+
+  const beforeCardReportsBytes = JSON.stringify(cardReports).length;
+  cardReports = capArrayByByteSize(cardReports, CARD_REPORTS_MAX_BYTES);
+  const trimmedCardReports = beforeCardReportsBytes !== JSON.stringify(cardReports).length;
+  const beforeCardReportsArchiveBytes = JSON.stringify(cardReportsArchive).length;
+  cardReportsArchive = capArrayByByteSize(cardReportsArchive, CARD_REPORTS_ARCHIVE_MAX_BYTES);
+  const trimmedCardReportsArchive = beforeCardReportsArchiveBytes !== JSON.stringify(cardReportsArchive).length;
+
+  const trimmedAnything = trimmedSnapshots || trimmedArchive || trimmedCaseLog || trimmedCaseLogArchive || trimmedCardReports || trimmedCardReportsArchive;
+  if (movedCaseLog > 0 || movedCardReports > 0 || movedSnapshots > 0 || trimmedAnything) {
     await persist();
-    console.log(`自動整理: 事例ログ${movedCaseLog}件・情報カードの報告${movedCardReports}件・カルテスナップショット${movedSnapshots}件をアーカイブへ退避しました${(trimmedSnapshots || trimmedArchive) ? '（サイズ上限により一部の古いカルテスナップショットを間引きました）' : ''}`);
+    console.log(`自動整理: 事例ログ${movedCaseLog}件・情報カードの報告${movedCardReports}件・カルテスナップショット${movedSnapshots}件をアーカイブへ退避しました${trimmedAnything ? '（サイズ上限により一部の古い記録を間引きました）' : ''}`);
   }
 }
 
