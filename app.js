@@ -874,14 +874,15 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         // サーバーが実際に持っているIDは、このカルテ一覧に表示してよいものとして記録する。
         serverReachableForPatients = true;
         Object.keys(serverPatientsDict).forEach(id => knownServerPatientIds.add(id));
+        // 【修正】以前はここで「患者カルテをまるごと」比較し、updatedAtが新しい方をそのまま
+        // 採用していたため、サーバー側が新しいと判定されるとこのブラウザだけが知っている
+        // カードごと丸ごと消えてしまうことがあった。mergePatientRecordClientでカード単位に
+        // マージすることで、どちらか一方にしか無いカードも（削除記録＝tombstoneが無い限り）
+        // 両方とも残るようにする（詳しい経緯はmergePatientRecordClientの説明を参照）。
         const merged = {};
         (globalAppData.patients || []).forEach(p => { merged[p.id] = p; });
         Object.entries(serverPatientsDict).forEach(([id, serverPatient]) => {
-          const localPatient = merged[id];
-          if (!localPatient) { merged[id] = serverPatient; return; }
-          const localTime = localPatient.updatedAt ? new Date(localPatient.updatedAt).getTime() : 0;
-          const serverTime = serverPatient.updatedAt ? new Date(serverPatient.updatedAt).getTime() : 0;
-          if (serverTime > localTime) merged[id] = serverPatient;
+          merged[id] = mergePatientRecordClient(merged[id], serverPatient);
         });
         const mergedList = Object.values(merged);
         if (mergedList.length > 0) {
@@ -1696,6 +1697,107 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     function unmarkItemDeleted(cp, itemId) {
       if (!cp || !Array.isArray(cp.deletedItemIds)) return;
       cp.deletedItemIds = cp.deletedItemIds.filter(t => t && t.id !== itemId);
+    }
+
+    // ---- 起動時（loadSharedPatients）のカード単位マージ ----
+    // 【原因と修正】起動時にサーバー側の共有カルテとこのブラウザのカルテを統合する処理
+    // （loadSharedPatients）は、これまで「患者カルテをまるごと」比較し、updatedAt（最終更新日時）が
+    // 新しい方をそのまま採用していた。しかしserver.js側の通常の保存（PUT /api/patients/:id）は
+    // 既にカード単位でマージしており（サーバー側のmergePatientRecord参照）、起動時だけこの
+    // 「まるごと置き換え」方式になっていたのが食い違いの原因になっていた。
+    // 例えば、①タブを開いたまま分類・カード追加をした直後（次回このタブを開き直すまでの間）に、
+    // 別端末・別ブラウザで同じ患者を編集してサーバー側のupdatedAtがこのブラウザより新しくなった
+    // 場合、②Render無料枠のサーバー起動待ち等でこの起動時マージが完了するより前に操作を始めて
+    // しまった場合等に、サーバー側のカルテのほうが「新しい」と判定され、このブラウザだけが
+    // 知っている新しいカードごと丸ごと消えてしまうことがあった（利用者からの報告：
+    // 「たまに情報カードがリセットされてしまう」）。
+    // server.js のmergePatientRecordと全く同じ考え方（カードの生死はID単位・_touchedAt／
+    // tombstoneの新旧で判定し、タイトル・カルテ本文等それ以外の項目だけをupdatedAtの新しい方で
+    // 採用する）をこのブラウザ側でも行うことで、起動時のマージでも片方だけが知っているカードを
+    // 誤って消さないようにする。
+    const ITEM_TOMBSTONE_WINDOW_MS = 3 * 24 * 60 * 60 * 1000; // 3日：server.js側と同じ保持期間
+    function pruneTombstonesClient(list, now) {
+      if (!Array.isArray(list)) return [];
+      return list.filter(t => t && typeof t.id === 'string' && typeof t.at === 'string' && (now - new Date(t.at).getTime()) <= ITEM_TOMBSTONE_WINDOW_MS);
+    }
+    function itemEffectiveTimeClient(item, wholePatientUpdatedAt) {
+      if (item && typeof item._touchedAt === 'string') {
+        const t = new Date(item._touchedAt).getTime();
+        if (!Number.isNaN(t)) return t;
+      }
+      if (wholePatientUpdatedAt) {
+        const t = new Date(wholePatientUpdatedAt).getTime();
+        if (!Number.isNaN(t)) return t;
+      }
+      return 0;
+    }
+    function mergePatientRecordClient(local, server, now = Date.now()) {
+      if (!server) return local;
+      if (!local) return server;
+
+      const localTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+      const serverTime = server.updatedAt ? new Date(server.updatedAt).getTime() : 0;
+      // items・deletedItemIds以外の項目（タイトル・カルテ本文・検査値評価結果等）は、
+      // 従来通りupdatedAtが新しい方をまるごと採用する（server.js側のisNotStale相当）。
+      const base = localTime >= serverTime ? local : server;
+
+      const localItems = Array.isArray(local.items) ? local.items : [];
+      const serverItems = Array.isArray(server.items) ? server.items : [];
+      const localById = new Map(localItems.filter(i => i && i.id).map(i => [i.id, i]));
+      const serverById = new Map(serverItems.filter(i => i && i.id).map(i => [i.id, i]));
+
+      const tombstonesById = new Map();
+      [...pruneTombstonesClient(local.deletedItemIds, now), ...pruneTombstonesClient(server.deletedItemIds, now)].forEach(t => {
+        const prev = tombstonesById.get(t.id);
+        if (!prev || new Date(t.at).getTime() > new Date(prev.at).getTime()) tombstonesById.set(t.id, t);
+      });
+      const survivingTombstoneIds = new Set(tombstonesById.keys());
+
+      // 並び順はローカル（このブラウザで今見えている順）を基本にし、サーバーだけが持つカードは末尾に足す
+      const orderedIds = localItems.filter(i => i && i.id).map(i => i.id);
+      serverItems.forEach(i => { if (i && i.id && !localById.has(i.id)) orderedIds.push(i.id); });
+
+      const mergedItems = [];
+      const seen = new Set();
+      orderedIds.forEach(id => {
+        if (seen.has(id)) return;
+        seen.add(id);
+        const localItem = localById.get(id);
+        const serverItem = serverById.get(id);
+        const tombstone = tombstonesById.get(id);
+
+        if (tombstone) {
+          const tombstoneTime = new Date(tombstone.at).getTime();
+          if (localItem && itemEffectiveTimeClient(localItem, local.updatedAt) > tombstoneTime) {
+            mergedItems.push(localItem);
+            survivingTombstoneIds.delete(id); // 削除より後に書き換えられている＝復元されたとみなす
+            return;
+          }
+          if (serverItem && itemEffectiveTimeClient(serverItem, server.updatedAt) > tombstoneTime) {
+            mergedItems.push(serverItem);
+            survivingTombstoneIds.delete(id);
+            return;
+          }
+          return; // 削除が有効。カードは含めない
+        }
+
+        if (localItem && serverItem) {
+          const lt = itemEffectiveTimeClient(localItem, local.updatedAt);
+          const st = itemEffectiveTimeClient(serverItem, server.updatedAt);
+          mergedItems.push(lt >= st ? localItem : serverItem);
+        } else {
+          mergedItems.push(localItem || serverItem);
+        }
+      });
+
+      const mergedTombstones = [...tombstonesById.values()].filter(t => survivingTombstoneIds.has(t.id));
+
+      return {
+        ...base,
+        items: mergedItems,
+        deletedItemIds: mergedTombstones,
+        updatedAt: (localTime >= serverTime ? local.updatedAt : server.updatedAt) || new Date(now).toISOString()
+      };
     }
 
     function loadLocalState() {
@@ -5217,6 +5319,7 @@ if (typeof module !== 'undefined' && module.exports) {
     LAB_ALIAS_FALLBACK_TESTS,
     LAB_ITEM_NAME_REGEX,
     LAB_VALUE_TEST_REGEX,
+    mergePatientRecordClient,
     groupClinicalPhrasesWithTimestamps,
     detectMultipleHendersonTags,
     detectDiagnosisTagHints,
