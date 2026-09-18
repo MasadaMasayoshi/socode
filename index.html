@@ -498,12 +498,15 @@
            patients.json（最新の共有カルテ）とは別に、上書きされずに積み重ねて記録される。
            ログイン機能が無いため「誰が」はブラウザタブ単位の識別子(clientId)の一部でのみ区別できる。 -->
       <div id="admin-panel-snapshots" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
-        <div class="flex items-center justify-between gap-2 shrink-0">
+        <div class="flex items-center justify-between gap-2 shrink-0 flex-wrap">
           <input type="text" id="admin-snapshots-search" class="field flex-1" placeholder="患者名で検索...">
           <span id="admin-snapshots-count" class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap"></span>
+          <button id="btn-sync-snapshot-now" onclick="syncCurrentPatientSnapshotNow()" class="btn btn-outline text-[11px] py-1.5 whitespace-nowrap" title="定期バックアップ（5分おき）やタブを閉じるタイミングを待たずに、今開いているカルテページの最新状態をこの場でスナップショットとして保存します">
+            <i class="fa-solid fa-cloud-arrow-up"></i> 今すぐ同期して保存
+          </button>
         </div>
         <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
-          <i class="fa-solid fa-circle-info"></i> タブを閉じるたびに、その時点のカルテ内容がそのまま記録されます（閲覧のみで削除機能はありません）。「編集した人」はログイン機能が無いため区別できず、タブごとの識別子の一部のみを表示します。行をクリックすると、その時点のカード内容を展開して確認できます。
+          <i class="fa-solid fa-circle-info"></i> タブを閉じるたびに、その時点のカルテ内容がそのまま記録されます（閲覧のみで削除機能はありません）。「編集した人」はログイン機能が無いため区別できず、タブごとの識別子の一部のみを表示します。行をクリックすると、その時点のカード内容を展開して確認できます。「今すぐ同期して保存」ボタンで、5分おきの定期バックアップを待たずに今の状態を保存できます。
         </p>
         <div id="admin-snapshots-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
       </div>

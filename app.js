@@ -5404,6 +5404,53 @@ ${labTexts || '(なし)'}
     // この間隔で自動的にバックアップが積み重なっていく。
     setInterval(() => captureAndSendPatientSnapshot(false), 5 * 60 * 1000);
 
+    // ===== カルテスナップショットの手動同期（「今すぐ同期」ボタン）=====
+    // 通常は5分おきの定期バックアップとタブを閉じた瞬間にしか記録されないため、「今、この場で」
+    // 今開いているカルテページの最新状態を確認・保存したい場合は待たされる（利用者からの要望：
+    // 「今開いてるカルテページを学習データ管理のページのスナップショットからすぐに同期して
+    // 保存できるボタンを作って」）。定期バックアップ（captureAndSendPatientSnapshot）と同じ
+    // 送信内容（このブラウザタブが知っている全患者分のカード・カルテ本文）をその場で送信し、
+    // 成功・失敗をトーストで知らせる。「学習データ管理」画面の「カルテスナップショット」タブが
+    // 開いていれば、保存した内容がすぐ見えるよう一覧も自動で再取得する。
+    window.syncCurrentPatientSnapshotNow = async function() {
+      const btn = document.getElementById('btn-sync-snapshot-now');
+      const hasAnyItems = globalAppData.patients.some(p => p.items && p.items.length > 0);
+      if (!hasAnyItems) {
+        showToast('保存できるカルテの内容がありません', 'error');
+        return;
+      }
+      const originalHtml = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 同期中...';
+      }
+      try {
+        const snapshotPatients = globalAppData.patients.map(p => ({
+          patientId: p.id, patientTitle: p.title, items: p.items, sourceText: p.sourceText
+        }));
+        const res = await fetch(`${API_BASE}/patient-snapshot`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId: presenceClientId, patients: snapshotPatients })
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        showToast('今開いているカルテをスナップショットとして保存しました', 'success');
+        // 「カルテスナップショット」タブが開いている場合は、保存した内容がすぐ見えるよう一覧を再取得する
+        const panel = document.getElementById('admin-panel-snapshots');
+        if (panel && !panel.classList.contains('hidden')) {
+          await loadAndRenderPatientSnapshots();
+        }
+      } catch (err) {
+        console.warn('Manual snapshot sync error:', err);
+        showToast('スナップショットの保存に失敗しました（サーバーに接続できません）', 'error');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = originalHtml;
+        }
+      }
+    };
+
     // カルテ内容・学習データはこのブラウザのlocalStorageに保存されるため、タブを閉じても
     // このブラウザ内では消えない。ただしサーバー側（他端末との共有・研究用途のファイル）への
     // 送信がまだ済んでいない可能性があるため、何か入力・登録済みの状態でタブを閉じよう／
