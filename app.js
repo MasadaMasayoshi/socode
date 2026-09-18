@@ -732,6 +732,30 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       // 見出し単位で機械的に4(姿勢)・9(環境)を初期提案する（利用者からの指摘：「年代は環境、姿勢」）。
       "年齢": [4, 9]
     };
+
+    // ==========================================================================
+    // 患者背景（基本情報／医学情報）：ヘンダーソン14項目のどれにも当てはまらない
+    // カードの受け皿
+    // ------------------------------------------------------------------------
+    // 【背景】利用者からの要望：「タグ未設定」のまま残ってしまうカードの中には、氏名・性別・
+    // 血液型・病期(Stage)・病理結果・臨時指示のように、そもそもヘンダーソンの14の基本的欲求
+    // （呼吸・食事・排泄…学び）のどれにも自然には当てはまらない内容が一定数ある。これらを
+    // 「タグ未設定」という要対応の警告のまま放置するのではなく、「患者背景」という独立した
+    // 受け皿に振り分け、さらに氏名・性別等の属人的な「基本情報」と、血液型・病期・治療方針等の
+    // 臨床的な「医学情報」の2つに分ける（既存のヘンダーソン14項目のタグ・総合アセスメント表
+    // とは完全に別枠。ヘンダーソンタグが1件でも付いたカードにはこの振り分けは行わない）。
+    // 見出しラベル（FIELD_LABELS）が「氏名」「性別」「生活歴」「入院日」のように、本人の
+    // 属性・生活状況を表すものであれば「基本情報」、それ以外（診断名・既往歴・治療方針・
+    // 治療内容・手術術式・感染症・主訴等の臨床的な見出し、および見出しラベルが無い断片）は
+    // 「医学情報」とする。あくまで「他のどのヘンダーソンタグにも一致しなかった場合の最後の
+    // 受け皿」としての簡易な振り分けであり、明確な判断が難しい境界的なケースもあるため、
+    // 利用者が手動でヘンダーソンタグを付け直せば通常のカード表示に戻る
+    // （患者背景の判定はカード作成・再チェック時にその都度計算し直すだけの派生値のため）。
+    const PATIENT_BACKGROUND_BASIC_FIELD_LABELS = new Set(["氏名", "性別", "生活歴", "入院日"]);
+    function classifyPatientBackground(fieldLabel) {
+      return PATIENT_BACKGROUND_BASIC_FIELD_LABELS.has(fieldLabel) ? '基本情報' : '医学情報';
+    }
+
     // 「診断名」は病名によって関連するヘンダーソンタグが大きく異なり、キーワード辞書
     // （HENDERSON_NEEDSのkeywords）だけでは病名そのものを拾えないことが多いため、
     // 代表的な病名から関連タグを推測するための簡易な対応表を別に用意する。
@@ -2561,10 +2585,11 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         // 複数回のクローズを見分けられるよう、識別子の末尾だけを短く表示する。
         const clientShort = entry.clientId ? entry.clientId.slice(-6) : '不明';
         const items = Array.isArray(entry.items) ? entry.items : [];
-        // 「不要」判定済みのカードはタグが無くて当然のため対象外とし、それ以外で
-        // hendersonIdsが空のものだけを数える。折りたたんだ状態でも件数が分かるよう、
+        // 「不要」判定済みのカードはタグが無くて当然のため対象外とし、患者背景（基本情報／
+        // 医学情報）に振り分けられたカードも意図的にタグが無いカードのため対象外とする。
+        // それ以外でhendersonIdsが空のものだけを数える。折りたたんだ状態でも件数が分かるよう、
         // 展開しなくても一覧の見出し行に表示する。
-        const untaggedCount = items.filter(it => it.type !== 'unnecessary' && !(Array.isArray(it.hendersonIds) && it.hendersonIds.length > 0)).length;
+        const untaggedCount = items.filter(it => it.type !== 'unnecessary' && !it.patientBackground && !(Array.isArray(it.hendersonIds) && it.hendersonIds.length > 0)).length;
         const isExpanded = expandedSnapshotIds.has(entry.id);
         const row = document.createElement('div');
         row.className = 'flex flex-col gap-1.5 p-2 rounded-[var(--radius-sm)] border border-[var(--line)]';
@@ -2589,7 +2614,9 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
                 const hasTags = Array.isArray(it.hendersonIds) && it.hendersonIds.length > 0;
                 const tagBadge = hasTags
                   ? `<span class="text-[10px] text-[var(--ink-muted)] shrink-0">(${it.hendersonIds.map(hendersonNameOf).join('/')})</span>`
-                  : (it.type !== 'unnecessary' ? `<span class="text-[10px] shrink-0 font-semibold" style="color:var(--brick);"><i class="fa-solid fa-triangle-exclamation"></i> タグ未設定</span>` : '');
+                  : (it.patientBackground
+                      ? `<span class="text-[10px] text-[var(--ink-muted)] shrink-0">(患者背景・${escapeHtml(it.patientBackground)})</span>`
+                      : (it.type !== 'unnecessary' ? `<span class="text-[10px] shrink-0 font-semibold" style="color:var(--brick);"><i class="fa-solid fa-triangle-exclamation"></i> タグ未設定</span>` : ''));
                 return `
                 <div class="text-[11px] text-[var(--ink)] flex items-start gap-1.5">
                   <span class="field-chip shrink-0" style="background:var(--line-soft);color:var(--ink-muted);">${escapeHtml(typeLabelOf(it.type))}</span>
@@ -3194,6 +3221,25 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         extracted.push({ text: fragmentText, timestamp: globalTimestamp, ...extraProps });
       }
 
+      // 「●左横隔膜下ドレーン」（コロン・値を伴わないまま行末で途切れている）の直後の行が
+      // 「10ml、●挿入部異常なし。…」のように数値から始まっている場合がある。これは元の記録で
+      // 単に排液量の数値部分が改行によって次の行に折り返されただけで、実際には
+      // 「●左横隔膜下ドレーン：10ml」という1つの所見である。しかし行単位で処理する以降の
+      // 抽出処理では、この改行の位置でそのまま別々の断片として切り離されてしまい、
+      // 「●左横隔膜下ドレーン」（値の無い意味の無いラベルだけの断片）と「10ml、●挿入部
+      // 異常なし…」（ラベルの無い数値だけで始まる断片）という、単体では意味を持たない
+      // 2枚のカードに分断されていた（利用者からの報告事例）。
+      // 「●」で始まる列挙項目がコロン・値を伴わずに改行で終わっており、直後の行が数値＋単位＋
+      // 区切り（、,）で始まっている場合に限り、改行を全角コロンに置き換えて1行に結合し、
+      // 後続の既存の列挙分割ロジック（●・「、」区切り）にそのまま委ねる（次の行の残り部分
+      // 「●挿入部異常なし。…」はこの結合の対象にならず、そのまま後続の内容として残る）。
+      // ●で始まらない通常の見出し語＋値の続き（「●吻合部背面ドレーン」の直後が別の見出し語
+      // 「左横隔膜下ドレーン、…」から始まる場合等）は対象にしない（数値開始という条件が
+      // 無ければ誤って結合してしまうリスクがあるため）。
+      const WRAPPED_ENUM_VALUE_CONTINUATION_REGEX =
+        /(●[^\n：:。、,]{1,20})\r?\n[ \t]*([0-9０-９]+(?:\.[0-9]+)?[^\s、,。\n]{0,10}[、,])/g;
+      text = text.replace(WRAPPED_ENUM_VALUE_CONTINUATION_REGEX, '$1：$2');
+
       // 表やスプレッドシートのコピー貼り付けで、項目名と数値が別々の行に分かれてしまうことがある
       // （例:1行目「WBC」、2行目「11200」）ため、forEachではなく添字ループにして、項目名だけの行
       // を見つけたときに次の行（数値だけの行）を先読み・消費できるようにする。
@@ -3782,7 +3828,11 @@ ${text}
                 // その判断を優先し、表記ゆれ類似(fuzzy)の場合は精度が落ちるため分類についてはAIの判定を基準のまま活かす
                 // （タグは上でfuzzyの結果も含めて統合済み）。
                 const itemType = (!isFuzzyMatch && userLearned?.preferredType) || (isBoilerplate ? 'unnecessary' : null) || pi.type || fallbackType;
-                cp.items.push({ id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text: cleanedText, timestamp: itemTimestamp, type: itemType, hendersonIds: hIds, assessmentCols: aCols, fieldLabel: validFieldLabel, predictionSource: predictionSource || undefined, _touchedAt: new Date().toISOString() });
+                // ヘンダーソンタグが1件も付かなかった場合の受け皿（classifyPatientBackgroundの説明を参照）。
+                const patientBackground = (itemType !== 'unnecessary' && hIds.length === 0)
+                  ? classifyPatientBackground(validFieldLabel)
+                  : null;
+                cp.items.push({ id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text: cleanedText, timestamp: itemTimestamp, type: itemType, hendersonIds: hIds, assessmentCols: aCols, fieldLabel: validFieldLabel, patientBackground, predictionSource: predictionSource || undefined, _touchedAt: new Date().toISOString() });
                 added++;
               }
             });
@@ -3834,8 +3884,14 @@ ${text}
         // 総合アセスメント表の欄を最初から振り分けておく（分からない場合は従来通り未分類）。
         const inferredCol = userLearned ? null : inferAssessmentColumn(chunk.fieldLabel, chunk.timestamp);
         detectedHIds.forEach(hId => assessmentCols[hId] = userLearned?.preferredCols?.[hId] || inferredCol || 'unclassified');
+        // ヘンダーソンタグが1件も付かなかった場合（＝どの基本的欲求にも当てはまらなかった場合）、
+        // 「タグ未設定」の警告のまま残さず、患者背景（基本情報／医学情報）の受け皿に振り分ける
+        // （classifyPatientBackgroundの説明を参照）。
+        const patientBackground = (predictedType !== 'unnecessary' && detectedHIds.length === 0)
+          ? classifyPatientBackground(chunk.fieldLabel)
+          : null;
 
-        const newItem = { id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text: cleanedText, timestamp: chunk.timestamp || "日時不明", type: predictedType, hendersonIds: detectedHIds, assessmentCols, fieldLabel: chunk.fieldLabel || null, predictionSource, _touchedAt: new Date().toISOString() };
+        const newItem = { id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text: cleanedText, timestamp: chunk.timestamp || "日時不明", type: predictedType, hendersonIds: detectedHIds, assessmentCols, fieldLabel: chunk.fieldLabel || null, patientBackground, predictionSource, _touchedAt: new Date().toISOString() };
         cp.items.push(newItem);
         // どう自動抽出・自動分類されたかを事例ログに残す（研究用）
         reportLearningEvent(cleanedText, 'create', { type: predictedType, hendersonIds: detectedHIds, assessmentCols, fieldLabel: newItem.fieldLabel, predictionSource, fuzzyMatchedText: fuzzyMatchedText || undefined });
@@ -4375,16 +4431,21 @@ ${labTexts || '(なし)'}
       });
     }
 
-    // ヘンダーソンタグが1つも付いていない（かつ「不要」判定でもない）カードを判定するヘルパー
+    // ヘンダーソンタグが1つも付いていない（かつ「不要」判定でもない）カードを判定するヘルパー。
+    // 患者背景（基本情報／医学情報）に振り分けられたカードは、意図的にヘンダーソンタグが
+    // 無いカード（要対応の「タグ未設定」ではない）のため、ここでは対象外とする。
     function isUntaggedItem(item) {
-      return item.type !== 'unnecessary' && (!item.hendersonIds || item.hendersonIds.length === 0);
+      return item.type !== 'unnecessary' && !item.patientBackground && (!item.hendersonIds || item.hendersonIds.length === 0);
     }
 
     function renderSoBoard() {
       const cp = getCurrentPatient();
-      const columns = { unclassified: document.createDocumentFragment(), s: document.createDocumentFragment(), o: document.createDocumentFragment(), unnecessary: document.createDocumentFragment() };
-      const totalCounts = { unclassified: 0, s: 0, o: 0 };
-      const shownCounts = { unclassified: 0, s: 0, o: 0 };
+      // 患者背景（基本情報／医学情報）に振り分けられたカードは、ヘンダーソンタグの列
+      // （未分類/S/O）ではなく専用の「患者背景」列に表示する（classifyPatientBackgroundの
+      // 説明を参照。「完全に別枠の新しいセクションにする」という利用者の要望に基づく）。
+      const columns = { unclassified: document.createDocumentFragment(), s: document.createDocumentFragment(), o: document.createDocumentFragment(), unnecessary: document.createDocumentFragment(), patientBackground: document.createDocumentFragment() };
+      const totalCounts = { unclassified: 0, s: 0, o: 0, patientBackground: 0 };
+      const shownCounts = { unclassified: 0, s: 0, o: 0, patientBackground: 0 };
 
       // タグ未設定のカードを列の先頭に浮上させ、編集しやすくする（未設定同士・設定済み同士の並び順は維持）
       const sortedItems = cp.items
@@ -4396,14 +4457,19 @@ ${labTexts || '(なし)'}
         .map(x => x.item);
 
       sortedItems.forEach(item => {
+        // type（s/o/unclassified/unnecessary）自体は患者背景の振り分けで変わらないため、
+        // Sデータ/Oデータ等の件数集計（totalCounts[item.type]）には影響しない。
         if (item.type !== 'unnecessary') totalCounts[item.type]++;
+        const columnKey = (item.patientBackground && item.type !== 'unnecessary') ? 'patientBackground' : item.type;
+        if (columnKey === 'patientBackground') totalCounts.patientBackground++;
         if (!itemMatchesSearch(item, boardSearchTerm)) return; // 検索語に一致しないカードは列に表示しない
-        columns[item.type].appendChild(createCardElement(item));
+        columns[columnKey].appendChild(createCardElement(item));
         if (item.type !== 'unnecessary') shownCounts[item.type]++;
+        if (columnKey === 'patientBackground') shownCounts.patientBackground++;
       });
 
       Object.keys(columns).forEach(key => document.getElementById(`col-${key}`).replaceChildren(columns[key]));
-      ['unclassified', 's', 'o'].forEach(key => {
+      ['unclassified', 's', 'o', 'patientBackground'].forEach(key => {
         document.getElementById(`badge-count-${key}`).textContent = boardSearchTerm ? `${shownCounts[key]}/${totalCounts[key]}` : totalCounts[key];
       });
       renderBulkActionBar();
@@ -4449,6 +4515,9 @@ ${labTexts || '(なし)'}
         return need ? `<span class="tag-chip">${need.name} <button onclick="removeHendersonTag('${item.id}', ${need.id})" class="text-[var(--accent)]/60 hover:text-[var(--brick)] transition"><i class="fa-solid fa-times"></i></button></span>` : '';
       }).join('');
       const untaggedWarningHtml = isUntagged ? `<span class="field-chip" style="background:var(--brick);color:#fff;"><i class="fa-solid fa-triangle-exclamation mr-0.5"></i>タグ未設定</span>` : '';
+      // どのヘンダーソンタグにも一致しなかったカードの受け皿（患者背景：基本情報／医学情報）。
+      // 「タグ未設定」の警告とは違い、意図的な分類であることを示す落ち着いた色で表示する。
+      const patientBackgroundHtml = item.patientBackground ? `<span class="field-chip" style="background:var(--slate-soft);color:var(--slate);"><i class="fa-solid fa-user-tag mr-0.5"></i>患者背景・${escapeHtml(item.patientBackground)}</span>` : '';
 
       const fieldDef = item.fieldLabel ? FIELD_LABELS.find(f => f.key === item.fieldLabel) : null;
       const fieldChipHtml = fieldDef ? `<span class="field-chip" style="background:${fieldDef.bg};color:${fieldDef.color};"><i class="fa-solid ${fieldDef.icon} mr-0.5"></i>${escapeHtml(fieldDef.label)}</span>` : '';
@@ -4461,7 +4530,7 @@ ${labTexts || '(なし)'}
             <label class="card-select-wrap" title="選択（複数選択の追加/解除。タップ操作のみで複数選択できます）">
               <input type="checkbox" class="card-select-checkbox" onchange="setCardSelected('${item.id}', this.checked)" ${isSelected ? 'checked' : ''}>
             </label>
-            ${untaggedWarningHtml}${fieldChipHtml}${timeChipHtml}${confidenceBadgeHtml}
+            ${untaggedWarningHtml}${patientBackgroundHtml}${fieldChipHtml}${timeChipHtml}${confidenceBadgeHtml}
           </div>
           <div class="flex items-center space-x-0.5 ml-auto shrink-0">
             <button onclick="openCardReportModal('${item.id}')" class="icon-btn-outline" style="border-color:#EFD9CE;color:var(--brick);" title="このカードの書き込みが変だと報告する"><i class="fa-solid fa-flag"></i></button>
@@ -4842,6 +4911,7 @@ ${labTexts || '(なし)'}
       let fixedTagCount = 0;
       let fixedRefCount = 0;
       let fixedTypeCount = 0;
+      let fixedBackgroundCount = 0;
       cp.items.forEach(item => {
         if (item.type === 'unnecessary') return; // 「不要」判定済みのカードは対象外
 
@@ -4871,23 +4941,44 @@ ${labTexts || '(なし)'}
           }
         }
 
-        if (Array.isArray(item.hendersonIds) && item.hendersonIds.length > 0) return; // 既にタグがあるものは対象外
+        if (Array.isArray(item.hendersonIds) && item.hendersonIds.length > 0) {
+          // 既にタグがあるカードは対象外だが、過去に④の患者背景振り分けを受けた後に
+          // 手動でタグが付けられた場合、患者背景の表示が残ったままになるため外す
+          // （ヘンダーソンタグが1件でも付けば患者背景の受け皿は使わない、という原則を維持する）。
+          if (item.patientBackground) { item.patientBackground = null; touchItem(item); fixedBackgroundCount++; }
+          return;
+        }
         const suggested = suggestHendersonTagsForText(item.text, item.fieldLabel, userLearned);
-        if (suggested.length === 0) return;
-        item.hendersonIds = suggested;
-        item.assessmentCols = item.assessmentCols || {};
-        suggested.forEach(hid => {
-          if (!(hid in item.assessmentCols)) item.assessmentCols[hid] = userLearned?.preferredCols?.[hid] || 'unclassified';
-        });
-        touchItem(item);
-        fixedTagCount++;
+        if (suggested.length > 0) {
+          item.hendersonIds = suggested;
+          item.assessmentCols = item.assessmentCols || {};
+          suggested.forEach(hid => {
+            if (!(hid in item.assessmentCols)) item.assessmentCols[hid] = userLearned?.preferredCols?.[hid] || 'unclassified';
+          });
+          item.patientBackground = null;
+          touchItem(item);
+          fixedTagCount++;
+          return;
+        }
+        // ④どのヘンダーソンタグにも一致しなかったカードは、「タグ未設定」の警告のまま残さず
+        // 患者背景（基本情報／医学情報）の受け皿に振り分ける（classifyPatientBackgroundの説明を参照）。
+        // 既に同じ判定が付いているカードは変更なしとみなし、件数に含めない。
+        if (item.type !== 'unnecessary') {
+          const newBackground = classifyPatientBackground(item.fieldLabel);
+          if (item.patientBackground !== newBackground) {
+            item.patientBackground = newBackground;
+            touchItem(item);
+            fixedBackgroundCount++;
+          }
+        }
       });
-      if (fixedTagCount > 0 || fixedRefCount > 0 || fixedTypeCount > 0) {
+      if (fixedTagCount > 0 || fixedRefCount > 0 || fixedTypeCount > 0 || fixedBackgroundCount > 0) {
         saveDataAndSync();
         const parts = [];
         if (fixedRefCount > 0) parts.push(`${fixedRefCount}件の検査値カードに基準値を反映`);
         if (fixedTypeCount > 0) parts.push(`${fixedTypeCount}件のS/O未分類カードを再分類`);
         if (fixedTagCount > 0) parts.push(`${fixedTagCount}件のタグ未設定カードにタグを再提案`);
+        if (fixedBackgroundCount > 0) parts.push(`${fixedBackgroundCount}件を患者背景に振り分け`);
         showToast(parts.join('、') + 'しました', 'success');
       } else {
         showToast('現在のルールで新たに反映できるカードはありませんでした', 'info');
@@ -4932,6 +5023,9 @@ ${labTexts || '(なし)'}
       const hId = parseInt(hIdStr, 10), cp = getCurrentPatient(), item = cp.items.find(i => i.id === id);
       if (item && !(item.hendersonIds || (item.hendersonIds = [])).includes(hId)) {
         item.hendersonIds.push(hId); item.assessmentCols[hId] = 'unclassified';
+        // ヘンダーソンタグが手動で付けられたら、患者背景（基本情報／医学情報）の受け皿は
+        // 使わない（「他のどのタグにも一致しなかった場合の最後の受け皿」という原則を維持する）。
+        item.patientBackground = null;
         item.predictionSource = 'confirmed'; // 人が確認・編集したことを示し、自動分類バッジを消す
         // 「同じタグ付けが何回選ばれたか」を票として数え、票のあるタグ（0票超）を優先タグとして扱う
         const learned = globalAppData.learningUserDict[item.text] = { ...globalAppData.learningUserDict[item.text] };
@@ -4945,7 +5039,7 @@ ${labTexts || '(なし)'}
           cp, item,
           `タグ「${hendersonNameOf(hId).replace(/^\d+\.\s*/, '')}」の追加`,
           i => !(i.hendersonIds || []).includes(hId),
-          i => { (i.hendersonIds || (i.hendersonIds = [])).push(hId); (i.assessmentCols = i.assessmentCols || {})[hId] = 'unclassified'; i.predictionSource = 'confirmed'; }
+          i => { (i.hendersonIds || (i.hendersonIds = [])).push(hId); (i.assessmentCols = i.assessmentCols || {})[hId] = 'unclassified'; i.patientBackground = null; i.predictionSource = 'confirmed'; }
         );
       }
     };
@@ -5621,6 +5715,9 @@ if (typeof module !== 'undefined' && module.exports) {
     HENDERSON_NEEDS,
     DIAGNOSIS_TAG_HINTS,
     FIELD_LABELS,
+    PATIENT_BACKGROUND_BASIC_FIELD_LABELS,
+    classifyPatientBackground,
+    isUntaggedItem,
     FIELD_LABEL_DEFAULT_TAGS,
     GASTRIC_POSTOP_EXPECTED_CHECKS,
     LAB_ALIAS_FALLBACK_TESTS,
