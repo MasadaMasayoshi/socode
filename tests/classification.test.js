@@ -410,15 +410,19 @@ test('項目名に括弧書きの別名が付いた検査値の表（項目名�
     'Alb', '3.9g/dL'
   ].join('\n');
   const items = classifyLocally(text);
-  assert.ok(findByIncludes(items, 'TP 6.8g/dL'), 'TPが値と結合される');
-  assert.ok(findByIncludes(items, 'WBC(白血球数) 8200/μL'), '括弧書きの別名付きWBCが値と結合される');
-  assert.ok(findByIncludes(items, 'RBC(赤血球数) 450'), '括弧書きの別名付きRBCが値と結合される');
-  assert.ok(findByIncludes(items, 'Hb(ヘモグロビン) 13.5g/dL'), '括弧書きの別名付きHbが値と結合される');
-  assert.ok(findByIncludes(items, 'Plt(血小板数) 23.0'), '括弧書きの別名付きPltが値と結合される');
-  assert.ok(findByIncludes(items, 'AST(GOT) 28U/L'), '括弧書きの別名付きASTが値と結合される');
-  assert.ok(findByIncludes(items, 'ALT(GPT) 32U/L'), '括弧書きの別名付きALTが値と結合される');
-  assert.ok(findByIncludes(items, 'γGTP 45U/L'), 'γGTPが値と結合される');
-  assert.ok(findByIncludes(items, 'Alb 3.9g/dL'), 'Albが値と結合される');
+  // 【原因と修正】以前は単位が既に書かれている検査値には基準値が補われなかったが、項目名の
+  // 直後に括弧書きの別名が挟まっているケースを含め、LAB_STANDARDSに登録済みの基準値を
+  // 常に反映するよう修正した（利用者からの報告：RBC・Hb等に基準値が付かない）。
+  // 括弧書きの別名はそのまま残し、基準値だけを追記する。
+  assert.ok(findByIncludes(items, 'TP 6.8 g/dL (基準値: 6.6〜8.1 g/dL)'), 'TPが値と結合され基準値が補われる');
+  assert.ok(findByIncludes(items, 'WBC(白血球数) 8200 /μL (基準値: 4,000〜9,000 /μL)'), '括弧書きの別名付きWBCが値と結合され基準値が補われる');
+  assert.ok(findByIncludes(items, 'RBC(赤血球数) 450 ×10^4/μL (基準値: 400〜550 ×10^4/μL)'), '括弧書きの別名付きRBCが値と結合され基準値が補われる');
+  assert.ok(findByIncludes(items, 'Hb(ヘモグロビン) 13.5 g/dL (基準値: 11.5〜16.5 g/dL)'), '括弧書きの別名付きHbが値と結合され基準値が補われる');
+  assert.ok(findByIncludes(items, 'Plt(血小板数) 23.0 ×10^4/μL (基準値: 13.0〜35.0 ×10^4/μL)'), '括弧書きの別名付きPltが値と結合され基準値が補われる');
+  assert.ok(findByIncludes(items, 'AST(GOT) 28 U/L (基準値: 10〜40 U/L)'), '括弧書きの別名付きASTが値と結合され基準値が補われる');
+  assert.ok(findByIncludes(items, 'ALT(GPT) 32 U/L (基準値: 5〜45 U/L)'), '括弧書きの別名付きALTが値と結合され基準値が補われる');
+  assert.ok(findByIncludes(items, 'γGTP 45 U/L (基準値: 9〜50 U/L)'), 'γGTPが値と結合され基準値が補われる');
+  assert.ok(findByIncludes(items, 'Alb 3.9 g/dL (基準値: 3.8〜5.2 g/dL)'), 'Albが値と結合され基準値が補われる');
   // 見出し語だけ・値だけの中身の無いカードが残っていないことを確認する
   ['TP', 'WBC(白血球数)', 'RBC(赤血球数)', 'Hb(ヘモグロビン)', 'Plt(血小板数)', 'AST(GOT)', 'ALT(GPT)', 'γGTP', 'Alb']
     .forEach(bareKey => assert.ok(!items.some(i => i.text === bareKey), `「${bareKey}」だけの中身の無いカードが残っていない`));
@@ -433,8 +437,8 @@ test('TP・Alb・γGTPは同じ行に値が書かれた形式でも1枚のカー
 
 test('Ht(ヘマトクリット)・PT(プロトロンビン時間)も表形式で値と正しく結合される', () => {
   const items = classifyLocally(['Ht(ヘマトクリット)', '41.8%', 'PT(プロトロンビン時間)', '12.5秒'].join('\n'));
-  assert.ok(findByIncludes(items, 'Ht(ヘマトクリット) 41.8%'), 'Htが値と結合される');
-  assert.ok(findByIncludes(items, 'PT(プロトロンビン時間) 12.5秒'), 'PTが値と結合される');
+  assert.ok(findByIncludes(items, 'Ht(ヘマトクリット) 41.8 % (基準値: 35〜50 %)'), 'Htが値と結合され基準値が補われる');
+  assert.ok(findByIncludes(items, 'PT(プロトロンビン時間) 12.5 秒 (基準値: 10〜13 秒)'), 'PTが値と結合され基準値が補われる');
   ['Ht(ヘマトクリット)', 'PT(プロトロンビン時間)'].forEach(bareKey =>
     assert.ok(!items.some(i => i.text === bareKey), `「${bareKey}」だけの中身の無いカードが残っていない`));
 });
@@ -550,20 +554,24 @@ test('検査値の項目名と実測値が別の行に分かれた表形式で�
   );
   const wbc = findByIncludes(items, '5880');
   assert.ok(wbc && wbc.text.startsWith('WBC'), '半角化された波括弧「{}」でも項目名「WBC」と値が結合される');
-  const hb = findByIncludes(items, '13.5g/dl');
-  assert.ok(hb && hb.text.startsWith('Hb'), '値の単位が小文字「g/dl」でも項目名「Hb」と結合される');
-  const plt = findByIncludes(items, '28.7万u/L');
-  assert.ok(plt && plt.text.startsWith('Plt'), '「万u/L」（万単位＋uをμの代わりに使った表記）でも項目名「Plt」と結合される');
+  // 【原因と修正】以前は単位が既に書かれている検査値には基準値が補われなかったが、
+  // LAB_STANDARDSに登録済みの基準値を常に反映するよう修正した（利用者からの報告）。
+  // そのため、単位の表記ゆれ（小文字dl・万u/L・mEa/L等）はformatLabValueStringが
+  // LAB_STANDARDSの正しい単位・基準値で置き換えるため、探す文字列は数値部分のみとする。
+  const hb = findByIncludes(items, '13.5');
+  assert.ok(hb && hb.text.startsWith('Hb') && hb.text.includes('(基準値: 11.5〜16.5 g/dL)'), '値の単位が小文字「g/dl」でも項目名「Hb」と結合され基準値が補われる');
+  const plt = findByIncludes(items, '28.7');
+  assert.ok(plt && plt.text.startsWith('Plt') && plt.text.includes('(基準値: 13.0〜35.0 ×10^4/μL)'), '「万u/L」（万単位＋uをμの代わりに使った表記）でも項目名「Plt」と結合され基準値が補われる');
   const na = findByIncludes(items, '140');
-  assert.ok(na && na.text.startsWith('Na'), '「mEa/L」（mEq/Lのqがaに誤認識された表記）でも項目名「Na」と結合される');
+  assert.ok(na && na.text.startsWith('Na') && na.text.includes('(基準値: 135〜145 mEq/L)'), '「mEa/L」（mEq/Lのqがaに誤認識された表記）でも項目名「Na」と結合され基準値が補われる');
   const cr = findByIncludes(items, '0.87');
-  assert.ok(cr && cr.text.startsWith('Cr'), '「Cr」（Creの略称）も項目名として認識され値と結合される');
+  assert.ok(cr && cr.text.startsWith('Cr') && cr.text.includes('(基準値: 0.6〜1.1 mg/dL)'), '「Cr」（Creの略称）も項目名として認識され値と結合され基準値が補われる');
 });
 
 test('「y GTP」（γGTPのOCR誤認識）も項目名として認識され、値と結合される', () => {
   const items = classifyLocally('y GTP\n\n\n15U/L');
-  const ggtp = findByIncludes(items, '15U/L');
-  assert.ok(ggtp && ggtp.text.startsWith('γGTP'), '「y GTP」が正式表記「γGTP」に正規化され、値と結合される');
+  const ggtp = findByIncludes(items, '15');
+  assert.ok(ggtp && ggtp.text.startsWith('γGTP') && ggtp.text.includes('(基準値: 9〜50 U/L)'), '「y GTP」が正式表記「γGTP」に正規化され、値と結合され基準値が補われる');
 });
 
 test('患者本人の直接の発言（「〜」）を含むカードは、他のキーワードと一致しなくても10(コミュニケーション)タグが付与される', () => {
