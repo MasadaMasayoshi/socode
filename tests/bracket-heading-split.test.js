@@ -52,3 +52,17 @@ test('splitByNakatenList: 「・」でも括弧の対応が崩れる場合は分
   const result = splitByNakatenList('＜手術・処置＞');
   assert.deepEqual(Array.from(result), ['＜手術・処置＞']);
 });
+
+// 【背景】上記のテストは「分裂しない」ことしか確認していなかったため、実際にユーザーから
+// アップロードされた記録では「＜実習2日目（入院2日目、手術前日）＞」のような「◯日目」の
+// 日数を含む山括弧見出しが分裂こそしないものの、isUnnecessaryBoilerplateがtrueにならず
+// タグ未設定・分類未設定の意味の無いカードとして残ってしまっていた。原因は山括弧見出しを
+// 「不要」と判定する行全体マッチの正規表現が中に数字(\d)を含む行を除外していたため
+// （実習日数・入院日数の表記はほぼ必ず数字を含むため、実質この見出しパターンには
+// 一致できなくなっていた）。数字を除外条件から外して修正した。
+test('groupClinicalPhrasesWithTimestamps: 日数を含む山括弧見出しは「不要」として抽出される（利用者からの報告事例）', () => {
+  const extracted = groupClinicalPhrasesWithTimestamps('＜実習2日目（入院2日目、手術前日）＞');
+  assert.equal(extracted.length, 1);
+  assert.equal(extracted[0].text, '＜実習2日目（入院2日目、手術前日）＞');
+  assert.equal(extracted[0].isUnnecessaryBoilerplate, true, '数字を含む見出しも不要判定されるべき');
+});

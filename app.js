@@ -31,7 +31,13 @@
         // 副雑音の所見等、呼吸に直結するが未登録だった語を追加する（利用者からのアップロード
         // 資料により判明）。
         "鼻カニューレ", "簡易酸素マスク", "リザーバー付き酸素マスク", "ベンチュリマスク", "HFNC", "NPPV", "ECMO",
-        "CO2ナルコーシス", "ハフィング", "スクイージング", "体位ドレナージ", "副雑音", "ラ音", "コースクラックル", "ロンカイ", "浸潤影"] },
+        "CO2ナルコーシス", "ハフィング", "スクイージング", "体位ドレナージ", "副雑音", "ラ音", "コースクラックル", "ロンカイ", "浸潤影",
+        // 「Homans徴候」は英字表記だが、実際の記録ではカタカナで「ホーマンズ徴候」と
+        // 書かれることも多く、これまでカタカナ表記が未登録だったため一致しなかった
+        // （利用者からのアップロード文書で発覚）。「PCA」（自己調節鎮痛法）も、OCRで
+        // 「自己調節頭痛法」（鎮痛→頭痛の誤読）になっている例が見つかったため、正しい表記と
+        // 誤読された表記の両方を登録する。
+        "ホーマンズ徴候", "自己調節鎮痛法", "自己調節頭痛法"] },
       { id: 2, name: "食事", icon: "fa-utensils", keywords: ["食事", "食欲", "摂取量", "水分量", "嚥下", "嘔吐", "悪心", "吐気", "むせ", "体重", "栄養", "飲水", "Alb", "TP", "食事量", "咀嚼", "嚥下機能", "栄養状態", "BMI", "食習慣", "間食", "外食", "宗教的習慣", "食事療法", "必要エネルギー", "透析", "造影剤", "味覚", "化学療法", "身長", "ローレル指数", "カウプ指数", "頭皮", "毛髪", "免疫", "義歯", "自助具", "口腔粘膜", "胃がん", "胃癌", "胃切除", "胃全摘", "噴門", "幽門", "ダンピング症候群", "逆流性食道炎", "分割食", "小胃症状",
         // 「食生活」は「食習慣」と同義でよく使われる表記だが、これまで未登録だったため
         // 「食生活：肉全般とラーメンが好き…」のような文章が拾えていなかった（利用者からの
@@ -439,8 +445,31 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     // イニシャルかどうかを判断してください」）。そこで除外は行わず、直後に人名の敬称
     // （さん・様・氏・君・ちゃん）が続く場合だけを「イニシャル（人物名）」とみなして
     // 除外する、前後の文脈に基づく判定に変更する。
+    // 【追加修正】上記の\b（単語境界）は、JSの正規表現では[A-Za-z0-9_]のみを「単語文字」として
+    // 認識するため、"血糖"や"アミラーゼ"のように全角の日本語だけで構成されたキーには、
+    // 前後が常に他の日本語文字であるかどうかにかかわらず、そもそも\bが一致する位置自体が
+    // 存在しない（＝\bで挟んだ時点で永久に一致しなくなる）。利用者からの報告で、検査値カード
+    // 「血糖 89 mg/dL (基準値: 70〜109 mg/dL)」にタグ2(食事)が付与されないまま「タグ未設定」
+    // として残っていたのはこれが原因。ASCII文字（英数字・ハイフン）だけで構成されるキー
+    // （K・Na・PT等、人名イニシャルとの誤判定を避ける必要がある）と、日本語のみで構成される
+    // キー（血糖・アミラーゼ等、人名との混同リスクが無く\bも意味を持たない）を分けて、
+    // 日本語キーの方は\bを付けずに素直な部分一致で判定する。
+    //
+    // 【追加修正2】ASCIIキー側の末尾の\bにも別の抜けがあった。表や検査結果を貼り付けた際、
+    // 項目名と数値の間に空白が無く直接くっついている場合（利用者からの報告事例：
+    // 「RBC4587」「Hb12.2g/dl」「Ht37.2%」「Plt23」「AST2」「ALT250U/L」「Na140mEq/L」
+    // 「K4.2mEq/L」）、末尾の\bは「文字→数字」の間には成立しない（数字も\bの言う「単語文字」
+    // であり、境界にならないため）ため一致できず、これらのカードもタグ未設定のまま残っていた。
+    // 末尾の\bを、直後に英字が続く場合だけを除外する否定先読みに置き換えることで、
+    // 「項目名の直後に数字が続く」表記も検査値として認識できるようにする（「Kg」のように
+    // 直後に英字が続く場合は従来通り除外され、「Na」が「NaOH」等の一部として誤って一致する
+    // ことはない）。
+    const LAB_KEY_HAS_NON_ASCII_RE = /[^A-Za-z0-9\-]/;
+    const LAB_ITEM_ASCII_KEYS = LAB_KEY_NUM_PATTERNS.filter(([k]) => !LAB_KEY_HAS_NON_ASCII_RE.test(k)).map(([k]) => k);
+    const LAB_ITEM_NON_ASCII_KEYS = LAB_KEY_NUM_PATTERNS.filter(([k]) => LAB_KEY_HAS_NON_ASCII_RE.test(k)).map(([k]) => k);
     const LAB_ITEM_NAME_REGEX = new RegExp(
-      '\\b(?:' + LAB_KEY_NUM_PATTERNS.map(([k]) => escapeRegExp(k)).join('|') + ')\\b(?!\\s*(?:さん|様|氏|君|ちゃん))', 'i'
+      '(?:\\b(?:' + LAB_ITEM_ASCII_KEYS.map(escapeRegExp).join('|') + ')(?![A-Za-z])(?!\\s*(?:さん|様|氏|君|ちゃん))' +
+      (LAB_ITEM_NON_ASCII_KEYS.length ? '|(?:' + LAB_ITEM_NON_ASCII_KEYS.map(escapeRegExp).join('|') + ')' : '') + ')', 'i'
     );
 
     // ==========================================================================
@@ -574,9 +603,20 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     const UNNECESSARY_BOILERPLATE_REGEX = new RegExp(
       '^(?:' + UNNECESSARY_BOILERPLATE_KEYS.join('|') + ')(?:[:：]|\\s|$)'
     );
+    // 検査結果の表で「項目｜種類｜基準値｜A氏｜正常・異常」のように、実測値の列見出しに
+    // （匿名化された）患者本人の呼称「A氏」がそのまま使われている場合がある。この形式は
+    // 「検査項目」に続けて「基準値」の行、さらに「A氏(術前)」のように診療フェーズが括弧書きで
+    // 添えられた列見出しが続く表（3299行目付近の専用処理）とは異なり、フェーズの括弧書きが
+    // 無い単独の「A氏」だけが列見出しとして現れるため、専用処理にもSECTION_HEADER_PASSTHROUGH_KEYS
+    // にも一致せず、値の無い意味不明な「A氏」カードとして残ってしまっていた（利用者からの
+    // アップロード文書で発覚）。行全体が「英字1文字＋氏」だけで完結している場合に限り、
+    // 他の内容と誤認しないよう完全一致（行全体がこれだけ）で判定し、不要な情報として除外する
+    // （「A氏•58歳、男性」のように呼称の後に別の情報が続く行は対象外のまま残る）。
+    const BARE_PATIENT_HONORIFIC_REGEX = /^[A-Za-zＡ-Ｚａ-ｚ]氏$/;
     function isUnnecessaryBoilerplateText(str) {
       if (!str) return false;
-      return UNNECESSARY_BOILERPLATE_REGEX.test(str.trim());
+      const trimmed = str.trim();
+      return UNNECESSARY_BOILERPLATE_REGEX.test(trimmed) || BARE_PATIENT_HONORIFIC_REGEX.test(trimmed);
     }
 
     // 「血液検査: 白血球 5.8×10^3/μL」「画像検査等: 胃カメラ：胃前庭部に25mm大の腫瘍。病期: Stage IB」
@@ -755,6 +795,32 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     }
 
     // ==========================================================================
+    // 「実際に人の判断が加わった学習結果があるかどうか」の判定
+    // ------------------------------------------------------------------------
+    // 【原因と修正】サーバー側のgetEntry()は、学習イベントが1件でも届くと（票が実際に
+    // 入っているかどうかに関わらず）空の学習エントリー（typeVotes:{}, hendersonVotes:{},
+    // preferredHendersonIds:[] 等）をその文章に対して作ってしまう。新規抽出のたびに必ず送る
+    // 'create'イベント（票としては数えず、記録目的だけの通知）ですらこのエントリー作成の
+    // 副作用を引き起こすため、以前は単純に「globalAppData.learningUserDict[text]が存在するか
+    // どうか（truthy判定）」で「既に学習結果がある＝ユーザーが意図してタグを外した可能性が
+    // あるので自動補完しない」と判定していた。しかしこの判定では、実際には誰も手を加えていない
+    // （票が1つも入っていない、'create'ログだけの）文章までもが「学習済み」とみなされてしまい、
+    // 「社会保険」「53歳の時に胆結石を指摘されていたが...」のように何度も同じ表記で登場する
+    // 定型的な文章で、見出しラベル（保険→9、既往歴→病名から推測）や検査値らしさ
+    // （LAB_ITEM_NAME_REGEX）に基づく初期タグの自動補完が、一度でも抽出されたことがある
+    // 文章については永久にスキップされてしまっていた（利用者からのアップロード文書で発覚）。
+    // 実際に人の判断（タグの追加・削除・タイプの変更等の投票）が1件でも記録されているか
+    // どうかで判定するよう修正する。
+    function hasLearnedSignal(userLearned) {
+      if (!userLearned) return false;
+      if (userLearned.preferredType) return true;
+      if (Array.isArray(userLearned.preferredHendersonIds) && userLearned.preferredHendersonIds.length > 0) return true;
+      if (userLearned.typeVotes && Object.keys(userLearned.typeVotes).length > 0) return true;
+      if (userLearned.hendersonVotes && Object.keys(userLearned.hendersonVotes).length > 0) return true;
+      return false;
+    }
+
+    // ==========================================================================
     // 既存カードへの再タグ付け候補算出（新規抽出時の判定ロジックと同じ考え方を使う）
     // ------------------------------------------------------------------------
     // ルール（DIAGNOSIS_TAG_HINTS・LAB_STANDARDS等）は繰り返し改善されてきたが、既に
@@ -767,8 +833,8 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     function suggestHendersonTagsForText(text, fieldLabel, userLearned) {
       const ruleHIds = detectMultipleHendersonTags(text);
       const ids = Array.from(new Set([...ruleHIds, ...(userLearned?.preferredHendersonIds || [])]));
-      if (LAB_ITEM_NAME_REGEX.test(text) && !userLearned && !ids.includes(2)) ids.push(2);
-      if (fieldLabel && !userLearned) {
+      if (LAB_ITEM_NAME_REGEX.test(text) && !hasLearnedSignal(userLearned) && !ids.includes(2)) ids.push(2);
+      if (fieldLabel && !hasLearnedSignal(userLearned)) {
         fieldLabelHintTags(fieldLabel, text).forEach(hid => { if (!ids.includes(hid)) ids.push(hid); });
       }
       return ids;
@@ -2930,7 +2996,11 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         // （利用者が自分で書き添えた補足なので、そのまま残して基準値だけ追記する）。
         // 【原因と修正】以前は項目名の直後に空白・コロン等が続く場合しか一致せず、このような
         // 補足付きの項目名では基準値が補われないままになっていた（利用者からの報告事例）。
-        const match = cleaned.match(new RegExp(`^(${escapeRegExp(key)})(\\s*[（(][^）)]*[）)])?[\\s:=]+([\\d.,]+)`, 'i'));
+        // さらに、紙のカルテのスキャン・OCR由来のテキストでは、丸括弧の開き側だけが波括弧
+        // 「｛」「{」に誤認識されることがある（例：「WBC{白血球数)」。BARE_LAB_KEY_REGEXと同様、
+        // 開き括弧・閉じ括弧をそれぞれ独立した候補として扱うことで、開閉の組み合わせが
+        // 一致していないOCR誤認識にも対応する（利用者からのアップロード文書で発覚）。
+        const match = cleaned.match(new RegExp(`^(${escapeRegExp(key)})(\\s*[（(｛{][^）)｝}]*[）)｝}])?[\\s:=]+([\\d.,]+)`, 'i'));
         if (match) {
           const alias = match[2] || '';
           return `${match[1]}${alias} ${match[3]} ${info.unit} (基準値: ${info.ref} ${info.unit})`;
@@ -3152,9 +3222,16 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         // 囲まれた区切り見出しだけの行がある。OCRで閉じ括弧が丸括弧「）」等に誤認識される
         // こともある（利用者からのアップロード文書で発覚：「＜バイタルサイン）」
         // 「＜カルテ情報）」等）。「【身長・体重】」等の全角鉤括弧の見出し行と同様、これ自体は
-        // 所見を含まない区切りのため「不要な情報」として除外する。数字を含む行は日付・時刻等の
-        // 実質的な情報を巻き込む恐れがあるため対象外とする。
-        if (/^[＜<][^＜<＞>\d]{1,30}[＞>）)]?$/.test(cleanLine)) {
+        // 所見を含まない区切りのため「不要な情報」として除外する。
+        // 【原因と修正】以前は数字を含む行を対象外としていた（日付・時刻等の実質的な情報を
+        // 巻き込む恐れがあるため）。しかし「＜実習2日目（入院2日目、手術前日）＞」のように、
+        // この記録形式で頻出する山括弧見出しには「◯日目」という日数の数字が普通に含まれており、
+        // この対象外条件のせいでこれらの見出し行が「不要な情報」と判定されず、通常の文章として
+        // S/O未分類・タグ未設定のまま残ってしまっていた（利用者からのアップロード文書で発覚）。
+        // 山括弧（＜＞・<>）で囲まれていること自体が強い見出しの手がかりであり、生年月日等の
+        // 素の日付はこの記法では書かれない（TIME_MARKER_REGEX・DATE_ONLY_REGEX側で別途対応済み）
+        // ため、数字の除外は不要と判断し、山括弧の中身であれば数字を含んでいても対象とする。
+        if (/^[＜<][^＜<＞>]{1,40}[＞>）)]?$/.test(cleanLine)) {
           extracted.push({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
           continue;
         }
@@ -3567,11 +3644,22 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     // 血液検査・画像検査等・治療方針治療内容等・知的能力身体的能力等の章タイトルが先頭に
     // 付与されたカードも、患者の発言でない限り同様に客観的な記録情報としてOデータとする
     // （利用者からの指摘：「客観的にかかれているのでO」）。
+    // 【原因と修正】以前は上のいずれの手がかり（見出しラベル・検査値/バイタル・特定のキーワード等）
+    // にも一致しない文章を"unclassified"（S/O未分類）のまま残していた。しかしこのアプリ自身の
+    // 分類基準（DEFAULT_NOTEBOOK_CONTENTの【S/O判定】: 「実習記録は基本的に記録者が客観的に
+    // 記載したものであり、カギ括弧内の患者本人の発言や「訴え」「発言」等でない限りOデータとして
+    // 扱う」）が示すとおり、患者本人の発言・訴えでない文章は原則すべてOデータであるべきで、
+    // "unclassified"という第3の状態は本来存在しない。この結果、見出しラベルが（同じ見出しの
+    // 続きの文でラベルを繰り返していない等の理由で）付いていない普通の観察記録の文章が
+    // 大量にS/O未分類のまま残ってしまっていた（利用者からのアップロード文書で発覚：
+    // 「昼食は外食が多く、仕事が忙しく短時間で済ませるようにしている。」「【検温時状況】朝食
+    // 全量摂取…」等、多数の客観的な記録文がunclassifiedになっていた）。患者本人の発言・訴えの
+    // 手がかりが無い文章は、キーワードの有無を問わず常に"o"を既定値とする。
     function predictLocalItemType(chunk, cleanedText, userLearned) {
       return userLearned?.preferredType
         || (chunk.fieldLabel ? (FIELD_LABELS.find(f => f.key === chunk.fieldLabel)?.type || 'o') : null)
         || (chunk.isUnnecessaryBoilerplate ? 'unnecessary' : null)
-        || (/["「][^"「」]+["」]/.test(cleanedText) || /訴え|発言|話す/.test(cleanedText) ? 's' : (chunk.isLabOrVital || hasOwnFieldLabelPrefix(cleanedText) || /聴取|所見|認める|表情|笑顔|顔色|様子|WBC|CRP|Hb|回\/分|℃|°C|°c|mmHg|上昇|身長|体重|BMI|ブリンクマン|知的能力|理解度|理解良好|病期|Stage|腫瘍|指示|点滴|留置|ドレーン|カテーテル|輸液/.test(cleanedText) ? 'o' : 'unclassified'));
+        || (/["「][^"「」]+["」]/.test(cleanedText) || /訴え|発言|話す/.test(cleanedText) ? 's' : 'o');
     }
 
     document.getElementById('btn-start-classify').addEventListener('click', async () => {
@@ -3667,25 +3755,29 @@ ${text}
                 // （あえて外した、等の）ユーザーの判断を尊重してここでは追加しない。
                 // 数値が直接続いていない「WBCが上昇傾向」のような項目名だけの言及にも同様に付与するため、
                 // 値の有無を問わない広い判定(LAB_ITEM_NAME_REGEX)も合わせて見る。
-                if (!userLearned && (LAB_VALUE_TEST_REGEX.test(cleanedText) || LAB_ITEM_NAME_REGEX.test(cleanedText)) && !hIds.includes(2)) hIds.push(2);
+                if (!hasLearnedSignal(userLearned) && (LAB_VALUE_TEST_REGEX.test(cleanedText) || LAB_ITEM_NAME_REGEX.test(cleanedText)) && !hIds.includes(2)) hIds.push(2);
                 // 見出しラベル（家族関係・保険は固定、診断名は病名から推測）に応じた初期提案タグも同様に補う
-                if (!userLearned && validFieldLabel) {
+                if (!hasLearnedSignal(userLearned) && validFieldLabel) {
                   fieldLabelHintTags(validFieldLabel, cleanedText).forEach(hid => { if (!hIds.includes(hid)) hIds.push(hid); });
                 }
                 const aCols = {};
                 // 学習結果が無い場合、タイムスタンプ・見出しラベルから入院前／入院後が明確なら
                 // 総合アセスメント表の欄を最初から振り分けておく（分からない場合は従来通り未分類）。
-                const inferredCol = userLearned ? null : inferAssessmentColumn(validFieldLabel, itemTimestamp);
+                // ※ここも中身の無いスタブ登録（getEntry副作用）だけでは「学習済み」と誤認しないよう
+                // hasLearnedSignalで判定する（!userLearnedのままだと初回抽出以降ずっと自動振り分けが止まる）。
+                const inferredCol = hasLearnedSignal(userLearned) ? null : inferAssessmentColumn(validFieldLabel, itemTimestamp);
                 hIds.forEach(hid => aCols[hid] = userLearned?.preferredCols?.[hid] || inferredCol || 'unclassified');
                 // AIがtypeを返さなかった場合の保険。見出しラベルが無くても、章タイトル文脈が
                 // 付与されたカード（血液検査・画像検査等・治療方針治療内容等等）は、患者の発言でない限り
                 // 客観的な記録情報のためOデータとする（ローカル抽出の同種の判定とロジックを揃える）。
-                const fallbackType = validFieldLabel ? (FIELD_LABELS.find(f => f.key === validFieldLabel)?.type || 'o')
-                  : (hasOwnFieldLabelPrefix(cleanedText) ? 'o' : 'unclassified');
+                // predictLocalItemTypeと同様、患者本人の発言・訴えの手がかりが無い場合は
+                // "unclassified"ではなく"o"を既定値とする（このアプリの分類基準ではS/O未分類という
+                // 第3の状態は本来存在しないため）。
+                const fallbackType = validFieldLabel ? (FIELD_LABELS.find(f => f.key === validFieldLabel)?.type || 'o') : 'o';
                 // 「基礎情報」等の事例プリント自体の見出しはプロンプトでunnecessaryにするよう指示しているが、
                 // AIが誤ってs/oを返した場合に備え、ローカル抽出と同じ条件で二重にフィルタする
                 // （学習結果で明確に上書きされている場合のみ、その判断を優先する）。
-                const isBoilerplate = !userLearned && isUnnecessaryBoilerplateText(cleanedText);
+                const isBoilerplate = !hasLearnedSignal(userLearned) && isUnnecessaryBoilerplateText(cleanedText);
                 // 分類(S/O/不要)は複数の値を同時に持てないため統合はできない。完全一致する学習結果がある場合のみ
                 // その判断を優先し、表記ゆれ類似(fuzzy)の場合は精度が落ちるため分類についてはAIの判定を基準のまま活かす
                 // （タグは上でfuzzyの結果も含めて統合済み）。
@@ -3730,9 +3822,9 @@ ${text}
         // （この文章について既に学習結果がある場合は、あえて外した等のユーザーの判断を尊重してここでは追加しない）。
         // chunk.isLabOrVitalは項目名の直後に数値がある場合しか立たないため、数値を伴わず項目名だけが
         // 文章中に出てくる場合にも同様に付与できるよう、LAB_ITEM_NAME_REGEXでの判定も合わせて見る。
-        if ((chunk.isLabOrVital || LAB_ITEM_NAME_REGEX.test(cleanedText)) && !userLearned && !detectedHIds.includes(2)) detectedHIds.push(2);
+        if ((chunk.isLabOrVital || LAB_ITEM_NAME_REGEX.test(cleanedText)) && !hasLearnedSignal(userLearned) && !detectedHIds.includes(2)) detectedHIds.push(2);
         // 見出しラベル（家族関係・保険は固定、診断名は病名から推測）に応じた初期提案タグも同様に補う
-        if (chunk.fieldLabel && !userLearned) {
+        if (chunk.fieldLabel && !hasLearnedSignal(userLearned)) {
           fieldLabelHintTags(chunk.fieldLabel, cleanedText).forEach(hid => { if (!detectedHIds.includes(hid)) detectedHIds.push(hid); });
         }
         let predictedType = predictLocalItemType(chunk, cleanedText, userLearned);
@@ -4733,7 +4825,15 @@ ${labTexts || '(なし)'}
     // うえで、既存カードにも遡って反映できるようにする）。
     // このボタンは、今開いているカルテの中の「不要」判定でないカードすべてを対象に、
     // ①現在のformatLabValueStringで基準値を再計算し、変化があれば反映する
-    // ②「タグ未設定」（hendersonIdsが空）のカードだけ、現在のルール（学習結果→
+    // ②S/O未分類（type === 'unclassified'）のまま残っているカードを、現在の
+    // predictLocalItemTypeの既定ルール（患者本人の発言・訴えの手がかりが無ければ
+    // "unclassified"ではなく既定で"o"とする、見出しラベル・不要判定を優先する等）で
+    // 再分類する。過去に作成されたカードは、当時のロジックの既定値バグ（"unclassified"
+    // がフォールバックになっていた）やタグ未設定と同根のスタブ学習データ誤判定により、
+    // このボタンをクリックするだけでは今まで直らなかった（typeそのものは元々このボタンの
+    // 対象外だったため）。このため、今回のロジック修正を既存カードにも反映できるよう、
+    // ここでtypeの再判定を追加する。
+    // ③「タグ未設定」（hendersonIdsが空）のカードだけ、現在のルール（学習結果→
     // キーワード検出→検査値ヒント→見出しラベルヒントの順）で再度タグを算出し、
     // 見つかった分だけ反映する。誤って提案されたタグは、他のタグ付けと同様に
     // カード上から個別に削除できる。
@@ -4741,6 +4841,7 @@ ${labTexts || '(なし)'}
       const cp = getCurrentPatient();
       let fixedTagCount = 0;
       let fixedRefCount = 0;
+      let fixedTypeCount = 0;
       cp.items.forEach(item => {
         if (item.type === 'unnecessary') return; // 「不要」判定済みのカードは対象外
 
@@ -4756,8 +4857,21 @@ ${labTexts || '(なし)'}
           reportLearningEvent(oldText, 'edit', { newText: item.text });
         }
 
-        if (Array.isArray(item.hendersonIds) && item.hendersonIds.length > 0) return; // 既にタグがあるものは対象外
         const userLearned = globalAppData.learningUserDict[item.text];
+
+        // ②S/O未分類のカードだけ、現在のpredictLocalItemTypeの既定ルールで再判定する。
+        // タグの有無に関わらず対象とする（タグ未設定でなくてもtypeが未分類のままのカードはある）。
+        if (item.type === 'unclassified') {
+          const pseudoChunk = { fieldLabel: item.fieldLabel, isUnnecessaryBoilerplate: isUnnecessaryBoilerplateText(item.text) };
+          const newType = predictLocalItemType(pseudoChunk, item.text, userLearned);
+          if (newType && newType !== item.type) {
+            item.type = newType;
+            touchItem(item);
+            fixedTypeCount++;
+          }
+        }
+
+        if (Array.isArray(item.hendersonIds) && item.hendersonIds.length > 0) return; // 既にタグがあるものは対象外
         const suggested = suggestHendersonTagsForText(item.text, item.fieldLabel, userLearned);
         if (suggested.length === 0) return;
         item.hendersonIds = suggested;
@@ -4768,10 +4882,11 @@ ${labTexts || '(なし)'}
         touchItem(item);
         fixedTagCount++;
       });
-      if (fixedTagCount > 0 || fixedRefCount > 0) {
+      if (fixedTagCount > 0 || fixedRefCount > 0 || fixedTypeCount > 0) {
         saveDataAndSync();
         const parts = [];
         if (fixedRefCount > 0) parts.push(`${fixedRefCount}件の検査値カードに基準値を反映`);
+        if (fixedTypeCount > 0) parts.push(`${fixedTypeCount}件のS/O未分類カードを再分類`);
         if (fixedTagCount > 0) parts.push(`${fixedTagCount}件のタグ未設定カードにタグを再提案`);
         showToast(parts.join('、') + 'しました', 'success');
       } else {
@@ -5518,6 +5633,7 @@ if (typeof module !== 'undefined' && module.exports) {
     buildLearningTrendSummary,
     findOtherCardsWithSameText,
     suggestHendersonTagsForText,
+    hasLearnedSignal,
     hasBalancedBrackets,
     groupClinicalPhrasesWithTimestamps,
     detectMultipleHendersonTags,

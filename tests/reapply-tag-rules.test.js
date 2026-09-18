@@ -16,7 +16,7 @@ const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');
 
 const app = loadApp();
-const { suggestHendersonTagsForText } = app;
+const { suggestHendersonTagsForText, hasLearnedSignal } = app;
 
 test('既往歴フィールドの「胆結石」は2(食事)タグが提案される（利用者からの報告事例）', () => {
   const ids = suggestHendersonTagsForText('53歳の時に胆結石を指摘されていたが、症状がないため経過観察中', '既往歴', undefined);
@@ -55,4 +55,30 @@ test('キーワード検出（detectMultipleHendersonTags）による通常の�
 test('何のルールにも一致しない文章（本当に判定できない断片）は空配列を返す', () => {
   const ids = suggestHendersonTagsForText('60g/21', null, undefined);
   assert.deepEqual(Array.from(ids), [], '手がかりの無い断片には何も提案しない（誤タグ付けを避ける）');
+});
+
+// 【背景】サーバー側の共有学習辞書（learningDict）は、getEntry(text)が「その文言について
+// 学習イベントが一度でも起きた」だけで、preferredType/preferredHendersonIds/typeVotes/
+// hendersonVotesがすべて空の「スタブ」エントリを自動作成してしまう（新規カード抽出時に
+// 毎回発火する'create'イベント経由）。このスタブは「ユーザーが実際に何かを選んだ・投票した」
+// ことを意味しないが、以前はsuggestHendersonTagsForTextが!userLearnedという真偽値だけで
+// 判定していたため、スタブが存在するだけで検査値ヒント・見出しラベルヒントが永久に
+// 効かなくなっていた（＝一度でも抽出されたことのある文言は、以後ずっとタグ未設定のまま）。
+// hasLearnedSignal()はこの「スタブか、実際の学習結果か」を区別するための関数。
+test('hasLearnedSignal: 中身が空のスタブ学習エントリは「学習済み」とみなさない', () => {
+  const stub = { preferredType: null, preferredCols: {}, preferredHendersonIds: [], typeVotes: {}, hendersonVotes: {} };
+  assert.equal(hasLearnedSignal(stub), false, '空のスタブは実際の学習結果ではない');
+  assert.equal(hasLearnedSignal(undefined), false);
+  assert.equal(hasLearnedSignal({ preferredType: 'o' }), true, 'preferredTypeがあれば学習済み');
+  assert.equal(hasLearnedSignal({ preferredHendersonIds: [2] }), true, 'preferredHendersonIdsがあれば学習済み');
+  assert.equal(hasLearnedSignal({ typeVotes: { o: 1 } }), true, 'typeVotesがあれば学習済み');
+  assert.equal(hasLearnedSignal({ hendersonVotes: { 2: 1 } }), true, 'hendersonVotesがあれば学習済み');
+});
+
+test('中身が空のスタブ学習エントリがあっても、検査値ヒント・見出しラベルヒントは通常通り効く（スタブ誤認バグの再発防止）', () => {
+  const stub = { preferredType: null, preferredCols: {}, preferredHendersonIds: [], typeVotes: {}, hendersonVotes: {} };
+  const idsLab = suggestHendersonTagsForText('Ht(ヘマトクリット) 41.8%', null, stub);
+  assert.ok(Array.from(idsLab).includes(2), 'スタブだけでは検査値ヒント(2)をブロックしない');
+  const idsField = suggestHendersonTagsForText('社会保険', '保険', stub);
+  assert.deepEqual(Array.from(idsField), [9], 'スタブだけでは見出しラベルヒント(9)をブロックしない');
 });

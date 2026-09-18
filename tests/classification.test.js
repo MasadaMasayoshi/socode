@@ -37,7 +37,8 @@ const {
   predictLocalItemType,
   extractAbnormalLabFindings,
   detectGastricPostopMissingChecks,
-  LAB_ITEM_NAME_REGEX
+  LAB_ITEM_NAME_REGEX,
+  isUnnecessaryBoilerplateText
 } = app;
 
 const REAL_RECORD_PATH = '/root/.claude/uploads/29ffc676-d59b-5748-a3df-d67a84fd21bb/00bcd98c-_______________3.txt';
@@ -599,4 +600,47 @@ test('「食生活」「ADL」「自立」「顔色」「蒼白」等、実際�
   assert.ok(adl && adl.hendersonIds.includes(4), '「ADL：全て自立」から4(姿勢)タグが付与される');
   const pallor = findByIncludes(items, '蒼白');
   assert.ok(pallor && pallor.hendersonIds.includes(1), '「顔色」「蒼白」から1(呼吸・循環)タグが付与される');
+});
+
+// ==========================================================================
+// タグ未設定・S/O未分類カードの原因調査（利用者からアップロードされた実際のカルテ
+// カード一覧の報告）で見つかった不具合の回帰テスト
+// ==========================================================================
+
+// 【背景】このアプリのS/O判定の基本方針（DEFAULT_NOTEBOOK_CONTENTの【S/O判定】節）は、
+// 「患者本人の直接の発言・訴えの手がかりがある文章だけをSデータとし、それ以外の実習記録の
+// 文章は原則すべてOデータとする」というもの。しかしpredictLocalItemTypeの最終フォールバックは
+// 誤って"unclassified"になっていたため、見出しラベルも無く、発言の引用符や「訴え・発言・話す」
+// の語も無い、ごく普通の観察記録の文章（既往歴の説明文等）が、本来"o"であるべきなのに
+// "unclassified"（未分類）のまま残ってしまっていた。デフォルト値を"o"に修正した。
+test('predictLocalItemType: 発言の手がかりが無い普通の記録文はSでもOでもなく"unclassified"にはならず、既定で"o"になる（利用者からの報告事例）', () => {
+  const text = '53歳の時に胆結石を指摘されていたが、症状がないため経過観察中';
+  assert.equal(predictLocalItemType({}, text, undefined), 'o', '発言の手がかりが無い記録文の既定値はOデータ（"unclassified"という第3の状態は無いはず）');
+});
+
+test('predictLocalItemType: 引用符や「話す」等の手がかりがある文章は引き続きSデータと判定される（回帰確認）', () => {
+  assert.equal(predictLocalItemType({}, '「お腹が痛い」と話す', undefined), 's');
+  assert.equal(predictLocalItemType({}, '夜間眠れないと訴える', undefined), 's');
+});
+
+// 【背景】5列の血液検査表（項目｜種類｜基準値｜A氏｜正常・異常）のように、患者を匿名化した
+// 「A氏」1文字表記がそのまま実測値列の見出しとして使われている場合、既存の「検査項目」
+// 「基準値」等のキーワードを前提とした不要判定ルールには一致せず、単体では意味を持たない
+// 「A氏」だけのカードがタグ未設定・分類未設定のまま残っていた。
+test('isUnnecessaryBoilerplateText: 検査表の列見出しとして使われる「A氏」等の1文字＋氏の表記は不要判定される（利用者からの報告事例）', () => {
+  assert.equal(isUnnecessaryBoilerplateText('A氏'), true);
+  assert.equal(isUnnecessaryBoilerplateText('B氏'), true);
+});
+
+test('isUnnecessaryBoilerplateText: 「◯◯さん」等の通常の患者呼称は不要判定の対象外（誤判定防止の回帰確認）', () => {
+  assert.equal(isUnnecessaryBoilerplateText('田中さん'), false);
+});
+
+// 【背景】HENDERSON_NEEDSのキーワード辞書に、実際の記録でよく使われる表記が漏れていた：
+// 「Homans徴候」の片仮名表記「ホーマンズ徴候」、PCA（自己調節鎮痛法）の正式名称、および
+// そのOCR誤読（鎮痛→頭痛）による「自己調節頭痛法」。
+test('detectMultipleHendersonTags: 「ホーマンズ徴候」「自己調節鎮痛法」（OCR誤読の「自己調節頭痛法」含む）から1(呼吸・循環)タグが検出される（利用者からの報告事例）', () => {
+  assert.ok(detectMultipleHendersonTags('ホーマンズ徴候陰性').includes(1));
+  assert.ok(detectMultipleHendersonTags('自己調節鎮痛法を使用').includes(1));
+  assert.ok(detectMultipleHendersonTags('自己調節頭痛法を使用').includes(1), 'OCR誤読表記でも検出される');
 });
