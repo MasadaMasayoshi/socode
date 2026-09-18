@@ -363,7 +363,7 @@
         <button id="admin-tab-btn-list" class="tab-pill active">現在の学習内容</button>
         <button id="admin-tab-btn-history" class="tab-pill">変更履歴</button>
         <button id="admin-tab-btn-caselog" class="tab-pill">事例ログ</button>
-        <button id="admin-tab-btn-extraction" class="tab-pill">分類前の文章</button>
+        <button id="admin-tab-btn-trends" class="tab-pill">学習傾向レポート</button>
         <button id="admin-tab-btn-reports" class="tab-pill">情報カードの報告</button>
         <button id="admin-tab-btn-criteria" class="tab-pill">分類基準</button>
         <button id="admin-tab-btn-snapshots" class="tab-pill">カルテスナップショット</button>
@@ -412,16 +412,17 @@
         <div id="admin-caselog-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
       </div>
 
-      <!-- 分類前の文章ビューア：「分類開始」を押すたびの、分類前の生のカルテ・記録テキストの履歴 -->
-      <div id="admin-panel-extraction" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
+      <!-- 学習傾向レポート：同じ文言への同じ修正が繰り返されて確立した傾向（computeLearningTrendRows）
+           を可視化する。以前はAIへの指示文に自動で織り込まれるだけで見る場所が無かった。 -->
+      <div id="admin-panel-trends" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
         <div class="flex items-center justify-between gap-2 shrink-0">
-          <input type="text" id="admin-extraction-search" class="field flex-1" placeholder="分類前の文章を検索（本文・患者名）...">
-          <span id="admin-extraction-count" class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap"></span>
+          <input type="text" id="admin-trends-search" class="field flex-1" placeholder="学習傾向を検索（本文）...">
+          <span id="admin-trends-count" class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap"></span>
         </div>
         <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
-          <i class="fa-solid fa-circle-info"></i> 「分類開始」を押すたびに、その時点で入力欄にあった文章がそのまま記録されます（閲覧のみで削除機能はありません）。
+          <i class="fa-solid fa-circle-info"></i> 同じ文言への同じ修正（分類・タグ）が2回以上繰り返されたものを、確立度（合計回数）の高い順に表示します。得票の多い上位のみがAIへの指示に反映されます（閲覧のみで削除機能はありません）。
         </p>
-        <div id="admin-extraction-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
+        <div id="admin-trends-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
       </div>
 
       <!-- 情報カードの不具合報告ビューア：カード右上の報告ボタンから送られた内容の一覧＋AIによる要約 -->

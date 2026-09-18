@@ -34,16 +34,6 @@
 //   （設定モーダル）から誰でも追加・削除でき、全利用者に共有される。フロントエンド側で
 //   AIへの指示文（プロンプト）に自動で追記して使う。
 //
-// data/extraction-log.json … 「分類開始」を押すたびに、抽出前の生のカルテ・記録テキスト
-//   （分類ボードに複数のカードとして切り分けられる前の、入力欄にそのまま貼り付けられた
-//   文章）をそのまま積み上げる配列。患者データ(patients.json)側のsourceTextは常に
-//   「その患者の最新の1回分」しか保持しないため、新しい文章を貼り付けて上書きすると
-//   それ以前に何を入力して抽出したのかが失われてしまう。この配列はそれとは別に、
-//   分類開始のたびに追記していく履歴（読み取り専用・事例研究用）で、
-//   学習データ管理画面の「抽出前の文章」タブから検索・閲覧できる。
-//   ARCHIVE_THRESHOLD_DAYSより古いエントリーは自動で
-//   data/extraction-log-archive.jsonへ移される（GET /api/extraction-log/archiveで取得可能）。
-//
 // data/card-reports.json … 情報カードの右上「報告」ボタンから送られた、「この情報カードの
 //   書き込みが変だ」という内容を積み上げる配列。1件が { id, sessionId, patientId,
 //   patientTitle, items: [{ cardText, comment, at }], createdAt, updatedAt } の形で、
@@ -67,11 +57,15 @@
 //   buildEffectiveNotebookContent()経由でAIへの指示文に統合される（リンクのみで内容が
 //   未貼付のものは一覧に残るが、AIの分類には反映されない）。
 //
-// data/*-archive.json（case-log-archive.json / extraction-log-archive.json /
-//   card-reports-archive.json）… 上記3つの追記専用ログのうち、ARCHIVE_THRESHOLD_DAYS
+// data/*-archive.json（case-log-archive.json / card-reports-archive.json /
+//   patient-snapshots-archive.json）… 上記の追記専用ログのうち、ARCHIVE_THRESHOLD_DAYS
 //   （既定90日）より古くなったエントリーを自動整理（runArchiving、24時間おきに実行）で
 //   移した先。削除はせず、対応する GET .../archive エンドポイントから引き続き参照できる。
 //   これにより日常使う一覧（学習データ管理の各タブ）は軽いまま保たれる。
+//
+// （旧 data/extraction-log.json ＝「抽出前の文章」履歴は廃止した。分類ボードの入力欄に
+//   貼り付けた文章はpatient-snapshots.json（カルテスナップショット）側にも同じ内容が
+//   保存されるようになったため、二重に持つ必要が無くなったことによる。）
 //
 // データの永続化は単純なJSONファイルです。件数が増えてきたらSQLite等へ
 // 置き換えてください（読み書きは loadJson/persist にまとまっています）。
@@ -111,12 +105,10 @@ const CRITERIA_FILE = path.join(DATA_DIR, 'extraction-criteria.json');
 const NOTEBOOK_CONTENT_FILE = path.join(DATA_DIR, 'notebook-content.json');
 const REFERENCE_SOURCES_FILE = path.join(DATA_DIR, 'reference-sources.json');
 const PATIENT_SNAPSHOT_FILE = path.join(DATA_DIR, 'patient-snapshots.json');
-const EXTRACTION_LOG_FILE = path.join(DATA_DIR, 'extraction-log.json');
 const CARD_REPORTS_FILE = path.join(DATA_DIR, 'card-reports.json');
 // 自動整理（アーカイブ）先。古くなった記録は下の3ファイルから消すのではなく、こちらへ
 // そのまま移して残す（研究用途で失われないようにするため）。詳細はrunArchiving()を参照。
 const CASE_LOG_ARCHIVE_FILE = path.join(DATA_DIR, 'case-log-archive.json');
-const EXTRACTION_LOG_ARCHIVE_FILE = path.join(DATA_DIR, 'extraction-log-archive.json');
 const CARD_REPORTS_ARCHIVE_FILE = path.join(DATA_DIR, 'card-reports-archive.json');
 const PATIENT_SNAPSHOT_ARCHIVE_FILE = path.join(DATA_DIR, 'patient-snapshots-archive.json');
 
@@ -223,10 +215,8 @@ let referenceSources = loadJson(REFERENCE_SOURCES_FILE, DEFAULT_REFERENCE_SOURCE
 // 内容を上書きせずそのまま記録として積み重ねる（学習データ管理画面から後で振り返れるようにするため）。
 let patientSnapshots = loadJson(PATIENT_SNAPSHOT_FILE, []);
 let patientSnapshotsArchive = loadJson(PATIENT_SNAPSHOT_ARCHIVE_FILE, []);
-let extractionLog = loadJson(EXTRACTION_LOG_FILE, []); // [{ id, patientId, patientTitle, text, extractedCount, at }] 分類開始のたびの「抽出前の文章」履歴
 let cardReports = loadJson(CARD_REPORTS_FILE, []); // [{ id, sessionId, patientId, patientTitle, items: [{cardText, comment, at}], createdAt, updatedAt }] 情報カードの不具合報告
 let caseLogArchive = loadJson(CASE_LOG_ARCHIVE_FILE, []);
-let extractionLogArchive = loadJson(EXTRACTION_LOG_ARCHIVE_FILE, []);
 let cardReportsArchive = loadJson(CARD_REPORTS_ARCHIVE_FILE, []);
 
 // 保存対象データの一覧。getは常にその時点の最新の値を返し、setはMongoDBから読み込んだ内容で
@@ -243,16 +233,14 @@ const PERSISTED_FILES = [
   { mongoId: 'reference-sources', file: REFERENCE_SOURCES_FILE, get: () => referenceSources, set: v => { referenceSources = v; } },
   { mongoId: 'patient-snapshots', file: PATIENT_SNAPSHOT_FILE, get: () => patientSnapshots, set: v => { patientSnapshots = v; } },
   { mongoId: 'patient-snapshots-archive', file: PATIENT_SNAPSHOT_ARCHIVE_FILE, get: () => patientSnapshotsArchive, set: v => { patientSnapshotsArchive = v; } },
-  { mongoId: 'extraction-log', file: EXTRACTION_LOG_FILE, get: () => extractionLog, set: v => { extractionLog = v; } },
   { mongoId: 'card-reports', file: CARD_REPORTS_FILE, get: () => cardReports, set: v => { cardReports = v; } },
   { mongoId: 'case-log-archive', file: CASE_LOG_ARCHIVE_FILE, get: () => caseLogArchive, set: v => { caseLogArchive = v; } },
-  { mongoId: 'extraction-log-archive', file: EXTRACTION_LOG_ARCHIVE_FILE, get: () => extractionLogArchive, set: v => { extractionLogArchive = v; } },
   { mongoId: 'card-reports-archive', file: CARD_REPORTS_ARCHIVE_FILE, get: () => cardReportsArchive, set: v => { cardReportsArchive = v; } },
 ];
 
 // 学習専用ファイルを起動時点でフォルダ内に必ず用意しておく（初回アクセス前でも
 // data/learning-dict.json・data/case-log.json・data/patients.json・data/extraction-criteria.json・
-// data/extraction-log.json・data/card-reports.json・各アーカイブファイルが存在する状態にし、
+// data/card-reports.json・data/patient-snapshots.json・各アーカイブファイルが存在する状態にし、
 // 以後はこの1つのファイルに追加・削除を重ねていく。新しいファイルを都度作ることはしない）。
 // MongoDBを使う場合（MONGODB_URI設定時）はこのファイル作成自体が不要かつ無意味（無料ホスティングの
 // ディスクは再起動で消える前提のため）なので、ローカルのJSONファイルを使う場合のみ実行する。
@@ -297,18 +285,33 @@ async function loadFromMongo() {
 
 // 書き込みが競合しないよう、保存処理を1本のPromiseチェーンで直列化する
 let writeQueue = Promise.resolve();
+// 以前はPromise.allで1つでも失敗すると全体がcatch(err => console.error(...))に
+// まとめられ、「どのコレクションが」失敗したのか分からなかった（他のコレクションへの
+// 書き込み自体はPromise.allの外で並行して進むため実際には成功していても、ログ上は
+// 一つの失敗としか見えず気付けなかった）。Promise.allSettledに変え、失敗したコレクションを
+// 個別にログへ残すことで、次に同じ問題が起きても原因（保存先・データ種別）を特定しやすくする。
 function persist() {
   writeQueue = writeQueue.then(async () => {
     if (MONGODB_URI) {
       const collection = await getMongoCollection();
-      await Promise.all(PERSISTED_FILES.map(({ mongoId, get }) =>
+      const results = await Promise.allSettled(PERSISTED_FILES.map(({ mongoId, get }) =>
         collection.updateOne({ _id: mongoId }, { $set: { data: get() } }, { upsert: true })
       ));
+      results.forEach((r, i) => {
+        if (r.status === 'rejected') {
+          console.error(`データの保存に失敗しました（MongoDB: ${PERSISTED_FILES[i].mongoId}）:`, r.reason);
+        }
+      });
     } else {
       ensureDataDir();
-      await Promise.all(PERSISTED_FILES.map(({ file, get }) =>
+      const results = await Promise.allSettled(PERSISTED_FILES.map(({ file, get }) =>
         fs.promises.writeFile(file, JSON.stringify(get(), null, 2))
       ));
+      results.forEach((r, i) => {
+        if (r.status === 'rejected') {
+          console.error(`データの保存に失敗しました（ファイル: ${PERSISTED_FILES[i].file}）:`, r.reason);
+        }
+      });
     }
   }).catch(err => console.error('データの保存に失敗しました:', err));
   return writeQueue;
@@ -377,6 +380,25 @@ if (typeof rateLimitCleanupTimer.unref === 'function') rateLimitCleanupTimer.unr
 // それとは別に、1件あたりの記録が異常に肥大化してファイル全体を圧迫しないようにする）
 function capString(value, maxLen) {
   return (typeof value === 'string') ? value.slice(0, maxLen) : value;
+}
+
+// 「積み上げる配列」(caseLog・patientSnapshots等)は件数ではなく古いものから順に、
+// 直列化した合計バイト数がmaxBytesを超えないよう先頭（古い方）から間引く。
+// MongoDB利用時は1コレクション=1ドキュメントなので、単一ドキュメントの上限（16MB）を
+// 超えると以後そのコレクションだけ保存が静かに失敗し続けてしまう（persist()参照）。
+// 90日基準のアーカイブ（runArchiving）だけでは「短期間に大量発生」した場合に間に合わないため、
+// 保存のたびにこのバイト数ベースの上限でも必ず抑える。
+function capArrayByByteSize(arr, maxBytes) {
+  if (!Array.isArray(arr) || arr.length === 0) return arr;
+  const sizes = arr.map(e => Buffer.byteLength(JSON.stringify(e), 'utf8'));
+  let total = sizes.reduce((a, b) => a + b, 0);
+  if (total <= maxBytes) return arr;
+  let start = 0;
+  while (start < arr.length - 1 && total > maxBytes) {
+    total -= sizes[start];
+    start++;
+  }
+  return arr.slice(start);
 }
 
 // ---- API ----
@@ -863,6 +885,13 @@ app.delete('/api/reference-sources/:id', async (req, res) => {
 // ここは「その端末がタブを閉じた瞬間、何をどう分類していたか」をマージせずそのまま記録として積み重ねる。
 const PATIENT_SNAPSHOT_MAX_PATIENTS_PER_REQUEST = 50; // 1回の送信で記録する患者数の上限（暴走防止）
 const PATIENT_SNAPSHOT_MAX_ITEMS_PER_PATIENT = 500; // 1患者あたりのカード数の上限（暴走防止）
+// タブを開いている間5分おき＋閉じるたびに全患者分（カード本文・カルテ本文含む）を積み上げるため、
+// 90日基準のアーカイブ（runArchiving）を待つ前に、MongoDBの1ドキュメント上限（16MB）へ
+// 短期間で達してしまうことがある（達した瞬間から以後の保存が全て静かに失敗し続ける＝
+// 「カルテスナップショットが全然保存されていない」という report の実体）。保存の都度、
+// 古いものから間引いて安全な範囲（余裕を持って6MB）に収める。
+const PATIENT_SNAPSHOT_MAX_BYTES = 6 * 1024 * 1024;
+const PATIENT_SNAPSHOT_ARCHIVE_MAX_BYTES = 12 * 1024 * 1024; // アーカイブ側も同じ理由で無制限に増やさない
 
 app.post('/api/patient-snapshot', express.json({ limit: '8mb', type: () => true }), rateLimit('patient-snapshot', { windowMs: 60000, max: 60 }), async (req, res) => {
   const { clientId, patients } = req.body || {};
@@ -884,39 +913,13 @@ app.post('/api/patient-snapshot', express.json({ limit: '8mb', type: () => true 
     }));
   if (entries.length === 0) return res.status(400).json({ error: 'no valid patient snapshots' });
   patientSnapshots.push(...entries);
+  patientSnapshots = capArrayByByteSize(patientSnapshots, PATIENT_SNAPSHOT_MAX_BYTES);
   await persist();
   res.json({ ok: true, count: entries.length });
 });
 
 app.get('/api/patient-snapshots', (req, res) => {
   res.json(patientSnapshots);
-});
-
-// ---- 抽出前の文章の履歴（「分類開始」を押すたびに蓄積・全利用者共有） ----
-// 患者カルテ本体(patients.json)側のsourceTextは、その患者の「最新の1回分」しか保持しない
-// （新しい文章を貼り付けて上書きすると、以前入力していた文章は残らない）。
-// この履歴は分類開始のたびに追記していく別の記録で、学習データ・事例ログと同様に
-// 1つのファイルへ追加を重ねていく（都度新しいファイルは作らない・削除機能は持たない）。
-app.get('/api/extraction-log', (req, res) => {
-  res.json(extractionLog);
-});
-
-app.post('/api/extraction-log', rateLimit('extraction-log', { windowMs: 60000, max: 30 }), async (req, res) => {
-  const { patientId, patientTitle, text, extractedCount } = req.body || {};
-  if (typeof text !== 'string' || !text.trim()) {
-    return res.status(400).json({ error: 'text is required' });
-  }
-  const entry = {
-    id: 'ext_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
-    patientId: typeof patientId === 'string' ? patientId : null,
-    patientTitle: capString(typeof patientTitle === 'string' ? patientTitle : '', 200),
-    text: capString(text, 50000),
-    extractedCount: typeof extractedCount === 'number' ? extractedCount : null,
-    at: new Date().toISOString()
-  };
-  extractionLog.push(entry);
-  await persist();
-  res.json(entry);
 });
 
 // ---- 情報カードの不具合報告（カード右上の「報告」ボタンから送られる。全利用者共有） ----
@@ -969,7 +972,7 @@ app.post('/api/card-reports', rateLimit('card-reports', { windowMs: 60000, max: 
 });
 
 // ---- 自動整理（アーカイブ） ----
-// case-log.json・extraction-log.json・card-reports.jsonは追記のみで削除機能を持たないため、
+// case-log.json・card-reports.json・patient-snapshots.jsonは追記のみで削除機能を持たないため、
 // 運用が長くなるとファイルが肥大化し続ける。ここでは「消す」のではなく、一定期間より古い
 // 記録をそれぞれ専用のアーカイブファイルへ移すことで、日常使う一覧（学習データ管理の各タブ）
 // を軽く保ちつつ、研究用途で参照したい古い記録もdata/*-archive.jsonから引き続き取得できる
@@ -987,20 +990,13 @@ function isOlderThanThresholdDays(isoString, thresholdDays) {
 
 // 起動時・定期実行の両方から呼ばれる。実際に何か移した場合のみpersist()する。
 async function runArchiving() {
-  let movedCaseLog = 0, movedExtractionLog = 0, movedCardReports = 0, movedSnapshots = 0;
+  let movedCaseLog = 0, movedCardReports = 0, movedSnapshots = 0;
 
   const oldCaseLogEntries = caseLog.filter(e => isOlderThanThresholdDays(e.at, ARCHIVE_THRESHOLD_DAYS));
   if (oldCaseLogEntries.length > 0) {
     caseLogArchive = caseLogArchive.concat(oldCaseLogEntries);
     caseLog = caseLog.filter(e => !isOlderThanThresholdDays(e.at, ARCHIVE_THRESHOLD_DAYS));
     movedCaseLog = oldCaseLogEntries.length;
-  }
-
-  const oldExtractionEntries = extractionLog.filter(e => isOlderThanThresholdDays(e.at, ARCHIVE_THRESHOLD_DAYS));
-  if (oldExtractionEntries.length > 0) {
-    extractionLogArchive = extractionLogArchive.concat(oldExtractionEntries);
-    extractionLog = extractionLog.filter(e => !isOlderThanThresholdDays(e.at, ARCHIVE_THRESHOLD_DAYS));
-    movedExtractionLog = oldExtractionEntries.length;
   }
 
   // 報告は1レコードに複数の報告(items)がまとまっているため、最後の更新(updatedAt)を基準に
@@ -1019,18 +1015,25 @@ async function runArchiving() {
     movedSnapshots = oldSnapshotEntries.length;
   }
 
-  if (movedCaseLog > 0 || movedExtractionLog > 0 || movedCardReports > 0 || movedSnapshots > 0) {
+  // 90日基準の年齢だけでは「短期間に大量発生」して先にMongoDBの1ドキュメント上限（16MB）へ
+  // 達するケースを防げないため、定期整理のたびにバイト数上限でも間引く（間引かれた分は
+  // 古い記録が失われるが、静かに保存が全滅するよりは望ましい）。
+  const beforePatientSnapshotsBytes = JSON.stringify(patientSnapshots).length;
+  patientSnapshots = capArrayByByteSize(patientSnapshots, PATIENT_SNAPSHOT_MAX_BYTES);
+  const trimmedSnapshots = beforePatientSnapshotsBytes !== JSON.stringify(patientSnapshots).length;
+  const beforeArchiveBytes = JSON.stringify(patientSnapshotsArchive).length;
+  patientSnapshotsArchive = capArrayByByteSize(patientSnapshotsArchive, PATIENT_SNAPSHOT_ARCHIVE_MAX_BYTES);
+  const trimmedArchive = beforeArchiveBytes !== JSON.stringify(patientSnapshotsArchive).length;
+
+  if (movedCaseLog > 0 || movedCardReports > 0 || movedSnapshots > 0 || trimmedSnapshots || trimmedArchive) {
     await persist();
-    console.log(`自動整理: 事例ログ${movedCaseLog}件・抽出前の文章${movedExtractionLog}件・情報カードの報告${movedCardReports}件・カルテスナップショット${movedSnapshots}件をアーカイブへ退避しました`);
+    console.log(`自動整理: 事例ログ${movedCaseLog}件・情報カードの報告${movedCardReports}件・カルテスナップショット${movedSnapshots}件をアーカイブへ退避しました${(trimmedSnapshots || trimmedArchive) ? '（サイズ上限により一部の古いカルテスナップショットを間引きました）' : ''}`);
   }
 }
 
 // 研究用にアーカイブ済みの記録もそのまま取得できるようにする（現役データと同じ形のまま）
 app.get('/api/case-log/archive', (req, res) => {
   res.json(caseLogArchive);
-});
-app.get('/api/extraction-log/archive', (req, res) => {
-  res.json(extractionLogArchive);
 });
 app.get('/api/card-reports/archive', (req, res) => {
   res.json(cardReportsArchive);
@@ -1077,5 +1080,6 @@ module.exports = {
   runArchiving,
   rateLimit,
   capString,
+  capArrayByByteSize,
   pickTopVote
 };
