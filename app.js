@@ -919,6 +919,23 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     }
 
     // ==========================================================================
+    // 入院前／入院後の切り替わりを示す手がかりの判定（ローカル抽出・AI抽出の両方から使う）
+    // ------------------------------------------------------------------------
+    // 「入院」「実習」「術前」「術中」「術後」「◯日目」「検査データ」等の語を含むテキスト
+    // （マーカーとして剥がされたタイムスタンプ文字列、または「＜実習1日目…＞」のような
+    // 見出し行そのもの）から、以降を「入院後」として記憶すべきかどうかを判定する。
+    // 「入院前」は明示的な巻き戻し（既往歴・生活歴等を扱う冒頭部分に戻ったことを示す
+    // 強い手がかり）として、他のどの語より優先して「入院前」を返す。
+    // 該当する手がかりが無ければnullを返し、呼び出し側は現在の状態を変えない。
+    function detectAdmissionPhaseSignal(text) {
+      const t = (text || '').trim();
+      if (!t) return null;
+      if (/入院前/.test(t)) return 'preadmission';
+      if (/入院|実習|術前|術中|術後|日目|検査データ/.test(t)) return 'postadmission';
+      return null;
+    }
+
+    // ==========================================================================
     // 総合アセスメント表の「入院前」「入院後」欄への初期振り分け
     // ------------------------------------------------------------------------
     // 以前はカードを新規作成した時点では常に「未分類」欄になり、入院前・入院後のどちらに
@@ -927,7 +944,15 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     // 入院前／入院後が明確に読み取れる場合は、最初から該当欄に振り分けておく。
     // 判断できない場合はこれまで通りnullを返し、呼び出し側で「未分類」のままにする
     // （誤って断定するより、利用者が確認・移動できる状態にしておく方が安全なため）。
-    function inferAssessmentColumn(fieldLabel, timestamp) {
+    //
+    // 【追加：admissionPhaseによる最終フォールバック】上記のタイムスタンプ・見出しラベルの
+    // いずれからも判断できない場合（明確なマーカーを伴わない普通の文章等）、利用者からの
+    // 提案に基づき、抽出処理側で上から順に読み進めながら記憶している「今どの時期を読んで
+    // いるか」の状態（groupClinicalPhrasesWithTimestamps内のadmissionPhase。最初は入院前と
+    // 仮定し、入院・実習・術前・術中・術後等の見出しを見つけたら入院後に切り替える）を
+    // 最後のフォールバックとして使う。これにより、明示的なマーカーの無い行も、記録の中で
+    // 実際に読み進めた位置に応じて「未分類」ではなく妥当な前後の欄に自動で振り分けられる。
+    function inferAssessmentColumn(fieldLabel, timestamp, admissionPhase) {
       const ts = (timestamp || '').trim();
       // タイムスタンプに明確な手がかりがあれば、見出しラベルより優先する
       // （同じ「既往歴」の内容でも、[10:15]のように入院後の時刻付きで記録されていれば
@@ -949,6 +974,7 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         || fieldLabel === '氏名' || fieldLabel === '年齢' || fieldLabel === '性別' || fieldLabel === '診断名'
         || fieldLabel === '手術術式' || fieldLabel === '感染症') return 'preadmission';
       if (fieldLabel === '治療方針' || fieldLabel === '治療内容') return 'postadmission';
+      if (admissionPhase === 'postadmission' || admissionPhase === 'preadmission') return admissionPhase;
       return null;
     }
 
@@ -3178,6 +3204,37 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     function groupClinicalPhrasesWithTimestamps(text) {
       const extracted = [];
       let globalTimestamp = "日時不明";
+      // ==========================================================================
+      // 入院前／入院後の自動判定（利用者からの要望に基づく状態管理方式）
+      // ------------------------------------------------------------------------
+      // 【背景】総合アセスメント表の「前」「後」欄の初期振り分け（inferAssessmentColumn）は
+      // 従来、そのカード自身のタイムスタンプ・見出しラベルだけを見て判定していたため、
+      // 明確な時系列マーカー（術前・術後・日付・時刻等）を伴わない普通の文章（既往歴の説明の
+      // 続きの文、等）は判定できずに「未分類」欄に残ってしまっていた。
+      // 記録は基本的に時系列順に書かれているため、「今どの時期の記録を読んでいるか」を
+      // 上から順に記憶しながら読み進めれば、明示的なマーカーが無い行にも前後の文脈から
+      // 妥当な判定を補えるはず、という利用者の提案に基づき、以下の状態機械を追加する：
+      //   ①最初は「入院前」と仮定して開始する（記録の冒頭は氏名・年齢・既往歴・生活歴等の
+      //     受け持ち前の基本情報から始まることが多いため）。
+      //   ②「入院」「実習」「術前」「術中」「術後」等の見出し・時系列マーカーを見つけたら、
+      //     以降は「入院後」として記憶する（「＜実習1日目…＞」のような日数見出しも対象）。
+      //   ③明示的に「入院前」と書かれたマーカーに戻ってきた場合は、その時点で「入院前」に
+      //     戻す（既存のinferAssessmentColumnがタイムスタンプの「入院前」表記を最優先するのと
+      //     同じ考え方）。
+      // この状態はカードそのものの内容ではなく「今どの行を読んでいるか」という抽出処理側の
+      // 一時的な文脈情報のため、抽出後の各カードに現在値をコピーして持たせる
+      // （pushExtractedの説明を参照）。
+      let admissionPhase = 'preadmission';
+      function updateAdmissionPhase(text) {
+        const signal = detectAdmissionPhaseSignal(text);
+        if (signal) admissionPhase = signal;
+      }
+      // extracted.push(...)の代わりに必ずこちらを使うことで、その時点のadmissionPhaseを
+      // 全てのカードに一律で持たせる（抽出処理内には十数か所のpush箇所があり、個別に
+      // admissionPhaseを書き足すと見落としの恐れがあるため、共通の入口を1つにまとめる）。
+      function pushExtracted(obj) {
+        extracted.push({ ...obj, admissionPhase });
+      }
       // detectFieldLabelHeadingOnlyLineで見出しラベルだけの行を検出した際、実際の値を持つ
       // 次の行にそのラベルを引き継ぐための一時変数（detectFieldLabelHeadingOnlyLineの説明を参照）。
       let pendingFieldLabelKeys = null;
@@ -3218,7 +3275,7 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
           // つなぎ戻す先がない場合は破棄
           return;
         }
-        extracted.push({ text: fragmentText, timestamp: globalTimestamp, ...extraProps });
+        pushExtracted({ text: fragmentText, timestamp: globalTimestamp, ...extraProps });
       }
 
       // 「●左横隔膜下ドレーン」（コロン・値を伴わないまま行末で途切れている）の直後の行が
@@ -3278,7 +3335,12 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         // 素の日付はこの記法では書かれない（TIME_MARKER_REGEX・DATE_ONLY_REGEX側で別途対応済み）
         // ため、数字の除外は不要と判断し、山括弧の中身であれば数字を含んでいても対象とする。
         if (/^[＜<][^＜<＞>]{1,40}[＞>）)]?$/.test(cleanLine)) {
-          extracted.push({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
+          pushExtracted({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
+          // 「＜実習1日目…＞」のような山括弧見出しは、以降の行が読み進める時期（入院前／入院後）
+          // を示す強い手がかりのため、この行自体を読み終えた時点で状態を更新する
+          // （updateAdmissionPhaseの説明を参照。以降の行から反映されればよいため、この行
+          // 自身のpushExtractedより後で呼んでよい）。
+          updateAdmissionPhase(cleanLine);
           continue;
         }
         // 見出しラベルだけの行（値は次の行に別に書かれている）を検出し、次の非空白行に
@@ -3296,7 +3358,7 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
           // そのまま使う（診断名・既往歴は病名から推測するfieldLabelHintTags側の判定に委ねる）。
           const chosenLabel = labels.find(k => FIELD_LABEL_DEFAULT_TAGS[k]) || labels[0];
           const labeledContent = isBareStatusWord(cleanLine) ? `${chosenLabel}: ${cleanLine}` : cleanLine;
-          extracted.push({ text: cleanExtractedPhrase(labeledContent), timestamp: globalTimestamp, fieldLabel: chosenLabel });
+          pushExtracted({ text: cleanExtractedPhrase(labeledContent), timestamp: globalTimestamp, fieldLabel: chosenLabel });
           continue;
         }
         // 行頭の時刻・日付・「入院時」等のマーカーは複数連続することがある
@@ -3322,6 +3384,7 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         let markerStripped = false;
         while ((marker = cleanLine.match(TIME_MARKER_REGEX))) {
           globalTimestamp = marker[1].replace(/[\[\]【】]/g, '');
+          updateAdmissionPhase(globalTimestamp);
           cleanLine = cleanLine.slice(marker[0].length).trim();
           markerStripped = true;
         }
@@ -3370,6 +3433,7 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
           const peekLine3 = peekIdx3 < lines.length ? lines[peekIdx3].trim() : '';
           if (/^[【\[]/.test(peekLine3)) {
             globalTimestamp = numberedSectionHeaderMatch[1];
+            updateAdmissionPhase(globalTimestamp);
             continue;
           }
         }
@@ -3381,7 +3445,7 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         const INLINE_UNNECESSARY_MARKER_REGEX = /[\(（](?:バイタルサイン|バイタル)[\)）]/g;
         let inlineMarkerMatch;
         while ((inlineMarkerMatch = INLINE_UNNECESSARY_MARKER_REGEX.exec(cleanLine)) !== null) {
-          extracted.push({ text: inlineMarkerMatch[0], timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
+          pushExtracted({ text: inlineMarkerMatch[0], timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
         }
         cleanLine = cleanLine.replace(INLINE_UNNECESSARY_MARKER_REGEX, '').replace(/^[、,]\s*/, '').trim();
         if (!cleanLine) continue;
@@ -3406,7 +3470,7 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
           }
           if (measurementLines.length > 1) {
             const merged = cleanExtractedPhrase(measurementLines.join('、'));
-            extracted.push({ text: merged, timestamp: globalTimestamp });
+            pushExtracted({ text: merged, timestamp: globalTimestamp });
             li = mIdx - 1; // forループのli++で次の未処理行へ進む
             continue;
           }
@@ -3443,8 +3507,8 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
             }
             if (phases.length > 0) {
               tableColumnPhases = phases;
-              extracted.push({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
-              extracted.push({ text: cleanExtractedPhrase(nextHeaderLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
+              pushExtracted({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
+              pushExtracted({ text: cleanExtractedPhrase(nextHeaderLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
               // 列ラベルの行自体は表の構造を示すだけで所見を含まないため、カード化せずそのまま読み飛ばす
               li = cIdx - 1; // forループのli++で最初のデータ行（項目名）へ進む
               continue;
@@ -3456,7 +3520,7 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         // 値の内容が何であっても患者アセスメントとは無関係なため、行ごと「不要な情報」として
         // そのまま1枚のカードにする（検査値抽出・見出しラベル切り出し・通常の文章抽出は行わない）。
         if (isUnnecessaryBoilerplateText(cleanLine)) {
-          extracted.push({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
+          pushExtracted({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
           continue;
         }
 
@@ -3500,7 +3564,7 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
               // 従来通りの単純な「項目名→実測値1件のみ」の形式（回帰確認用に体裁を維持）
               if (measurementLines[0] !== '-' && measurementLines[0] !== '−' && measurementLines[0] !== 'ー') {
                 const merged = cleanExtractedPhrase(`${keyName} ${measurementLines[0]}`);
-                if (merged.length >= 2) extracted.push({ text: merged, timestamp: globalTimestamp, isLabOrVital: true });
+                if (merged.length >= 2) pushExtracted({ text: merged, timestamp: globalTimestamp, isLabOrVital: true });
               }
             } else {
               measurementLines.forEach((valLine, colIdx) => {
@@ -3510,7 +3574,7 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
                 // ヘッダーから読み取った列ごとのタイムスタンプ（例：1列目=術前、2列目=術後）があれば
                 // それを使い、無ければその時点のタイムスタンプ（globalTimestamp）をそのまま使う。
                 const colTimestamp = tableColumnPhases[colIdx] || globalTimestamp;
-                if (merged.length >= 2) extracted.push({ text: merged, timestamp: colTimestamp, isLabOrVital: true });
+                if (merged.length >= 2) pushExtracted({ text: merged, timestamp: colTimestamp, isLabOrVital: true });
               });
             }
             li = nextIdx - 1; // 消費した値の行の直前まで読み進める（forループのli++で次の未処理行へ進む）
@@ -3527,7 +3591,7 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         let lMatch, lSubText = cleanLine;
         while ((lMatch = labRegex.exec(cleanLine)) !== null) {
           const lClean = cleanExtractedPhrase(lMatch[0]);
-          if (lClean.length >= 2) extracted.push({ text: lClean, timestamp: globalTimestamp, isLabOrVital: true });
+          if (lClean.length >= 2) pushExtracted({ text: lClean, timestamp: globalTimestamp, isLabOrVital: true });
           lSubText = lSubText.replace(lMatch[0], '');
         }
         // 値を抜いた後に残る空カッコや連続する読点・句点など、不自然な残骸を整える
@@ -3584,14 +3648,14 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
                 splitHistoryByAgeMarkers(content).forEach(part => {
                   const cleanedPart = cleanExtractedPhrase(part);
                   if (cleanedPart.length >= 1 && !isDateOnlyText(cleanedPart)) {
-                    extracted.push({ text: cleanedPart, timestamp: globalTimestamp, fieldLabel: m.key });
+                    pushExtracted({ text: cleanedPart, timestamp: globalTimestamp, fieldLabel: m.key });
                   }
                 });
               } else {
                 // 本文が「無」「なし」のような一語の状態語だけの場合、バッジ（fieldLabel）だけに
                 // 見出しの文脈を頼らず、本文にも見出し語を残しておく（isBareStatusWordの説明を参照）。
                 const labeledContent = isBareStatusWord(content) ? `${m.key}: ${content}` : content;
-                extracted.push({ text: labeledContent, timestamp: globalTimestamp, fieldLabel: m.key });
+                pushExtracted({ text: labeledContent, timestamp: globalTimestamp, fieldLabel: m.key });
               }
             }
             // 見出しの内容にも次の見出しにも属さない残りの文章は、句点ごとに文を分けて一般カードとして拾う
@@ -3625,7 +3689,7 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         // 書かれているため、この行自体は「不要な情報」として除外する（UNNECESSARY_BOILERPLATE_KEYS
         // に無い、未知の見出し語にも対応できる一般的な判定）。
         if (isEmptyColonHeaderLine(remainderText)) {
-          if (remainderText.length >= 1) extracted.push({ text: cleanExtractedPhrase(remainderText), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
+          if (remainderText.length >= 1) pushExtracted({ text: cleanExtractedPhrase(remainderText), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
           continue;
         }
         splitEnumeratedPhrases(remainderText).forEach(sentence => {
@@ -3752,7 +3816,16 @@ ${text}
           const jsonMatch = aiText.match(/\[\s*\{[\s\S]*\}\s*\]/);
           if (jsonMatch) {
             let added = 0;
+            // ローカル抽出（groupClinicalPhrasesWithTimestamps）のadmissionPhaseと同じ考え方を
+            // AI抽出経路にも適用する。AIが返す配列は元のカルテの記録順のまま返るため、上から
+            // 順に読み進めながら同様に状態を記憶できる（detectAdmissionPhaseSignalの説明を参照）。
+            let aiAdmissionPhase = 'preadmission';
             JSON.parse(jsonMatch[0]).forEach(pi => {
+              // 「＜実習1日目…＞」等の見出し行はAIがtype:"unnecessary"のtextとして返すため、
+              // pi.text自体からも手がかりを拾う（pi.timestampには反映されない場合があるため）。
+              // pi.timestampの方がより明示的な手がかりのため、pi.textより優先する。
+              const aiPhaseSignal = detectAdmissionPhaseSignal(pi.timestamp) || detectAdmissionPhaseSignal(pi.text);
+              if (aiPhaseSignal) aiAdmissionPhase = aiPhaseSignal;
               if (!pi.text) return;
               const cleanedText = cleanExtractedPhrase(pi.text);
               if (cleanedText.length < 2) return;
@@ -3811,7 +3884,7 @@ ${text}
                 // 総合アセスメント表の欄を最初から振り分けておく（分からない場合は従来通り未分類）。
                 // ※ここも中身の無いスタブ登録（getEntry副作用）だけでは「学習済み」と誤認しないよう
                 // hasLearnedSignalで判定する（!userLearnedのままだと初回抽出以降ずっと自動振り分けが止まる）。
-                const inferredCol = hasLearnedSignal(userLearned) ? null : inferAssessmentColumn(validFieldLabel, itemTimestamp);
+                const inferredCol = hasLearnedSignal(userLearned) ? null : inferAssessmentColumn(validFieldLabel, itemTimestamp, aiAdmissionPhase);
                 hIds.forEach(hid => aCols[hid] = userLearned?.preferredCols?.[hid] || inferredCol || 'unclassified');
                 // AIがtypeを返さなかった場合の保険。見出しラベルが無くても、章タイトル文脈が
                 // 付与されたカード（血液検査・画像検査等・治療方針治療内容等等）は、患者の発言でない限り
@@ -3832,7 +3905,7 @@ ${text}
                 const patientBackground = (itemType !== 'unnecessary' && hIds.length === 0)
                   ? classifyPatientBackground(validFieldLabel)
                   : null;
-                cp.items.push({ id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text: cleanedText, timestamp: itemTimestamp, type: itemType, hendersonIds: hIds, assessmentCols: aCols, fieldLabel: validFieldLabel, patientBackground, predictionSource: predictionSource || undefined, _touchedAt: new Date().toISOString() });
+                cp.items.push({ id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text: cleanedText, timestamp: itemTimestamp, type: itemType, hendersonIds: hIds, assessmentCols: aCols, fieldLabel: validFieldLabel, patientBackground, admissionPhase: aiAdmissionPhase, predictionSource: predictionSource || undefined, _touchedAt: new Date().toISOString() });
                 added++;
               }
             });
@@ -3880,9 +3953,10 @@ ${text}
         let predictedType = predictLocalItemType(chunk, cleanedText, userLearned);
         if (!predictionSource) predictionSource = 'rule';
         const assessmentCols = {};
-        // 学習結果が無い場合、タイムスタンプ・見出しラベルから入院前／入院後が明確なら
-        // 総合アセスメント表の欄を最初から振り分けておく（分からない場合は従来通り未分類）。
-        const inferredCol = userLearned ? null : inferAssessmentColumn(chunk.fieldLabel, chunk.timestamp);
+        // 学習結果が無い場合、タイムスタンプ・見出しラベル・admissionPhase（読み進めた位置から
+        // 記憶している入院前／入院後の状態）から入院前／入院後が明確なら総合アセスメント表の
+        // 欄を最初から振り分けておく（分からない場合は従来通り未分類）。
+        const inferredCol = userLearned ? null : inferAssessmentColumn(chunk.fieldLabel, chunk.timestamp, chunk.admissionPhase);
         detectedHIds.forEach(hId => assessmentCols[hId] = userLearned?.preferredCols?.[hId] || inferredCol || 'unclassified');
         // ヘンダーソンタグが1件も付かなかった場合（＝どの基本的欲求にも当てはまらなかった場合）、
         // 「タグ未設定」の警告のまま残さず、患者背景（基本情報／医学情報）の受け皿に振り分ける
@@ -3891,7 +3965,7 @@ ${text}
           ? classifyPatientBackground(chunk.fieldLabel)
           : null;
 
-        const newItem = { id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text: cleanedText, timestamp: chunk.timestamp || "日時不明", type: predictedType, hendersonIds: detectedHIds, assessmentCols, fieldLabel: chunk.fieldLabel || null, patientBackground, predictionSource, _touchedAt: new Date().toISOString() };
+        const newItem = { id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text: cleanedText, timestamp: chunk.timestamp || "日時不明", type: predictedType, hendersonIds: detectedHIds, assessmentCols, fieldLabel: chunk.fieldLabel || null, patientBackground, admissionPhase: chunk.admissionPhase || 'preadmission', predictionSource, _touchedAt: new Date().toISOString() };
         cp.items.push(newItem);
         // どう自動抽出・自動分類されたかを事例ログに残す（研究用）
         reportLearningEvent(cleanedText, 'create', { type: predictedType, hendersonIds: detectedHIds, assessmentCols, fieldLabel: newItem.fieldLabel, predictionSource, fuzzyMatchedText: fuzzyMatchedText || undefined });
@@ -4912,7 +4986,24 @@ ${labTexts || '(なし)'}
       let fixedRefCount = 0;
       let fixedTypeCount = 0;
       let fixedBackgroundCount = 0;
+      let fixedAssessmentColCount = 0;
+      // 総合アセスメント表の「入院前／入院後」の判定は、カルテ全体を通した記録の並び順
+      // （cp.items自体の並び順）に沿って「今どちらの時期を記憶しているか」を1つの変数で
+      // 追跡し直す（groupClinicalPhrasesWithTimestampsの抽出時と同じアルゴリズム。
+      // detectAdmissionPhaseSignalの説明を参照）。個々のカードに「入院前／入院後」という
+      // タグを新しく付けたり表示したりするのではなく、この状態を使って総合アセスメント表側の
+      // 「未分類」欄をできる範囲で分類するためだけに使う（利用者からの要望：全カードを
+      // 入院前／入院後に変えるのではなく、総合アセスメント表のページで分類できるように
+      // してほしい、との趣旨）。
+      // 「実習1日目」等の見出し行は「不要」判定（isUnnecessaryBoilerplate）になっているため、
+      // 後ろの「不要」カード除外よりも前で判定・更新しないと、その後に続くカードの時期が
+      // いつまでも「入院前」のまま切り替わらなくなってしまう。このため、この判定だけは
+      // 「不要」カードも含めて全カードに対して行う（記憶の更新自体は「不要」カードにも必要）。
+      let admissionPhase = 'preadmission';
       cp.items.forEach(item => {
+        const phaseSignal = detectAdmissionPhaseSignal(item.timestamp) || detectAdmissionPhaseSignal(item.text);
+        if (phaseSignal) admissionPhase = phaseSignal;
+
         if (item.type === 'unnecessary') return; // 「不要」判定済みのカードは対象外
 
         // ①検査値カードの基準値を、現在のLAB_STANDARDSの内容で反映し直す
@@ -4942,6 +5033,21 @@ ${labTexts || '(なし)'}
         }
 
         if (Array.isArray(item.hendersonIds) && item.hendersonIds.length > 0) {
+          // 総合アセスメント表で「未分類」欄のまま残っているタグを、今追跡している
+          // 入院前／入院後の状態（inferAssessmentColumnの最終フォールバック）で分類できる
+          // 場合は補う。学習結果（preferredCols）で既に欄が決まっている場合は上書きしない。
+          item.assessmentCols = item.assessmentCols || {};
+          item.hendersonIds.forEach(hId => {
+            if (userLearned?.preferredCols?.[hId]) return;
+            if ((item.assessmentCols[hId] || 'unclassified') !== 'unclassified') return;
+            const inferredCol = inferAssessmentColumn(item.fieldLabel, item.timestamp, admissionPhase);
+            if (inferredCol) {
+              item.assessmentCols[hId] = inferredCol;
+              touchItem(item);
+              fixedAssessmentColCount++;
+            }
+          });
+
           // 既にタグがあるカードは対象外だが、過去に④の患者背景振り分けを受けた後に
           // 手動でタグが付けられた場合、患者背景の表示が残ったままになるため外す
           // （ヘンダーソンタグが1件でも付けば患者背景の受け皿は使わない、という原則を維持する）。
@@ -4953,7 +5059,11 @@ ${labTexts || '(なし)'}
           item.hendersonIds = suggested;
           item.assessmentCols = item.assessmentCols || {};
           suggested.forEach(hid => {
-            if (!(hid in item.assessmentCols)) item.assessmentCols[hid] = userLearned?.preferredCols?.[hid] || 'unclassified';
+            if (!(hid in item.assessmentCols)) {
+              item.assessmentCols[hid] = userLearned?.preferredCols?.[hid]
+                || inferAssessmentColumn(item.fieldLabel, item.timestamp, admissionPhase)
+                || 'unclassified';
+            }
           });
           item.patientBackground = null;
           touchItem(item);
@@ -4972,13 +5082,14 @@ ${labTexts || '(なし)'}
           }
         }
       });
-      if (fixedTagCount > 0 || fixedRefCount > 0 || fixedTypeCount > 0 || fixedBackgroundCount > 0) {
+      if (fixedTagCount > 0 || fixedRefCount > 0 || fixedTypeCount > 0 || fixedBackgroundCount > 0 || fixedAssessmentColCount > 0) {
         saveDataAndSync();
         const parts = [];
         if (fixedRefCount > 0) parts.push(`${fixedRefCount}件の検査値カードに基準値を反映`);
         if (fixedTypeCount > 0) parts.push(`${fixedTypeCount}件のS/O未分類カードを再分類`);
         if (fixedTagCount > 0) parts.push(`${fixedTagCount}件のタグ未設定カードにタグを再提案`);
         if (fixedBackgroundCount > 0) parts.push(`${fixedBackgroundCount}件を患者背景に振り分け`);
+        if (fixedAssessmentColCount > 0) parts.push(`${fixedAssessmentColCount}件を総合アセスメント表の入院前／入院後に分類`);
         showToast(parts.join('、') + 'しました', 'success');
       } else {
         showToast('現在のルールで新たに反映できるカードはありませんでした', 'info');
@@ -5718,6 +5829,8 @@ if (typeof module !== 'undefined' && module.exports) {
     PATIENT_BACKGROUND_BASIC_FIELD_LABELS,
     classifyPatientBackground,
     isUntaggedItem,
+    detectAdmissionPhaseSignal,
+    inferAssessmentColumn,
     FIELD_LABEL_DEFAULT_TAGS,
     GASTRIC_POSTOP_EXPECTED_CHECKS,
     LAB_ALIAS_FALLBACK_TESTS,
