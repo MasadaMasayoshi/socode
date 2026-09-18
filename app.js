@@ -630,6 +630,26 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       return FIELD_LABEL_DEFAULT_TAGS[fieldLabel] || [];
     }
 
+    // ==========================================================================
+    // 既存カードへの再タグ付け候補算出（新規抽出時の判定ロジックと同じ考え方を使う）
+    // ------------------------------------------------------------------------
+    // ルール（DIAGNOSIS_TAG_HINTS・LAB_STANDARDS等）は繰り返し改善されてきたが、既に
+    // カード化・保存済みのカードは、抽出をやり直さない限りルール変更の影響を受けず
+    // 「タグ未設定」のまま残ってしまう（利用者からの報告：「胆結石」「Ht」等の対応表を
+    // 追加した後でも、その追加より前に抽出済みだった同じ内容のカードはタグ未設定のまま
+    // だった）。window.reapplyTagRulesToUntagged()から、タグ未設定カードだけを対象に
+    // 現在のルールで再提案する際に使う（groupClinicalPhrasesWithTimestamps.forEach内の
+    // 新規抽出時のロジックと同じ判定基準）。
+    function suggestHendersonTagsForText(text, fieldLabel, userLearned) {
+      const ruleHIds = detectMultipleHendersonTags(text);
+      const ids = Array.from(new Set([...ruleHIds, ...(userLearned?.preferredHendersonIds || [])]));
+      if (LAB_ITEM_NAME_REGEX.test(text) && !userLearned && !ids.includes(2)) ids.push(2);
+      if (fieldLabel && !userLearned) {
+        fieldLabelHintTags(fieldLabel, text).forEach(hid => { if (!ids.includes(hid)) ids.push(hid); });
+      }
+      return ids;
+    }
+
     // 「氏名　年齢　性別」のような表形式の見出し行で、対応する値が見つからない（AIが値を
     // 見つけられず見出し語自体をtextとして返してしまう等の）場合、見出し語だけが本文として
     // 残ってしまい、「氏名」「年齢」「性別」としか表示されず何の情報にもならないカードが
@@ -3027,6 +3047,16 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     // （「・」は「シャワー浴・弾性ストッキング着用を実施」のように単語・短い句を並べる用途に
     // 限られ、文中に句点を含むような長い文の一部として使われることは無いため、誤分割の
     // リスクが低い。）
+    // 「＜実習2日目（入院2日目、手術前日）＞」のような、＜＞【】（）[]等で囲まれた1つの
+    // 見出し・区切りマーカー全体を、「・」や「、」で機械的に分割すると、括弧の対応が崩れた
+    // 意味の無い断片（「＜実習2日目（入院2日目」「手術前日）＞」等）に分かれてしまうことがある
+    // （利用者からのアップロード文書で発覚：この見出し行が2枚のタグ未設定カードに分裂していた）。
+    // 分割後のいずれかの要素で開き括弧・閉じ括弧の対応数が崩れる場合は、列挙ではなく
+    // 1つのまとまった見出し・文章とみなし、分割自体を取りやめる。
+    const BRACKET_PAIRS = [['<', '>'], ['＜', '＞'], ['(', ')'], ['（', '）'], ['[', ']'], ['【', '】']];
+    function hasBalancedBrackets(str) {
+      return BRACKET_PAIRS.every(([open, close]) => str.split(open).length === str.split(close).length);
+    }
     function splitByNakatenList(text) {
       if (!text) return [];
       const trimmed = text.trim();
@@ -3044,6 +3074,7 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       // 分割後のいずれかの要素に句点が含まれる場合は、単語の列挙ではなく文中の一部として
       // 「・」が使われている可能性が高いため、誤って分割しないよう元の文をそのまま返す。
       if (parts.length < 2 || parts.some(p => p.includes('。'))) return [trimmed];
+      if (parts.some(p => !hasBalancedBrackets(p))) return [trimmed];
       return parts;
     }
 
@@ -3063,6 +3094,9 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       if (/[:：]/.test(trimmed)) return [trimmed];
       const parts = trimmed.split('、').map(s => s.trim()).filter(Boolean);
       if (parts.length < 2 || parts.some(p => p.length < 2 || p.length > 20 || p.includes('。') || HIRAGANA_REGEX.test(p))) return [trimmed];
+      // hasBalancedBracketsの説明を参照（＜実習2日目（入院2日目、手術前日）＞のような
+      // 括弧付き見出し全体を、読点でも意味の無い断片に分けてしまわないようにする）。
+      if (parts.some(p => !hasBalancedBrackets(p))) return [trimmed];
       return parts;
     }
 
@@ -4672,6 +4706,38 @@ ${labTexts || '(なし)'}
     };
 
     // ==========================================================================
+    // タグ未設定カードへの一括再提案（現在のルールで再度タグを算出し直す）
+    // ------------------------------------------------------------------------
+    // suggestHendersonTagsForTextの説明の通り、ルール改善は既存カードに自動反映されない。
+    // このボタンは、今開いているカルテの中で「タグ未設定」（hendersonIdsが空）かつ
+    // 「不要」判定でもないカードだけを対象に、現在のルール（学習結果→キーワード検出→
+    // 検査値ヒント→見出しラベルヒントの順）で再度タグを算出し、見つかった分だけ反映する。
+    // 誤って提案されたタグは、他のタグ付けと同様にカード上から個別に削除できる。
+    window.reapplyTagRulesToUntagged = function() {
+      const cp = getCurrentPatient();
+      let fixedCount = 0;
+      cp.items.forEach(item => {
+        if (item.type === 'unnecessary') return; // 「不要」判定済みのカードは対象外
+        if (Array.isArray(item.hendersonIds) && item.hendersonIds.length > 0) return; // 既にタグがあるものは対象外
+        const userLearned = globalAppData.learningUserDict[item.text];
+        const suggested = suggestHendersonTagsForText(item.text, item.fieldLabel, userLearned);
+        if (suggested.length === 0) return;
+        item.hendersonIds = suggested;
+        item.assessmentCols = item.assessmentCols || {};
+        suggested.forEach(hid => {
+          if (!(hid in item.assessmentCols)) item.assessmentCols[hid] = userLearned?.preferredCols?.[hid] || 'unclassified';
+        });
+        touchItem(item);
+        fixedCount++;
+      });
+      if (fixedCount > 0) {
+        saveDataAndSync();
+        showToast(`${fixedCount}件のタグ未設定カードに、現在のルールでタグを再提案しました`, 'success');
+      } else {
+        showToast('現在のルールで新たに提案できるタグ未設定カードはありませんでした', 'info');
+      }
+    };
+
     // 同じ文言への一括反映（このカルテ内の他のカードへの一括反映）
     // ------------------------------------------------------------------------
     // 同じ文言（本文が完全一致）のカードが同じカルテ内に複数ある場合、片方だけタグ・分類を
@@ -5361,6 +5427,8 @@ if (typeof module !== 'undefined' && module.exports) {
     computeLearningTrendRows,
     buildLearningTrendSummary,
     findOtherCardsWithSameText,
+    suggestHendersonTagsForText,
+    hasBalancedBrackets,
     groupClinicalPhrasesWithTimestamps,
     detectMultipleHendersonTags,
     detectDiagnosisTagHints,

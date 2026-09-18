@@ -140,6 +140,9 @@
             <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-muted)] text-[11px]"></i>
             <input type="text" id="board-search" class="field pl-7" placeholder="カードの内容・タグ名で検索...">
           </div>
+          <button id="btn-reapply-tag-rules" onclick="reapplyTagRulesToUntagged()" class="btn btn-outline text-[11px] py-1.5 whitespace-nowrap" title="タグ未設定のカードだけを対象に、現在の分類ルールでタグを再提案します（ルール改善後に作られた古いカードに使えます）">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> タグ未設定に再提案
+          </button>
           <span class="text-[10px] text-[var(--ink-muted)] leading-snug">
             <i class="fa-solid fa-circle-info mr-0.5"></i>カードをクリックで選択→数字キー(1〜14)でタグ追加／Ctrl(⌘)+クリックで複数選択、またはカード左上のチェックボックスのタップで複数選択（スマホ・タブレットでも使えます）
           </span>
