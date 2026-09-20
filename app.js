@@ -8,7 +8,7 @@
     // ように番号・説明文を含めていたが、行見出し以外にもタグチップ・タグ追加の選択肢・
     // AIへの指示文など様々な場所でname がそのまま使われるため、簡潔にした方が全体で見やすい）。
     const HENDERSON_NEEDS = [
-      { id: 1, name: "呼吸", icon: "fa-lungs", keywords: ["呼吸", "SpO2", "咳", "痰", "喘鳴", "息切れ", "チアノーゼ", "酸素", "息苦し", "PaO2", "呼吸数", "呼吸音", "動脈血ガス", "胸部X線", "胸郭", "呼吸補助筋", "起座呼吸", "wheezes", "発汗", "気道", "分泌物", "狭窄", "アレルギー", "喫煙", "人工呼吸器", "酸素マスク", "肥満", "発熱", "疼痛", "副作用", "安楽な姿勢", "体位", "枕", "湿度", "臭気", "吸入器", "在宅酸素療法", "排痰", "咳嗽", "血圧", "脈拍", "頻脈", "徐脈", "不整脈", "動悸", "浮腫", "末梢冷感", "循環動態", "心拍数", "心電図", "胸痛", "ショック", "麻酔", "全身麻酔", "麻酔導入", "麻酔覚醒", "気管挿管", "抜管", "麻酔科", "弾性ストッキング", "無気肺", "有効咳嗽", "術後肺炎", "深部静脈血栓症", "DVT", "肺血栓塞栓症", "PTE",
+      { id: 1, name: "呼吸", icon: "fa-lungs", keywords: ["呼吸", "SpO2", "咳", "痰", "喘鳴", "息切れ", "チアノーゼ", "酸素", "息苦し", "PaO2", "呼吸数", "呼吸音", "動脈血ガス", "胸部X線", "胸郭", "呼吸補助筋", "起座呼吸", "wheezes", "発汗", "気道", "分泌物", "狭窄", "喫煙", "人工呼吸器", "酸素マスク", "肥満", "発熱", "疼痛", "副作用", "安楽な姿勢", "体位", "枕", "湿度", "臭気", "吸入器", "在宅酸素療法", "排痰", "咳嗽", "血圧", "脈拍", "頻脈", "徐脈", "不整脈", "動悸", "浮腫", "末梢冷感", "循環動態", "心拍数", "心電図", "胸痛", "ショック", "麻酔", "全身麻酔", "麻酔導入", "麻酔覚醒", "気管挿管", "抜管", "麻酔科", "弾性ストッキング", "無気肺", "有効咳嗽", "術後肺炎", "深部静脈血栓症", "DVT", "肺血栓塞栓症", "PTE",
         // 「顔色」「蒼白」「息遣い」は、直接「呼吸」「チアノーゼ」等の既存キーワードそのものの
         // 語で書かれていなくても、顔色不良・末梢循環不良・呼吸様式の異常を示す典型的な観察所見
         // であり、循環・呼吸のアセスメントに直結する（利用者からのアップロード文書で発覚：
@@ -37,7 +37,20 @@
         // （利用者からのアップロード文書で発覚）。「PCA」（自己調節鎮痛法）も、OCRで
         // 「自己調節頭痛法」（鎮痛→頭痛の誤読）になっている例が見つかったため、正しい表記と
         // 誤読された表記の両方を登録する。
-        "ホーマンズ徴候", "自己調節鎮痛法", "自己調節頭痛法"] },
+        "ホーマンズ徴候", "自己調節鎮痛法", "自己調節頭痛法",
+        // 「バイタルサインは安定している。」「バイタルサインは血圧140/85mmHgに落ち着く。」の
+        // ように、体温・血圧・脈拍等の個別の項目名ではなく「バイタルサイン」という総称の語
+        // だけで所見が書かれることがある。既存のキーワード（血圧・脈拍・体温等）は個別の項目名
+        // にしか一致せず、総称の「バイタルサイン」自体は未登録だったため、値が別カードに切り出された
+        // 後に残る「バイタルサインは」だけの断片や、値を伴わない「バイタルサインは安定している。」
+        // のような要約の文が、ヘンダーソンのどの項目にも一致せず「患者背景（基本情報／医学情報）」
+        // に誤って振り分けられてしまっていた（利用者からのアップロード文書で発覚）。
+        // 「意識」（意識レベル・意識清明・意識障害等）も同様に未登録だった。この記録形式の
+        // 基準ノート（NotebookLM資料）でも「循環器系・後出血：血圧・脈拍・意識レベル…」のように
+        // 意識レベルを循環動態の観察と並べて扱っているため、既存の「麻酔覚醒」等と同じ1(呼吸：
+        // 循環動態を含む)に合わせる（利用者からのアップロード文書で発覚：「意識は清明だが、
+        // ベッド上で顔をしかめている。」がタグ未設定のまま「患者背景」に振り分けられていた）。
+        "バイタルサイン", "意識"] },
       { id: 2, name: "食事", icon: "fa-utensils", keywords: ["食事", "食欲", "摂取量", "水分量", "嚥下", "嘔吐", "悪心", "吐気", "むせ", "体重", "栄養", "飲水", "Alb", "TP", "食事量", "咀嚼", "嚥下機能", "栄養状態", "BMI", "食習慣", "間食", "外食", "宗教的習慣", "食事療法", "必要エネルギー", "透析", "造影剤", "味覚", "化学療法", "身長", "ローレル指数", "カウプ指数", "頭皮", "毛髪", "免疫", "義歯", "自助具", "口腔粘膜", "胃がん", "胃癌", "胃切除", "胃全摘", "噴門", "幽門", "ダンピング症候群", "逆流性食道炎", "分割食", "小胃症状",
         // 「食生活」は「食習慣」と同義でよく使われる表記だが、これまで未登録だったため
         // 「食生活：肉全般とラーメンが好き…」のような文章が拾えていなかった（利用者からの
@@ -55,7 +68,7 @@
         // 「自尿」（カテーテル抜去後の自力での排尿）は排泄の観察点として未登録だったため追加する
         // （大腿骨近位部骨折の周術期資料より）。
         "自尿"] },
-      { id: 4, name: "姿勢", icon: "fa-person-walking", keywords: ["歩行", "移乗", "立位", "坐位", "麻痺", "可動域", "拘縮", "転倒", "ベッド上安静", "体位変換", "移動", "運動機能", "発赤", "褥瘡", "クッション", "自助具", "ベッド柵", "輸液ライン", "滑りにくい靴", "筋力", "視覚", "聴覚", "感覚機能", "循環機能", "麻酔", "全身麻酔", "麻酔覚醒", "麻酔後回復室", "術後体動制限", "麻酔科", "眼鏡", "コンタクトレンズ", "感覚障害", "デスクワーク", "早期離床", "ファウラー位", "端坐位", "体位ドレナージ", "側臥位", "スポーツ", "運動能力", "テニス", "ゴルフ", "サッカー", "野球", "水泳", "ジョギング", "ランニング",
+      { id: 4, name: "姿勢", icon: "fa-person-walking", keywords: ["歩行", "移乗", "立位", "坐位", "麻痺", "可動域", "拘縮", "転倒", "ベッド上安静", "体位変換", "移動", "運動機能", "発赤", "褥瘡", "クッション", "自助具", "ベッド柵", "輸液ライン", "滑りにくい靴", "筋力", "視覚", "聴覚", "感覚機能", "循環機能", "麻酔覚醒", "麻酔後回復室", "術後体動制限", "眼鏡", "コンタクトレンズ", "感覚障害", "デスクワーク", "早期離床", "ファウラー位", "端坐位", "体位ドレナージ", "側臥位", "スポーツ", "運動能力", "テニス", "ゴルフ", "サッカー", "野球", "水泳", "ジョギング", "ランニング",
         // 「ADL」「自立」は動作・姿勢の自立度そのものを表す語（NotebookLM基準ノートの
         // 4.身体の位置を動かし良い姿勢を保持する：体力=動作・姿勢の自立度…）だが、これまで
         // 未登録だったため「ADL：全て自立」のような文章が拾えていなかった。
@@ -71,10 +84,7 @@
         "人工骨頭置換術", "BHA", "人工股関節全置換術", "THA", "骨接合術",
         "荷重", "免荷", "全荷重", "部分荷重", "平行棒", "歩行器", "T字杖", "リハビリ",
         "起立性低血圧", "家屋評価", "ソックスエイド", "補高便座", "大腿骨", "股関節"] },
-      { id: 5, name: "睡眠", icon: "fa-bed", keywords: ["睡眠", "不眠", "中途覚醒", "休息", "眠気", "疲労感", "倦怠感", "熟睡", "眠れない", "睡眠薬", "入眠困難", "無呼吸", "集中力低下", "騒音", "寝具", "日課", "だるさ", "ストレッサー", "不安", "ストレス", "対処方法",
-        // 肺炎の資料より、夜間の咳嗽・喀痰による中途覚醒等、睡眠障害の原因として記載される
-        // 語を追加する（利用者からのアップロード資料により判明）。
-        "咳嗽"] },
+      { id: 5, name: "睡眠", icon: "fa-bed", keywords: ["睡眠", "不眠", "中途覚醒", "休息", "眠気", "疲労感", "倦怠感", "熟睡", "眠れない", "睡眠薬", "入眠困難", "無呼吸", "集中力低下", "騒音", "寝具", "日課", "だるさ", "ストレッサー", "不安", "ストレス", "対処方法"] },
       { id: 6, name: "衣服", icon: "fa-shirt", keywords: ["着脱", "衣服", "更衣", "ボタン", "靴下", "病衣交換", "パジャマ", "衣類", "洗濯", "好み", "選択基準", "動きやすさ", "自己表現", "弾性ストッキング"] },
       { id: 7, name: "体温", icon: "fa-temperature-high", keywords: ["体温", "発熱", "熱感", "悪寒", "クーリング", "冷感", "KT", "BT", "℃", "°C", "WBC", "CRP", "放熱", "すきま風", "気温", "湿度",
         // 「検温」は体温測定そのものを指す語で、「体温」の言い換えとしてよく使われるが
@@ -2923,9 +2933,104 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       return body;
     }
 
+    // ==========================================================================
+    // プレーンテキスト書き出し（元「Word書き出し」）
+    // ------------------------------------------------------------------------
+    // 【背景】利用者からの要望：「ワード書き出しをテキストとして出力するようにしてください」。
+    // 従来は「Word書き出し」ボタンがWordで直接開けるHTML形式の.docファイルを生成していたが、
+    // ここではそのまま編集・コピーしやすいプレーンテキスト(.txt)を出力するよう変更する。
+    // AI分析結果（S/O矛盾チェック・看護診断候補・経時変化サマリー・看護計画）は元々<br>・<b>
+    // タグを含むHTMLとして保持しているため、改行・太字タグを取り除いてプレーンテキスト
+    // 相当の見た目（改行はそのまま改行、強調は記号を付けず素のテキストのまま）に変換してから
+    // 埋め込む。PDF書き出し（buildExportDocument・buildExportBodyHtml）は従来通り書式付きの
+    // HTMLのまま変更しない（印刷・PDF保存では見出し・箇条書きの書式が引き続き役立つため）。
+    function htmlToPlainText(htmlStr) {
+      if (!htmlStr) return '（未実施）';
+      const text = htmlStr
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'")
+        .split('\n').map(line => line.trim()).join('\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+      return text || '（未実施）';
+    }
+    function plainSectionTitle(title) {
+      return `\n【${title}】\n`;
+    }
+    function plainList(lines) {
+      if (lines.length === 0) return '（登録なし）\n';
+      return lines.map(t => `・${t}`).join('\n') + '\n';
+    }
+
+    // buildExportBodyHtmlと同じ構成・同じ項目の並び順を、プレーンテキストで組み立てる。
+    // 構成を分けて重複させているのは、HTML版（見出しタグ・エスケープ・スタイル付き<li>）と
+    // プレーンテキスト版（記号による見出し・「・」による箇条書き・エスケープ不要）とで
+    // 組み立て方そのものが異なり、無理に1つの関数にまとめるとどちらも読みにくくなるため。
+    function buildExportPlainText(cp) {
+      const formatLine = i => `[${i.timestamp}]${i.fieldLabel ? ` [${i.fieldLabel}]` : ''} ${i.text}`;
+
+      let out = `看護アセスメント・記録整理シート：${cp.title}\n`;
+      out += `出力日時: ${new Date().toLocaleString('ja-JP')}\n`;
+
+      out += plainSectionTitle('1. 検査データ臨床評価・アセスメントノート');
+      out += htmlToPlainText(DOM.labEvalContent.innerHTML) + '\n';
+
+      const structuredItems = cp.items.filter(i => i.type !== 'unnecessary' && i.fieldLabel);
+      if (structuredItems.length > 0) {
+        out += plainSectionTitle('2. 現病歴・既往歴・診断名・保険等');
+        const lines = [];
+        FIELD_LABELS.forEach(f => {
+          structuredItems.filter(i => i.fieldLabel === f.key).forEach(i => lines.push(`[${f.label}] ${i.text}`));
+        });
+        out += plainList(lines);
+      }
+
+      out += plainSectionTitle('3. 主観的情報（Sデータ）');
+      out += plainList(cp.items.filter(i => i.type === 's').map(formatLine));
+
+      out += plainSectionTitle('4. 客観的情報（Oデータ）');
+      out += plainList(cp.items.filter(i => i.type === 'o').map(formatLine));
+
+      out += plainSectionTitle('5. 未分類のカード');
+      out += plainList(cp.items.filter(i => i.type === 'unclassified').map(formatLine));
+
+      out += plainSectionTitle('6. ヘンダーソン14項目別アセスメント整理');
+      HENDERSON_NEEDS.forEach(need => {
+        const matching = cp.items.filter(i => i.type !== 'unnecessary' && i.hendersonIds?.includes(need.id));
+        if (matching.length === 0) return;
+        out += `\n${need.id}. ${need.name}\n`;
+        out += plainList(matching.map(i => {
+          const col = i.assessmentCols?.[need.id] || 'unclassified';
+          const colName = col === 'preadmission' ? '入院前' : (col === 'postadmission' ? '入院後' : (col === 'missing' ? '不足情報' : '未分類'));
+          return `[${colName}] [${i.type.toUpperCase()}]${i.fieldLabel ? ` [${i.fieldLabel}]` : ''}${i.aiSuggested ? ' [AI推定]' : ''} ${i.text}`;
+        }));
+      });
+
+      if (cp.contradictionResult) { out += plainSectionTitle('7. S/O矛盾チェック結果（AI）'); out += htmlToPlainText(cp.contradictionResult) + '\n'; }
+      if (cp.diagnosisResult) { out += plainSectionTitle('8. 看護診断候補（AI提案）'); out += htmlToPlainText(cp.diagnosisResult) + '\n'; }
+      if (cp.timelineResult) { out += plainSectionTitle('9. 経時変化サマリー（AI）'); out += htmlToPlainText(cp.timelineResult) + '\n'; }
+      if (cp.carePlanResult) { out += plainSectionTitle('10. 看護計画（AI自動生成）'); out += htmlToPlainText(cp.carePlanResult) + '\n'; }
+
+      const notes = cp.referenceNotes || [];
+      if (notes.length > 0) {
+        out += plainSectionTitle('11. 参考データ');
+        notes.forEach(n => { out += `\n${n.title}\n${n.text}\n`; });
+      }
+      return out;
+    }
+
     // Word・PDFのどちらでも使う、文書全体（<html>〜</html>）を組み立てる。
     // MS Office独自の名前空間(xmlns:o/xmlns:w)を付けておくと、Wordがこれを見て
     // 「Word文書として開く」を自然に選べるようになる（.docファイルとして保存した場合）。
+    // 【注記】このHTML版は現在PDF書き出し（btn-export-pdf）専用。「Word書き出し」ボタンは
+    // 上のbuildExportPlainText（プレーンテキスト）を使うよう変更済み（利用者からの要望）。
     function buildExportDocument(cp) {
       const title = escapeHtml(`${cp.title}_看護アセスメント`);
       const bodyHtml = buildExportBodyHtml(cp);
@@ -2947,15 +3052,14 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     document.getElementById('btn-export-docs').addEventListener('click', () => {
       const cp = getCurrentPatient();
       const safeTitle = (cp.title || 'カルテ').replace(/[\\/:*?"<>|]/g, '_');
-      // Wordは拡張子.docのHTMLファイルをそのまま「Word文書」として開ける（Office独自のHTML変換機能）。
-      // 新しいOOXML形式(.docx)そのものではないが、追加のライブラリ無しで書式付き文書を確実に
-      // 生成できる、オフラインでも動く軽量な方式のため採用している。
-      const blob = new Blob(['﻿' + buildExportDocument(cp)], { type: 'application/msword;charset=utf-8' });
+      // 【変更】利用者からの要望により、Word用HTML(.doc)ではなくプレーンテキスト(.txt)を
+      // 出力するようにした（buildExportPlainTextの説明を参照）。
+      const blob = new Blob([buildExportPlainText(cp)], { type: 'text/plain;charset=utf-8' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `${safeTitle}_看護アセスメント.doc`;
+      a.download = `${safeTitle}_看護アセスメント.txt`;
       a.click();
-      showToast('Word文書（.doc）を自動ダウンロードしました。Word・Googleドキュメントでそのまま開けます', 'success');
+      showToast('テキストファイル（.txt）を自動ダウンロードしました', 'success');
     });
 
     document.getElementById('btn-export-pdf').addEventListener('click', () => {
@@ -2972,10 +3076,26 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       showToast('新しいタブに書式付き文書を開きました。印刷ダイアログの保存先で「PDFに保存」を選んでください', 'success');
     });
 
+    // 「祖母を胃がん、父を前立腺がんで亡くしている〜」のような家族歴の文は、本人の食事・栄養
+    // 状態の所見ではないにもかかわらず、id2(食事)の疾患名キーワード（「胃がん」等）に一致して
+    // しまい、食事に無関係な家族歴が「2. 食事」に混入していた（利用者からの報告事例）。
+    // 「（祖父母・父母・きょうだい・おじおば）を〜がんで亡くした/亡くしている」という家族歴の
+    // 文脈が検出された場合に限り、本人の疾患名としてのみ意味を持つキーワード（「胃がん」等、
+    // id2で本人の消化器疾患の診断名として登録されているもの）の一致を除外する。他の一般的な
+    // 食事・栄養関連キーワード（「食欲」「摂取量」等）はこのガードの対象外で、家族歴の文でも
+    // 引き続き通常どおり判定される。
+    const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
+      /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
+    const OWN_DIAGNOSIS_ONLY_KEYWORDS = new Set(["胃がん", "胃癌"]);
     function detectMultipleHendersonTags(text) {
       const tags = new Set();
+      const skipOwnDiagnosisKeywords = FAMILY_HISTORY_DISEASE_CONTEXT_REGEX.test(text);
       for (const need of HENDERSON_NEEDS) {
-        if (need.keywords.some(kw => text.includes(kw))) {
+        const matched = need.keywords.some(kw => {
+          if (skipOwnDiagnosisKeywords && OWN_DIAGNOSIS_ONLY_KEYWORDS.has(kw)) return false;
+          return text.includes(kw);
+        });
+        if (matched) {
           tags.add(need.id);
         }
       }
@@ -3297,11 +3417,15 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       // 誤って振り分けられてしまっていた（利用者からのアップロード文書で発覚：「バイタルサインは
       // に落ち着く。」というカードが、値を含む本来の「血圧140/85mmHg」カードとは無関係な、
       // 意味の読み取れない別カードとして残っていた）。
-      // 「バイタルサイン」で始まり、かつヘンダーソン14項目のどのキーワードにも一致しない断片は、
-      // 値が既に別カードに切り出された後の意味の無い残骸とみなし、BARE_DURATION_REGEX等と同様に
-      // 直前のカード（切り出された検査値・バイタルカード）へつなぎ戻すか、つなぎ戻す先が無ければ
-      // 捨てる（「バイタルサインを測定した。」のように他に検査値を伴わない単独の文はこの経路を
-      // 通らないため誤って消えることはない）。
+      // 「バイタルサインは血圧140/85mmHgに落ち着く。」のように、値部分（血圧140/85mmHg）が
+      // 既に同じ行の検査値抽出で個別のカードとして切り出された後に残る「バイタルサインは」＋
+      // 接続の言い回しの断片は、値のカードと合わせて1つの所見として読むべき残骸であり、
+      // 独立した別カードにする意味が無い（利用者からのアップロード文書で発覚）。
+      // 「バイタルサイン」で始まる断片で、かつ同じ行から既に何らかのカードが切り出されている
+      // 場合（＝値が既に別カードに切り出された後の残骸であることが確定している場合）に限り、
+      // BARE_DURATION_REGEX等と同様に直前のカード（切り出された検査値・バイタルカード）へ
+      // つなぎ戻す（「バイタルサインを測定した。」のように他に検査値を伴わない単独の文は
+      // 同じ行にカードが無いためこの経路を通らず、誤って消えることはない）。
       const BARE_VITAL_LABEL_REMNANT_REGEX = /^バイタルサイン/;
       // 助詞・接続表現から始まる断片、および日付だけの断片は新規カードにしない。
       // 同じ行で直前に抜き出したカードがあれば、そこへ文章をつなぎ戻して1枚に統合する。
@@ -3314,15 +3438,8 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         // この経路はfieldMatches判定を経由しないため、既存のisBareFieldHeaderOnlyガードが
         // 効いていなかった）。
         if (isBareFieldHeaderOnly(fragmentText)) return;
-        // 「バイタルサインを測定した。」のように、同じ行に検査値・バイタルの実測値が
-        // 元から無い（＝この行から既に切り出されたカードが無い）場合は、たとえ
-        // ヘンダーソンのキーワードに一致しなくても、つなぎ戻す先の無い独立した文として
-        // 通常どおり1枚のカードに残す（値が既に別カードに切り出された後の残骸である
-        // ことが確定している場合＝extracted.length > lineStartIndexの場合に限定する）。
-        const isMeaninglessVitalRemnant = extracted.length > lineStartIndex &&
-          BARE_VITAL_LABEL_REMNANT_REGEX.test(fragmentText) &&
-          detectMultipleHendersonTags(fragmentText).length === 0;
-        if (UNNATURAL_START_REGEX.test(fragmentText) || isDateOnlyText(fragmentText) || BARE_DURATION_REGEX.test(fragmentText) || isMeaninglessVitalRemnant) {
+        const isVitalLabelRemnantToMerge = extracted.length > lineStartIndex && BARE_VITAL_LABEL_REMNANT_REGEX.test(fragmentText);
+        if (UNNATURAL_START_REGEX.test(fragmentText) || isDateOnlyText(fragmentText) || BARE_DURATION_REGEX.test(fragmentText) || isVitalLabelRemnantToMerge) {
           if (extracted.length > lineStartIndex) {
             const prev = extracted[extracted.length - 1];
             prev.text = cleanExtractedPhrase(prev.text + fragmentText);
@@ -3861,11 +3978,41 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     // 「昼食は外食が多く、仕事が忙しく短時間で済ませるようにしている。」「【検温時状況】朝食
     // 全量摂取…」等、多数の客観的な記録文がunclassifiedになっていた）。患者本人の発言・訴えの
     // 手がかりが無い文章は、キーワードの有無を問わず常に"o"を既定値とする。
+    // 【背景】利用者からの指摘：「客観的な観察結果（Oデータ）と患者の発言（Sデータ）が
+    // 1つの文に混在しているにもかかわらず、全体に[S]タグが付与されている」。
+    // 例：「バイタルサインの測定。看護師から手術オリエンテーション(合併症とその予防方法)を
+    // 受ける。(学生同席)トライボールによる呼吸訓練を実施。腹部を押さえた起き上がりの練習を
+    // 行う。「安静にしていると良くないんですね。」「痛かったら、これ、自分でできるかな?」と
+    // 話す。」のように、複数の客観的な看護行為・観察（バイタル測定、オリエンテーション実施、
+    // 呼吸訓練実施、起き上がり練習）が続いた最後に患者の発言が添えられている文章は、
+    // これまで「引用符や「話す」等の語が文中のどこかに1つでもあれば、それより前の内容の
+    // 分量に関わらず全体をSと判定する」という単純な規則だったため、看護行為の記述が大半を
+    // 占める文章まで丸ごとSになってしまっていた。
+    // 「まとめる例」の方針（1つの場面についての続きの記述は分割せず1つのtextにまとめる）は
+    // 維持したまま、S/Oの判定だけを「患者の発言・訴えの手がかり（引用符・「話す」等）が
+    // 現れるより前に、実質的な内容を持つ文（句点区切りで4文字以上）がいくつあるか」で見る
+    // ように変更する。このアプリ自身の分類基準（DEFAULT_NOTEBOOK_CONTENTの【S/O判定】）が
+    // 定めるとおり、記録は原則Oであり患者本人の発言・訴えの部分だけが例外的にSなので、
+    // 発言の手がかりの前に看護行為・観察の文が2文以上続いていれば、文章全体は看護行為の
+    // 記録（O）が主体とみなす。0〜1文（＝「○○と話す。」のように発言そのものがほぼ全てを
+    // 占める場合）は、これまで通りSのままとする（回帰確認テスト参照）。
+    const S_QUOTE_REGEX = /["「][^"「」]+["」]/;
+    const S_KEYWORD_REGEX = /訴え|発言|話す/;
+    function countSubstantiveLeadSentences(leadText) {
+      return leadText.split('。').map(s => s.trim()).filter(s => s.length >= 4).length;
+    }
+    function predictSOTypeFromNarrative(text) {
+      const quoteMatch = text.match(S_QUOTE_REGEX);
+      const keywordMatch = text.match(S_KEYWORD_REGEX);
+      if (!quoteMatch && !keywordMatch) return 'o';
+      const firstIndex = Math.min(...[quoteMatch, keywordMatch].filter(Boolean).map(m => m.index));
+      return countSubstantiveLeadSentences(text.slice(0, firstIndex)) >= 2 ? 'o' : 's';
+    }
     function predictLocalItemType(chunk, cleanedText, userLearned) {
       return userLearned?.preferredType
         || (chunk.fieldLabel ? (FIELD_LABELS.find(f => f.key === chunk.fieldLabel)?.type || 'o') : null)
         || (chunk.isUnnecessaryBoilerplate ? 'unnecessary' : null)
-        || (/["「][^"「」]+["」]/.test(cleanedText) || /訴え|発言|話す/.test(cleanedText) ? 's' : 'o');
+        || predictSOTypeFromNarrative(cleanedText);
     }
 
     document.getElementById('btn-start-classify').addEventListener('click', async () => {
@@ -5955,6 +6102,7 @@ if (typeof module !== 'undefined' && module.exports) {
     splitIndependentActionPhrases,
     splitEnumeratedPhrases,
     predictLocalItemType,
+    predictSOTypeFromNarrative,
     extractAbnormalLabFindings,
     detectGastricPostopMissingChecks,
     HIP_FRACTURE_POSTOP_EXPECTED_CHECKS,
