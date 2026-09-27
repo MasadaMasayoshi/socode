@@ -2896,38 +2896,25 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
     }
 
     // ==========================================================================
-    // 「2. 患者背景」に集約する項目の選定（HTML書き出し・プレーンテキスト書き出し共通）
+    // 出力シートのセクション構成（HTML書き出し・プレーンテキスト書き出し共通）
     // ------------------------------------------------------------------------
-    // 【背景】利用者からの指摘：家族構成（妻、長男等）、家族歴（祖母の胃がん等）、学歴、
-    // 生活習慣（食生活・嗜好品・睡眠・運動習慣）、アレルギーの有無、ADL等、本来
-    // 「患者背景（基本情報）」としてまとまっているべき情報が、出力シートの「4. 客観的情報
-    // （Oデータ）」の中に他の日々変わる所見と混ざって埋もれてしまっていた。
-    // 【原因】見出しラベル（FIELD_LABELS）付きの項目は従来から「2. 現病歴・既往歴・診断名・
-    // 保険等」に一覧化されていたが、S/O/未分類のセクション（3・4・5）が「type（s/o/
-    // unclassified）」だけで機械的にcp.items全体を対象にしていたため、見出しラベル付きの
-    // 項目もヘンダーソン14項目のどれにも一致しなかった患者背景フォールバック項目
-    // （item.patientBackground、classifyPatientBackgroundの説明を参照）も、区別なくそのまま
-    // 3・4・5にも重複して載ってしまっていた。
-    // 【修正】見出しラベル付きの項目と患者背景フォールバック項目を「2. 患者背景」に一本化し
-    // （タイトルも実態に合わせて拡張）、3・4・5では明示的に除外することで、S/Oの生データの
-    // 一覧には日々の観察所見だけが残るようにする（ヘンダーソン14項目別の内訳(6)には、見出し
-    // ラベル付きの項目でもヘンダーソンタグが付いていれば引き続き表示され、こちらは変更しない）。
-    function isPatientBackgroundItem(i) {
-      return !!(i.fieldLabel || i.patientBackground);
-    }
-    function collectPatientBackgroundLines(cp) {
-      const structuredItems = cp.items.filter(i => i.type !== 'unnecessary' && i.fieldLabel);
-      const fallbackItems = cp.items.filter(i => i.type !== 'unnecessary' && !i.fieldLabel && i.patientBackground);
-      const lines = [];
-      FIELD_LABELS.forEach(f => {
-        structuredItems.filter(i => i.fieldLabel === f.key).forEach(i => lines.push({ label: f.label, text: i.text }));
-      });
-      ['基本情報', '医学情報'].forEach(cat => {
-        fallbackItems.filter(i => i.patientBackground === cat).forEach(i => lines.push({ label: cat, text: i.text }));
-      });
-      return lines;
-    }
-    const PATIENT_BACKGROUND_SECTION_TITLE = '2. 患者背景（基本情報・現病歴・既往歴・診断名・家族背景・生活歴・保険等）';
+    // 【経緯】以前は見出しラベル（FIELD_LABELS）付きの項目やヘンダーソン14項目のどれにも
+    // 一致しなかった患者背景フォールバック項目（item.patientBackground、
+    // classifyPatientBackgroundの説明を参照）を「2. 患者背景」という独立したセクションに
+    // まとめ、S/O/未分類（3・4・5）からは除外する形にしていた。
+    // しかし利用者からの指摘：看護記録の原則では、年齢・既往歴・診断名・家族構成・職業・
+    // 保険等のカルテ・アナムネ由来の基本情報も、患者本人の発言でない限りすべて客観的事実
+    // （Oデータ）であり、「患者背景」というS/Oのどちらでもない第三の区分を作るべきではない。
+    // 出力シートも独立したセクションに逃がすのではなく、Sデータ・Oデータの一覧の中に
+    // 「・[家族構成] 夫、長男と同居」のように見出し語（fieldLabel）付きの1行として
+    // 並べる方が、看護記録としての原則にも合い、見た目もすっきりする。
+    // 【修正】独立した患者背景セクションは廃止し、見出しラベル付きの項目・患者背景
+    // フォールバック項目も他の項目と同様にtype（s/o/unclassified）でそのままS/O/未分類の
+    // 一覧に含める（=元々の、このセクションが無かった頃の構成に戻す）。見出しラベルが
+    // あれば、formatLineHtml/formatLineが従来通り行頭に「[見出し語]」を付けて表示するため、
+    // 「・[家族構成] 夫、長男と同居」のような表示は変わらず得られる。セクション番号は
+    // 「2. 患者背景」が無くなった分、以降すべて1つずつ繰り上がる
+    // （3→2 Sデータ、4→3 Oデータ、5→4 未分類、6→5 ヘンダーソン14項目別、7〜11→6〜10）。
 
     // 患者の現在の状態から、書き出す文書のHTML本文（<body>の中身だけ）を組み立てる。
     // Word書き出し・PDF書き出しの両方でこの関数の結果をそのまま使う。
@@ -2940,22 +2927,16 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       body += exportSectionTitle('1. 検査データ臨床評価・アセスメントノート');
       body += exportHtmlOrPlaceholder(DOM.labEvalContent.innerHTML);
 
-      const backgroundLines = collectPatientBackgroundLines(cp);
-      if (backgroundLines.length > 0) {
-        body += exportSectionTitle(PATIENT_BACKGROUND_SECTION_TITLE);
-        body += exportList(backgroundLines.map(l => `[${escapeHtml(l.label)}] ${escapeHtml(l.text)}`));
-      }
+      body += exportSectionTitle('2. 主観的情報（Sデータ）');
+      body += exportList(cp.items.filter(i => i.type === 's').map(formatLineHtml));
 
-      body += exportSectionTitle('3. 主観的情報（Sデータ）');
-      body += exportList(cp.items.filter(i => i.type === 's' && !isPatientBackgroundItem(i)).map(formatLineHtml));
+      body += exportSectionTitle('3. 客観的情報（Oデータ）');
+      body += exportList(cp.items.filter(i => i.type === 'o').map(formatLineHtml));
 
-      body += exportSectionTitle('4. 客観的情報（Oデータ）');
-      body += exportList(cp.items.filter(i => i.type === 'o' && !isPatientBackgroundItem(i)).map(formatLineHtml));
+      body += exportSectionTitle('4. 未分類のカード');
+      body += exportList(cp.items.filter(i => i.type === 'unclassified').map(formatLineHtml));
 
-      body += exportSectionTitle('5. 未分類のカード');
-      body += exportList(cp.items.filter(i => i.type === 'unclassified' && !isPatientBackgroundItem(i)).map(formatLineHtml));
-
-      body += exportSectionTitle('6. ヘンダーソン14項目別アセスメント整理');
+      body += exportSectionTitle('5. ヘンダーソン14項目別アセスメント整理');
       HENDERSON_NEEDS.forEach(need => {
         const matching = cp.items.filter(i => i.type !== 'unnecessary' && i.hendersonIds?.includes(need.id));
         if (matching.length === 0) return;
@@ -2968,14 +2949,14 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       });
 
       // AI分析ツールの結果（実施済みのものだけ載せる）
-      if (cp.contradictionResult) { body += exportSectionTitle('7. S/O矛盾チェック結果（AI）'); body += exportHtmlOrPlaceholder(cp.contradictionResult); }
-      if (cp.diagnosisResult) { body += exportSectionTitle('8. 看護診断候補（AI提案）'); body += exportHtmlOrPlaceholder(cp.diagnosisResult); }
-      if (cp.timelineResult) { body += exportSectionTitle('9. 経時変化サマリー（AI）'); body += exportHtmlOrPlaceholder(cp.timelineResult); }
-      if (cp.carePlanResult) { body += exportSectionTitle('10. 看護計画（AI自動生成）'); body += exportHtmlOrPlaceholder(cp.carePlanResult); }
+      if (cp.contradictionResult) { body += exportSectionTitle('6. S/O矛盾チェック結果（AI）'); body += exportHtmlOrPlaceholder(cp.contradictionResult); }
+      if (cp.diagnosisResult) { body += exportSectionTitle('7. 看護診断候補（AI提案）'); body += exportHtmlOrPlaceholder(cp.diagnosisResult); }
+      if (cp.timelineResult) { body += exportSectionTitle('8. 経時変化サマリー（AI）'); body += exportHtmlOrPlaceholder(cp.timelineResult); }
+      if (cp.carePlanResult) { body += exportSectionTitle('9. 看護計画（AI自動生成）'); body += exportHtmlOrPlaceholder(cp.carePlanResult); }
 
       const notes = cp.referenceNotes || [];
       if (notes.length > 0) {
-        body += exportSectionTitle('11. 参考データ');
+        body += exportSectionTitle('10. 参考データ');
         notes.forEach(n => {
           body += `<h3 style="font-size:12px;font-weight:700;margin:10px 0 4px;">${escapeHtml(n.title)}</h3>`;
           body += `<p style="white-space:pre-wrap;">${escapeHtml(n.text)}</p>`;
@@ -3033,22 +3014,16 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
       out += plainSectionTitle('1. 検査データ臨床評価・アセスメントノート');
       out += htmlToPlainText(DOM.labEvalContent.innerHTML) + '\n';
 
-      const backgroundLines = collectPatientBackgroundLines(cp);
-      if (backgroundLines.length > 0) {
-        out += plainSectionTitle(PATIENT_BACKGROUND_SECTION_TITLE);
-        out += plainList(backgroundLines.map(l => `[${l.label}] ${l.text}`));
-      }
+      out += plainSectionTitle('2. 主観的情報（Sデータ）');
+      out += plainList(cp.items.filter(i => i.type === 's').map(formatLine));
 
-      out += plainSectionTitle('3. 主観的情報（Sデータ）');
-      out += plainList(cp.items.filter(i => i.type === 's' && !isPatientBackgroundItem(i)).map(formatLine));
+      out += plainSectionTitle('3. 客観的情報（Oデータ）');
+      out += plainList(cp.items.filter(i => i.type === 'o').map(formatLine));
 
-      out += plainSectionTitle('4. 客観的情報（Oデータ）');
-      out += plainList(cp.items.filter(i => i.type === 'o' && !isPatientBackgroundItem(i)).map(formatLine));
+      out += plainSectionTitle('4. 未分類のカード');
+      out += plainList(cp.items.filter(i => i.type === 'unclassified').map(formatLine));
 
-      out += plainSectionTitle('5. 未分類のカード');
-      out += plainList(cp.items.filter(i => i.type === 'unclassified' && !isPatientBackgroundItem(i)).map(formatLine));
-
-      out += plainSectionTitle('6. ヘンダーソン14項目別アセスメント整理');
+      out += plainSectionTitle('5. ヘンダーソン14項目別アセスメント整理');
       HENDERSON_NEEDS.forEach(need => {
         const matching = cp.items.filter(i => i.type !== 'unnecessary' && i.hendersonIds?.includes(need.id));
         if (matching.length === 0) return;
@@ -3060,14 +3035,14 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         }));
       });
 
-      if (cp.contradictionResult) { out += plainSectionTitle('7. S/O矛盾チェック結果（AI）'); out += htmlToPlainText(cp.contradictionResult) + '\n'; }
-      if (cp.diagnosisResult) { out += plainSectionTitle('8. 看護診断候補（AI提案）'); out += htmlToPlainText(cp.diagnosisResult) + '\n'; }
-      if (cp.timelineResult) { out += plainSectionTitle('9. 経時変化サマリー（AI）'); out += htmlToPlainText(cp.timelineResult) + '\n'; }
-      if (cp.carePlanResult) { out += plainSectionTitle('10. 看護計画（AI自動生成）'); out += htmlToPlainText(cp.carePlanResult) + '\n'; }
+      if (cp.contradictionResult) { out += plainSectionTitle('6. S/O矛盾チェック結果（AI）'); out += htmlToPlainText(cp.contradictionResult) + '\n'; }
+      if (cp.diagnosisResult) { out += plainSectionTitle('7. 看護診断候補（AI提案）'); out += htmlToPlainText(cp.diagnosisResult) + '\n'; }
+      if (cp.timelineResult) { out += plainSectionTitle('8. 経時変化サマリー（AI）'); out += htmlToPlainText(cp.timelineResult) + '\n'; }
+      if (cp.carePlanResult) { out += plainSectionTitle('9. 看護計画（AI自動生成）'); out += htmlToPlainText(cp.carePlanResult) + '\n'; }
 
       const notes = cp.referenceNotes || [];
       if (notes.length > 0) {
-        out += plainSectionTitle('11. 参考データ');
+        out += plainSectionTitle('10. 参考データ');
         notes.forEach(n => { out += `\n${n.title}\n${n.text}\n`; });
       }
       return out;
@@ -4074,7 +4049,7 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
         showToast('NotebookLM基準ノートに基づいて高精度分類中...', 'info');
         try {
           const prompt = `あなたは看護アセスメント支援AIです。以下の公式「NotebookLM基準ノート」を根拠として、カルテ・記録から重要な所見、患者発言、検査値を抽出してJSON形式（配列）で返してください。
-各要素には "text", "timestamp", "type" ("s", "o", "unnecessary"), "hendersonIds" (1〜14の適切な複数タグ配列。関連する項目がない場合は空配列), "fieldLabel" (該当する場合のみ ${FIELD_LABEL_KEYS} のいずれか1つ、該当しなければ null) を含めてください。
+各要素には "text", "timestamp", "type" ("s" または "o" のいずれか。"unnecessary"は記録用紙自体の書式等、患者のアセスメントに使えない場合のみ), "hendersonIds" (1〜14の適切な複数タグ配列。関連する項目がない場合は空配列), "fieldLabel" (該当する場合のみ ${FIELD_LABEL_KEYS} のいずれか1つ、またはそれらに当てはまらなければあなた自身が内容から考えた2〜6文字程度の短い見出し語、いずれにも該当しなければ null) を含めてください。
 ※「〜と話すが、〜」などの接続表現や患者発言は分断せず、前後の文脈がつながった1つの自然な文章として抽出してください。
 ※血液検査データは正しい単位と基準値レンジを記載してください。
 ※「現病歴：」「既往歴：」「家族関係：」「生活歴：」「診断名：」「保険：」「治療方針：」「治療内容：」「学歴：」「アレルギー：」のように見出し付きで記載されている情報は、見出し部分を除いた本文のみを text とし、見出し名を fieldLabel に入れて1項目として切り出してください（日時の切り出しと同じ要領です）。治療方針・治療内容は前後に続く説明文も含めて、途中で切らずに1つのまとまった文章として抽出してください。「家族構成：」は「家族関係」の、「診断：」は「診断名」の言い換えとしてよく使われるため、見出し語自体は違っても fieldLabel はそれぞれ本来の表記（「家族関係」「診断名」）で統一してください。
@@ -4085,7 +4060,9 @@ SOAP：S(主観的情報：患者の発言)／O(客観的情報：バイタル�
 ※「職業：」は仕事・役割に関する情報のため、hendersonIdsに12(仕事)を含めてください。「デスクワーク」等、姿勢・活動量に影響する記載があれば4(姿勢)もあわせて含めてください。typeは患者本人の発言ではなく記録上の客観情報のため"o"としてください。
 ※身長・体重・BMI等の身体計測値、知的能力・理解度の評価（「理解良好」等）は、患者本人の発言ではなく医療従事者による客観的な測定・評価のため、typeを"o"としてください。身長・体重・BMIが続けて記載されている場合は1つのtextにまとめても構いません。
 ※「診断名：」「既往歴：」は、その病名が影響する身体機能に対応するヘンダーソンの項目をhendersonIdsに含めてください（例：糖尿病→2食事・14学び、高血圧や心疾患・呼吸器疾患→1呼吸、腎疾患→3排泄、認知症や精神疾患→10コミュニケーション、骨折や麻痺等の運動器・脳血管疾患→4姿勢、感染症→9環境、胆石症等の胆道・膵疾患→2食事）。当てはまらない場合は病名の内容から最も関連する項目を判断してください。
-※「基礎情報」「実習・患者基本情報」「実習科目名」「実習期間」「学籍番号」「学生氏名」「指導者氏名」「提出日」「記載日」「(バイタルサイン)」など、記録用紙（事例プリント）自体の書式・提出情報や、値を伴わない単なる見出し語は、実際に書かれている値が何であっても患者のアセスメントに使える所見ではないため、type を必ず "unnecessary" としてください。「年齢・社会的・文化的状況」「知的能力・身体的ならびに身体的能力」「受け持つまでの経過と状態」「身体的状態:」のように、複数の項目名を「・」でつないだだけの中位の章タイトルや、見出し語の後にコロンだけがあって同じ行に値が無い行も同様です（実際の値は次の行以降の「職業：」「身長：」等の個別の見出しに書かれています）。この種の見出し行は、「年齢」「社会的」「文化的状況」のように「・」で区切って複数のtextに分割して出力しないでください（見出し全体をまとめて1件のunnecessaryとして出力するか、出力しないでください）。ただし、この章タイトルが実際に後続の複数行の情報をまとめて説明している場合（例：「血液検査」の後に各検査値が続く、「身体的状態:」の後に身長・体重等が続く）は、その章タイトルの内容を捨てるのではなく、後続の各項目のtextの先頭に「章タイトル: 」の形で付け加えてください（例：「血液検査: 白血球 5.8×10^3/μL」）。章タイトル行自体は引き続きtype: "unnecessary"の1件として出力し、後続の各項目とは別に扱ってください。
+※「基礎情報」「実習・患者基本情報」「実習科目名」「実習期間」「学籍番号」「学生氏名」「指導者氏名」「提出日」「記載日」「(バイタルサイン)」など、記録用紙（事例プリント）自体の書式・提出情報や、値を伴わない単なる見出し語は、実際に書かれている値が何であっても患者のアセスメントに使える所見ではないため、type を必ず "unnecessary" としてください。「年齢・社会的・文化的状況」「知的能力・身体的ならびに身体的能力」「受け持つまでの経過と状態」「身体的状態:」のように、複数の項目名を「・」でつないだだけの中位の章タイトルや、見出し語の後にコロンだけがあって同じ行に値が無い行も同様です（実際の値は次の行以降の「職業：」「身長：」等の個別の見出しに書かれています）。この種の見出し行は、「年齢」「社会的」「文化的状況」のように「・」で区切って複数のtextに分割して出力しないでください（見出し全体をまとめて1件のunnecessaryとして出力するか、出力しないでください）。
+※この種の中位の章タイトルが実際に後続の複数行の情報をまとめて説明している場合（例：「血液検査」の後に各検査値が続く、「年齢・社会的・文化的状況」の後に年齢・職業・家族構成等が続く）、章タイトルの文字列をそのまま後続の各項目のtextの先頭に付け加えるのはやめてください（「年齢・社会的・文化的状況: 」のような長く漠然とした前置きが並ぶと読みにくくなります）。代わりに、後続の各項目1件1件の内容を読み取り、その1件に最もふさわしい短い言葉（2〜6文字程度。例：「家族構成」「職業」「既往歴」「術前状態」「知的能力」）をあなた自身で考えて fieldLabel に入れてください。「現病歴」「既往歴」「家族関係」「生活歴」「診断名」「保険」「治療方針」「治療内容」「学歴」「アレルギー」に該当する内容であればそれらの表記をそのまま使い、どれにも当てはまらない場合のみ新しい短い言葉を作ってください（文章そのものや句読点を含む長い表現は fieldLabel にしないでください）。すでに個別の見出し（「職業：」等）を持つ項目には、章タイトルに基づく別の fieldLabel を重ねて付けないでください。章タイトル行自体は引き続きtype: "unnecessary"の1件として出力し、後続の各項目とは別に扱ってください。
+※「患者背景」「基本情報」のような独立した type や分類は存在しません。抽出したすべての項目は、必ず type を "s"（患者本人の発言・訴え）か "o"（それ以外＝カルテ・記録上の客観情報）のどちらかにしてください。年齢・既往歴・診断名・家族構成・職業・保険のような、カルテやアナムネから得られる基本情報は、患者自身の発言ではなくカルテ情報としての客観的事実のため、原則すべて "o" としてください（例外：「俺は管理職だから」のように患者本人がその内容を自分の言葉で語っている場合のみ "s"）。
 ※「術前」「術中」「術後」「入院前」「入院時」は、周術期の記録でよく使われる時系列の区切りです。日付・時刻と同様にtimestampとして扱い、text本体には含めないでください。「術中・術後」のように複数の区切りがまとめて書かれている場合はそのままtimestampとしてください。また「【術前】」のように、区切りだけが独立した見出し行になっており、その下に箇条書き（・○●等の記号で始まる複数行）で所見が続く形式の場合、その箇条書きの各項目すべてに同じtimestampを適用してください（見出し行自体はtextとして抽出しないでください）。
 ※箇条書きの記号（・○●◯◎■◆等）が行頭に付いている場合、それは所見の内容ではないため、textには含めないでください。
 ※検査結果が表形式（項目名の行の次に基準値の行、さらに次に実測値の行、というように複数行やセル単位に分かれている場合を含む）で記載されている場合は、単なる前後の文章としてではなく表の構造として読み取り、同じ行・同じ列で対応する項目名・基準値・実測値を正しく結びつけて1つのtextにまとめてください（例：「RBC」「4.35〜5.55 ×10^6/μL」「4.1 ×10^6/μL ↓」の3行に分かれていても、まとめて「RBC 4.35〜5.55 ×10^6/μL 4.1 ×10^6/μL ↓」のように1項目として抽出する）。項目名が無いまま数値だけのtextを出力しないでください。
@@ -4124,7 +4101,18 @@ ${text}
               // そのものをtextとして返してしまう場合がある。実質的な情報が無いため除外する
               // （isBareFieldHeaderOnlyの説明を参照）。
               if (isBareFieldHeaderOnly(cleanedText)) return;
-              const validFieldLabel = FIELD_LABELS.some(f => f.key === pi.fieldLabel) ? pi.fieldLabel : null;
+              // pi.fieldLabelが既定のFIELD_LABELS一覧のいずれかと一致すればそれを正規のkeyとして
+              // 使う。一致しない場合でも、プロンプトの指示によりAIが内容から自分で組み立てた
+              // 短いラベル（例：「術前状態」「知的能力」）はそのまま採用する（利用者からの指摘：
+              // 元のテキストの中位の章タイトル（「年齢・社会的・文化的状況」等）をそのまま本文に
+              // 埋め込むのではなく、AI自身がその1件に適した短い見出しを作り直してfieldLabelとして
+              // 付与するようにしてほしい）。ただし、見出しとして不自然な長い文章がそのまま
+              // fieldLabelに紛れ込まないよう、文字数と句読点の有無で簡易にガードする。
+              const canonicalFieldLabel = FIELD_LABELS.find(f => f.key === pi.fieldLabel)?.key || null;
+              const aiFreeformFieldLabel = (!canonicalFieldLabel && typeof pi.fieldLabel === 'string' && pi.fieldLabel.trim() && pi.fieldLabel.trim().length <= 12 && !/[。、,.]/.test(pi.fieldLabel))
+                ? pi.fieldLabel.trim()
+                : null;
+              const validFieldLabel = canonicalFieldLabel || aiFreeformFieldLabel;
               // 日付・時刻だけの断片はプロンプトで除外を指示しているが、AIが誤って出力した場合に備え、
               // ローカル抽出（groupClinicalPhrasesWithTimestamps）と同じ条件で二重にフィルタする。
               // タグ・バッジ（fieldLabel）の有無に関わらず内容の文字列自体で判定する
@@ -6159,8 +6147,6 @@ if (typeof module !== 'undefined' && module.exports) {
     detectPneumoniaMissingChecks,
     normalizeFieldLabelHeadingWord,
     FIELD_LABEL_HEADING_ALIASES,
-    isPatientBackgroundItem,
-    collectPatientBackgroundLines,
     buildExportPlainText,
     buildExportBodyHtml
   };
