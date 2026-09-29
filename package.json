@@ -6,12 +6,17 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "golden": "node scripts/golden.js",
+    "golden:update": "node scripts/golden.js --update",
+    "build:css": "npx tailwindcss@3.4.17 -c tailwind.config.js -i tailwind.input.css -o vendor/tailwind.css --minify",
+    "stamp": "node scripts/stamp-version.js"
   },
   "engines": {
     "node": "20.x"
   },
   "dependencies": {
+    "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "mongodb": "^6.9.0"
   }

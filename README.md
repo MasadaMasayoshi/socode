@@ -5,25 +5,65 @@
 
 ```
 webapp/
-├── index.html              フロントエンド（画面構造のみ）
+├── index.html              画面の骨組み（js/01〜10 をこの順番で読み込む）
 ├── style.css                デザイン（色・フォント・レイアウト）
-├── app.js                   フロントエンドのロジック
+├── js/                      画面の動作（以前の app.js を内容ごとに10ファイルに分けたもの。順番を入れ替えないこと）
+│   ├── 01-henderson-keywords.js      ヘンダーソン14項目とタグ付けのキーワード一覧（看護の視点で確認・修正するのはここ）
+│   ├── 02-reference-data.js          例文・基準ノートの初期値・検査値の基準値表
+│   ├── 03-extraction-helpers.js      検査値カードの抽出・入院前／入院後の判定などの補助処理
+│   ├── 04-server-sync.js             サーバーとのやりとり（共有学習・カルテの共有保存など）
+│   ├── 05-app-state-and-ui.js        アプリ全体の状態・画面部品・学習データ管理画面・AI呼び出し
+│   ├── 06-export.js                  書き出し（テキスト・Word・PDF・選択したカード・総合アセスメント表）
+│   ├── 07-classification.js          分類（タグの判定・追加キーワード・文章からカードへの切り分け・「分類開始」）
+│   ├── 08-assessment-tools.js        BMI等の自動算出・検査値の評価・不足情報の推定・一覧表示
+│   ├── 09-board.js                   分類ボード（元の文章の該当箇所・カードの選択・一括操作・統合）
+│   └── 10-reference-page-and-startup.js  参考データのページと起動時の処理・版の確認
+├── vendor/                  ネットに頼らず画面を表示するための同梱物
+│   ├── tailwind.css                  画面の部品（Tailwind CSS。`npm run build:css` で作り直す）
+│   └── fontawesome/                  アイコン（Font Awesome 6.4.0）
 ├── server.js                共有学習用バックエンド（Node.js / Express）
-├── package.json
+├── scripts/
+│   ├── golden.js                     分類結果の自動チェック（`npm run golden`）
+│   ├── stamp-version.js              版の書き込み（`npm run stamp`）
+│   └── move-to-dev-folder.ps1        OneDrive の外（C:\dev\socode）へコピーするスクリプト
 ├── tests/                    自動テスト（`npm test`で実行。詳しくは「自動テスト」の章を参照）
-└── data/
-    ├── learning-dict.json         共有学習の現在の結果（学習専用ファイル。サーバー起動時に無ければ作成）
-    ├── case-log.json              いつ・何が・どう変わったかの生ログ（サーバー起動時に無ければ作成）
-    ├── patients.json              患者カルテ本体（複数端末で共有。サーバー起動時に無ければ作成）
-    ├── extraction-criteria.json   AI抽出・分類基準への追加の要望（複数端末で共有。サーバー起動時に無ければ作成）
-    ├── extraction-log.json        「分類開始」を押すたびの抽出前の文章の履歴（複数端末で共有。サーバー起動時に無ければ作成）
-    ├── card-reports.json          情報カードの不具合報告（複数端末で共有。サーバー起動時に無ければ作成）
-    ├── case-log-archive.json      90日より古い事例ログの退避先（サーバー起動時に無ければ作成）
-    ├── extraction-log-archive.json 90日より古い抽出前の文章履歴の退避先（サーバー起動時に無ければ作成）
-    └── card-reports-archive.json  90日より古い情報カードの報告の退避先（サーバー起動時に無ければ作成）
+│   └── golden/                       分類結果の自動チェック用（cases＝事例の文章、expected＝正しい分類結果）
+└── data/                     サーバーの保存先（MongoDBを使わない場合。URLからは開けない）
+    ├── learning-dict.json         共有学習の現在の結果
+    ├── case-log.json              いつ・何が・どう変わったかの生ログ
+    ├── patients.json              患者カルテ本体（複数端末で共有）
+    ├── extraction-criteria.json   AI抽出・分類基準への追加の要望
+    ├── custom-tag-rules.json      追加キーワード（学習データ管理の「追加キーワード」タブ）
+    ├── card-reports.json          情報カードの不具合報告
+    └── *-archive.json             90日より古いログの退避先
 ```
 
-これまで1つのHTMLファイルに全部入りだった状態から、**index.html（骨組み）／style.css（見た目）／app.js（動作）／server.js（サーバー）** に分割しました。
+## 置き場所は1か所に（OneDrive の外がおすすめ）
+
+同じプログラムを2つのフォルダに置いていると、どちらが最新か分からなくなります。また OneDrive の同期で、直したファイルが古い版に戻ることがありました（2026年9月、socode の app.js で発生）。
+
+1. socode フォルダで PowerShell を開き、`powershell -ExecutionPolicy Bypass -File scripts\move-to-dev-folder.ps1` を実行すると、`C:\dev\socode` にまるごとコピーされます（.env・.git・data も含む）。
+2. `C:\dev\socode` で `npm.cmd start` を実行し、動くことを確かめます。
+3. GitHub Desktop を使っている場合は、「File → Add local repository」で `C:\dev\socode` を追加します。
+4. 問題なければ、以後は `C:\dev\socode` だけを使います（OneDrive 側の socode・新しいフォルダーは、確認のうえ自分で片付けてください）。
+
+**版の確認**：画面のいちばん下に「版」が出ます。js の10ファイルのどれかが古い版に戻っていると、画面の上に赤い警告が出ます（`scripts/stamp-version.js`）。
+
+## 分類結果の自動チェック（ゴールデンテスト）
+
+これまでの患者さんの文章（`tests/golden/cases/`）を今のプログラムで分類し、保存してある正しい分類結果（`tests/golden/expected/`）と比べます。分類のルールを直したときに、直すつもりの無かったカードまで変わっていないかを確かめるためのものです。
+
+```bash
+npm run golden          # 変わったカードだけを日本語で表示（npm test にも含まれる）
+npm run golden:update   # 変わった内容が意図どおりなら、今の結果を新しい正しい分類結果として保存
+```
+
+事例を増やすときは、元の文章を `tests/golden/cases/名前.txt` に置いて `npm run golden:update` を実行します。事例の文章は個人が特定できない形（A氏など）にしてください。GitHub を公開設定にしている場合は、事例の文章も公開される点に注意してください。
+
+## 追加キーワード・ルール見直し候補（学習データ管理）
+
+- **追加キーワード**タブ：プログラムを直さずに、「このキーワードを含むときはこのタグを付ける／付けない」を登録できます（全員で共有。次に「分類開始」したときから反映）。
+- **ルール見直し候補**タブ：全患者のカードの手直し（外したタグ・付けたタグ・S/Oの変更）を集計し、よく直されるキーワードを一覧にします。「このキーワードでは付けない」でそのまま追加キーワードに登録でき、「テキストで書き出し」で一覧をファイルにできます。
 
 ## 「共有学習」の設計（事例研究向け）
 

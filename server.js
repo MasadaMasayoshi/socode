@@ -82,6 +82,21 @@
 // だけなので、既存のAPI・分類・マージ等のロジックは一切変更していない。
 // ============================================================================
 
+// ---- ローカル環境とオンライン（Render）環境の設定情報を統合するための.envサポート ----
+// 【背景】利用者からの要望：「ローカルとオンラインでの設定情報を統合して同期して。今後
+// 別々に管理しなくていいようにして」。ローカルで`node server.js`を実行する場合と、Renderに
+// デプロイされたオンライン版とで、これまでMONGODB_URIが設定されているかどうかが異なり
+// （ローカル開発では通常未設定→data/以下のJSONファイル保存、Renderでは設定済み→MongoDB
+// Atlas保存）、保存先のデータベース自体が別々になっていた。学習データ・患者カルテ等は
+// 元々サーバー側での複数端末同期・マージの仕組みを備えている（mergePatientRecord等）ため、
+// ローカルもRenderと「同じ」MongoDB Atlasデータベースを見るようにMONGODB_URIを揃えるだけで、
+// 以降はコード変更なしにローカル・オンラインどちらで開いても同じデータを共有できる。
+// dotenvはローカル実行時に`.env`ファイル（Gitには含めない秘密情報）からMONGODB_URI等を
+// 読み込むためだけに使う。Render等の本番環境では環境変数がホスティング側の管理画面から
+// 直接注入されるため.envファイル自体が存在せず、dotenv.config()は何もせず静かに終わる
+// （.envが無くてもエラーにはならない）。
+try { require('dotenv').config(); } catch (e) { /* dotenv未インストールでも既存の動作（環境変数を直接使う）に影響しない */ }
+
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -103,6 +118,7 @@ const LOG_FILE = path.join(DATA_DIR, 'case-log.json');
 const PATIENTS_FILE = path.join(DATA_DIR, 'patients.json');
 const CRITERIA_FILE = path.join(DATA_DIR, 'extraction-criteria.json');
 const NOTEBOOK_CONTENT_FILE = path.join(DATA_DIR, 'notebook-content.json');
+const CUSTOM_TAG_RULES_FILE = path.join(DATA_DIR, 'custom-tag-rules.json');
 const REFERENCE_SOURCES_FILE = path.join(DATA_DIR, 'reference-sources.json');
 const PATIENT_SNAPSHOT_FILE = path.join(DATA_DIR, 'patient-snapshots.json');
 const CARD_REPORTS_FILE = path.join(DATA_DIR, 'card-reports.json');
@@ -209,6 +225,9 @@ let caseLog = loadJson(LOG_FILE, []);
 let patientsDict = loadJson(PATIENTS_FILE, {}); // { [patientId]: 患者データ（items・sourceText等を含む） }
 let extractionCriteria = loadJson(CRITERIA_FILE, []); // [{ id, text, addedAt }] AI抽出・分類に使う追加の要望（全利用者共有）
 let notebookContentData = loadJson(NOTEBOOK_CONTENT_FILE, { text: null, updatedAt: null }); // { text, updatedAt } NotebookLM基準ノート本体（全利用者共有）。textがnullの間はクライアント側の初期値(DEFAULT_NOTEBOOK_CONTENT)を使う
+// { rules: [{ id, keyword, mode: 'add'|'exclude', hendersonIds, note, updatedAt }], updatedAt }
+// 学習データ管理の「追加キーワード」タブで登録するタグ付けのルール（全利用者共有。app.jsのcustomTagRuleSets参照）
+let customTagRules = loadJson(CUSTOM_TAG_RULES_FILE, { rules: [], updatedAt: null });
 let referenceSources = loadJson(REFERENCE_SOURCES_FILE, DEFAULT_REFERENCE_SOURCES); // [{ id, title, url, content, addedAt, updatedAt }] 参照元リンク（NotebookLM等。全利用者共有）。ファイルが無い初回起動時のみDEFAULT_REFERENCE_SOURCESを使う
 // [{ id, clientId, patientId, patientTitle, items, sourceText, closedAt }] タブを閉じた時点の患者カルテのスナップショット履歴。
 // patients.json側は他端末とカード単位でマージされ続ける「最新の共有カルテ」だが、ここはその時点の
@@ -230,6 +249,7 @@ const PERSISTED_FILES = [
   { mongoId: 'patients', file: PATIENTS_FILE, get: () => patientsDict, set: v => { patientsDict = v; } },
   { mongoId: 'extraction-criteria', file: CRITERIA_FILE, get: () => extractionCriteria, set: v => { extractionCriteria = v; } },
   { mongoId: 'notebook-content', file: NOTEBOOK_CONTENT_FILE, get: () => notebookContentData, set: v => { notebookContentData = v; } },
+  { mongoId: 'custom-tag-rules', file: CUSTOM_TAG_RULES_FILE, get: () => customTagRules, set: v => { customTagRules = v; } },
   { mongoId: 'reference-sources', file: REFERENCE_SOURCES_FILE, get: () => referenceSources, set: v => { referenceSources = v; } },
   { mongoId: 'patient-snapshots', file: PATIENT_SNAPSHOT_FILE, get: () => patientSnapshots, set: v => { patientSnapshots = v; } },
   { mongoId: 'patient-snapshots-archive', file: PATIENT_SNAPSHOT_ARCHIVE_FILE, get: () => patientSnapshotsArchive, set: v => { patientSnapshotsArchive = v; } },
@@ -337,6 +357,16 @@ function pickTopVote(votes) {
 // ---- ミドルウェア ----
 // 患者カルテ本体（カード多数・長い抽出元テキストを含む）を扱うため、上限を少し広めに取る
 app.use(express.json({ limit: '5mb' }));
+// 画面のファイル以外（患者の記録を含むdata/・分類の自動チェック用の事例の文章tests/・サーバーの
+// プログラムや設定など）は、URLを知っていても開けないようにする（公開した場合に備える）。
+// .envなど「.」で始まるファイルは、express.staticの既定で公開されない。
+const PRIVATE_PATH_REGEX = /^\/(?:data|tests|scripts|node_modules|Claude outputs)(?:\/|$)|^\/(?:server\.js|package(?:-lock)?\.json|README\.md|tailwind\.[\w.]+|app-\d+\.js)$/i;
+app.use((req, res, next) => {
+  let p = req.path;
+  try { p = decodeURIComponent(p); } catch (e) { return res.status(400).end(); }
+  if (PRIVATE_PATH_REGEX.test(p)) return res.status(404).end();
+  next();
+});
 app.use(express.static(__dirname, { extensions: ['html'] }));
 
 // ---- 簡易レート制限（スパム・大量送信への防御） ----
@@ -836,6 +866,31 @@ app.put('/api/notebook-content', rateLimit('notebook-content', { windowMs: 60000
   notebookContentData = { text: capString(text.trim(), 50000), updatedAt: new Date().toISOString() };
   await persist();
   res.json(notebookContentData);
+});
+
+// 追加キーワード（タグ付けのルール）。一覧をまるごと置き換える方式（件数が少なく、画面側で
+// 追加・削除した後の一覧を送る）。中身は画面側と同じ基準で検査し、おかしな値は捨てる。
+const CUSTOM_TAG_RULES_MAX = 500;
+function sanitizeCustomTagRules(rules) {
+  if (!Array.isArray(rules)) return null;
+  return rules.slice(0, CUSTOM_TAG_RULES_MAX).map(r => ({
+    id: typeof r?.id === 'string' && /^[\w-]{1,40}$/.test(r.id) ? r.id : 'rule_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    keyword: typeof r?.keyword === 'string' ? r.keyword.normalize('NFKC').trim().slice(0, 40) : '',
+    mode: r?.mode === 'exclude' ? 'exclude' : 'add',
+    hendersonIds: Array.from(new Set((Array.isArray(r?.hendersonIds) ? r.hendersonIds : []).map(Number).filter(h => Number.isInteger(h) && h >= 1 && h <= 14))).sort((a, b) => a - b),
+    note: typeof r?.note === 'string' ? r.note.trim().slice(0, 200) : '',
+    updatedAt: typeof r?.updatedAt === 'string' ? r.updatedAt.slice(0, 40) : new Date().toISOString()
+  })).filter(r => r.keyword && r.hendersonIds.length > 0);
+}
+app.get('/api/custom-tag-rules', (req, res) => {
+  res.json(customTagRules);
+});
+app.put('/api/custom-tag-rules', rateLimit('custom-tag-rules', { windowMs: 60000, max: 30 }), async (req, res) => {
+  const rules = sanitizeCustomTagRules(req.body?.rules);
+  if (!rules) return res.status(400).json({ error: 'rules must be an array' });
+  customTagRules = { rules, updatedAt: new Date().toISOString() };
+  await persist();
+  res.json(customTagRules);
 });
 
 // 参照元リンク（NotebookLM等）。NotebookLMには個人利用者が取得できる公開APIが無いため、
