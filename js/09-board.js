@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-09-28.25'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-09-29.5'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カード → 元の文章（カルテ・看護記録入力欄）の該当箇所を探す
     // ------------------------------------------------------------------------
@@ -241,10 +241,12 @@
         const need = HENDERSON_NEEDS.find(n => n.id === hId);
         return need ? `<span class="tag-chip">${need.name} <button onclick="removeHendersonTag('${item.id}', ${need.id})" class="text-[var(--accent)]/60 hover:text-[var(--brick)] transition"><i class="fa-solid fa-times"></i></button></span>` : '';
       }).join('');
-      const untaggedWarningHtml = isUntagged ? `<span class="field-chip" style="background:var(--brick);color:#fff;cursor:help;" title="${escapeHtml(untaggedReasonOf(item))}"><i class="fa-solid fa-triangle-exclamation mr-0.5"></i>タグ未設定 <i class="fa-regular fa-circle-question ml-0.5"></i></span>` : '';
+      const untaggedWarningHtml = isUntagged ? `<span class="field-chip" style="background:var(--brick);color:var(--on-fill);cursor:help;" title="${escapeHtml(untaggedReasonOf(item))}"><i class="fa-solid fa-triangle-exclamation mr-0.5"></i>タグ未設定 <i class="fa-regular fa-circle-question ml-0.5"></i></span>` : '';
       // 「患者背景」という区分は廃止したため（renderSoBoardの説明を参照）、カード上にも表示しない。
       // ただし14項目に直接の項目が無い情報（生殖など）は「基本情報（14項目外）」として示す（isOtherBasicInfoItem参照）
-      const patientBackgroundHtml = isOtherBasicInfoItem(item) ? `<span class="field-chip" style="background:var(--slate-soft);color:var(--slate);cursor:help;" title="ヘンダーソンの14項目に直接の項目が無い基本情報です（タグ未設定の警告にはしません）。どの項目に入れるか決めたい場合は、学習データ管理の「追加キーワード」で登録するか、下の「＋タグ追加」で選べます。"><i class="fa-solid fa-id-card mr-0.5"></i>基本情報（14項目外）</span>` : '';
+      // 家族の発言（「妻「…」」など）は印を付けて本人の発言と見分けられるようにする（isFamilySpeech）
+      const familyChipHtml = isFamilySpeech(item.text) ? '<span class="field-chip" style="background:var(--gold-soft);color:var(--gold);" title="家族の発言です（本人の発言ではありません）"><i class="fa-solid fa-people-roof mr-0.5"></i>家族</span>' : '';
+      const patientBackgroundHtml = familyChipHtml + (isOtherBasicInfoItem(item) ? `<span class="field-chip" style="background:var(--slate-soft);color:var(--slate);cursor:help;" title="ヘンダーソンの14項目に直接の項目が無い基本情報です（タグ未設定の警告にはしません）。どの項目に入れるか決めたい場合は、学習データ管理の「追加キーワード」で登録するか、下の「＋タグ追加」で選べます。"><i class="fa-solid fa-id-card mr-0.5"></i>基本情報（14項目外）</span>` : '');
 
       const fieldDef = item.fieldLabel ? FIELD_LABELS.find(f => f.key === item.fieldLabel) : null;
       const fieldChipHtml = fieldDef ? `<span class="field-chip" style="background:${fieldDef.bg};color:${fieldDef.color};"><i class="fa-solid ${fieldDef.icon} mr-0.5"></i>${escapeHtml(fieldDef.label)}</span>` : '';
@@ -263,10 +265,10 @@
             ${untaggedWarningHtml}${patientBackgroundHtml}${fieldChipHtml}${timeChipHtml}${sceneChipHtml}${confidenceBadgeHtml}
           </div>
           <div class="flex items-center space-x-0.5 ml-auto shrink-0">
-            <button onclick="openCardReportModal('${item.id}')" class="icon-btn-outline" style="border-color:#EFD9CE;color:var(--brick);" title="このカードの書き込みが変だと報告する"><i class="fa-solid fa-flag"></i></button>
+            <button onclick="openCardReportModal('${item.id}')" class="icon-btn-outline" style="border-color:var(--brick-line);color:var(--brick);" title="このカードの書き込みが変だと報告する"><i class="fa-solid fa-flag"></i></button>
             <button onclick="editItemText('${item.id}')" class="icon-btn-outline" title="内容を編集"><i class="fa-solid fa-pen"></i></button>
             <button onclick="deleteItem('${item.id}')" class="icon-btn-outline danger" title="完全削除"><i class="fa-solid fa-times"></i></button>
-            ${item.type !== 'unnecessary' ? `<button onclick="setItemType('${item.id}', 'unnecessary')" class="icon-btn-outline" style="border-color:#E4D9C4;color:var(--gold);" title="不要判定"><i class="fa-solid fa-ban"></i></button>` : ''}
+            ${item.type !== 'unnecessary' ? `<button onclick="setItemType('${item.id}', 'unnecessary')" class="icon-btn-outline" style="border-color:var(--line-strong);color:var(--gold);" title="不要判定"><i class="fa-solid fa-ban"></i></button>` : ''}
           </div>
         </div>
         <p class="font-medium leading-snug break-words text-[var(--ink)]">${escapeHtml(item.text)}</p>
@@ -988,7 +990,7 @@
         tr.innerHTML = `
           <td class="need-cell border border-[var(--line)] p-3 bg-[var(--paper)] align-top w-56">
             <div class="flex items-start gap-2.5">
-              <span class="need-number shrink-0 w-7 h-7 rounded-full bg-[var(--accent)] text-white font-display font-semibold text-[13px] flex items-center justify-center">${need.id}</span>
+              <span class="need-number shrink-0 w-7 h-7 rounded-full bg-[var(--accent)] on-fill font-display font-semibold text-[13px] flex items-center justify-center">${need.id}</span>
               <div class="flex items-start gap-1.5 min-w-0 pt-0.5">
                 <i class="fa-solid ${need.icon} text-[var(--accent)] text-[11px] shrink-0 mt-0.5"></i>
                 <span class="text-[12.5px] leading-snug font-semibold text-[var(--ink)] break-words font-sans">${needLabel}</span>
@@ -1000,7 +1002,7 @@
           <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--accent-soft)]/40 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'postadmission')"><div class="space-y-1.5">${categorize('postadmission')}</div></td>
           <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--brick-soft)]/40 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'missing')">
             <div class="space-y-1.5">${categorize('missing')}</div>
-            <button onclick="openMissingModal(${need.id})" class="mt-1.5 text-[10px] text-[var(--brick)] hover:text-[var(--ink)] font-medium flex items-center w-full justify-center p-1 border border-dashed border-[#DEC0B8] rounded-[var(--radius-sm)]"><i class="fa-solid fa-plus mr-1"></i> 追加</button>
+            <button onclick="openMissingModal(${need.id})" class="mt-1.5 text-[10px] text-[var(--brick)] hover:text-[var(--ink)] font-medium flex items-center w-full justify-center p-1 border border-dashed border-[var(--brick-line)] rounded-[var(--radius-sm)]"><i class="fa-solid fa-plus mr-1"></i> 追加</button>
           </td>
         `;
         tr.dataset.needId = String(need.id);
@@ -1078,10 +1080,11 @@
       // Sは金、Oは藍と色分けし、通し番号(S-1/O-2等)を太字ラベルで表示。カード左端にも同色のバーを付けて色でも一目で判別できるようにする
       // バッジをクリックすると分類ボード側の該当カードへジャンプ・ハイライトする
       const badge = isS
-        ? `<span onclick="jumpToBoardCard('${item.id}')" class="px-1.5 py-[1px] rounded-[var(--radius-sm)] font-bold text-[9px] tracking-tight cursor-pointer" title="分類ボードの該当カードを表示" style="background:var(--gold);color:#fff;">${seqLabel || 'S'}</span>`
+        ? `<span onclick="jumpToBoardCard('${item.id}')" class="px-1.5 py-[1px] rounded-[var(--radius-sm)] font-bold text-[9px] tracking-tight cursor-pointer" title="分類ボードの該当カードを表示" style="background:var(--gold);color:var(--on-fill);">${seqLabel || 'S'}</span>`
         : (isO
-          ? `<span onclick="jumpToBoardCard('${item.id}')" class="px-1.5 py-[1px] rounded-[var(--radius-sm)] font-bold text-[9px] tracking-tight cursor-pointer" title="分類ボードの該当カードを表示" style="background:var(--slate);color:#fff;">${seqLabel || 'O'}</span>`
+          ? `<span onclick="jumpToBoardCard('${item.id}')" class="px-1.5 py-[1px] rounded-[var(--radius-sm)] font-bold text-[9px] tracking-tight cursor-pointer" title="分類ボードの該当カードを表示" style="background:var(--slate);color:var(--on-fill);">${seqLabel || 'O'}</span>`
           : '');
+      const familyMark = isFamilySpeech(item.text) ? '<span class="text-[8px] font-bold px-1 rounded-[var(--radius-sm)]" style="background:var(--gold-soft);color:var(--gold);" title="家族の発言">家族</span>' : '';
       const cardBg = isS ? 'var(--gold-soft)' : (isO ? 'var(--slate-soft)' : 'var(--surface)');
       const accentColor = isS ? 'var(--gold)' : (isO ? 'var(--slate)' : 'var(--line)');
       // 日の小見出しの下では、日時は時刻だけを出す（「術後1日目」の見出しの下の「術後1日目 12:00」→「12:00」）
@@ -1096,7 +1099,7 @@
       const colBtn = (col, label) => {
         const c = COL_COLORS[col];
         const active = currentCol === col;
-        return `<button onclick="setAssessmentCol('${item.id}', ${hId}, '${col}')" class="px-1 py-0.5 rounded-[var(--radius-sm)] text-[8px] font-bold border-2 transition" style="${active ? `background:${c};border-color:${c};color:#fff;` : `border-color:${c};color:${c};background:var(--surface);`}">${label}</button>`;
+        return `<button onclick="setAssessmentCol('${item.id}', ${hId}, '${col}')" class="px-1 py-0.5 rounded-[var(--radius-sm)] text-[8px] font-bold border-2 transition" style="${active ? `background:${c};border-color:${c};color:var(--on-fill);` : `border-color:${c};color:${c};background:var(--surface);`}">${label}</button>`;
       };
 
       // 【UIの見直し】以前は、カードごとに本文の横に上下・編集・不要の4つのアイコン、下に未・前・後・欠の
@@ -1113,7 +1116,7 @@
           ondragleave="event.currentTarget.classList.remove('drag-over');"
           ondrop="handleAssessmentCardDrop(event, '${item.id}', ${hId})"
           class="asc-card px-1.5 py-1 rounded-[var(--radius-sm)] border ${item.aiSuggested ? 'border-dashed' : ''} border-[var(--line)] text-[10.5px] cursor-grab active:cursor-grabbing hover:border-[var(--accent)] transition" style="background:${cardBg};border-left-width:3px;border-left-color:${accentColor};">
-          <div class="leading-snug break-words text-[var(--ink)]"><span class="inline-flex items-center gap-0.5 mr-1 align-[1px]">${badge}${aiTag}${fieldTag}${time}</span>${escapeHtml(item.text)}</div>
+          <div class="leading-snug break-words text-[var(--ink)]"><span class="inline-flex items-center gap-0.5 mr-1 align-[1px]">${badge}${familyMark}${aiTag}${fieldTag}${time}</span>${escapeHtml(item.text)}</div>
           <div class="asc-actions">
             <button onclick="moveAssessmentCard('${item.id}', ${hId}, 'up')" ${isFirst ? 'disabled' : ''} class="icon-btn" title="この欄の中で1つ上へ移動" style="${isFirst ? 'opacity:.3;cursor:not-allowed;' : ''}"><i class="fa-solid fa-chevron-up text-[9px]"></i></button>
             <button onclick="moveAssessmentCard('${item.id}', ${hId}, 'down')" ${isLast ? 'disabled' : ''} class="icon-btn" title="この欄の中で1つ下へ移動" style="${isLast ? 'opacity:.3;cursor:not-allowed;' : ''}"><i class="fa-solid fa-chevron-down text-[9px]"></i></button>

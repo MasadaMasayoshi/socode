@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = '2026-09-28.25'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = '2026-09-29.5'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 検査値カードの抽出：値のすぐ後（スペースの有無を問わず）に単位まで書かれている場合、
     // 値と単位が別々のカードに分かれてしまう不具合の対策。
@@ -54,15 +54,25 @@
       // 「°C」（度記号＋C、2文字）の表記も同じ値の一部として続けて拾えるようにする。
       // 「体温 37.0度」の「度」も単位として一緒に拾う（拾わないと「度 血圧125/70」のように
       // 次のカードの先頭に「度」だけが残っていた。利用者からのアップロード文書で発覚）。
-      '体温\\s*\\d{2}(?:\\.\\d)?\\s*(?:℃|°C|°c|度)?',
-      '血圧\\s*\\d{2,3}\\/\\d{2,3}\\s*mmHg?',
+      '体温\\s*\\d{2}(?:\\.\\d)?\\s*(?:℃|°C|°c|度)?(?:\\s*[(（](?:腋窩|腋下|口腔|鼓膜|直腸|耳)[)）])?',
+      '血圧\\s*\\d{2,3}\\/\\d{2,3}(?:\\s*mmHg)?(?![\\d])',
       'SpO2\\s*\\d{2,3}\\s*%?(?:\\s*[\\(（][^)）]{0,20}[\\)）])?',
       // 脈拍・呼吸数も体温・血圧・SpO2と同様によく使われるバイタルサインだが、これまで専用の
       // 抽出パターンが無く、値と項目名が同じカードにまとまらず「(バイタルサイン)、脈拍72回/分、
       // 呼吸数18回/分、」のように前後の見出し語も含めて1つの雑多なカードに残ってしまっていた。
       // 「脈拍 74回/分 整」のリズム（整・不整）も同じ所見として拾う（残ると次のカードの先頭に「整」だけが付いていた）
-      '脈拍\\s*\\d{2,3}\\s*回\\s*\\/\\s*分(?:\\s*[(（]?(?:整|不整)[)）]?)?',
-      '呼吸数?\\s*\\d{1,3}\\s*回\\s*\\/\\s*分'
+      // 「脈拍98回/分、不整あり」のように読点の後の「不整あり」も脈拍と同じ所見として拾う（心不全の事例）
+      '脈拍\\s*\\d{2,3}\\s*回\\s*\\/\\s*分(?:\\s*[(（]?(?:整|不整)(?:あり|なし)?[)）]?|[、,]\\s*不整(?:あり|なし)?)?',
+      '呼吸数?\\s*\\d{1,3}\\s*回\\s*\\/\\s*分',
+      // 電子カルテ風の略語（BP・P・R・T）も同じバイタルとして拾う（産褥の事例で「BP 112/68mmHg」がタグ未設定だった）
+      '(?<![A-Za-z])BP\\s*\\d{2,3}\\/\\d{2,3}\\s*(?:mmHg)?',
+      '(?<![A-Za-z])P\\s*\\d{2,3}\\s*回\\s*\\/\\s*分',
+      '(?<![A-Za-z])R\\s*\\d{1,2}\\s*回\\s*\\/\\s*分',
+      '(?<![A-Za-z])T\\s*\\d{2}(?:\\.\\d)?\\s*(?:℃|°C|°c|度)',
+      // BT・HR・PR・RR（単位を書かないことも多い。COPDの事例で「BT 37.8℃ HR 108 RR 26」が1つの体温のカードになっていた）
+      '(?<![A-Za-z])BT\\s*\\d{2}(?:\\.\\d)?\\s*(?:℃|°C|°c|度)?',
+      '(?<![A-Za-z])(?:HR|PR)\\s*\\d{2,3}(?:\\s*回\\s*\\/\\s*分|\\s*bpm)?(?![\\d.])',
+      '(?<![A-Za-z])RR\\s*\\d{1,2}(?:\\s*回\\s*\\/\\s*分)?(?![\\d.])'
     ]).join('|');
     // AI抽出結果など、chunk.isLabOrVitalのようなフラグを持たない文章に対して「検査値・バイタルサインらしさ」を
     // 判定するための正規表現（食事タグの自動付与などに使う。LAB_REGEX_SOURCE自体は抽出用に前後一致を厳密には
@@ -105,7 +115,7 @@
     const LAB_ITEM_NAME_REGEX = new RegExp(
       // 直前がカタカナ（「セファゾリンNa」等の薬の名前）の場合、直後が「とともに」「による」「訓練」等の
       // 場合（「PTとともに訓練」＝理学療法士）は検査項目として扱わない（利用者からのアップロード文書で発覚）。
-      '(?:(?<![ァ-ヶー])\\b(?:' + LAB_ITEM_ASCII_KEYS.map(escapeRegExp).join('|') + ')(?![A-Za-z])(?!\\s*(?:さん|様|氏|君|ちゃん|とともに|と一緒|による|の介入|の訓練|の指導|の計画|の説明|の評価|の方針|訓練|室|より|から|が))' +
+      '(?:(?<![ァ-ヶー])\\b(?:' + LAB_ITEM_ASCII_KEYS.map(escapeRegExp).join('|') + ')(?![A-Za-z])(?!\\s*(?:さん|様|氏|君|ちゃん|とともに|と一緒|による|の介入|の訓練|の指導|の計画|の説明|の評価|の方針|訓練|室|より|から|が|介入|実施|[:：]\\s*(?![\\d.])))' +
       (LAB_ITEM_NON_ASCII_KEYS.length ? '|(?:' + LAB_ITEM_NON_ASCII_KEYS.map(escapeRegExp).join('|') + ')' : '') + ')', 'i'
     );
 
@@ -118,9 +128,10 @@
     // 代謝の指標）は、従来通り2(食事)とする。
     const LAB_CATEGORY_TAG_RULES = [
       // 「呼吸20回/分」のように「数」を付けない書き方の呼吸数も1（利用者からの指摘：患者36。以前は2.食事になっていた）
-      { tags: [1], regex: /(SpO2|SpO₂|SPO2|酸素飽和度|PaO2|PaCO2|呼吸数|呼吸\s*\d|血圧|脈拍|心拍)/i },
+      // BNP（心不全の指標）も1（長文の心不全事例のテストで追加）
+      { tags: [1], regex: /(SpO2|SpO₂|SPO2|酸素飽和度|PaO2|PaCO2|呼吸数|呼吸\s*\d|血圧|脈拍|心拍|\bBNP\b|NT-proBNP|\bBP\s*\d|(?<![A-Za-z])[PR]\s*\d+\s*回|(?<![A-Za-z])(?:HR|PR|RR)\s*\d)/i },
       { tags: [3], regex: /(\bCre\b|クレアチニン|\bBUN\b|尿素窒素|eGFR|尿酸|尿蛋白|尿糖|尿比重)/i },
-      { tags: [7], regex: /(\bWBC\b|白血球|\bCRP\b|C反応性|体温)/i },
+      { tags: [7], regex: /(\bWBC\b|白血球|\bCRP\b|C反応性|体温|(?<![A-Za-z])B?T\s*\d{2})/i },
       // 「PT」は凝固検査のほか理学療法士（PT）の略でも使われるため、数値・%・括弧が続く場合だけを検査とみなす
       { tags: [9], regex: /(APTT|PT-INR|PT%|\bPT(?=\s*[\d%(（])|プロトロンビン|Dダイマー|D-ダイマー|\bFDP\b|フィブリノ|\bPLT\b|血小板)/i }
     ];
@@ -315,10 +326,12 @@
     }
     // 「受持ち開始」「術後1日目より受け持つ」のように、学生が受け持ちを始めたことだけの行
     const CARE_START_ONLY_REGEX = /^(?:[^、。]{0,12}(?:より|から))?受け?持(?:ち)?(?:開始|つ|ちを開始する)。?$/;
+    // 「入院時の検査データ」「術後の血液データ」のような、表の前の見出しだけの行（値を含まない）
+    const LAB_TABLE_TITLE_ONLY_REGEX = /^[【\[]?(?:(?:入院時|術前|術後|手術前|入院\d+日目|術後\d+日目)の?)?(?:血液|採血|検査)(?:データ|結果|所見)?(?:一覧)?[】\]]?[:：]?$/;
     function isUnnecessaryBoilerplateText(str) {
       if (!str) return false;
       const trimmed = str.trim();
-      return UNNECESSARY_BOILERPLATE_REGEX.test(trimmed) || BARE_PATIENT_HONORIFIC_REGEX.test(trimmed) ||
+      return LAB_TABLE_TITLE_ONLY_REGEX.test(trimmed) || UNNECESSARY_BOILERPLATE_REGEX.test(trimmed) || BARE_PATIENT_HONORIFIC_REGEX.test(trimmed) ||
         STUDENT_CARE_START_REGEX.test(trimmed) || ROOM_MOVE_ONLY_REGEX.test(trimmed) || SCHEDULE_COLUMN_HEADER_REGEX.test(trimmed) ||
         SECTION_TITLE_ONLY_REGEX.test(trimmed) || COURSE_INFO_REGEX.test(trimmed) || CARE_START_ONLY_REGEX.test(trimmed) || isOcrNoiseText(trimmed);
     }
@@ -460,7 +473,7 @@
     // 別名はnormalizeFieldLabelHeadingWordで本来のkeyに正規化してから使う。
     const FIELD_LABEL_KEYS = FIELD_LABELS.map(f => f.key).join('|');
     const FIELD_LABEL_MATCH_KEYS = Array.from(new Set([...FIELD_LABELS.map(f => f.key), ...Object.keys(FIELD_LABEL_HEADING_ALIASES)])).join('|');
-    const FIELD_LABEL_REGEX_SOURCE = `(?:^|[、。\\s])(${FIELD_LABEL_MATCH_KEYS})(?!・)(?:[:：]\\s*|は)?`;
+    const FIELD_LABEL_REGEX_SOURCE = `(?:^|[、。\\s])(${FIELD_LABEL_MATCH_KEYS})(?!・)(?!として|について)(?:[:：]\\s*|は)?`;
 
     // 見出しラベルの種類だけで、内容の文言に関わらず関連が明らかなヘンダーソンタグを補う。
     // 「家族関係」「保険」はいずれも患者を取り巻く社会的・経済的環境の情報であり、9.環境
@@ -514,6 +527,9 @@
     // あくまで初期提案であり、学習結果（ユーザーによる修正）があればそちらを優先する。
     const DIAGNOSIS_TAG_HINTS = [
       { pattern: /糖尿病/, tagIds: [2, 14] },
+      // 大腸がん・結腸切除（排便・食事への影響）、脂質異常症（食事）。7事例のテストで追加
+      { pattern: /大腸がん|大腸癌|結腸がん|結腸癌|直腸がん|直腸癌|結腸切除|大腸切除/, tagIds: [2, 3] },
+      { pattern: /脂質異常症|高脂血症/, tagIds: [2] },
       // 高血圧は食事（減塩）と服薬・自己管理（学び）の情報として扱う（利用者からの指摘：患者34
       // 「既往歴 2型糖尿病、高血圧症にて内服加療中」は呼吸器の疾患ではないので1.呼吸にしない）。
       // 心不全・不整脈等の心臓の病気は、これまで通り循環（1.呼吸）とする。
@@ -531,6 +547,8 @@
       // 元のパターンでは一致しなかった（利用者からのアップロード文書で発覚：「53歳の時に
       // 胆結石を指摘されていたが…」の既往歴カードがタグ未設定になっていた）。
       { pattern: /胆石症|胆結石|胆嚢炎|胆管炎|膵炎/, tagIds: [2] },
+      // 膵がん（消化・栄養・血糖にかかわる。新しい長文事例のテスト：緩和ケアの事例）
+      { pattern: /膵がん|膵癌|膵臓がん|膵臓癌|膵頭部がん|膵頭部癌|膵体部がん|膵尾部がん/, tagIds: [2] },
       // 卵巣・子宮系の疾患はヘンダーソン14項目に婦人科系の専用項目が無いが、腫瘤・嚢腫等の
       // 構造的・機能的な病態は4(姿勢：運動器・感覚・呼吸循環機能を含む身体機能全般)に
       // 対応づける（利用者からの指摘：「機能的な病態なら姿勢」）。あくまで初期提案であり、
@@ -710,6 +728,8 @@
       if (t === '入院当日') return '入院2日目';
       if ((m = t.match(/^術後(\d+)日目$/))) return `術後${Number(m[1]) + 1}日目`;
       if ((m = t.match(/^入院(\d+)日目$/))) return `入院${Number(m[1]) + 1}日目`;
+      if ((m = t.match(/^産褥(\d+)日目$/))) return `産褥${Number(m[1]) + 1}日目`;
+      if (t === '入院前日') return '手術当日';
       if ((m = t.match(/^(\d+)日目$/))) return `${Number(m[1]) + 1}日目`;
       if ((m = t.match(/^(?:(\d{1,4})年)?(\d{1,2})月(\d{1,2})日/))) {
         const year = m[1] ? Number(m[1]) : 2001; // 年が無いときはうるう年でない年で計算する
@@ -752,6 +772,8 @@
       if (t === '手術前日') return 39;
       if (t === '手術当日') return 40;
       if (t === '術中') return 40.5;
+      if (t === '入院前日') return 39;
+      if ((m = t.match(/^産褥(\d+)日目$/))) return 60 + Number(m[1]);
       if (t === '術後') return 41;
       if ((m = t.match(/^術後(\d+)日目$/))) return 41 + Number(m[1]);
       if ((m = t.match(/^(?:(\d{1,4})年)?(\d{1,2})月(\d{1,2})日$/))) return 100000 + (Number(m[1] || 0) * 400) + Number(m[2]) * 32 + Number(m[3]);

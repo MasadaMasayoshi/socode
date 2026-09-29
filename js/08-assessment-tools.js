@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-09-28.25'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-09-29.5'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -805,7 +805,7 @@ ${labTexts || '(なし)'}
           // 日時ごとの区切りの中では、日は見出しにあるので時刻だけを出す
           const shownTime = sec.isDay && sec.day && timestampDayPart(i.timestamp) === sec.day ? timestampClockPart(i.timestamp) : i.timestamp;
           const time = shownTime && shownTime !== '日時不明' ? `<span class="ov-meta">${escapeHtml(shownTime)}</span>` : '';
-          const field = i.fieldLabel ? `<span class="ov-meta">[${escapeHtml(i.fieldLabel)}]</span>` : '';
+          const field = (i.fieldLabel ? `<span class="ov-meta">[${escapeHtml(i.fieldLabel)}]</span>` : '') + (isFamilySpeech(i.text) ? '<span class="ov-meta">[家族]</span>' : '');
           const tags = (i.hendersonIds || []).map(h => hendersonNameOf(h).replace(/^\d+\.\s*/, '')).join('・');
           const untagged = isUntaggedItem(i);
           const selected = selectedCardIds.has(i.id);

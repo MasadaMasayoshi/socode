@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-09-28.25'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-09-29.5'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 書式付き書き出し（Word / PDF）
     // ------------------------------------------------------------------------
@@ -101,7 +101,7 @@
     const PRINT_COL_LABELS = { unclassified: '未分類', preadmission: '入院前', postadmission: '入院後', missing: '不足情報' };
     function printTypeLabel(item, seqLabel) {
       if (item.aiSuggested) return '<span class="lb lb-x">AI推定</span>';
-      if (item.type === 's') return `<span class="lb lb-s">${escapeHtml(seqLabel || 'S')}</span>`;
+      if (item.type === 's') return `<span class="lb lb-s">${escapeHtml(seqLabel || 'S')}${isFamilySpeech(item.text) ? '（家族）' : ''}</span>`;
       if (item.type === 'o') return `<span class="lb lb-o">${escapeHtml(seqLabel || 'O')}</span>`;
       return '';
     }
@@ -579,7 +579,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
           dayGroups.forEach(g => { if (g.day) out += `   〈${g.day}〉\n`; g.items.forEach(i => {
             const seq = seqLabels[i.id] ? `${seqLabels[i.id]} ` : '';
             const time = i.timestamp && i.timestamp !== '日時不明' ? `[${i.timestamp}] ` : '';
-            const label = i.fieldLabel ? `[${i.fieldLabel}] ` : '';
+            const label = (i.fieldLabel ? `[${i.fieldLabel}] ` : '') + (isFamilySpeech(i.text) ? '[家族] ' : '');
             out += `    ・${seq}${time}${label}${i.text}${i.aiSuggested ? '（AI推定）' : ''}\n`;
           }); });
         });

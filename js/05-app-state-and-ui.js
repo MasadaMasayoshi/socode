@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-09-28.25'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-09-29.5'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -224,8 +224,8 @@
     function showToast(message, type = 'info', duration = 3000) {
       const toast = document.createElement('div');
       const styles = {
-        success: 'background:var(--accent-soft);color:var(--accent-dark);border-color:#D7E2DC;',
-        error: 'background:var(--brick-soft);color:var(--brick);border-color:#E7CFC8;',
+        success: 'background:var(--accent-soft);color:var(--accent-dark);border-color:var(--accent-line);',
+        error: 'background:var(--brick-soft);color:var(--brick);border-color:var(--brick-line);',
         info: 'background:var(--surface);color:var(--ink);border-color:var(--line);'
       };
       toast.className = `toast-enter p-3 rounded-[var(--radius-sm)] border text-xs font-medium flex items-center gap-2 panel-shadow`;
@@ -285,7 +285,7 @@
           dialogSecondaryBtn.textContent = secondaryLabel || '';
           dialogSecondaryBtn.classList.toggle('hidden', !secondaryLabel);
         }
-        dialogConfirmBtn.style.cssText = danger ? 'background:var(--brick);border-color:var(--brick);color:#fff;' : '';
+        dialogConfirmBtn.style.cssText = danger ? 'background:var(--brick);border-color:var(--brick);color:var(--on-fill);' : '';
         dialogEl.classList.remove('hidden');
         if (inputValue !== undefined) setTimeout(() => { dialogInputEl.focus(); dialogInputEl.select(); }, 30);
       });
@@ -333,7 +333,7 @@
           .map(s => s.normalize('NFKC').trim()).filter(s => s.length >= 2).slice(0, 300);
       } catch (e) { return []; }
     }
-    const MASK_LABEL_REGEX = /((?:学生|患者|本人|家族|担当(?:教員|指導者|看護師|医)?|指導者|教員|キーパーソン)?(?:氏名|名前|姓名)|学籍番号|学生番号|学籍|患者ID|カルテ番号|診察券番号|(?:実習)?(?:病院名|施設名)|実習病院|実習施設|現?住所|電話番号|電話|TEL|携帯(?:番号)?|メールアドレス|メール|生年月日)(\s*[:：]\s*)([^\n、。,，(（]{1,40})/gi;
+    const MASK_LABEL_REGEX = /((?:学生|患者|本人|家族|担当(?:教員|指導者|看護師|医)?|指導者|教員|キーパーソン)?(?:氏名|名前|姓名)|学籍番号|学生番号|学籍|患者ID|カルテ番号|診察券番号|(?:実習)?(?:病院名|施設名)|実習病院|実習施設|現?住所|電話番号|電話|TEL|携帯(?:番号)?|メールアドレス|メール|生年月日)(\s*[:：]\s*)((?:(?!\s+(?:学生|患者)?(?:氏名|名前|学籍番号|学生番号|電話番号|電話|住所|生年月日|実習病院|実習施設)\s*[:：])[^\n、。,，(（]){1,40})/gi;
     // すでに匿名になっている値（A氏・B様など）や、中身の無い値は伏せない
     const MASK_ALREADY_ANONYMOUS_REGEX = /^(?:[A-Za-zＡ-Ｚａ-ｚ]{1,2}\s*(?:氏|さん|様)?|なし|無し|不明|記載なし|-|ー|―)$/;
     const MASK_PATTERN_REGEXES = [
@@ -350,7 +350,7 @@
     const MASK_HONORIFIC_NAME_REGEX = /([一-龠々]{1,4}|[ァ-ヶー]{2,10})(さん|先生|医師|看護師|氏(?!名))/g;
     // 敬称の前がこれらで終わるなら、名前ではなく続柄・職種なので伏せない（「息子さん」「看護師長さん」等）
     const MASK_ROLE_WORDS = ['患者', '息子', '娘', '奥', '旦那', '孫', '嫁', '婿', '妻', '夫', '兄', '姉', '弟', '妹', '母', '父', '祖母', '祖父', '叔父', '叔母', '伯父', '伯母', '家族', '本人', '友人', '隣人', '同室者', '同室', '担当', '主治', '主治医', '受持', '受け持ち', '看護', '看護師', '師長', '主任', '部長', '院長', '医', '研修医', '担当医', '皆', '各位', '先輩', '後輩', '学生', '実習生', '指導者', '教員', '薬剤師', '栄養士', '技師', '保健師', '助産師', '介護士', '職員', '親戚', '親族', '義母', '義父', '長男', '次男', '三男', '長女', '次女', '三女', '訪問', '病棟', '外来', '専任', '認定', '専門', '夜勤', '日勤', '准', '同', '当', '本', '両', '彼', '某', '故',
-      'ヘルパー', 'ケアマネ', 'ケアマネージャー', 'ケアマネジャー', 'ソーシャルワーカー', 'ワーカー', 'スタッフ', 'セラピスト', 'ナース', 'ドクター', 'リハビリ', 'ボランティア'];
+      'ヘルパー', 'ケアマネ', 'ケアマネージャー', 'ケアマネジャー', 'ソーシャルワーカー', 'ワーカー', 'スタッフ', 'セラピスト', 'ナース', 'ドクター', 'リハビリ', 'ボランティア', '退院支援', '支援', '緩和ケア', '認定看護', '専門看護', '感染管理', '病棟担当'];
     function isRoleWord(word) { return MASK_ROLE_WORDS.some(r => word.endsWith(r)); }
 
     // text の中の個人情報らしい語句を〈伏せ字N〉に置き換える。ctx は1回のAI呼び出しの中で共有し、
@@ -372,6 +372,8 @@
         const v = value.replace(/\s+$/, '');
         // 「氏名： A氏 76歳 女性」のように匿名化済みの呼び方の後に年齢・性別等が続く場合も伏せない
         const firstToken = v.trim().split(/\s+/)[0];
+        // 「学籍番号：********」のように、すでに＊などで伏せてある値はそのまま
+        if (/^[*＊×✕xX〇○●■□\-－]+$/.test(firstToken)) return m;
         if (!v.trim() || MASK_ALREADY_ANONYMOUS_REGEX.test(v.trim()) || MASK_ALREADY_ANONYMOUS_REGEX.test(firstToken) || v.includes('〈伏せ字')) return m;
         return label + sep + maskToken(ctx, v) + value.slice(v.length);
       });
@@ -1090,12 +1092,41 @@
       // カルテスナップショットタブを開くたびに再取得し、他端末がタブを閉じた分も見えるようにする
       if (tab === 'snapshots') loadAndRenderPatientSnapshots();
     }
-    function openAdminPanel() {
+    // HTMLファイルを直接開いている（file://）か。サーバーが要る機能の案内に使う
+    const IS_FILE_PROTOCOL = typeof location !== 'undefined' && location.protocol === 'file:';
+    // サーバーが要るタブ（事例ログ・報告・スナップショット）で読み込めなかったときの案内
+    function adminServerNoticeHtml(featureName) {
+      const why = IS_FILE_PROTOCOL ? 'HTMLファイルを直接開いているため' : 'サーバー（server.js）に接続できないため';
+      return `<div class="text-xs text-[var(--ink)] leading-relaxed p-3 rounded-[var(--radius-sm)]" style="background:var(--gold-soft);border:1px solid var(--line);">
+        <div class="font-semibold mb-1"><i class="fa-solid fa-plug-circle-xmark mr-1" style="color:var(--gold);"></i>${escapeHtml(featureName)}は、サーバーで開いたときだけ使えます</div>
+        <div class="text-[11px] text-[var(--ink-muted)]">全員で共有する記録なので、サーバーに保存されています。今は${why}表示できません。見るには、公開しているページから開くか、アプリのフォルダで「npm start」を実行してブラウザで http://localhost:3000 を開いてください。</div>
+      </div>`;
+    }
+    // 学習データ管理の上部に、全員の学習データが見えているかを表示する
+    function renderAdminServerStatus() {
+      const el = document.getElementById('admin-server-status');
+      if (!el) return;
+      if (learningServerState === 'online') {
+        el.innerHTML = '<i class="fa-solid fa-circle text-[7px]" style="color:var(--accent);"></i> サーバーに接続中：全員で共有している学習データを表示しています';
+      } else if (learningServerState === 'offline') {
+        el.innerHTML = `<i class="fa-solid fa-circle text-[7px]" style="color:var(--brick);"></i> サーバー未接続${IS_FILE_PROTOCOL ? '（HTMLファイルを直接開いています）' : ''}：このブラウザの学習データだけを表示しています。事例ログ・報告・スナップショットは見られません`;
+      } else {
+        el.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-[8px]"></i> サーバーへの接続を確認しています…';
+      }
+    }
+    async function openAdminPanel() {
       document.getElementById('admin-learning-search').value = '';
       document.getElementById('admin-history-search').value = '';
+      adminLearningEditing.clear();
+      adminLearningLimit = ADMIN_LEARNING_PAGE;
+      renderAdminServerStatus();
       renderAdminLearningList();
       switchAdminTab('list');
       adminModal.classList.remove('hidden');
+      // 開くたびに全員共有の学習データを取り直し、他の人の修正も見えるようにする
+      await loadSharedLearningDict();
+      renderAdminServerStatus();
+      renderAdminLearningList();
     }
     function submitAdminPassword() {
       if (adminPasswordInput.value === ADMIN_PASSWORD) {
@@ -1122,7 +1153,7 @@
 
     document.getElementById('btn-close-admin').addEventListener('click', () => adminModal.classList.add('hidden'));
     adminModal.addEventListener('click', e => { if (e.target === adminModal) adminModal.classList.add('hidden'); });
-    document.getElementById('admin-learning-search').addEventListener('input', renderAdminLearningList);
+    document.getElementById('admin-learning-search').addEventListener('input', () => { adminLearningLimit = ADMIN_LEARNING_PAGE; renderAdminLearningList(); });
     document.getElementById('admin-tab-btn-list').addEventListener('click', () => switchAdminTab('list'));
     document.getElementById('admin-tab-btn-history').addEventListener('click', () => switchAdminTab('history'));
     document.getElementById('admin-tab-btn-caselog').addEventListener('click', () => switchAdminTab('caselog'));
@@ -1139,75 +1170,209 @@
     document.getElementById('admin-reports-search').addEventListener('input', renderCardReportsList);
     document.getElementById('btn-summarize-reports').addEventListener('click', summarizeCardReportsAI);
 
+    // 【見直し】以前は1行ごとに票の＋−ボタンと14項目の選択欄を全部作っていたため、件数が増えると重く、
+    // 見た目もごちゃごちゃしていた。ふだんは「どう学習したか」だけを表示し、「編集」を押した行だけ票を直せる。
+    // 絞り込み・並べ替えを付け、100件ずつ表示する。
+    const ADMIN_LEARNING_PAGE = 100;
+    let adminLearningLimit = ADMIN_LEARNING_PAGE;
+    const adminLearningEditing = new Set(); // 「編集」中の文章
+    const learningTypeColorOf = t => t === 's' ? 'var(--gold)' : (t === 'o' ? 'var(--slate)' : (t === 'unnecessary' ? 'var(--brick)' : 'var(--ink-muted)'));
+    const learningTypeLabelOf = t => t === 's' ? 'S' : (t === 'o' ? 'O' : (t === 'unnecessary' ? '不要' : t));
+    // 1件の学習内容を、表示・絞り込み・並べ替えに使う形にまとめる
+    function summarizeLearningEntry(text, learned) {
+      const typeVotes = learned?.typeVotes || {};
+      const typeEntries = Object.keys(typeVotes).length > 0
+        ? Object.entries(typeVotes).filter(([, c]) => c > 0).sort((a, b) => b[1] - a[1])
+        : (learned?.preferredType ? [[learned.preferredType, 1]] : []);
+      const hendersonVotes = learned?.hendersonVotes || {};
+      const tagEntries = Object.keys(hendersonVotes).length > 0
+        ? Object.entries(hendersonVotes).filter(([, c]) => c > 0).sort((a, b) => b[1] - a[1])
+        : (learned?.preferredHendersonIds || []).map(hId => [String(hId), 1]);
+      const counts = [...typeEntries, ...tagEntries].map(([, c]) => c);
+      return {
+        text, learned, typeVotes, typeEntries, tagEntries,
+        topType: pickTopVote(typeVotes) || learned?.preferredType || null,
+        totalVotes: counts.reduce((a, c) => a + c, 0),
+        maxVotes: counts.length ? Math.max(...counts) : 0,
+        updatedAt: learned?.updatedAt ? Date.parse(learned.updatedAt) || 0 : 0
+      };
+    }
+    function filterAndSortLearningEntries(dict, { term = '', filter = '', sort = 'votes' } = {}) {
+      let rows = Object.entries(dict || {}).filter(([text]) => !!text).map(([text, learned], i) => ({ ...summarizeLearningEntry(text, learned), order: i }));
+      const t = term.trim().toLowerCase();
+      if (t) rows = rows.filter(r => r.text.toLowerCase().includes(t));
+      if (filter === 's' || filter === 'o' || filter === 'unnecessary') rows = rows.filter(r => r.topType === filter);
+      else if (filter === 'tags') rows = rows.filter(r => r.tagEntries.length > 0);
+      else if (filter === 'trend') rows = rows.filter(r => r.maxVotes >= 2);
+      if (sort === 'text') rows.sort((a, b) => a.text.localeCompare(b.text, 'ja'));
+      else if (sort === 'recent') rows.sort((a, b) => (b.updatedAt - a.updatedAt) || (b.order - a.order));
+      else rows.sort((a, b) => (b.totalVotes - a.totalVotes) || (b.order - a.order));
+      return rows;
+    }
     function renderAdminLearningList() {
       const listEl = document.getElementById('admin-learning-list');
       const countEl = document.getElementById('admin-learning-count');
-      const term = (document.getElementById('admin-learning-search').value || '').trim().toLowerCase();
       const dict = globalAppData.learningUserDict || {};
-      let entries = Object.entries(dict).filter(([text]) => !!text);
-      if (term) entries = entries.filter(([text]) => text.toLowerCase().includes(term));
-      countEl.textContent = `${entries.length}件（全${Object.keys(dict).length}件）`;
+      const total = Object.keys(dict).filter(Boolean).length;
+      const rows = filterAndSortLearningEntries(dict, {
+        term: document.getElementById('admin-learning-search').value || '',
+        filter: document.getElementById('admin-learning-filter')?.value || '',
+        sort: document.getElementById('admin-learning-sort')?.value || 'votes'
+      });
+      countEl.textContent = `${rows.length}件（全${total}件）`;
 
-      if (entries.length === 0) {
-        listEl.innerHTML = '<p class="text-xs text-[var(--ink-muted)] text-center py-6">学習データがありません。</p>';
+      if (total === 0) {
+        // 空のときは、何をすると溜まるのか・なぜ空なのかを説明する
+        const offline = learningServerState === 'offline'
+          ? `<p class="mt-2 text-[11px]" style="color:var(--brick);"><i class="fa-solid fa-plug-circle-xmark"></i> ${IS_FILE_PROTOCOL ? 'HTMLファイルを直接開いている' : 'サーバーに接続できない'}ため、全員で共有している学習データは読み込まれていません。このブラウザで直した分だけが表示されます。</p>`
+          : '';
+        listEl.innerHTML = `<div class="text-xs text-[var(--ink-muted)] text-center py-6 px-4 leading-relaxed">
+          <p class="font-semibold text-[var(--ink)] mb-1">まだ学習データがありません</p>
+          <p>分類ボードでカードの S／O／不要 や、ヘンダーソンのタグを手で直すと、その文章と直した内容がここに記録されます。<br>次に同じ文章を分類するとき、記録した内容が優先されます。</p>${offline}</div>`;
         return;
       }
-      const typeColorOf = t => t === 's' ? 'var(--gold)' : (t === 'o' ? 'var(--slate)' : (t === 'unnecessary' ? 'var(--brick)' : 'var(--ink-muted)'));
-      const typeLabelOf = t => t === 's' ? 'S' : (t === 'o' ? 'O' : (t === 'unnecessary' ? '不要' : t));
+      if (rows.length === 0) {
+        listEl.innerHTML = '<p class="text-xs text-[var(--ink-muted)] text-center py-6">条件に一致する学習データがありません。</p>';
+        return;
+      }
 
       const frag = document.createDocumentFragment();
-      entries.forEach(([text, learned]) => {
-        // typeVotes / hendersonVotes（同じ編集が繰り返された回数）があればそれを表示し、
-        // 古い形式のデータ（votesを持たない）は preferredType / preferredHendersonIds をそのまま表示する。
-        const typeVotes = learned?.typeVotes || {};
-        const topType = pickTopVote(typeVotes) || learned?.preferredType || null;
-        const typeEntries = Object.keys(typeVotes).length > 0
-          ? Object.entries(typeVotes).filter(([, c]) => c > 0).sort((a, b) => b[1] - a[1])
-          : (learned?.preferredType ? [[learned.preferredType, 1]] : []);
-        const typeChipsHtml = typeEntries.length > 0
-          ? typeEntries.map(([t, c]) => {
-              const isTop = t === topType;
-              return `<span class="field-chip" style="background:${isTop ? typeColorOf(t) : 'var(--line-soft)'};color:${isTop ? '#fff' : 'var(--ink-muted)'};gap:.3rem;">${escapeHtml(typeLabelOf(t))}${c > 1 ? ` ×${c}` : ''}
-                <button class="vote-adjust-btn admin-vote-btn" data-text="${escapeHtml(text)}" data-kind="type" data-value="${escapeHtml(t)}" data-delta="-1" title="この分類の票を1つ減らす" style="background:transparent;border-color:currentColor;color:inherit;">−</button>
-                <button class="vote-adjust-btn admin-vote-btn" data-text="${escapeHtml(text)}" data-kind="type" data-value="${escapeHtml(t)}" data-delta="1" title="この分類の票を1つ増やす" style="background:transparent;border-color:currentColor;color:inherit;">＋</button>
+      rows.slice(0, adminLearningLimit).forEach(r => {
+        const { text } = r;
+        const editing = adminLearningEditing.has(text);
+        const esc = escapeHtml(text);
+        let chipsHtml;
+        if (!editing) {
+          // ふだんの表示：どう学習したかだけ（票の多い分類を色付き、タグは名前と回数）
+          const typeChips = r.typeEntries.map(([t, c]) => {
+            const isTop = t === r.topType;
+            return `<span class="field-chip" style="background:${isTop ? learningTypeColorOf(t) : 'var(--line-soft)'};color:${isTop ? 'var(--on-fill)' : 'var(--ink-muted)'};">${escapeHtml(learningTypeLabelOf(t))}${c > 1 ? ` ×${c}` : ''}</span>`;
+          }).join('');
+          const tagChips = r.tagEntries.map(([h, c]) => `<span class="tag-chip">${escapeHtml(hendersonNameOf(Number(h)))}${c > 1 ? ` ×${c}` : ''}</span>`).join('');
+          chipsHtml = (typeChips || tagChips) ? typeChips + tagChips : '<span class="field-chip" style="background:var(--ink-muted);color:var(--on-fill);">未設定</span>';
+        } else {
+          // 編集中：票の＋−と、票の無い分類・タグの追加
+          const typeChips = r.typeEntries.map(([t, c]) => {
+            const isTop = t === r.topType;
+            return `<span class="field-chip" style="background:${isTop ? learningTypeColorOf(t) : 'var(--line-soft)'};color:${isTop ? 'var(--on-fill)' : 'var(--ink-muted)'};gap:.3rem;">${escapeHtml(learningTypeLabelOf(t))}${c > 1 ? ` ×${c}` : ''}
+                <button class="vote-adjust-btn admin-vote-btn" data-text="${esc}" data-kind="type" data-value="${escapeHtml(t)}" data-delta="-1" title="この分類の票を1つ減らす" style="background:transparent;border-color:currentColor;color:inherit;">−</button>
+                <button class="vote-adjust-btn admin-vote-btn" data-text="${esc}" data-kind="type" data-value="${escapeHtml(t)}" data-delta="1" title="この分類の票を1つ増やす" style="background:transparent;border-color:currentColor;color:inherit;">＋</button>
               </span>`;
-            }).join('')
-          : `<span class="field-chip" style="background:var(--ink-muted);color:#fff;">未設定</span>`;
-        // 現在票の無い分類にも手動で票を追加できるよう、S/Oの追加ボタンを常に用意する
-        const typeAddHtml = ['s', 'o'].filter(t => !(typeVotes[t] > 0)).map(t =>
-          `<button class="vote-adjust-btn admin-vote-btn" data-text="${escapeHtml(text)}" data-kind="type" data-value="${t}" data-delta="1" title="「${typeLabelOf(t)}」の票を追加">＋${typeLabelOf(t)}</button>`
-        ).join('');
-
-        const hendersonVotes = learned?.hendersonVotes || {};
-        const tagEntries = Object.keys(hendersonVotes).length > 0
-          ? Object.entries(hendersonVotes).filter(([, c]) => c > 0).sort((a, b) => b[1] - a[1])
-          : (learned?.preferredHendersonIds || []).map(hId => [String(hId), 1]);
-        const tagChipsHtml = tagEntries.map(([hIdStr, c]) => {
-          const name = hendersonNameOf(Number(hIdStr));
-          return `<span class="tag-chip" style="gap:.3rem;">${escapeHtml(name)}${c > 1 ? ` ×${c}` : ''}
-            <button class="vote-adjust-btn admin-vote-btn" data-text="${escapeHtml(text)}" data-kind="tag" data-value="${hIdStr}" data-delta="-1" title="このタグの票を1つ減らす">−</button>
-            <button class="vote-adjust-btn admin-vote-btn" data-text="${escapeHtml(text)}" data-kind="tag" data-value="${hIdStr}" data-delta="1" title="このタグの票を1つ増やす">＋</button>
-          </span>`;
-        }).join('');
-        const existingTagIds = new Set(tagEntries.map(([hIdStr]) => Number(hIdStr)));
-        const tagAddSelectHtml = `<select class="admin-vote-add-tag-select text-[9px] bg-[var(--paper)] border border-[var(--line)] rounded-[var(--radius-sm)] px-1 py-0.5 text-[var(--ink-muted)] cursor-pointer" data-text="${escapeHtml(text)}"><option value="">＋タグの票を追加</option>${HENDERSON_NEEDS.filter(n => !existingTagIds.has(n.id)).map(n => `<option value="${n.id}">${n.name}</option>`).join('')}</select>`;
-
+          }).join('');
+          const typeAdd = ['s', 'o', 'unnecessary'].filter(t => !(r.typeVotes[t] > 0)).map(t =>
+            `<button class="vote-adjust-btn admin-vote-btn" data-text="${esc}" data-kind="type" data-value="${t}" data-delta="1" title="「${learningTypeLabelOf(t)}」の票を追加" style="width:auto;min-width:0;padding:0 5px;white-space:nowrap;">＋${learningTypeLabelOf(t)}</button>`).join('');
+          const tagChips = r.tagEntries.map(([h, c]) => `<span class="tag-chip" style="gap:.3rem;">${escapeHtml(hendersonNameOf(Number(h)))}${c > 1 ? ` ×${c}` : ''}
+              <button class="vote-adjust-btn admin-vote-btn" data-text="${esc}" data-kind="tag" data-value="${h}" data-delta="-1" title="このタグの票を1つ減らす">−</button>
+              <button class="vote-adjust-btn admin-vote-btn" data-text="${esc}" data-kind="tag" data-value="${h}" data-delta="1" title="このタグの票を1つ増やす">＋</button>
+            </span>`).join('');
+          const existing = new Set(r.tagEntries.map(([h]) => Number(h)));
+          const tagAdd = `<select class="admin-vote-add-tag-select text-[9px] bg-[var(--paper)] border border-[var(--line)] rounded-[var(--radius-sm)] px-1 py-0.5 text-[var(--ink-muted)] cursor-pointer" data-text="${esc}"><option value="">＋タグの票を追加</option>${HENDERSON_NEEDS.filter(n => !existing.has(n.id)).map(n => `<option value="${n.id}">${n.name}</option>`).join('')}</select>`;
+          chipsHtml = typeChips + typeAdd + tagChips + tagAdd;
+        }
         const row = document.createElement('div');
         row.className = 'flex items-start justify-between gap-2 p-2 rounded-[var(--radius-sm)] border border-[var(--line)]';
         row.innerHTML = `
           <div class="min-w-0 flex-1">
-            <div class="text-xs text-[var(--ink)] break-words">${escapeHtml(text)}</div>
-            <div class="flex items-center flex-wrap gap-1 mt-1">
-              ${typeChipsHtml}${typeAddHtml}
-              ${tagChipsHtml}${tagAddSelectHtml}
-            </div>
+            <div class="text-xs text-[var(--ink)] break-words">${esc}</div>
+            <div class="flex items-center flex-wrap gap-1 mt-1">${chipsHtml}</div>
           </div>
-          <button class="icon-btn-outline danger shrink-0 admin-delete-learning-btn" data-text="${escapeHtml(text)}" title="この学習内容を削除"><i class="fa-solid fa-trash-can"></i></button>
+          <div class="flex items-center gap-1 shrink-0">
+            <button class="icon-btn-outline admin-edit-learning-btn" data-text="${esc}" title="${editing ? '編集を終える' : '票（回数）を直す'}"><i class="fa-solid ${editing ? 'fa-check' : 'fa-pen'}"></i></button>
+            <button class="icon-btn-outline danger admin-delete-learning-btn" data-text="${esc}" title="この学習内容を削除"><i class="fa-solid fa-trash-can"></i></button>
+          </div>
         `;
         frag.appendChild(row);
       });
+      if (rows.length > adminLearningLimit) {
+        const more = document.createElement('button');
+        more.className = 'btn btn-outline text-[11px] py-1 self-center admin-learning-more-btn';
+        more.textContent = `さらに表示（残り${rows.length - adminLearningLimit}件）`;
+        frag.appendChild(more);
+      }
       listEl.replaceChildren(frag);
     }
+    // 検索・絞り込み・並べ替えを変えたら、表示件数を最初の100件に戻す
+    ['admin-learning-filter', 'admin-learning-sort'].forEach(id => document.getElementById(id)?.addEventListener('change', () => { adminLearningLimit = ADMIN_LEARNING_PAGE; renderAdminLearningList(); }));
+    document.getElementById('admin-learning-list').addEventListener('click', e => {
+      if (e.target.closest('.admin-learning-more-btn')) { adminLearningLimit += ADMIN_LEARNING_PAGE; renderAdminLearningList(); return; }
+      const edit = e.target.closest('.admin-edit-learning-btn');
+      if (edit) {
+        const t = edit.dataset.text;
+        if (adminLearningEditing.has(t)) adminLearningEditing.delete(t); else adminLearningEditing.add(t);
+        renderAdminLearningList();
+      }
+    });
+
+    // ---- 学習データの書き出し（バックアップ）・読み込み ----
+    // 読み込むときは、同じ文章の票は多い方を採用する（同じファイルを2回読み込んでも票が増えない）。
+    function mergeLearningDicts(base, incoming) {
+      const out = { ...(base || {}) };
+      let added = 0, updated = 0;
+      Object.entries(incoming || {}).forEach(([text, inc]) => {
+        if (!text || !inc || typeof inc !== 'object' || Array.isArray(inc)) return;
+        const cur = out[text];
+        if (!cur) { out[text] = mergeOne({}, inc); added++; return; }
+        const merged = mergeOne(cur, inc);
+        // キーの並び順の違いは変更とみなさない
+        const stable = o => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.keys(v).sort().reduce((r, key) => { r[key] = v[key]; return r; }, {}) : v));
+        if (stable(merged) !== stable(cur)) { out[text] = merged; updated++; }
+      });
+      return { dict: out, added, updated };
+      function mergeOne(cur, inc) {
+        const maxVotes = (a = {}, b = {}) => {
+          const r = { ...a };
+          Object.entries(b).forEach(([k, v]) => { if (typeof v === 'number' && v > (r[k] || 0)) r[k] = v; });
+          return r;
+        };
+        const merged = { ...inc, ...cur };
+        merged.typeVotes = maxVotes(cur.typeVotes, inc.typeVotes);
+        merged.hendersonVotes = maxVotes(cur.hendersonVotes, inc.hendersonVotes);
+        merged.preferredType = pickTopVote(merged.typeVotes) || cur.preferredType || inc.preferredType || null;
+        const tagIds = Object.entries(merged.hendersonVotes).filter(([, c]) => c > 0).map(([k]) => Number(k));
+        merged.preferredHendersonIds = tagIds.length ? tagIds : Array.from(new Set([...(cur.preferredHendersonIds || []), ...(inc.preferredHendersonIds || [])]));
+        return merged;
+      }
+    }
+    function exportLearningData() {
+      const dict = globalAppData.learningUserDict || {};
+      const count = Object.keys(dict).length;
+      if (!count) { showToast('書き出す学習データがありません', 'info'); return false; }
+      const payload = { kind: 'nursing-learning-dict', version: 1, exportedAt: new Date().toISOString(), learningUserDict: dict };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `学習データ_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      showToast(`学習データ${count}件を書き出しました`, 'success');
+      return true;
+    }
+    window.exportLearningData = exportLearningData;
+    async function importLearningDataFile(file) {
+      let parsed;
+      try { parsed = JSON.parse(await file.text()); } catch (e) { return showToast('ファイルを読み込めませんでした（学習データの書き出しファイル .json を選んでください）', 'error'); }
+      const incoming = parsed && parsed.learningUserDict && typeof parsed.learningUserDict === 'object' ? parsed.learningUserDict : parsed;
+      if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) return showToast('学習データの形式ではありません', 'error');
+      const { dict, added, updated } = mergeLearningDicts(globalAppData.learningUserDict, incoming);
+      if (!added && !updated) return showToast('新しく取り込む学習データはありませんでした', 'info');
+      const ok = await openDialog({ title: '学習データを読み込みますか？', message: `新しい学習 ${added}件、票を更新する学習 ${updated}件を取り込みます。\n同じ文章の票（回数）は、多い方を残します。サーバーにつながっていれば全員に共有されます。`, confirmLabel: '読み込む' });
+      if (ok !== true) return;
+      globalAppData.learningUserDict = dict;
+      saveDataAndSync();
+      try {
+        const blob = new Blob([JSON.stringify(dict)], { type: 'application/json' });
+        await fetch(`${API_BASE}/learning-dict/sync`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: blob });
+      } catch (e) { /* サーバー未接続でも、このブラウザには取り込み済み */ }
+      renderAdminLearningList();
+      showToast(`学習データを読み込みました（新規${added}件・更新${updated}件）`, 'success');
+    }
+    document.getElementById('btn-export-learning')?.addEventListener('click', exportLearningData);
+    document.getElementById('btn-import-learning')?.addEventListener('click', () => document.getElementById('input-import-learning')?.click());
+    document.getElementById('input-import-learning')?.addEventListener('change', e => {
+      const f = e.target.files && e.target.files[0];
+      if (f) importLearningDataFile(f);
+      e.target.value = '';
+    });
 
     // 学習データ管理：票数の手動修正（自動分類が明らかに間違っている/古い場合に、票を直接調整できるようにする）
     window.adjustAdminTypeVote = function(text, type, delta) {
@@ -1215,6 +1380,7 @@
       learned.typeVotes = { ...(learned.typeVotes || {}) };
       learned.typeVotes[type] = Math.max(0, (learned.typeVotes[type] || 0) + delta);
       learned.preferredType = pickTopVote(learned.typeVotes);
+      learned.updatedAt = new Date().toISOString();
       saveDataAndSync();
       reportLearningEvent(text, 'adjustTypeVote', { type, delta, voteCount: learned.typeVotes[type] });
       renderAdminLearningList();
@@ -1224,6 +1390,7 @@
       learned.hendersonVotes = { ...(learned.hendersonVotes || {}) };
       learned.hendersonVotes[hId] = Math.max(0, (learned.hendersonVotes[hId] || 0) + delta);
       learned.preferredHendersonIds = Object.entries(learned.hendersonVotes).filter(([, c]) => c > 0).map(([k]) => Number(k));
+      learned.updatedAt = new Date().toISOString();
       saveDataAndSync();
       reportLearningEvent(text, 'adjustHendersonVote', { hendersonId: hId, delta, voteCount: learned.hendersonVotes[hId] });
       renderAdminLearningList();
@@ -1275,7 +1442,8 @@
         case 'tagAdd': return `「${hendersonNameOf(p.hendersonId)}」を追加${p.voteCount > 1 ? `（×${p.voteCount}）` : ''}`;
         case 'tagRemove': return `「${hendersonNameOf(p.hendersonId)}」を削除${typeof p.voteCount === 'number' ? `（残り×${p.voteCount}）` : ''}`;
         case 'col': return `「${hendersonNameOf(p.hendersonId)}」の欄 → ${assessmentColLabel(p.col)}`;
-        case 'edit': return `「${entry.text}」→「${p.newText}」`;
+        case 'edit': return `「${entry.text || ''}」→「${p.newText || ''}」`;
+        case 'sync': return 'まとめて同期';
         case 'create': return `初期分類: ${ADMIN_TYPE_LABELS[p.type] || p.type}${(p.hendersonIds || []).length ? ' / タグ: ' + p.hendersonIds.map(hendersonNameOf).join('、') : ''}`;
         case 'delete': return '学習内容を削除';
         case 'adjustTypeVote': return `${ADMIN_TYPE_LABELS[p.type] || p.type} の票を${p.delta > 0 ? '+1' : '-1'}（管理画面で手動修正・現在×${p.voteCount}）`;
@@ -1339,7 +1507,7 @@
         cachedCaseLog = await res.json();
       } catch (e) {
         cachedCaseLog = null;
-        listEl.innerHTML = `<p class="text-xs text-[var(--brick)] text-center py-6">事例ログの取得に失敗しました（サーバーに接続できません）。</p>`;
+        listEl.innerHTML = adminServerNoticeHtml('事例ログ');
         document.getElementById('admin-caselog-count').textContent = '';
         document.getElementById('admin-caselog-stats').textContent = '';
         return;
@@ -1364,7 +1532,7 @@
       if (term) entries = entries.filter(e =>
         (e.text || '').toLowerCase().includes(term) ||
         (ADMIN_ACTION_LABELS[e.action] || e.action || '').toLowerCase().includes(term) ||
-        JSON.stringify(e.payload || {}).toLowerCase().includes(term)
+        formatHistoryDetail(e).toLowerCase().includes(term)
       );
       countEl.textContent = `${entries.length}件（全${cachedCaseLog.length}件）`;
 
@@ -1385,7 +1553,7 @@
             <span class="tag-chip">${escapeHtml(ADMIN_ACTION_LABELS[entry.action] || entry.action || '不明')}</span>
           </div>
           <div class="text-[11px] text-[var(--ink-muted)] break-words">${escapeHtml(entry.text || '')}</div>
-          <div class="text-xs text-[var(--ink)] break-words font-mono">${escapeHtml(JSON.stringify(entry.payload || {}))}</div>
+          <div class="text-xs text-[var(--ink)] break-words">${escapeHtml(formatHistoryDetail(entry))}</div>
         `;
         frag.appendChild(row);
       });
@@ -1430,7 +1598,7 @@
           <div class="flex items-center gap-1.5 flex-wrap">
             <span class="time-chip">合計${r.totalVotes}回の一致</span>
             ${r.typeLabel ? `<span class="tag-chip">分類: ${escapeHtml(r.typeLabel)}</span>` : ''}
-            ${!usedInPrompt ? '<span class="field-chip" style="background:var(--ink-muted);color:#fff;">件数が多いためAIの指示には未反映</span>' : ''}
+            ${!usedInPrompt ? '<span class="field-chip" style="background:var(--ink-muted);color:var(--on-fill);">件数が多いためAIの指示には未反映</span>' : ''}
           </div>
           <div class="text-xs text-[var(--ink)] break-words">${escapeHtml(r.text)}</div>
           ${r.tagNames.length ? `<div class="flex items-center gap-1 flex-wrap">${r.tagNames.map(n => `<span class="field-chip">${escapeHtml(n)}</span>`).join('')}</div>` : ''}
@@ -1540,7 +1708,7 @@
       countEl.textContent = `全患者の手直しから ${total}件の候補`;
       const name = h => hendersonNameOf(h).replace(/^\d+\.\s*/, '');
       const examplesHtml = ex => ex.map(t => `<div class="text-[11px] text-[var(--ink-muted)] break-words">例）${escapeHtml(t)}</div>`).join('');
-      const countChip = n => `<span class="field-chip" style="background:${n >= 2 ? 'var(--brick)' : 'var(--ink-muted)'};color:#fff;">${n}回</span>`;
+      const countChip = n => `<span class="field-chip" style="background:${n >= 2 ? 'var(--brick)' : 'var(--ink-muted)'};color:var(--on-fill);">${n}回</span>`;
       const section = (title, rowsHtml) => `<div class="text-xs font-semibold text-[var(--ink)] mt-1">${title}</div>${rowsHtml || '<p class="text-[11px] text-[var(--ink-muted)] pl-1">（まだありません）</p>'}`;
       const removedHtml = c.removedKeywords.map((r, i) => {
         const moved = Object.entries(r.movedTo).sort((a, b) => b[1] - a[1]).map(([h, n]) => `${h}.${escapeHtml(name(Number(h)))}（${n}回）`).join('、');
@@ -1581,6 +1749,7 @@
     };
 
     // ===== 追加キーワード（改善提案6。detectMultipleHendersonTagsの下の説明を参照）=====
+    let customRulesOffline = false;
     async function loadCustomTagRules() {
       try {
         const res = await fetch(`${API_BASE}/custom-tag-rules`);
@@ -1588,7 +1757,9 @@
         const data = await res.json();
         globalAppData.customTagRules = normalizeCustomTagRules(data?.rules);
         try { localStorage.setItem(CUSTOM_TAG_RULES_CACHE_KEY, JSON.stringify(globalAppData.customTagRules)); } catch (e) { /* 保存できなくても動作は続ける */ }
+        customRulesOffline = false;
       } catch (e) {
+        customRulesOffline = true;
         console.warn('追加キーワードの読み込みに失敗しました（このブラウザに保存されている写しで動作します）:', e);
       }
       renderCustomTagRulesPanel();
@@ -1618,16 +1789,18 @@
       if (select && select.options && select.options.length <= 1) select.innerHTML = '<option value="">タグを選択</option>' + HENDERSON_NEEDS.map(n => `<option value="${n.id}">${n.id}. ${escapeHtml(n.name)}</option>`).join('');
       const rules = globalAppData.customTagRules || [];
       document.getElementById('admin-customrules-count').textContent = `${rules.length}件`;
+      // サーバーにつながらないときは、このブラウザの写しを表示していることを伝える（他の人の登録は見えない）
+      const offlineNote = customRulesOffline ? `<p class="text-[10.5px] text-[var(--brick)] px-1 pb-1"><i class="fa-solid fa-triangle-exclamation"></i> ${IS_FILE_PROTOCOL ? 'HTMLファイルを直接開いている' : 'サーバーに接続できない'}ため、このブラウザに保存されている写しを表示しています（他の人の登録は見えず、ここで登録した分も共有されません）。</p>` : '';
       if (!rules.length) {
-        listEl.innerHTML = '<p class="text-xs text-[var(--ink-muted)] text-center py-6">まだ登録はありません。上の欄から登録すると、次に分類したときから反映されます。</p>';
+        listEl.innerHTML = offlineNote + '<p class="text-xs text-[var(--ink-muted)] text-center py-6">まだ登録はありません。上の欄から登録すると、次に分類したときから反映されます。</p>';
         return;
       }
       const cp = getCurrentPatient();
-      listEl.innerHTML = rules.map(r => {
+      listEl.innerHTML = offlineNote + rules.map(r => {
         const tags = r.hendersonIds.map(h => `<span class="tag-chip">${h}.${escapeHtml(hendersonNameOf(h).replace(/^\d+\.\s*/, ''))}</span>`).join('');
         const hits = (cp.items || []).filter(i => (i.text || '').includes(r.keyword)).length;
         return `<div class="flex items-center gap-1.5 flex-wrap p-2 rounded-[var(--radius-sm)] border border-[var(--line)]">
-          <span class="field-chip" style="background:${r.mode === 'exclude' ? 'var(--ink-muted)' : 'var(--accent)'};color:#fff;">${r.mode === 'exclude' ? '付けない' : '付ける'}</span>
+          <span class="field-chip" style="background:${r.mode === 'exclude' ? 'var(--ink-muted)' : 'var(--accent)'};color:var(--on-fill);">${r.mode === 'exclude' ? '付けない' : '付ける'}</span>
           <span class="text-xs">「<b>${escapeHtml(r.keyword)}</b>」を含むとき</span>${tags}
           <span class="text-[10px] text-[var(--ink-muted)]">今の患者で該当 ${hits}枚</span>
           ${r.note ? `<span class="text-[10px] text-[var(--ink-muted)] break-words">メモ：${escapeHtml(r.note)}</span>` : ''}
@@ -1687,7 +1860,7 @@
         cachedPatientSnapshots = await res.json();
       } catch (e) {
         cachedPatientSnapshots = null;
-        listEl.innerHTML = `<p class="text-xs text-[var(--brick)] text-center py-6">カルテスナップショットの取得に失敗しました（サーバーに接続できません）。</p>`;
+        listEl.innerHTML = adminServerNoticeHtml('カルテスナップショット');
         document.getElementById('admin-snapshots-count').textContent = '';
         return;
       }
@@ -1795,7 +1968,7 @@
         cachedCardReports = await res.json();
       } catch (e) {
         cachedCardReports = null;
-        listEl.innerHTML = `<p class="text-xs text-[var(--brick)] text-center py-6">報告の取得に失敗しました（サーバーに接続できません）。</p>`;
+        listEl.innerHTML = adminServerNoticeHtml('情報カードの報告');
         document.getElementById('admin-reports-count').textContent = '';
         return;
       }

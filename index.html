@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-09-28.25">
+  <meta name="app-version" content="2026-09-29.5">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
-  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-09-28.25">
+  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-09-29.5">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=2026-09-28.25">
+  <link rel="stylesheet" href="style.css?v=2026-09-29.5">
   <!-- 画面の見た目の部品（Tailwind CSS 3.4）。以前は開くたびにネット（cdn.tailwindcss.com）から読み込み、
        その場で作っていたため、ネットが不安定だったり配信が止まったりすると画面のレイアウトが崩れた。
        使っている部品だけを vendor/tailwind.css に作っておき、それを読み込む（改善提案7。作り直しは
        npm run build:css）。以前と同じく style.css より後に読み込み、同じ強さの指定ではこちらを優先する。 -->
-  <link rel="stylesheet" href="vendor/tailwind.css?v=2026-09-28.25">
+  <link rel="stylesheet" href="vendor/tailwind.css?v=2026-09-29.5">
   <script>
     // ダークモードの初期適用（画面が一瞬だけ元のテーマで表示される「ちらつき」を防ぐため、
     // CSS読み込み直後・本文描画前にこの小さなスクリプトで先に data-theme を決めてしまう）。
@@ -282,41 +282,41 @@
       <div id="ai-steps" class="ai-steps"></div>
 
       <!-- 検査値評価サマリーパネル -->
-      <div id="lab-evaluation-panel" class="bg-[var(--accent-soft)] border border-[#D7E2DC] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
+      <div id="lab-evaluation-panel" class="bg-[var(--accent-soft)] border border-[var(--accent-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
         <div class="flex items-center justify-between">
           <span class="text-xs font-semibold text-[var(--accent-dark)] flex items-center">
             <i class="fa-solid fa-microscope mr-1.5"></i> 検査データ臨床評価
           </span>
         </div>
-        <div id="lab-evaluation-content" class="text-xs text-[var(--ink)] leading-relaxed bg-white/90 p-3 rounded-[var(--radius-sm)] border border-[#D7E2DC] min-h-[50px]">
+        <div id="lab-evaluation-content" class="text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--accent-line)] min-h-[50px]">
           「検査値AI総合評価」ボタンを押すと、入力されたOデータ中の検査値をノートブックの基準に基づいて自動抽出し、臨床的意味を評価します。
         </div>
         <p class="text-[10px] text-[var(--accent-dark)]/70 leading-relaxed"><i class="fa-solid fa-circle-info mr-1"></i>AIによる参考情報であり、臨床判断の代替にはなりません。最終評価は必ず医療従事者が行ってください。</p>
       </div>
 
       <!-- S/O矛盾チェックパネル -->
-      <div id="contradiction-panel" class="hidden bg-[var(--gold-soft)] border border-[#E9DBB8] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
+      <div id="contradiction-panel" class="hidden bg-[var(--gold-soft)] border border-[var(--gold-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
         <span class="text-xs font-semibold flex items-center" style="color:var(--gold);"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i> S/O矛盾チェック結果（AI）</span>
-        <div id="contradiction-content" class="text-xs text-[var(--ink)] leading-relaxed bg-white/90 p-3 rounded-[var(--radius-sm)] border border-[#E9DBB8] min-h-[40px]"></div>
+        <div id="contradiction-content" class="text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--gold-line)] min-h-[40px]"></div>
       </div>
 
       <!-- 看護診断候補パネル -->
-      <div id="diagnosis-panel" class="hidden bg-[var(--slate-soft)] border border-[#CBD9E6] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
+      <div id="diagnosis-panel" class="hidden bg-[var(--slate-soft)] border border-[var(--slate-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
         <span class="text-xs font-semibold flex items-center" style="color:var(--slate);"><i class="fa-solid fa-clipboard-list mr-1.5"></i> 看護診断候補（AI提案）</span>
-        <div id="diagnosis-content" class="text-xs text-[var(--ink)] leading-relaxed bg-white/90 p-3 rounded-[var(--radius-sm)] border border-[#CBD9E6] min-h-[40px]"></div>
+        <div id="diagnosis-content" class="text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--slate-line)] min-h-[40px]"></div>
         <p class="text-[10px] leading-relaxed" style="color:var(--slate);"><i class="fa-solid fa-circle-info mr-1"></i>AIによる参考候補です。最終的な看護診断の決定・優先順位付けは必ず医療従事者が行ってください。</p>
       </div>
 
       <!-- 経時変化サマリーパネル -->
-      <div id="timeline-panel" class="hidden bg-[var(--accent-soft)] border border-[#D7E2DC] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
+      <div id="timeline-panel" class="hidden bg-[var(--accent-soft)] border border-[var(--accent-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
         <span class="text-xs font-semibold text-[var(--accent-dark)] flex items-center"><i class="fa-solid fa-clock-rotate-left mr-1.5"></i> 経時変化サマリー（AI）</span>
-        <div id="timeline-content" class="text-xs text-[var(--ink)] leading-relaxed bg-white/90 p-3 rounded-[var(--radius-sm)] border border-[#D7E2DC] min-h-[40px]"></div>
+        <div id="timeline-content" class="text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--accent-line)] min-h-[40px]"></div>
       </div>
 
       <!-- 看護計画（ケアプラン）自動生成パネル -->
       <div id="careplan-panel" class="hidden bg-[var(--brick-soft)] border border-[var(--brick-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
         <span class="text-xs font-semibold flex items-center" style="color:var(--brick);"><i class="fa-solid fa-notes-medical mr-1.5"></i> 看護計画（AI自動生成）</span>
-        <div id="careplan-content" class="text-xs text-[var(--ink)] leading-relaxed bg-white/90 p-3 rounded-[var(--radius-sm)] border border-[var(--brick-line)] min-h-[40px]"></div>
+        <div id="careplan-content" class="text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--brick-line)] min-h-[40px]"></div>
         <p class="text-[10px] leading-relaxed" style="color:var(--brick);"><i class="fa-solid fa-circle-info mr-1"></i>AIによる叩き台です。個別性を踏まえた最終的な看護計画の決定は必ず医療従事者が行ってください。</p>
       </div>
 
@@ -372,7 +372,7 @@
   </main>
   <!-- 版の表示（ファイルが古い版に戻っていないかの確認用。js/10 の checkAppFileVersions 参照） -->
   <footer class="text-center text-[10px] text-[var(--ink-muted)] pb-3">看護アセスメント支援システム ／ 版 <span id="app-version-label">-</span></footer>
-  <div id="app-version-warning" class="hidden fixed top-0 inset-x-0 z-[80] text-white text-xs px-4 py-2 text-center" style="background:var(--brick);"></div>
+  <div id="app-version-warning" class="hidden fixed top-0 inset-x-0 z-[80] text-xs px-4 py-2 text-center" style="background:var(--brick);color:var(--on-fill);"></div>
 
   <!-- 参考データ 追加・編集モーダル -->
   <div id="modal-reference-entry" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
@@ -428,6 +428,8 @@
 
       <!-- 「現在の学習内容一覧」と「学習によってどう変わったかの変更履歴」を切り替える。
            タブ数が増えても崩れないよう折り返し可能にしている（flex-wrap）。 -->
+      <!-- サーバーにつながっているか（全員共有の学習データ・記録が見えているか）を表示する（renderAdminServerStatus） -->
+      <div id="admin-server-status" class="text-[10.5px] text-[var(--ink-muted)] flex items-center gap-1.5 shrink-0"></div>
       <div class="flex items-center gap-1 flex-wrap shrink-0">
         <button id="admin-tab-btn-list" class="tab-pill active">現在の学習内容</button>
         <button id="admin-tab-btn-history" class="tab-pill">変更履歴</button>
@@ -441,11 +443,32 @@
       </div>
 
       <div id="admin-panel-list" class="flex flex-col gap-3" style="flex:1; min-height:0;">
-        <div class="flex items-center justify-between gap-2 shrink-0">
-          <input type="text" id="admin-learning-search" class="field flex-1" placeholder="登録内容を検索...">
+        <div class="flex items-center justify-between gap-2 shrink-0 flex-wrap">
+          <input type="text" id="admin-learning-search" class="field flex-1 min-w-[160px]" placeholder="登録内容を検索...">
+          <!-- 絞り込み・並べ替え（件数が増えても目的の学習内容を探しやすく） -->
+          <select id="admin-learning-filter" class="field w-auto text-xs" title="絞り込み">
+            <option value="">すべて</option>
+            <option value="s">Sに直したもの</option>
+            <option value="o">Oに直したもの</option>
+            <option value="unnecessary">不要にしたもの</option>
+            <option value="tags">タグを直したもの</option>
+            <option value="trend">2回以上の同じ修正（傾向）</option>
+          </select>
+          <select id="admin-learning-sort" class="field w-auto text-xs" title="並べ替え">
+            <option value="votes">回数の多い順</option>
+            <option value="recent">新しい順</option>
+            <option value="text">文字順</option>
+          </select>
           <span id="admin-learning-count" class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap"></span>
         </div>
         <div id="admin-learning-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
+        <!-- 学習データの書き出し（バックアップ）・読み込み・消去（以前は全タブ共通の下部にあり、誤って押しやすかった） -->
+        <div class="flex items-center gap-2 flex-wrap shrink-0">
+          <button id="btn-export-learning" class="btn btn-outline text-[11px] py-1"><i class="fa-solid fa-file-arrow-down"></i> 書き出し（バックアップ）</button>
+          <button id="btn-import-learning" class="btn btn-outline text-[11px] py-1"><i class="fa-solid fa-file-arrow-up"></i> 読み込み</button>
+          <input type="file" id="input-import-learning" accept=".json,application/json" class="hidden">
+          <button onclick="resetLearningData()" class="btn btn-danger-ghost border border-[var(--brick-soft)] text-[11px] py-1 ml-auto"><i class="fa-solid fa-eraser"></i> このブラウザの学習内容を消去</button>
+        </div>
       </div>
 
       <div id="admin-panel-history" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
@@ -453,6 +476,7 @@
           <input type="text" id="admin-history-search" class="field flex-1" placeholder="変更履歴を検索...">
           <span id="admin-history-count" class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap"></span>
         </div>
+        <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0"><i class="fa-solid fa-circle-info"></i> このブラウザで行った修正だけの記録です（新しい300件まで）。全員の修正の記録は「事例ログ」で見られます。</p>
         <div id="admin-history-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
         <button id="btn-admin-clear-history" class="btn btn-outline self-start shrink-0" style="border-bottom:2px solid var(--ink-muted);">
           <i class="fa-solid fa-broom"></i> このブラウザの変更履歴を消去
@@ -478,6 +502,7 @@
           </select>
           <span id="admin-caselog-count" class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap"></span>
         </div>
+        <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0"><i class="fa-solid fa-circle-info"></i> 全員が行った修正の記録です（サーバーに保存。このブラウザだけの記録は「変更履歴」）。</p>
         <div id="admin-caselog-stats" class="text-[11px] text-[var(--ink-muted)] shrink-0"></div>
         <div id="admin-caselog-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
       </div>
@@ -540,9 +565,9 @@
           <i class="fa-solid fa-circle-info"></i> 情報カードの「報告」ボタンから送られた内容の一覧です（閲覧のみで削除機能はありません）。同じ人がページを閉じるまでに送った複数件は1つの投稿としてまとめて表示されます。
         </p>
         <div class="flex items-center gap-2 shrink-0 flex-wrap">
-          <button id="btn-summarize-reports" class="btn btn-outline" style="color:var(--brick);background:#fff;"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>AIで要約（分類ロジック修正のヒント）</button>
+          <button id="btn-summarize-reports" class="btn btn-outline" style="color:var(--brick);background:var(--surface);"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>AIで要約（分類ロジック修正のヒント）</button>
         </div>
-        <div id="admin-reports-summary" class="hidden text-xs text-[var(--ink)] leading-relaxed bg-[var(--brick-soft)]/40 border border-[#EFD9CE] rounded-[var(--radius)] p-3 shrink-0" style="max-height:220px; overflow-y:auto;"></div>
+        <div id="admin-reports-summary" class="hidden text-xs text-[var(--ink)] leading-relaxed bg-[var(--brick-soft)]/40 border border-[var(--brick-line)] rounded-[var(--radius)] p-3 shrink-0" style="max-height:220px; overflow-y:auto;"></div>
         <div id="admin-reports-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
       </div>
 
@@ -621,9 +646,8 @@
       <div class="border-t border-[var(--line-soft)] pt-3 flex flex-wrap items-center justify-between gap-2 shrink-0">
         <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed flex items-center gap-1.5">
           <i class="fa-solid fa-circle-info"></i>
-          学習データはフォルダ内の学習専用ファイル（全利用者共有）とこのブラウザ内の両方に自動で保存・読み込みされます（都度ファイルは作成されません）。
+          学習データは、サーバーの学習専用ファイル（全員で共有）とこのブラウザの両方に自動で保存されます。書き出し・読み込み・消去は「現在の学習内容」タブにあります。
         </p>
-        <button onclick="resetLearningData()" class="btn btn-danger-ghost border border-[var(--brick-soft)]">すべての学習履歴を消去</button>
       </div>
     </div>
   </div>
@@ -660,7 +684,7 @@
       </div>
       <div class="border-t border-[var(--line-soft)] pt-3">
         <label class="block text-xs font-medium text-[var(--brick)] mb-1">学習データのリセット</label>
-        <button onclick="resetLearningData()" class="btn btn-danger-ghost border border-[var(--brick-soft)]">S/Oや不要判定の学習履歴を消去</button>
+        <button onclick="resetLearningData()" class="btn btn-danger-ghost border border-[var(--brick-soft)]">このブラウザの学習内容を消去</button>
       </div>
       <div class="flex justify-end gap-2 pt-2 border-t border-[var(--line-soft)] mt-2">
         <button id="btn-save-settings" class="btn btn-primary">保存</button>
@@ -676,7 +700,7 @@
       <input type="hidden" id="missing-henderson-id">
       <div class="flex justify-end gap-2">
         <button onclick="closeMissingModal()" class="btn btn-outline">キャンセル</button>
-        <button onclick="saveMissingInfo()" class="btn" style="background:var(--brick);color:#fff;border:1px solid var(--brick);">追加する</button>
+        <button onclick="saveMissingInfo()" class="btn" style="background:var(--brick);color:var(--on-fill);border:1px solid var(--brick);">追加する</button>
       </div>
     </div>
   </div>
@@ -718,21 +742,19 @@
   </div>
 
   <!-- 複数選択時の一括操作バー -->
-  <!-- 常に「濃い色の帯＋白いボタン」の配色で表示する固定デザインのため、テーマで反転する var(--ink) は
-       使わず#262420（ライトモードのinkと同じ色）を直接指定する。var(--ink)を使うとダークモード時に
-       帯の背景が明るい色に反転し、白文字が背景に溶けて見えなくなってしまう（内側の白いボタンの
-       文字色も同様に、暗くならず見えなくなる）。 -->
-  <div id="bulk-action-bar" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[67] bg-[#262420] text-white rounded-[var(--radius)] shadow-lg px-4 py-2.5 flex items-center flex-wrap justify-center gap-2 text-xs max-w-[95vw]">
+  <!-- 「濃い色の帯＋明るいボタン」の配色。帯とボタンの色は --bar-bg・--bar-btn-bg で決める
+       （ダークモードでは白いボタンがまぶしく浮いていたので、帯より少し明るい灰色のボタンにした）。 -->
+  <div id="bulk-action-bar" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[67] rounded-[var(--radius)] shadow-lg px-4 py-2.5 flex items-center flex-wrap justify-center gap-2 text-xs max-w-[95vw]" style="background:var(--bar-bg);color:var(--bar-ink);border:1px solid var(--line-strong);">
     <span id="bulk-action-count" class="font-semibold mr-1 whitespace-nowrap">0件選択中</span>
-    <button onclick="bulkSetType('s')" class="btn" style="background:var(--gold);color:#fff;">→S</button>
-    <button onclick="bulkSetType('o')" class="btn" style="background:var(--slate);color:#fff;">→O</button>
-    <select id="bulk-tag-select" onchange="bulkAddTag(this.value); this.value='';" class="text-[10px] rounded-[var(--radius-sm)] px-1.5 py-1.5 border-0" style="color:#262420;background:#fff;"><option value="">＋タグ追加</option></select>
-    <button id="btn-bulk-merge" onclick="openMergeModal()" class="btn btn-outline" style="color:#262420;background:#fff;" title="選択した2件以上のカードを1枚にまとめる"><i class="fa-solid fa-layer-group mr-1"></i>統合</button>
-    <button onclick="bulkSetType('unnecessary')" class="btn btn-outline" style="color:#262420;background:#fff;">不要にする</button>
+    <button onclick="bulkSetType('s')" class="btn" style="background:var(--gold);color:var(--on-fill);">→S</button>
+    <button onclick="bulkSetType('o')" class="btn" style="background:var(--slate);color:var(--on-fill);">→O</button>
+    <select id="bulk-tag-select" onchange="bulkAddTag(this.value); this.value='';" class="text-[10px] rounded-[var(--radius-sm)] px-1.5 py-1.5 border-0" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;"><option value="">＋タグ追加</option></select>
+    <button id="btn-bulk-merge" onclick="openMergeModal()" class="btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;" title="選択した2件以上のカードを1枚にまとめる"><i class="fa-solid fa-layer-group mr-1"></i>統合</button>
+    <button onclick="bulkSetType('unnecessary')" class="btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;">不要にする</button>
     <!-- 選択したカードだけをテキスト書き出し（修正依頼用メモ。app.jsのbuildSelectedCardsExportText参照） -->
-    <button onclick="exportSelectedCardsText()" class="btn btn-outline" style="color:#262420;background:#fff;" title="選択したカードだけを、元の文章の該当箇所と修正内容の記入欄付きでテキストファイル(.txt)に書き出す"><i class="fa-solid fa-file-export mr-1"></i>選択をテキスト書き出し</button>
-    <button id="btn-bulk-back-to-overview" onclick="openCardOverview(true)" class="hidden btn btn-outline" style="color:#262420;background:#fff;" title="選択を保ったまま、カード一覧に戻る"><i class="fa-solid fa-table-list mr-1"></i>一覧に戻る</button>
-    <button onclick="clearSelection()" class="btn btn-ghost text-white hover:bg-white/10">選択解除</button>
+    <button onclick="exportSelectedCardsText()" class="btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;" title="選択したカードだけを、元の文章の該当箇所と修正内容の記入欄付きでテキストファイル(.txt)に書き出す"><i class="fa-solid fa-file-export mr-1"></i>選択をテキスト書き出し</button>
+    <button id="btn-bulk-back-to-overview" onclick="openCardOverview(true)" class="hidden btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;" title="選択を保ったまま、カード一覧に戻る"><i class="fa-solid fa-table-list mr-1"></i>一覧に戻る</button>
+    <button onclick="clearSelection()" class="btn btn-ghost hover:bg-white/10" style="color:var(--bar-ink);">選択解除</button>
   </div>
 
   <!-- カードの一覧表示（画面いっぱい）。app.jsのopenCardOverview・fitCardOverview参照。
@@ -880,15 +902,15 @@
 
   <!-- プログラム本体（以前の app.js を内容ごとに10ファイルに分けたもの）。この順番で読み込むこと。
        順番は tests/app-helpers.js の APP_SCRIPT_FILES と同じにする（tests/app-files-order.test.js で確認）。 -->
-  <script src="js/01-henderson-keywords.js?v=2026-09-28.25"></script>
-  <script src="js/02-reference-data.js?v=2026-09-28.25"></script>
-  <script src="js/03-extraction-helpers.js?v=2026-09-28.25"></script>
-  <script src="js/04-server-sync.js?v=2026-09-28.25"></script>
-  <script src="js/05-app-state-and-ui.js?v=2026-09-28.25"></script>
-  <script src="js/06-export.js?v=2026-09-28.25"></script>
-  <script src="js/07-classification.js?v=2026-09-28.25"></script>
-  <script src="js/08-assessment-tools.js?v=2026-09-28.25"></script>
-  <script src="js/09-board.js?v=2026-09-28.25"></script>
-  <script src="js/10-reference-page-and-startup.js?v=2026-09-28.25"></script>
+  <script src="js/01-henderson-keywords.js?v=2026-09-29.5"></script>
+  <script src="js/02-reference-data.js?v=2026-09-29.5"></script>
+  <script src="js/03-extraction-helpers.js?v=2026-09-29.5"></script>
+  <script src="js/04-server-sync.js?v=2026-09-29.5"></script>
+  <script src="js/05-app-state-and-ui.js?v=2026-09-29.5"></script>
+  <script src="js/06-export.js?v=2026-09-29.5"></script>
+  <script src="js/07-classification.js?v=2026-09-29.5"></script>
+  <script src="js/08-assessment-tools.js?v=2026-09-29.5"></script>
+  <script src="js/09-board.js?v=2026-09-29.5"></script>
+  <script src="js/10-reference-page-and-startup.js?v=2026-09-29.5"></script>
 </body>
 </html>

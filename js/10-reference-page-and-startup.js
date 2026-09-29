@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-09-28.25'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-09-29.5'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 参考データ ページ：看護基準・院内プロトコル等をユーザーが自由に登録・編集できる。
     // 「不足情報をAI推定」の判断材料としても使われる（evaluateMissingInfoAI 参照）。
@@ -214,14 +214,24 @@
         showToast('サーバーに接続できなかったため保存できませんでした。時間を置いて再度お試しください', 'error');
       }
     });
+    // 【見直し】以前は「すべての学習履歴を消去」という名前だったが、実際に消えるのはこのブラウザの分だけで、
+    // 全員で共有している学習ファイル（サーバー）は消えない（ページを開き直すと戻る）。名前と説明を実際の動きに
+    // 合わせ、消す前に書き出し（バックアップ）を選べるようにした。
     window.resetLearningData = async () => {
-      const confirmed = await openDialog({ title: '今の画面の学習内容をリセットしますか？', message: '現在表示されているS/O振り分け等の学習内容をこの画面上から消去します（元に戻すにはページを再度開いてください）。', confirmLabel: 'リセットする', danger: true });
-      if (confirmed) {
-        const old = globalAppData.learningUserDict;
-        globalAppData.learningUserDict = {};
-        saveDataAndSync();
-        showUndoToast('学習データをリセットしました', () => { globalAppData.learningUserDict = old; });
-      }
+      const count = Object.keys(globalAppData.learningUserDict || {}).length;
+      if (!count) return showToast('消去する学習データはありません', 'info');
+      const choice = await openDialog({
+        title: `このブラウザの学習内容（${count}件）を消去しますか？`,
+        message: 'このブラウザに保存されている S/O・タグの学習内容を消去します。\n全員で共有している学習ファイル（サーバー）は消えないため、サーバーにつながった状態でページを開き直すと、共有の分は再び読み込まれます。\n念のため、消す前に書き出し（バックアップ）しておくことをおすすめします。',
+        confirmLabel: '消去する', danger: true, secondaryLabel: '書き出してから消去'
+      });
+      if (choice !== true && choice !== 'secondary') return;
+      if (choice === 'secondary' && !exportLearningData()) return;
+      const old = globalAppData.learningUserDict;
+      globalAppData.learningUserDict = {};
+      saveDataAndSync();
+      if (typeof renderAdminLearningList === 'function') renderAdminLearningList();
+      showUndoToast('このブラウザの学習内容を消去しました', () => { globalAppData.learningUserDict = old; saveDataAndSync(); if (typeof renderAdminLearningList === 'function') renderAdminLearningList(); });
     };
 
     const ocrDropzone = document.getElementById('ocr-dropzone'), ocrFileInput = document.getElementById('ocr-file-input');
@@ -427,7 +437,7 @@ if (typeof module !== 'undefined' && module.exports) {
     FIELD_LABELS,
     PATIENT_BACKGROUND_BASIC_FIELD_LABELS,
     classifyPatientBackground,
-    isUntaggedItem, isOtherBasicInfoItem,
+    isUntaggedItem, isOtherBasicInfoItem, isFamilySpeech, mergeLearningDicts, filterAndSortLearningEntries, formatHistoryDetail,
     detectAdmissionPhaseSignal,
     inferAssessmentColumn,
     FIELD_LABEL_DEFAULT_TAGS,

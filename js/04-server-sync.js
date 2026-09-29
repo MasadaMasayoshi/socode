@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = '2026-09-28.25'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = '2026-09-29.5'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 共有学習（全利用者・全カードで共有する学習データ）
     // ------------------------------------------------------------------------
@@ -27,6 +27,8 @@
     // 新規の自動振り分け（'create'）は投票に数えず、ユーザーが実際に選び直した場合だけ加算することで、
     // 自動振り分けよりユーザーの編集を優先し、さらに票数が多いものほど次回の抽出で優先されるようにする。
     let sharedLearningDict = {};
+    // サーバー（学習専用ファイル）に届いたか：'unknown' | 'online' | 'offline'（学習データ管理の表示に使う）
+    let learningServerState = 'unknown';
 
     // 投票（typeVotes / hendersonVotes）の中から最多得票の値を選ぶ。同数の場合は先に記録された方を優先する。
     function pickTopVote(votes) {
@@ -43,11 +45,13 @@
         const res = await fetch(`${API_BASE}/learning-dict`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         sharedLearningDict = await res.json();
+        learningServerState = 'online';
         // このブラウザのlocalStorageから読み込んだ学習データ（起動直後の初期値）と、サーバー側の
         // 学習専用ファイルの内容をキー単位でマージする。同じキーが両方にある場合は、このブラウザ側
         // （より最近このタブで確認・編集された可能性がある）を優先する。
         globalAppData.learningUserDict = { ...sharedLearningDict, ...globalAppData.learningUserDict };
       } catch (e) {
+        learningServerState = 'offline';
         console.warn('学習専用ファイルの読み込みに失敗しました（サーバーが起動していないか、通信できません。学習内容はこの表示中のみ有効で、保存されません）:', e);
       }
     }
