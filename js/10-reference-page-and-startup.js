@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-09-29.12'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-09-30.2'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 参考データ ページ：看護基準・院内プロトコル等をユーザーが自由に登録・編集できる。
     // 「不足情報をAI推定」の判断材料としても使われる（evaluateMissingInfoAI 参照）。
@@ -243,6 +243,7 @@
 
     const ocrDropzone = document.getElementById('ocr-dropzone'), ocrFileInput = document.getElementById('ocr-file-input');
     ocrDropzone.addEventListener('click', () => ocrFileInput.click());
+    ocrDropzone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ocrFileInput.click(); } });
     ocrDropzone.addEventListener('dragover', e => { e.preventDefault(); ocrDropzone.classList.add('drag-over'); });
     ocrDropzone.addEventListener('dragleave', () => ocrDropzone.classList.remove('drag-over'));
     ocrDropzone.addEventListener('drop', e => { e.preventDefault(); ocrDropzone.classList.remove('drag-over'); if(e.dataTransfer.files[0]) doOcr(e.dataTransfer.files[0]); });
@@ -490,7 +491,7 @@ if (typeof module !== 'undefined' && module.exports) {
     detectPneumoniaMissingChecks,
     normalizeFieldLabelHeadingWord,
     FIELD_LABEL_HEADING_ALIASES,
-    buildExportPlainText,
+    buildExportPlainText, htmlToPlainText, isUntouchedAiMissing, cleanAiText,
     buildExportBodyHtml,
     findSourceHighlightRanges,
     buildSelectedCardsExportText,
@@ -513,6 +514,7 @@ if (typeof module !== 'undefined' && module.exports) {
     buildAssessmentPrintHtml,
     buildExportDocument,
     NOTEBOOK_CONTENT_VERSION_MARK,
+    buildIntegratedNotebook, userAddedNotebookLines, notebookChapterFor,
     buildEffectiveNotebookContent,
     normalizeCustomTagRules,
     isBuiltInKeywordOf,

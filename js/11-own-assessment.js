@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-09-29.12'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-09-30.2'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -765,7 +765,7 @@
         `【学生が根拠に選んだカード】\n${evItems.map(i => evidenceLine(ev, i)).join('\n') || '（なし）'}\n\n` +
         `【この項目のほかのカード（学生は根拠にしていない）】\n${others.map(i => evidenceLine(ev, i)).join('\n') || '（なし）'}\n\n` +
         `【この項目の不足情報】\n${missing || '（なし）'}\n\n` +
-        `出力は「良い点」「改善点」「次に確かめるとよいこと」の3つの見出し（見出しは**太字**）で、それぞれ2〜4項目の簡潔な箇条書きにしてください。${EVIDENCE_INSTRUCTION}太字(**語**)以外の記号は使わないでください。`;
+        `出力：前置き・あいさつは書かないでください。最初に「### 要点」として、いちばん大事な助言を1〜2個の短い箇条書きで示し、そのあと「### 良い点」「### 改善点」「### 次に確かめるとよいこと」の3つの見出しで、それぞれ2〜4項目の「- 」の箇条書き（1項目1〜2文）にしてください。${EVIDENCE_INSTRUCTION}根拠のカードの番号は文の終わりの句点の後ろに付けてください。`;
     }
     window.askAiAboutMyAssessment = async function(needId) {
       const cp = getCurrentPatient();

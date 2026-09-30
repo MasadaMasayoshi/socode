@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-09-29.12'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-09-30.2'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -236,7 +236,7 @@
       }
 
       try {
-        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長・指導者です。以下の「NotebookLM 基準ノート」の検査値評価規則を根拠にして、患者のOデータに含まれる検査値やバイタルの臨床的意味を評価し、総合評価欄向けに分かりやすく解説・アセスメント文章を作成してください。\n【NotebookLM 基準ノート】\n${buildEffectiveNotebookContent()}\n【患者のOデータ一覧】\n${labTexts}\n出力は簡潔かつ専門的で、マークダウン記号を用いた分かりやすいアセスメント文章にまとめてください。` }] }]);
+        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長・指導者です。以下の「基準ノート」（登録された基準）の検査値評価規則を根拠にして、患者のOデータに含まれる検査値やバイタルの臨床的意味を評価し、総合評価欄向けに分かりやすく解説・アセスメント文章を作成してください。\n【基準ノート】\n${buildEffectiveNotebookContent()}\n【患者のOデータ一覧】\n${labTexts}\n要点では、基準を外れた値と、看護で最も注意すべきことを示してください。詳細は系統ごと（呼吸・循環／炎症・感染／栄養・代謝／腎機能 など）の見出しにし、各値は「項目 値（基準値）：意味」の形で1行にしてください。最後に「### まとめ（アセスメント文）」として、記録にそのまま使える3〜4文の文章を付けてください。${AI_STYLE_INSTRUCTION}` }] }]);
         cp.labEvaluationResult = formatAiResultHtml(text, '評価の生成に失敗しました。');
         if (finishAiResult(cp, () => { DOM.labEvalContent.innerHTML = cp.labEvaluationResult; }, '検査値の評価')) showToast('検査値の評価を表示しました', 'success');
       } catch (err) {
@@ -417,7 +417,7 @@
 ②Oデータに含まれる医学的所見・検査値と、それに対応する記録の有無
 ③参考データ（看護基準・プロトコル等）に照らして通常確認すべきだが記録がない項目
 
-【NotebookLM 基準ノート】
+【基準ノート】
 ${buildEffectiveNotebookContent()}
 
 【参考データ】
@@ -430,21 +430,35 @@ ${perNeedSummary.map(n => `${n.name}\n入院前: ${n.pre.join(' / ') || '(記録
 ${labTexts || '(なし)'}
 
 各不足情報は必ず "原因: <不足に至った理由> → <補足すべき内容>と考えられる" という文言そのものを text とし、対応するヘンダーソン番号(1〜14の整数)を hendersonId とするJSON配列のみを出力してください。該当がなければ空配列 [] を返してください。余計な説明やMarkdown記号は出力しないでください。
-例: [{"hendersonId":1,"text":"原因: 入院後のSpO2測定記録がない → 呼吸状態の再アセスメントが必要と考えられる"}]`;
+例: [{"hendersonId":1,"text":"原因: 入院後のSpO2測定記録がない → 呼吸状態の再アセスメントが必要と考えられる"}]
+text は読みやすさのため全体で70字程度までにし、「→」の後ろは「何を確かめるか」を具体的に書いてください（「〜の把握が必要」のような言い方の繰り返しは避ける）。1つの項目につき、本当に大事なものを1〜2件までにしてください。すでに「不足情報」欄にある内容と同じものは出さないでください。
+【すでにある不足情報（残すもの）】
+${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !isUntouchedAiMissing(cp, i)).map(i => `- ${(i.hendersonIds || []).join('・')}：${i.text.replace(/^原因:\s*/, '')}`).join('\n') || '(なし)'}`;
 
         const aiText = await callGeminiAI([{ role: "user", parts: [{ text: prompt }] }]);
         const jsonMatch = aiText.match(/\[[\s\S]*\]/);
         if (!jsonMatch) throw new Error('AI応答からJSONを取得できませんでした');
         const suggestions = JSON.parse(jsonMatch[0]);
+        // 【重複を防ぐ】以前は推定するたびに同じような不足情報が足され、3回押すと42件になっていた（利用者の記録）。
+        // 前回AIが推定した不足情報のうち、まだ手を付けていないもの（未確認・編集していない）は今回の結果に置き換え、
+        // 今回の結果の中でも、同じ項目で同じ内容のものは1つにする。確認済み・該当なし・手で直したものは残す。
+        const untouchedAi = i => isUntouchedAiMissing(cp, i);
+        const replaced = cp.items.filter(untouchedAi);
+        replaced.forEach(i => markItemDeleted(cp, i.id));
+        cp.items = cp.items.filter(i => !untouchedAi(i));
+        const keptKeys = new Set(cp.items.filter(i => isMissingInfoOnlyItem(i)).map(i => `${(i.hendersonIds || []).join(',')}|${String(i.text).replace(/\s+/g, '').slice(0, 24)}`));
         let added = 0;
         suggestions.forEach(s => {
+          const key = `${parseInt(s && s.hendersonId, 10)}|${String((s && s.text) || '').replace(/\s+/g, '').slice(0, 24)}`;
+          if (keptKeys.has(key)) return;
+          keptKeys.add(key);
           const hId = parseInt(s.hendersonId, 10);
           if (!HENDERSON_NEEDS.some(n => n.id === hId) || !s.text) return;
           pushMissingInfoCard(hId, s.text, cp);
           added++;
         });
         markAiRun(cp, 'missing');
-        if (finishAiResult(cp, () => renderAiSteps(cp), '不足情報の推定')) showToast(added > 0 ? `${added}件の不足情報をAIが推定しました` : 'AIは不足情報を挙げませんでした。すべての項目を判定できるわけではありません', added > 0 ? 'success' : 'info');
+        if (finishAiResult(cp, () => renderAiSteps(cp), '不足情報の推定')) showToast(added > 0 ? `${added}件の不足情報をAIが推定しました${replaced.length ? `（前回のAI推定のうち未確認の${replaced.length}件は置き換えました）` : ''}` : 'AIは不足情報を挙げませんでした。すべての項目を判定できるわけではありません', added > 0 ? 'success' : 'info');
       } catch (err) {
         showAiErrorToast('不足情報の推定に失敗しました。', err);
       }
@@ -516,6 +530,10 @@ ${labTexts || '(なし)'}
     function ownAssessmentPromptSection(cp) {
       const t = typeof buildMyAssessmentsText === 'function' ? buildMyAssessmentsText(cp) : '';
       return t ? `【利用者（学生）自身が書いたアセスメント】\n${t}\n\n利用者自身のアセスメントを尊重し、それと食い違う判断をするときは理由を短く添えてください。\n\n` : '';
+    }
+    // 前回AIが推定した不足情報のうち、まだ手を付けていないもの（未確認・編集していない）。推定し直すと置き換える
+    function isUntouchedAiMissing(cp, i) {
+      return !!i.aiSuggested && isMissingInfoOnlyItem(i) && !(i.editLog && i.editLog.length) && (typeof missingCheckStatus !== 'function' || missingCheckStatus(cp, i.id) === 'unchecked');
     }
     function isMissingInfoOnlyItem(i) {
       const ids = i.hendersonIds || [];
@@ -627,7 +645,7 @@ ${labTexts || '(なし)'}
       const ev = buildEvidenceIndex(activeItems);
       const list = activeItems.map(i => evidenceLine(ev, i)).join('\n');
       try {
-        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長です。以下は患者のSデータ（主観的情報＝患者の発言）とOデータ（客観的情報＝観察所見・検査値）の一覧です。SデータとOデータの間で内容が食い違っている、あるいは併せて考えると注意が必要な組み合わせがあれば指摘してください。矛盾が見当たらない場合はその旨を一言述べてください。\n\n【S/Oデータ一覧】\n${list}\n\n出力は簡潔な箇条書きで、指摘ごとに根拠となった発言・所見のカードを示してください。${EVIDENCE_INSTRUCTION}強調したい語のみ太字(**語**)にし、それ以外の記号は使わないでください。` }] }]);
+        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長です。以下は患者のSデータ（主観的情報＝患者の発言）とOデータ（客観的情報＝観察所見・検査値）の一覧です。SデータとOデータの間で内容が食い違っている、あるいは併せて考えると注意が必要な組み合わせがあれば指摘してください。矛盾が見当たらない場合はその旨を一言述べてください。\n\n【S/Oデータ一覧】\n${list}\n\n指摘ごとに根拠となった発言・所見のカードを示してください。${EVIDENCE_INSTRUCTION}${AI_STYLE_INSTRUCTION}要点には、食い違いの有無と一番確かめるべきことを書いてください。` }] }]);
         const resultText = formatAiResultHtml(text, undefined, ev);
         cp.contradictionResult = resultText;
         if (finishAiResult(cp, () => { content.innerHTML = resultText; }, 'S/O矛盾チェック')) showToast('矛盾チェックが完了しました', 'success');
@@ -657,7 +675,7 @@ ${labTexts || '(なし)'}
       if (!perNeedText) { content.innerHTML = `<span class="text-[var(--ink-muted)]">ヘンダーソンタグが付いたカードがありません。先にタグ付けしてください。</span>`; return; }
       const missingText = buildMissingInfoText(cp);
       try {
-        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長・指導者です。以下はヘンダーソン14の基本的欲求ごとに整理された患者のアセスメント情報です。この内容から、想定される看護診断の候補を優先度が高いと思われる順に2〜4個程度提案してください。\n\n【ヘンダーソン項目別アセスメント情報】\n${perNeedText}\n\n【不足している情報（まだ記録が無く、確認が必要なもの）】\n${missingText || '(なし)'}\n\n${ownAssessmentPromptSection(cp)}出力は次の形式を必ず守ってください（候補ごとに「■」で始め、候補の間は空行で区切る）。\n■ 看護診断名\n根拠：アセスメント根拠の要約（${EVIDENCE_INSTRUCTION}）\n理由：この診断を挙げた理由\n不足情報：この診断を確かめるために追加で確認したい情報（あれば）\n\n太字(**語**)以外の記号は使わないでください。` }] }]);
+        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長・指導者です。以下はヘンダーソン14の基本的欲求ごとに整理された患者のアセスメント情報です。この内容から、想定される看護診断の候補を優先度が高いと思われる順に2〜4個程度提案してください。\n\n【ヘンダーソン項目別アセスメント情報】\n${perNeedText}\n\n【不足している情報（まだ記録が無く、確認が必要なもの）】\n${missingText || '(なし)'}\n\n${ownAssessmentPromptSection(cp)}出力は次の形式を必ず守ってください（候補ごとに「■」で始め、候補の間は空行で区切る）。\n■ 看護診断名\n根拠：アセスメント根拠の要約（${EVIDENCE_INSTRUCTION}）\n理由：この診断を挙げた理由\n不足情報：この診断を確かめるために追加で確認したい情報（あれば）\n\n前置き・あいさつは書かず、最初の行から「■」で始めてください。根拠・理由・不足情報は、それぞれ1〜2文で簡潔に書いてください。太字(**語**)以外の記号は使わないでください。` }] }]);
         const cands = parseDiagnosisCandidates(text).map((c, k) => ({ id: `dx_${Date.now().toString(36)}_${k}`, name: c.name, bodyHtml: formatAiResultHtml(c.body, '', ev) }));
         cp.diagnosisCandidates = cands;
         cp.selectedDiagnosisIds = [];
@@ -693,7 +711,7 @@ ${labTexts || '(なし)'}
       }).filter(Boolean).join('\n\n');
       if (!perNeedText) { content.innerHTML = `<span class="text-[var(--ink-muted)]">入院前・入院後に振り分けられたカードがありません。総合アセスメント表で「前」「後」に分類してください。</span>`; return; }
       try {
-        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師です。以下はヘンダーソン14の基本的欲求ごとの、入院前と入院後の記録の比較です。項目ごとに入院前後でどのように変化したかを簡潔にまとめてください。変化が読み取れない項目は省略して構いません。\n\n${perNeedText}\n\n出力は項目名のみ太字(**項目名**)にした簡潔な箇条書きでお願いします。${EVIDENCE_INSTRUCTION}` }] }]);
+        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師です。以下はヘンダーソン14の基本的欲求ごとの、入院前と入院後の記録の比較です。項目ごとに入院前後でどのように変化したかを簡潔にまとめてください。変化が読み取れない項目は省略して構いません。\n\n${perNeedText}\n\n詳細は項目ごとに「### 1. 呼吸」のような見出しを付け、変化を「- 」の箇条書き（1〜2文）で書いてください。要点には、入院前後で大きく変わった項目を書いてください。${EVIDENCE_INSTRUCTION}${AI_STYLE_INSTRUCTION}` }] }]);
         const resultText = formatAiResultHtml(text, undefined, ev);
         cp.timelineResult = resultText;
         if (finishAiResult(cp, () => { content.innerHTML = resultText; }, '経時変化サマリー')) showToast('経時変化サマリーを生成しました', 'success');
@@ -743,7 +761,7 @@ ${labTexts || '(なし)'}
         ? `次の看護診断（学生が選んだもの）それぞれについて、看護計画を作成してください。これ以外の看護問題は追加しないでください。\n${selected.map((c, k) => `${k + 1}. ${c.name}\n${plain(c.bodyHtml)}`).join('\n\n')}`
         : 'この内容から、優先度の高い看護問題を1〜3個選び、それぞれについて看護計画を作成してください。';
       try {
-        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師・看護計画の指導者です。以下はヘンダーソン14の基本的欲求ごとに整理された患者のアセスメント情報です。${target}\n\n【ヘンダーソン項目別アセスメント情報】\n${perNeedText}\n\n【不足している情報（まだ記録が無く、確認が必要なもの）】\n${missingText || '(なし)'}\n\n${ownAssessmentPromptSection(cp)}各看護問題について、目標と、観察計画OP・援助計画TP・教育計画EPの3区分（各3〜5項目程度）を具体的に作成してください。「不足している情報」のうちその問題に関係するものは、OPで確認する項目に必ず含めてください。個別性のある具体的な内容にし、一般論だけで終わらせないでください。${EVIDENCE_INSTRUCTION}\n\n出力形式は、看護問題ごとに「■看護問題名」を太字(**■看護問題名**)で示し、その下に目標・OP・TP・EPを続けてください。` }] }]);
+        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師・看護計画の指導者です。以下はヘンダーソン14の基本的欲求ごとに整理された患者のアセスメント情報です。${target}\n\n【ヘンダーソン項目別アセスメント情報】\n${perNeedText}\n\n【不足している情報（まだ記録が無く、確認が必要なもの）】\n${missingText || '(なし)'}\n\n${ownAssessmentPromptSection(cp)}各看護問題について、目標と、観察計画OP・援助計画TP・教育計画EPの3区分（各3〜5項目程度）を具体的に作成してください。「不足している情報」のうちその問題に関係するものは、OPで確認する項目に必ず含めてください。個別性のある具体的な内容にし、一般論だけで終わらせないでください。${EVIDENCE_INSTRUCTION}\n\n出力形式：前置きは書かず、最初に「### 要点」として看護問題の優先順位と一番大事なケアを2〜3個の短い箇条書きで示してください。そのあと看護問題ごとに「### ■看護問題名」の見出しを付け、その下に「#### 目標」「#### OP（観察計画）」「#### TP（援助計画）」「#### EP（教育計画）」の見出しと、番号付きの箇条書き（1項目1文）を続けてください。根拠のカードの番号は文の終わりの句点の後ろに付けてください。` }] }]);
         const resultText = formatAiResultHtml(text, undefined, ev);
         cp.carePlanResult = resultText;
         cp.carePlanDiagnoses = selected.map(c => c.name);

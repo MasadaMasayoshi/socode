@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-09-29.12'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-09-30.2'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -812,11 +812,95 @@
     // AIの答えに「<」等が含まれても表示が崩れないよう、先に文字をHTML用に変換してから整える。
     // evidence（改善案A。buildEvidenceIndex参照）を渡すと、〔C3〕のような根拠のカードの番号を、
     // 押すとそのカードへ移動できる小さなボタンに置き換える。
-    function formatAiResultHtml(text, fallback = '結果を取得できませんでした。', evidence = null) {
-      let html = escapeHtml(text || fallback).replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-      if (evidence) html = linkEvidenceCodes(html, evidence);
-      return html;
+    // 【読みやすさの改善】利用者からの要望：「AIが作成した文章をもう少し読みやすく、要点を分かりやすく」。
+    // 以前は改行と**太字**しか整えていなかったため、AIが使う見出し（###）・箇条書き（* - 1.）・引用（>）・区切り線（---）が
+    // 記号のまま表示され、「〜の視点から…まとめました」のような前置きも残っていた。また根拠のカード〔C3〕の後ろの「。」が
+    // 次の行に取り残されていた。ここで次のように整える：
+    //   ・前置き（「ご提示いただいた…作成しました」等）と区切り線を取り除く
+    //   ・見出し・箇条書き（入れ子も）・番号付きの箇条書き・引用を、表示用の形にする
+    //   ・【要点】の見出しの下は、枠で囲んで目立たせる（AIへの指示文で、最初に要点を書かせている：AI_STYLE_INSTRUCTION）
+    //   ・「根拠：」「理由：」などのラベルを太字にする
+    //   ・根拠のカードの番号は句点の後ろにまとめ、同じ番号が続いたら1つにする
+    function cleanAiText(text) {
+      let s = String(text || '').replace(/\r/g, '');
+      // 根拠のカードの番号の後ろの句読点を、番号の前に移す（「…推移〔C3〕〔C5〕。」→「…推移。〔C3〕〔C5〕」）
+      s = s.replace(/((?:[ \t]*[〔【\[]\s*C\s*\d{1,4}(?:\s*[、,，・\/]?\s*C?\s*\d{1,4})*\s*[〕】\]])+)[ \t]*([。、．，])/g, '$2$1');
+      // 同じ番号が続けて付いていたら1つにする
+      s = s.replace(/([〔【\[]\s*C\s*(\d{1,4})\s*[〕】\]])(?:\s*[〔【\[]\s*C\s*\2\s*[〕】\]])+/g, '$1');
+      const lines = s.split('\n');
+      const PREAMBLE = /(?:視点から|視点より|に基づき|に基づいて|をもとに|を踏まえ)[^。]*(?:まとめ|作成|評価|指摘|提案|整理|解説)[^。]*[。.:：]?$|(?:まとめました|作成しました|指摘します|提案します|記載しています|示します|整理しました|解説します)[。.:：]?$|^(?:はい|承知しました|かしこまりました)[、。]/;
+      let head = 0, dropped = 0;
+      while (head < lines.length && dropped < 3) {
+        const l = lines[head].trim();
+        if (!l || /^(?:-{3,}|\*{3,}|_{3,}|━{3,})$/.test(l)) { head++; continue; }
+        if (l.length <= 180 && PREAMBLE.test(l) && !/^[#■【*\-・\d]/.test(l)) { head++; dropped++; continue; }
+        break;
+      }
+      return lines.slice(head).join('\n').trim();
     }
+    function aiInlineHtml(t) {
+      return escapeHtml(t)
+        .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+        .replace(/^(根拠|理由|不足情報|目標|長期目標|短期目標|評価|注意|ポイント|結論|良い点|改善点|臨床的意味|検査値|所見)([：:])/, '<b class="ai-label">$1</b>$2');
+    }
+    function aiMarkdownToHtml(text) {
+      const out = [];
+      const lists = []; // { tag, indent }
+      let para = [];
+      let inKey = false;
+      const flushPara = () => { if (para.length) { out.push(`<p>${para.join('<br>')}</p>`); para = []; } };
+      const closeLists = (indent = -1) => { while (lists.length && lists[lists.length - 1].indent > indent) out.push(`</li></${lists.pop().tag}>`); };
+      const closeKey = () => { if (inKey) { flushPara(); closeLists(); out.push('</div>'); inKey = false; } };
+      String(text || '').split('\n').forEach(raw => {
+        const line = raw.replace(/\t/g, '  ').replace(/\s+$/, '');
+        const t = line.trim();
+        let m;
+        if (!t) { flushPara(); closeLists(); return; }
+        if (/^(?:-{3,}|\*{3,}|_{3,}|━{3,})$/.test(t)) { flushPara(); closeLists(); return; }
+        const heading = (m = t.match(/^#{1,6}\s*(.+)$/)) ? m[1] : (m = t.match(/^\*\*\s*(■.+?|【[^】]+】)\s*\*\*\s*$/)) ? m[1] : (m = t.match(/^(■\s*.+|【[^】]{1,20}】)$/)) ? m[1] : null;
+        if (heading !== null) {
+          flushPara(); closeLists();
+          const title = heading.replace(/\*\*/g, '').trim();
+          if (/^【?\s*要点\s*】?$|^要点[：:]?$/.test(title.replace(/^■\s*/, ''))) { closeKey(); out.push('<div class="ai-key"><div class="ai-key-title"><i class="fa-solid fa-thumbtack"></i> 要点</div>'); inKey = true; return; }
+          closeKey();
+          out.push(`<h4 class="ai-h">${aiInlineHtml(title.replace(/^【(.+)】$/, '$1'))}</h4>`);
+          return;
+        }
+        if ((m = t.match(/^>\s?(.*)$/))) { flushPara(); closeLists(); if (m[1].trim()) out.push(`<blockquote class="ai-quote">${aiInlineHtml(m[1])}</blockquote>`); return; }
+        const indent = (line.match(/^\s*/) || [''])[0].length;
+        const ul = t.match(/^(?:[-*・•●]|\+)\s+(.+)$/);
+        const ol = !ul && t.match(/^(\d{1,2})[.．)）]\s+(.+)$/);
+        if (ul || ol) {
+          flushPara();
+          const tag = ul ? 'ul' : 'ol';
+          const top = lists[lists.length - 1];
+          if (!top || indent > top.indent) { out.push(`<${tag} class="ai-list">`); lists.push({ tag, indent }); }
+          else {
+            closeLists(indent);
+            const cur = lists[lists.length - 1];
+            if (cur && cur.tag !== tag && cur.indent === indent) { out.push(`</li></${lists.pop().tag}><${tag} class="ai-list">`); lists.push({ tag, indent }); }
+            else if (!cur) { out.push(`<${tag} class="ai-list">`); lists.push({ tag, indent }); }
+            else out.push('</li>');
+          }
+          out.push(`<li>${aiInlineHtml(ul ? ul[1] : ol[2])}`);
+          return;
+        }
+        // 箇条書きのすぐ後ろの字下げした行は、その項目の続き
+        if (lists.length && indent > 0) { out.push(`<br>${aiInlineHtml(t)}`); return; }
+        closeLists();
+        para.push(aiInlineHtml(t));
+      });
+      flushPara(); closeLists(); closeKey();
+      return out.join('');
+    }
+    function formatAiResultHtml(text, fallback = '結果を取得できませんでした。', evidence = null) {
+      const cleaned = cleanAiText(text);
+      let html = cleaned ? aiMarkdownToHtml(cleaned) : `<p>${escapeHtml(fallback)}</p>`;
+      if (evidence) html = linkEvidenceCodes(html, evidence);
+      return `<div class="ai-text">${html}</div>`;
+    }
+    // AIへの指示文に付ける、書き方の指示（最初に要点、前置きなし、短い箇条書き、根拠の番号は文の終わり）
+    const AI_STYLE_INSTRUCTION = '【書き方】前置き・あいさつ・「〜の視点から」「〜をまとめました」のような説明は書かず、すぐ本題から書いてください。最初に「### 要点」の見出しを置き、結論を2〜3個の短い箇条書き（1つ40字程度まで）で示してください。そのあと詳細を「### 見出し」と「- 」の箇条書きで書き、1つの箇条書きは1〜2文にしてください。根拠のカードの番号は、文の終わりの句点の後ろにまとめて付けてください。';
 
     function persistData() {
       const cp = getCurrentPatient();
@@ -2388,6 +2472,12 @@
     // 表まで遠くなる。各結果は1行の要約だけを出し、「詳細を開く」で読む。AIに頼んで結果が届いたときは、その結果を開く。
     const aiPanelOpen = new Set();
     function aiPanelSummaryText(body) {
+      // 【要点】があれば、その1つ目を要約として出す
+      const key = body && body.querySelector ? body.querySelector('.ai-key li') : null;
+      if (key && key.textContent && key.textContent.trim()) {
+        const k = key.textContent.replace(/\s+/g, ' ').replace(/〔[^〕]*〕/g, '').trim();
+        return k.length > 70 ? `${k.slice(0, 70)}…` : k;
+      }
       const text = String((body && body.textContent) || '').replace(/\s+/g, ' ').trim();
       if (!text) return '';
       const first = text.split(/(?<=。)|(?=・)|(?=■)/)[0] || text;

@@ -5,20 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-09-29.12">
+  <meta name="app-version" content="2026-09-30.2">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
-  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-09-29.12">
+  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-09-30.2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=2026-09-29.12">
+  <link rel="stylesheet" href="style.css?v=2026-09-30.2">
   <!-- 画面の見た目の部品（Tailwind CSS 3.4）。以前は開くたびにネット（cdn.tailwindcss.com）から読み込み、
        その場で作っていたため、ネットが不安定だったり配信が止まったりすると画面のレイアウトが崩れた。
        使っている部品だけを vendor/tailwind.css に作っておき、それを読み込む（改善提案7。作り直しは
        npm run build:css）。以前と同じく style.css より後に読み込み、同じ強さの指定ではこちらを優先する。 -->
-  <link rel="stylesheet" href="vendor/tailwind.css?v=2026-09-29.12">
+  <link rel="stylesheet" href="vendor/tailwind.css?v=2026-09-30.2">
   <script>
     // ダークモードの初期適用（画面が一瞬だけ元のテーマで表示される「ちらつき」を防ぐため、
     // CSS読み込み直後・本文描画前にこの小さなスクリプトで先に data-theme を決めてしまう）。
@@ -155,11 +155,12 @@
         </h2>
 
         <!-- 画像OCRドロップゾーン -->
-        <div id="ocr-dropzone" class="border border-dashed border-[var(--line)] hover:border-[var(--accent)] bg-[var(--paper)] hover:bg-[var(--accent-soft)] rounded-[var(--radius)] p-3 text-center cursor-pointer transition">
+        <!-- 【場所を取りすぎないように】利用者からの指摘「こいつら場所取りすぎじゃない？」。写真の読み込みは1行の細い枠にした -->
+        <div id="ocr-dropzone" class="ocr-drop" role="button" tabindex="0" title="記録メモや検査結果の写真をここへドラッグ＆ドロップするか、押してファイルを選ぶと文字起こしします">
           <input type="file" id="ocr-file-input" accept="image/*" class="hidden">
-          <i class="fa-solid fa-camera text-[var(--ink-muted)] text-base mb-1"></i>
-          <p class="text-xs font-medium text-[var(--ink)]">記録メモ・検査結果写真をドラッグ＆ドロップ</p>
-          <p class="text-[9px] text-[var(--ink-muted)] mt-0.5">またはクリックしてファイル選択</p>
+          <i class="fa-solid fa-camera"></i>
+          <span class="ocr-drop-main">写真から文字起こし</span>
+          <span class="ocr-drop-sub">ドラッグ＆ドロップ／押して選ぶ</span>
         </div>
         <div id="ocr-status" class="hidden text-xs text-[var(--accent-dark)] font-medium bg-[var(--accent-soft)] p-2 rounded-[var(--radius-sm)] items-center justify-between">
           <span id="ocr-status-text"><i class="fa-solid fa-spinner fa-spin mr-1"></i> 文字起こし中...</span>
@@ -190,20 +191,18 @@
         <div id="source-highlight-view" class="field source-highlight-view hidden" title="クリックすると編集に戻ります"></div>
         </div>
 
-        <!-- 分類開始ボタン -->
-        <button id="btn-start-classify" class="btn btn-primary w-full py-2.5 text-[13px]">
-          <i class="fa-solid fa-bolt"></i> 分類開始
-        </button>
-        <!-- 分類方法の切り替え（js/07 の getClassifyMode）：AIなしで分類（ルールだけ）／AIありで分類 -->
-        <div class="classify-mode" role="group" aria-label="分類方法">
-          <button type="button" data-classify-mode="rules" onclick="setClassifyMode('rules')"><i class="fa-solid fa-list-check"></i> AIなしで分類</button>
-          <button type="button" data-classify-mode="ai" onclick="setClassifyMode('ai')"><i class="fa-solid fa-wand-magic-sparkles"></i> AIありで分類</button>
-        </div>
-        <p id="classify-mode-note" class="text-[10px] text-[var(--ink-muted)] leading-snug -mt-1"></p>
-
-        <div class="flex items-center justify-between pt-1 border-t border-[var(--line-soft)]">
-          <span class="text-[11px] text-[var(--ink-muted)]">テスト用:</span>
-          <button id="btn-load-sample" class="text-[11px] text-[var(--accent)] hover:underline">例文をセット</button>
+        <!-- 分類開始・分類方法（AIなし／AIあり）・例文。入力欄を広げているときは1行に並べる（style.css の .classify-actions） -->
+        <div class="classify-actions">
+          <button id="btn-start-classify" class="btn btn-primary py-2.5 text-[13px] classify-start">
+            <i class="fa-solid fa-bolt"></i> 分類開始
+          </button>
+          <!-- 分類方法の切り替え（js/07 の getClassifyMode）：AIなしで分類（ルールだけ）／AIありで分類 -->
+          <div class="classify-mode" role="group" aria-label="分類方法">
+            <button type="button" data-classify-mode="rules" onclick="setClassifyMode('rules')"><i class="fa-solid fa-list-check"></i> AIなし</button>
+            <button type="button" data-classify-mode="ai" onclick="setClassifyMode('ai')"><i class="fa-solid fa-wand-magic-sparkles"></i> AIあり</button>
+          </div>
+          <p id="classify-mode-note" class="classify-note text-[10px] text-[var(--ink-muted)] leading-snug"></p>
+          <button id="btn-load-sample" class="sample-link" title="動作を試すための例文を入力欄に入れます">例文を入れる</button>
         </div>
       </section>
 
@@ -649,14 +648,18 @@
         <div class="flex flex-col gap-1.5 shrink-0">
           <div class="flex items-center justify-between gap-2">
             <p class="text-[11px] font-semibold text-[var(--ink)]">基準ノート本体</p>
-            <button id="btn-save-notebook-content" class="btn btn-primary" style="padding:2px 10px;font-size:10px;">保存</button>
+            <span class="flex items-center gap-1.5">
+              <button type="button" id="btn-integrate-criteria" class="btn btn-outline" style="padding:2px 10px;font-size:10px;" onclick="openCriteriaIntegration()" title="基準ノート・追加の分類基準・書き足した行を、最新の統合版の各章にまとめ直します（保存の前に確かめられます）"><i class="fa-solid fa-object-group"></i> 分類基準を統合</button>
+              <button id="btn-save-notebook-content" class="btn btn-primary" style="padding:2px 10px;font-size:10px;">保存</button>
+            </span>
           </div>
           <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed">
             <i class="fa-solid fa-circle-info"></i> AIによる自動分類（S/O判定、ヘンダーソンタグ付け、検査値評価、不足情報推定）の根拠になる基準ノート本体です。内容は全利用者・全端末に共有されます。これまでの学習データ（S/O・タグの修正）から繰り返し確認された傾向は、保存内容と自動的に統合されてAIへの指示に反映されるため、ここに書き足す必要はありません。
           </p>
           <!-- 保存されている基準ノートが統合版より前の版のときだけ出す（js/04 の renderNotebookContentEditor） -->
           <div id="notebook-upgrade-notice" class="hidden flex items-center justify-between gap-2 text-[11px] rounded-[var(--radius-sm)] px-2.5 py-1.5" style="background:var(--gold-soft);border:1px solid var(--line);">
-            <span><i class="fa-solid fa-circle-exclamation mr-1" style="color:var(--gold);"></i>サーバーに保存されていた古い版の代わりに、下の「統合版」を使っています。「保存」を押すと、全員の共有の内容も統合版になります。</span>
+            <span><i class="fa-solid fa-circle-exclamation mr-1" style="color:var(--gold);"></i>サーバーに保存されていた古い版の代わりに、下の「統合版」を使っています。書き足した基準や追加の分類基準も入れるときは「分類基準を統合」を押してください。</span>
+            <button type="button" class="btn btn-primary shrink-0" style="padding:2px 10px;font-size:10px;" onclick="openCriteriaIntegration()">分類基準を統合</button>
           </div>
           <textarea id="input-notebook-content" rows="9" class="field resize-y text-[11px]" style="font-family:inherit;"></textarea>
         </div>
@@ -999,6 +1002,27 @@
     </div>
   </div>
 
+  <!-- 分類基準の統合（js/04 の openCriteriaIntegration） -->
+  <div id="modal-integrate-criteria" class="hidden fixed inset-0 z-[67] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+    <div class="modal-surface ig-modal w-full p-4 flex flex-col gap-3">
+      <div class="flex items-center justify-between gap-2">
+        <h3 class="font-display font-semibold text-sm text-[var(--ink)]"><i class="fa-solid fa-object-group text-[var(--accent)] mr-1"></i> 分類基準を統合</h3>
+        <button type="button" class="icon-btn" onclick="closeCriteriaIntegration()" aria-label="閉じる"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="ig-layout">
+        <div id="integrate-summary" class="ig-summary"></div>
+        <label class="cp-field ig-preview-wrap"><span class="my-asm-label">統合した基準ノート（保存の前に直せます）</span><textarea id="integrate-preview" class="field resize-none ig-preview"></textarea></label>
+      </div>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <label class="text-[11.5px] text-[var(--ink)] flex items-center gap-1.5"><input type="checkbox" id="integrate-remove-extras" checked> 統合した「追加の分類基準」を一覧から外す（中身は基準ノートに入ります）</label>
+        <div class="flex gap-2">
+          <button type="button" onclick="closeCriteriaIntegration()" class="btn btn-outline">キャンセル</button>
+          <button type="button" onclick="saveCriteriaIntegration()" class="btn btn-primary">統合して保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 汎用ダイアログモーダル（入力・確認共通） -->
   <div id="modal-dialog" class="hidden fixed inset-0 z-[69] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface max-w-sm w-full p-5 flex flex-col gap-4">
@@ -1197,18 +1221,18 @@
 
   <!-- プログラム本体（以前の app.js を内容ごとに10ファイルに分けたもの）。この順番で読み込むこと。
        順番は tests/app-helpers.js の APP_SCRIPT_FILES と同じにする（tests/app-files-order.test.js で確認）。 -->
-  <script src="js/01-henderson-keywords.js?v=2026-09-29.12"></script>
-  <script src="js/02-reference-data.js?v=2026-09-29.12"></script>
-  <script src="js/03-extraction-helpers.js?v=2026-09-29.12"></script>
-  <script src="js/04-server-sync.js?v=2026-09-29.12"></script>
-  <script src="js/05-app-state-and-ui.js?v=2026-09-29.12"></script>
-  <script src="js/06-export.js?v=2026-09-29.12"></script>
-  <script src="js/07-classification.js?v=2026-09-29.12"></script>
-  <script src="js/08-assessment-tools.js?v=2026-09-29.12"></script>
-  <script src="js/09-board.js?v=2026-09-29.12"></script>
-  <script src="js/10-reference-page-and-startup.js?v=2026-09-29.12"></script>
-  <script src="js/11-own-assessment.js?v=2026-09-29.12"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=2026-09-29.12"></script>
-  <script src="js/13-compare-and-report.js?v=2026-09-29.12"></script>
+  <script src="js/01-henderson-keywords.js?v=2026-09-30.2"></script>
+  <script src="js/02-reference-data.js?v=2026-09-30.2"></script>
+  <script src="js/03-extraction-helpers.js?v=2026-09-30.2"></script>
+  <script src="js/04-server-sync.js?v=2026-09-30.2"></script>
+  <script src="js/05-app-state-and-ui.js?v=2026-09-30.2"></script>
+  <script src="js/06-export.js?v=2026-09-30.2"></script>
+  <script src="js/07-classification.js?v=2026-09-30.2"></script>
+  <script src="js/08-assessment-tools.js?v=2026-09-30.2"></script>
+  <script src="js/09-board.js?v=2026-09-30.2"></script>
+  <script src="js/10-reference-page-and-startup.js?v=2026-09-30.2"></script>
+  <script src="js/11-own-assessment.js?v=2026-09-30.2"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=2026-09-30.2"></script>
+  <script src="js/13-compare-and-report.js?v=2026-09-30.2"></script>
 </body>
 </html>

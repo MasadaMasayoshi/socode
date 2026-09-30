@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-09-29.12'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-09-30.2'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 書式付き書き出し（Word / PDF）
     // ------------------------------------------------------------------------
@@ -91,7 +91,15 @@
   ul.cards li.day { font-weight: 700; font-size: 7.8pt; color: #22405e; background: #eef2f6; padding: 1pt 3pt; margin-top: 2pt; border-bottom: none; break-after: avoid; page-break-after: avoid; }
   ul.cards li.day.bg { color: #6b6457; background: #f5f3ee; border: 0.5pt dashed #bbb; }
   .ai { border: .6pt solid #d5cfc2; border-radius: 3pt; padding: 5pt 7pt; background: #fbfaf7; font-size: 9pt; }
-  .ai-evidence-chip { color: #4a463f; font-size: .92em; white-space: nowrap; }
+  .ai-evidence-chip { color: #6b665c; font-size: .8em; white-space: nowrap; }
+  .ai-text p { margin: 0 0 3pt; }
+  .ai-text .ai-h { font-size: 9.6pt; font-weight: 700; margin: 6pt 0 2pt; padding-left: 4pt; border-left: 2.5pt solid #2c4a3e; break-after: avoid; page-break-after: avoid; }
+  .ai-text .ai-list { margin: 1pt 0 3pt; padding-left: 14pt; }
+  .ai-text .ai-list li { margin-bottom: 1.5pt; }
+  .ai-text .ai-quote { margin: 3pt 0; padding: 3pt 6pt; border-left: 2pt solid #b9b2a3; background: #f6f4ef; }
+  .ai-text .ai-key { border: .8pt solid #9dbbb0; background: #eef4f1; border-radius: 3pt; padding: 4pt 6pt; margin-bottom: 4pt; break-inside: avoid; }
+  .ai-text .ai-key-title { font-weight: 700; color: #24473d; font-size: 8.6pt; }
+  .ai-text .ai-key i { display: none; }
   .dx { margin: 0 0 5pt; padding: 4pt 6pt; border: .6pt solid #d5cfc2; border-radius: 3pt; break-inside: avoid; }
   .dx.sel { border: 1.2pt solid #22405e; background: #f1f5f9; }
   .dx-name { font-weight: 700; }
@@ -241,8 +249,16 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         `<table><colgroup><col style="width:15%"><col><col style="width:22%"></colgroup><thead><tr><th>日時</th><th>内容</th><th>タグ</th></tr></thead><tbody>${list.map(i => `<tr><td class="tm">${escapeHtml(i.timestamp && i.timestamp !== '日時不明' ? i.timestamp : '—')}</td><td>${printFieldLabel(i)}${escapeHtml(i.text)}</td><td class="tags">${escapeHtml(printTagNames(i)) || '<span class="muted">タグ未設定</span>'}</td></tr>`).join('')}</tbody></table>`;
       let n = 1;
       let body = printDocHead('看護アセスメント・記録整理シート', cp);
-      body += `<h2>${n++}. 主観的情報（Sデータ）</h2>` + dataTable(items.filter(i => i.type === 's'));
-      body += `<h2>${n++}. 客観的情報（Oデータ）</h2>` + dataTable(items.filter(i => i.type === 'o'));
+      // 不足情報（まだ記録が無く確かめたい情報）は、実際の記録（S/O）の表には混ぜず、別の節に確認状況とまとめる
+      const isMissingOnly = i => typeof isMissingInfoOnlyItem === 'function' && isMissingInfoOnlyItem(i);
+      body += `<h2>${n++}. 主観的情報（Sデータ）</h2>` + dataTable(items.filter(i => i.type === 's' && !isMissingOnly(i)));
+      body += `<h2>${n++}. 客観的情報（Oデータ）</h2>` + dataTable(items.filter(i => i.type === 'o' && !isMissingOnly(i)));
+      const missingOnly = items.filter(i => i.type !== 'unnecessary' && isMissingOnly(i));
+      if (missingOnly.length) {
+        const status = i => (typeof missingCheckStatus === 'function' ? ({ unchecked: '未確認', checked: '確認済み', na: '該当なし' })[missingCheckStatus(cp, i.id)] : '未確認');
+        const result = i => { const c = typeof getMissingCheck === 'function' ? getMissingCheck(cp, i.id) : null; return c && c.result ? `<br><span class="muted">→ ${escapeHtml(c.result)}${c.method ? `（${escapeHtml(c.method)}）` : ''}</span>` : ''; };
+        body += `<h2>${n++}. 不足情報と確認状況</h2><table><colgroup><col style="width:14%"><col><col style="width:20%"></colgroup><thead><tr><th>状況</th><th>確かめたい情報</th><th>項目</th></tr></thead><tbody>${missingOnly.map(i => `<tr><td>${escapeHtml(status(i))}${i.aiSuggested ? '<br><span class="lb lb-x">AI推定</span>' : ''}</td><td>${escapeHtml(i.text.replace(/^原因:\s*/, ''))}${result(i)}</td><td class="tags">${escapeHtml(printTagNames(i))}</td></tr>`).join('')}</tbody></table>`;
+      }
       const unclassified = items.filter(i => i.type === 'unclassified');
       if (unclassified.length) body += `<h2>${n++}. 未分類のカード</h2>` + dataTable(unclassified);
       body += `<h2>${n++}. ヘンダーソン14項目別アセスメント整理</h2>`;
@@ -320,11 +336,21 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       out += plainSectionTitle('1. 検査データ臨床評価・アセスメントノート');
       out += htmlToPlainText(DOM.labEvalContent.innerHTML) + '\n';
 
+      const isMissingOnly = i => typeof isMissingInfoOnlyItem === 'function' && isMissingInfoOnlyItem(i);
       out += plainSectionTitle('2. 主観的情報（Sデータ）');
-      out += plainList(cp.items.filter(i => i.type === 's').map(formatLine));
+      out += plainList(cp.items.filter(i => i.type === 's' && !isMissingOnly(i)).map(formatLine));
 
       out += plainSectionTitle('3. 客観的情報（Oデータ）');
-      out += plainList(cp.items.filter(i => i.type === 'o').map(formatLine));
+      out += plainList(cp.items.filter(i => i.type === 'o' && !isMissingOnly(i)).map(formatLine));
+      const missingOnly = cp.items.filter(i => i.type !== 'unnecessary' && isMissingOnly(i));
+      if (missingOnly.length) {
+        out += plainSectionTitle('不足情報と確認状況');
+        out += plainList(missingOnly.map(i => {
+          const st = typeof missingCheckStatus === 'function' ? ({ unchecked: '未確認', checked: '確認済み', na: '該当なし' })[missingCheckStatus(cp, i.id)] : '未確認';
+          const c = typeof getMissingCheck === 'function' ? getMissingCheck(cp, i.id) : null;
+          return `[${st}]${i.aiSuggested ? ' [AI推定]' : ''} ${i.text.replace(/^原因:\s*/, '')}${c && c.result ? ` → ${c.result}` : ''}`;
+        }));
+      }
 
       out += plainSectionTitle('4. 未分類のカード');
       out += plainList(cp.items.filter(i => i.type === 'unclassified').map(formatLine));

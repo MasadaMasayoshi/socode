@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = '2026-09-29.12'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = '2026-09-30.2'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 共有学習（全利用者・全カードで共有する学習データ）
     // ------------------------------------------------------------------------
@@ -400,6 +400,7 @@
     // 内容が全利用者・全端末で共有される）。
     // サーバーに保存されている基準ノートが古い版だったか（分類基準タブの案内に使う）
     let notebookServerCopyIsOutdated = false;
+    let notebookServerText = ''; // 共有先に保存されている基準ノート（古い版でもそのまま。統合のときに書き足した行を拾う）
     async function loadNotebookContent() {
       try {
         const res = await fetch(`${API_BASE}/notebook-content`);
@@ -409,6 +410,7 @@
         // （利用者からの指摘：「前回の変更が更新されてない」。以前に保存された古い版が、新しい統合版の代わりに
         // 使われ続けていた）。共有の保存内容は、分類基準タブで「保存」を押すと統合版に置き換わる。
         if (typeof data?.text === 'string' && data.text) {
+          notebookServerText = data.text;
           if (data.text.includes(NOTEBOOK_CONTENT_VERSION_MARK)) {
             globalAppData.notebookContent = data.text;
             notebookServerCopyIsOutdated = false;
@@ -440,6 +442,144 @@
       const previous = el.value;
       el.value = DEFAULT_NOTEBOOK_CONTENT;
       showUndoToast('入力欄を統合版に置き換えました。内容を確認して「保存」を押してください', () => { el.value = previous; });
+    };
+
+    // ==========================================================================
+    // 分類基準の統合（利用者からの依頼「分類基準を統合してください」）
+    // ------------------------------------------------------------------------
+    // 分類基準は、①基準ノート本体 ②追加の分類基準（現場からの要望）③追加キーワード ④参照元 に分かれて増えてきた。
+    // ①②を1つの基準ノート（最新の統合版）にまとめ直す：
+    //   ・最新の統合版（js/02 の DEFAULT_NOTEBOOK_CONTENT）を土台にする
+    //   ・共有の基準ノートに利用者が書き足した行（最新版にも以前の版にも無い行）を拾う
+    //   ・追加の分類基準を1件ずつ拾う
+    //   ・拾ったものは内容から章を決め（カードの作り方→第1章、S/O→第2章、タグ・検査値→第4章、
+    //     アセスメント・計画→第8章、それ以外→第9章）、その章の終わりの「■ 追加された基準」に入れる
+    //   ・最新版に同じ内容があるもの・重なっているものは入れない
+    // ③追加キーワードはルール分類がそのまま使う決まりなので統合せずに残す（AIへの指示文には従来どおり自動で付く）。
+    // ④参照元もそのまま残す。統合の結果は画面で確かめてから保存し、統合した②は一覧から外せる。
+    // ==========================================================================
+    function notebookLineKey(s) { return String(s || '').normalize('NFKC').replace(/\s+/g, ''); }
+    function notebookLineHash(k) { let x = 5381; for (const c of k) x = ((x * 33) ^ c.codePointAt(0)) >>> 0; return x.toString(36); }
+    const NOTEBOOK_CHAPTER_RULES = [
+      { no: 2, re: /S\s*\/\s*O|Sデータ|Oデータ|主観|客観|不必要|不要|unnecessary/i },
+      { no: 4, re: /タグ|項目|検査値|基準値|(?:^|[^\d])(?:1[0-4]|[1-9])\s*[.．](?:呼吸|食事|排泄|姿勢|睡眠|衣服|体温|清潔|環境|コミュニケーション|信仰|仕事|余暇|学び)|呼吸|食事|排泄|姿勢|睡眠|衣服|体温|清潔|環境|信仰|仕事|余暇|学び/ },
+      { no: 1, re: /カード|1枚|一枚|まとめ|分け|区切|日時|時刻|見出し|抽出|切り出|表の/ },
+      { no: 8, re: /看護計画|看護診断|アセスメント|SOAP|評価|関連図|目標/ }
+    ];
+    function notebookChapterFor(text) {
+      const hit = NOTEBOOK_CHAPTER_RULES.find(r => r.re.test(String(text || '')));
+      return hit ? hit.no : 9;
+    }
+    // 共有の基準ノートのうち、利用者が書き足した行（最新の統合版にも、以前の統合版にも無い行）
+    function userAddedNotebookLines(serverText, baseText = DEFAULT_NOTEBOOK_CONTENT) {
+      if (!serverText) return [];
+      const base = new Set(String(baseText).split('\n').map(notebookLineKey).filter(Boolean));
+      const out = [];
+      String(serverText).split('\n').forEach(raw => {
+        const line = raw.trim();
+        const k = notebookLineKey(line);
+        if (!k || /^━+$/.test(k) || /^【看護アセスメント基準ノート/.test(k) || /^第\d+章/.test(k) || /^■追加された基準/.test(k)) return;
+        if (base.has(k) || NOTEBOOK_PREVIOUS_LINE_HASHES.has(notebookLineHash(k))) return;
+        out.push(line.replace(/^[・\-*]\s*/, ''));
+      });
+      return out;
+    }
+    function buildIntegratedNotebook({ serverText = '', extras = [], baseText = DEFAULT_NOTEBOOK_CONTENT, today = new Date() } = {}) {
+      const stamp = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      const baseKey = notebookLineKey(baseText);
+      const seen = new Set();
+      const merged = [], skipped = [];
+      const take = (text, source, extraId) => {
+        const t = String(text || '').trim();
+        const k = notebookLineKey(t).replace(/^[・\-*]/, '');
+        if (!k) return;
+        if (seen.has(k) || baseKey.includes(k)) { skipped.push({ text: t, source, extraId, reason: seen.has(k) ? '重複' : '最新の統合版に同じ内容があります' }); return; }
+        seen.add(k);
+        merged.push({ text: t, source, extraId, chapter: notebookChapterFor(t) });
+      };
+      userAddedNotebookLines(serverText, baseText).forEach(t => take(t, 'notebook'));
+      (extras || []).forEach(c => take(c && c.text, 'extra', c && c.id));
+      const lines = String(baseText).split('\n');
+      const chapterStarts = [];
+      lines.forEach((l, i) => { const m = l.match(/^第(\d+)章/); if (m) chapterStarts.push({ no: Number(m[1]), i }); });
+      const insertAt = {};
+      chapterStarts.forEach((c, k) => {
+        // 次の章の見出しの前の区切り線（━━━）の手前＝この章の終わり
+        let end = k + 1 < chapterStarts.length ? chapterStarts[k + 1].i - 1 : lines.length;
+        while (end > c.i && !lines[end - 1].trim()) end--;
+        if (k + 1 < chapterStarts.length && /^━+$/.test(lines[end - 1] || '')) { end--; while (end > c.i && !lines[end - 1].trim()) end--; }
+        insertAt[c.no] = end;
+      });
+      const byChapter = {};
+      merged.forEach(m => { const no = insertAt[m.chapter] !== undefined ? m.chapter : 9; m.chapter = no; (byChapter[no] = byChapter[no] || []).push(m); });
+      const out = lines.slice();
+      Object.keys(byChapter).map(Number).filter(no => no !== 9).sort((a, b) => insertAt[b] - insertAt[a]).forEach(no => {
+        out.splice(insertAt[no], 0, `■ 追加された基準（現場からの要望・統合 ${stamp}）`, ...byChapter[no].map(m => `・${m.text}`));
+      });
+      let text = out.join('\n');
+      if (byChapter[9]) {
+        text = text.replace(/\s+$/, '') + `\n\n━━━━━━━━━━━━━━━━━━━━\n第9章 そのほかの追加の基準（統合 ${stamp}）\n━━━━━━━━━━━━━━━━━━━━\n` + byChapter[9].map(m => `・${m.text}`).join('\n') + '\n';
+      }
+      return { text, merged, skipped };
+    }
+
+    // ---- 画面：分類基準タブの「分類基準を統合」 ----
+    let integrationResult = null;
+    window.openCriteriaIntegration = function() {
+      integrationResult = buildIntegratedNotebook({ serverText: notebookServerText || (document.getElementById('input-notebook-content')?.value || ''), extras: globalAppData.additionalCriteria || [] });
+      const r = integrationResult;
+      const chapterName = no => ({ 1: '第1章 カードの作り方', 2: '第2章 S/O・不必要の判定', 4: '第4章 タグ付け・検査値', 8: '第8章 記録・計画の型', 9: '第9章 そのほか' })[no] || `第${no}章`;
+      const fromExtra = r.merged.filter(m => m.source === 'extra').length;
+      const fromNote = r.merged.filter(m => m.source === 'notebook').length;
+      const rules = (globalAppData.customTagRules || []).length;
+      const groups = {};
+      r.merged.forEach(m => { (groups[m.chapter] = groups[m.chapter] || []).push(m); });
+      document.getElementById('integrate-summary').innerHTML = `
+        <p>最新の統合版（${escapeHtml(NOTEBOOK_CONTENT_VERSION_MARK)}）を土台に、<b>追加の分類基準 ${fromExtra}件</b>と、共有の基準ノートに<b>書き足されていた ${fromNote}行</b>を、内容に合う章に入れます。${r.skipped.length ? `最新版と同じ・重複している ${r.skipped.length}件は入れません。` : ''}</p>
+        <p class="my-asm-muted">追加キーワード（${rules}件）は、ルールによる分類がそのまま使う決まりなので統合せずに残します（AIへの指示文には今までどおり付きます）。参照元リンクもそのまま残します。</p>
+        ${r.merged.length ? Object.keys(groups).sort((a, b) => a - b).map(no => `<div class="ig-group"><b>${escapeHtml(chapterName(Number(no)))}</b><ul>${groups[no].map(m => `<li><span class="ig-src">${m.source === 'extra' ? '追加の分類基準' : '書き足し'}</span>${escapeHtml(m.text)}</li>`).join('')}</ul></div>`).join('') : '<p class="my-asm-muted">入れ直す追加の基準はありません（基準ノートを最新の統合版にそろえます）。</p>'}
+        ${r.skipped.length ? `<details class="ig-skipped"><summary>入れないもの（${r.skipped.length}件）</summary><ul>${r.skipped.map(s => `<li>${escapeHtml(s.text)}（${escapeHtml(s.reason)}）</li>`).join('')}</ul></details>` : ''}`;
+      document.getElementById('integrate-preview').value = r.text;
+      const rm = document.getElementById('integrate-remove-extras');
+      rm.checked = true;
+      rm.closest('label').classList.toggle('hidden', !(globalAppData.additionalCriteria || []).length);
+      document.getElementById('modal-integrate-criteria').classList.remove('hidden');
+    };
+    window.closeCriteriaIntegration = function() { document.getElementById('modal-integrate-criteria').classList.add('hidden'); };
+    window.saveCriteriaIntegration = async function() {
+      if (!integrationResult) return;
+      const text = document.getElementById('integrate-preview').value.trim();
+      if (!text) return showToast('統合した基準ノートが空です', 'warn');
+      const removeExtras = document.getElementById('integrate-remove-extras').checked;
+      const extraIds = Array.from(new Set([...integrationResult.merged, ...integrationResult.skipped].filter(m => m.source === 'extra' && m.extraId).map(m => m.extraId)));
+      if (!(await confirmSharedChange(`基準ノートを統合した内容で保存します${removeExtras && extraIds.length ? `（統合した追加の分類基準 ${extraIds.length}件は一覧から外します）` : ''}。`))) return;
+      try {
+        const res = await fetch(`${API_BASE}/notebook-content`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        globalAppData.notebookContent = data.text;
+        notebookServerText = data.text;
+        notebookServerCopyIsOutdated = !data.text.includes(NOTEBOOK_CONTENT_VERSION_MARK);
+      } catch (e) {
+        console.warn('統合した基準ノートの保存に失敗しました:', e);
+        return showToast(['統合した基準ノートを保存できませんでした（共有先のサーバーにつながりません）', { text: 'サーバーが動いているか確かめてから、もう一度「統合して保存」を押してください。今の基準はそのまま使えます。', detail: true }], 'error');
+      }
+      let removed = 0, failed = 0;
+      if (removeExtras) {
+        for (const id of extraIds) {
+          try {
+            const r = await fetch(`${API_BASE}/extraction-criteria/${encodeURIComponent(id)}`, { method: 'DELETE' });
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            globalAppData.additionalCriteria = await r.json();
+            removed++;
+          } catch (e) { failed++; }
+        }
+      }
+      renderNotebookContentEditor();
+      renderExtraCriteriaList();
+      closeCriteriaIntegration();
+      if (failed) showToast(['基準ノートは統合しましたが、追加の分類基準の一部を一覧から外せませんでした', { text: `外せなかった ${failed}件は一覧に残っています（中身は基準ノートに入っています）。あとで一覧の削除ボタンで外してください。`, detail: true }], 'error');
+      else showToast(`分類基準を統合しました（${integrationResult.merged.length}件を基準ノートに入れました${removed ? `・追加の分類基準 ${removed}件を一覧から外しました` : ''}）`, 'success');
     };
 
     window.saveNotebookContent = async function() {
