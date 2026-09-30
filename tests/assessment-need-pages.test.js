@@ -11,7 +11,7 @@ const app = readAppSource();
 test('表の上に1〜14の切り替えボタン（前後・すべて）を置き、選んだ欲求の行だけを表示する', () => {
   assert.match(html, /<div id="assessment-need-nav" class="need-nav"/);
   const render = app.slice(app.indexOf('function renderAssessmentTable'), app.indexOf('function renderAssessmentCellCard'));
-  assert.match(render, /if \(selectedNeed !== 'all' && Number\(selectedNeed\) !== need\.id\) tr\.classList\.add\('hidden'\)/);
+  assert.match(render, /const hiddenRow = selectedNeed !== 'all' && Number\(selectedNeed\) !== need\.id;\s*if \(hiddenRow\) tr\.classList\.add\('hidden'\)/);
   assert.match(render, /renderNeedNavigator\(activeItems\)/);
   assert.match(app, /onclick="selectAssessmentNeed\(\$\{need\.id\}\)"/);
   assert.match(app, /onclick="stepAssessmentNeed\(-1\)"/);

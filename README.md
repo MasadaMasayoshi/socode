@@ -1,13 +1,12 @@
-[README.md](https://github.com/user-attachments/files/32339309/README.md)
 # 看護アセスメント支援システム
 
 ## ファイル構成
 
 ```
 webapp/
-├── index.html              画面の骨組み（js/01〜10 をこの順番で読み込む）
+├── index.html              画面の骨組み（js/01〜13 をこの順番で読み込む）
 ├── style.css                デザイン（色・フォント・レイアウト）
-├── js/                      画面の動作（以前の app.js を内容ごとに10ファイルに分けたもの。順番を入れ替えないこと）
+├── js/                      画面の動作（以前の app.js を内容ごとに分けたもの。順番を入れ替えないこと）
 │   ├── 01-henderson-keywords.js      ヘンダーソン14項目とタグ付けのキーワード一覧（看護の視点で確認・修正するのはここ）
 │   ├── 02-reference-data.js          例文・基準ノートの初期値・検査値の基準値表
 │   ├── 03-extraction-helpers.js      検査値カードの抽出・入院前／入院後の判定などの補助処理
@@ -17,7 +16,10 @@ webapp/
 │   ├── 07-classification.js          分類（タグの判定・追加キーワード・文章からカードへの切り分け・「分類開始」）
 │   ├── 08-assessment-tools.js        BMI等の自動算出・検査値の評価・不足情報の推定・一覧表示
 │   ├── 09-board.js                   分類ボード（元の文章の該当箇所・カードの選択・一括操作・統合）
-│   └── 10-reference-page-and-startup.js  参考データのページと起動時の処理・版の確認
+│   ├── 10-reference-page-and-startup.js  参考データのページと起動時の処理・版の確認
+│   ├── 11-own-assessment.js          自分のアセスメント（14項目ごとの解釈・原因・見通し、根拠のカード、確定と再評価）
+│   ├── 12-missing-checks-and-care-plan.js  不足情報の確認状況・看護計画の編集と実施・評価の記録
+│   └── 13-compare-and-report.js      変更点の比較（記録した時点と今のカード）・提出用の書き出し（SOAP・実習記録の様式）
 ├── vendor/                  ネットに頼らず画面を表示するための同梱物
 │   ├── tailwind.css                  画面の部品（Tailwind CSS。`npm run build:css` で作り直す）
 │   └── fontawesome/                  アイコン（Font Awesome 6.4.0）

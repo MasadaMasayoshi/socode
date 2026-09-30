@@ -105,7 +105,7 @@ test('エラーは次にすべきことが分かる日本語で返す', async ()
     [503, 'The model is overloaded.', /混み合って/]
   ];
   for (const [status, message, re] of cases) {
-    const app = loadApp({ localStorage: memoryStorage(), fetch: googleOnly(async () => res(status, { error: { message } })) });
+    const app = loadApp({ localStorage: memoryStorage(), setTimeout: fn => { fn(); return 0; }, fetch: googleOnly(async () => res(status, { error: { message } })) });
     const r = await app.testGeminiConnection(STUDIO);
     assert.equal(r.ok, false);
     assert.match(r.message, re, `${status} ${message} → ${r.message}`);
@@ -145,4 +145,66 @@ test('設定画面に接続テストのボタンがある', () => {
   assert.match(html, /id="btn-test-api"/);
   assert.match(html, /id="api-test-result"/);
   assert.match(html, /id="api-key-kind"/);
+});
+
+test('混雑（503）のときは少し待って送り直し、通ればそのまま使う（利用者からの報告：ずっと混雑と出る）', async () => {
+  const calls = [];
+  let n = 0;
+  const app = loadApp({ localStorage: memoryStorage(), setTimeout: fn => { fn(); return 0; }, fetch: googleOnly(async url => {
+    calls.push(url);
+    n++;
+    return n < 3 ? res(503, { error: { status: 'UNAVAILABLE', message: 'The model is overloaded. Please try again later.' } }) : res(200, OK);
+  }) });
+  const r = await app.testGeminiConnection(STUDIO);
+  assert.equal(r.ok, true, r.message);
+  assert.equal(calls.length, 3, '2回まで送り直す');
+  assert.ok(calls.every(u => /gemini-flash-latest/.test(u)));
+});
+
+test('送り直しても混雑なら別のモデル（安定版のFlash-Lite）に切り替える。普段のモデルとしては覚えず、30分だけ先に使う', async () => {
+  const ls = memoryStorage();
+  const calls = [];
+  const app = loadApp({ localStorage: ls, setTimeout: fn => { fn(); return 0; }, fetch: googleOnly(async url => {
+    calls.push(url);
+    if (/\/models\?pageSize/.test(url)) return res(200, { models: [{ name: 'models/gemini-3.6-flash' }, { name: 'models/gemini-3.6-flash-lite' }] });
+    if (/gemini-flash-latest/.test(url)) return res(503, { error: { status: 'UNAVAILABLE', message: 'The model is overloaded.' } });
+    return res(200, OK);
+  }) });
+  const r = await app.testGeminiConnection(STUDIO);
+  assert.equal(r.ok, true, r.message);
+  assert.ok(calls.some(u => /gemini-3\.6-flash-lite:generateContent/.test(u)), JSON.stringify(calls));
+  assert.equal(ls.getItem('gemini_model'), null, '一時的な切り替え先はモデルとして覚えない');
+  assert.equal(JSON.parse(ls.getItem('gemini_busy_model')).model, 'gemini-3.6-flash-lite');
+  // 次の依頼は、混雑回避で使えたモデルに最初から送る（待たされない）
+  calls.length = 0;
+  const r2 = await app.testGeminiConnection(STUDIO);
+  assert.equal(r2.ok, true);
+  assert.match(calls[0], /gemini-3\.6-flash-lite:generateContent/);
+  assert.match(r2.message, /gemini-3\.6-flash-lite/);
+});
+
+test('1日の回数の上限（429・PerDay）は同じモデルに送り直さず、どれも使えなければ上限の説明を出す', async () => {
+  const calls = [];
+  const app = loadApp({ localStorage: memoryStorage(), setTimeout: fn => { fn(); return 0; }, fetch: googleOnly(async url => {
+    calls.push(url);
+    if (/\/models\?pageSize/.test(url)) return res(200, { models: [] });
+    return res(429, { error: { status: 'RESOURCE_EXHAUSTED', message: 'Quota exceeded for metric: generate_content_free_tier_requests, limit: 250, GenerateRequestsPerDayPerProjectPerModel' } });
+  }) });
+  const r = await app.testGeminiConnection(STUDIO);
+  assert.equal(r.ok, false);
+  assert.match(r.message, /今日のAIの利用回数の上限/);
+  const gen = calls.filter(u => /generateContent/.test(u));
+  assert.equal(gen.filter(u => /gemini-flash-latest/.test(u)).length, 1, '同じモデルには送り直さない');
+  assert.ok(gen.length <= 5);
+});
+
+test('「API設定」で「軽くて混みにくい」を選ぶと、最初から Flash-Lite に送る', async () => {
+  const ls = memoryStorage();
+  ls.setItem('gemini_model_pref', 'lite');
+  const calls = [];
+  const app = loadApp({ localStorage: ls, fetch: googleOnly(async url => { calls.push(url); return res(200, OK); }) });
+  const r = await app.testGeminiConnection(STUDIO);
+  assert.equal(r.ok, true);
+  assert.match(calls[0], /gemini-flash-lite-latest:generateContent/);
+  assert.equal(ls.getItem('gemini_model'), null, '選んだモデルは普段のモデルの記録を上書きしない');
 });

@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = '2026-09-29.5'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = '2026-09-29.12'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 検査値カードの抽出：値のすぐ後（スペースの有無を問わず）に単位まで書かれている場合、
     // 値と単位が別々のカードに分かれてしまう不具合の対策。
@@ -39,9 +39,23 @@
       // 「-」を含むためescapeRegExpで正しくエスケープされる。
       ['ALP', '\\d+\\.?\\d*'], ['T-Bil', '\\d+\\.?\\d*'], ['血糖', '\\d+\\.?\\d*'], ['アミラーゼ', '\\d+\\.?\\d*']
     ];
-    const LAB_REGEX_SOURCE = LAB_KEY_NUM_PATTERNS.map(([key, numPattern]) => {
-      const unit = LAB_STANDARDS[key] ? LAB_STANDARDS[key].unit : '';
-      const unitSuffix = unit ? `(?:\\s*${escapeRegExp(unit)})?` : '';
+    // 【単位と小数】利用者からの報告：「Plt 28.7万/uL」が「Plt 28」と「.7万/uL」の2枚に分かれ、「CRP 1 mg/L」が
+    // 換算されずに「CRP 1 mg/dL」になっていた。以前は WBC・RBC・Plt の数値を整数としてしか読まず、単位もアプリの
+    // 標準の単位（CRPなら mg/dL）しか読まなかったため。数値はどの項目も小数・カンマ付きで読み、単位は
+    // よく使われる単位の一覧（LAB_UNIT_WORDS）から実際に書かれたものを読む（換算は js/07 の formatLabValueString）。
+    // カンマは数字の間だけ（「WBC 11200, CRP 3.8」の区切りのカンマを数値に含めない）
+    const LAB_NUMBER_SOURCE = '\\d(?:[\\d,]*\\d)?(?:\\.\\d+)?';
+    const LAB_UNIT_WORDS = ['mL/min/1.73m2', 'mL/分/1.73m2', '×10^6/μL', '×10^4/μL', '×10^3/μL', '×10^2/μL', '×10^4/uL', '×10^3/uL', 'x10^4/μL', 'x10^3/μL',
+      '×10⁴/μL', '×10³/μL', '万/μL', '万/uL', '万/µL', '万/mm3', '万/mm³', '千/μL', '千/uL', '/μL', '/uL', '/µL', '/mm3', '/mm³',
+      'μg/mL', 'ug/mL', 'µg/mL', 'μg/dL', 'ng/mL', 'pg/mL', 'mg/dL', 'mg/L', 'g/dL', 'g/L', 'mEq/L', 'mmol/L', 'μmol/L', 'umol/L', 'µmol/L',
+      'IU/L', 'U/L', 'fL', '%', '秒', '万', '/mL',
+      // OCR（写真の文字起こし）でよくある読み違い（μ→从・u、mEq→mEa）
+      '万/从L', '/从L', '万u/L', '万μ/L', 'mEa/L'];
+    const LAB_UNIT_SOURCE = LAB_UNIT_WORDS.slice().sort((a, b) => b.length - a.length)
+      .map(u => escapeRegExp(u).replace(/\\\^/g, '\\s*\\^?\\s*').replace(/\//g, '\\s*\\/\\s*')).join('|');
+    const LAB_REGEX_SOURCE = LAB_KEY_NUM_PATTERNS.map(([key]) => {
+      const numPattern = LAB_NUMBER_SOURCE;
+      const unitSuffix = `(?:\\s*(?:${LAB_UNIT_SOURCE}))?`;
       // 英字の項目名（Na・K・Cl等）の直前がカタカナ・英字の場合は、「セファゾリンNa 1g」「ヘパリンNa」の
       // ような薬の名前（ナトリウム塩）の一部であり、検査値ではない（利用者からのアップロード文書で発覚：
       // 「セファゾリンNa 1g」が「Na 1 mEq/L」という検査値のカードにされていた）。「血清Na 140」のように
@@ -115,7 +129,7 @@
     const LAB_ITEM_NAME_REGEX = new RegExp(
       // 直前がカタカナ（「セファゾリンNa」等の薬の名前）の場合、直後が「とともに」「による」「訓練」等の
       // 場合（「PTとともに訓練」＝理学療法士）は検査項目として扱わない（利用者からのアップロード文書で発覚）。
-      '(?:(?<![ァ-ヶー])\\b(?:' + LAB_ITEM_ASCII_KEYS.map(escapeRegExp).join('|') + ')(?![A-Za-z])(?!\\s*(?:さん|様|氏|君|ちゃん|とともに|と一緒|による|の介入|の訓練|の指導|の計画|の説明|の評価|の方針|訓練|室|より|から|が|介入|実施|[:：]\\s*(?![\\d.])))' +
+      '(?:(?<![ァ-ヶー])\\b(?:' + LAB_ITEM_ASCII_KEYS.map(escapeRegExp).join('|') + ')(?![A-Za-z])(?!\\s*(?:さん|様|氏|君|ちゃん|とともに|と一緒|による|の介入|の訓練|の指導|の計画|の説明|の評価|の方針|訓練|室|より|から|が|介入|実施|と共に|見守り|[)）、,]|[:：]\\s*(?![\\d.])))' +
       (LAB_ITEM_NON_ASCII_KEYS.length ? '|(?:' + LAB_ITEM_NON_ASCII_KEYS.map(escapeRegExp).join('|') + ')' : '') + ')', 'i'
     );
 

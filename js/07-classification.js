@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-09-29.5'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-09-29.12'; // 版（scripts/stamp-version.js が書き込む）
     // 「祖母を胃がん、父を前立腺がんで亡くしている〜」のような家族歴の文は、本人の食事・栄養
     // 状態の所見ではないにもかかわらず、id2(食事)の疾患名キーワード（「胃がん」等）に一致して
     // しまい、食事に無関係な家族歴が「2. 食事」に混入していた（利用者からの報告事例）。
@@ -44,6 +44,8 @@
       "歯": /義$/,
       // 「起座位」は呼吸が苦しくて座る姿勢（1.呼吸）で、4.姿勢の「座位」ではない
       "座位": /起$/,
+      // 「麻酔から目が覚めなかったら」は手術の不安で、夜間の睡眠（5）ではない
+      "目が覚め": /麻酔から[^。」]{0,5}$/,
       "血圧": /高$/,
       // 「長男:23歳、会社員」のような家族の職業は、患者本人の仕事（12.仕事）ではない
       "会社員": /(?:息子|娘|夫|妻|嫁|婿|長男|次男|三男|長女|次女|三女|主人|旦那|孫|兄|姉|弟|妹|父|母)[^。]{0,10}$/,
@@ -359,7 +361,7 @@
     // 説明できる場合に限って変換を行い、説明できない残骸が残る場合は数値を誤って作り出すより
     // 元の文字列をそのまま残す方が安全と判断し、変換しない。
     const LAB_VALUE_TRAILING_UNIT_REGEX =
-      /^\s*万?\s*(?:×\s*10\s*\^?\s*\d+)?\s*(?:\/[μu从µ]L|\/mm3|\/mm³|\/μl|\/mL|g\/dL|mg\/dL|U\/L|\/L|mE[qa]\/L|mmol\/L|μg\/mL|pg\/mL|fL|%|℃|°C|°c|mmHg|回\/分|秒)?\s*[↑↓HLhl]?\.?\s*$/i;
+      /^\s*万?\s*(?:[×xX]\s*10\s*(?:\^?\s*\d+|[⁰¹²³⁴⁵⁶⁷⁸⁹]+))?\s*(?:千|万)?\s*(?:\/\s*[μu从µ]L|\/mm3|\/mm³|\/μl|\/mL|[μuµmnp]?g\/(?:dL|L|mL)|I?U\/L|\/L|mE[qa]\/L|[mμuµ]mol\/L|fL|%|℃|°C|°c|mmHg|回\/分|秒)?\s*[↑↓HLhl]?\.?\s*$/i;
 
     function formatLabValueString(str) {
       if (!str) return str;
@@ -397,12 +399,73 @@
           const trailing = cleaned.slice(match[0].length);
           if (!LAB_VALUE_TRAILING_UNIT_REGEX.test(trailing)) continue;
           const alias = match[2] || '';
+          // 異常の印（↑↓、空白の後の H・L）と末尾の「.」を除いた部分が、書かれた単位（「mg/L」の L は単位の一部なので消さない）
+          const written = trailing.replace(/[↑↓]/g, '').replace(/\s+[HLhl]\s*$/, '').replace(/\.\s*$/, '').trim();
+          const flag = (trailing.match(/[↑↓]/) || [''])[0];
+          const unitInfo = resolveLabUnit(key, match[3], written);
+          // 換算できない単位・ありえない値（単位が書かれていない「WBC 5.6」など）は、原文のまま残す（基準値は付けない）
+          if (!unitInfo) return cleaned;
+          const { value, unit, note } = unitInfo;
+          const shownUnit = unit || info.unit;
+          const noteText = note ? ` (${note})` : '';
           // 随時・食後の血糖には、空腹時の基準値（70〜109）を付けない
-          if (/随時|食後/.test(alias)) return `${match[1]}${alias} ${match[3]} ${info.unit}`;
-          return `${match[1]}${alias} ${match[3]} ${info.unit} (基準値: ${info.ref} ${info.unit})`;
+          if (/随時|食後/.test(alias)) return `${match[1]}${alias} ${value} ${shownUnit}${flag}${noteText}`;
+          return `${match[1]}${alias} ${value} ${shownUnit}${flag}${noteText} (基準値: ${info.ref} ${shownUnit})`;
         }
       }
       return cleaned;
+    }
+
+    // 単位の書き方をそろえる（µ・u→μ、dl→dL、ml→mL、x→×、⁴→^4、空白を詰める）
+    function normalizeLabUnit(u) {
+      return String(u || '').replace(/\s+/g, '').replace(/从/g, 'μ').replace(/mEa\/L/i, 'mEq/L').replace(/万[uμµ]\/L/i, '万/μL').replace(/[µu](?=[gLl]|mol)/g, 'μ').replace(/^x(?=10)/i, '×')
+        .replace(/10⁴/g, '10^4').replace(/10³/g, '10^3').replace(/10²/g, '10^2')
+        .replace(/dl$/, 'dL').replace(/ml$/, 'mL').replace(/(^|\/)l$/, '$1L').replace(/mm³/g, 'mm3')
+        .replace(/meq\/l/i, 'mEq/L').replace(/mmol\/l/i, 'mmol/L').replace(/iu\/l/i, 'IU/L').replace(/^u\/l$/i, 'U/L');
+    }
+    // 項目ごとの「同じ意味の単位」と「換算できる単位」。factor を掛けるとアプリの基準値の単位になる。
+    const LAB_UNIT_EQUIVALENTS = {
+      WBC: ['/μL', '/mm3'], RBC: ['×10^4/μL', '万/μL', '万/mm3'], Plt: ['×10^4/μL', '万/μL', '万/mm3', '万'],
+      Na: ['mEq/L', 'mmol/L'], K: ['mEq/L', 'mmol/L'], Cl: ['mEq/L', 'mmol/L'], 'Dダイマー': ['μg/mL', 'mg/L'],
+      AST: ['U/L', 'IU/L'], ALT: ['U/L', 'IU/L'], ALP: ['U/L', 'IU/L'], 'γGTP': ['U/L', 'IU/L'], 'アミラーゼ': ['U/L', 'IU/L']
+    };
+    const LAB_UNIT_CONVERSIONS = {
+      CRP: { 'mg/L': 0.1 }, Hb: { 'g/L': 0.1 }, TP: { 'g/L': 0.1 }, Alb: { 'g/L': 0.1 },
+      Cre: { 'μmol/L': 1 / 88.4 }, Cr: { 'μmol/L': 1 / 88.4 }, BUN: {}, 'T-Bil': { 'μmol/L': 1 / 17.1 },
+      '血糖': { 'mmol/L': 18 },
+      WBC: { '×10^3/μL': 1000, '千/μL': 1000, '×10^2/μL': 100 },
+      Plt: { '×10^3/μL': 0.1, '/μL': 0.0001, '/mm3': 0.0001 },
+      RBC: { '×10^6/μL': 100 }
+    };
+    // 単位が書かれていないときに、アプリの基準値の単位として読んでよい値の範囲（外れていたら換算せず原文のまま）
+    const LAB_PLAUSIBLE_WITHOUT_UNIT = { WBC: [100, 300000], Plt: [0.1, 200], RBC: [50, 1000], Hb: [1, 30], CRP: [0, 60] };
+    function formatConvertedNumber(v) {
+      const abs = Math.abs(v);
+      const digits = abs >= 1000 ? 0 : abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
+      if (abs >= 1000) return Math.round(v).toLocaleString('en-US');
+      return v.toFixed(digits);
+    }
+    // 書かれた数値と単位から、表示する値・単位を決める。読めない・換算できないときは null（原文のまま残す）
+    function resolveLabUnit(key, rawValue, writtenUnit) {
+      const std = LAB_STANDARDS[key] ? normalizeLabUnit(LAB_STANDARDS[key].unit) : '';
+      const num = Number(String(rawValue).replace(/,/g, ''));
+      if (!Number.isFinite(num)) return null;
+      const u = normalizeLabUnit(writtenUnit);
+      if (!u) {
+        const range = LAB_PLAUSIBLE_WITHOUT_UNIT[key];
+        if (range && (num < range[0] || num > range[1])) return null;
+        return { value: rawValue, unit: '' };
+      }
+      if (u === std || (!std && !u)) return { value: rawValue, unit: LAB_STANDARDS[key].unit };
+      // OCRの読み違い：μ が M に化けた「/ML」（白血球など）、U が消えた「/L」（AST などの U/L）は基準値の単位と読み替える
+      if ((/^\/ML$/.test(String(writtenUnit).replace(/\s+/g, '')) && /\/μL$/.test(std)) || (u === '/L' && std === 'U/L')) {
+        return { value: rawValue, unit: LAB_STANDARDS[key].unit, note: `単位「${String(writtenUnit).trim()}」を${LAB_STANDARDS[key].unit}と読み替え` };
+      }
+      // 同じ意味の単位（万/μL＝×10^4/μL、mmol/L＝mEq/L など）は、基準値と同じ書き方にそろえる
+      if ((LAB_UNIT_EQUIVALENTS[key] || []).includes(u)) return { value: rawValue, unit: LAB_STANDARDS[key].unit };
+      const factor = (LAB_UNIT_CONVERSIONS[key] || {})[u];
+      if (factor) return { value: formatConvertedNumber(num * factor), unit: LAB_STANDARDS[key].unit, note: `${rawValue} ${u}から換算` };
+      return null;
     }
 
     // 「創部：出血なし。」のように「創部」という一語だけの見出しでは、周術期の記録に複数
@@ -1107,6 +1170,19 @@
           if (titleDate && Number(titleDate[1]) >= 1 && Number(titleDate[1]) <= 12 && Number(titleDate[2]) >= 1 && Number(titleDate[2]) <= 31) step1.push(`${Number(titleDate[1])}月${Number(titleDate[2])}日`);
           return;
         }
+        // 「Day 1（月・術後3日目）」のような日の見出しは、かっこの中の日（術後3日目）を日の区切りとして使う
+        // 「Sデータ」「Oデータ」だけの行は見出し（中身の発言・観察でS／Oは決まる）（利用者の実習記録のテスト）
+        const dayNHeading = line.match(/^(?:Day|DAY|day)\s*(\d{1,2})\s*(?:[(（]([^)）]*)[)）])?\s*$/);
+        if (dayNHeading) {
+          const inner = (dayNHeading[2] || '').replace(/\s+/g, '');
+          const innerDay = inner.match(new RegExp(DAY_HEADING_WORD_SOURCE));
+          step1.push(SOURCE_TITLE_MARK + line);
+          if (innerDay) step1.push(innerDay[0].replace(/\s+/g, ''));
+          soapPart = null;
+          return;
+        }
+        if (/^(?:[SO]\s*データ|[SO]\s*情報|主観的(?:データ|情報)|客観的(?:データ|情報))\s*[:：]?$/.test(line)) { step1.push(SOURCE_TITLE_MARK + line); return; }
+        if (/^実習開始時の状況\s*[:：]|受け持つ設定/.test(line)) { step1.push(SOAP_ASSESSMENT_MARK + line); return; }
         // 学生の目標・計画・考察などの見出しの下は、次の見出し（【…】）まで不要カード
         const bulletHeading = line.match(BULLET_HEADING_REGEX);
         const headingBody = bulletHeading ? `【${bulletHeading[1].trim()}】` : line;
@@ -2473,7 +2549,8 @@
       // \dベースの正規表現（TIME_MARKER_REGEX・DATE_ONLY_REGEX・LAB_REGEX_SOURCE等）が半角数字しか
       // マッチしないため、全角文字を半角に正規化してから抽出処理に渡す（NFKC正規化）。
       const text = DOM.sourceText.value.trim().normalize('NFKC');
-      if (!text) return showToast('文章を入力してください', 'error');
+      if (!text) return showToast('文章を入力してください', 'warn');
+      if (typeof resetSourcePaneLayout === 'function') resetSourcePaneLayout(); // 分類したらカードを広く表示する
       const cp = getCurrentPatient();
 
       // 既にカードがある患者で分類し直す場合、以前は今のカードを残したまま新しいカードを「追加」する
@@ -2481,6 +2558,8 @@
       // カード）がそのまま残り、直っていないように見えていた（利用者からの修正依頼：「入室だけで情報
       // カードになってるのがおかしい」）。今のカードを置き換えるか、残したまま追加するかを選べるようにする。
       if (cp.items.length > 0) {
+        // 分類し直す前のカードを記録しておく（「変更点の比較」で比べられる。js/13）
+        if (typeof checkpointBeforeClassify === 'function') checkpointBeforeClassify(cp);
         const editedCount = cp.items.filter(i => (Array.isArray(i.editLog) && i.editLog.length > 0) || i.predictionSource === 'confirmed').length;
         const answer = await openDialog({
           title: '今あるカードをどうしますか？',
@@ -2507,10 +2586,10 @@
       // を選ぶ。AIに送る前の個人情報の伏せ字（callGeminiAI）は、AIで分類するときも同じく行う。
       const classifyMode = getClassifyMode();
       if (classifyMode === 'ai' && !globalAppData.apiKey) {
-        return showToast('「AIありで分類」にはAPIキーが必要です。右上の「API設定」でキーを保存するか、「AIなしで分類」を選んでください', 'error');
+        return showToast('「AIありで分類」にはAPIキーが必要です。右上の「API設定」でキーを保存するか、「AIなしで分類」を選んでください', 'warn');
       }
       if (classifyMode === 'ai' && globalAppData.apiKey && globalAppData.notebookContent) {
-        showToast('NotebookLM基準ノートに基づいて高精度分類中...', 'info');
+        showToast('登録された基準をもとに、AIで分類しています...', 'info');
         try {
           const prompt = `あなたは看護アセスメント支援AIです。以下の公式「NotebookLM基準ノート」を根拠として、カルテ・記録から重要な所見、患者発言、検査値を抽出してJSON形式（配列）で返してください。
 各要素には "text", "timestamp", "type" ("s" または "o" のいずれか。"unnecessary"は記録用紙自体の書式等、患者のアセスメントに使えない場合のみ), "hendersonIds" (1〜14の適切な複数タグ配列。関連する項目がない場合は空配列), "fieldLabel" (該当する場合のみ ${FIELD_LABEL_KEYS} のいずれか1つ、またはそれらに当てはまらなければあなた自身が内容から考えた2〜6文字程度の短い見出し語、いずれにも該当しなければ null) を含めてください。
@@ -2678,8 +2757,9 @@ ${text}
                 added++;
               }
             });
-            saveDataAndSync();
-            return showToast(`NotebookLM基準により${added}件を高精度分類しました`, 'success');
+            // 結果が返る前に別の患者に切り替えていたら、その患者（頼んだ患者）に保存し、今の画面には出さない
+            if (finishAiResult(cp, null, `AIでの分類（${added}件）`)) return showToast(`AIで${added}件を分類しました`, 'success');
+            return;
           }
         } catch (e) {
           // 失敗の理由（キーが違う・回数の上限・通信できない など）も見せる

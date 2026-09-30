@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-09-29.5'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-09-29.12'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -114,6 +114,8 @@
       tabSoBoard: document.getElementById('tab-so-board'),
       tabAssessment: document.getElementById('tab-assessment'),
       tabReference: document.getElementById('tab-reference'),
+      tabLabs: document.getElementById('tab-labs'),
+      viewLabs: document.getElementById('view-labs'),
       viewSoBoard: document.getElementById('view-so-board'),
       viewAssessment: document.getElementById('view-assessment'),
       viewReference: document.getElementById('view-reference'),
@@ -155,6 +157,16 @@
       if (e.target.closest('.hdr-menu-item') || !e.target.closest('.hdr-menu')) closeHeaderMenus();
     });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeHeaderMenus(); });
+    // 文字の書体（明朝＝Noto Serif JP が既定／ゴシック）。このブラウザに覚えておく
+    function currentAppFont() { return document.documentElement.getAttribute('data-font') === 'gothic' ? 'gothic' : 'serif'; }
+    function setAppFont(font) {
+      document.documentElement.setAttribute('data-font', font === 'gothic' ? 'gothic' : 'serif');
+      try { localStorage.setItem('nursing_font', font === 'gothic' ? 'gothic' : 'serif'); } catch (e) { /* 覚えられなくても今回は切り替える */ }
+      const label = document.getElementById('font-current-label');
+      if (label) label.textContent = font === 'gothic' ? 'ゴシック' : '明朝';
+    }
+    window.toggleAppFont = function() { setAppFont(currentAppFont() === 'gothic' ? 'serif' : 'gothic'); };
+    setAppFont(currentAppFont());
     document.getElementById('btn-toggle-theme').addEventListener('click', () => {
       const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
       const next = isDark ? 'light' : 'dark';
@@ -193,21 +205,58 @@
     // 問題があった（この端末内には保存されていても、他端末とは共有されていない状態を見分けられない）。
     // 'saving'＝サーバーへの保存を試行中、'saved'＝サーバーへの保存が確認できた、
     // 'error'＝サーバーへの保存に失敗した（この端末内のみ保存）、の3状態を表示に反映する。
+    // 【保存先と状態を分けて表示】利用者からの指摘：「保存済み」「サーバー未接続」では、どこに保存できたのか分からない。
+    // このブラウザへの保存（書いた後に読み直して確かめる：writeLocalVerified）と、共有先（サーバー）への保存
+    // （サーバーの応答で確かめる：js/04 の syncPatientToServer）を分けて表示する。
+    //   'saving'       … このブラウザに保存済み・共有先へ送っているところ
+    //   'saved'        … 共有先に保存済み（サーバーが受け取ったことを確認した）
+    //   'error'        … 共有先への保存に失敗（このブラウザには保存済み。押すと送り直す）
+    //   'local-only'   … このブラウザに保存済み（HTMLファイルを直接開いていて共有先が無い）
+    //   'local-failed' … このブラウザにも保存できなかった（容量不足など）
+    let lastLocalSaveOk = true;
+    let sourcePaneManual = null; // 記録メモの入力欄の広さ（updateSourcePaneLayout）
+    let lastSharedSaveAt = null;
+    function writeLocalVerified(key, value) {
+      try {
+        localStorage.setItem(key, value);
+        const back = localStorage.getItem(key);
+        return typeof back === 'string' ? back.length === value.length : true;
+      } catch (e) {
+        console.warn('このブラウザへの保存に失敗しました（保存容量が不足している可能性があります）:', e);
+        return false;
+      }
+    }
     function updateSaveStatus(state = 'saved') {
       const el = document.getElementById('save-status-time');
       const iconEl = document.querySelector('#save-status i');
+      const box = document.getElementById('save-status');
       if (!el) return;
-      if (state === 'saving') {
-        if (iconEl) iconEl.className = 'fa-solid fa-circle-notch fa-spin text-[var(--ink-muted)] text-[9px]';
-        el.textContent = '保存中...';
-      } else if (state === 'error') {
-        if (iconEl) iconEl.className = 'fa-solid fa-triangle-exclamation text-[var(--brick)] text-[9px]';
-        el.textContent = 'サーバー未接続（この端末内のみ保存）';
-      } else {
-        if (iconEl) iconEl.className = 'fa-solid fa-circle-check text-[var(--accent)] text-[9px]';
-        el.textContent = `保存済み ${new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`;
+      const hhmm = d => d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+      if (!lastLocalSaveOk && state !== 'saved') state = 'local-failed';
+      if (typeof IS_FILE_PROTOCOL !== 'undefined' && IS_FILE_PROTOCOL && (state === 'saving' || state === 'error')) state = 'local-only';
+      const set = (icon, text, title) => { if (iconEl) iconEl.className = icon; el.textContent = text; if (box) { box.title = title; box.dataset.state = state; } };
+      if (state === 'saving') set('fa-solid fa-circle-notch fa-spin text-[var(--ink-muted)] text-[9px]', 'このブラウザに保存済み・共有先へ保存中…', 'このブラウザには保存しました。共有先（サーバー）へ送っています');
+      else if (state === 'error') set('fa-solid fa-triangle-exclamation text-[var(--brick)] text-[9px]', '共有先への保存に失敗（このブラウザには保存済み・押すと再送）', '共有先（サーバー）に保存できていません。このブラウザには残っています。自動で送り直します。押すとすぐに送り直します');
+      else if (state === 'local-only') set('fa-solid fa-laptop text-[var(--ink-muted)] text-[9px]', 'このブラウザに保存済み（共有先なし）', 'HTMLファイルを直接開いているため、このブラウザだけに保存しています。他の端末とは共有されません');
+      else if (state === 'local-failed') set('fa-solid fa-triangle-exclamation text-[var(--brick)] text-[9px]', 'このブラウザに保存できませんでした', 'ブラウザの保存容量が足りない可能性があります。「︙」→「データをファイルに保存」でバックアップを取ってください');
+      else {
+        lastSharedSaveAt = state === 'saved-earlier' ? lastSharedSaveAt : new Date();
+        set('fa-solid fa-circle-check text-[var(--accent)] text-[9px]', `共有先に保存済み${lastSharedSaveAt && state !== 'saved-earlier' ? ` ${hhmm(lastSharedSaveAt)}` : ''}`, '共有先（サーバー）に保存したことを確認しました（このブラウザにも保存しています）');
       }
     }
+
+    // 「未保存」の表示を押すと、保存できていないカルテをすぐに送り直す
+    (() => {
+      const box = document.getElementById('save-status');
+      if (!box) return;
+      box.style.cursor = 'pointer';
+      box.title = '保存できていないときは、押すとすぐにサーバーへ送り直します';
+      box.addEventListener('click', () => {
+        if (!unsyncedPatientIds.size) return;
+        updateSaveStatus('saving');
+        retryUnsyncedPatients();
+      });
+    })();
 
     function updateCurrentPatientMeta() {
       const cp = getCurrentPatient();
@@ -219,21 +268,64 @@
     function showAiErrorToast(prefix, err) {
       const reason = err && err.message ? err.message : '理由は分かりませんでした';
       console.warn(prefix, err);
-      showToast(`${escapeHtml(prefix)}<br><span style="font-weight:400;white-space:pre-wrap">${escapeHtml(reason)}</span>`, 'error', 9000);
+      showToast([prefix, { text: reason, detail: true }], 'error', 9000);
     }
-    function showToast(message, type = 'info', duration = 3000) {
+    // 【通知の出し方】利用者からの指摘により整理した：
+    //   success … 短く、数秒（2.5秒）で消える
+    //   info    … 少し長め（既定3.5秒）で消える
+    //   warn    … 入力の不足など、その場で直せること（5秒で消える）
+    //   error   … できなかったこと。「何ができなかったか・次に何をするか」を書き、×を押すまで残す
+    function showToast(message, type = 'info', duration = null) {
       const toast = document.createElement('div');
       const styles = {
         success: 'background:var(--accent-soft);color:var(--accent-dark);border-color:var(--accent-line);',
-        error: 'background:var(--brick-soft);color:var(--brick);border-color:var(--brick-line);',
+        error: 'background:var(--brick-soft);color:var(--brick);border-color:var(--brick-line);pointer-events:auto;',
+        warn: 'background:var(--gold-soft);color:var(--ink);border-color:var(--gold-line);',
         info: 'background:var(--surface);color:var(--ink);border-color:var(--line);'
       };
-      toast.className = `toast-enter p-3 rounded-[var(--radius-sm)] border text-xs font-medium flex items-center gap-2 panel-shadow`;
+      const sticky = type === 'error';
+      if (type === 'success') duration = Math.min(duration || 2500, 3000);
+      else if (type === 'warn') duration = duration || 5000;
+      else if (!sticky) duration = duration || 3500;
+      toast.className = `toast-enter p-3 rounded-[var(--radius-sm)] border text-xs font-medium flex items-${Array.isArray(message) ? 'start' : 'center'} gap-2 panel-shadow toast-${type}`;
       toast.style.cssText = styles[type] || styles.info;
-      const icon = type === 'success' ? 'fa-check' : type === 'error' ? 'fa-circle-exclamation' : 'fa-info-circle';
-      toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${message}</span>`;
+      toast.setAttribute('role', sticky ? 'alert' : 'status');
+      const icon = type === 'success' ? 'fa-check' : type === 'error' ? 'fa-circle-exclamation' : type === 'warn' ? 'fa-triangle-exclamation' : 'fa-info-circle';
+      // 【HTML注入の防止】通知の本文は textContent で入れる。以前は innerHTML に文字列をそのまま入れていたため、
+      // 患者名（「「<img src=x onerror=…>」のカルテに切り替えました」など）がHTMLとして解釈され、
+      // スクリプトが動く経路になっていた。複数行にしたいときは、行の配列を渡す（{ text, detail } は小さめの説明行）。
+      const iconEl = document.createElement('i');
+      iconEl.className = `fa-solid ${icon}`;
+      const body = document.createElement('span');
+      (Array.isArray(message) ? message : [message]).forEach((line, idx) => {
+        const text = line && typeof line === 'object' ? String(line.text ?? '') : String(line ?? '');
+        const row = document.createElement(idx === 0 ? 'span' : 'span');
+        row.textContent = text;
+        if (idx > 0) { row.style.display = 'block'; row.style.whiteSpace = 'pre-wrap'; }
+        if (line && typeof line === 'object' && line.detail) row.style.fontWeight = '400';
+        body.appendChild(row);
+      });
+      toast.append(iconEl, body);
+      const dismiss = () => { toast.classList.replace('toast-enter', 'toast-exit'); setTimeout(() => toast.remove(), 300); };
+      if (sticky) {
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'toast-close';
+        close.setAttribute('aria-label', '閉じる');
+        close.title = '確認したら閉じる';
+        close.textContent = '×';
+        close.addEventListener('click', dismiss);
+        toast.append(close);
+        // 同じ失敗の通知が重なって並ばないようにする
+        const key = body.textContent;
+        Array.from(DOM.toastContainer.children || []).forEach(t => { if (t.dataset && t.dataset.key === key) t.remove(); });
+        if (toast.dataset) toast.dataset.key = key;
+      }
       DOM.toastContainer.appendChild(toast);
-      setTimeout(() => { toast.classList.replace('toast-enter', 'toast-exit'); setTimeout(() => toast.remove(), 300); }, duration);
+      // 消える通知が増えすぎないようにする（古いものから消す）
+      const transient = Array.from(DOM.toastContainer.children || []).filter(t => t.classList && !t.classList.contains('toast-error'));
+      if (transient.length > 3) transient.slice(0, transient.length - 3).forEach(t => t.remove());
+      if (!sticky) setTimeout(dismiss, duration);
     }
 
     // 削除・リセット系の操作の直後に「元に戻す」ボタン付きトーストを出す共通処理。
@@ -242,8 +334,15 @@
       const toast = document.createElement('div');
       toast.className = 'toast-enter p-3 rounded-[var(--radius-sm)] border text-xs font-medium flex items-center gap-3 panel-shadow';
       toast.style.cssText = 'background:var(--surface);color:var(--ink);border-color:var(--line);pointer-events:auto;';
-      toast.innerHTML = `<i class="fa-solid fa-clock-rotate-left text-[var(--ink-muted)]"></i><span class="flex-1">${escapeHtml(message)}</span><button class="font-bold text-[var(--accent)] hover:underline whitespace-nowrap">元に戻す</button>`;
-      const undoBtn = toast.querySelector('button');
+      const undoIcon = document.createElement('i');
+      undoIcon.className = 'fa-solid fa-clock-rotate-left text-[var(--ink-muted)]';
+      const undoText = document.createElement('span');
+      undoText.className = 'flex-1';
+      undoText.textContent = message;
+      const undoBtn = document.createElement('button');
+      undoBtn.className = 'font-bold text-[var(--accent)] hover:underline whitespace-nowrap';
+      undoBtn.textContent = '元に戻す';
+      toast.append(undoIcon, undoText, undoBtn);
       let dismissed = false;
       const dismiss = () => { if (dismissed) return; dismissed = true; toast.classList.replace('toast-enter', 'toast-exit'); setTimeout(() => toast.remove(), 300); };
       undoBtn.addEventListener('click', () => {
@@ -495,12 +594,15 @@
         if (/billing/i.test(m)) return `このキーのプロジェクトで支払い（請求先アカウント）の設定が必要です。${detail}`;
         return `このAPIキーには Gemini を使う権限がありません。${detail}`;
       }
-      if (status === 429) return `AIの利用回数の上限に達しました。1分ほど待ってからもう一度試してください（無料枠は1分あたり・1日あたりの回数に上限があります）。${detail}`;
+      if (status === 429) {
+        if (isGeminiDailyQuota(m)) return `今日のAIの利用回数の上限（無料枠）に達しました。別のモデルへの切り替えも試しましたが使えませんでした。回数は太平洋時間の0時（日本時間の16時ごろ、冬は17時ごろ）に戻ります。すぐに使いたい場合は、Google AI Studio で支払いの設定（有料枠）をすると上限が大きく上がります。${detail}`;
+        return `AIの利用回数の上限に達しました（送り直しと別のモデルへの切り替えも試しました）。1分ほど待ってからもう一度試してください（無料枠は1分あたり・1日あたりの回数に上限があります）。${detail}`;
+      }
       if (status === 400) {
         if (/location|region|not supported/i.test(m)) return `この地域・このキーではAIが使えません。${detail}`;
         return `AIへの依頼の形が受け付けられませんでした（HTTP 400）。${detail}`;
       }
-      if (status >= 500) return `Google側のAIが一時的に混み合っているか止まっています（HTTP ${status}）。少し待ってからもう一度試してください。${detail}`;
+      if (status >= 500) return `Google側のAIが混み合っています（HTTP ${status}）。自動で3回送り直し、別のモデルへの切り替えも試しましたが、どれも混雑していました。数分おいてからもう一度試してください。${detail}`;
       return `AIの呼び出しに失敗しました（HTTP ${status}）。${detail}`;
     }
 
@@ -524,13 +626,60 @@
       const anyFlash = usable.filter(n => /flash/.test(n) && !/lite|tts|image|live|audio|transcribe|embedding|omni/.test(n)).sort(newerFirst);
       return anyFlash[0] || null;
     }
-    async function discoverGeminiModel(key) {
+    async function fetchGeminiModelList(key) {
       try {
         const res = await fetch(`${GEMINI_API_BASE}/models?pageSize=1000`, { headers: { 'x-goog-api-key': key } });
         if (!res.ok) return null;
         const j = await res.json();
-        return chooseBestFlashModel(j && j.models);
+        return (j && j.models) || null;
       } catch (e) { return null; }
+    }
+    async function discoverGeminiModel(key) {
+      return chooseBestFlashModel(await fetchGeminiModelList(key));
+    }
+
+    // 【混雑・回数の上限への対応】利用者からの報告：「AIを使いたいのにずっと混雑していて…となる」。
+    // 以前は 503（Google側の混雑）や 429（回数の上限）が1回返るとすぐにエラーにしていた。
+    //  ①同じモデルで少し待って2回まで送り直す（1日の上限に達したときは待っても同じなので送り直さない）
+    //  ②それでもだめなら、同じキーで使える別の Flash（軽量版の Flash-Lite や1つ前の版）に切り替える。
+    //    モデルごとに混雑の状況と回数の上限が別なので、別のモデルなら通ることが多い。
+    //    切り替え先はその回だけ使い、次からはまた普段のモデルを先に試す。
+    const GEMINI_BUSY_ALTERNATIVES = ['gemini-flash-lite-latest'];
+    function isGeminiTransientError(status) { return status === 429 || status === 500 || status === 502 || status === 503 || status === 504; }
+    function isGeminiDailyQuota(apiMessage) { return /per ?day|PerDay|daily/i.test(String(apiMessage || '')); }
+    function geminiRetryDelaysMs() { return Array.isArray(window.__geminiRetryDelaysMs) ? window.__geminiRetryDelaysMs : [2000, 5000]; }
+    const geminiSleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+    // 混雑しているときに切り替える別のモデル（そのキーで使える Flash の新しい順＋軽量版）
+    async function geminiBusyAlternatives(key, tried) {
+      const list = await fetchGeminiModelList(key);
+      const names = (list || []).filter(m => !m.supportedGenerationMethods || m.supportedGenerationMethods.includes('generateContent'))
+        .map(m => String(m.name || '').replace(/^models\//, ''));
+      const version = n => (n.match(/gemini-(\d+(?:\.\d+)?)/) || [0, '0'])[1].split('.').map(Number);
+      const newerFirst = (a, b) => { const va = version(a), vb = version(b); return (vb[0] - va[0]) || ((vb[1] || 0) - (va[1] || 0)); };
+      // 「-latest」はプレビュー版を指すことがあり（Googleの説明）、新しい版ほど混みやすい。
+      // 安定版の Flash-Lite（新しい順）→ 1つ前の版の Flash → Flash-Lite の最新、の順に試す
+      const lite = names.filter(n => /^gemini-\d+(?:\.\d+)?-flash-lite$/.test(n)).sort(newerFirst);
+      const flash = names.filter(n => /^gemini-\d+(?:\.\d+)?-flash$/.test(n)).sort(newerFirst);
+      const olderFlash = flash.slice(1);
+      return [...lite, ...olderFlash, ...GEMINI_BUSY_ALTERNATIVES, ...flash.slice(0, 1), ...GEMINI_FALLBACK_MODELS.slice(1)]
+        .filter((m, i, a) => a.indexOf(m) === i && !tried.has(m));
+    }
+    // 混雑のときにつながったモデルは30分だけ覚えておき、その間は最初から使う（毎回待たされないように）
+    const GEMINI_BUSY_MODEL_KEY = 'gemini_busy_model';
+    const GEMINI_BUSY_MODEL_TTL_MS = 30 * 60 * 1000;
+    function recentBusyModel() {
+      try {
+        const v = JSON.parse(storageGet(GEMINI_BUSY_MODEL_KEY) || 'null');
+        return v && v.model && Date.now() - v.at < GEMINI_BUSY_MODEL_TTL_MS ? v.model : null;
+      } catch (e) { return null; }
+    }
+    // 利用者が「API設定」で選ぶモデルの好み：auto（おすすめ）／lite（軽くて混みにくい）／flash（標準）
+    const GEMINI_MODEL_PREFS = { auto: null, lite: 'gemini-flash-lite-latest', flash: GEMINI_DEFAULT_MODEL };
+    function geminiModelPref() { const v = storageGet('gemini_model_pref'); return Object.prototype.hasOwnProperty.call(GEMINI_MODEL_PREFS, v) ? v : 'auto'; }
+    function firstStudioModel() {
+      const pref = geminiModelPref();
+      if (pref === 'lite') return recentBusyModel() && /lite/.test(recentBusyModel()) ? recentBusyModel() : GEMINI_MODEL_PREFS.lite;
+      return recentBusyModel() || (pref === 'flash' ? GEMINI_DEFAULT_MODEL : currentGeminiModel());
     }
 
     function extractGeminiText(data) {
@@ -568,17 +717,37 @@
     // 1つの送り先で、モデルが使えなければ別のモデルに切り替えて試す（最大4回）
     async function tryGeminiEndpoint(ep, key, body) {
       const tried = new Set();
-      const first = ep === 'studio' ? currentGeminiModel() : (storageGet('gemini_model') && storageGet('gemini_model') !== GEMINI_DEFAULT_MODEL ? storageGet('gemini_model') : GEMINI_FALLBACK_MODELS[0]);
+      const first = ep === 'studio' ? firstStudioModel() : (storageGet('gemini_model') && storageGet('gemini_model') !== GEMINI_DEFAULT_MODEL ? storageGet('gemini_model') : GEMINI_FALLBACK_MODELS[0]);
       let queue = [first];
       let discovered = false;
       let last = null;
-      while (queue.length && tried.size < 4) {
+      let busyFallback = false;
+      while (queue.length && tried.size < 5) {
         const model = queue.shift();
         if (tried.has(model)) continue;
         tried.add(model);
-        const r = await postGemini(ep, key, model, body);
-        if (r.ok) return r;
+        let r = await postGemini(ep, key, model, body);
+        // ①混雑・回数の上限：少し待って同じモデルに送り直す
+        if (!r.ok && isGeminiTransientError(r.status) && !isGeminiDailyQuota(r.apiMessage)) {
+          for (const wait of geminiRetryDelaysMs()) {
+            await geminiSleep(wait);
+            r = await postGemini(ep, key, model, body);
+            if (r.ok || !isGeminiTransientError(r.status)) break;
+          }
+        }
+        if (r.ok) {
+          if (busyFallback && ep === 'studio') storageSet(GEMINI_BUSY_MODEL_KEY, JSON.stringify({ model, at: Date.now() }));
+          return busyFallback || model === recentBusyModel() || geminiModelPref() !== 'auto' ? { ...r, viaBusyFallback: true } : r;
+        }
+        // 覚えていた混雑回避のモデルがだめになったら忘れる
+        if (model === recentBusyModel()) { try { localStorage.removeItem(GEMINI_BUSY_MODEL_KEY); } catch (e) { /* 無視 */ } }
         last = r;
+        // ②それでも混雑・上限なら、別のモデルに切り替える（AI Studio のみ）
+        if (isGeminiTransientError(r.status)) {
+          if (ep !== 'studio') return r;
+          if (!busyFallback) { busyFallback = true; queue = await geminiBusyAlternatives(key, tried); }
+          continue;
+        }
         if (!isGeminiModelProblem(r.status, r.apiMessage)) return r;
         // モデルが使えない：一覧から最新の Flash を探し（AI Studio のみ）、だめなら既知のモデルを順に試す
         if (ep === 'studio' && !discovered) {
@@ -592,6 +761,7 @@
     }
 
     // キーと依頼内容を受け取り、合う送り先・モデルに送って応答（JSON）を返す。失敗時は日本語のエラーを投げる。
+    let lastGeminiModelUsed = null;
     async function requestGemini(rawKey, body) {
       const key = normalizeApiKey(rawKey);
       if (!key) throw new Error('APIキーが設定されていません。右上の︙→「API設定」でキーを保存してください。');
@@ -603,8 +773,10 @@
         const ep = order[i];
         const r = await tryGeminiEndpoint(ep, key, body);
         if (r.ok) {
+          lastGeminiModelUsed = r.model;
           storageSet('gemini_api_endpoint', ep);
-          if (ep === 'studio') storageSet('gemini_model', r.model);
+          // 混雑のために一時的に切り替えたモデルは覚えない（次からはまた普段のモデルを先に使う）
+          if (ep === 'studio' && !r.viaBusyFallback) storageSet('gemini_model', r.model);
           return r.data;
         }
         const err = new Error(describeGeminiError(r.status, r.apiMessage, kind, r.model));
@@ -628,7 +800,7 @@
       try {
         const data = await requestGemini(rawKey, { contents: [{ role: 'user', parts: [{ text: '接続テストです。「OK」とだけ答えてください。' }] }] });
         const ep = storageGet('gemini_api_endpoint');
-        const where = ep === 'vertex' ? 'Vertex AI' : `Gemini API・モデル ${currentGeminiModel()}`;
+        const where = ep === 'vertex' ? 'Vertex AI' : `Gemini API・モデル ${lastGeminiModelUsed || currentGeminiModel()}`;
         return { ok: true, kindLabel: info.label, message: `接続できました（${where}）。AIの機能が使えます。${extractGeminiText(data) ? '' : '（応答は空でした）'}` };
       } catch (e) {
         return { ok: false, kindLabel: info.label, message: e.message };
@@ -653,12 +825,10 @@
       // 患者カルテ・学習データのいずれも、サーバー側への保存（共有・研究用途）とは別に、
       // このブラウザのlocalStorageにも保存しておく。サーバーに接続できない場合や保存が
       // 間に合わなかった場合でも、このブラウザ内には確実に残るようにするため。
-      try {
-        localStorage.setItem(PATIENTS_STORAGE_KEY, JSON.stringify({ patients: globalAppData.patients, currentPatientId: globalAppData.currentPatientId }));
-      } catch (e) {
-        // 容量超過などで保存できない場合も画面表示自体は続行する
-        console.warn('カルテデータの自動保存に失敗しました（ブラウザの保存容量が不足している可能性があります）:', e);
-      }
+      // 書いた後に読み直して、このブラウザに確かに保存できたかを確かめる（容量超過などで保存できない場合も画面表示は続ける）
+      const wasOk = lastLocalSaveOk;
+      lastLocalSaveOk = writeLocalVerified(PATIENTS_STORAGE_KEY, JSON.stringify({ patients: globalAppData.patients, currentPatientId: globalAppData.currentPatientId }));
+      if (!lastLocalSaveOk && wasOk) showToast(['このブラウザにカルテを保存できませんでした', { text: '保存容量が足りない可能性があります。「︙」→「データをファイルに保存」でバックアップを取り、使っていないカルテをアーカイブ・削除してください。', detail: true }], 'error');
       try {
         localStorage.setItem(LEARNING_DICT_STORAGE_KEY, JSON.stringify(globalAppData.learningUserDict));
       } catch (e) {
@@ -671,6 +841,24 @@
       // この時点ではサーバーへの保存はまだ完了していない（schedulePatientSyncは少し待ってから送信するため）。
       // 実際に「保存済み」と表示するのは、syncPatientToServer()がサーバーからの成功応答を受け取った後。
       updateSaveStatus('saving');
+      updateCurrentPatientMeta();
+    }
+
+    // 【患者の切り替えの順番】利用者からの報告：患者Aをアーカイブすると、切り替え先の患者Bの本文がAの本文で
+    // 上書きされた。以前は「患者IDを切り替える → persistData()」の順だったため、persistData() が入力欄に
+    // まだ表示されている患者Aの本文を、切り替え先の患者Bに書き込んでいた（新規作成・完全削除も同じ）。
+    // 必ず ①今の患者を保存（入力欄の本文は今の患者に書き戻す） ②患者IDを切り替える ③画面を読み直す
+    // ④どの患者を開いているかだけを保存（本文には触れない）の順にする。
+    function savePatientsLocally() {
+      lastLocalSaveOk = writeLocalVerified(PATIENTS_STORAGE_KEY, JSON.stringify({ patients: globalAppData.patients, currentPatientId: globalAppData.currentPatientId }));
+      return lastLocalSaveOk;
+    }
+    function changeCurrentPatient(nextId, { saveCurrent = true } = {}) {
+      const currentExists = globalAppData.patients.some(p => p.id === globalAppData.currentPatientId);
+      if (saveCurrent && currentExists) persistData(); // ①入力欄の本文は、今表示している患者に保存する
+      globalAppData.currentPatientId = nextId;          // ②
+      loadLocalState();                                  // ③入力欄に切り替え先の本文を読み込む
+      savePatientsLocally();                             // ④本文は書き換えず、開いている患者だけを覚える
       updateCurrentPatientMeta();
     }
 
@@ -745,6 +933,25 @@
       }
       return 0;
     }
+    // 欲求ごとの自分のアセスメント（myAssessments）など「キー → { …, updatedAt }」の記録は、キーごとに新しい方を使う
+    // （server.js の mergeKeyedRecords と同じ考え方）
+    const PATIENT_KEYED_RECORD_FIELDS = ['myAssessments', 'missingChecks', 'carePlans', 'checkpoints'];
+    function mergeKeyedRecordsClient(a, b) {
+      const isMap = v => v && typeof v === 'object' && !Array.isArray(v);
+      const time = r => { const t = r && typeof r.updatedAt === 'string' ? new Date(r.updatedAt).getTime() : NaN; return Number.isNaN(t) ? 0 : t; };
+      if (!isMap(a)) return isMap(b) ? b : a;
+      if (!isMap(b)) return a;
+      const out = { ...a };
+      Object.keys(b).forEach(k => { if (!(k in out) || time(b[k]) > time(out[k])) out[k] = b[k]; });
+      return out;
+    }
+    function mergeKeyedPatientFieldsClient(first, second) {
+      const out = {};
+      PATIENT_KEYED_RECORD_FIELDS.forEach(f => {
+        if ((first && f in first) || (second && f in second)) out[f] = mergeKeyedRecordsClient(first && first[f], second && second[f]);
+      });
+      return out;
+    }
     function mergePatientRecordClient(local, server, now = Date.now()) {
       if (!server) return local;
       if (!local) return server;
@@ -808,6 +1015,7 @@
 
       return {
         ...base,
+        ...mergeKeyedPatientFieldsClient(local, server),
         items: mergedItems,
         deletedItemIds: mergedTombstones,
         updatedAt: (localTime >= serverTime ? local.updatedAt : server.updatedAt) || new Date(now).toISOString()
@@ -819,7 +1027,7 @@
       DOM.sourceText.value = cp.sourceText || '';
       // 別の患者に切り替えたら、前の患者の文章に付けた印の表示は閉じて入力欄に戻す。
       if (highlightedSourceItemId != null) clearSourceHighlight(false);
-      DOM.labEvalContent.innerHTML = cp.labEvaluationResult || '「検査値AI総合評価」ボタンを押すと、入力されたOデータ中の検査値をノートブックの基準に基づいて自動抽出し、臨床的意味を評価します。';
+      DOM.labEvalContent.innerHTML = cp.labEvaluationResult || '「検査値AI総合評価」ボタンを押すと、Oデータの検査値を登録された基準で確認し、臨床的意味を評価します。';
       DOM.currentPatientTitle.textContent = cp.title;
 
       // 前回のAI分析結果（矛盾チェック・看護診断候補・経時変化サマリー）があれば患者切り替え時にも復元する
@@ -837,6 +1045,10 @@
       if (cp.carePlanResult) { carePlanPanel.classList.remove('hidden'); document.getElementById('careplan-content').innerHTML = cp.carePlanResult; }
       else { carePlanPanel.classList.add('hidden'); document.getElementById('careplan-content').innerHTML = ''; }
 
+      sourcePaneManual = null; // 患者を切り替えたら入力欄の大きさは自動に戻す
+      // 看護計画のページの描き直し・画面を開いたときの自動の記録（js/13。読み込む前の最初の表示では呼ばない）
+      if (typeof onPatientViewReloaded === 'function') onPatientViewReloaded(cp);
+
       selectedCardIds.clear();
       boardSearchTerm = '';
       const searchInput = document.getElementById('board-search');
@@ -847,10 +1059,8 @@
       renderAssessmentTable();
       renderReferenceList();
       updateCurrentPatientMeta();
-      // 患者ページを切り替えた直後は、切り替え前のページの保存状態表示（「保存中...」等）が
-      // そのまま残ってしまうと紛らわしいため、表示をリセットする（切り替え先のページ自体は
-      // 直前まで保存済みの内容を読み込んでいるはずなので「保存済み」に戻す）。
-      updateSaveStatus('saved');
+      // 患者ページを切り替えた直後は、切り替え先の患者の保存状態を表示する（共有先に送れていない患者なら「失敗」のまま）
+      updateSaveStatus(typeof unsyncedPatientIds !== 'undefined' && unsyncedPatientIds.has(cp.id) ? 'error' : 'saved-earlier');
     }
 
     // ヘッダー左上のカルテの切り替え（今のカルテの名前のボタン＋押すと開く一覧。index.htmlのpatient-menu参照）。
@@ -899,22 +1109,24 @@
     window.switchPatient = function(patId) {
       if (typeof closeHeaderMenus === 'function') closeHeaderMenus();
       if (patId === globalAppData.currentPatientId) return;
-      persistData();
-      globalAppData.currentPatientId = patId;
-      loadLocalState();
+      changeCurrentPatient(patId);
       showToast(`「${getCurrentPatient().title}」のカルテに切り替えました`, 'info');
     };
 
     document.getElementById('btn-new-patient').addEventListener('click', async () => {
       const title = await openDialog({ title: '新しい患者ページを作成', inputValue: `患者${globalAppData.patients.length + 1}`, placeholder: '患者名またはページ名', confirmLabel: '作成する' });
       if (!title) return;
-      const newId = 'patient_' + Date.now();
-      globalAppData.patients.push({ id: newId, title: title.trim(), items: [], sourceText: '', labEvaluationResult: '', referenceNotes: [], archived: false, updatedAt: null, deletedItemIds: [] });
-      globalAppData.currentPatientId = newId;
-      persistData();
-      loadLocalState();
+      createNewPatientPage(title);
       showToast(`新規ページ「${title}」を作成しました`, 'success');
     });
+    function createNewPatientPage(title) {
+      const newId = 'patient_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+      if (globalAppData.patients.some(p => p.id === globalAppData.currentPatientId)) persistData(); // 先に今の患者を保存する
+      globalAppData.patients.push({ id: newId, title: String(title).trim(), items: [], sourceText: '', labEvaluationResult: '', referenceNotes: [], archived: false, updatedAt: new Date().toISOString(), deletedItemIds: [] });
+      changeCurrentPatient(newId, { saveCurrent: false });
+      schedulePatientSync(newId);
+      return newId;
+    }
 
     document.getElementById('btn-rename-patient').addEventListener('click', async () => {
       const cp = getCurrentPatient();
@@ -939,22 +1151,27 @@
       const p = globalAppData.patients.find(x => x.id === id);
       if (!p) return;
       const nonArchivedCount = globalAppData.patients.filter(x => !x.archived).length;
-      if (!p.archived && nonArchivedCount <= 1) return showToast('最後のページはアーカイブできません', 'error');
-      p.archived = true;
+      if (!p.archived && nonArchivedCount <= 1) return showToast('最後のページはアーカイブできません', 'warn');
       const wasCurrent = globalAppData.currentPatientId === id;
+      // ①アーカイブする前に、今表示している患者（アーカイブする患者のこともある）の本文を保存する
+      persistData();
+      p.archived = true;
+      p.updatedAt = new Date().toISOString();
+      schedulePatientSync(id); // アーカイブしたページ自身も明示的に同期する（現在のページと異なる場合、persistDataだけでは同期されないため）
       if (wasCurrent) {
         const next = globalAppData.patients.find(x => !x.archived);
-        if (next) globalAppData.currentPatientId = next.id;
+        if (next) changeCurrentPatient(next.id, { saveCurrent: false }); // ②③④（今の患者は①で保存済み）
+      } else {
+        savePatientsLocally();
+        renderPatientTabs();
       }
-      persistData();
-      schedulePatientSync(id); // アーカイブしたページ自身も明示的に同期する（現在のページと異なる場合、persistDataだけでは同期されないため）
-      loadLocalState();
       renderPatientListModal();
       showUndoToast(`「${p.title}」をアーカイブしました`, () => {
         p.archived = false;
-        if (wasCurrent) globalAppData.currentPatientId = id;
+        p.updatedAt = new Date().toISOString();
         schedulePatientSync(id);
-        loadLocalState();
+        if (wasCurrent) changeCurrentPatient(id); // 今表示している患者（切り替え先）を保存してから戻る
+        else { savePatientsLocally(); renderPatientTabs(); }
         renderPatientListModal();
       });
     };
@@ -963,7 +1180,8 @@
       const p = globalAppData.patients.find(x => x.id === id);
       if (!p) return;
       p.archived = false;
-      persistData();
+      p.updatedAt = new Date().toISOString();
+      persistData(); // 今表示している患者の本文を保存（復元した患者の本文には触れない）
       schedulePatientSync(id);
       renderPatientTabs();
       renderPatientListModal();
@@ -977,20 +1195,25 @@
 
     window.hardDeletePatientFromList = async function(id) {
       const target = globalAppData.patients.find(p => p.id === id);
-      if (globalAppData.patients.length <= 1) return showToast('最後のページは削除できません', 'error');
+      if (globalAppData.patients.length <= 1) return showToast('最後のページは削除できません', 'warn');
       const confirmed = await openDialog({ title: '完全に削除しますか？', message: `「${target ? target.title : ''}」のデータを完全に削除します。アーカイブと違い、この操作は元に戻せません。`, confirmLabel: '完全に削除する', danger: true });
       if (!confirmed) return;
       const idx = globalAppData.patients.findIndex(p => p.id === id);
       if (idx === -1) return;
+      const deletingCurrent = globalAppData.currentPatientId === id;
+      // 削除するのが別の患者なら、先に今表示している患者の本文を保存する（削除する患者の本文は保存しない）
+      if (!deletingCurrent) persistData();
       globalAppData.patients.splice(idx, 1);
-      if (globalAppData.currentPatientId === id) {
-        const next = globalAppData.patients.find(x => !x.archived) || globalAppData.patients[0];
-        globalAppData.currentPatientId = next.id;
-      }
       if (patientSyncTimers[id]) { clearTimeout(patientSyncTimers[id]); delete patientSyncTimers[id]; }
+      rememberDeletedPatient(id);
       deletePatientFromServer(id); // サーバー側の共有カルテからも削除する（他端末にも削除が反映される）
-      persistData();
-      loadLocalState();
+      if (deletingCurrent) {
+        const next = globalAppData.patients.find(x => !x.archived) || globalAppData.patients[0];
+        changeCurrentPatient(next.id, { saveCurrent: false });
+      } else {
+        savePatientsLocally();
+        renderPatientTabs();
+      }
       renderPatientListModal();
       showToast('完全に削除しました', 'info');
     };
@@ -1350,9 +1573,9 @@
     window.exportLearningData = exportLearningData;
     async function importLearningDataFile(file) {
       let parsed;
-      try { parsed = JSON.parse(await file.text()); } catch (e) { return showToast('ファイルを読み込めませんでした（学習データの書き出しファイル .json を選んでください）', 'error'); }
+      try { parsed = JSON.parse(await file.text()); } catch (e) { return showToast('ファイルを読み込めませんでした（学習データの書き出しファイル .json を選んでください）', 'warn'); }
       const incoming = parsed && parsed.learningUserDict && typeof parsed.learningUserDict === 'object' ? parsed.learningUserDict : parsed;
-      if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) return showToast('学習データの形式ではありません', 'error');
+      if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) return showToast('学習データの形式ではありません', 'warn');
       const { dict, added, updated } = mergeLearningDicts(globalAppData.learningUserDict, incoming);
       if (!added && !updated) return showToast('新しく取り込む学習データはありませんでした', 'info');
       const ok = await openDialog({ title: '学習データを読み込みますか？', message: `新しい学習 ${added}件、票を更新する学習 ${updated}件を取り込みます。\n同じ文章の票（回数）は、多い方を残します。サーバーにつながっていれば全員に共有されます。`, confirmLabel: '読み込む' });
@@ -1779,7 +2002,7 @@
         showToast('追加キーワードを保存しました（全員に共有されます。今のカードに反映するには「分類開始」→「置き換えて分類」）', 'success');
       } catch (e) {
         console.warn('追加キーワードの保存に失敗しました:', e);
-        showToast('サーバーに保存できませんでした。このブラウザでは使えますが、他の人には共有されていません', 'error');
+        showToast(['共有先に保存できませんでした', { text: 'このブラウザでは使えますが、他の人には共有されていません。サーバーが動いているか確かめてから、もう一度登録してください。', detail: true }], 'error');
       }
     }
     function renderCustomTagRulesPanel() {
@@ -1813,17 +2036,18 @@
       const mode = document.getElementById('customrule-mode').value === 'exclude' ? 'exclude' : 'add';
       const hId = Number(document.getElementById('customrule-need').value);
       const note = (document.getElementById('customrule-note').value || '').trim();
-      if (!keyword) return showToast('キーワードを入力してください', 'error');
-      if (!(hId >= 1 && hId <= 14)) return showToast('タグを選んでください', 'error');
+      if (!keyword) return showToast('キーワードを入力してください', 'warn');
+      if (!(hId >= 1 && hId <= 14)) return showToast('タグを選んでください', 'warn');
       const tagName = hendersonNameOf(hId).replace(/^\d+\.\s*/, '');
       if (mode === 'exclude' && !isBuiltInKeywordOf(hId, keyword)) {
-        return showToast(`「${keyword}」は ${hId}.${tagName} の既定のキーワードに無いため、「付けない」を登録しても変わりません（別のキーワードで付いている可能性があります）`, 'error');
+        return showToast(`「${keyword}」は ${hId}.${tagName} の既定のキーワードに無いため、「付けない」を登録しても変わりません（別のキーワードで付いている可能性があります）`, 'warn');
       }
       if (mode === 'add' && isBuiltInKeywordOf(hId, keyword)) {
         return showToast(`「${keyword}」は既に ${hId}.${tagName} のキーワードとして登録されています`, 'info');
       }
       const rules = globalAppData.customTagRules || [];
       if (rules.some(r => r.keyword === keyword && r.mode === mode && r.hendersonIds.includes(hId))) return showToast('同じルールが既に登録されています', 'info');
+      if (!(await confirmSharedChange(`追加キーワード「${keyword}」で ${hId}.${tagName} のタグを${mode === 'exclude' ? '付けない' : '付ける'}ルールを登録します。`))) return;
       await saveCustomTagRules([...rules, { keyword, mode, hendersonIds: [hId], note, updatedAt: new Date().toISOString() }]);
       document.getElementById('customrule-keyword').value = '';
       document.getElementById('customrule-note').value = '';
@@ -2023,8 +2247,8 @@
     // その場で完結できるようにする（extraction-criteria.jsonへの追加はaddExtraCriteria()を再利用）。
     let cachedReportSummaryLines = [];
     async function summarizeCardReportsAI() {
-      if (!Array.isArray(cachedCardReports) || cachedCardReports.length === 0) return showToast('要約できる報告がありません', 'error');
-      if (!globalAppData.apiKey) return showToast('API設定からGemini APIキーを入力してください', 'error');
+      if (!Array.isArray(cachedCardReports) || cachedCardReports.length === 0) return showToast('要約できる報告がありません', 'warn');
+      if (!globalAppData.apiKey) return showToast('API設定からGemini APIキーを入力してください', 'warn');
 
       const summaryEl = document.getElementById('admin-reports-summary');
       summaryEl.classList.remove('hidden');
@@ -2087,6 +2311,8 @@
     DOM.tabSoBoard.addEventListener('click', () => switchView('so'));
     DOM.tabAssessment.addEventListener('click', () => switchView('assessment'));
     DOM.tabReference.addEventListener('click', () => switchView('reference'));
+    DOM.tabLabs.addEventListener('click', () => switchView('labs'));
+    document.getElementById('tab-careplan')?.addEventListener('click', () => switchView('careplan'));
 
     // 総合アセスメント表の欲求の切り替えボタンは、上のヘッダーのすぐ下に貼り付ける（ヘッダーの高さに合わせる）
     function updateNeedNavTop() {
@@ -2099,12 +2325,126 @@
       DOM.viewSoBoard.classList.toggle('hidden', viewName !== 'so');
       DOM.viewAssessment.classList.toggle('hidden', viewName !== 'assessment');
       DOM.viewReference.classList.toggle('hidden', viewName !== 'reference');
+      DOM.viewLabs.classList.toggle('hidden', viewName !== 'labs');
+      DOM.tabLabs.className = `tab-pill ${viewName === 'labs' ? 'active' : ''}`;
       DOM.tabSoBoard.className = `tab-pill ${viewName === 'so' ? 'active' : ''}`;
       DOM.tabAssessment.className = `tab-pill ${viewName === 'assessment' ? 'active' : ''}`;
       DOM.tabReference.className = `tab-pill ${viewName === 'reference' ? 'active' : ''}`;
+      // 看護計画のページ（js/12）
+      const viewCarePlan = document.getElementById('view-careplan');
+      if (viewCarePlan) viewCarePlan.classList.toggle('hidden', viewName !== 'careplan');
+      const tabCarePlan = document.getElementById('tab-careplan');
+      if (tabCarePlan) tabCarePlan.className = `tab-pill ${viewName === 'careplan' ? 'active' : ''}`;
+      if (viewName === 'careplan' && typeof renderCarePlans === 'function') renderCarePlans();
       if (viewName === 'assessment') renderAssessmentTable();
       if (viewName === 'reference') renderReferenceList();
+      if (viewName === 'labs') renderLabTrend();
     }
+
+    // 【記録メモの全画面表示】利用者からの要望：「記録メモを貼り付けたボックスが見づらいときに全画面表示したい」。
+    // 入力欄（と、カードを選んだときの該当箇所の表示）を包む枠ごと画面いっぱいに広げる。入力欄そのものを
+    // 動かさないので、入力中の文字・保存・該当箇所の表示はそのまま使える。Escキーか「元に戻す」で戻る。
+    function updateSourceEditorCount() {
+      const el = document.getElementById('source-editor-count');
+      if (el) el.textContent = DOM.sourceText.value ? `（${DOM.sourceText.value.length.toLocaleString()}文字）` : '';
+    }
+    window.toggleSourceFullscreen = function(force) {
+      const box = document.getElementById('source-editor');
+      if (!box) return;
+      const on = typeof force === 'boolean' ? force : !box.classList.contains('is-fullscreen');
+      box.classList.toggle('is-fullscreen', on);
+      document.body.classList.toggle('source-fullscreen-open', on);
+      const btn = document.getElementById('btn-source-fullscreen');
+      if (btn) {
+        btn.innerHTML = on ? '<i class="fa-solid fa-compress"></i><span>元に戻す</span>' : '<i class="fa-solid fa-expand"></i><span>全画面</span>';
+        btn.title = on ? '元の大きさに戻します（Esc）' : '入力欄を画面いっぱいに広げます（Escで戻る）';
+      }
+      updateSourceEditorCount();
+      if (on && !DOM.sourceText.classList.contains('hidden')) DOM.sourceText.focus();
+    };
+    // 【分類の前と後で入力欄の大きさを変える】利用者からの要望：分類前は記録の入力欄を広く、分類後はカードを広く。
+    // カードが無いうちは入力欄を横いっぱいにし、分類してカードができたら入力欄を左の細い列に戻す。
+    // 「広げる／狭める」で手動でも切り替えられる（患者を切り替える・分類し直すと自動に戻る）。
+    // sourcePaneManual（null＝自動 / 'wide' / 'narrow'）は、起動の途中の描画からも使うので先頭の方で宣言している
+    function updateSourcePaneLayout() {
+      const view = DOM.viewSoBoard;
+      if (!view || !view.classList) return;
+      const hasCards = (getCurrentPatient().items || []).length > 0;
+      const wide = sourcePaneManual ? sourcePaneManual === 'wide' : !hasCards;
+      view.classList.toggle('input-wide', wide);
+      view.classList.toggle('no-cards', !hasCards);
+      const btn = document.getElementById('btn-source-wide');
+      if (btn) {
+        btn.innerHTML = wide ? '<i class="fa-solid fa-down-left-and-up-right-to-center"></i><span>狭める</span>' : '<i class="fa-solid fa-left-right"></i><span>広げる</span>';
+        btn.classList.toggle('hidden', !hasCards);
+      }
+    }
+    function resetSourcePaneLayout() { sourcePaneManual = null; updateSourcePaneLayout(); }
+    window.toggleSourcePaneWidth = function() {
+      sourcePaneManual = DOM.viewSoBoard.classList.contains('input-wide') ? 'narrow' : 'wide';
+      updateSourcePaneLayout();
+    };
+    // 【AIの結果は「要約＋詳細」】利用者からの指摘：検査値評価・矛盾チェック・診断候補・看護計画の結果が全部開くと、
+    // 表まで遠くなる。各結果は1行の要約だけを出し、「詳細を開く」で読む。AIに頼んで結果が届いたときは、その結果を開く。
+    const aiPanelOpen = new Set();
+    function aiPanelSummaryText(body) {
+      const text = String((body && body.textContent) || '').replace(/\s+/g, ' ').trim();
+      if (!text) return '';
+      const first = text.split(/(?<=。)|(?=・)|(?=■)/)[0] || text;
+      return first.length > 70 ? `${first.slice(0, 70)}…` : first;
+    }
+    function refreshAiPanel(panel) {
+      if (!panel || !panel.querySelector) return;
+      const body = panel.querySelector('.ai-panel-body');
+      const head = panel.querySelector('.ai-panel-head');
+      const sum = panel.querySelector('.ai-panel-summary');
+      const toggle = panel.querySelector('.ai-panel-toggle');
+      const open = aiPanelOpen.has(panel.id);
+      panel.classList.toggle('is-open', open);
+      if (head) head.setAttribute('aria-expanded', String(open));
+      if (sum) sum.textContent = open ? '' : aiPanelSummaryText(body);
+      if (toggle) toggle.textContent = open ? '閉じる' : '詳細を開く';
+    }
+    window.toggleAiPanel = function(btn) {
+      const panel = btn.closest('.ai-panel');
+      if (!panel) return;
+      if (aiPanelOpen.has(panel.id)) aiPanelOpen.delete(panel.id); else aiPanelOpen.add(panel.id);
+      refreshAiPanel(panel);
+    };
+    (() => {
+      if (typeof MutationObserver === 'undefined' || !document.querySelectorAll) return;
+      document.querySelectorAll('.ai-panel').forEach(panel => {
+        const body = panel.querySelector('.ai-panel-body');
+        if (!body) return;
+        new MutationObserver(() => {
+          // 処理中の表示（くるくる）が出たら開く＝利用者が今頼んだ結果
+          if (body.querySelector('.fa-spinner')) aiPanelOpen.add(panel.id);
+          refreshAiPanel(panel);
+        }).observe(body, { childList: true, subtree: true, characterData: true });
+        refreshAiPanel(panel);
+      });
+    })();
+
+    // 操作方法（画面の説明文を短くし、詳しい使い方はここにまとめる）
+    window.openHelp = function(section = 'flow') {
+      const modal = document.getElementById('modal-help');
+      if (!modal) return;
+      modal.querySelectorAll('[data-help]').forEach(b => b.classList.toggle('active', b.dataset.help === section));
+      modal.querySelectorAll('[data-help-section]').forEach(s => s.classList.toggle('hidden', s.dataset.helpSection !== section));
+      modal.classList.remove('hidden');
+      const active = modal.querySelector(`[data-help="${section}"]`);
+      if (active) active.focus();
+    };
+    window.closeHelp = function() { document.getElementById('modal-help')?.classList.add('hidden'); };
+
+    window.classifyFromFullscreen = function() {
+      toggleSourceFullscreen(false);
+      document.getElementById('btn-start-classify').click();
+    };
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && document.getElementById('source-editor')?.classList.contains('is-fullscreen')) toggleSourceFullscreen(false);
+    });
+    DOM.sourceText.addEventListener('input', updateSourceEditorCount);
 
     // 総合アセスメント表のS/Oバッジから、分類ボード側の同じカードへジャンプして一瞬ハイライトする
     window.jumpToBoardCard = function(itemId) {

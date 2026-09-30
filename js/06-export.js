@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-09-29.5'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-09-29.12'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 書式付き書き出し（Word / PDF）
     // ------------------------------------------------------------------------
@@ -178,7 +178,9 @@
         }).join('');
         return `<tr><th scope="row" style="background:#f7f5f0;">${need.id}. ${escapeHtml(need.name.replace(/^\d+\.\s*/, ''))}</th>${cells}</tr>`;
       }).join('');
-      const ai = buildPrintAiSectionsHtml(cp, 1);
+      // 自分のアセスメント（js/11）があれば、表の次のページに載せる
+      const own = typeof buildMyAssessmentsPrintHtml === 'function' ? buildMyAssessmentsPrintHtml(cp, 1) : '';
+      const ai = buildPrintAiSectionsHtml(cp, own ? 2 : 1);
       const title = `${cp.title || ''}_総合アセスメント表`;
       return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${PRINT_BASE_CSS}
   @page { size: A4 landscape; }
@@ -192,26 +194,42 @@ ${printDocHead('総合アセスメント表（ヘンダーソン14項目）', cp
 <table class="asm"><colgroup>${widths.map(w => `<col style="width:${w}">`).join('')}</colgroup>
 <thead><tr><th>基本的欲求</th>${cols.map(c => `<th>${PRINT_COL_LABELS[c]}</th>`).join('')}</tr></thead>
 <tbody>${rows}</tbody></table>
+${own ? `<div class="page-break"></div>${own}` : ''}
 ${ai ? `<div class="page-break"></div>${ai}` : ''}
 </body></html>`;
     }
 
     // 印刷専用の文書を、画面に見えない枠（iframe）に読み込んで印刷画面を開く（新しいタブを開かないので
     // ポップアップのブロックにもかからない）。印刷画面の「送信先」で「PDFに保存」を選ぶとPDFになる。
+    // 印刷・PDFの文書も、画面と同じ書体（明朝＝Noto Serif JP／ゴシック）にする
+    function printFontCss() {
+      if (typeof currentAppFont === 'function' && currentAppFont() === 'gothic') return '';
+      let url = 'vendor/fonts/NotoSerifJP-subset.woff2';
+      try { url = new URL(url, document.baseURI).href; } catch (e) { /* 相対のまま */ }
+      return `@font-face { font-family: 'Noto Serif JP App'; src: url('${url}') format('woff2'); font-weight: 200 900; }
+  body, body * { font-family: 'Noto Serif JP App', 'Noto Serif JP', 'Yu Mincho', 'Hiragino Mincho ProN', serif !important; }`;
+    }
     function printHtmlDocument(html) {
+      const fontCss = printFontCss();
+      if (fontCss) html = html.replace('</head>', `<style>${fontCss}</style></head>`);
       const old = document.getElementById('print-frame');
       if (old) old.remove();
       const frame = document.createElement('iframe');
       frame.id = 'print-frame';
       frame.setAttribute('aria-hidden', 'true');
       frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
-      frame.onload = () => setTimeout(() => { try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch (e) { showToast('印刷画面を開けませんでした', 'error'); } }, 200);
+      // 書体の読み込みを待ってから印刷画面を開く（待たないと、最初の印刷だけ別の書体になることがある）
+      frame.onload = () => {
+        const doc = frame.contentDocument;
+        const ready = doc && doc.fonts && doc.fonts.ready ? doc.fonts.ready : Promise.resolve();
+        Promise.race([ready, new Promise(r => setTimeout(r, 3000))]).then(() => setTimeout(() => { try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch (e) { showToast(['印刷画面を開けませんでした', { text: 'ブラウザの印刷やポップアップの設定を確かめて、もう一度押してください。', detail: true }], 'error'); } }, 200));
+      };
       document.body.appendChild(frame);
       frame.srcdoc = html;
     }
     window.printAssessmentSheet = function() {
       const cp = getCurrentPatient();
-      if (!(cp.items || []).some(i => i.type !== 'unnecessary')) return showToast('印刷するカードがありません。先に「分類開始」で分類してください', 'error');
+      if (!(cp.items || []).some(i => i.type !== 'unnecessary')) return showToast('印刷するカードがありません。先に「分類開始」で分類してください', 'warn');
       printHtmlDocument(buildAssessmentPrintHtml(cp));
       showToast('印刷画面を開きます。「送信先」で「PDFに保存」を選ぶとPDFになります', 'info');
     };
@@ -242,6 +260,8 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         }).join('')}</tr></tbody></table>`;
       });
       if (!anyNeed) body += '<p class="muted">（タグが付いたカードがありません）</p>';
+      const own = typeof buildMyAssessmentsPrintHtml === 'function' ? buildMyAssessmentsPrintHtml(cp, n) : '';
+      if (own) { body += own; n++; }
       body += buildPrintAiSectionsHtml(cp, n);
       const notes = cp.referenceNotes || [];
       if (notes.length > 0) {
@@ -320,6 +340,9 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
           return `[${colName}] [${i.type.toUpperCase()}]${i.fieldLabel ? ` [${i.fieldLabel}]` : ''}${i.aiSuggested ? ' [AI推定]' : ''} ${i.text}`;
         }));
       });
+
+      const own = typeof buildMyAssessmentsText === 'function' ? buildMyAssessmentsText(cp) : '';
+      if (own) { out += plainSectionTitle('自分のアセスメント'); out += own + '\n'; }
 
       if (cp.contradictionResult) { out += plainSectionTitle('6. S/O矛盾チェック結果（AI）'); out += htmlToPlainText(cp.contradictionResult) + '\n'; }
       if (cp.diagnosisResult) { out += plainSectionTitle('7. 看護診断候補（AI提案）'); out += htmlToPlainText(cp.diagnosisResult) + '\n'; }
@@ -620,7 +643,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     }
     window.exportSelectedCardsText = async function() {
       const cp = getCurrentPatient();
-      if (selectedCardIds.size === 0) return showToast('書き出すカードを選択してください', 'error');
+      if (selectedCardIds.size === 0) return showToast('書き出すカードを選択してください', 'warn');
       const options = await askExportOptions(`選択したカード（${selectedCardIds.size}件）を書き出し`);
       if (!options) return;
       const text = buildSelectedCardsExportText(cp, selectedCardIds, DOM.sourceText.value || cp.sourceText || '', options.includeSourceText, options.includeAssessment);

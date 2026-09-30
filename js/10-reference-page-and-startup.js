@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-09-29.5'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-09-29.12'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 参考データ ページ：看護基準・院内プロトコル等をユーザーが自由に登録・編集できる。
     // 「不足情報をAI推定」の判断材料としても使われる（evaluateMissingInfoAI 参照）。
@@ -53,7 +53,7 @@
       const id = document.getElementById('reference-editing-id').value;
       const title = document.getElementById('input-reference-title').value.trim() || '(無題)';
       const text = document.getElementById('input-reference-text').value.trim();
-      if (!text) return showToast('内容を入力してください', 'error');
+      if (!text) return showToast('内容を入力してください', 'warn');
       cp.referenceNotes = cp.referenceNotes || [];
       const now = new Date().toISOString();
       if (id) {
@@ -85,7 +85,7 @@
     referenceOcrInput.addEventListener('change', e => { if (e.target.files[0]) doReferenceOcr(e.target.files[0]); e.target.value = ''; });
 
     async function doReferenceOcr(file) {
-      if (!globalAppData.apiKey) return showToast('API設定からキーを入力してください', 'error');
+      if (!globalAppData.apiKey) return showToast('API設定からキーを入力してください', 'warn');
       showToast('画像から文字起こし中...', 'info');
       const reader = new FileReader();
       reader.onload = async e => {
@@ -127,7 +127,7 @@
             globalAppData.currentPatientId = 'patient_1';
           }
           persistData(); loadLocalState(); showToast('データを読み込みました', 'success');
-        } catch (err) { showToast('ファイル形式が不正です', 'error'); }
+        } catch (err) { showToast('ファイル形式が不正です', 'warn'); }
       };
       reader.readAsText(file, 'utf-8');
       e.target.value = '';
@@ -158,6 +158,7 @@
     document.getElementById('btn-open-settings').addEventListener('click', () => {
       document.getElementById('input-api-key').value = globalAppData.apiKey;
       document.getElementById('input-mask-terms').value = loadUserMaskTerms().join('\n');
+      document.getElementById('select-gemini-model').value = geminiModelPref();
       document.getElementById('api-test-result')?.classList.add('hidden');
       renderApiKeyKind();
       document.getElementById('modal-settings').classList.remove('hidden');
@@ -170,7 +171,11 @@
       document.getElementById('api-test-result').style.color = 'var(--ink-muted)';
       try {
         const tested = normalizeApiKey(document.getElementById('input-api-key').value);
+        // 選んでいるモデルで試す（「保存」を押す前でも、選んだモデルで接続を確かめられるように）
+        let prevPref = null;
+        try { prevPref = localStorage.getItem('gemini_model_pref'); localStorage.setItem('gemini_model_pref', document.getElementById('select-gemini-model').value); } catch (e) { /* 無視 */ }
         const r = await testGeminiConnection(tested);
+        try { if (prevPref === null) localStorage.removeItem('gemini_model_pref'); else localStorage.setItem('gemini_model_pref', prevPref); } catch (e) { /* 無視 */ }
         apiTestedOkKey = r.ok ? tested : null;
         showApiTestResult(r.ok, `${r.ok ? '✓' : '✕'} ${r.message}\nキーの種類：${r.kindLabel}${r.ok ? '\n「保存」を押すと、このキーで各AI機能が使えます。' : ''}`);
       } finally {
@@ -185,6 +190,7 @@
       globalAppData.apiKey = newKey;
       localStorage.setItem('gemini_api_key', globalAppData.apiKey);
       try { localStorage.setItem(MASK_TERMS_STORAGE_KEY, document.getElementById('input-mask-terms').value); } catch (e) { /* 保存できなくても続ける */ }
+      try { localStorage.setItem('gemini_model_pref', document.getElementById('select-gemini-model').value); } catch (e) { /* 保存できなくても続ける */ }
       renderClassifyModeSwitch(); // 「AIで分類」の説明（APIキーの有無）を描き直す
       document.getElementById('modal-settings').classList.add('hidden');
       showToast('設定を保存しました', 'success');
@@ -192,7 +198,7 @@
     document.getElementById('btn-add-extra-criteria').addEventListener('click', async () => {
       const input = document.getElementById('input-extra-criteria');
       const text = input.value.trim();
-      if (!text) return showToast('内容を入力してください', 'error');
+      if (!text) return showToast('内容を入力してください', 'warn');
       const ok = await addExtraCriteria(text);
       if (ok) { input.value = ''; showToast('追加の要望を保存しました（全員に共有されます）', 'success'); }
     });
@@ -204,14 +210,15 @@
       const title = titleInput.value.trim();
       const url = urlInput.value.trim();
       const content = contentInput.value.trim();
-      if (!title) return showToast('名前を入力してください', 'error');
-      if (!url) return showToast('リンク（URL）を入力してください', 'error');
+      if (!title) return showToast('名前を入力してください', 'warn');
+      if (!url) return showToast('リンク（URL）を入力してください', 'warn');
       const result = await addReferenceSource(title, url, content);
+      if (result === 'cancelled') return;
       if (result === 'server') {
         titleInput.value = ''; urlInput.value = ''; contentInput.value = '';
         showToast('参照元を追加しました（全員に共有されます）', 'success');
       } else {
-        showToast('サーバーに接続できなかったため保存できませんでした。時間を置いて再度お試しください', 'error');
+        showToast(['共有先に保存できませんでした（サーバーにつながりません）', { text: '時間を置いてもう一度保存してください。入力した内容はこの画面に残っています。', detail: true }], 'error');
       }
     });
     // 【見直し】以前は「すべての学習履歴を消去」という名前だったが、実際に消えるのはこのブラウザの分だけで、
@@ -242,7 +249,7 @@
     ocrFileInput.addEventListener('change', e => { if(e.target.files[0]) doOcr(e.target.files[0]); });
 
     async function doOcr(file) {
-      if (!globalAppData.apiKey) return showToast('API設定からキーを入力してください', 'error');
+      if (!globalAppData.apiKey) return showToast('API設定からキーを入力してください', 'warn');
       document.getElementById('ocr-status').classList.remove('hidden');
       const reader = new FileReader();
       reader.onload = async e => {
@@ -319,7 +326,7 @@
       const btn = document.getElementById('btn-sync-snapshot-now');
       const hasAnyItems = globalAppData.patients.some(p => p.items && p.items.length > 0);
       if (!hasAnyItems) {
-        showToast('保存できるカルテの内容がありません', 'error');
+        showToast('保存できるカルテの内容がありません', 'warn');
         return;
       }
       const originalHtml = btn ? btn.innerHTML : '';
@@ -345,7 +352,7 @@
         }
       } catch (err) {
         console.warn('Manual snapshot sync error:', err);
-        showToast('スナップショットの保存に失敗しました（サーバーに接続できません）', 'error');
+        showToast(['スナップショットを保存できませんでした（共有先のサーバーにつながりません）', { text: 'サーバーが動いているか確かめてから、もう一度押してください。カルテ自体はこのブラウザに保存されています。', detail: true }], 'error');
       } finally {
         if (btn) {
           btn.disabled = false;
@@ -374,7 +381,7 @@
         // 患者カルテも、個別の同期（schedulePatientSync）が間に合っていなかった場合の保険として
         // このタブが知っている全患者分をまとめて送っておく（他の患者のデータを消すことはない）
         const patientsById = {};
-        globalAppData.patients.forEach(p => { patientsById[p.id] = p; });
+        globalAppData.patients.forEach(p => { if (!deletedPatientIds.has(p.id)) patientsById[p.id] = p; });
         const patientsBlob = new Blob([JSON.stringify(patientsById)], { type: 'application/json' });
         navigator.sendBeacon(`${API_BASE}/patients/sync`, patientsBlob);
       } catch (err) { /* サーバー未接続などの場合は何もしない（ブラウザ内のカルテには影響なし） */ }
@@ -401,7 +408,7 @@
     loadNotebookContent(); // 起動時に一度、NotebookLM基準ノート本体（他端末での編集分）を取得しておく
     loadCustomTagRules(); // 起動時に一度、全員で共有している追加キーワードを取得しておく
 
-    // 版の確認（scripts/stamp-version.js の説明を参照）。index.html の版と、js/01〜10 の各ファイルの版が
+    // 版の確認（scripts/stamp-version.js の説明を参照）。index.html の版と、js/01〜13 の各ファイルの版が
     // そろっていなければ、OneDrive の同期などで一部のファイルが古い版に戻っているので画面の上に警告を出す。
     function checkAppFileVersions() {
       const meta = document.querySelector('meta[name="app-version"]');
@@ -411,7 +418,7 @@
       if (label) label.textContent = expected;
       if (expected === 'dev') return [];
       const versions = window.APP_FILE_VERSIONS || {};
-      const ids = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10'];
+      const ids = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13'];
       const mismatched = ids.filter(id => versions[id] !== expected);
       if (mismatched.length) {
         const warn = document.getElementById('app-version-warning');
@@ -424,7 +431,9 @@
       }
       return mismatched;
     }
-    checkAppFileVersions();
+    // js/11〜13 はこのファイルより後に読み込むので、すべてのファイルを読み込み終わってから確かめる
+    if (document.readyState === 'complete') setTimeout(checkAppFileVersions, 0);
+    else window.addEventListener('load', () => checkAppFileVersions());
     loadReferenceSources(); // 起動時に一度、参照元リンク（他端末での登録分）を取得しておく
 
 // ブラウザでは `module` は存在しないため、このブロックは常に無視される（安全）。
@@ -437,6 +446,7 @@ if (typeof module !== 'undefined' && module.exports) {
     FIELD_LABELS,
     PATIENT_BACKGROUND_BASIC_FIELD_LABELS,
     classifyPatientBackground,
+    evaluateLabFindings, buildLabTrendTable, computeClinicalIndices, extractSmoking, extractClinicalBasics, parseLabTrendEntries, parseLabReferenceRange, labTrendTableToTsv,
     isUntaggedItem, isOtherBasicInfoItem, isFamilySpeech, mergeLearningDicts, filterAndSortLearningEntries, formatHistoryDetail,
     detectAdmissionPhaseSignal,
     inferAssessmentColumn,
@@ -508,6 +518,14 @@ if (typeof module !== 'undefined' && module.exports) {
     isBuiltInKeywordOf,
     computeRuleReviewCandidates,
     buildRuleReviewReportText,
+    // テスト用：画面の状態と、患者の切り替え・保存の処理を直接呼ぶ（tests/patient-switch-and-sync.test.js）
+    __testHooks: {
+      state: () => globalAppData, DOM, persistData, changeCurrentPatient, createNewPatientPage,
+      switchPatient: id => window.switchPatient(id), archivePatient: id => window.archivePatient(id),
+      unarchivePatient: id => window.unarchivePatient(id),
+      syncPatientToServer, schedulePatientSync, mergeItemsAfterInFlightEdits, loadSharedPatients,
+      unsyncedPatientIds, deletedPatientIds, patientLocalRev, showToast
+    },
     setCustomTagRulesForTest: rules => { globalAppData.customTagRules = normalizeCustomTagRules(rules); }
   };
 }

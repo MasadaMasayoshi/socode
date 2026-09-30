@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-09-29.5'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-09-29.12'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -98,44 +98,101 @@
           text: `${row.key} ${v.value}${row.ref ? ` (基準値: ${row.ref})` : ''}` })));
       });
     }
-    function extractAbnormalLabFindings(oItems) {
+    // 【異常値の見落とし】利用者からの報告：「WBC 2000」「WBC 12,000」「Dダイマー 10」「BNP 500」が、アプリ自身の
+    // 基準値を外れていても検出されず、「異常なし」と表示された。以前は基準値を「下限〜上限」の形でしか読めず
+    // （「4,000〜9,000」のカンマ、「1.0以下」「18.4以下」の書き方を読めなかった）、基準値の無い値は WBC・CRP・Hb の
+    // 3項目の、しかも片側（WBCは高いときだけ）しか調べていなかったため。
+    //  ・値と基準値はカンマ付き・「以下／未満／以上」も読む（parseLabReferenceRange）。
+    //  ・基準値の書かれていない値は、アプリの基準値（LAB_STANDARDS）と比べる。単位が違えば換算し
+    //    （resolveLabUnit）、換算できない・読めないときは「判定できません」として一覧に出す（異常なしにしない）。
+    const LAB_JAPANESE_ALIASES = { '白血球': 'WBC', '赤血球': 'RBC', 'ヘモグロビン': 'Hb', '血色素': 'Hb', '血小板': 'Plt', 'PLT': 'Plt',
+      'クレアチニン': 'Cre', '尿素窒素': 'BUN', 'ナトリウム': 'Na', 'カリウム': 'K', 'クロール': 'Cl', '総蛋白': 'TP', 'アルブミン': 'Alb', 'ALB': 'Alb',
+      'D-ダイマー': 'Dダイマー', 'Dダイマ': 'Dダイマー', '血糖値': '血糖', 'BS': '血糖', 'GOT': 'AST', 'GPT': 'ALT', 'γ-GTP': 'γGTP' };
+    const LAB_FIND_KEYS = Array.from(new Set([...Object.keys(LAB_STANDARDS), ...Object.keys(LAB_JAPANESE_ALIASES)])).sort((a, b) => b.length - a.length);
+    // 項目名の前が英字・カタカナのとき（「セファゾリンNa 1g」の薬の名前）は検査値ではない
+    const LAB_FIND_REGEX = new RegExp(`(?<![A-Za-zＡ-Ｚａ-ｚァ-ヶー])(${LAB_FIND_KEYS.map(escapeRegExp).join('|')})(?![A-Za-z])\\s*(?:[(（][^)）]{0,12}[)）])?\\s*[:：=]?\\s*(${LAB_NUMBER_SOURCE})\\s*((?:${LAB_UNIT_SOURCE}))?\\s*([↑↓])?`, 'gi');
+    const LAB_REF_CARD_REGEX = /^(.*?)(\d(?:[\d,]*\d)?(?:\.\d+)?)\s*([^\s(（↑↓]*)\s*([↑↓])?\s*((?:[(（](?!基準値)[^)）]*[)）]\s*)*)[(（]基準値[:：]?\s*([^)）]*)[)）]\s*$/;
+    const LAB_FALLBACK_COMMENTS = Object.fromEntries(LAB_ALIAS_FALLBACK_TESTS.map(t => [t.names[0], t]));
+    const toNumber = v => Number(String(v).replace(/,/g, ''));
+    function labDirection(value, range, arrow) {
+      if (arrow === '↑') return 'high';
+      if (arrow === '↓') return 'low';
+      if (!range) return null;
+      if (range.high !== null && range.high !== undefined && (range.highExclusive ? value >= range.high : value > range.high)) return 'high';
+      if (range.low !== null && range.low !== undefined && (range.lowExclusive ? value <= range.low : value < range.low)) return 'low';
+      return '';
+    }
+    // 基準値の文字（「350-500×10^4/μL」「18.4pg/mL以下」「0.3以下 mg/dL」）から単位だけを取り出す
+    function refUnitOf(refText) {
+      return normalizeLabUnit(String(refText || '').replace(/^\s*(?:[<＜≦≤>＞≧≥]=?)?\s*[\d.,]+\s*(?:[〜～~\-－]\s*[\d.,]+)?/, '').replace(/以下|未満|以上|超/g, '').trim());
+    }
+    // 値と基準値の単位が違っても、同じ種類（数・重さ）の単位なら換算して比べる（「WBC 8100/μL（基準値 8.1-9.0×10^3/μL）」）
+    const LAB_UNIT_SCALE = {
+      '/μL': ['count', 1], '/mm3': ['count', 1], '千/μL': ['count', 1e3], '×10^3/μL': ['count', 1e3], '×10^4/μL': ['count', 1e4], '万/μL': ['count', 1e4], '万/mm3': ['count', 1e4], '×10^6/μL': ['count', 1e6],
+      'g/dL': ['mass', 10], 'g/L': ['mass', 1], 'mg/dL': ['mass', 1e-2], 'mg/L': ['mass', 1e-3], 'μg/mL': ['mass', 1e-3], 'μg/dL': ['mass', 1e-5], 'ng/mL': ['mass', 1e-6], 'pg/mL': ['mass', 1e-9]
+    };
+    function labUnitRatio(fromUnit, toUnit) {
+      const a = LAB_UNIT_SCALE[normalizeLabUnit(fromUnit)], b = LAB_UNIT_SCALE[normalizeLabUnit(toUnit)];
+      return a && b && a[0] === b[0] ? a[1] / b[1] : null;
+    }
+    // 同じ意味の単位をそろえて比べる（万/μL＝×10^4/μL、IU/L＝U/L、/mm3＝/μL）
+    function sameLabUnit(a, b) {
+      const canon = u => normalizeLabUnit(u).replace(/^万\/μL$|^万\/mm3$/, '×10^4/μL').replace(/^IU\/L$/, 'U/L').replace(/^\/mm3$/, '/μL');
+      return canon(a) === canon(b);
+    }
+    // 検査値を調べる。findings＝基準値を外れた値、undetermined＝判定できなかった値、checked＝判定できた値の数
+    function evaluateLabFindings(oItems) {
       const findings = [];
+      const undetermined = [];
+      let checked = 0;
       expandCombinedLabItems(oItems).forEach(item => {
-        const text = item.text || '';
-        const m = LAB_RANGE_CARD_REGEX.exec(text);
-        if (m) {
-          // 「血液検査: 」等、章タイトル書き込み処理で付与された文脈部分は項目名として表示する
-          // 必要がないため取り除き、実際の検査項目名（末尾の「ラベル: 」以降）だけを残す。
-          const name = m[1].replace(/^.*[:：]\s*/, '').trim() || '検査値';
-          const value = parseFloat(m[2]);
+        const text = String(item.text || '').normalize('NFKC');
+        if (/基準値/.test(text)) {
+          const m = LAB_REF_CARD_REGEX.exec(text);
+          const name = m ? (m[1].replace(/^.*[:：]\s*/, '').trim() || '検査値') : (text.split(/\s/)[0] || '検査値');
+          if (!m) { undetermined.push({ label: name, text, reason: '値や基準値の書き方を読み取れませんでした', timestamp: item.timestamp }); return; }
+          const value = toNumber(m[2]);
           const unit = (m[3] || '').trim();
-          const arrow = m[4];
-          const low = parseFloat(m[5]);
-          const high = parseFloat(m[6]);
-          let direction = null;
-          if (arrow === '↑') direction = 'high';
-          else if (arrow === '↓') direction = 'low';
-          else if (!Number.isNaN(low) && !Number.isNaN(high)) {
-            if (value > high) direction = 'high';
-            else if (value < low) direction = 'low';
+          const range = parseLabReferenceRange(m[6]);
+          const refUnit = refUnitOf(m[6]);
+          if (!Number.isFinite(value) || (!range && !m[4])) { undetermined.push({ label: name, text, reason: '基準値の書き方を読み取れませんでした', timestamp: item.timestamp }); return; }
+          let compared = value;
+          if (!m[4] && unit && refUnit && !sameLabUnit(unit, refUnit)) {
+            const ratio = labUnitRatio(unit, refUnit);
+            if (!ratio) { undetermined.push({ label: name, text, reason: `値の単位（${unit}）と基準値の単位（${refUnit}）が違い、換算できません`, timestamp: item.timestamp }); return; }
+            compared = value * ratio;
           }
-          if (direction && !Number.isNaN(value)) {
-            findings.push({ label: name, value, unit, refLow: low, refHigh: high, direction, timestamp: item.timestamp, sourceText: text });
-          }
+          checked++;
+          const direction = labDirection(compared, range, m[4]);
+          if (direction) findings.push({ label: name, value, unit, refLow: range ? range.low ?? NaN : NaN, refHigh: range ? range.high ?? NaN : NaN, refText: m[6].trim(), direction, timestamp: item.timestamp, sourceText: text });
           return;
         }
-        LAB_ALIAS_FALLBACK_TESTS.forEach(test => {
-          const alias = test.names.find(n => new RegExp(`(?:^|[^A-Za-zＡ-Ｚａ-ｚ])${n}`, 'i').test(text));
-          if (!alias) return;
-          const valMatch = text.match(new RegExp(`${alias}\\s*[:：]?\\s*([\\d.]+)`, 'i'));
-          if (!valMatch) return;
-          const value = parseFloat(valMatch[1]);
-          if (!Number.isNaN(value) && test.isAbnormal(value)) {
-            findings.push({ label: test.display, value, unit: test.unit, direction: test.direction, comment: test.comment, timestamp: item.timestamp, sourceText: text });
-          }
-        });
+        // 基準値の書かれていない値：文中の検査項目を全部探して、アプリの基準値と比べる
+        LAB_FIND_REGEX.lastIndex = 0;
+        let mm;
+        while ((mm = LAB_FIND_REGEX.exec(text)) !== null) {
+          const written = mm[1];
+          const key = LAB_STANDARDS[written] ? written : (LAB_JAPANESE_ALIASES[written] || Object.keys(LAB_STANDARDS).find(k => k.toLowerCase() === written.toLowerCase()));
+          const std = key && LAB_STANDARDS[key];
+          if (!std) continue;
+          // 文の途中の値（「CRPが3.8に上昇」など）も値として扱う。単位は換算してから比べる
+          const resolved = resolveLabUnit(key, mm[2], mm[3] || '');
+          if (!resolved) { undetermined.push({ label: written, text, reason: mm[3] ? `単位（${mm[3]}）を基準値の単位（${std.unit}）に換算できません` : '単位が書かれておらず、値の大きさから単位を決められません', timestamp: item.timestamp }); continue; }
+          const value = toNumber(resolved.value);
+          const range = parseLabReferenceRange(std.ref);
+          if (!Number.isFinite(value) || !range) { undetermined.push({ label: written, text, reason: '値を読み取れませんでした', timestamp: item.timestamp }); continue; }
+          checked++;
+          const direction = labDirection(value, range, mm[4]);
+          if (!direction) continue;
+          const fb = LAB_FALLBACK_COMMENTS[key] || LAB_FALLBACK_COMMENTS[written];
+          findings.push({ label: written, value, unit: resolved.unit || std.unit, refLow: range.low ?? NaN, refHigh: range.high ?? NaN, refText: `${std.ref} ${std.unit}`.trim(), direction,
+            comment: fb && fb.direction === direction ? fb.comment : undefined, converted: resolved.note || '', timestamp: item.timestamp, sourceText: text });
+        }
       });
-      return findings;
+      return { findings, undetermined, checked };
+    }
+    function extractAbnormalLabFindings(oItems) {
+      return evaluateLabFindings(oItems).findings;
     }
 
     window.evaluateLabValuesAI = async function() {
@@ -143,43 +200,49 @@
       const addedMetrics = calculateAndAddDerivedMetricCards();
       if (addedMetrics > 0) showToast(`${addedMetrics}件の指標（BMI・ブリンクマン指数等）を自動算出してカードに追加しました`, 'info');
       const oItems = cp.items.filter(i => i.type === 'o');
-      if (oItems.length === 0) return showToast('Oデータ（検査値やバイタル）がありません。先に分類してください', 'error');
+      if (oItems.length === 0) return showToast('Oデータ（検査値やバイタル）がありません。先に分類してください', 'warn');
 
       const labTexts = oItems.map(i => `[${i.timestamp}] ${i.text}`).join('\n');
-      DOM.labEvalContent.innerHTML = `<div class="flex items-center text-[var(--accent-dark)]"><i class="fa-solid fa-spinner fa-spin mr-2"></i> NotebookLM基準に照らして検査値を評価中...</div>`;
+      DOM.labEvalContent.innerHTML = `<div class="flex items-center text-[var(--accent-dark)]"><i class="fa-solid fa-spinner fa-spin mr-2"></i> 登録された基準で検査値を確認しています...</div>`;
 
       if (!globalAppData.apiKey) {
         setTimeout(() => {
-          let evaluation = `【NotebookLM基準 検査データ臨床的評価】\n`;
-          const findings = extractAbnormalLabFindings(oItems);
+          let evaluation = `【検査値の簡易チェック（AIなし・登録された基準値との比較）】\n`;
+          const { findings, undetermined, checked } = evaluateLabFindings(oItems);
           if (findings.length > 0) {
             findings.forEach(f => {
-              const hasRange = !Number.isNaN(f.refLow) && !Number.isNaN(f.refHigh);
-              const rangeText = hasRange ? `基準値 ${f.refLow}〜${f.refHigh}${f.unit ? f.unit : ''}に対し` : '';
+              const rangeText = f.refText ? `基準値 ${f.refText} に対し` : '';
               const levelLabel = f.direction === 'high' ? '高値' : '低値';
               const comment = f.comment || (f.direction === 'high'
                 ? '基準値を上回っており、何らかの異常所見や炎症・臓器への負荷等の可能性が示唆されます。'
                 : '基準値を下回っており、機能低下や消耗状態等の可能性が示唆されます。');
               evaluation += `・${f.label} (${f.value}${f.unit || ''}${f.timestamp ? '／' + f.timestamp : ''}): ${rangeText}${levelLabel}を示しており、${comment}\n`;
             });
+          } else if (checked > 0) {
+            evaluation += `簡易チェックでは異常値を検出できませんでした（基準値と比べられた検査値 ${checked}件）。すべての項目を判定できるわけではありません。`;
           } else {
-            evaluation += `分類済みのOデータ内の検査値に基づき、ヘンダーソン14項目の生理学的バランスとバイタルサインを確認しましたが、基準値を外れる明確な異常所見は見つかりませんでした。`;
+            evaluation += `基準値と比べて判定できる検査値が見つかりませんでした（「異常なし」という意味ではありません）。すべての項目を判定できるわけではありません。`;
+          }
+          if (undetermined.length > 0) {
+            evaluation += `\n【判定できません】次の値は、単位や基準値を読み取れなかったため、異常かどうかを判定していません。記録を確認してください。\n`;
+            undetermined.forEach(u => { evaluation += `・${u.label}${u.timestamp ? '（' + u.timestamp + '）' : ''}：${u.reason}（記録：${u.text.slice(0, 60)}）\n`; });
           }
 
-          DOM.labEvalContent.innerHTML = (cp.labEvaluationResult = evaluation.replace(/\n/g, '<br>'));
-          saveDataAndSync(); showToast('検査値の評価を完了しました', 'success');
+          // 記録の文章（患者名・検査値の原文）を含むので、HTMLとして解釈されないよう文字を変換してから改行だけを<br>にする
+          cp.labEvaluationResult = escapeHtml(evaluation).replace(/\n/g, '<br>');
+          if (finishAiResult(cp, () => { DOM.labEvalContent.innerHTML = cp.labEvaluationResult; }, '検査値の評価')) showToast('検査値の評価を表示しました', 'success');
         }, 800);
         return;
       }
 
       try {
         const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長・指導者です。以下の「NotebookLM 基準ノート」の検査値評価規則を根拠にして、患者のOデータに含まれる検査値やバイタルの臨床的意味を評価し、総合評価欄向けに分かりやすく解説・アセスメント文章を作成してください。\n【NotebookLM 基準ノート】\n${buildEffectiveNotebookContent()}\n【患者のOデータ一覧】\n${labTexts}\n出力は簡潔かつ専門的で、マークダウン記号を用いた分かりやすいアセスメント文章にまとめてください。` }] }]);
-        DOM.labEvalContent.innerHTML = (cp.labEvaluationResult = formatAiResultHtml(text, '評価の生成に失敗しました。'));
-        saveDataAndSync(); showToast('NotebookLM基準による検査値評価を完了しました', 'success');
+        cp.labEvaluationResult = formatAiResultHtml(text, '評価の生成に失敗しました。');
+        if (finishAiResult(cp, () => { DOM.labEvalContent.innerHTML = cp.labEvaluationResult; }, '検査値の評価')) showToast('検査値の評価を表示しました', 'success');
       } catch (err) {
         console.warn('Lab evaluation error:', err);
-        DOM.labEvalContent.innerHTML = `<span class="text-[var(--brick)]">評価中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。APIキーや通信状況をご確認ください。</span>`;
-        showToast('検査値評価に失敗しました', 'error');
+        if (getCurrentPatient().id === cp.id) DOM.labEvalContent.innerHTML = `<span class="text-[var(--brick)]">評価中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。APIキーや通信状況をご確認ください。</span>`;
+        showToast(['検査値の評価を表示できませんでした', { text: '理由は「検査データ臨床評価」の欄に出しています。時間を置いてもう一度押すか、APIキーを外すとAIを使わない簡易チェックになります。', detail: true }], 'error');
       }
     };
 
@@ -274,7 +337,7 @@
     window.evaluateMissingInfoAI = async function() {
       const cp = getCurrentPatient();
       const activeItems = cp.items.filter(i => i.type !== 'unnecessary');
-      if (activeItems.length === 0) return showToast('カードがありません。先にカルテを分類してください', 'error');
+      if (activeItems.length === 0) return showToast('カードがありません。先にカルテを分類してください', 'warn');
 
       const oItems = activeItems.filter(i => i.type === 'o');
       const labTexts = oItems.map(i => `[${i.timestamp}] ${i.text}`).join('\n');
@@ -289,7 +352,7 @@
         return { id: need.id, name: need.name, pre, post };
       }).filter(Boolean);
 
-      if (perNeedSummary.length === 0) return showToast('ヘンダーソンタグが付いたカードがありません。先にタグ付けしてください', 'error');
+      if (perNeedSummary.length === 0) return showToast('ヘンダーソンタグが付いたカードがありません。先にタグ付けしてください', 'warn');
 
       showToast('入院前後の記録・医学的所見から不足情報を推定中...', 'info');
 
@@ -343,7 +406,7 @@
         markAiRun(cp, 'missing');
         saveDataAndSync();
         renderAiSteps(cp);
-        showToast(added > 0 ? `${added}件の不足情報を推定しました（簡易ルール）` : '入院前後の記録に明確な欠落は見つかりませんでした', added > 0 ? 'success' : 'info');
+        showToast(added > 0 ? `${added}件の不足情報を推定しました（簡易ルール）` : '簡易チェックでは不足情報を検出できませんでした。すべての項目を判定できるわけではありません', added > 0 ? 'success' : 'info');
         return;
       }
 
@@ -377,13 +440,11 @@ ${labTexts || '(なし)'}
         suggestions.forEach(s => {
           const hId = parseInt(s.hendersonId, 10);
           if (!HENDERSON_NEEDS.some(n => n.id === hId) || !s.text) return;
-          pushMissingInfoCard(hId, s.text);
+          pushMissingInfoCard(hId, s.text, cp);
           added++;
         });
         markAiRun(cp, 'missing');
-        saveDataAndSync();
-        renderAiSteps(cp);
-        showToast(added > 0 ? `${added}件の不足情報をAIが推定しました` : 'AIは明確な不足情報を検出しませんでした', added > 0 ? 'success' : 'info');
+        if (finishAiResult(cp, () => renderAiSteps(cp), '不足情報の推定')) showToast(added > 0 ? `${added}件の不足情報をAIが推定しました` : 'AIは不足情報を挙げませんでした。すべての項目を判定できるわけではありません', added > 0 ? 'success' : 'info');
       } catch (err) {
         showAiErrorToast('不足情報の推定に失敗しました。', err);
       }
@@ -451,12 +512,18 @@ ${labTexts || '(なし)'}
 
     // 「不足情報」欄だけに置かれたカード（不足情報をAI推定などで追加したもの）は、実際の記録ではないため
     // 根拠の一覧からは除き、「不足している情報」として別に渡す（改善案D）。
+    // 利用者が自分で書いたアセスメント（js/11）を、看護診断・看護計画のAIへの指示文に入れる
+    function ownAssessmentPromptSection(cp) {
+      const t = typeof buildMyAssessmentsText === 'function' ? buildMyAssessmentsText(cp) : '';
+      return t ? `【利用者（学生）自身が書いたアセスメント】\n${t}\n\n利用者自身のアセスメントを尊重し、それと食い違う判断をするときは理由を短く添えてください。\n\n` : '';
+    }
     function isMissingInfoOnlyItem(i) {
       const ids = i.hendersonIds || [];
       return ids.length > 0 && ids.every(h => (i.assessmentCols?.[h] || 'unclassified') === 'missing');
     }
     function buildMissingInfoText(cp) {
-      return (cp.items || []).filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i))
+      // 「確認済み」「該当なし」にした不足情報（js/12）は、もう不足していないので渡さない
+      return (cp.items || []).filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && (typeof missingCheckStatus !== 'function' || missingCheckStatus(cp, i.id) === 'unchecked'))
         .map(i => `- ${(i.hendersonIds || []).map(h => hendersonNameOf(h).replace(/^\d+\.\s*/, '')).join('・')}：${i.text.replace(/^原因:\s*/, '')}`).join('\n');
     }
     function buildPerNeedEvidenceText(items, ev) {
@@ -550,7 +617,7 @@ ${labTexts || '(なし)'}
       const activeItems = cp.items.filter(i => (i.type === 's' || i.type === 'o') && !isMissingInfoOnlyItem(i));
       const panel = document.getElementById('contradiction-panel');
       const content = document.getElementById('contradiction-content');
-      if (activeItems.length < 2) return showToast('S/Oのカードが少ないためチェックできません', 'error');
+      if (activeItems.length < 2) return showToast('S/Oのカードが少ないためチェックできません', 'warn');
       panel.classList.remove('hidden');
       content.innerHTML = `<div class="flex items-center text-[var(--ink-muted)]"><i class="fa-solid fa-spinner fa-spin mr-2"></i> S/Oデータの矛盾を確認中...</div>`;
       if (!globalAppData.apiKey) {
@@ -562,14 +629,12 @@ ${labTexts || '(なし)'}
       try {
         const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長です。以下は患者のSデータ（主観的情報＝患者の発言）とOデータ（客観的情報＝観察所見・検査値）の一覧です。SデータとOデータの間で内容が食い違っている、あるいは併せて考えると注意が必要な組み合わせがあれば指摘してください。矛盾が見当たらない場合はその旨を一言述べてください。\n\n【S/Oデータ一覧】\n${list}\n\n出力は簡潔な箇条書きで、指摘ごとに根拠となった発言・所見のカードを示してください。${EVIDENCE_INSTRUCTION}強調したい語のみ太字(**語**)にし、それ以外の記号は使わないでください。` }] }]);
         const resultText = formatAiResultHtml(text, undefined, ev);
-        content.innerHTML = resultText;
         cp.contradictionResult = resultText;
-        saveDataAndSync();
-        showToast('矛盾チェックが完了しました', 'success');
+        if (finishAiResult(cp, () => { content.innerHTML = resultText; }, 'S/O矛盾チェック')) showToast('矛盾チェックが完了しました', 'success');
       } catch (err) {
         console.warn('Contradiction check error:', err);
-        content.innerHTML = `<span class="text-[var(--brick)]">チェック中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。</span>`;
-        showToast('矛盾チェックに失敗しました', 'error');
+        if (getCurrentPatient().id === cp.id) content.innerHTML = `<span class="text-[var(--brick)]">チェック中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。</span>`;
+        showToast(['S/O矛盾チェックができませんでした', { text: '理由は結果の欄に出しています。時間を置いてもう一度押してください。ほかの作業はそのまま続けられます。', detail: true }], 'error');
       }
     };
 
@@ -580,7 +645,7 @@ ${labTexts || '(なし)'}
       const activeItems = cp.items.filter(i => i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i));
       const panel = document.getElementById('diagnosis-panel');
       const content = document.getElementById('diagnosis-content');
-      if (activeItems.length === 0) return showToast('カードがありません。先にカルテを分類してください', 'error');
+      if (activeItems.length === 0) return showToast('カードがありません。先にカルテを分類してください', 'warn');
       panel.classList.remove('hidden');
       content.innerHTML = `<div class="flex items-center text-[var(--ink-muted)]"><i class="fa-solid fa-spinner fa-spin mr-2"></i> アセスメント内容から看護診断候補を検討中...</div>`;
       if (!globalAppData.apiKey) {
@@ -592,20 +657,17 @@ ${labTexts || '(なし)'}
       if (!perNeedText) { content.innerHTML = `<span class="text-[var(--ink-muted)]">ヘンダーソンタグが付いたカードがありません。先にタグ付けしてください。</span>`; return; }
       const missingText = buildMissingInfoText(cp);
       try {
-        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長・指導者です。以下はヘンダーソン14の基本的欲求ごとに整理された患者のアセスメント情報です。この内容から、想定される看護診断の候補を優先度が高いと思われる順に2〜4個程度提案してください。\n\n【ヘンダーソン項目別アセスメント情報】\n${perNeedText}\n\n【不足している情報（まだ記録が無く、確認が必要なもの）】\n${missingText || '(なし)'}\n\n出力は次の形式を必ず守ってください（候補ごとに「■」で始め、候補の間は空行で区切る）。\n■ 看護診断名\n根拠：アセスメント根拠の要約（${EVIDENCE_INSTRUCTION}）\n理由：この診断を挙げた理由\n不足情報：この診断を確かめるために追加で確認したい情報（あれば）\n\n太字(**語**)以外の記号は使わないでください。` }] }]);
+        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長・指導者です。以下はヘンダーソン14の基本的欲求ごとに整理された患者のアセスメント情報です。この内容から、想定される看護診断の候補を優先度が高いと思われる順に2〜4個程度提案してください。\n\n【ヘンダーソン項目別アセスメント情報】\n${perNeedText}\n\n【不足している情報（まだ記録が無く、確認が必要なもの）】\n${missingText || '(なし)'}\n\n${ownAssessmentPromptSection(cp)}出力は次の形式を必ず守ってください（候補ごとに「■」で始め、候補の間は空行で区切る）。\n■ 看護診断名\n根拠：アセスメント根拠の要約（${EVIDENCE_INSTRUCTION}）\n理由：この診断を挙げた理由\n不足情報：この診断を確かめるために追加で確認したい情報（あれば）\n\n太字(**語**)以外の記号は使わないでください。` }] }]);
         const cands = parseDiagnosisCandidates(text).map((c, k) => ({ id: `dx_${Date.now().toString(36)}_${k}`, name: c.name, bodyHtml: formatAiResultHtml(c.body, '', ev) }));
         cp.diagnosisCandidates = cands;
         cp.selectedDiagnosisIds = [];
         cp.diagnosisResult = formatAiResultHtml(text, undefined, ev); // 書き出し・形式が崩れた場合の表示用
         markAiRun(cp, 'diagnosis');
-        saveDataAndSync();
-        renderDiagnosisPanel(cp);
-        renderAiSteps(cp);
-        showToast(cands.length ? `看護診断候補を${cands.length}件提案しました。計画を立てたい診断を選んでください` : '看護診断候補の提案が完了しました', 'success');
+        if (finishAiResult(cp, () => { renderDiagnosisPanel(cp); renderAiSteps(cp); }, '看護診断候補')) showToast(cands.length ? `看護診断候補を${cands.length}件提案しました。計画を立てたい診断を選んでください` : '看護診断候補の提案が完了しました', 'success');
       } catch (err) {
         console.warn('Diagnosis suggestion error:', err);
-        content.innerHTML = `<span class="text-[var(--brick)]">生成中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。</span>`;
-        showToast('看護診断候補の生成に失敗しました', 'error');
+        if (getCurrentPatient().id === cp.id) content.innerHTML = `<span class="text-[var(--brick)]">生成中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。</span>`;
+        showToast(['看護診断候補を作れませんでした', { text: '理由は結果の欄に出しています。時間を置いてもう一度押してください。自分のアセスメント・看護計画はAIなしでも書けます。', detail: true }], 'error');
       }
     };
 
@@ -633,14 +695,12 @@ ${labTexts || '(なし)'}
       try {
         const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師です。以下はヘンダーソン14の基本的欲求ごとの、入院前と入院後の記録の比較です。項目ごとに入院前後でどのように変化したかを簡潔にまとめてください。変化が読み取れない項目は省略して構いません。\n\n${perNeedText}\n\n出力は項目名のみ太字(**項目名**)にした簡潔な箇条書きでお願いします。${EVIDENCE_INSTRUCTION}` }] }]);
         const resultText = formatAiResultHtml(text, undefined, ev);
-        content.innerHTML = resultText;
         cp.timelineResult = resultText;
-        saveDataAndSync();
-        showToast('経時変化サマリーを生成しました', 'success');
+        if (finishAiResult(cp, () => { content.innerHTML = resultText; }, '経時変化サマリー')) showToast('経時変化サマリーを生成しました', 'success');
       } catch (err) {
         console.warn('Timeline summary error:', err);
-        content.innerHTML = `<span class="text-[var(--brick)]">生成中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。</span>`;
-        showToast('経時変化サマリーの生成に失敗しました', 'error');
+        if (getCurrentPatient().id === cp.id) content.innerHTML = `<span class="text-[var(--brick)]">生成中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。</span>`;
+        showToast(['経時変化サマリーを作れませんでした', { text: '理由は結果の欄に出しています。時間を置いてもう一度押してください。', detail: true }], 'error');
       }
     };
 
@@ -651,7 +711,7 @@ ${labTexts || '(なし)'}
     window.generateCarePlanAI = async function() {
       const cp = getCurrentPatient();
       const activeItems = cp.items.filter(i => i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i));
-      if (activeItems.length === 0) return showToast('カードがありません。先にカルテを分類してください', 'error');
+      if (activeItems.length === 0) return showToast('カードがありません。先にカルテを分類してください', 'warn');
       const cands = cp.diagnosisCandidates || [];
       const selected = cands.filter(c => (cp.selectedDiagnosisIds || []).includes(c.id));
       if (selected.length === 0) {
@@ -683,25 +743,37 @@ ${labTexts || '(なし)'}
         ? `次の看護診断（学生が選んだもの）それぞれについて、看護計画を作成してください。これ以外の看護問題は追加しないでください。\n${selected.map((c, k) => `${k + 1}. ${c.name}\n${plain(c.bodyHtml)}`).join('\n\n')}`
         : 'この内容から、優先度の高い看護問題を1〜3個選び、それぞれについて看護計画を作成してください。';
       try {
-        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師・看護計画の指導者です。以下はヘンダーソン14の基本的欲求ごとに整理された患者のアセスメント情報です。${target}\n\n【ヘンダーソン項目別アセスメント情報】\n${perNeedText}\n\n【不足している情報（まだ記録が無く、確認が必要なもの）】\n${missingText || '(なし)'}\n\n各看護問題について、目標と、観察計画OP・援助計画TP・教育計画EPの3区分（各3〜5項目程度）を具体的に作成してください。「不足している情報」のうちその問題に関係するものは、OPで確認する項目に必ず含めてください。個別性のある具体的な内容にし、一般論だけで終わらせないでください。${EVIDENCE_INSTRUCTION}\n\n出力形式は、看護問題ごとに「■看護問題名」を太字(**■看護問題名**)で示し、その下に目標・OP・TP・EPを続けてください。` }] }]);
+        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師・看護計画の指導者です。以下はヘンダーソン14の基本的欲求ごとに整理された患者のアセスメント情報です。${target}\n\n【ヘンダーソン項目別アセスメント情報】\n${perNeedText}\n\n【不足している情報（まだ記録が無く、確認が必要なもの）】\n${missingText || '(なし)'}\n\n${ownAssessmentPromptSection(cp)}各看護問題について、目標と、観察計画OP・援助計画TP・教育計画EPの3区分（各3〜5項目程度）を具体的に作成してください。「不足している情報」のうちその問題に関係するものは、OPで確認する項目に必ず含めてください。個別性のある具体的な内容にし、一般論だけで終わらせないでください。${EVIDENCE_INSTRUCTION}\n\n出力形式は、看護問題ごとに「■看護問題名」を太字(**■看護問題名**)で示し、その下に目標・OP・TP・EPを続けてください。` }] }]);
         const resultText = formatAiResultHtml(text, undefined, ev);
-        content.innerHTML = resultText;
         cp.carePlanResult = resultText;
         cp.carePlanDiagnoses = selected.map(c => c.name);
         markAiRun(cp, 'careplan');
-        saveDataAndSync();
-        renderAiSteps(cp);
-        showToast(selected.length ? `選んだ${selected.length}件の看護診断で看護計画を作りました` : '看護計画を生成しました', 'success');
+        if (finishAiResult(cp, () => { content.innerHTML = resultText; renderAiSteps(cp); }, '看護計画の叩き台')) showToast(selected.length ? `選んだ${selected.length}件の看護診断で看護計画を作りました` : '看護計画を生成しました', 'success');
       } catch (err) {
         console.warn('Care plan generation error:', err);
-        content.innerHTML = `<span class="text-[var(--brick)]">生成中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。</span>`;
-        showToast('看護計画の生成に失敗しました', 'error');
+        if (getCurrentPatient().id === cp.id) content.innerHTML = `<span class="text-[var(--brick)]">生成中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。</span>`;
+        showToast(['看護計画の叩き台を作れませんでした', { text: '理由は結果の欄に出しています。時間を置いてもう一度押すか、「看護計画」タブで直接書いてください。', detail: true }], 'error');
       }
     };
 
+    // 【患者の取り違えを防ぐ】AIの結果が返ってくる前に別の患者に切り替えていたら、結果は頼んだ患者に保存し、
+    // 今表示している患者の画面には出さない（以前は、切り替え先の患者の画面に前の患者の結果が表示されていた）。
+    function finishAiResult(cp, applyToScreen, label) {
+      const same = getCurrentPatient().id === cp.id;
+      if (same) {
+        if (applyToScreen) applyToScreen();
+        saveDataAndSync();
+      } else {
+        cp.updatedAt = new Date().toISOString();
+        savePatientsLocally();
+        schedulePatientSync(cp.id);
+        showToast(`「${cp.title || ''}」の${label || 'AIの結果'}が届きました（その患者に保存しました。今の画面には出していません）`, 'info', 6000);
+      }
+      return same;
+    }
     // 不足情報欄にAI推定カードを1件追加する共通処理（AI推定であることが分かるよう aiSuggested フラグを付ける）
-    function pushMissingInfoCard(hendersonId, text) {
-      const cp = getCurrentPatient();
+    function pushMissingInfoCard(hendersonId, text, target = null) {
+      const cp = target || getCurrentPatient();
       cp.items.push({
         id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
         text, timestamp: "AI推定", type: 'o',
@@ -1021,6 +1093,13 @@ ${labTexts || '(なし)'}
       }
     });
 
+    // 未分類の補助枠を自分で閉じたか（閉じたときは、カードが増えても勝手に開かない）
+    let boardAuxClosedByUser = false;
+    window.rememberBoardAuxToggle = function(el) {
+      const cp = getCurrentPatient();
+      if (!el.open && cp.items.some(i => i.type === 'unclassified')) boardAuxClosedByUser = true;
+      if (el.open) boardAuxClosedByUser = false;
+    };
     function renderSoBoard() {
       const cp = getCurrentPatient();
       // 【修正】以前は患者背景（item.patientBackground）の付いたカードを専用の「患者背景」列に
@@ -1054,6 +1133,21 @@ ${labTexts || '(なし)'}
       ['unclassified', 's', 'o'].forEach(key => {
         document.getElementById(`badge-count-${key}`).textContent = boardSearchTerm ? `${shownCounts[key]}/${totalCounts[key]}` : totalCounts[key];
       });
+      // 未分類の補助枠：カードがあれば開く（自分で閉じたときはそのまま）。不要の枠は件数だけ出してたたんでおく
+      const unnecessaryCount = cp.items.filter(i => i.type === 'unnecessary').length;
+      const badgeUnn = document.getElementById('badge-count-unnecessary');
+      if (badgeUnn) badgeUnn.textContent = unnecessaryCount;
+      const auxUnc = document.getElementById('board-unclassified');
+      if (auxUnc && typeof auxUnc.setAttribute === 'function') {
+        const hint = document.getElementById('board-unclassified-hint');
+        if (hint) hint.textContent = totalCounts.unclassified ? 'S・O に振り分けてください（ドラッグ、またはカードの︙）' : '未分類のカードはありません';
+        auxUnc.classList.toggle('is-empty', !totalCounts.unclassified);
+        if (totalCounts.unclassified && !boardAuxClosedByUser) auxUnc.open = true;
+        if (!totalCounts.unclassified) auxUnc.open = false;
+      }
+      // 分類の前は入力欄を広く、分類の後はカードを広く（js/05 の updateSourcePaneLayout）
+      if (typeof updateSourcePaneLayout === 'function') updateSourcePaneLayout();
+      if (typeof renderWorkflowSteps === 'function') renderWorkflowSteps();
       renderBulkActionBar();
     }
 
@@ -1167,9 +1261,9 @@ ${cardLines}
     window.runAiReview = async function() {
       const cp = getCurrentPatient();
       const items = (cp.items || []).filter(i => i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i));
-      if (!items.length) return showToast('カードがありません。先に「分類開始」で分類してください', 'error');
-      if (!(cp.sourceText || '').trim()) return showToast('分類前の文章がありません（入力欄の文章と照らし合わせて評価します）', 'error');
-      if (!globalAppData.apiKey) return showToast('この機能はAPIキーの設定が必要です（右上の︙→「API設定」）', 'error');
+      if (!items.length) return showToast('カードがありません。先に「分類開始」で分類してください', 'warn');
+      if (!(cp.sourceText || '').trim()) return showToast('分類前の文章がありません（入力欄の文章と照らし合わせて評価します）', 'warn');
+      if (!globalAppData.apiKey) return showToast('この機能はAPIキーの設定が必要です（右上の︙→「API設定」）', 'warn');
       const body = document.getElementById('ai-review-body');
       body.innerHTML = `<div class="flex items-center gap-2 text-[var(--ink-muted)] text-xs p-4"><i class="fa-solid fa-spinner fa-spin"></i> Geminiが分類を評価しています（1〜2分かかることがあります）…</div>`;
       const ev = buildEvidenceIndex(items);
@@ -1246,7 +1340,7 @@ ${cardLines}
         saveDataAndSync();
         if (!silent) { renderAiReview(); showToast('提案を適用しました（元に戻すときは、カードを直接編集してください）', 'success'); }
       } else if (!silent) {
-        showToast('このカードは評価の後に消えたか変わったため、適用できません', 'error');
+        showToast('このカードは評価の後に消えたか変わったため、適用できません', 'warn');
       }
       return ok;
     };
@@ -1427,7 +1521,7 @@ ${cardLines}
     window.downloadAiReview = function() {
       const cp = getCurrentPatient();
       const md = buildAiReviewMarkdown(cp);
-      if (!md) return showToast('先に「評価する」を押してください', 'error');
+      if (!md) return showToast('先に「評価する」を押してください', 'warn');
       const d = new Date();
       const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
       const a = document.createElement('a');
@@ -1438,3 +1532,447 @@ ${cardLines}
       setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
       showToast('改善点ファイルを保存しました。このファイルをClaudeに渡すとプログラムを直せます', 'success');
     };
+
+    // ==========================================================================
+    // 【検査値の推移】検査値・バイタルサインを「項目 × 日時」の表にするページ（利用者からの要望：
+    // 「検査値を日付と各項目がわかりやすい表を、分類ボードや総合アセスメント表とは違うページに作ってほしい」）。
+    // 分類済みのカードのうち、先頭が検査項目名・バイタルの名前で始まるもの（「Hb 11.8 g/dL (基準値: …)」
+    // 「BT 37.1°C、BP 138/80mmHg、HR 82回/分、SpO2 97%(RA)」）だけを読み、項目ごと・日時ごとに並べる。
+    // 「酸素2L開始し、SpO2 94%に上昇」のような文の中の値は、文の意味が変わるので表には入れない。
+    // ==========================================================================
+    const LAB_TREND_VITALS = [
+      { key: '体温', unit: '°C', names: ['体温', 'BT', 'KT', 'T'], high: 37.5 },
+      { key: '脈拍', unit: '回/分', names: ['脈拍', '心拍数', '心拍', 'HR', 'PR', 'P'], low: 60, high: 100 },
+      { key: '血圧', unit: 'mmHg', names: ['血圧', 'BP'], bp: true },
+      { key: '呼吸数', unit: '回/分', names: ['呼吸数', '呼吸', 'RR', 'R'], low: 12, high: 20 },
+      { key: 'SpO2', unit: '%', names: ['SpO2', 'SPO2', 'SpO₂', '酸素飽和度'], low: 95 },
+      // 体重の変化（心不全の利尿・栄養状態）も日ごとに見たいので、身体計測として同じ表に並べる（基準は付けない）
+      { key: '体重', unit: 'kg', names: ['体重'], body: true },
+      { key: '身長', unit: 'cm', names: ['身長'], body: true },
+      { key: 'BMI', unit: '', names: ['BMI'], body: true }
+    ];
+    const LAB_TREND_ALIASES = {
+      '白血球': 'WBC', '赤血球': 'RBC', 'ヘモグロビン': 'Hb', 'Hgb': 'Hb', 'ヘマトクリット': 'Ht', 'Hct': 'Ht', '血小板': 'Plt', 'PLT': 'Plt',
+      '総蛋白': 'TP', '総タンパク': 'TP', 'アルブミン': 'Alb', 'ALB': 'Alb', 'クレアチニン': 'Cre', 'Cr': 'Cre', '尿素窒素': 'BUN',
+      'ナトリウム': 'Na', 'カリウム': 'K', 'クロール': 'Cl', '血糖値': '血糖', 'BS': '血糖', 'GLU': '血糖', 'グルコース': '血糖', 'FBS': '血糖',
+      'GOT': 'AST', 'GPT': 'ALT', 'γ-GTP': 'γGTP', 'AMY': 'アミラーゼ', 'D-ダイマー': 'Dダイマー'
+    };
+    const LAB_TREND_EXTRA_KEYS = ['NT-proBNP', 'eGFR', 'LDH', 'CK', 'UA', 'Ca', 'Mg', 'TG', 'LDL', 'HDL', 'T-Cho', 'APTT', 'FDP', 'PT%', 'INR',
+      'pH', 'PaO2', 'PaCO2', 'HCO3', 'BE', 'Lac', '乳酸', 'D-Bil', 'CPK', 'Fe', 'フェリチン', 'プロカルシトニン', 'PCT'];
+    const LAB_TREND_VITAL_BY_NAME = new Map();
+    LAB_TREND_VITALS.forEach(v => v.names.forEach(n => LAB_TREND_VITAL_BY_NAME.set(n.toLowerCase(), v)));
+    const LAB_TREND_KEYS = Array.from(new Set([
+      ...LAB_TREND_VITALS.flatMap(v => v.names),
+      ...LAB_KEY_NUM_PATTERNS.map(([k]) => k), ...Object.keys(LAB_STANDARDS), ...Object.keys(LAB_TREND_ALIASES), ...LAB_TREND_EXTRA_KEYS
+    ])).sort((a, b) => b.length - a.length);
+    // 項目名の直後に数字（「Hb 11.8」「BT37.1」「血糖(随時) 246」「BP 138/80」）。英字の項目名の途中（HbA1c の Hb）には一致させない
+    const LAB_TREND_ITEM_REGEX = new RegExp(`(?:^|(?<=[、,。\\s]))(${LAB_TREND_KEYS.map(escapeRegExp).join('|')})(?![A-Za-z])(\\s*[(（][^)）]{1,12}[)）])?\\s*[:：=]?\\s*(\\d[\\d,]*(?:\\.\\d+)?(?:\\s*\\/\\s*\\d{1,3})?)`, 'gi');
+
+    function labTrendCanonicalKey(name, qualifier) {
+      const vital = LAB_TREND_VITAL_BY_NAME.get(String(name).toLowerCase());
+      if (vital) return { key: vital.key, vital };
+      const base = LAB_TREND_ALIASES[name] || LAB_TREND_ALIASES[String(name).toUpperCase()] || name;
+      const q = (qualifier || '').replace(/[()（）\s]/g, '');
+      return { key: q ? `${base}(${q})` : base, vital: null };
+    }
+    // 「4,000〜9,000」「0.3以下」「18.4pg/mL以下」「3.6-4.8」から下限・上限を読む
+    function parseLabReferenceRange(ref) {
+      const t = String(ref || '').replace(/,/g, '');
+      let m = t.match(/(\d+(?:\.\d+)?)\s*[^\d〜～~\-－]*\s*[〜～~\-－]\s*(\d+(?:\.\d+)?)/);
+      if (m) return { low: Number(m[1]), high: Number(m[2]) };
+      // 「<0.2」「≦0.3」「>60」のような記号の書き方
+      m = t.match(/^\s*([<＜≦≤]|<=)\s*(\d+(?:\.\d+)?)/);
+      if (m) return { low: null, high: Number(m[2]), highExclusive: m[1] === '<' || m[1] === '＜' };
+      m = t.match(/^\s*([>＞≧≥]|>=)\s*(\d+(?:\.\d+)?)/);
+      if (m) return { low: Number(m[2]), high: null, lowExclusive: m[1] === '>' || m[1] === '＞' };
+      m = t.match(/(\d+(?:\.\d+)?)[^\d]*(以下|未満)/);
+      if (m) return { low: null, high: Number(m[1]), highExclusive: m[2] === '未満' };
+      m = t.match(/(\d+(?:\.\d+)?)[^\d]*(以上|超)/);
+      if (m) return { low: Number(m[1]), high: null, lowExclusive: m[2] === '超' };
+      return null;
+    }
+    // 1枚のカードの文章から、項目ごとの値を読み取る。文の途中の値（「…に上昇」）が混ざるカードは読まない（null）
+    function parseLabTrendEntries(text) {
+      let t = String(text || '').normalize('NFKC').trim();
+      // 「検温: 体温36.6度、…」「体格: 身長 165cm …」のような前置きの見出しは外して読む
+      const lead = t.match(/^([^:：、。「」\d]{1,10})[:：]\s*/);
+      if (lead) {
+        LAB_TREND_ITEM_REGEX.lastIndex = 0;
+        const after = t.slice(lead[0].length);
+        const first = LAB_TREND_ITEM_REGEX.exec(after);
+        if (first && first.index === 0) t = after;
+      }
+      const matches = [];
+      LAB_TREND_ITEM_REGEX.lastIndex = 0;
+      let m;
+      while ((m = LAB_TREND_ITEM_REGEX.exec(t)) !== null) matches.push(m);
+      if (!matches.length || matches[0].index !== 0) return null;
+      const entries = [];
+      for (let i = 0; i < matches.length; i++) {
+        const mm = matches[i];
+        const end = i + 1 < matches.length ? matches[i + 1].index : t.length;
+        let rest = t.slice(mm.index + mm[0].length, end);
+        const refM = rest.match(/[(（]\s*基準値?\s*[:：]?\s*([^)）]*)[)）]/);
+        const ref = refM ? refM[1].trim() : '';
+        if (refM) rest = rest.replace(refM[0], ' ');
+        const unitM = rest.match(/^\s*([^\s(（↑↓、,。]*)/);
+        let unit = unitM ? unitM[1] : '';
+        rest = rest.slice(unitM ? unitM[0].length : 0);
+        let flag = '';
+        if (/↑|\bH\b/.test(rest)) flag = 'high';
+        else if (/↓|\bL\b/.test(rest)) flag = 'low';
+        const notes = [];
+        rest = rest.replace(/[(（]([^)）]{1,20})[)）]/g, (x, inner) => { notes.push(inner.trim()); return ' '; });
+        rest = rest.replace(/[↑↓]|\b[HL]\b/g, ' ');
+        const leftover = rest.replace(/[、,。\s]/g, '');
+        if (leftover && !/^(?:不?整(?:あり|なし)?|あり|なし)$/.test(leftover)) return null; // 文の途中の値
+        if (leftover) notes.push(leftover);
+        // 単位が「度」「回」だけのものは表記をそろえる
+        if (unit === '度' || unit === '℃') unit = '°C';
+        const { key, vital } = labTrendCanonicalKey(mm[1], mm[2]);
+        entries.push({ key, name: mm[1], value: mm[3].replace(/\s+/g, ''), unit, ref, flag, note: notes.join(' '), vital });
+      }
+      return entries;
+    }
+    function labTrendFlag(entry, refRange) {
+      if (entry.flag) return entry.flag;
+      const v = entry.vital;
+      if (v && v.body) return '';
+      if (v && v.bp) {
+        const bp = entry.value.match(/(\d+)\s*\/\s*(\d+)/);
+        if (!bp) return '';
+        const sys = Number(bp[1]), dia = Number(bp[2]);
+        if (sys >= 140 || dia >= 90) return 'high';
+        if (sys < 90) return 'low';
+        return '';
+      }
+      const num = Number(String(entry.value).replace(/,/g, ''));
+      if (!Number.isFinite(num)) return '';
+      const range = refRange || (v ? { low: v.low ?? null, high: v.high ?? null } : null);
+      if (!range) return '';
+      // 体温は「37.5以上」を高いとする（目安の37.5未満に合わせる）。ほかは上限を超えたら高い
+      const overHigh = v && v.key === '体温' ? num >= range.high : num > range.high;
+      if (range.high !== null && range.high !== undefined && overHigh) return 'high';
+      if (range.low !== null && range.low !== undefined && num < range.low) return 'low';
+      return '';
+    }
+    function labTrendGroupOf(key) {
+      const vital = LAB_TREND_VITALS.find(v => v.key === key);
+      if (vital) return vital.body ? '身体計測' : 'バイタルサイン';
+      const hit = LAB_GROUP_DEFS.find(([, re]) => re.test(key));
+      return hit ? hit[0] : 'その他の検査';
+    }
+    const LAB_TREND_GROUP_ORDER = ['バイタルサイン', '身体計測', ...LAB_GROUP_DEFS.map(([n]) => n), 'その他の検査'];
+    // カードの一覧から表を作る。columns：日時（日ごと・時刻順）、rows：項目（グループ順）、cells：rows[r].cells[columnKey] = [{value, flag, note, itemId}]
+    function buildLabTrendTable(items, options = {}) {
+      const includeVitals = options.includeVitals !== false;
+      const expanded = expandCombinedLabItems((items || []).filter(i => i && i.type !== 'unnecessary'));
+      const parsed = [];
+      expanded.forEach(item => {
+        const entries = parseLabTrendEntries(item.text);
+        if (!entries) return;
+        const usable = entries.filter(e => includeVitals || !e.vital);
+        if (usable.length) parsed.push({ item, entries: usable });
+      });
+      // 日時の列：日ごとにまとめて日の順に並べ、同じ日の中は時刻の順（時刻の無いものは先）
+      const dayGroups = groupItemsByDay(parsed.map(p => ({ timestamp: p.item.timestamp, _p: p })));
+      const columns = [];
+      const columnIndex = new Map();
+      dayGroups.forEach(g => {
+        const stamps = [];
+        g.items.forEach(x => { const ts = (x.timestamp || '').trim() || '日時不明'; if (!stamps.includes(ts)) stamps.push(ts); });
+        const clockMin = ts => { const c = timestampClockPart(ts); if (!c) return -1; const [h, mi] = c.split(':').map(Number); return h * 60 + mi; };
+        stamps.map((ts, i) => ({ ts, i })).sort((a, b) => (clockMin(a.ts) - clockMin(b.ts)) || (a.i - b.i)).forEach(({ ts }) => {
+          if (columnIndex.has(ts)) return;
+          columnIndex.set(ts, columns.length);
+          columns.push({ key: ts, day: g.day || (ts === '日時不明' ? '日時不明' : ''), time: timestampClockPart(ts) });
+        });
+      });
+      const rowsByKey = new Map();
+      parsed.forEach(({ item, entries }) => {
+        const col = (item.timestamp || '').trim() || '日時不明';
+        entries.forEach(e => {
+          if (!rowsByKey.has(e.key)) rowsByKey.set(e.key, { key: e.key, group: labTrendGroupOf(e.key), units: new Map(), ref: '', vital: e.vital, cells: {} });
+          const row = rowsByKey.get(e.key);
+          if (e.unit) row.units.set(e.unit, (row.units.get(e.unit) || 0) + 1);
+          if (!row.ref && e.ref) row.ref = e.ref;
+          (row.cells[col] = row.cells[col] || []).push({ value: e.value, unit: e.unit, flag: '', note: e.note, itemId: item.id || null, text: item.text, _e: e });
+        });
+      });
+      const rows = Array.from(rowsByKey.values()).map(row => {
+        const unit = Array.from(row.units.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || (row.vital ? row.vital.unit : '');
+        const range = parseLabReferenceRange(row.ref);
+        Object.values(row.cells).forEach(list => list.forEach(c => { c.flag = labTrendFlag(c._e, range); delete c._e; }));
+        return { key: row.key, group: row.group, unit, ref: row.ref || (row.vital ? LAB_TREND_VITAL_REF_TEXT[row.key] || '' : ''), refIsGuide: !row.ref && !!row.vital, cells: row.cells };
+      });
+      const vitalOrder = k => LAB_TREND_VITALS.findIndex(v => v.key === k);
+      rows.sort((a, b) => (LAB_TREND_GROUP_ORDER.indexOf(a.group) - LAB_TREND_GROUP_ORDER.indexOf(b.group)) ||
+        (a.group === 'バイタルサイン' || a.group === '身体計測' ? vitalOrder(a.key) - vitalOrder(b.key) : 0));
+      // 値の無い列（バイタルを隠したときなど）は出さない
+      const used = columns.filter(c => rows.some(r => r.cells[c.key]));
+      return { columns: used, rows };
+    }
+    const LAB_TREND_VITAL_REF_TEXT = { '体温': '37.5未満', '脈拍': '60〜100', '血圧': '上90〜139・下90未満', '呼吸数': '12〜20', 'SpO2': '95以上' };
+
+    // 表をExcelなどに貼れる形（タブ区切り）にする
+    function labTrendTableToTsv(table) {
+      const head = ['項目', '単位', '基準値', ...table.columns.map(c => [c.day, c.time].filter(Boolean).join(' ') || '日時不明')];
+      const lines = [head.join('\t')];
+      table.rows.forEach(r => lines.push([r.key, r.unit, r.ref, ...table.columns.map(c => (r.cells[c.key] || [])
+        .map(x => `${x.value}${x.flag === 'high' ? '↑' : x.flag === 'low' ? '↓' : ''}${x.note ? `(${x.note})` : ''}`).join(' / '))].join('\t')));
+      return lines.join('\n');
+    }
+
+    let labTrendIncludeVitals = true;
+    try { labTrendIncludeVitals = localStorage.getItem('nursing_lab_trend_vitals') !== 'off'; } catch (e) { /* 保存できなくても動作には影響しない */ }
+    function renderLabTrend() {
+      const wrap = document.getElementById('lab-trend-table-wrap');
+      if (!wrap) return;
+      const cp = getCurrentPatient();
+      const table = buildLabTrendTable(cp.items || [], { includeVitals: labTrendIncludeVitals });
+      const toggle = document.getElementById('lab-trend-show-vitals');
+      if (toggle) toggle.checked = labTrendIncludeVitals;
+      window.__labTrendLast = table;
+      renderClinicalIndices();
+      if (!table.rows.length) {
+        wrap.innerHTML = `<div class="lab-trend-empty"><i class="fa-solid fa-flask-vial"></i><p>検査値${labTrendIncludeVitals ? 'やバイタルサイン' : ''}のカードがありません。</p><p>分類ボードで記録を「分類開始」すると、ここに日付ごとの表ができます。</p></div>`;
+        return;
+      }
+      // 見出し1段目：日（同じ日の列はまとめる）、2段目：時刻
+      const dayCells = [];
+      table.columns.forEach(c => {
+        const last = dayCells[dayCells.length - 1];
+        if (last && last.day === c.day) last.span++;
+        else dayCells.push({ day: c.day, span: 1 });
+      });
+      const hasTimes = table.columns.some(c => c.time);
+      let html = '<table class="lab-trend-table"><thead><tr><th class="lt-item" rowspan="' + (hasTimes ? 2 : 1) + '">項目</th>';
+      html += dayCells.map(d => `<th class="lt-day" colspan="${d.span}">${escapeHtml(d.day || '日時不明')}</th>`).join('') + '</tr>';
+      if (hasTimes) html += '<tr>' + table.columns.map(c => `<th class="lt-time">${escapeHtml(c.time || '—')}</th>`).join('') + '</tr>';
+      html += '</thead><tbody>';
+      let group = null;
+      table.rows.forEach(r => {
+        if (r.group !== group) {
+          group = r.group;
+          html += `<tr class="lt-group"><th colspan="${table.columns.length + 1}">${escapeHtml(group)}</th></tr>`;
+        }
+        html += `<tr><th class="lt-item"><span class="lt-name">${escapeHtml(r.key)}</span>${r.unit ? `<span class="lt-unit">${escapeHtml(r.unit)}</span>` : ''}${r.ref ? `<span class="lt-ref">${r.refIsGuide ? '目安 ' : '基準 '}${escapeHtml(r.ref)}</span>` : ''}</th>`;
+        html += table.columns.map(c => {
+          const list = r.cells[c.key];
+          if (!list) return '<td class="lt-empty"></td>';
+          return `<td>${list.map(x => `<button type="button" class="lt-val ${x.flag ? 'lt-' + x.flag : ''}" ${x.itemId ? `onclick="jumpToBoardCard('${escapeHtml(x.itemId)}')"` : ''} title="${escapeHtml(x.text || '')}${x.itemId ? '（クリックで分類ボードのカードへ）' : ''}">${escapeHtml(x.value)}${x.unit && x.unit !== r.unit ? `<small>${escapeHtml(x.unit)}</small>` : ''}${x.flag === 'high' ? '<span class="lt-arrow">↑</span>' : x.flag === 'low' ? '<span class="lt-arrow">↓</span>' : ''}${x.note ? `<span class="lt-note">${escapeHtml(x.note)}</span>` : ''}</button>`).join('')}</td>`;
+        }).join('') + '</tr>';
+      });
+      html += '</tbody></table>';
+      wrap.innerHTML = html;
+    }
+    window.renderLabTrend = renderLabTrend;
+    window.toggleLabTrendVitals = function(on) {
+      labTrendIncludeVitals = !!on;
+      try { localStorage.setItem('nursing_lab_trend_vitals', on ? 'on' : 'off'); } catch (e) { /* 保存できなくても動作には影響しない */ }
+      renderLabTrend();
+    };
+    window.copyLabTrendTable = async function() {
+      const table = window.__labTrendLast;
+      if (!table || !table.rows.length) return showToast('表にする検査値がありません', 'warn');
+      try {
+        await navigator.clipboard.writeText(labTrendTableToTsv(table));
+        showToast('表をコピーしました。Excelやスプレッドシートにそのまま貼り付けられます', 'success');
+      } catch (e) {
+        showToast(['表をコピーできませんでした', { text: 'ブラウザがクリップボードへの書き込みを許可していない可能性があります。表を選んで Ctrl+C でコピーしてください。', detail: true }], 'error');
+      }
+    };
+
+    // ==========================================================================
+    // 【記録から自動で計算する指標】利用者からの要望：「BMIやブリンクマン指数を自動で算出したい。似たもので
+    // おすすめがあれば追加してほしい」。記録の文章（身長・体重・年齢・性別・喫煙・飲酒）と検査値（Cre）から、
+    // BMI・標準体重・体重の変化・ブリンクマン指数・パックイヤー・純アルコール量・eGFR・基礎エネルギー消費量を計算する。
+    // 値の読み取りに使った記録の部分も一緒に表示し、どこから計算したか確かめられるようにする。
+    // ==========================================================================
+    const INDEX_FAMILY_WORD_REGEX = /(?:妻|夫|長男|長女|次男|次女|三男|三女|息子|娘|嫁|婿|母|父|祖母|祖父|兄|姉|弟|妹|孫|姪|甥|家族|キーパーソン)/;
+    function firstPatientMatch(t, re) {
+      const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
+      let m;
+      while ((m = g.exec(t)) !== null) {
+        const before = t.slice(Math.max(0, m.index - 10), m.index);
+        const lineStart = t.lastIndexOf('\n', m.index) + 1;
+        if (!INDEX_FAMILY_WORD_REGEX.test(before) && !/家族構成|家族関係|家族歴/.test(t.slice(lineStart, m.index))) return m;
+      }
+      return null;
+    }
+    const round1 = v => Math.round(v * 10) / 10;
+    function extractClinicalBasics(text) {
+      const t = String(text || '').normalize('NFKC');
+      const ageM = firstPatientMatch(t, /(\d{1,3})\s*歳(?!\s*(?:から|より|で|頃|ごろ|の時|時))/);
+      const sexM = firstPatientMatch(t, /(男性|女性|男児|女児)/);
+      const heightM = t.match(/身長\s*[:：は]?\s*(\d{2,3}(?:\.\d+)?)\s*cm/i);
+      const weights = [];
+      const wRe = /体重\s*[:：は]?\s*(\d{1,3}(?:\.\d+)?)\s*kg/gi;
+      let m;
+      while ((m = wRe.exec(t)) !== null) weights.push({ value: Number(m[1]), src: t.slice(m.index, Math.min(t.length, m.index + m[0].length + 12)).split('\n')[0] });
+      const usualM = t.match(/(?:普段|通常|平常時?|元々|もともと|以前|病前|健常時|半年前|\d{1,2}\s*(?:か月|ヶ月|カ月|ケ月|年)前)(?:は|の体重は?|体重は?)?\s*(\d{1,3}(?:\.\d+)?)\s*kg/);
+      return {
+        age: ageM ? Number(ageM[1]) : null,
+        sex: sexM ? (/男/.test(sexM[1]) ? 'male' : 'female') : null,
+        height: heightM ? Number(heightM[1]) : null,
+        weight: weights.length ? weights[0].value : null,
+        weights,
+        usualWeight: usualM ? Number(usualM[1]) : null,
+        heightSrc: heightM ? heightM[0] : '',
+        usualSrc: usualM ? usualM[0] : '',
+        usualLabel: usualM ? (usualM[0].match(/半年前|\d{1,2}\s*(?:か月|ヶ月|カ月|ケ月|年)前/) || ['普段'])[0].replace(/\s+/g, '') : ''
+      };
+    }
+    // 喫煙：「20本/日×40年」「1日20本を40年」「40年間、1日20本」「20歳から喫煙(20本/日)…10年前に禁煙」
+    function extractSmoking(text, age) {
+      const t = String(text || '').normalize('NFKC');
+      let m;
+      if ((m = t.match(/(\d{1,3})\s*本\s*[\/／]\s*日\s*[×xX✕*]\s*(\d{1,2})\s*年/))) return { perDay: Number(m[1]), years: Number(m[2]), src: m[0] };
+      if ((m = t.match(/1日\s*(\d{1,3})\s*本\s*(?:を|、|程度|くらい|ぐらい)?\s*(\d{1,2})\s*年/))) return { perDay: Number(m[1]), years: Number(m[2]), src: m[0] };
+      if ((m = t.match(/(\d{1,2})\s*年間?\s*[、,]?\s*1日\s*(\d{1,3})\s*本/))) return { perDay: Number(m[2]), years: Number(m[1]), src: m[0] };
+      const perM = t.match(/(\d{1,3})\s*本\s*[\/／]\s*日|1日\s*(\d{1,3})\s*本/);
+      const startM = t.match(/(\d{1,2})\s*歳(?:から|より)[^。\n]{0,15}?(?:喫煙|たばこ|タバコ|煙草)/) || t.match(/(?:喫煙|たばこ|タバコ|煙草)[^。\n]{0,10}?(\d{1,2})\s*歳(?:から|より)/);
+      if (perM && startM) {
+        const perDay = Number(perM[1] || perM[2]);
+        const start = Number(startM[1]);
+        const quitAgeM = t.match(/(\d{1,3})\s*歳で?禁煙/);
+        const quitAgoM = t.match(/(\d{1,2})\s*年前(?:に|から)?禁煙/);
+        let end = null;
+        if (quitAgeM) end = Number(quitAgeM[1]);
+        else if (quitAgoM && age) end = age - Number(quitAgoM[1]);
+        else if (age && !/禁煙/.test(t)) end = age;
+        if (end === null && !age && /禁煙/.test(t) && quitAgoM) return { partial: true, perDay, start };
+        if (end !== null && end > start) return { perDay, years: end - start, src: `${startM[0]}…${perM[0]}${quitAgeM ? `…${quitAgeM[0]}` : quitAgoM ? `…${quitAgoM[0]}` : ''}` };
+      }
+      return null;
+    }
+    // 飲酒：「ビール350ml/日」「日本酒2合」「焼酎100ml」「ワイン200ml」→ 純アルコール量（g）＝量(mL)×度数×0.8
+    const ALCOHOL_DRINKS = [
+      { name: 'ビール', re: /ビール\s*(\d{2,4})\s*(?:ml|mL|ミリリットル)/i, abv: 0.05 },
+      { name: '発泡酒', re: /発泡酒\s*(\d{2,4})\s*(?:ml|mL)/i, abv: 0.05 },
+      { name: 'チューハイ', re: /(?:チューハイ|酎ハイ)\s*(\d{2,4})\s*(?:ml|mL)/i, abv: 0.07 },
+      { name: 'ワイン', re: /ワイン\s*(\d{2,4})\s*(?:ml|mL)/i, abv: 0.12 },
+      { name: '焼酎', re: /焼酎\s*(\d{2,4})\s*(?:ml|mL)/i, abv: 0.25 },
+      { name: '日本酒', re: /日本酒\s*(\d+(?:\.\d+)?)\s*合/, abv: 0.15, perUnitMl: 180 },
+      { name: 'ウイスキー', re: /ウイスキー\s*(\d{2,4})\s*(?:ml|mL)/i, abv: 0.4 }
+    ];
+    function extractAlcohol(text) {
+      const t = String(text || '').normalize('NFKC');
+      for (const d of ALCOHOL_DRINKS) {
+        const m = t.match(d.re);
+        if (!m) continue;
+        const ml = Number(m[1]) * (d.perUnitMl || 1);
+        const after = t.slice(m.index, m.index + m[0].length + 8);
+        const freq = /[\/／]\s*日|毎日|1日/.test(after) ? '1日あたり' : ((after.match(/週\s*\d+\s*回/) || [])[0] || '1回あたり');
+        return { name: d.name, ml, grams: round1(ml * d.abv * 0.8), abv: d.abv, freq, src: m[0] + (after.slice(m[0].length).match(/^\s*[\/／]\s*日/) || [''])[0] };
+      }
+      return null;
+    }
+    function latestLabValue(table, key) {
+      const row = table && table.rows.find(r => r.key === key);
+      if (!row) return null;
+      for (let i = table.columns.length - 1; i >= 0; i--) {
+        const c = row.cells[table.columns[i].key];
+        if (c && c.length) {
+          const v = Number(String(c[c.length - 1].value).replace(/,/g, ''));
+          if (Number.isFinite(v)) return { value: v, when: table.columns[i].key };
+        }
+      }
+      return null;
+    }
+    function bmiCategory(bmi) {
+      if (bmi < 18.5) return '低体重';
+      if (bmi < 25) return '普通体重';
+      if (bmi < 30) return '肥満（1度）';
+      if (bmi < 35) return '肥満（2度）';
+      if (bmi < 40) return '肥満（3度）';
+      return '肥満（4度）';
+    }
+    function egfrStage(v) {
+      if (v >= 90) return 'G1（正常または高値）';
+      if (v >= 60) return 'G2（正常または軽度低下）';
+      if (v >= 45) return 'G3a（軽度〜中等度低下）';
+      if (v >= 30) return 'G3b（中等度〜高度低下）';
+      if (v >= 15) return 'G4（高度低下）';
+      return 'G5（末期腎不全）';
+    }
+    // 計算結果：{ key, name, value, unit, detail（計算に使った値）, note（判定・目安）, level（'warn'｜''）}
+    function computeClinicalIndices(text, items) {
+      const basics = extractClinicalBasics(text);
+      const table = buildLabTrendTable(items || [], { includeVitals: true });
+      const out = [];
+      const missing = [];
+      const { age, sex, height, weight } = basics;
+      const h = height ? height / 100 : null;
+      if (h && weight) {
+        const bmi = round1(weight / (h * h)); // 表示と判定をそろえるため、小数第1位に丸めてから判定する
+        if (age !== null && age < 6) {
+          out.push({ key: 'kaup', name: 'カウプ指数', value: round1(bmi), unit: '', detail: `体重${weight}kg ÷ 身長${height}cm²（m）`, note: '乳幼児：15〜19が普通の目安', level: bmi < 15 || bmi > 19 ? 'warn' : '' });
+        } else if (age !== null && age < 16) {
+          const rohrer = weight / Math.pow(height, 3) * 1e7;
+          out.push({ key: 'rohrer', name: 'ローレル指数', value: Math.round(rohrer), unit: '', detail: `体重${weight}kg ÷ 身長${height}cm³ × 10⁷`, note: '学童：115〜145が普通の目安', level: rohrer < 115 || rohrer > 145 ? 'warn' : '' });
+        } else {
+          out.push({ key: 'bmi', name: 'BMI', value: bmi.toFixed(1), unit: 'kg/m²', detail: `体重${weight}kg ÷（身長${height}cm）²`, note: `${bmiCategory(bmi)}（日本肥満学会の基準：18.5以上25未満が普通体重）`, level: bmi < 18.5 || bmi >= 25 ? 'warn' : '' });
+          const ibw = 22 * h * h;
+          const pct = weight / ibw * 100;
+          out.push({ key: 'ibw', name: '標準体重（BMI 22）', value: round1(ibw), unit: 'kg', detail: `22 ×（身長${height}cm）²`, note: `今の体重は標準体重の${Math.round(pct)}%（%IBW）${pct < 80 ? '：80%未満は中等度以上の栄養障害の目安' : pct > 120 ? '：120%を超えている' : ''}`, level: pct < 80 || pct > 120 ? 'warn' : '' });
+        }
+      } else if (height || weight) missing.push({ name: 'BMI・標準体重', need: !height ? '身長' : '体重' });
+      if (weight && basics.usualWeight && basics.usualWeight !== weight) {
+        const diff = weight - basics.usualWeight;
+        const pct = diff / basics.usualWeight * 100;
+        out.push({ key: 'wchange', name: `${basics.usualLabel === '普段' ? '普段' : basics.usualLabel}からの体重の変化`, value: `${diff > 0 ? '+' : ''}${round1(diff)}`, unit: 'kg', detail: `${basics.usualLabel}${basics.usualWeight}kg → ${weight}kg`, note: `${pct > 0 ? '+' : ''}${round1(pct)}%${pct <= -5 ? '：5%以上の減少は栄養状態の悪化に注意（1か月5%・6か月10%以上が目安）' : pct >= 5 ? '：急な増加は体液の貯留（むくみ・心不全）にも注意' : ''}`, level: Math.abs(pct) >= 5 ? 'warn' : '' });
+      }
+      const wRow = table.rows.find(r => r.key === '体重');
+      if (wRow) {
+        const seq = table.columns.map(c => (wRow.cells[c.key] || [])[0]).filter(Boolean).map(x => Number(x.value)).filter(Number.isFinite);
+        if (seq.length >= 2 && seq[0] !== seq[seq.length - 1]) {
+          const d = seq[seq.length - 1] - seq[0];
+          out.push({ key: 'wtrend', name: '記録の期間の体重の変化', value: `${d > 0 ? '+' : ''}${round1(d)}`, unit: 'kg', detail: `${seq[0]}kg → ${seq[seq.length - 1]}kg（${seq.length}回の測定）`, note: '検査値の推移の表の体重の行から計算', level: '' });
+        }
+      }
+      const smoking = extractSmoking(text, age);
+      if (smoking && smoking.partial) {
+        missing.push({ name: 'ブリンクマン指数', need: `年齢（${smoking.start}歳から${smoking.perDay}本/日の喫煙年数を出すのに必要）` });
+      } else if (smoking) {
+        const bi = smoking.perDay * smoking.years;
+        const py = smoking.perDay / 20 * smoking.years;
+        out.push({ key: 'brinkman', name: 'ブリンクマン指数', value: bi, unit: '', detail: `${smoking.perDay}本/日 × ${smoking.years}年（記録：${smoking.src}）`, note: bi >= 400 ? '400以上：肺がん・COPDなどのリスクが高いとされる目安' : '400未満', level: bi >= 400 ? 'warn' : '' });
+        out.push({ key: 'packyears', name: 'パックイヤー（箱・年）', value: round1(py), unit: '', detail: `${smoking.perDay}本 ÷ 20本 × ${smoking.years}年`, note: '1日1箱（20本）を1年吸って1パックイヤー', level: '' });
+      } else if (/喫煙|タバコ|たばこ|煙草/.test(String(text || '')) && !/(?:喫煙(?:歴)?|タバコ|たばこ|煙草)\s*[:：]?\s*(?:なし|無し|無|吸わない)|非喫煙|吸わない|喫煙しない/.test(String(text || '').normalize('NFKC'))) {
+        missing.push({ name: 'ブリンクマン指数', need: '1日の本数と喫煙した年数（例：20本/日×40年）' });
+      }
+      const alcohol = extractAlcohol(text);
+      if (alcohol) {
+        out.push({ key: 'alcohol', name: '純アルコール量', value: alcohol.grams, unit: `g（${alcohol.freq}）`, detail: `${alcohol.name} ${alcohol.ml}mL × ${Math.round(alcohol.abv * 100)}% × 0.8（記録：${alcohol.src}）`, note: '節度ある適度な飲酒は1日平均 約20gまで（厚生労働省）', level: alcohol.freq === '1日あたり' && alcohol.grams > 20 ? 'warn' : '' });
+      }
+      const cre = latestLabValue(table, 'Cre');
+      if (cre && age !== null && age >= 18 && sex) {
+        const egfr = 194 * Math.pow(cre.value, -1.094) * Math.pow(age, -0.287) * (sex === 'female' ? 0.739 : 1);
+        out.push({ key: 'egfr', name: 'eGFR（推算糸球体ろ過量）', value: round1(egfr), unit: 'mL/分/1.73m²', detail: `Cre ${cre.value}mg/dL（${cre.when}）・${age}歳・${sex === 'female' ? '女性' : '男性'}（日本人の推算式）`, note: `${egfrStage(egfr)}。高齢者・筋肉量の少ない人では高めに出ることがある`, level: egfr < 60 ? 'warn' : '' });
+      } else if (cre) missing.push({ name: 'eGFR', need: age === null ? '年齢' : !sex ? '性別' : '18歳以上であること' });
+      if (h && weight && age !== null && age >= 18 && sex) {
+        const bee = sex === 'male' ? 66.47 + 13.75 * weight + 5.0 * height - 6.76 * age : 655.1 + 9.56 * weight + 1.85 * height - 4.68 * age;
+        out.push({ key: 'bee', name: '基礎エネルギー消費量（Harris-Benedict式）', value: Math.round(bee), unit: 'kcal/日', detail: `${sex === 'female' ? '女性' : '男性'}・${age}歳・身長${height}cm・体重${weight}kg`, note: '必要エネルギー量 ＝ 基礎エネルギー消費量 × 活動係数 × ストレス係数（病状に合わせて係数を選ぶ）', level: '' });
+      }
+      return { basics, indices: out, missing };
+    }
+    function renderClinicalIndices() {
+      const box = document.getElementById('clinical-indices');
+      if (!box) return;
+      const cp = getCurrentPatient();
+      const text = (DOM.sourceText.value || cp.sourceText || (cp.items || []).map(i => i.text).join('\n'));
+      const { indices, missing } = computeClinicalIndices(text, cp.items || []);
+      if (!indices.length && !missing.length) { box.innerHTML = ''; box.classList.add('hidden'); return; }
+      box.classList.remove('hidden');
+      box.innerHTML = `<div class="ci-head"><i class="fa-solid fa-calculator"></i> 記録から自動で計算した指標</div>
+        <div class="ci-grid">${indices.map(x => `<div class="ci-card ${x.level ? 'ci-warn' : ''}">
+          <div class="ci-name">${escapeHtml(x.name)}</div>
+          <div class="ci-value">${escapeHtml(String(x.value))}<span class="ci-unit">${escapeHtml(x.unit || '')}</span></div>
+          <div class="ci-note">${escapeHtml(x.note || '')}</div>
+          <div class="ci-detail">${escapeHtml(x.detail || '')}</div>
+        </div>`).join('')}</div>
+        ${missing.length ? `<p class="ci-missing"><i class="fa-solid fa-circle-info"></i> 計算できなかった指標：${missing.map(m => `${escapeHtml(m.name)}（${escapeHtml(m.need)}が記録に見つかりません）`).join('、')}</p>` : ''}
+        <p class="ci-caution">記録の文章から自動で読み取って計算しています。読み取りが正しいか、計算に使った値（各欄の下）を確かめてから使ってください。</p>`;
+    }
+    window.renderClinicalIndices = renderClinicalIndices;

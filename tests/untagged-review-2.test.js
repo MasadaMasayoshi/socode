@@ -48,5 +48,6 @@ test('これまでの事例の文章で、タグ未設定が残るのは生殖�
     Array.from(app.classifyTextByRules(fs.readFileSync(path.join(dir, f), 'utf8')))
       .filter(c => c.type !== 'unnecessary' && c.hendersonIds.length === 0).forEach(c => left.push(c.text));
   });
-  left.forEach(t => assert.ok(/生殖|NOリング器/.test(t), t));
+  // 「7/ ML. . PE5-t 264U/L」は写真の文字起こしで崩れた検査値の残り（項目名が読めないので、情報として残してタグは付けない）
+  left.forEach(t => assert.ok(/生殖|NOリング器|PE5-t/.test(t), t));
 });

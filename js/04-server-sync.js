@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = '2026-09-29.5'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = '2026-09-29.12'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 共有学習（全利用者・全カードで共有する学習データ）
     // ------------------------------------------------------------------------
@@ -76,78 +76,236 @@
     // ==========================================================================
     const patientSyncTimers = {};
     const PATIENT_SYNC_DEBOUNCE_MS = 800; // カルテ本文の入力中など、変更のたびに毎回送らないよう少し待ってまとめて送る
+    // 【保存待ちの間の編集を守る】利用者からの報告：保存の通信中に編集・追加したカードが、サーバーの応答で
+    // 元に戻った。以前は応答のカード一覧で無条件に置き換えていたため。
+    //  ・患者ごとに「変更の番号」（patientLocalRev）を数え、送った時点の番号と中身（送った写し）を覚えておく。
+    //  ・応答が返ったとき、番号が変わっていなければ（通信中に編集が無ければ）サーバーの結果をそのまま使う。
+    //    変わっていれば、送った写しを基準に3者で比べ、通信中に手元で変えたカード・足したカード・消したカードは
+    //    手元のまま残し、手元で触っていないカードだけをサーバーの結果（他の端末の変更を含む）にする。
+    //  ・同じ患者の送信は1本ずつにし（通信中に次の変更があれば、終わってからもう一度送る）、応答の順番の入れ替わりを防ぐ。
+    // 【保存の失敗】サーバーが保存に失敗したとき（500・ok:false）や通信できないときは「未保存」のままにし、
+    // 少しずつ間隔を空けて自動で送り直す（画面右上の表示を押すとすぐ送り直す）。
+    const patientLocalRev = {};
+    const patientSyncState = {}; // { inFlight, pending, retryTimer, retryCount }
+    const PATIENT_SYNC_RETRY_MS = [3000, 10000, 30000, 60000, 120000];
+    const unsyncedPatientIds = new Set();
+
+    // 完全に削除した患者（この端末で削除した／別の端末で削除されたとサーバーから聞いた）。
+    // 古い同期や起動時の読み込みで、削除した患者が復活しないようにする。
+    const DELETED_PATIENTS_STORAGE_KEY = 'nursing_deleted_patient_ids';
+    const deletedPatientIds = new Set((() => {
+      try { const v = JSON.parse(localStorage.getItem(DELETED_PATIENTS_STORAGE_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+    })());
+    function rememberDeletedPatient(id) {
+      if (!id) return;
+      deletedPatientIds.add(id);
+      unsyncedPatientIds.delete(id);
+      try { localStorage.setItem(DELETED_PATIENTS_STORAGE_KEY, JSON.stringify(Array.from(deletedPatientIds).slice(-500))); } catch (e) { /* 保存できなくても続ける */ }
+    }
 
     function schedulePatientSync(patientId) {
-      if (!patientId) return;
+      if (!patientId || deletedPatientIds.has(patientId)) return;
+      patientLocalRev[patientId] = (patientLocalRev[patientId] || 0) + 1;
+      unsyncedPatientIds.add(patientId);
       if (patientSyncTimers[patientId]) clearTimeout(patientSyncTimers[patientId]);
-      patientSyncTimers[patientId] = setTimeout(() => syncPatientToServer(patientId), PATIENT_SYNC_DEBOUNCE_MS);
+      patientSyncTimers[patientId] = setTimeout(() => { delete patientSyncTimers[patientId]; syncPatientToServer(patientId); }, PATIENT_SYNC_DEBOUNCE_MS);
     }
+
+    // 送った写し（base）・手元（local）・サーバーの結果（server）の3つを比べて、カード一覧をまとめる
+    function mergeItemsAfterInFlightEdits(local, base, server) {
+      const key = it => JSON.stringify(it);
+      const byId = list => new Map((Array.isArray(list) ? list : []).filter(i => i && i.id).map(i => [i.id, i]));
+      const baseById = byId(base && base.items);
+      const serverById = byId(server && server.items);
+      const localItems = Array.isArray(local && local.items) ? local.items : [];
+      const localById = byId(localItems);
+      const localTombstones = new Set((local && local.deletedItemIds || []).map(t => t && t.id).filter(Boolean));
+      const items = [];
+      localItems.forEach(L => {
+        if (!L || !L.id) { items.push(L); return; }
+        const B = baseById.get(L.id);
+        const R = serverById.get(L.id);
+        if (!B) items.push(L);                       // 送った後に手元で足したカード
+        else if (key(L) !== key(B)) items.push(L);   // 送った後に手元で書き換えたカード
+        else if (R) items.push(R);                   // 手元で触っていない → サーバーの結果
+        // 手元で触っておらず、サーバーの結果に無い（別の端末で削除された）カードは消す
+      });
+      serverById.forEach((R, id) => {
+        if (localById.has(id)) return;
+        if (baseById.has(id)) return;                // 送った後に手元で消したカード → 消したまま
+        if (localTombstones.has(id)) return;
+        items.push(R);                               // 別の端末で足されたカード
+      });
+      const tombs = new Map();
+      [...(server && server.deletedItemIds || []), ...(local && local.deletedItemIds || [])].forEach(t => {
+        if (!t || !t.id) return;
+        const prev = tombs.get(t.id);
+        if (!prev || String(t.at) > String(prev.at)) tombs.set(t.id, t);
+      });
+      return { items, deletedItemIds: Array.from(tombs.values()) };
+    }
+
+    function applyServerPatientResult(patientId, serverPatient, sentSnapshot, sentRev) {
+      const current = globalAppData.patients.find(p => p.id === patientId);
+      if (!current || !serverPatient || !Array.isArray(serverPatient.items)) return;
+      const editedWhileSending = (patientLocalRev[patientId] || 0) !== sentRev;
+      const merged = editedWhileSending
+        ? mergeItemsAfterInFlightEdits(current, sentSnapshot, serverPatient)
+        : { items: serverPatient.items, deletedItemIds: Array.isArray(serverPatient.deletedItemIds) ? serverPatient.deletedItemIds : [] };
+      // 自分のアセスメントなど、欲求ごとの記録は、欲求ごとに新しい方を使う（別の端末で書いた分を取り込む）
+      const keyed = mergeKeyedPatientFieldsClient(current, serverPatient);
+      const keyedChanged = Object.keys(keyed).some(f => JSON.stringify(current[f]) !== JSON.stringify(keyed[f]));
+      const changed = keyedChanged || JSON.stringify(current.items) !== JSON.stringify(merged.items);
+      Object.assign(current, keyed);
+      current.items = merged.items;
+      current.deletedItemIds = merged.deletedItemIds;
+      if (!editedWhileSending && serverPatient.updatedAt) current.updatedAt = serverPatient.updatedAt;
+      if (changed) {
+        try {
+          localStorage.setItem(PATIENTS_STORAGE_KEY, JSON.stringify({ patients: globalAppData.patients, currentPatientId: globalAppData.currentPatientId }));
+        } catch (e) { /* 容量超過などは無視して表示だけ更新する */ }
+        if (getCurrentPatient().id === patientId) {
+          renderSoBoard();
+          renderAssessmentTable();
+        }
+      }
+    }
+
+    // 別の端末で完全に削除された患者：この端末からも外す（削除より古い同期で復活させない）
+    function handlePatientDeletedElsewhere(patientId) {
+      const idx = globalAppData.patients.findIndex(p => p.id === patientId);
+      rememberDeletedPatient(patientId);
+      if (patientSyncTimers[patientId]) { clearTimeout(patientSyncTimers[patientId]); delete patientSyncTimers[patientId]; }
+      if (idx === -1) return;
+      const [removed] = globalAppData.patients.splice(idx, 1);
+      if (globalAppData.patients.length === 0) {
+        globalAppData.patients.push({ id: 'patient_' + Date.now(), title: '患者1', items: [], sourceText: '', labEvaluationResult: '', referenceNotes: [], archived: false, updatedAt: new Date().toISOString(), deletedItemIds: [] });
+      }
+      if (globalAppData.currentPatientId === patientId) {
+        const next = globalAppData.patients.find(x => !x.archived) || globalAppData.patients[0];
+        changeCurrentPatient(next.id, { saveCurrent: false });
+      } else {
+        savePatientsLocally();
+        renderPatientTabs();
+      }
+      showToast(`「${removed ? removed.title : ''}」は別の端末で完全に削除されたため、この端末からも消しました`, 'info', 6000);
+    }
+
+    function schedulePatientSyncRetry(patientId) {
+      const st = patientSyncState[patientId] || (patientSyncState[patientId] = {});
+      if (st.retryTimer) clearTimeout(st.retryTimer);
+      const wait = PATIENT_SYNC_RETRY_MS[Math.min(st.retryCount || 0, PATIENT_SYNC_RETRY_MS.length - 1)];
+      st.retryCount = (st.retryCount || 0) + 1;
+      st.retryTimer = setTimeout(() => { st.retryTimer = null; syncPatientToServer(patientId); }, wait);
+    }
+    // 保存できていない患者をすぐに送り直す（画面右上の「未保存」を押したとき・ネットにつながり直したとき）
+    function retryUnsyncedPatients() {
+      Array.from(unsyncedPatientIds).forEach(id => {
+        const st = patientSyncState[id];
+        if (st && st.retryTimer) { clearTimeout(st.retryTimer); st.retryTimer = null; }
+        syncPatientToServer(id);
+      });
+    }
+    if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('online', () => retryUnsyncedPatients());
+
     async function syncPatientToServer(patientId) {
       const patient = globalAppData.patients.find(p => p.id === patientId);
-      if (!patient) return;
+      if (!patient || deletedPatientIds.has(patientId)) return;
+      const st = patientSyncState[patientId] || (patientSyncState[patientId] = {});
+      if (st.inFlight) { st.pending = true; return; } // 通信中は待って、終わってからもう一度送る
+      st.inFlight = true;
+      st.pending = false;
+      const sentRev = patientLocalRev[patientId] || 0;
+      const body = JSON.stringify(patient);
+      const sentSnapshot = JSON.parse(body);
+      let ok = false;
       try {
         const res = await fetch(`${API_BASE}/patients/${encodeURIComponent(patientId)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(patient)
+          body
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        // サーバー側は、他端末が同じ患者を同時に編集していた場合、カード単位で
-        // マージした結果（他端末だけが持っていたカードを消さずに残した結果）を返す。
-        // それをこの端末にも反映しておかないと、次にこの端末が保存するまで
-        // 他端末のカードが画面に出てこないままになってしまう。入力中の欄
-        // （カルテ本文=sourceText等）には触れず、カード一覧とその削除記録だけを合わせる。
+        if (res.status === 410) { handlePatientDeletedElsewhere(patientId); ok = true; return; }
         const result = await res.json().catch(() => null);
-        if (result && result.patient && Array.isArray(result.patient.items)) {
-          const current = globalAppData.patients.find(p => p.id === patientId);
-          if (current) {
-            const changed = JSON.stringify(current.items) !== JSON.stringify(result.patient.items);
-            current.items = result.patient.items;
-            current.deletedItemIds = Array.isArray(result.patient.deletedItemIds) ? result.patient.deletedItemIds : [];
-            if (result.patient.updatedAt) current.updatedAt = result.patient.updatedAt;
-            if (changed) {
-              try {
-                localStorage.setItem(PATIENTS_STORAGE_KEY, JSON.stringify({ patients: globalAppData.patients, currentPatientId: globalAppData.currentPatientId }));
-              } catch (e) { /* 容量超過などは無視して表示だけ更新する */ }
-              if (getCurrentPatient().id === patientId) {
-                renderSoBoard();
-                renderAssessmentTable();
-              }
-            }
-          }
-        }
-        // 表示中の患者ページのサーバー保存が完了した場合のみ、保存状態表示を「保存済み」に更新する
-        // （バックグラウンドで別の患者ページの同期が完了した場合は、今表示中の状態表示には影響させない）。
-        if (getCurrentPatient().id === patientId) updateSaveStatus('saved');
+        if (!res.ok || !result || result.ok === false) throw new Error((result && result.error) || `HTTP ${res.status}`);
+        // 共有先が確かにこの患者を受け取ったかを確かめる（別の患者の応答や空の応答は保存できたとみなさない）
+        if (result.patient && result.patient.id && result.patient.id !== patientId) throw new Error('共有先の応答が別の患者のものでした');
+        // サーバー側は、他端末が同じ患者を同時に編集していた場合、カード単位でマージした結果を返す。
+        // それをこの端末にも反映する（通信中に手元で編集したカードは applyServerPatientResult が守る）。
+        applyServerPatientResult(patientId, result.patient, sentSnapshot, sentRev);
+        ok = true;
+        st.retryCount = 0;
+        if ((patientLocalRev[patientId] || 0) === sentRev) unsyncedPatientIds.delete(patientId);
+        // 表示中の患者の保存が終わり、その後の変更も無いときだけ「保存済み」にする
+        if (getCurrentPatient().id === patientId && (patientLocalRev[patientId] || 0) === sentRev) updateSaveStatus('saved');
       } catch (e) {
-        console.warn('患者カルテのサーバーへの保存に失敗しました（この端末内には保存されています。サーバー未接続の場合は他端末と共有されません）:', e);
+        console.warn('患者カルテのサーバーへの保存に失敗しました（この端末内には保存されています。自動で送り直します）:', e);
+        unsyncedPatientIds.add(patientId);
         if (getCurrentPatient().id === patientId) updateSaveStatus('error');
+        // 失敗し始めたときに1回だけ知らせる（何ができなかったか・次に何をするか）。直るまで右上の表示でも分かる
+        if (!(st.retryCount > 0) && !(typeof IS_FILE_PROTOCOL !== 'undefined' && IS_FILE_PROTOCOL)) {
+          const p = globalAppData.patients.find(x => x.id === patientId);
+          showToast([`「${p ? p.title : ''}」を共有先に保存できませんでした`, { text: 'このブラウザには保存されています。自動で送り直します。すぐ送り直すときは右上の「共有先への保存に失敗」を押してください。続くときはサーバーが動いているか確かめてください。', detail: true }], 'error');
+        }
+        schedulePatientSyncRetry(patientId);
+      } finally {
+        st.inFlight = false;
+        // 通信中に次の変更があったら、続けて送る（待ち時間のタイマーが残っていればそちらに任せる）
+        if (ok && (st.pending || ((patientLocalRev[patientId] || 0) !== sentRev && !patientSyncTimers[patientId]))) {
+          st.pending = false;
+          syncPatientToServer(patientId);
+        }
       }
     }
+    // サーバーに届かなかった削除は覚えておき、次に起動したときにもう一度送る（他の端末に削除を伝えるため）
+    const PENDING_PATIENT_DELETES_KEY = 'nursing_pending_patient_deletes';
+    function pendingPatientDeletes() {
+      try { const v = JSON.parse(localStorage.getItem(PENDING_PATIENT_DELETES_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+    }
+    function setPendingPatientDeletes(list) {
+      try { localStorage.setItem(PENDING_PATIENT_DELETES_KEY, JSON.stringify(Array.from(new Set(list)))); } catch (e) { /* 保存できなくても続ける */ }
+    }
     async function deletePatientFromServer(patientId) {
+      setPendingPatientDeletes([...pendingPatientDeletes(), patientId]);
       try {
         const res = await fetch(`${API_BASE}/patients/${encodeURIComponent(patientId)}`, { method: 'DELETE' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setPendingPatientDeletes(pendingPatientDeletes().filter(id => id !== patientId));
+        return true;
       } catch (e) {
-        console.warn('患者カルテのサーバーからの削除に失敗しました:', e);
+        console.warn('患者カルテのサーバーからの削除に失敗しました（この端末では削除済みとして扱い、次に開いたときにもう一度送ります）:', e);
+        return false;
       }
+    }
+    async function retryPendingPatientDeletes() {
+      for (const id of pendingPatientDeletes()) await deletePatientFromServer(id);
     }
     // 起動時に一度、サーバー側の共有カルテを取得し、このブラウザ内のカルテとマージする。
     // 同じ患者IDが両方に存在する場合は、更新日時(updatedAt)が新しい方を採用する
     // （他端末での更新が新しければそちらを取り込み、このタブでの未送信の変更が新しければそれを残す）。
     async function loadSharedPatients() {
+      await retryPendingPatientDeletes();
       try {
         const res = await fetch(`${API_BASE}/patients`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const serverPatientsDict = await res.json();
+        // 別の端末で完全に削除された患者（サーバーの削除の記録）は、この端末からも外す
+        try {
+          const delRes = await fetch(`${API_BASE}/patient-deletions`);
+          if (delRes.ok) {
+            const deletions = await delRes.json();
+            Object.keys(deletions || {}).forEach(id => rememberDeletedPatient(id));
+          }
+        } catch (e) { /* 削除の記録が読めなくても、読み込み自体は続ける */ }
         // 【修正】以前はここで「患者カルテをまるごと」比較し、updatedAtが新しい方をそのまま
         // 採用していたため、サーバー側が新しいと判定されるとこのブラウザだけが知っている
         // カードごと丸ごと消えてしまうことがあった。mergePatientRecordClientでカード単位に
         // マージすることで、どちらか一方にしか無いカードも（削除記録＝tombstoneが無い限り）
         // 両方とも残るようにする（詳しい経緯はmergePatientRecordClientの説明を参照）。
         const merged = {};
-        (globalAppData.patients || []).forEach(p => { merged[p.id] = p; });
+        (globalAppData.patients || []).forEach(p => { if (!deletedPatientIds.has(p.id)) merged[p.id] = p; });
         Object.entries(serverPatientsDict).forEach(([id, serverPatient]) => {
+          if (deletedPatientIds.has(id) || !serverPatient || serverPatient.deleted) return;
           merged[id] = mergePatientRecordClient(merged[id], serverPatient);
         });
         const mergedList = Object.values(merged);
@@ -287,7 +445,8 @@
     window.saveNotebookContent = async function() {
       const textarea = document.getElementById('input-notebook-content');
       const text = textarea ? textarea.value.trim() : '';
-      if (!text) return showToast('内容を入力してください', 'error');
+      if (!text) return showToast('内容を入力してください', 'warn');
+      if (!(await confirmSharedChange('基準ノートを書き換えて保存します。'))) return;
       try {
         const res = await fetch(`${API_BASE}/notebook-content`, {
           method: 'PUT',
@@ -302,7 +461,7 @@
         showToast('基準ノート本体を更新しました（全員に共有されます）', 'success');
       } catch (e) {
         console.warn('基準ノート本体の保存に失敗しました:', e);
-        showToast('保存に失敗しました（サーバーが起動していない可能性があります）', 'error');
+        showToast(['保存できませんでした（共有先のサーバーにつながりません）', { text: 'サーバー（node server.js）が動いているか確かめてから、もう一度保存してください。入力した内容はこの画面に残っています。', detail: true }], 'error');
       }
     };
 
@@ -317,7 +476,13 @@
       }
     }
 
+    // 全員に共有される変更は、反映する直前に確かめる（利用者からの指摘：共有される変更は操作の直前に明示する）
+    async function confirmSharedChange(what, { danger = false } = {}) {
+      const ok = await openDialog({ title: '全員に共有される変更です', message: `${what}\nこの変更は、このアプリを使う全員の分類・AIの基準に反映されます。`, confirmLabel: danger ? '削除して全員に反映' : '全員に反映する', danger });
+      return ok === true;
+    }
     async function addExtraCriteria(text) {
+      if (!(await confirmSharedChange(`追加の分類基準を登録します：「${String(text).slice(0, 60)}」`))) return;
       try {
         const res = await fetch(`${API_BASE}/extraction-criteria`, {
           method: 'POST',
@@ -330,12 +495,13 @@
         return true;
       } catch (e) {
         console.warn('追加の抽出基準の保存に失敗しました:', e);
-        showToast('サーバーに保存できませんでした（サーバーが起動していない可能性があります）', 'error');
+        showToast(['共有先に保存できませんでした（サーバーにつながりません）', { text: 'サーバーが動いているか確かめてから、もう一度保存してください。', detail: true }], 'error');
         return false;
       }
     }
 
     window.deleteExtraCriteria = async function(id) {
+      if (!(await confirmSharedChange('追加の分類基準を1件削除します。', { danger: true }))) return;
       try {
         const res = await fetch(`${API_BASE}/extraction-criteria/${encodeURIComponent(id)}`, { method: 'DELETE' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -345,7 +511,7 @@
         showToast('追加の要望を削除しました', 'success');
       } catch (e) {
         console.warn('追加の抽出基準の削除に失敗しました:', e);
-        showToast('削除に失敗しました（サーバーが起動していない可能性があります）', 'error');
+        showToast(['削除できませんでした（共有先のサーバーにつながりません）', { text: 'サーバーが動いているか確かめてから、もう一度削除してください。', detail: true }], 'error');
       }
     };
 
@@ -363,7 +529,8 @@
     window.saveEditExtraCriteria = async function(id) {
       const textarea = document.getElementById(`edit-extra-criteria-${id}`);
       const text = textarea ? textarea.value.trim() : '';
-      if (!text) return showToast('内容を入力してください', 'error');
+      if (!text) return showToast('内容を入力してください', 'warn');
+      if (!(await confirmSharedChange('追加の分類基準を書き換えます。'))) return;
       try {
         const res = await fetch(`${API_BASE}/extraction-criteria/${encodeURIComponent(id)}`, {
           method: 'PUT',
@@ -377,7 +544,7 @@
         showToast('分類基準を更新しました（全員に共有されます）', 'success');
       } catch (e) {
         console.warn('追加の抽出基準の更新に失敗しました:', e);
-        showToast('更新に失敗しました（サーバーが起動していない可能性があります）', 'error');
+        showToast(['更新できませんでした（共有先のサーバーにつながりません）', { text: 'サーバーが動いているか確かめてから、もう一度保存してください。入力した内容はこの画面に残っています。', detail: true }], 'error');
       }
     };
 
@@ -438,6 +605,7 @@
     }
 
     async function addReferenceSource(title, url, content) {
+      if (!(await confirmSharedChange(`参照元「${String(title).slice(0, 40)}」を登録します。`))) return 'cancelled';
       try {
         const res = await fetch(`${API_BASE}/reference-sources`, {
           method: 'POST',
@@ -455,6 +623,7 @@
     }
 
     window.deleteReferenceSource = async function(id) {
+      if (!(await confirmSharedChange('参照元を1件削除します。', { danger: true }))) return;
       try {
         const res = await fetch(`${API_BASE}/reference-sources/${encodeURIComponent(id)}`, { method: 'DELETE' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -464,7 +633,7 @@
         showToast('参照元を削除しました', 'success');
       } catch (e) {
         console.warn('参照元リンクの削除に失敗しました:', e);
-        showToast('削除に失敗しました（サーバーが起動していない可能性があります）', 'error');
+        showToast(['削除できませんでした（共有先のサーバーにつながりません）', { text: 'サーバーが動いているか確かめてから、もう一度削除してください。', detail: true }], 'error');
       }
     };
 
@@ -485,8 +654,9 @@
       const title = titleEl ? titleEl.value.trim() : '';
       const url = urlEl ? urlEl.value.trim() : '';
       const content = contentEl ? contentEl.value.trim() : '';
-      if (!title) return showToast('名前を入力してください', 'error');
-      if (!url) return showToast('リンク（URL）を入力してください', 'error');
+      if (!title) return showToast('名前を入力してください', 'warn');
+      if (!url) return showToast('リンク（URL）を入力してください', 'warn');
+      if (!(await confirmSharedChange(`参照元「${title.slice(0, 40)}」を書き換えます。`))) return;
 
       try {
         const res = await fetch(`${API_BASE}/reference-sources/${encodeURIComponent(id)}`, {
@@ -501,7 +671,7 @@
         showToast('参照元を更新しました（全員に共有されます）', 'success');
       } catch (e) {
         console.warn('参照元リンクの更新に失敗しました:', e);
-        showToast('更新に失敗しました（サーバーが起動していない可能性があります）', 'error');
+        showToast(['更新できませんでした（共有先のサーバーにつながりません）', { text: 'サーバーが動いているか確かめてから、もう一度保存してください。入力した内容はこの画面に残っています。', detail: true }], 'error');
       }
     };
 

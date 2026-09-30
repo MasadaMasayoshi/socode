@@ -78,3 +78,25 @@ test('「14時ごろ、…」の行頭の時刻を読む・「学籍番号：***
   const ctx2 = app.createMaskContext([]);
   assert.equal(app.maskPersonalInfo('学籍番号：12345678　氏名：山田 花子', ctx2), '学籍番号：〈伏せ字1〉　氏名：〈伏せ字2〉');
 });
+
+test('「Day 1（月・術後3日目）」はかっこの中の日で区切り、「Sデータ」「Oデータ」だけの行は見出し（利用者の実習記録）', () => {
+  const c = cards('実習開始時の状況：術後3日目（月曜日）から1週間受け持つ設定。\nDay 1（月・術後3日目）\nSデータ\n\n「昨日の夜は、何回か目が覚めてしまったわ。」\n\nOデータ\n\nバイタル：BT 37.1℃、HR 82回/分、BP 138/80mmHg、SpO2 97%(RA)\n\nDay 2（火・術後4日目）\nSデータ\n\n「お腹が少し張る感じがするね。」');
+  assert.equal(byText(c, /受け持つ設定/).type, 'unnecessary');
+  assert.equal(byText(c, /^Day 1/).type, 'unnecessary');
+  assert.equal(byText(c, /^Sデータ$/).type, 'unnecessary');
+  const s1 = byText(c, /目が覚めて/);
+  assert.equal(s1.timestamp, '術後3日目');
+  assert.ok(s1.hendersonIds.includes(5));
+  assert.equal(byText(c, /BT 37\.1/).timestamp, '術後3日目');
+  const s2 = byText(c, /お腹が少し張る/);
+  assert.equal(s2.timestamp, '術後4日目');
+  assert.ok(s2.hendersonIds.includes(3));
+});
+
+test('「理学療法士（PT）と共に」「PT見守り」「PT、MSW」のPTは検査値ではない・「麻酔から目が覚める」は5.睡眠にしない', () => {
+  const tags = t => Array.from(app.detectMultipleHendersonTags(t));
+  assert.ok(!cards('活動：理学療法士（PT）と共にベッドサイド端坐位')[0].hendersonIds.includes(2));
+  assert.ok(!cards('活動：T字杖歩行の訓練開始（PT見守り）')[0].hendersonIds.includes(2));
+  assert.ok(!cards('病棟看護師、PT、MSWを交えてカンファレンスを実施予定')[0].hendersonIds.includes(2));
+  assert.ok(!tags('麻酔からちゃんと目が覚めるか心配です').includes(5));
+});

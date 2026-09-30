@@ -32,7 +32,10 @@ const APP_SCRIPT_FILES = [
   'js/07-classification.js',
   'js/08-assessment-tools.js',
   'js/09-board.js',
-  'js/10-reference-page-and-startup.js'
+  'js/10-reference-page-and-startup.js',
+  'js/11-own-assessment.js',
+  'js/12-missing-checks-and-care-plan.js',
+  'js/13-compare-and-report.js'
 ];
 const ROOT_DIR = path.join(__dirname, '..');
 // すべてのファイルをつなげたプログラムの文章（ソースの中身を確かめるテストで使う）
@@ -46,7 +49,7 @@ function stubEl() {
     addEventListener() {}, removeEventListener() {},
     style: {}, dataset: {},
     classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
-    appendChild() {}, removeChild() {}, replaceChildren() {}, insertBefore() {},
+    appendChild() {}, append() {}, removeChild() {}, replaceChildren() {}, insertBefore() {},
     contains() { return false; }, hasAttribute() { return false; }, removeAttribute() {},
     scrollIntoView() {}, getBoundingClientRect() { return { top: 0, left: 0, width: 0, height: 0 }; },
     querySelector() { return stubEl(); }, querySelectorAll() { return []; },

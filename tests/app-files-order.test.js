@@ -11,13 +11,13 @@ const { APP_SCRIPT_FILES } = require('./app-helpers');
 const ROOT = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 
-test('index.html は js/01〜10 をこの順番で読み込み、古い app.js は読み込まない', () => {
+test('index.html は js/01〜13 をこの順番で読み込み、古い app.js は読み込まない', () => {
   const srcs = Array.from(html.matchAll(/<script src="([^"?]+)(?:\?v=[^"]*)?"><\/script>/g)).map(m => m[1]);
   assert.deepEqual(srcs, APP_SCRIPT_FILES);
   assert.doesNotMatch(html, /src="app\.js/);
 });
 
-test('10ファイルすべての版が index.html の版と同じ', () => {
+test('13ファイルすべての版が index.html の版と同じ', () => {
   const expected = (html.match(/<meta name="app-version" content="([^"]*)">/) || [])[1];
   assert.ok(expected, 'index.html に版がある');
   APP_SCRIPT_FILES.forEach(f => {

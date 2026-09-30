@@ -32,7 +32,8 @@ test('項目名の直後に日本語の補足説明がある検査値にも、�
 });
 
 test('項目名の直後に英語の補足説明（半角スペース区切り）がある検査値にも、補足説明を残したまま基準値が補われる', () => {
-  assert.equal(formatLabValueString('AST (GOT) 150/L'), 'AST (GOT) 150 U/L (基準値: 10〜40 U/L)');
+  // OCRで U が消えた「/L」は U/L と読み替え、読み替えたことも書き添える（2026-09-29.9）
+  assert.equal(formatLabValueString('AST (GOT) 150/L'), 'AST (GOT) 150 U/L (単位「/L」をU/Lと読み替え) (基準値: 10〜40 U/L)');
   assert.equal(formatLabValueString('ALT (GPT) 14U/L'), 'ALT (GPT) 14 U/L (基準値: 5〜45 U/L)');
 });
 
@@ -125,7 +126,9 @@ test('LAB_ITEM_NAME_REGEX: 項目名の直後に英字が続く場合（Kg等）
 // LAB_ITEM_NAME_REGEX側の判定基準と揃えた。
 test('formatLabValueString: 項目名の直後に空白なしで数値が続く表記（表の空白崩れ）にも基準値が補われる（利用者からの報告事例）', () => {
   assert.equal(formatLabValueString('WBC11600'), 'WBC 11600 /μL (基準値: 4,000〜9,000 /μL)');
-  assert.equal(formatLabValueString('RBC4587'), 'RBC 4587 ×10^4/μL (基準値: 400〜550 ×10^4/μL)');
+  // 単位の無い「RBC4587」は、基準値の単位（×10^4/μL）で読むとありえない値なので、原文のまま残す（2026-09-29.9）
+  assert.equal(formatLabValueString('RBC4587'), 'RBC4587');
+  assert.equal(formatLabValueString('RBC458'), 'RBC 458 ×10^4/μL (基準値: 400〜550 ×10^4/μL)');
   assert.equal(formatLabValueString('Hb12.2g/dl'), 'Hb 12.2 g/dL (基準値: 11.5〜16.5 g/dL)');
   assert.equal(formatLabValueString('Ht37.2%'), 'Ht 37.2 % (基準値: 35〜50 %)');
   assert.equal(formatLabValueString('Plt23'), 'Plt 23 ×10^4/μL (基準値: 13.0〜35.0 ×10^4/μL)');

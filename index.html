@@ -5,19 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-09-29.5">
+  <meta name="app-version" content="2026-09-29.12">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
-  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-09-29.5">
+  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-09-29.12">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=2026-09-29.5">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.css?v=2026-09-29.12">
   <!-- 画面の見た目の部品（Tailwind CSS 3.4）。以前は開くたびにネット（cdn.tailwindcss.com）から読み込み、
        その場で作っていたため、ネットが不安定だったり配信が止まったりすると画面のレイアウトが崩れた。
        使っている部品だけを vendor/tailwind.css に作っておき、それを読み込む（改善提案7。作り直しは
        npm run build:css）。以前と同じく style.css より後に読み込み、同じ強さの指定ではこちらを優先する。 -->
-  <link rel="stylesheet" href="vendor/tailwind.css?v=2026-09-29.5">
+  <link rel="stylesheet" href="vendor/tailwind.css?v=2026-09-29.12">
   <script>
     // ダークモードの初期適用（画面が一瞬だけ元のテーマで表示される「ちらつき」を防ぐため、
     // CSS読み込み直後・本文描画前にこの小さなスクリプトで先に data-theme を決めてしまう）。
@@ -27,6 +28,8 @@
         if (saved === 'dark' || saved === 'light') {
           document.documentElement.setAttribute('data-theme', saved);
         }
+        // 文字の書体（明朝＝既定／ゴシック）。js/05 の setAppFont
+        if (localStorage.getItem('nursing_font') === 'gothic') document.documentElement.setAttribute('data-font', 'gothic');
       } catch (e) { /* localStorageが使えない場合は既定（ライト）のまま */ }
     })();
   </script>
@@ -74,9 +77,13 @@
         <button id="btn-export-docs" class="btn btn-primary" title="プレーンテキストファイル(.txt)を自動ダウンロードします">
           <i class="fa-solid fa-file-lines"></i> テキスト<span class="hidden sm:inline">書き出し</span>
         </button>
+        <button id="btn-open-report" class="btn btn-primary" style="background:var(--slate);border-color:var(--slate);" onclick="openReport()" title="SOAP形式・実習記録の様式で、載せる項目と順番を選んで書き出します">
+          <i class="fa-solid fa-file-export"></i> 提出用<span class="hidden sm:inline">に書き出し</span>
+        </button>
         <button id="btn-export-pdf" class="btn btn-primary" style="background:var(--brick);border-color:var(--brick);" title="書式付きの文書を開き、印刷ダイアログからPDFとして保存できます">
           <i class="fa-solid fa-file-pdf"></i> PDF<span class="hidden sm:inline">書き出し</span>
         </button>
+        <button type="button" class="icon-btn-outline" onclick="openHelp('flow')" title="操作方法" aria-label="操作方法"><i class="fa-regular fa-circle-question"></i></button>
         <button id="btn-toggle-theme" class="icon-btn-outline" title="ダークモード切り替え（夜勤帯向け）">
           <i class="fa-solid fa-moon"></i>
         </button>
@@ -93,6 +100,9 @@
               <input type="file" id="input-load-data" accept=".json" class="hidden">
             </label>
             <div class="hdr-menu-sep"></div>
+            <button id="btn-toggle-font" class="hdr-menu-item" role="menuitem" onclick="toggleAppFont()">
+              <i class="fa-solid fa-font"></i><span>文字の書体：<b id="font-current-label">明朝</b><small>押すと明朝（Noto Serif JP）とゴシックを切り替え</small></span>
+            </button>
             <button id="btn-open-settings" class="hdr-menu-item" role="menuitem">
               <i class="fa-solid fa-gear"></i><span>API設定</span>
             </button>
@@ -106,12 +116,18 @@
 
     <!-- サブナビゲーション（分類ボード / 総合アセスメント表 / 参考データ 切り替え） -->
     <div class="border-t border-[var(--line-soft)] px-5 py-2 flex flex-wrap items-center justify-between gap-2 max-w-7xl mx-auto">
-      <div class="flex items-center gap-1">
+      <div class="flex items-center gap-1 overflow-x-auto max-w-full">
         <button id="tab-so-board" class="tab-pill active">
           分類ボード
         </button>
         <button id="tab-assessment" class="tab-pill">
           総合アセスメント表
+        </button>
+        <button id="tab-labs" class="tab-pill">
+          検査値の推移
+        </button>
+        <button id="tab-careplan" class="tab-pill">
+          看護計画
         </button>
         <button id="tab-reference" class="tab-pill">
           参考データ
@@ -127,6 +143,8 @@
   </header>
 
   <main class="flex-1 max-w-7xl w-full mx-auto p-4 flex flex-col gap-4">
+    <!-- 作業の流れ（記録を貼る → 分類 → 手直し → アセスメント → 看護計画 → 書き出し）。次に進む所に印を付ける（js/13 の renderWorkflowSteps） -->
+    <nav id="workflow-steps" class="wf-steps" aria-label="作業の流れ"></nav>
     <!-- 1. 分類ボードビュー -->
     <div id="view-so-board" class="flex flex-col xl:flex-row gap-4">
       <!-- 入力エリア -->
@@ -158,8 +176,19 @@
             <button type="button" id="btn-source-highlight-close" class="font-semibold hover:underline whitespace-nowrap"><i class="fa-solid fa-pen"></i> 編集に戻る</button>
           </span>
         </div>
+        <!-- 記録メモの入力欄は「全画面」ボタンで画面いっぱいに広げて編集できる（js/05 の toggleSourceFullscreen） -->
+        <div id="source-editor" class="source-editor">
+        <div class="source-editor-bar">
+          <span class="source-editor-title"><i class="fa-solid fa-file-lines"></i> 記録メモ<span id="source-editor-count" class="source-editor-count"></span></span>
+          <span class="flex items-center gap-2">
+            <button type="button" id="btn-source-fullscreen-classify" class="btn btn-primary text-[11px] py-1 source-fs-only" onclick="classifyFromFullscreen()"><i class="fa-solid fa-bolt"></i> 分類開始</button>
+            <button type="button" id="btn-source-wide" class="source-fs-btn source-wide-btn" onclick="toggleSourcePaneWidth()" title="入力欄を広く／狭くします（分類の前は広く、分類の後はカードを広く表示します）"><i class="fa-solid fa-left-right"></i><span>広げる</span></button>
+            <button type="button" id="btn-source-fullscreen" class="source-fs-btn" onclick="toggleSourceFullscreen()" title="入力欄を画面いっぱいに広げます（Escで戻る）"><i class="fa-solid fa-expand"></i><span>全画面</span></button>
+          </span>
+        </div>
         <textarea id="source-text" rows="10" class="field resize-none" placeholder="患者さんの発言（「〜」）、バイタル、検査データ（WBC 9800, CRP 2.4, Hb 10.5g/dl等）を入力してください..."></textarea>
         <div id="source-highlight-view" class="field source-highlight-view hidden" title="クリックすると編集に戻ります"></div>
+        </div>
 
         <!-- 分類開始ボタン -->
         <button id="btn-start-classify" class="btn btn-primary w-full py-2.5 text-[13px]">
@@ -189,62 +218,72 @@
           <button id="btn-open-card-overview" onclick="openCardOverview()" class="btn btn-outline text-[11px] py-1.5 whitespace-nowrap" title="すべてのカードを画面いっぱいに並べて一覧で表示します（カードを選ぶと一覧を閉じて元の文章の該当箇所を表示）">
             <i class="fa-solid fa-table-list"></i> 一覧表示
           </button>
+          <!-- 直前の手直しを元に戻す（js/13 の undoLastEdit。Ctrl+Z でも） -->
+          <button id="btn-undo" onclick="undoLastEdit()" class="btn btn-outline text-[11px] py-1.5 whitespace-nowrap" disabled title="元に戻せる操作はありません">
+            <i class="fa-solid fa-rotate-left"></i> 元に戻す
+          </button>
+          <!-- 記録した時点と今のカードを比べる（js/13 の openCompare） -->
+          <button id="btn-open-compare" onclick="openCompare()" class="btn btn-outline text-[11px] py-1.5 whitespace-nowrap" title="記録した時点（分類し直す前・画面を開いたとき・手で記録したとき）と今のカードを比べ、追加・変更・削除したカードを表示します">
+            <i class="fa-solid fa-code-compare"></i> 変更点の比較
+          </button>
           <!-- 分類の結果をGeminiに評価してもらう（js/08 の openAiReview） -->
           <button id="btn-open-ai-review" onclick="openAiReview()" class="btn btn-outline text-[11px] py-1.5 whitespace-nowrap" title="分類（タグ・時系列・抜き出し・未設定のタグ）をGeminiに評価してもらい、提案をそのまま適用できます">
             <i class="fa-solid fa-wand-magic-sparkles" style="color:var(--accent);"></i> AIで分類を評価
           </button>
-          <span class="text-[10px] text-[var(--ink-muted)] leading-snug">
-            <i class="fa-solid fa-circle-info mr-0.5"></i>カードをクリックで選択→数字キー(1〜14)でタグ追加／Ctrl(⌘)+クリックで複数選択、またはカード左上のチェックボックスのタップで複数選択（スマホ・タブレットでも使えます）
+          <span class="text-[10px] text-[var(--ink-muted)] leading-snug flex items-center gap-2">
+            <span><i class="fa-solid fa-circle-info mr-0.5"></i>カードを選ぶと、分類やタグを変更できます</span>
+            <button type="button" class="help-link" onclick="openHelp('board')"><i class="fa-regular fa-circle-question"></i> 操作方法</button>
           </span>
         </div>
-      <section id="so-board-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-        <!-- 未分類 -->
-        <div class="surface flex flex-col h-[680px]">
-          <div class="col-header">
-            <span class="text-xs font-semibold text-[var(--ink)] flex items-center">
-              <span class="col-dot" style="background:var(--ink-muted)"></span> 未分類
-              <span id="badge-count-unclassified" class="badge-count">0</span>
-            </span>
+      <!-- 【分類ボードの並び】利用者からの要望：4列だと長い文章を読む幅が狭い。S と O を広く2列に並べ、
+           未分類は件数付きの補助枠（上）、不要はたためる枠（下）にする。列のidはそのまま（js/08 の renderSoBoard）。 -->
+      <section id="so-board-grid" class="board-layout">
+        <details id="board-unclassified" class="board-aux board-aux-unclassified" ondragover="allowDrop(event)" ondrop="handleDrop(event, 'unclassified')" ontoggle="rememberBoardAuxToggle(this)">
+          <summary>
+            <span class="col-dot" style="background:var(--ink-muted)"></span><span class="board-aux-title">未分類</span>
+            <span id="badge-count-unclassified" class="badge-count">0</span>
+            <span id="board-unclassified-hint" class="board-aux-hint">S・O に振り分けてください（ドラッグ、またはカードの︙）</span>
+          </summary>
+          <div id="col-unclassified" class="board-aux-body"></div>
+        </details>
+
+        <div class="board-main">
+          <!-- Sデータ -->
+          <div class="surface flex flex-col board-col">
+            <div class="col-header">
+              <span class="text-xs font-semibold text-[var(--ink)] flex items-center">
+                <span class="col-dot" style="background:var(--gold)"></span> Sデータ<span class="text-[var(--ink-muted)] font-normal ml-1">主観的情報</span>
+                <span id="badge-count-s" class="badge-count">0</span>
+              </span>
+            </div>
+            <div id="col-s" class="flex-1 p-2 overflow-y-auto space-y-2" ondragover="allowDrop(event)" ondrop="handleDrop(event, 's')"></div>
           </div>
-          <div id="col-unclassified" class="flex-1 p-2 overflow-y-auto space-y-2" ondragover="allowDrop(event)" ondrop="handleDrop(event, 'unclassified')"></div>
+
+          <!-- Oデータ -->
+          <div class="surface flex flex-col board-col">
+            <div class="col-header">
+              <span class="text-xs font-semibold text-[var(--ink)] flex items-center">
+                <span class="col-dot" style="background:var(--slate)"></span> Oデータ<span class="text-[var(--ink-muted)] font-normal ml-1">客観的情報</span>
+                <span id="badge-count-o" class="badge-count">0</span>
+              </span>
+            </div>
+            <div id="col-o" class="flex-1 p-2 overflow-y-auto space-y-2" ondragover="allowDrop(event)" ondrop="handleDrop(event, 'o')"></div>
+          </div>
         </div>
 
-        <!-- Sデータ -->
-        <div class="surface flex flex-col h-[680px]">
-          <div class="col-header">
-            <span class="text-xs font-semibold text-[var(--ink)] flex items-center">
-              <span class="col-dot" style="background:var(--gold)"></span> Sデータ<span class="text-[var(--ink-muted)] font-normal ml-1">主観的情報</span>
-              <span id="badge-count-s" class="badge-count">0</span>
-            </span>
-          </div>
-          <div id="col-s" class="flex-1 p-2 overflow-y-auto space-y-2" ondragover="allowDrop(event)" ondrop="handleDrop(event, 's')"></div>
-        </div>
-
-        <!-- Oデータ -->
-        <div class="surface flex flex-col h-[680px]">
-          <div class="col-header">
-            <span class="text-xs font-semibold text-[var(--ink)] flex items-center">
-              <span class="col-dot" style="background:var(--slate)"></span> Oデータ<span class="text-[var(--ink-muted)] font-normal ml-1">客観的情報</span>
-              <span id="badge-count-o" class="badge-count">0</span>
-            </span>
-          </div>
-          <div id="col-o" class="flex-1 p-2 overflow-y-auto space-y-2" ondragover="allowDrop(event)" ondrop="handleDrop(event, 'o')"></div>
-        </div>
-
-        <!-- 不必要な情報 -->
-        <div class="surface flex flex-col h-[680px] opacity-90">
-          <div class="col-header">
-            <span class="text-xs font-semibold text-[var(--ink-muted)] flex items-center">
-              <i class="fa-solid fa-trash-can mr-1.5 text-[11px]"></i> 不必要な情報
-            </span>
-            <button onclick="clearUnnecessary()" class="text-[10px] text-[var(--brick)] hover:underline"><i class="fa-solid fa-eraser"></i> 全消去</button>
-          </div>
-          <div id="col-unnecessary" class="flex-1 p-2 overflow-y-auto space-y-2" ondragover="allowDrop(event)" ondrop="handleDrop(event, 'unnecessary')"></div>
-        </div>
+        <!-- 不必要な情報（たたんでおく） -->
+        <details id="board-unnecessary" class="board-aux board-aux-unnecessary" ondragover="allowDrop(event)" ondrop="handleDrop(event, 'unnecessary')">
+          <summary>
+            <i class="fa-solid fa-trash-can text-[11px] text-[var(--ink-muted)]"></i><span class="board-aux-title">不必要な情報</span>
+            <span id="badge-count-unnecessary" class="badge-count">0</span>
+            <span class="board-aux-hint">開くと見られます。カードをここへドラッグすると不要にします</span>
+            <button type="button" onclick="event.preventDefault(); event.stopPropagation(); clearUnnecessary()" class="board-aux-action"><i class="fa-solid fa-eraser"></i> 全消去</button>
+          </summary>
+          <div id="col-unnecessary" class="board-aux-body"></div>
+        </details>
 
         <!-- 以前ここにあった「患者背景（基本情報／医学情報）」列は、利用者からの指摘
-             （基本情報もS/Oのどちらかに振り分けるべきで、第三の区分を作らない）により廃止した。
-             該当カードはtypeどおりSデータ／Oデータ列に表示される（app.jsのrenderSoBoard参照）。 -->
+             （基本情報もS/Oのどちらかに振り分けるべきで、第三の区分を作らない）により廃止した。 -->
       </section>
       </div>
     </div>
@@ -282,49 +321,51 @@
       <div id="ai-steps" class="ai-steps"></div>
 
       <!-- 検査値評価サマリーパネル -->
-      <div id="lab-evaluation-panel" class="bg-[var(--accent-soft)] border border-[var(--accent-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-semibold text-[var(--accent-dark)] flex items-center">
-            <i class="fa-solid fa-microscope mr-1.5"></i> 検査データ臨床評価
-          </span>
+      <div id="lab-evaluation-panel" class="ai-panel bg-[var(--accent-soft)] border border-[var(--accent-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
+        <button type="button" class="ai-panel-head" onclick="toggleAiPanel(this)" aria-expanded="false" style="color:var(--accent-dark);"><i class="fa-solid fa-microscope"></i><span class="ai-panel-title">検査データ臨床評価</span><span class="ai-panel-summary"></span><span class="ai-panel-toggle">詳細を開く</span></button>
+        <div id="lab-evaluation-content" class="ai-panel-body text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--accent-line)] min-h-[50px]">
+          「検査値AI総合評価」ボタンを押すと、Oデータの検査値を登録された基準で確認し、臨床的意味を評価します。
         </div>
-        <div id="lab-evaluation-content" class="text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--accent-line)] min-h-[50px]">
-          「検査値AI総合評価」ボタンを押すと、入力されたOデータ中の検査値をノートブックの基準に基づいて自動抽出し、臨床的意味を評価します。
-        </div>
-        <p class="text-[10px] text-[var(--accent-dark)]/70 leading-relaxed"><i class="fa-solid fa-circle-info mr-1"></i>AIによる参考情報であり、臨床判断の代替にはなりません。最終評価は必ず医療従事者が行ってください。</p>
+        <details class="ai-note"><summary><i class="fa-solid fa-circle-info"></i> AIの参考案です。根拠を確認し、最終判断は医療従事者が行ってください</summary><p>AIや簡易チェックの結果は臨床判断の代替にはなりません。基準値は施設・検査法で異なることがあります。最終評価は必ず医療従事者が行ってください。</p></details>
       </div>
 
       <!-- S/O矛盾チェックパネル -->
-      <div id="contradiction-panel" class="hidden bg-[var(--gold-soft)] border border-[var(--gold-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
-        <span class="text-xs font-semibold flex items-center" style="color:var(--gold);"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i> S/O矛盾チェック結果（AI）</span>
-        <div id="contradiction-content" class="text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--gold-line)] min-h-[40px]"></div>
+      <div id="contradiction-panel" class="ai-panel hidden bg-[var(--gold-soft)] border border-[var(--gold-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
+        <button type="button" class="ai-panel-head" onclick="toggleAiPanel(this)" aria-expanded="false" style="color:var(--gold);"><i class="fa-solid fa-triangle-exclamation"></i><span class="ai-panel-title">S/O矛盾チェック（AI）</span><span class="ai-panel-summary"></span><span class="ai-panel-toggle">詳細を開く</span></button>
+        <div id="contradiction-content" class="ai-panel-body text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--gold-line)] min-h-[40px]"></div>
+        <details class="ai-note"><summary><i class="fa-solid fa-circle-info"></i> AIの参考案です。根拠を確認し、最終判断は医療従事者が行ってください</summary><p>指摘は、記録の中の食い違いに気づくきっかけとして使ってください。実際に食い違っているかは、元の記録と患者さんの状態で確かめてください。</p></details>
       </div>
 
       <!-- 看護診断候補パネル -->
-      <div id="diagnosis-panel" class="hidden bg-[var(--slate-soft)] border border-[var(--slate-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
-        <span class="text-xs font-semibold flex items-center" style="color:var(--slate);"><i class="fa-solid fa-clipboard-list mr-1.5"></i> 看護診断候補（AI提案）</span>
-        <div id="diagnosis-content" class="text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--slate-line)] min-h-[40px]"></div>
-        <p class="text-[10px] leading-relaxed" style="color:var(--slate);"><i class="fa-solid fa-circle-info mr-1"></i>AIによる参考候補です。最終的な看護診断の決定・優先順位付けは必ず医療従事者が行ってください。</p>
+      <div id="diagnosis-panel" class="ai-panel hidden bg-[var(--slate-soft)] border border-[var(--slate-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
+        <button type="button" class="ai-panel-head" onclick="toggleAiPanel(this)" aria-expanded="false" style="color:var(--slate);"><i class="fa-solid fa-clipboard-list"></i><span class="ai-panel-title">看護診断候補（AI）</span><span class="ai-panel-summary"></span><span class="ai-panel-toggle">詳細を開く</span></button>
+        <div id="diagnosis-content" class="ai-panel-body text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--slate-line)] min-h-[40px]"></div>
+        <details class="ai-note"><summary><i class="fa-solid fa-circle-info"></i> AIの参考案です。根拠を確認し、最終判断は医療従事者が行ってください</summary><p>看護診断の決定・優先順位付けは、自分のアセスメントと根拠をもとに行ってください。</p></details>
       </div>
 
       <!-- 経時変化サマリーパネル -->
-      <div id="timeline-panel" class="hidden bg-[var(--accent-soft)] border border-[var(--accent-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
-        <span class="text-xs font-semibold text-[var(--accent-dark)] flex items-center"><i class="fa-solid fa-clock-rotate-left mr-1.5"></i> 経時変化サマリー（AI）</span>
-        <div id="timeline-content" class="text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--accent-line)] min-h-[40px]"></div>
+      <div id="timeline-panel" class="ai-panel hidden bg-[var(--accent-soft)] border border-[var(--accent-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
+        <button type="button" class="ai-panel-head" onclick="toggleAiPanel(this)" aria-expanded="false" style="color:var(--accent-dark);"><i class="fa-solid fa-clock-rotate-left"></i><span class="ai-panel-title">経時変化サマリー（AI）</span><span class="ai-panel-summary"></span><span class="ai-panel-toggle">詳細を開く</span></button>
+        <div id="timeline-content" class="ai-panel-body text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--accent-line)] min-h-[40px]"></div>
+        <details class="ai-note"><summary><i class="fa-solid fa-circle-info"></i> AIの参考案です。根拠を確認し、最終判断は医療従事者が行ってください</summary><p>まとめに抜けや読み違いがないか、元のカードと照らし合わせて確かめてください。</p></details>
       </div>
 
       <!-- 看護計画（ケアプラン）自動生成パネル -->
-      <div id="careplan-panel" class="hidden bg-[var(--brick-soft)] border border-[var(--brick-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
-        <span class="text-xs font-semibold flex items-center" style="color:var(--brick);"><i class="fa-solid fa-notes-medical mr-1.5"></i> 看護計画（AI自動生成）</span>
-        <div id="careplan-content" class="text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--brick-line)] min-h-[40px]"></div>
-        <p class="text-[10px] leading-relaxed" style="color:var(--brick);"><i class="fa-solid fa-circle-info mr-1"></i>AIによる叩き台です。個別性を踏まえた最終的な看護計画の決定は必ず医療従事者が行ってください。</p>
+      <div id="careplan-panel" class="ai-panel hidden bg-[var(--brick-soft)] border border-[var(--brick-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
+        <button type="button" class="ai-panel-head" onclick="toggleAiPanel(this)" aria-expanded="false" style="color:var(--brick);"><i class="fa-solid fa-notes-medical"></i><span class="ai-panel-title">看護計画の叩き台（AI）</span><span class="ai-panel-summary"></span><span class="ai-panel-toggle">詳細を開く</span></button>
+        <div id="careplan-content" class="ai-panel-body text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--brick-line)] min-h-[40px]"></div>
+        <details class="ai-note"><summary><i class="fa-solid fa-circle-info"></i> AIの参考案です。根拠を確認し、最終判断は医療従事者が行ってください</summary><p>個別性を踏まえて書き直し、「看護計画」タブで自分の計画として管理してください（「AIの結果から取り込む」で取り込めます）。</p></details>
       </div>
 
       <!-- 【欲求ごとのページ】利用者からの要望：「総合アセスメント表も下にスクロールするのが面倒なので、ボタン一つで
            各欲求のページが表示されるようにしたい」。1〜14のボタンで、その欲求の行だけを表示する（「すべて」で全行）。
            ◀ ▶ や ← → キーでも前後の欲求に移れる。js/09 の renderNeedNavigator・selectAssessmentNeed 参照。 -->
+      <!-- 不足情報の確認状況（未確認・確認済み・該当なし）の集計と一覧（js/12 の renderMissingCheckSummary） -->
+      <div id="missing-check-summary" class="mc-summary hidden"></div>
       <div id="assessment-need-nav" class="need-nav" role="tablist" aria-label="基本的欲求の切り替え"></div>
 
+      <!-- 1つの項目を選んだときの並び（js/09 の renderAssessmentSingleHtml） -->
+      <div id="assessment-single" class="asm-single hidden"></div>
       <div id="assessment-table-wrap" class="overflow-x-auto">
         <table class="assess-table w-full border-collapse text-xs">
           <thead>
@@ -344,6 +385,34 @@
     </div>
 
     <!-- 3. 参考データ ビュー -->
+    <!-- 3. 検査値の推移ビュー（検査値・バイタルサインを「項目 × 日時」の表にする。js/08 の renderLabTrend） -->
+    <div id="view-labs" class="hidden surface p-4 flex flex-col gap-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="font-display font-semibold text-[var(--ink)] text-[15px] flex items-center"><i class="fa-solid fa-flask-vial text-[var(--accent)] mr-2"></i>検査値の推移・計算した指標</h2>
+        <div class="flex flex-wrap items-center gap-2">
+          <label class="lab-trend-check"><input type="checkbox" id="lab-trend-show-vitals" checked onchange="toggleLabTrendVitals(this.checked)"> バイタルサイン・体重も表示</label>
+          <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="copyLabTrendTable()" title="表をタブ区切りでコピーします（Excel・スプレッドシートにそのまま貼り付けられます）"><i class="fa-solid fa-copy"></i> 表をコピー</button>
+        </div>
+      </div>
+      <p class="text-[11px] text-[var(--ink-muted)] leading-relaxed">分類したカードから、検査値とバイタルサインを日時ごとに並べています。<span class="lt-legend lt-high">↑</span>は基準より高い値、<span class="lt-legend lt-low">↓</span>は低い値です（バイタルサインは一般的な目安で判定）。値を押すと、分類ボードの元のカードを表示します。</p>
+      <div id="clinical-indices" class="clinical-indices hidden"></div>
+      <div id="lab-trend-table-wrap" class="lab-trend-wrap"></div>
+    </div>
+
+    <!-- 看護計画ビュー（看護問題ごとの目標・OP/TP/EP、実施・評価の記録。js/12 の renderCarePlans） -->
+    <div id="view-careplan" class="hidden surface p-4 flex flex-col gap-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="font-display font-semibold text-[var(--ink)] text-[15px] flex items-center"><i class="fa-solid fa-notes-medical text-[var(--accent)] mr-2"></i>看護計画・実施・評価</h2>
+        <div class="flex flex-wrap items-center gap-2">
+          <span id="careplan-import-info" class="text-[11px] text-[var(--ink-muted)]"></span>
+          <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="importCarePlansUI()" title="総合アセスメント表の「AI分析ツール」で作った看護計画・選んだ看護診断候補を取り込みます"><i class="fa-solid fa-file-import"></i> AIの結果から取り込む</button>
+          <button type="button" class="btn btn-primary text-[11px] py-1.5" onclick="addCarePlanUI()"><i class="fa-solid fa-plus"></i> 看護計画を追加</button>
+        </div>
+      </div>
+      <p class="text-[11px] text-[var(--ink-muted)] leading-relaxed">看護問題ごとに目標とOP（観察）・TP（援助）・EP（教育）を書き、毎日の実施内容・患者の反応・目標の達成状況を記録します。上下の矢印で優先順位を入れ替えられます。書いた内容は自動で保存されます。</p>
+      <div id="careplan-list" class="flex flex-col gap-3"></div>
+    </div>
+
     <div id="view-reference" class="hidden surface p-4 flex flex-col gap-4">
       <div class="flex flex-wrap items-center justify-between border-b border-[var(--line-soft)] pb-3 gap-2">
         <div>
@@ -670,6 +739,13 @@
           <span class="text-[10px] text-[var(--ink-muted)]">入力中のキーで短い依頼を1回送ります</span>
         </div>
         <p id="api-test-result" class="hidden text-[11px] leading-relaxed whitespace-pre-wrap rounded-md border px-2 py-1.5 mb-2"></p>
+        <label for="select-gemini-model" class="block text-xs font-medium text-[var(--ink)] mb-1">使うAIのモデル</label>
+        <select id="select-gemini-model" class="field mb-1">
+          <option value="auto">自動：つながらないときは軽量モデルに切り替えて送り直す</option>
+          <option value="lite">軽量（Flash-Lite）</option>
+          <option value="flash">標準（Flash）</option>
+        </select>
+        <p class="text-[10px] text-[var(--ink-muted)] mb-2">「混雑しています」が続くときは「軽量（Flash-Lite）」も試してください。応答の速さ・混み具合はGoogle側の状況で変わり、どのモデルでも保証はできません。</p>
         <p class="text-[10px] text-[var(--ink-muted)]">写真の文字起こし（OCR）と「AI分析ツール」（検査値評価・看護診断候補・看護計画など）に使います。「分類開始」の下で「AIありで分類」を選んだときにも使います（このブラウザだけに保存）。HTMLファイルを直接開いて使っても動きます。ただし、ブラウザの種類や開き方（ファイルから／サーバーから）が変わると保存場所も別になるため、もう一度入力が必要です。</p>
       </div>
       <!-- AIに送る前に伏せる語句（改善案F。js/05 の maskPersonalInfo）。このブラウザだけに保存し、サーバーには送らない -->
@@ -701,6 +777,224 @@
       <div class="flex justify-end gap-2">
         <button onclick="closeMissingModal()" class="btn btn-outline">キャンセル</button>
         <button onclick="saveMissingInfo()" class="btn" style="background:var(--brick);color:var(--on-fill);border:1px solid var(--brick);">追加する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 自分のアセスメントの「根拠のカードを選ぶ」画面（js/11 の openEvidencePicker） -->
+  <div id="modal-evidence-picker" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+    <div class="modal-surface ep-modal w-full p-4 flex flex-col gap-3">
+      <div class="flex items-center justify-between gap-2">
+        <h3 id="evidence-picker-title" class="font-display font-semibold text-sm text-[var(--ink)]">根拠にするカードを選ぶ</h3>
+        <button type="button" class="icon-btn" onclick="closeEvidencePicker()" title="閉じる" aria-label="閉じる"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <input type="text" id="evidence-picker-search" class="field flex-1 min-w-[160px]" placeholder="カードの内容・日時で絞り込み..." oninput="renderEvidencePickerList()">
+        <label class="lab-trend-check"><input type="checkbox" id="evidence-picker-all" onchange="renderEvidencePickerList()"> ほかの項目のカードも表示</label>
+      </div>
+      <div id="evidence-picker-filters" class="seg ep-filters" role="group" aria-label="絞り込み"></div>
+      <div class="ep-selected-wrap"><span class="my-asm-label">選んだカード</span><div id="evidence-picker-selected" class="my-ev-list"></div></div>
+      <div id="evidence-picker-list" class="ep-list"></div>
+      <div class="flex items-center justify-between gap-2">
+        <span id="evidence-picker-count" class="text-[11px] text-[var(--ink-muted)]"></span>
+        <div class="flex gap-2">
+          <button type="button" onclick="closeEvidencePicker()" class="btn btn-outline">キャンセル</button>
+          <button type="button" onclick="saveEvidencePicker()" class="btn btn-primary">決定</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 不足情報の確認状況を記録する画面（js/12 の openMissingCheck） -->
+  <div id="modal-missing-check" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+    <div class="modal-surface max-w-lg w-full p-4 flex flex-col gap-3 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between gap-2">
+        <h3 class="font-display font-semibold text-sm text-[var(--ink)]">不足情報の確認</h3>
+        <button type="button" class="icon-btn" onclick="closeMissingCheck()" aria-label="閉じる"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <p id="missing-check-target" class="mc-target"></p>
+      <div id="missing-check-status" class="seg" role="group" aria-label="確認状況">
+        <button type="button" data-status="unchecked" onclick="setMissingCheckStatusUI('unchecked')"><i class="fa-solid fa-circle-question"></i> 未確認</button>
+        <button type="button" data-status="checked" onclick="setMissingCheckStatusUI('checked')"><i class="fa-solid fa-circle-check"></i> 確認済み</button>
+        <button type="button" data-status="na" onclick="setMissingCheckStatusUI('na')"><i class="fa-solid fa-circle-minus"></i> 該当なし</button>
+      </div>
+      <div id="missing-check-fields" class="flex flex-col gap-2">
+        <label class="cp-field"><span class="my-asm-label">確認した日時</span><input type="datetime-local" id="missing-check-at" class="field"></label>
+        <label class="cp-field"><span class="my-asm-label">確認した方法・相手（任意）</span><input type="text" id="missing-check-method" class="field" placeholder="例：本人に聞いた／カルテで確認／家族から"></label>
+        <label class="cp-field"><span class="my-asm-label">確認結果</span><textarea id="missing-check-result" rows="3" class="field resize-y" placeholder="例：普段は2日に1回、朝食後に排便がある"></textarea></label>
+        <div id="missing-check-card-row" class="mc-card-row">
+          <label><input type="checkbox" id="missing-check-add-card"> <span id="missing-check-add-card-label">確認結果を情報カードとして追加する</span></label>
+          <select id="missing-check-card-type" class="field" aria-label="カードの種類"><option value="o">Oデータ</option><option value="s">Sデータ（本人の言葉）</option></select>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2">
+        <button type="button" onclick="closeMissingCheck()" class="btn btn-outline">キャンセル</button>
+        <button type="button" onclick="saveMissingCheckUI()" class="btn btn-primary">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 看護計画の実施・評価を記録する画面（js/12 の openCareRecord） -->
+  <div id="modal-care-record" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+    <div class="modal-surface max-w-2xl w-full p-4 flex flex-col gap-3 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between gap-2">
+        <h3 id="care-record-title" class="font-display font-semibold text-sm text-[var(--ink)]">実施・評価を記録</h3>
+        <button type="button" class="icon-btn" onclick="closeCareRecord()" aria-label="閉じる"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <p id="care-record-goal" class="text-[11px] text-[var(--ink-muted)]"></p>
+      <label class="cp-field"><span class="my-asm-label">日時</span><input type="datetime-local" id="care-record-at" class="field"></label>
+      <div class="cp-field"><span class="my-asm-label">実施した計画（当てはまるものに印）</span><div id="care-record-items" class="cr-items"></div></div>
+      <label class="cp-field"><span class="my-asm-label">実施内容（補足）</span><textarea id="care-record-done" rows="2" class="field resize-y" placeholder="例：リハビリ前に鎮痛薬を使い、歩行器で30m歩行を見守った"></textarea></label>
+      <label class="cp-field"><span class="my-asm-label">患者の反応</span><textarea id="care-record-response" rows="2" class="field resize-y" placeholder="例：「今日は痛みが少なくて歩きやすかった」と笑顔で話す"></textarea></label>
+      <div id="care-record-card-row" class="mc-card-row">
+        <label><input type="checkbox" id="care-record-add-card"> 患者の反応を情報カードとしても追加する</label>
+        <select id="care-record-card-type" class="field" aria-label="カードの種類"><option value="s">Sデータ（本人の言葉）</option><option value="o">Oデータ</option></select>
+      </div>
+      <div class="cp-field"><span class="my-asm-label">目標の達成状況</span>
+        <div id="care-record-achievement" class="seg seg-radio">
+          <label><input type="radio" name="care-ach" value="achieved"> 達成</label>
+          <label><input type="radio" name="care-ach" value="partial"> 一部達成</label>
+          <label><input type="radio" name="care-ach" value="not"> 未達成</label>
+          <label><input type="radio" name="care-ach" value=""> 評価しない</label>
+        </div>
+      </div>
+      <label class="cp-field"><span class="my-asm-label">評価（考察）</span><textarea id="care-record-evaluation" rows="2" class="field resize-y" placeholder="例：鎮痛薬の使用時間の調整で、リハビリ時の痛みがNRS5→3に下がった"></textarea></label>
+      <label class="cp-field"><span class="my-asm-label">計画の修正（任意）</span><textarea id="care-record-revision" rows="2" class="field resize-y" placeholder="例：TP2を「階段昇降の練習を追加する」に変更"></textarea></label>
+      <div class="flex justify-end gap-2">
+        <button type="button" onclick="closeCareRecord()" class="btn btn-outline">キャンセル</button>
+        <button type="button" onclick="saveCareRecordUI()" class="btn btn-primary">記録する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 変更点の比較（js/13 の openCompare） -->
+  <div id="modal-compare" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+    <div class="modal-surface cmp-modal w-full p-4 flex flex-col gap-3">
+      <div class="flex items-center justify-between gap-2">
+        <h3 class="font-display font-semibold text-sm text-[var(--ink)]"><i class="fa-solid fa-code-compare text-[var(--accent)] mr-1"></i> 変更点の比較</h3>
+        <button type="button" class="icon-btn" onclick="closeCompare()" aria-label="閉じる"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <label class="text-[11px] text-[var(--ink-muted)] font-semibold" for="compare-base">比べる時点</label>
+        <select id="compare-base" class="field flex-1 min-w-[200px]" onchange="onCompareBaseChange(this.value)"></select>
+        <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="recordCheckpointUI()"><i class="fa-solid fa-camera"></i> 今の状態を記録</button>
+        <button type="button" id="compare-delete" class="btn btn-outline text-[11px] py-1.5" onclick="deleteCheckpointUI()"><i class="fa-solid fa-trash-can"></i> この記録を消す</button>
+      </div>
+      <div id="compare-body" class="cmp-body"></div>
+    </div>
+  </div>
+
+  <!-- 提出・報告用の書き出し（js/13 の openReport） -->
+  <div id="modal-report" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+    <div class="modal-surface rp-modal w-full p-4 flex flex-col gap-3">
+      <div class="flex items-center justify-between gap-2">
+        <h3 class="font-display font-semibold text-sm text-[var(--ink)]"><i class="fa-solid fa-file-export text-[var(--accent)] mr-1"></i> 提出用に書き出し</h3>
+        <button type="button" class="icon-btn" onclick="closeReport()" aria-label="閉じる"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="rp-layout">
+        <div class="rp-side">
+          <div id="report-format" class="seg" role="group" aria-label="形式">
+            <button type="button" data-format="soap" onclick="setReportFormat('soap')">SOAP形式</button>
+            <button type="button" data-format="practicum" onclick="setReportFormat('practicum')">実習記録の様式</button>
+          </div>
+          <p id="report-format-note" class="text-[11px] text-[var(--ink-muted)] leading-relaxed"></p>
+          <label class="cp-field"><span class="my-asm-label">対象の日</span><select id="report-day" class="field" onchange="onReportDayChange()"></select></label>
+          <div class="my-asm-label">載せる項目と順番</div>
+          <ul id="report-sections" class="rp-sections"></ul>
+          <button type="button" class="my-asm-link self-start" onclick="resetReportLayout()">項目と順番を元に戻す</button>
+        </div>
+        <div class="rp-main">
+          <div class="my-asm-label">プレビュー</div>
+          <pre id="report-preview" class="rp-preview"></pre>
+        </div>
+      </div>
+      <div class="flex flex-wrap justify-end gap-2">
+        <button type="button" class="btn btn-outline" onclick="copyReport()"><i class="fa-solid fa-copy"></i> コピー</button>
+        <button type="button" class="btn btn-outline" onclick="downloadReport()"><i class="fa-solid fa-file-lines"></i> テキストで保存</button>
+        <button type="button" class="btn btn-primary" onclick="printReport()"><i class="fa-solid fa-print"></i> 印刷 / PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 操作方法（js/05 の openHelp）。画面の説明文を短くし、詳しい使い方はここにまとめる -->
+  <div id="modal-help" class="hidden fixed inset-0 z-[65] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4" onclick="if(event.target===this)closeHelp()">
+    <div class="modal-surface max-w-2xl w-full p-5 flex flex-col gap-3 max-h-[88vh] overflow-y-auto" role="dialog" aria-labelledby="help-title">
+      <div class="flex items-center justify-between gap-2">
+        <h3 id="help-title" class="font-display font-semibold text-sm text-[var(--ink)]"><i class="fa-regular fa-circle-question text-[var(--accent)] mr-1"></i> 操作方法</h3>
+        <button type="button" class="icon-btn" onclick="closeHelp()" aria-label="閉じる"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="help-tabs seg" role="tablist">
+        <button type="button" data-help="flow" onclick="openHelp('flow')">作業の流れ</button>
+        <button type="button" data-help="board" onclick="openHelp('board')">分類ボード</button>
+        <button type="button" data-help="assessment" onclick="openHelp('assessment')">アセスメント表</button>
+        <button type="button" data-help="keys" onclick="openHelp('keys')">キーボード</button>
+        <button type="button" data-help="save" onclick="openHelp('save')">保存・AI</button>
+      </div>
+      <div class="help-body">
+        <section data-help-section="flow">
+          <ol>
+            <li><b>記録を貼り付ける</b>：左の「記録メモ」に貼り付けます（写真はドラッグ＆ドロップで文字起こし）。</li>
+            <li><b>分類開始</b>：文章が情報カードに分かれ、S／O とヘンダーソンの14項目のタグが付きます。</li>
+            <li><b>手直し</b>：分類ボードでカードを選び、S/O・タグ・本文を直します。「変更点の比較」で直した所を確かめられます。</li>
+            <li><b>アセスメント</b>：「総合アセスメント表」で項目ごとにカードを入院前／入院後に分け、「自分のアセスメント」を書いて根拠のカードを選びます。不足情報は確認したら「確認済み」にします。</li>
+            <li><b>看護計画</b>：「看護計画」タブで目標・OP/TP/EPを書き、毎日の実施・評価を記録します。</li>
+            <li><b>書き出し</b>：右上の「提出用に書き出し」で、SOAP形式・実習記録の様式を選んで書き出します。</li>
+          </ol>
+        </section>
+        <section data-help-section="board">
+          <ul>
+            <li><b>選ぶ</b>：カードを押すと選ばれ、元の文章の該当箇所に印が付きます。もう一度押すと外れます。</li>
+            <li><b>複数選ぶ</b>：カード左上のチェックボックスを押します（スマホ・タブレットでも使えます）。Ctrl（Mac は ⌘）を押しながらクリックでも選べます。選ぶと画面の下に一括操作の帯が出ます（S/O の変更・タグ・統合・書き出し）。</li>
+            <li><b>タグ</b>：カードを選んで数字キー 1〜14 でタグを付けます。「＋タグ」から選ぶこともできます。タグの × で外します。</li>
+            <li><b>S/O を変える</b>：カードを S・O の列へドラッグするか、カードの「︙」→「Sに移す／Oに移す」。</li>
+            <li><b>編集・不要・削除・報告</b>：カードの「︙」メニューにまとめています。</li>
+            <li><b>未分類・不要</b>：未分類のカードは上の枠、不要にしたカードは下の「不必要な情報」を開くと見られます。</li>
+          </ul>
+        </section>
+        <section data-help-section="assessment">
+          <ul>
+            <li>上の 1〜14 のボタン（または ← → キー）で項目を切り替えます。「すべて」で14項目を一覧にします。</li>
+            <li>項目を選ぶと、中央に「入院前」「入院後」、上に「未分類」、下に「不足情報」が出ます。カードは枠の間でドラッグするか、カードの「前・後・欠」ボタンで移します。</li>
+            <li>「自分のアセスメント」に情報の解釈・考えられる原因・今後の見通しを書き、根拠のカードを選びます。「確定」すると版として残り、あとで情報が変わると再評価を知らせます。</li>
+            <li>不足情報のカードの「未確認」ボタンで、確認した内容と結果を記録できます。</li>
+          </ul>
+        </section>
+        <section data-help-section="keys">
+          <ul>
+            <li><kbd>1</kbd>〜<kbd>9</kbd>：カードを1枚だけ選んでいるとき、その番号のタグを付ける（分類ボード）。10〜14は2桁を続けて押します（例：<kbd>1</kbd><kbd>2</kbd>）。</li>
+            <li><kbd>Esc</kbd>：選択を外す／開いている画面を閉じる／全画面入力を戻す</li>
+            <li><kbd>←</kbd> <kbd>→</kbd>：総合アセスメント表の項目を切り替える</li>
+            <li><kbd>Tab</kbd>：ボタン・入力欄を順に移動。入力欄で文字を打っている間は、数字キーや矢印キーの操作は働きません。</li>
+          </ul>
+        </section>
+        <section data-help-section="save">
+          <ul>
+            <li>書いた内容はまず<b>このブラウザ</b>に保存し、続けて<b>共有先（サーバー）</b>にも保存します。画面右上の表示で状態が分かります：「このブラウザに保存済み」「共有先に保存済み」「共有先への保存に失敗（押すと再送）」。</li>
+            <li>共有先に保存できないときも、このブラウザには残っています。自動で送り直すほか、表示を押すとすぐ送り直します。</li>
+            <li>AI（Gemini）の機能は、右上の「︙」→「API設定」でキーを入れたときだけ使えます。キーが無くても、分類（AIなし）・手直し・アセスメント・看護計画・書き出しはすべて使えます。</li>
+            <li>AIの結果は参考案です。根拠を確認し、最終判断は医療従事者が行ってください。AIに送る前に、氏名などの個人情報らしい語句は伏せ字にします。</li>
+          </ul>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- カードを分ける（js/13 の openSplitCard） -->
+  <div id="modal-split" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+    <div class="modal-surface max-w-lg w-full p-4 flex flex-col gap-3">
+      <div class="flex items-center justify-between gap-2">
+        <h3 class="font-display font-semibold text-sm text-[var(--ink)]"><i class="fa-solid fa-scissors text-[var(--accent)] mr-1"></i> カードを分ける</h3>
+        <button type="button" class="icon-btn" onclick="closeSplitCard()" aria-label="閉じる"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <p class="text-[11px] text-[var(--ink-muted)] leading-relaxed">分けたい所で改行してください。1行が1枚のカードになります。日時・タグ・S/O は元のカードと同じになり、分けた後にそれぞれ直せます。</p>
+      <textarea id="split-text" rows="6" class="field resize-y" oninput="updateSplitPreview()"></textarea>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <button type="button" class="my-asm-link" onclick="splitAtSentences()"><i class="fa-solid fa-wand-magic-sparkles"></i> 文（「。」）の区切りで改行する</button>
+        <span id="split-count" class="text-[11px] text-[var(--ink-muted)]"></span>
+      </div>
+      <div class="flex justify-end gap-2">
+        <button type="button" onclick="closeSplitCard()" class="btn btn-outline">キャンセル</button>
+        <button type="button" id="btn-split-confirm" onclick="confirmSplitCard()" class="btn btn-primary">分ける</button>
       </div>
     </div>
   </div>
@@ -898,19 +1192,23 @@
   </div>
 
   <!-- トースト通知コンテナ -->
-  <div id="toast-container" class="fixed top-4 right-4 z-[70] flex flex-col gap-2 pointer-events-none"></div>
+  <!-- 通知は右下に出す（右上だとヘッダーのボタンに重なり、消えない失敗の通知が操作の邪魔になるため） -->
+  <div id="toast-container" class="toast-container fixed z-[70] flex flex-col gap-2 pointer-events-none" aria-live="polite"></div>
 
   <!-- プログラム本体（以前の app.js を内容ごとに10ファイルに分けたもの）。この順番で読み込むこと。
        順番は tests/app-helpers.js の APP_SCRIPT_FILES と同じにする（tests/app-files-order.test.js で確認）。 -->
-  <script src="js/01-henderson-keywords.js?v=2026-09-29.5"></script>
-  <script src="js/02-reference-data.js?v=2026-09-29.5"></script>
-  <script src="js/03-extraction-helpers.js?v=2026-09-29.5"></script>
-  <script src="js/04-server-sync.js?v=2026-09-29.5"></script>
-  <script src="js/05-app-state-and-ui.js?v=2026-09-29.5"></script>
-  <script src="js/06-export.js?v=2026-09-29.5"></script>
-  <script src="js/07-classification.js?v=2026-09-29.5"></script>
-  <script src="js/08-assessment-tools.js?v=2026-09-29.5"></script>
-  <script src="js/09-board.js?v=2026-09-29.5"></script>
-  <script src="js/10-reference-page-and-startup.js?v=2026-09-29.5"></script>
+  <script src="js/01-henderson-keywords.js?v=2026-09-29.12"></script>
+  <script src="js/02-reference-data.js?v=2026-09-29.12"></script>
+  <script src="js/03-extraction-helpers.js?v=2026-09-29.12"></script>
+  <script src="js/04-server-sync.js?v=2026-09-29.12"></script>
+  <script src="js/05-app-state-and-ui.js?v=2026-09-29.12"></script>
+  <script src="js/06-export.js?v=2026-09-29.12"></script>
+  <script src="js/07-classification.js?v=2026-09-29.12"></script>
+  <script src="js/08-assessment-tools.js?v=2026-09-29.12"></script>
+  <script src="js/09-board.js?v=2026-09-29.12"></script>
+  <script src="js/10-reference-page-and-startup.js?v=2026-09-29.12"></script>
+  <script src="js/11-own-assessment.js?v=2026-09-29.12"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=2026-09-29.12"></script>
+  <script src="js/13-compare-and-report.js?v=2026-09-29.12"></script>
 </body>
 </html>

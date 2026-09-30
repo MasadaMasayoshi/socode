@@ -8,7 +8,7 @@ const root = path.join(__dirname, '..');
 const read = f => fs.readFileSync(path.join(root, f), 'utf8');
 
 test('画面の部品に白（#fff・bg-white・text-white）を直接書かない（テーマの色 var(--…) を使う）', () => {
-  const files = ['index.html', 'js/05-app-state-and-ui.js', 'js/08-assessment-tools.js', 'js/09-board.js', 'js/10-reference-page-and-startup.js'];
+  const files = ['index.html', 'js/05-app-state-and-ui.js', 'js/08-assessment-tools.js', 'js/09-board.js', 'js/10-reference-page-and-startup.js', 'js/11-own-assessment.js', 'js/12-missing-checks-and-care-plan.js'];
   files.forEach(f => {
     const src = read(f);
     const hits = src.match(/#fff\b|#ffffff\b|bg-white\/9|text-white|color:#262420|bg-\[#262420\]/gi) || [];

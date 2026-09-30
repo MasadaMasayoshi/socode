@@ -102,6 +102,27 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
+// 【保存に失敗したのに成功を返す不具合の修正】async のAPIの中で保存が失敗（reject）したら、500 と ok:false を返す。
+// （express 4 は async 関数の失敗を自動では受け取らないため、ここでまとめて受け取る）
+function sendServerError(res, err) {
+  console.error('APIの処理に失敗しました:', err);
+  if (res.headersSent) return;
+  res.status(err && err.status && err.status >= 400 ? err.status : 500).json({ ok: false, error: (err && err.message) || '保存に失敗しました' });
+}
+['get', 'put', 'post', 'delete'].forEach(method => {
+  const original = app[method].bind(app);
+  app[method] = (routePath, ...handlers) => {
+    if (handlers.length === 0) return original(routePath);
+    return original(routePath, ...handlers.map(h => (typeof h === 'function' && h.length < 4
+      ? (req, res, next) => {
+        let r;
+        try { r = h(req, res, next); } catch (e) { return sendServerError(res, e); }
+        if (r && typeof r.catch === 'function') r.catch(e => sendServerError(res, e));
+        return undefined; // 失敗はここで受け取ったので、express 側で二重に応答しないよう Promise は返さない
+      }
+      : h)));
+  };
+});
 const PORT = process.env.PORT || 3000;
 
 // MongoDB Atlas（無料枠）への接続文字列。設定されていればデータの保存先をMongoDBに切り替える
@@ -127,6 +148,9 @@ const CARD_REPORTS_FILE = path.join(DATA_DIR, 'card-reports.json');
 const CASE_LOG_ARCHIVE_FILE = path.join(DATA_DIR, 'case-log-archive.json');
 const CARD_REPORTS_ARCHIVE_FILE = path.join(DATA_DIR, 'card-reports-archive.json');
 const PATIENT_SNAPSHOT_ARCHIVE_FILE = path.join(DATA_DIR, 'patient-snapshots-archive.json');
+// 完全に削除した患者の記録（{ [患者ID]: 削除した日時 }）。削除した後に別の端末から古いカルテが送られてきても、
+// 患者を復活させないために使う（「完全に削除した患者が復活する」不具合の修正）。
+const PATIENT_DELETIONS_FILE = path.join(DATA_DIR, 'patient-deletions.json');
 
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -222,7 +246,8 @@ const DEFAULT_REFERENCE_SOURCES = [
 
 let learningDict = loadJson(DICT_FILE, {});
 let caseLog = loadJson(LOG_FILE, []);
-let patientsDict = loadJson(PATIENTS_FILE, {}); // { [patientId]: 患者データ（items・sourceText等を含む） }
+let patientsDict = loadJson(PATIENTS_FILE, {}); // { [patientId]: 患者データ（items・sourceText等を含む） }（JSONファイル保存のときだけ使う）
+let patientDeletions = loadJson(PATIENT_DELETIONS_FILE, {}); // { [patientId]: 削除した日時 }（JSONファイル保存のときだけ使う）
 let extractionCriteria = loadJson(CRITERIA_FILE, []); // [{ id, text, addedAt }] AI抽出・分類に使う追加の要望（全利用者共有）
 let notebookContentData = loadJson(NOTEBOOK_CONTENT_FILE, { text: null, updatedAt: null }); // { text, updatedAt } NotebookLM基準ノート本体（全利用者共有）。textがnullの間はクライアント側の初期値(DEFAULT_NOTEBOOK_CONTENT)を使う
 // { rules: [{ id, keyword, mode: 'add'|'exclude', hendersonIds, note, updatedAt }], updatedAt }
@@ -256,7 +281,11 @@ const PERSISTED_FILES = [
   { mongoId: 'card-reports', file: CARD_REPORTS_FILE, get: () => cardReports, set: v => { cardReports = v; } },
   { mongoId: 'case-log-archive', file: CASE_LOG_ARCHIVE_FILE, get: () => caseLogArchive, set: v => { caseLogArchive = v; } },
   { mongoId: 'card-reports-archive', file: CARD_REPORTS_ARCHIVE_FILE, get: () => cardReportsArchive, set: v => { cardReportsArchive = v; } },
+  { mongoId: 'patient-deletions', file: PATIENT_DELETIONS_FILE, get: () => patientDeletions, set: v => { patientDeletions = v; } },
 ];
+// MongoDBを使うとき、患者カルテ（と削除の記録）は app_state の1つの文書ではなく、patients コレクションに
+// 患者1人＝1文書で保存する（下の「患者カルテの保存先」を参照）。persist() では書かない。
+const PATIENT_STORE_IDS = new Set(['patients', 'patient-deletions']);
 
 // 学習専用ファイルを起動時点でフォルダ内に必ず用意しておく（初回アクセス前でも
 // data/learning-dict.json・data/case-log.json・data/patients.json・data/extraction-criteria.json・
@@ -276,19 +305,26 @@ if (!MONGODB_URI) {
 // （このサンドボックス環境や、npm installしていない環境でもserver.js自体は問題なく動く）。
 // 実際にRenderなど本番環境でMONGODB_URIを設定してnpm installした場合にのみ、遅延require
 // （関数の中でrequireする）によって読み込まれる。
-let mongoCollectionPromise = null;
-function getMongoCollection() {
+let mongoDbPromise = null;
+function getMongoDb() {
   if (!MONGODB_URI) return Promise.resolve(null);
-  if (!mongoCollectionPromise) {
-    mongoCollectionPromise = (async () => {
-      const { MongoClient } = require('mongodb');
+  if (!mongoDbPromise) {
+    mongoDbPromise = (async () => {
+      // NURSING_MONGODB_MODULE は自動テスト用（本物のMongoDBの代わりに、テスト用の小さな模擬DBを使う）
+      const { MongoClient } = require(process.env.NURSING_MONGODB_MODULE || 'mongodb');
       const client = new MongoClient(MONGODB_URI);
       await client.connect();
       console.log(`MongoDB Atlas（データベース: ${MONGODB_DB_NAME}）に接続しました。`);
-      return client.db(MONGODB_DB_NAME).collection('app_state');
+      return client.db(MONGODB_DB_NAME);
     })();
   }
-  return mongoCollectionPromise;
+  return mongoDbPromise;
+}
+function getMongoCollection() {
+  return getMongoDb().then(db => (db ? db.collection('app_state') : null));
+}
+function getPatientsCollection() {
+  return getMongoDb().then(db => (db ? db.collection('patients') : null));
 }
 
 // サーバー起動時に一度だけ、MongoDB上にある前回までの保存内容を読み込み、対応するlet変数へ
@@ -299,42 +335,150 @@ async function loadFromMongo() {
   const docs = await collection.find({ _id: { $in: PERSISTED_FILES.map(p => p.mongoId) } }).toArray();
   const dataById = new Map(docs.map(d => [d._id, d.data]));
   PERSISTED_FILES.forEach(({ mongoId, set }) => {
+    if (PATIENT_STORE_IDS.has(mongoId)) return;
     if (dataById.has(mongoId)) set(dataById.get(mongoId));
   });
+  // 以前の形式（app_state の 'patients' 文書に全患者をまとめて保存）からの移行：患者1人＝1文書にする。
+  // すでに patients コレクションにある患者は上書きしない（移行を何度実行しても安全）。
+  const legacy = dataById.get('patients');
+  if (legacy && typeof legacy === 'object') {
+    const patients = await getPatientsCollection();
+    for (const [id, data] of Object.entries(legacy)) {
+      if (!id || !data || typeof data !== 'object') continue;
+      try { await patients.insertOne({ _id: id, rev: 1, data, savedAt: new Date().toISOString() }); }
+      catch (e) { if (!(e && e.code === 11000)) throw e; }
+    }
+  }
+  patientsDict = {};
+  patientDeletions = {};
 }
 
 // 書き込みが競合しないよう、保存処理を1本のPromiseチェーンで直列化する
 let writeQueue = Promise.resolve();
-// 以前はPromise.allで1つでも失敗すると全体がcatch(err => console.error(...))に
-// まとめられ、「どのコレクションが」失敗したのか分からなかった（他のコレクションへの
-// 書き込み自体はPromise.allの外で並行して進むため実際には成功していても、ログ上は
-// 一つの失敗としか見えず気付けなかった）。Promise.allSettledに変え、失敗したコレクションを
-// 個別にログへ残すことで、次に同じ問題が起きても原因（保存先・データ種別）を特定しやすくする。
-function persist() {
-  writeQueue = writeQueue.then(async () => {
+// JSONファイルは、一時ファイルに書いてから名前を変えて置き換える（書き込みの途中で止まっても壊れたファイルを残さない）。
+// writeFileImpl は自動テストで「書き込みの失敗」を起こすために差し替えられるようにしてある。
+let writeFileImpl = (file, text) => fs.promises.writeFile(file, text);
+async function writeJsonAtomic(file, data) {
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  await writeFileImpl(tmp, JSON.stringify(data, null, 2));
+  await fs.promises.rename(tmp, file);
+}
+// 【保存に失敗したのに成功を返す不具合の修正】以前は保存の失敗をログに出すだけで、APIは 200 / ok:true を返していた。
+// 失敗したら Promise を失敗（reject）で終わらせ、呼び出し元（各API）が 500 と ok:false を返せるようにする
+// （画面側は「未保存」のまま残して送り直す）。ids を渡すと、そのデータだけを書く（MongoDB利用時に、変えていない
+// データまで各サーバーの手元の古い内容で上書きしないように）。
+function persist(ids) {
+  const targets = PERSISTED_FILES.filter(p => (!ids || ids.includes(p.mongoId)) && !(MONGODB_URI && PATIENT_STORE_IDS.has(p.mongoId)));
+  const run = writeQueue.then(async () => {
+    const failures = [];
     if (MONGODB_URI) {
       const collection = await getMongoCollection();
-      const results = await Promise.allSettled(PERSISTED_FILES.map(({ mongoId, get }) =>
+      const results = await Promise.allSettled(targets.map(({ mongoId, get }) =>
         collection.updateOne({ _id: mongoId }, { $set: { data: get() } }, { upsert: true })
       ));
       results.forEach((r, i) => {
         if (r.status === 'rejected') {
-          console.error(`データの保存に失敗しました（MongoDB: ${PERSISTED_FILES[i].mongoId}）:`, r.reason);
+          failures.push(targets[i].mongoId);
+          console.error(`データの保存に失敗しました（MongoDB: ${targets[i].mongoId}）:`, r.reason);
         }
       });
     } else {
       ensureDataDir();
-      const results = await Promise.allSettled(PERSISTED_FILES.map(({ file, get }) =>
-        fs.promises.writeFile(file, JSON.stringify(get(), null, 2))
-      ));
+      const results = await Promise.allSettled(targets.map(({ file, get }) => writeJsonAtomic(file, get())));
       results.forEach((r, i) => {
         if (r.status === 'rejected') {
-          console.error(`データの保存に失敗しました（ファイル: ${PERSISTED_FILES[i].file}）:`, r.reason);
+          failures.push(targets[i].mongoId);
+          console.error(`データの保存に失敗しました（ファイル: ${targets[i].file}）:`, r.reason);
         }
       });
     }
-  }).catch(err => console.error('データの保存に失敗しました:', err));
-  return writeQueue;
+    if (failures.length) {
+      const err = new Error(`データの保存に失敗しました（${failures.join('、')}）`);
+      err.status = 500;
+      throw err;
+    }
+  });
+  writeQueue = run.catch(() => {}); // 1回の失敗で、後の保存が止まらないようにする
+  return run;
+}
+
+// ---- 患者カルテの保存先（患者1人ずつ・更新の競合を見つける）----
+// 【複数サーバーからの保存でデータが消える不具合の修正】以前は MongoDB を起動時に1回だけ読み、その後は各サーバーが
+// 手元の全患者を1つの文書にまるごと上書き保存していた。ローカル版と公開版が同じDBを使うと、一方が登録した患者を
+// もう一方の古い手元の内容が消していた。MongoDB利用時は：
+//  ・患者1人＝1文書（patients コレクション）にし、読むときは毎回DBから読む（他のサーバーの保存もすぐ見える）。
+//  ・保存は「DBから今の内容を読む → カード単位でマージ（mergePatientRecord）→ 読んだときの版（rev）が
+//    変わっていなければ書く」。他のサーバーが先に書いて版が変わっていたら、読み直してもう一度マージする。
+//  ・完全削除は、文書に「削除済み」の印を残す（削除の後に古い同期が来ても復活させない）。
+// JSONファイル保存（1つのサーバーだけで使う）では、これまで通り手元のデータを使い、削除の記録を別ファイルに残す。
+const PATIENT_SAVE_MAX_ATTEMPTS = 8;
+async function patientStoreGetAll() {
+  const col = await getPatientsCollection();
+  if (!col) return { patients: patientsDict, deletions: patientDeletions };
+  const docs = await col.find({}).toArray();
+  const patients = {};
+  const deletions = {};
+  docs.forEach(d => {
+    if (d.deleted) deletions[d._id] = d.deletedAt || true;
+    else if (d.data) patients[d._id] = d.data;
+  });
+  return { patients, deletions };
+}
+async function patientStoreSave(id, incoming) {
+  const col = await getPatientsCollection();
+  if (!col) {
+    if (patientDeletions[id]) return { deleted: true };
+    const prev = patientsDict[id];
+    const merged = mergePatientRecord(incoming, prev);
+    patientsDict[id] = merged;
+    try {
+      await persist(['patients']);
+    } catch (e) {
+      if (prev === undefined) delete patientsDict[id]; else patientsDict[id] = prev; // 保存できなかった変更は取り消す
+      throw e;
+    }
+    return { patient: merged };
+  }
+  for (let attempt = 0; attempt < PATIENT_SAVE_MAX_ATTEMPTS; attempt++) {
+    const doc = await col.findOne({ _id: id });
+    if (doc && doc.deleted) return { deleted: true };
+    const merged = mergePatientRecord(incoming, doc ? doc.data : undefined);
+    const savedAt = new Date().toISOString();
+    if (doc) {
+      const r = await col.updateOne({ _id: id, rev: doc.rev }, { $set: { data: merged, rev: (doc.rev || 0) + 1, savedAt } });
+      if (r && r.matchedCount === 1) return { patient: merged, rev: (doc.rev || 0) + 1 };
+    } else {
+      try {
+        await col.insertOne({ _id: id, rev: 1, data: merged, savedAt });
+        return { patient: merged, rev: 1 };
+      } catch (e) {
+        if (!(e && e.code === 11000)) throw e; // 11000＝同時に他のサーバーが同じ患者を作った → 読み直す
+      }
+    }
+    // 読んだ後に他のサーバーが書き換えていた（更新の競合）→ 読み直してもう一度マージする
+  }
+  const err = new Error('同じ患者の保存が集中しているため、保存できませんでした。少し待ってから送り直してください。');
+  err.status = 409;
+  throw err;
+}
+async function patientStoreDelete(id) {
+  const at = new Date().toISOString();
+  const col = await getPatientsCollection();
+  if (!col) {
+    const prev = patientsDict[id];
+    const prevDeletion = patientDeletions[id];
+    delete patientsDict[id];
+    patientDeletions[id] = at;
+    try {
+      await persist(['patients', 'patient-deletions']);
+    } catch (e) {
+      if (prev !== undefined) patientsDict[id] = prev;
+      if (prevDeletion === undefined) delete patientDeletions[id]; else patientDeletions[id] = prevDeletion;
+      throw e;
+    }
+    return;
+  }
+  await col.updateOne({ _id: id }, { $set: { deleted: true, deletedAt: at, data: null, savedAt: at }, $inc: { rev: 1 } }, { upsert: true });
 }
 
 function getEntry(text) {
@@ -476,7 +620,7 @@ app.post('/api/learning-event', rateLimit('learning-event', { windowMs: 60000, m
     delete learningDict[text];
     caseLog.push({ at: eventAt, text, action, payload: payload || null });
     caseLog = capArrayByByteSize(caseLog, CASE_LOG_MAX_BYTES);
-    await persist();
+    await persist(['learning-dict', 'case-log']);
     return res.json({ ok: true, dict: learningDict });
   }
 
@@ -588,7 +732,7 @@ app.post('/api/learning-event', rateLimit('learning-event', { windowMs: 60000, m
   caseLog.push({ at: eventAt, text, action, payload: payload || null });
   caseLog = capArrayByByteSize(caseLog, CASE_LOG_MAX_BYTES);
 
-  await persist();
+  await persist(['learning-dict', 'case-log']);
   res.json({ ok: true, dict: learningDict });
 });
 
@@ -604,7 +748,7 @@ app.post('/api/learning-dict/sync', express.json({ limit: '2mb', type: () => tru
   for (const [text, value] of Object.entries(incoming)) {
     if (typeof text === 'string' && text) learningDict[text] = value;
   }
-  await persist();
+  await persist(['learning-dict', 'case-log']);
   res.json({ ok: true });
 });
 
@@ -658,6 +802,30 @@ function itemEffectiveTime(item, wholePatientUpdatedAt) {
     if (!Number.isNaN(t)) return t;
   }
   return 0;
+}
+
+// 自分のアセスメント（myAssessments：欲求ごと）・不足情報の確認（missingChecks）・看護計画（carePlans）のように、
+// 1つの項目の中に「キー → { …, updatedAt }」の形で記録を持つものは、キーごとに updatedAt が新しい方を使う
+// （別の端末で別の欲求のアセスメントを書いても、片方が消えないように）。
+const PATIENT_KEYED_RECORD_FIELDS = ['myAssessments', 'missingChecks', 'carePlans', 'checkpoints'];
+function recordTime(r) {
+  const t = r && typeof r.updatedAt === 'string' ? new Date(r.updatedAt).getTime() : NaN;
+  return Number.isNaN(t) ? 0 : t;
+}
+function mergeKeyedRecords(a, b) {
+  const isMap = v => v && typeof v === 'object' && !Array.isArray(v);
+  if (!isMap(a)) return isMap(b) ? b : a;
+  if (!isMap(b)) return a;
+  const out = { ...a };
+  Object.keys(b).forEach(k => { if (!(k in out) || recordTime(b[k]) > recordTime(out[k])) out[k] = b[k]; });
+  return out;
+}
+function mergeKeyedPatientFields(first, second) {
+  const out = {};
+  PATIENT_KEYED_RECORD_FIELDS.forEach(f => {
+    if (first && f in first || second && f in second) out[f] = mergeKeyedRecords(first && first[f], second && second[f]);
+  });
+  return out;
 }
 
 function mergePatientRecord(incoming, existing, now = Date.now()) {
@@ -722,22 +890,29 @@ function mergePatientRecord(incoming, existing, now = Date.now()) {
 
   return {
     ...base,
+    ...mergeKeyedPatientFields(existing, incoming),
     items: mergedItems,
     deletedItemIds: mergedTombstones,
     updatedAt: (incomingUpdatedTime >= existingUpdatedTime ? incoming.updatedAt : existing.updatedAt) || new Date(now).toISOString()
   };
 }
 
-// 共有されている患者カルテを全件返す（起動時にフロントエンドがこのブラウザ内のカルテとマージする）
-app.get('/api/patients', (req, res) => {
-  res.json(patientsDict);
+// 共有されている患者カルテを全件返す（起動時にフロントエンドがこのブラウザ内のカルテとマージする）。
+// MongoDB利用時は毎回DBから読む（他のサーバーが保存した患者もすぐ見える）。完全に削除した患者は含めない。
+app.get('/api/patients', async (req, res) => {
+  const { patients } = await patientStoreGetAll();
+  res.json(patients);
+});
+// 完全に削除した患者の一覧（{ [患者ID]: 削除した日時 }）。画面側は起動時に読み、手元に残っている患者を外す。
+app.get('/api/patient-deletions', async (req, res) => {
+  const { deletions } = await patientStoreGetAll();
+  res.json(deletions);
 });
 
-// 1人分の患者カルテをまるごと保存（作成・更新の両方を兼ねる）。
-// カード内容が変わるたびにフロントエンドから送られてくる想定（送信側で送りすぎないよう間隔を空けている）。
-// 既に他端末の保存内容がある場合は、まるごと置き換えるのではなくカード単位でマージする
-// （mergePatientRecord参照）。マージ後の内容をレスポンスで返し、フロント側もそれを取り込むことで、
-// 他端末だけが持っていたカードがこの端末の画面から消えたままにならないようにしている。
+// 1人分の患者カルテを保存（作成・更新の両方を兼ねる）。
+// 既に他端末・他サーバーの保存内容がある場合は、まるごと置き換えるのではなくカード単位でマージする
+// （mergePatientRecord参照）。マージ後の内容をレスポンスで返し、フロント側もそれを取り込む。
+// 完全に削除した患者への保存は 410 で断る（削除の後の古い同期で復活させない）。保存に失敗したら 500。
 app.put('/api/patients/:id', rateLimit('patients-put', { windowMs: 60000, max: 200 }), async (req, res) => {
   const { id } = req.params;
   const patient = req.body;
@@ -745,37 +920,41 @@ app.put('/api/patients/:id', rateLimit('patients-put', { windowMs: 60000, max: 2
   if (!patient || typeof patient !== 'object' || Array.isArray(patient)) {
     return res.status(400).json({ error: 'body must be a patient object' });
   }
-  const merged = mergePatientRecord(patient, patientsDict[id]);
-  patientsDict[id] = merged;
-  await persist();
-  res.json({ ok: true, patient: merged });
+  const result = await patientStoreSave(id, patient);
+  if (result.deleted) return res.status(410).json({ ok: false, deleted: true, error: 'この患者は完全に削除されています' });
+  res.json({ ok: true, patient: result.patient });
 });
 
-// 患者ページの完全削除（アーカイブはpatientオブジェクト内のarchivedフラグの更新＝PUTで済ませる）
+// 患者ページの完全削除（アーカイブはpatientオブジェクト内のarchivedフラグの更新＝PUTで済ませる）。
+// 削除した記録を残し、以後この患者への保存・一括同期は受け付けない。
 app.delete('/api/patients/:id', async (req, res) => {
   const { id } = req.params;
-  delete patientsDict[id];
-  await persist();
+  await patientStoreDelete(id);
   res.json({ ok: true });
 });
 
 // ページを閉じる際などに、このブラウザが知っている全患者カルテをまとめて反映するための一括同期
-// （保険用のフォールバック）。学習データの一括同期と同様、患者IDごとに処理するだけで、
-// ここに含まれない他の患者を消したりはしない。PUTと同様にmergePatientRecordでカード単位に
-// マージするため、この保険送信（ページを閉じる直前の、やや古いスナップショットのことがある）が
-// 他端末による新しいカードを消してしまうことはない。
+// （保険用のフォールバック）。患者IDごとにPUTと同じ保存をするだけで、ここに含まれない他の患者を消したりはしない。
+// 完全に削除した患者は受け付けず（deleted に入れて返す）、保存に失敗した患者があれば 500 を返す。
 app.post('/api/patients/sync', express.json({ limit: '8mb', type: () => true }), rateLimit('patients-sync', { windowMs: 60000, max: 60 }), async (req, res) => {
   const incoming = req.body;
   if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
     return res.status(400).json({ error: 'body must be an object' });
   }
+  const deleted = [];
+  const failed = [];
   for (const [id, patient] of Object.entries(incoming)) {
     if (typeof id === 'string' && id && patient && typeof patient === 'object') {
-      patientsDict[id] = mergePatientRecord(patient, patientsDict[id]);
+      try {
+        const r = await patientStoreSave(id, patient);
+        if (r.deleted) deleted.push(id);
+      } catch (e) {
+        console.error(`患者カルテの一括同期に失敗しました（${id}）:`, e);
+        failed.push(id);
+      }
     }
   }
-  await persist();
-  res.json({ ok: true });
+  res.status(failed.length ? 500 : 200).json({ ok: failed.length === 0, deleted, failed });
 });
 
 // ---- 同時接続人数のカウント（メモリ上のみ・ファイルには保存しない） ----
@@ -825,7 +1004,7 @@ app.post('/api/extraction-criteria', rateLimit('extraction-criteria', { windowMs
   }
   const entry = { id: 'crit_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), text: capString(text.trim(), 2000), addedAt: new Date().toISOString() };
   extractionCriteria.push(entry);
-  await persist();
+  await persist(['extraction-criteria']);
   res.json(extractionCriteria);
 });
 
@@ -841,14 +1020,14 @@ app.put('/api/extraction-criteria/:id', rateLimit('extraction-criteria', { windo
   }
   entry.text = capString(text.trim(), 2000);
   entry.updatedAt = new Date().toISOString();
-  await persist();
+  await persist(['extraction-criteria']);
   res.json(extractionCriteria);
 });
 
 app.delete('/api/extraction-criteria/:id', async (req, res) => {
   const { id } = req.params;
   extractionCriteria = extractionCriteria.filter(c => c.id !== id);
-  await persist();
+  await persist(['extraction-criteria']);
   res.json(extractionCriteria);
 });
 
@@ -864,7 +1043,7 @@ app.put('/api/notebook-content', rateLimit('notebook-content', { windowMs: 60000
     return res.status(400).json({ error: 'text is required' });
   }
   notebookContentData = { text: capString(text.trim(), 50000), updatedAt: new Date().toISOString() };
-  await persist();
+  await persist(['notebook-content']);
   res.json(notebookContentData);
 });
 
@@ -889,7 +1068,7 @@ app.put('/api/custom-tag-rules', rateLimit('custom-tag-rules', { windowMs: 60000
   const rules = sanitizeCustomTagRules(req.body?.rules);
   if (!rules) return res.status(400).json({ error: 'rules must be an array' });
   customTagRules = { rules, updatedAt: new Date().toISOString() };
-  await persist();
+  await persist(['custom-tag-rules']);
   res.json(customTagRules);
 });
 
@@ -917,7 +1096,7 @@ app.post('/api/reference-sources', rateLimit('reference-sources', { windowMs: 60
     addedAt: new Date().toISOString()
   };
   referenceSources.push(entry);
-  await persist();
+  await persist(['reference-sources']);
   res.json(referenceSources);
 });
 
@@ -938,14 +1117,14 @@ app.put('/api/reference-sources/:id', rateLimit('reference-sources', { windowMs:
   entry.url = capString(url.trim(), 2000);
   entry.content = capString((typeof content === 'string' ? content.trim() : ''), 30000);
   entry.updatedAt = new Date().toISOString();
-  await persist();
+  await persist(['reference-sources']);
   res.json(referenceSources);
 });
 
 app.delete('/api/reference-sources/:id', async (req, res) => {
   const { id } = req.params;
   referenceSources = referenceSources.filter(r => r.id !== id);
-  await persist();
+  await persist(['reference-sources']);
   res.json(referenceSources);
 });
 
@@ -985,7 +1164,7 @@ app.post('/api/patient-snapshot', express.json({ limit: '8mb', type: () => true 
   if (entries.length === 0) return res.status(400).json({ error: 'no valid patient snapshots' });
   patientSnapshots.push(...entries);
   patientSnapshots = capArrayByByteSize(patientSnapshots, PATIENT_SNAPSHOT_MAX_BYTES);
-  await persist();
+  await persist(['patient-snapshots']);
   res.json({ ok: true, count: entries.length });
 });
 
@@ -1039,7 +1218,7 @@ app.post('/api/card-reports', rateLimit('card-reports', { windowMs: 60000, max: 
     cardReports.push(group);
   }
   cardReports = capArrayByByteSize(cardReports, CARD_REPORTS_MAX_BYTES);
-  await persist();
+  await persist(['card-reports']);
   res.json(group);
 });
 
@@ -1114,7 +1293,12 @@ async function runArchiving() {
 
   const trimmedAnything = trimmedSnapshots || trimmedArchive || trimmedCaseLog || trimmedCaseLogArchive || trimmedCardReports || trimmedCardReportsArchive;
   if (movedCaseLog > 0 || movedCardReports > 0 || movedSnapshots > 0 || trimmedAnything) {
-    await persist();
+    try {
+      await persist(['case-log', 'case-log-archive', 'card-reports', 'card-reports-archive', 'patient-snapshots', 'patient-snapshots-archive']);
+    } catch (e) {
+      console.error('自動整理の保存に失敗しました（次回の自動整理でもう一度保存します）:', e);
+      return;
+    }
     console.log(`自動整理: 事例ログ${movedCaseLog}件・情報カードの報告${movedCardReports}件・カルテスナップショット${movedSnapshots}件をアーカイブへ退避しました${trimmedAnything ? '（サイズ上限により一部の古い記録を間引きました）' : ''}`);
   }
 }
@@ -1159,8 +1343,14 @@ if (require.main === module) {
 // ポートに載せて）本物のExpressアプリへHTTPリクエストを送るテストも書ける。
 module.exports = {
   app,
+  loadFromMongo,
+  persist,
+  patientStoreSave,
+  // 自動テスト用：ファイルの書き込みを失敗させる（保存の失敗を正しく伝えるかの確認）
+  setWriteFileImplForTest: fn => { writeFileImpl = fn || ((file, text) => fs.promises.writeFile(file, text)); },
   DATA_DIR,
   mergePatientRecord,
+  mergeKeyedRecords,
   isNotStale,
   pruneTombstones,
   itemEffectiveTime,
