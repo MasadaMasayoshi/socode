@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-09-30.2'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-09-30.3'; // 版（scripts/stamp-version.js が書き込む）
     // 「祖母を胃がん、父を前立腺がんで亡くしている〜」のような家族歴の文は、本人の食事・栄養
     // 状態の所見ではないにもかかわらず、id2(食事)の疾患名キーワード（「胃がん」等）に一致して
     // しまい、食事に無関係な家族歴が「2. 食事」に混入していた（利用者からの報告事例）。
@@ -1158,6 +1158,7 @@
       const step1 = [];
       const firstIdx = raw.findIndex(l => String(l).trim() !== '');
       let soapPart = null;
+      let lastDayHeading = null; // 直前の「Day N（…）」の見出し（{ n, label }）。かっこの無い「Day N」の日を決めるのに使う
       raw.forEach((original, idx) => {
         const line = original.trim();
         // 1行目の「事例A 膵がん終末期…」「症例2：…」のような題名（句点の無い短い行）は不要カード
@@ -1172,12 +1173,34 @@
         }
         // 「Day 1（月・術後3日目）」のような日の見出しは、かっこの中の日（術後3日目）を日の区切りとして使う
         // 「Sデータ」「Oデータ」だけの行は見出し（中身の発言・観察でS／Oは決まる）（利用者の実習記録のテスト）
-        const dayNHeading = line.match(/^(?:Day|DAY|day)\s*(\d{1,2})\s*(?:[(（]([^)）]*)[)）])?\s*$/);
+        const dayNHeading = line.match(/^[【\[<＜]?\s*(?:Day|DAY|day)\s*(\d{1,2})\s*(?:[(（]([^)）]*)[)）])?\s*[】\]>＞]?$/);
         if (dayNHeading) {
           const inner = (dayNHeading[2] || '').replace(/\s+/g, '');
           const innerDay = inner.match(new RegExp(DAY_HEADING_WORD_SOURCE));
           step1.push(SOURCE_TITLE_MARK + line);
-          if (innerDay) step1.push(innerDay[0].replace(/\s+/g, ''));
+          // 【Day の見出しの日】繰り返し入力の確認で発覚：「Day1（入院時）」「Day2」の下のカードが「日時不明」になっていた。
+          //  ・かっこの中が「入院時」「術前」なども日として使う。
+          //  ・かっこの無い「Day2」は、直前の Day の見出しから数える（Day1＝入院時なら Day2＝入院2日目、
+          //    Day3＝術後1日目なら Day5＝術後3日目）。数えられないときは「2日目」とする。
+          const n = Number(dayNHeading[1]);
+          let label = innerDay ? normalizeDayLabel(innerDay[0]) : ((inner.match(/入院時|入院当日|手術当日|術前|入院前/) || [])[0] || null);
+          if (!label && !inner) {
+            const prev = lastDayHeading;
+            const diff = prev ? n - prev.n : null;
+            let m;
+            if (prev && diff > 0) {
+              if (/^(?:入院時|入院当日)$/.test(prev.label)) label = `入院${1 + diff}日目`;
+              else if ((m = prev.label.match(/^入院(\d+)日目$/))) label = `入院${Number(m[1]) + diff}日目`;
+              else if ((m = prev.label.match(/^術後(\d+)日目$/))) label = `術後${Number(m[1]) + diff}日目`;
+              else if (prev.label === '手術当日') label = `術後${diff}日目`;
+              else if ((m = prev.label.match(/^産褥(\d+)日目$/))) label = `産褥${Number(m[1]) + diff}日目`;
+            }
+            if (!label) label = `${n}日目`;
+          }
+          if (label) {
+            step1.push(label);
+            lastDayHeading = { n, label };
+          }
           soapPart = null;
           return;
         }
@@ -2070,7 +2093,19 @@
           return false;
         })();
         while (!embeddedLabInSentence && (lMatch = labRegex.exec(cleanLine)) !== null) {
-          let lClean = cleanExtractedPhrase(lMatch[0]);
+          // 【記録に書かれた基準値を残す】繰り返し入力の確認で発覚：「WBC 12000/μL (基準値: 3300〜8600)」の
+          // 値だけを抜き出していたため、カードにはアプリの基準値（4,000〜9,000）が付き、記録の基準値は
+          // 「(基準値: 3300〜8600)」だけの別のカードになっていた。値の直後に書かれた基準値は、値と同じカードに入れる
+          // （基準値が書いてあるので、アプリの基準値は付けない。formatLabValueString 参照）。
+          const writtenRef = cleanLine.slice(lMatch.index + lMatch[0].length).match(/^\s*[↑↓]?\s*[（(]\s*(?:基準値|基準範囲|正常値|基準)\s*[:：]?\s*[^)）]{1,40}[)）]/);
+          if (writtenRef) {
+            const whole = lMatch[0] + writtenRef[0];
+            lMatch = Object.assign([whole, ...lMatch.slice(1)], { index: lMatch.index, input: lMatch.input });
+            labRegex.lastIndex = lMatch.index + whole.length;
+          }
+          let lClean = writtenRef
+            ? cleanExtractedPhrase(lMatch[0].replace(/\s*[（(]\s*(?:基準値|基準範囲|正常値|基準)\s*[:：]?\s*([^)）]*)[)）]\s*$/, (x, r) => ` (基準値: ${r.trim()})`))
+            : cleanExtractedPhrase(lMatch[0]);
           // 「随時血糖246」「空腹時血糖130」の「随時・空腹時・食後」は値の意味を変えるので、項目名に付けて残す。
           // 基準値（70〜109）は空腹時の値なので、随時・食後の血糖には付けない（7事例のテスト：糖尿病足病変）
           const glucoseQual = cleanLine.slice(0, lMatch.index).match(/(随時|早朝空腹時|空腹時|食後\s*\d*\s*時間?)\s*$/);

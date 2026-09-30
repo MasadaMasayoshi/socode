@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-09-30.2'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-09-30.3'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カード → 元の文章（カルテ・看護記録入力欄）の該当箇所を探す
     // ------------------------------------------------------------------------
@@ -266,10 +266,10 @@
           </div>
           <div class="flex items-center gap-1 ml-auto shrink-0">
             ${item.type === 'unnecessary' ? `<button onclick="setItemType('${item.id}', 'unclassified')" class="type-btn type-btn-restore" title="未分類に戻す">復帰</button>` : ''}
-            <button type="button" onclick="openCardMenu(event, '${item.id}')" class="card-menu-btn" aria-haspopup="menu" aria-label="このカードの操作" title="操作（S/Oの変更・編集・不要・削除・報告）"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+            <button type="button" onclick="openCardMenu(event, '${item.id}')" class="card-menu-btn" data-card-id="${item.id}" aria-haspopup="menu" aria-label="このカードの操作" title="操作（S/Oの変更・編集・不要・削除・報告）"><i class="fa-solid fa-ellipsis-vertical"></i></button>
           </div>
         </div>
-        <p class="card-text font-medium leading-snug break-words text-[var(--ink)]">${escapeHtml(item.text)}</p>
+        <p class="card-text font-medium leading-snug break-words text-[var(--ink)]">${cardTextWithLabFlagsHtml(item)}</p>
         <div class="flex flex-wrap gap-1 items-center">
           ${tagsHtml}
           <select onchange="addHendersonTagFromDropdown('${item.id}', this.value); this.value='';" aria-label="タグを追加" class="max-w-[92px] w-auto text-[9px] bg-[var(--paper)] hover:bg-[var(--line-soft)] border ${isUntagged ? 'border-[var(--brick)]' : 'border-[var(--line)]'} rounded-[var(--radius-sm)] px-1 py-0.5 text-[var(--ink-muted)] cursor-pointer focus:outline-none mt-0.5" style="max-width:92px;"><option value="">＋ タグ</option>${HENDERSON_NEEDS.map(n => `<option value="${n.id}">${n.name}</option>`).join('')}</select>
@@ -287,6 +287,10 @@
     function closeCardMenu() {
       if (!cardMenuEl || cardMenuEl.classList.contains('hidden')) return;
       cardMenuEl.classList.add('hidden');
+      // メニューの操作でボードを描き直した後は、元のボタンが消えているので、同じカードの︙ボタンへ戻す
+      if (cardMenuReturnFocus && !cardMenuReturnFocus.isConnected && cardMenuReturnFocus.dataset && cardMenuReturnFocus.dataset.cardId) {
+        cardMenuReturnFocus = document.getElementById(cardMenuReturnFocus.dataset.cardId)?.querySelector('.card-menu-btn') || null;
+      }
       if (cardMenuReturnFocus && typeof cardMenuReturnFocus.focus === 'function') cardMenuReturnFocus.focus();
       cardMenuReturnFocus = null;
     }
@@ -329,7 +333,11 @@
         const a = b.dataset.act;
         cardMenuReturnFocus = null;
         closeCardMenu();
-        if (a.startsWith('type:')) setItemType(id, a.slice(5));
+        if (a.startsWith('type:')) {
+          setItemType(id, a.slice(5));
+          // キーボードで操作しているとき、移したカードの︙ボタンへフォーカスを移す（続けて操作できるように）
+          if (e.detail === 0) document.getElementById(id)?.querySelector('.card-menu-btn')?.focus();
+        }
         else if (a === 'edit') editItemText(id);
         else if (a === 'split') openSplitCard(id);
         else if (a === 'report') openCardReportModal(id);
@@ -1009,6 +1017,7 @@
     };
 
     function renderAssessmentTable() {
+      if (typeof resetCardLabFlags === 'function') resetCardLabFlags();
       const cp = getCurrentPatient();
       const activeItems = cp.items.filter(i => i.type !== 'unnecessary');
       const selectedNeed = getSelectedAssessmentNeed();
@@ -1090,7 +1099,7 @@
         frag.appendChild(tr);
 
         // 自分のアセスメント（情報の解釈・考えられる原因・今後の見通し・根拠のカード）の行（「すべて」のとき）
-        if (ownAsm && !hiddenRow && selectedNeed === 'all') {
+        if (ownAsm && !hiddenRow && selectedNeed === 'all' && myAssessmentAlwaysShown()) {
           const own = document.createElement('tr');
           own.className = 'my-asm-row';
           own.dataset.needId = String(need.id);
@@ -1120,7 +1129,8 @@
       const unchecked = typeof missingCheckStatus === 'function' ? missItems.filter(i => missingCheckStatus(cp, i.id) === 'unchecked').length : nMiss;
       const drop = col => `ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, '${col}')"`;
       const name = need.name.replace(/^\d+\.\s*/, '');
-      const own = typeof renderMyAssessmentRowHtml === 'function' ? `<div class="asm-own">${renderMyAssessmentRowHtml(cp, need, false)}</div>` : '';
+      // 既定では1行にたたんで出す（押すと開く）。「自分のアセスメント：表示中」のときは開いた形で出す（js/11）
+      const own = typeof renderMyAssessmentRowHtml === 'function' ? `<div class="asm-own">${renderMyAssessmentRowHtml(cp, need, !myAssessmentAlwaysShown())}</div>` : '';
       return `<div class="asm-single-head"><span class="need-number asm-single-no">${need.id}</span><i class="fa-solid ${need.icon} text-[var(--accent)]"></i><b>${escapeHtml(name)}</b><span class="my-asm-muted">カード ${matching.length}枚</span></div>
         <section class="asm-aux asm-aux-unc${nUnc ? '' : ' is-empty'}" ${drop('unclassified')}>
           <div class="asm-aux-title"><span class="col-dot" style="background:var(--ink-muted)"></span>未分類 <b>${nUnc}</b><span class="my-asm-muted">${nUnc ? '入院前・入院後に振り分けてください（ドラッグ、またはカードの「前」「後」）' : '未分類のカードはありません'}</span></div>
@@ -1243,7 +1253,7 @@
           ondragleave="event.currentTarget.classList.remove('drag-over');"
           ondrop="handleAssessmentCardDrop(event, '${item.id}', ${hId})"
           class="asc-card px-1.5 py-1 rounded-[var(--radius-sm)] border ${item.aiSuggested ? 'border-dashed' : ''} border-[var(--line)] text-[10.5px] cursor-grab active:cursor-grabbing hover:border-[var(--accent)] transition" style="background:${cardBg};border-left-width:3px;border-left-color:${accentColor};">
-          <div class="leading-snug break-words text-[var(--ink)]"><span class="inline-flex items-center gap-0.5 mr-1 align-[1px]">${badge}${evidenceTag}${familyMark}${aiTag}${fieldTag}${time}</span>${escapeHtml(item.text)}</div>
+          <div class="leading-snug break-words text-[var(--ink)]"><span class="inline-flex items-center gap-0.5 mr-1 align-[1px]">${badge}${evidenceTag}${familyMark}${aiTag}${fieldTag}${time}</span>${cardTextWithLabFlagsHtml(item)}</div>
           ${isMissingCol && typeof missingCheckCardHtml === 'function' ? `<div class="mc-in-card">${missingCheckCardHtml(getCurrentPatient(), item)}</div>` : ''}
           <div class="asc-actions">
             <button onclick="moveAssessmentCard('${item.id}', ${hId}, 'up')" ${isFirst ? 'disabled' : ''} class="icon-btn" title="この欄の中で1つ上へ移動" style="${isFirst ? 'opacity:.3;cursor:not-allowed;' : ''}"><i class="fa-solid fa-chevron-up text-[9px]"></i></button>

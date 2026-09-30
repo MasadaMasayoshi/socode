@@ -402,6 +402,90 @@ function persist(ids) {
   return run;
 }
 
+// ---- 患者以外の共有データ（学習データ・事例ログ・スナップショット・カードの報告・基準など）の保存 ----
+// 【複数サーバーからの保存でデータが消える不具合の修正（患者以外）】以前は、起動時に1回だけ読んだ手元の内容に
+// 追加して、種類ごとの1文書をまるごと上書きしていた。サーバーが2台以上あると、後から保存したサーバーが
+// 先に保存したサーバーの追加分（学習の票・事例ログ・報告など）を消していた。MongoDB利用時は：
+//  ・変更の直前にDBから今の内容を読み直し、そこへ変更を加える（mutator）。
+//  ・読んだときの版（rev）が変わっていなければ書く。他のサーバーが先に書いていたら、読み直してやり直す。
+//  ・1つのサーバーの中では、同じ文書への変更を順番に処理する（無駄なやり直しを減らす）。
+// ローカルのJSONファイル利用時（サーバー1台）は、これまでどおり手元の内容に変更を加えて保存する。
+const SHARED_DOC_MAX_ATTEMPTS = 8;
+const sharedDocQueues = new Map();
+const sharedDocEntry = id => PERSISTED_FILES.find(p => p.mongoId === id);
+// DBから読み直して手元の内容を最新にする（読む系のAPIの前にも使う。他のサーバーの保存がすぐ見える）
+async function refreshSharedDocs(ids) {
+  if (!MONGODB_URI) return new Map();
+  const collection = await getMongoCollection();
+  const docs = await collection.find({ _id: { $in: ids } }).toArray();
+  const byId = new Map(docs.map(d => [d._id, d]));
+  ids.forEach(id => {
+    const doc = byId.get(id);
+    if (doc && doc.data !== undefined) sharedDocEntry(id).set(doc.data);
+  });
+  return byId;
+}
+async function writeSharedDocOnce(id, mutator) {
+  const entry = sharedDocEntry(id);
+  const collection = await getMongoCollection();
+  for (let attempt = 0; attempt < SHARED_DOC_MAX_ATTEMPTS; attempt++) {
+    const doc = (await refreshSharedDocs([id])).get(id);
+    const result = mutator();
+    const data = entry.get(); // 変更した直後に取り出す（この後の await の間に手元の変数が変わっても影響しない）
+    let ok;
+    try {
+      if (!doc) {
+        await collection.insertOne({ _id: id, rev: 1, data });
+        ok = true;
+      } else {
+        const hasRev = typeof doc.rev === 'number';
+        const r = await collection.updateOne(
+          { _id: id, rev: hasRev ? doc.rev : { $exists: false } },
+          { $set: { data, rev: (hasRev ? doc.rev : 0) + 1 } }
+        );
+        ok = !!r && r.matchedCount === 1;
+      }
+    } catch (e) {
+      if (e && e.code === 11000) ok = false; // 同時に別のサーバーが最初の文書を作った
+      else {
+        console.error(`データの保存に失敗しました（MongoDB: ${id}）:`, e);
+        const err = new Error(`データの保存に失敗しました（${id}）`);
+        err.status = 500;
+        throw err;
+      }
+    }
+    if (ok) { entry.set(data); return result; }
+    await new Promise(r => setTimeout(r, 5 + Math.floor(Math.random() * 20 * (attempt + 1))));
+  }
+  const err = new Error('ほかのサーバーからの保存と重なりました。もう一度保存してください');
+  err.status = 409;
+  throw err;
+}
+// id の文書に mutator の変更を加えて保存する。mutator は手元の変数（learningDict など）を直接変える同期関数で、
+// やり直しのたびに最新の内容で呼ばれる。保存しないで終えたい場合（見つからない等）は SkipSharedWrite を投げる。
+class SkipSharedWrite extends Error {
+  constructor(value) { super('skip'); this.value = value; }
+}
+function updateSharedDoc(id, mutator) {
+  const unwrapSkip = e => { if (e instanceof SkipSharedWrite) return e.value; throw e; };
+  if (!MONGODB_URI) {
+    let result;
+    try { result = mutator(); } catch (e) { return Promise.resolve().then(() => unwrapSkip(e)); }
+    return persist([id]).then(() => result);
+  }
+  const prev = sharedDocQueues.get(id) || Promise.resolve();
+  const run = prev.then(() => writeSharedDocOnce(id, mutator)).catch(unwrapSkip);
+  sharedDocQueues.set(id, run.catch(() => {}));
+  return run;
+}
+// 読む系のAPI用：MongoDB利用時は、返す前にDBから読み直す
+function sendSharedDoc(ids, pick) {
+  return async (req, res) => {
+    await refreshSharedDocs(ids);
+    res.json(pick());
+  };
+}
+
 // ---- 患者カルテの保存先（患者1人ずつ・更新の競合を見つける）----
 // 【複数サーバーからの保存でデータが消える不具合の修正】以前は MongoDB を起動時に1回だけ読み、その後は各サーバーが
 // 手元の全患者を1つの文書にまるごと上書き保存していた。ローカル版と公開版が同じDBを使うと、一方が登録した患者を
@@ -592,14 +676,10 @@ const CARD_REPORTS_ARCHIVE_MAX_BYTES = 12 * 1024 * 1024;
 // ---- API ----
 
 // 共有学習辞書をまるごと返す（起動時にフロントエンドがローカル学習とマージする）
-app.get('/api/learning-dict', (req, res) => {
-  res.json(learningDict);
-});
+app.get('/api/learning-dict', sendSharedDoc(['learning-dict'], () => learningDict));
 
 // 事例ログの取得（研究用のダウンロード・分析向け）
-app.get('/api/case-log', (req, res) => {
-  res.json(caseLog);
-});
+app.get('/api/case-log', sendSharedDoc(['case-log'], () => caseLog));
 
 // 分類ボード側での変更を、共有学習辞書＋事例ログの両方に反映する
 // action: 'create' | 'type' | 'tagAdd' | 'tagRemove' | 'col' | 'edit' | 'delete' | 'merge'
@@ -616,14 +696,25 @@ app.post('/api/learning-event', rateLimit('learning-event', { windowMs: 60000, m
   }
 
   // 削除は「学習データ管理」画面からの個別削除用。既存エントリーを新規作成せずそのまま消す。
-  if (action === 'delete') {
-    delete learningDict[text];
+  // 学習データ（票）と事例ログは別々の文書なので、それぞれ「最新を読み直して変更を加える」形で保存する
+  // （MongoDB利用時、ほかのサーバーが同時に加えた票やログを消さない。updateSharedDoc参照）。
+  const appendCaseLog = () => updateSharedDoc('case-log', () => {
     caseLog.push({ at: eventAt, text, action, payload: payload || null });
     caseLog = capArrayByByteSize(caseLog, CASE_LOG_MAX_BYTES);
-    await persist(['learning-dict', 'case-log']);
+  });
+  if (action === 'delete') {
+    await updateSharedDoc('learning-dict', () => { delete learningDict[text]; });
+    await appendCaseLog();
     return res.json({ ok: true, dict: learningDict });
   }
 
+  await updateSharedDoc('learning-dict', () => applyLearningEvent(text, action, payload, eventAt));
+  await appendCaseLog();
+  res.json({ ok: true, dict: learningDict });
+});
+
+// 学習の1件の変更（票の加算など）を learningDict に加える（やり直しのたびに最新の内容へ加え直せるよう関数にしてある）
+function applyLearningEvent(text, action, payload, eventAt) {
   const entry = getEntry(text);
 
   switch (action) {
@@ -728,13 +819,7 @@ app.post('/api/learning-event', rateLimit('learning-event', { windowMs: 60000, m
       break;
   }
   entry.updatedAt = eventAt;
-
-  caseLog.push({ at: eventAt, text, action, payload: payload || null });
-  caseLog = capArrayByByteSize(caseLog, CASE_LOG_MAX_BYTES);
-
-  await persist(['learning-dict', 'case-log']);
-  res.json({ ok: true, dict: learningDict });
-});
+}
 
 // ページを閉じる際などにブラウザ側の学習内容をまとめて反映するための一括同期。
 // 個別イベントの送信が何らかの理由で届いていなかった場合の保険（フォールバック）で、
@@ -745,10 +830,11 @@ app.post('/api/learning-dict/sync', express.json({ limit: '2mb', type: () => tru
   if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
     return res.status(400).json({ error: 'body must be an object' });
   }
-  for (const [text, value] of Object.entries(incoming)) {
-    if (typeof text === 'string' && text) learningDict[text] = value;
-  }
-  await persist(['learning-dict', 'case-log']);
+  await updateSharedDoc('learning-dict', () => {
+    for (const [text, value] of Object.entries(incoming)) {
+      if (typeof text === 'string' && text) learningDict[text] = value;
+    }
+  });
   res.json({ ok: true });
 });
 
@@ -993,9 +1079,7 @@ app.post('/api/presence/leave', express.json({ limit: '10kb', type: () => true }
 // しておき、フロントエンド側でAIへの指示文（プロンプト）に自動で追記して使う。
 // 学習データ・患者カルテと同様、1つのファイルに追加・削除を重ねる方式。
 
-app.get('/api/extraction-criteria', (req, res) => {
-  res.json(extractionCriteria);
-});
+app.get('/api/extraction-criteria', sendSharedDoc(['extraction-criteria'], () => extractionCriteria));
 
 app.post('/api/extraction-criteria', rateLimit('extraction-criteria', { windowMs: 60000, max: 30 }), async (req, res) => {
   const { text } = req.body || {};
@@ -1003,8 +1087,7 @@ app.post('/api/extraction-criteria', rateLimit('extraction-criteria', { windowMs
     return res.status(400).json({ error: 'text is required' });
   }
   const entry = { id: 'crit_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), text: capString(text.trim(), 2000), addedAt: new Date().toISOString() };
-  extractionCriteria.push(entry);
-  await persist(['extraction-criteria']);
+  await updateSharedDoc('extraction-criteria', () => { extractionCriteria.push(entry); });
   res.json(extractionCriteria);
 });
 
@@ -1014,36 +1097,35 @@ app.put('/api/extraction-criteria/:id', rateLimit('extraction-criteria', { windo
   if (typeof text !== 'string' || !text.trim()) {
     return res.status(400).json({ error: 'text is required' });
   }
-  const entry = extractionCriteria.find(c => c.id === id);
-  if (!entry) {
+  const found = await updateSharedDoc('extraction-criteria', () => {
+    const entry = extractionCriteria.find(c => c.id === id);
+    if (!entry) throw new SkipSharedWrite(false);
+    entry.text = capString(text.trim(), 2000);
+    entry.updatedAt = new Date().toISOString();
+    return true;
+  });
+  if (!found) {
     return res.status(404).json({ error: 'not found' });
   }
-  entry.text = capString(text.trim(), 2000);
-  entry.updatedAt = new Date().toISOString();
-  await persist(['extraction-criteria']);
   res.json(extractionCriteria);
 });
 
 app.delete('/api/extraction-criteria/:id', async (req, res) => {
   const { id } = req.params;
-  extractionCriteria = extractionCriteria.filter(c => c.id !== id);
-  await persist(['extraction-criteria']);
+  await updateSharedDoc('extraction-criteria', () => { extractionCriteria = extractionCriteria.filter(c => c.id !== id); });
   res.json(extractionCriteria);
 });
 
 // NotebookLM基準ノート本体（notebookContent）。textがnullの場合はまだ誰も保存しておらず、
 // クライアント側の初期値（DEFAULT_NOTEBOOK_CONTENT）を使うべきことを示す。
-app.get('/api/notebook-content', (req, res) => {
-  res.json(notebookContentData);
-});
+app.get('/api/notebook-content', sendSharedDoc(['notebook-content'], () => notebookContentData));
 
 app.put('/api/notebook-content', rateLimit('notebook-content', { windowMs: 60000, max: 20 }), async (req, res) => {
   const { text } = req.body || {};
   if (typeof text !== 'string' || !text.trim()) {
     return res.status(400).json({ error: 'text is required' });
   }
-  notebookContentData = { text: capString(text.trim(), 50000), updatedAt: new Date().toISOString() };
-  await persist(['notebook-content']);
+  await updateSharedDoc('notebook-content', () => { notebookContentData = { text: capString(text.trim(), 50000), updatedAt: new Date().toISOString() }; });
   res.json(notebookContentData);
 });
 
@@ -1061,14 +1143,11 @@ function sanitizeCustomTagRules(rules) {
     updatedAt: typeof r?.updatedAt === 'string' ? r.updatedAt.slice(0, 40) : new Date().toISOString()
   })).filter(r => r.keyword && r.hendersonIds.length > 0);
 }
-app.get('/api/custom-tag-rules', (req, res) => {
-  res.json(customTagRules);
-});
+app.get('/api/custom-tag-rules', sendSharedDoc(['custom-tag-rules'], () => customTagRules));
 app.put('/api/custom-tag-rules', rateLimit('custom-tag-rules', { windowMs: 60000, max: 30 }), async (req, res) => {
   const rules = sanitizeCustomTagRules(req.body?.rules);
   if (!rules) return res.status(400).json({ error: 'rules must be an array' });
-  customTagRules = { rules, updatedAt: new Date().toISOString() };
-  await persist(['custom-tag-rules']);
+  await updateSharedDoc('custom-tag-rules', () => { customTagRules = { rules, updatedAt: new Date().toISOString() }; });
   res.json(customTagRules);
 });
 
@@ -1076,9 +1155,7 @@ app.put('/api/custom-tag-rules', rateLimit('custom-tag-rules', { windowMs: 60000
 // ここではリンクの自動取得は行わず、利用者が貼り付けたtitle/url/contentをそのまま保存する。
 // title・urlは必須（一覧表示の見出し・リンク先として必要）、contentは任意
 // （貼り付けがあればAIへの指示文に統合され、無ければリンクのみの一覧として残る）。
-app.get('/api/reference-sources', (req, res) => {
-  res.json(referenceSources);
-});
+app.get('/api/reference-sources', sendSharedDoc(['reference-sources'], () => referenceSources));
 
 app.post('/api/reference-sources', rateLimit('reference-sources', { windowMs: 60000, max: 30 }), async (req, res) => {
   const { title, url, content } = req.body || {};
@@ -1095,8 +1172,7 @@ app.post('/api/reference-sources', rateLimit('reference-sources', { windowMs: 60
     content: capString((typeof content === 'string' ? content.trim() : ''), 30000),
     addedAt: new Date().toISOString()
   };
-  referenceSources.push(entry);
-  await persist(['reference-sources']);
+  await updateSharedDoc('reference-sources', () => { referenceSources.push(entry); });
   res.json(referenceSources);
 });
 
@@ -1109,22 +1185,24 @@ app.put('/api/reference-sources/:id', rateLimit('reference-sources', { windowMs:
   if (typeof url !== 'string' || !url.trim()) {
     return res.status(400).json({ error: 'url is required' });
   }
-  const entry = referenceSources.find(r => r.id === id);
-  if (!entry) {
+  const found = await updateSharedDoc('reference-sources', () => {
+    const entry = referenceSources.find(r => r.id === id);
+    if (!entry) throw new SkipSharedWrite(false);
+    entry.title = capString(title.trim(), 200);
+    entry.url = capString(url.trim(), 2000);
+    entry.content = capString((typeof content === 'string' ? content.trim() : ''), 30000);
+    entry.updatedAt = new Date().toISOString();
+    return true;
+  });
+  if (!found) {
     return res.status(404).json({ error: 'not found' });
   }
-  entry.title = capString(title.trim(), 200);
-  entry.url = capString(url.trim(), 2000);
-  entry.content = capString((typeof content === 'string' ? content.trim() : ''), 30000);
-  entry.updatedAt = new Date().toISOString();
-  await persist(['reference-sources']);
   res.json(referenceSources);
 });
 
 app.delete('/api/reference-sources/:id', async (req, res) => {
   const { id } = req.params;
-  referenceSources = referenceSources.filter(r => r.id !== id);
-  await persist(['reference-sources']);
+  await updateSharedDoc('reference-sources', () => { referenceSources = referenceSources.filter(r => r.id !== id); });
   res.json(referenceSources);
 });
 
@@ -1162,23 +1240,20 @@ app.post('/api/patient-snapshot', express.json({ limit: '8mb', type: () => true 
       closedAt: at
     }));
   if (entries.length === 0) return res.status(400).json({ error: 'no valid patient snapshots' });
-  patientSnapshots.push(...entries);
-  patientSnapshots = capArrayByByteSize(patientSnapshots, PATIENT_SNAPSHOT_MAX_BYTES);
-  await persist(['patient-snapshots']);
+  await updateSharedDoc('patient-snapshots', () => {
+    patientSnapshots.push(...entries);
+    patientSnapshots = capArrayByByteSize(patientSnapshots, PATIENT_SNAPSHOT_MAX_BYTES);
+  });
   res.json({ ok: true, count: entries.length });
 });
 
-app.get('/api/patient-snapshots', (req, res) => {
-  res.json(patientSnapshots);
-});
+app.get('/api/patient-snapshots', sendSharedDoc(['patient-snapshots'], () => patientSnapshots));
 
 // ---- 情報カードの不具合報告（カード右上の「報告」ボタンから送られる。全利用者共有） ----
 // 同じブラウザタブ（sessionIdが同じ＝ページを閉じるまでの間）から2件目・3件目の報告が
 // 来た場合は新しいレコードを作らず、既存レコードのitemsに追記して1人分の投稿としてまとめる。
 // sessionIdが無い（あるいは一致するレコードが見つからない）場合は新規レコードを作る。
-app.get('/api/card-reports', (req, res) => {
-  res.json(cardReports);
-});
+app.get('/api/card-reports', sendSharedDoc(['card-reports'], () => cardReports));
 
 // 同じセッション（同じブラウザタブ）からの報告が際限なく1件のレコードへ積み上がらないよう、
 // 1グループあたりの件数にも上限を設ける（レート制限とは別に、長時間かけて送り続けるケースへの対策）
@@ -1198,27 +1273,31 @@ app.post('/api/card-reports', rateLimit('card-reports', { windowMs: 60000, max: 
     at: now
   };
 
-  let group = (typeof sessionId === 'string' && sessionId) ? cardReports.find(g => g.sessionId === sessionId) : null;
-  if (group && group.items.length >= CARD_REPORT_MAX_ITEMS_PER_GROUP) {
+  const newGroupId = 'rpt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  const group = await updateSharedDoc('card-reports', () => {
+    let g = (typeof sessionId === 'string' && sessionId) ? cardReports.find(x => x.sessionId === sessionId) : null;
+    if (g && g.items.length >= CARD_REPORT_MAX_ITEMS_PER_GROUP) throw new SkipSharedWrite(null);
+    if (g) {
+      g.items.push(newItem);
+      g.updatedAt = now;
+    } else {
+      g = {
+        id: newGroupId,
+        sessionId: typeof sessionId === 'string' ? sessionId : null,
+        patientId: newItem.patientId,
+        patientTitle: newItem.patientTitle,
+        items: [newItem],
+        createdAt: now,
+        updatedAt: now
+      };
+      cardReports.push(g);
+    }
+    cardReports = capArrayByByteSize(cardReports, CARD_REPORTS_MAX_BYTES);
+    return JSON.parse(JSON.stringify(g));
+  });
+  if (!group) {
     return res.status(429).json({ error: '同じセッションからの報告件数が上限に達しました。' });
   }
-  if (group) {
-    group.items.push(newItem);
-    group.updatedAt = now;
-  } else {
-    group = {
-      id: 'rpt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
-      sessionId: typeof sessionId === 'string' ? sessionId : null,
-      patientId: newItem.patientId,
-      patientTitle: newItem.patientTitle,
-      items: [newItem],
-      createdAt: now,
-      updatedAt: now
-    };
-    cardReports.push(group);
-  }
-  cardReports = capArrayByByteSize(cardReports, CARD_REPORTS_MAX_BYTES);
-  await persist(['card-reports']);
   res.json(group);
 });
 
@@ -1239,80 +1318,65 @@ function isOlderThanThresholdDays(isoString, thresholdDays) {
   return (Date.now() - t) > thresholdDays * 24 * 60 * 60 * 1000;
 }
 
-// 起動時・定期実行の両方から呼ばれる。実際に何か移した場合のみpersist()する。
+// 起動時・定期実行の両方から呼ばれる。実際に何か移した・間引いた場合だけ保存する。
+// 【複数サーバー対応】種類ごとに「①古い記録をアーカイブへ足す（同じ記録は二重に足さない）→ ②元の一覧から除く」
+// の順に、それぞれ最新の内容を読み直してから変更する（updateSharedDoc）。2台のサーバーが同時に整理しても、
+// その間に追加された新しい記録を消したり、アーカイブへ二重に入れたりしない。
+const ARCHIVE_KINDS = [
+  { label: '事例ログ', srcId: 'case-log', archiveId: 'case-log-archive', dateKey: 'at', srcMax: CASE_LOG_MAX_BYTES, archiveMax: CASE_LOG_ARCHIVE_MAX_BYTES },
+  { label: '情報カードの報告', srcId: 'card-reports', archiveId: 'card-reports-archive', dateKey: 'updatedAt', srcMax: CARD_REPORTS_MAX_BYTES, archiveMax: CARD_REPORTS_ARCHIVE_MAX_BYTES },
+  { label: 'カルテスナップショット', srcId: 'patient-snapshots', archiveId: 'patient-snapshots-archive', dateKey: 'closedAt', srcMax: PATIENT_SNAPSHOT_MAX_BYTES, archiveMax: PATIENT_SNAPSHOT_ARCHIVE_MAX_BYTES }
+];
+const archiveRecordKey = e => (e && e.id ? 'id:' + e.id : 'json:' + JSON.stringify(e));
+async function archiveOneKind(kind) {
+  const src = sharedDocEntry(kind.srcId);
+  const arc = sharedDocEntry(kind.archiveId);
+  const isOld = e => isOlderThanThresholdDays(e && e[kind.dateKey], ARCHIVE_THRESHOLD_DAYS);
+  await refreshSharedDocs([kind.srcId]);
+  const oldEntries = (src.get() || []).filter(isOld);
+  let archiveTrimmed = false, sourceTrimmed = false, moved = 0;
+  // ① アーカイブへ足す（まだ入っていないものだけ）＋サイズ上限で間引く
+  await updateSharedDoc(kind.archiveId, () => {
+    const current = Array.isArray(arc.get()) ? arc.get() : [];
+    const have = new Set(current.map(archiveRecordKey));
+    const add = oldEntries.filter(e => !have.has(archiveRecordKey(e)));
+    const next = capArrayByByteSize(current.concat(add), kind.archiveMax);
+    archiveTrimmed = next.length !== current.length + add.length;
+    if (add.length === 0 && !archiveTrimmed) throw new SkipSharedWrite();
+    arc.set(next);
+  });
+  // ② 元の一覧から古い記録を除く＋サイズ上限で間引く
+  await updateSharedDoc(kind.srcId, () => {
+    const current = Array.isArray(src.get()) ? src.get() : [];
+    const kept = current.filter(e => !isOld(e));
+    const next = capArrayByByteSize(kept, kind.srcMax);
+    moved = current.length - kept.length;
+    sourceTrimmed = next.length !== kept.length;
+    if (moved === 0 && !sourceTrimmed) throw new SkipSharedWrite();
+    src.set(next);
+  });
+  return { moved, trimmed: archiveTrimmed || sourceTrimmed };
+}
 async function runArchiving() {
-  let movedCaseLog = 0, movedCardReports = 0, movedSnapshots = 0;
-
-  const oldCaseLogEntries = caseLog.filter(e => isOlderThanThresholdDays(e.at, ARCHIVE_THRESHOLD_DAYS));
-  if (oldCaseLogEntries.length > 0) {
-    caseLogArchive = caseLogArchive.concat(oldCaseLogEntries);
-    caseLog = caseLog.filter(e => !isOlderThanThresholdDays(e.at, ARCHIVE_THRESHOLD_DAYS));
-    movedCaseLog = oldCaseLogEntries.length;
-  }
-
-  // 報告は1レコードに複数の報告(items)がまとまっているため、最後の更新(updatedAt)を基準に
-  // レコードごと（中のitemsも含めて）アーカイブする。
-  const oldReportGroups = cardReports.filter(g => isOlderThanThresholdDays(g.updatedAt, ARCHIVE_THRESHOLD_DAYS));
-  if (oldReportGroups.length > 0) {
-    cardReportsArchive = cardReportsArchive.concat(oldReportGroups);
-    cardReports = cardReports.filter(g => !isOlderThanThresholdDays(g.updatedAt, ARCHIVE_THRESHOLD_DAYS));
-    movedCardReports = oldReportGroups.length;
-  }
-
-  const oldSnapshotEntries = patientSnapshots.filter(e => isOlderThanThresholdDays(e.closedAt, ARCHIVE_THRESHOLD_DAYS));
-  if (oldSnapshotEntries.length > 0) {
-    patientSnapshotsArchive = patientSnapshotsArchive.concat(oldSnapshotEntries);
-    patientSnapshots = patientSnapshots.filter(e => !isOlderThanThresholdDays(e.closedAt, ARCHIVE_THRESHOLD_DAYS));
-    movedSnapshots = oldSnapshotEntries.length;
-  }
-
-  // 90日基準の年齢だけでは「短期間に大量発生」して先にMongoDBの1ドキュメント上限（16MB）へ
-  // 達するケースを防げないため、定期整理のたびにバイト数上限でも間引く（間引かれた分は
-  // 古い記録が失われるが、静かに保存が全滅するよりは望ましい）。事例ログ・情報カードの報告
-  // （アーカイブ側含む）も、カルテスナップショットと同じ理由でここで間引く。
-  const beforePatientSnapshotsBytes = JSON.stringify(patientSnapshots).length;
-  patientSnapshots = capArrayByByteSize(patientSnapshots, PATIENT_SNAPSHOT_MAX_BYTES);
-  const trimmedSnapshots = beforePatientSnapshotsBytes !== JSON.stringify(patientSnapshots).length;
-  const beforeArchiveBytes = JSON.stringify(patientSnapshotsArchive).length;
-  patientSnapshotsArchive = capArrayByByteSize(patientSnapshotsArchive, PATIENT_SNAPSHOT_ARCHIVE_MAX_BYTES);
-  const trimmedArchive = beforeArchiveBytes !== JSON.stringify(patientSnapshotsArchive).length;
-
-  const beforeCaseLogBytes = JSON.stringify(caseLog).length;
-  caseLog = capArrayByByteSize(caseLog, CASE_LOG_MAX_BYTES);
-  const trimmedCaseLog = beforeCaseLogBytes !== JSON.stringify(caseLog).length;
-  const beforeCaseLogArchiveBytes = JSON.stringify(caseLogArchive).length;
-  caseLogArchive = capArrayByByteSize(caseLogArchive, CASE_LOG_ARCHIVE_MAX_BYTES);
-  const trimmedCaseLogArchive = beforeCaseLogArchiveBytes !== JSON.stringify(caseLogArchive).length;
-
-  const beforeCardReportsBytes = JSON.stringify(cardReports).length;
-  cardReports = capArrayByByteSize(cardReports, CARD_REPORTS_MAX_BYTES);
-  const trimmedCardReports = beforeCardReportsBytes !== JSON.stringify(cardReports).length;
-  const beforeCardReportsArchiveBytes = JSON.stringify(cardReportsArchive).length;
-  cardReportsArchive = capArrayByByteSize(cardReportsArchive, CARD_REPORTS_ARCHIVE_MAX_BYTES);
-  const trimmedCardReportsArchive = beforeCardReportsArchiveBytes !== JSON.stringify(cardReportsArchive).length;
-
-  const trimmedAnything = trimmedSnapshots || trimmedArchive || trimmedCaseLog || trimmedCaseLogArchive || trimmedCardReports || trimmedCardReportsArchive;
-  if (movedCaseLog > 0 || movedCardReports > 0 || movedSnapshots > 0 || trimmedAnything) {
+  const results = [];
+  for (const kind of ARCHIVE_KINDS) {
     try {
-      await persist(['case-log', 'case-log-archive', 'card-reports', 'card-reports-archive', 'patient-snapshots', 'patient-snapshots-archive']);
+      results.push({ kind, ...(await archiveOneKind(kind)) });
     } catch (e) {
-      console.error('自動整理の保存に失敗しました（次回の自動整理でもう一度保存します）:', e);
-      return;
+      console.error(`自動整理の保存に失敗しました（${kind.label}。次回の自動整理でもう一度行います）:`, e);
+      results.push({ kind, moved: 0, trimmed: false });
     }
-    console.log(`自動整理: 事例ログ${movedCaseLog}件・情報カードの報告${movedCardReports}件・カルテスナップショット${movedSnapshots}件をアーカイブへ退避しました${trimmedAnything ? '（サイズ上限により一部の古い記録を間引きました）' : ''}`);
+  }
+  const trimmedAnything = results.some(r => r.trimmed);
+  if (results.some(r => r.moved > 0) || trimmedAnything) {
+    console.log(`自動整理: ${results.map(r => `${r.kind.label}${r.moved}件`).join('・')}をアーカイブへ退避しました${trimmedAnything ? '（サイズ上限により一部の古い記録を間引きました）' : ''}`);
   }
 }
 
 // 研究用にアーカイブ済みの記録もそのまま取得できるようにする（現役データと同じ形のまま）
-app.get('/api/case-log/archive', (req, res) => {
-  res.json(caseLogArchive);
-});
-app.get('/api/card-reports/archive', (req, res) => {
-  res.json(cardReportsArchive);
-});
-app.get('/api/patient-snapshots/archive', (req, res) => {
-  res.json(patientSnapshotsArchive);
-});
+app.get('/api/case-log/archive', sendSharedDoc(['case-log-archive'], () => caseLogArchive));
+app.get('/api/card-reports/archive', sendSharedDoc(['card-reports-archive'], () => cardReportsArchive));
+app.get('/api/patient-snapshots/archive', sendSharedDoc(['patient-snapshots-archive'], () => patientSnapshotsArchive));
 
 // このファイルを直接実行した時（`node server.js` / `npm start`）だけサーバーを起動する。
 // tests/ から require('../server.js') して app やロジック関数だけをテストする場合は、
@@ -1356,6 +1420,8 @@ module.exports = {
   itemEffectiveTime,
   isOlderThanThresholdDays,
   runArchiving,
+  updateSharedDoc,
+  refreshSharedDocs,
   rateLimit,
   capString,
   capArrayByByteSize,

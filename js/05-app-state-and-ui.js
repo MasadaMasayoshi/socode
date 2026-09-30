@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-09-30.2'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-09-30.3'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -504,7 +504,44 @@
     // 【改善案F】送る前に、文章の部分の個人情報らしい語句を伏せ字にし（maskPersonalInfo）、
     // 返ってきた答えの伏せ字を元の語句に戻す（restoreMaskedText）。画像を含む場合は送る前に確認する。
     // options.json=true：答えをJSONだけで返させる（AIで分類を評価する機能など、決まった形で受け取りたいとき）
+    // 【AIの処理の途中でページを閉じたとき】利用者に知らせずに結果が失われていた（確認項目）。AIに頼んでいる間は
+    // このブラウザに「実行中」の記録を残し、結果が届いたら消す。次にページを開いたときに古い記録が残っていれば、
+    // 結果が届かなかったことを知らせる（ほかのタブで実行中のものは消さないよう、3分より新しい記録には触れない）。
+    const AI_PENDING_KEY = 'nursing_ai_pending';
+    const AI_PENDING_STALE_MS = 3 * 60 * 1000;
+    let aiRequestsRunning = 0;
+    function readAiPending() {
+      try { const v = JSON.parse(localStorage.getItem(AI_PENDING_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+    }
+    function writeAiPending(list) {
+      try { if (list.length) localStorage.setItem(AI_PENDING_KEY, JSON.stringify(list.slice(-20))); else localStorage.removeItem(AI_PENDING_KEY); } catch (e) { /* 記録できなくてもAIの処理は続ける */ }
+    }
+    function notifyLostAiRequests(now = Date.now()) {
+      const list = readAiPending();
+      const lost = list.filter(p => now - new Date(p.at).getTime() > AI_PENDING_STALE_MS);
+      if (!lost.length) return 0;
+      writeAiPending(list.filter(p => !lost.includes(p)));
+      const last = lost[lost.length - 1];
+      const d = new Date(last.at);
+      const when = isNaN(d) ? '' : `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      const who = Array.from(new Set(lost.map(p => p.patient).filter(Boolean))).map(t => `「${t}」`).join('・');
+      showToast([`前回${when ? `（${when}）` : ''}AIの処理の途中でページを閉じたため、結果は届いていません`, { text: `${who ? `${who}で` : ''}実行していたAIの処理 ${lost.length}件。必要なら、もう一度AIのボタンを押してください。`, detail: true }], 'warn', 9000);
+      return lost.length;
+    }
     async function callGeminiAI(contents, options = {}) {
+      const pendingId = 'ai_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+      let patientTitle = '';
+      try { patientTitle = getCurrentPatient().title || ''; } catch (e) { /* 患者が無くても続ける */ }
+      writeAiPending(readAiPending().concat([{ id: pendingId, at: new Date().toISOString(), patient: patientTitle }]));
+      aiRequestsRunning++;
+      try {
+        return await callGeminiAIOnce(contents, options);
+      } finally {
+        aiRequestsRunning = Math.max(0, aiRequestsRunning - 1);
+        writeAiPending(readAiPending().filter(p => p.id !== pendingId));
+      }
+    }
+    async function callGeminiAIOnce(contents, options = {}) {
       const hasImage = contents.some(c => (c.parts || []).some(p => p.inline_data));
       if (hasImage && !imageSendConfirmed) {
         const ok = await openDialog({ title: '画像をAIに送りますか？', message: '画像はそのままAI（Gemini）に送られ、文字のように自動で伏せ字にすることはできません。\n氏名・学籍番号・病院名・患者さんを特定できる情報が写っていないか確認してから送ってください。', confirmLabel: '確認したので送る' });
@@ -1111,7 +1148,9 @@
       DOM.sourceText.value = cp.sourceText || '';
       // 別の患者に切り替えたら、前の患者の文章に付けた印の表示は閉じて入力欄に戻す。
       if (highlightedSourceItemId != null) clearSourceHighlight(false);
-      DOM.labEvalContent.innerHTML = cp.labEvaluationResult || '「検査値AI総合評価」ボタンを押すと、Oデータの検査値を登録された基準で確認し、臨床的意味を評価します。';
+      DOM.labEvalContent.innerHTML = cp.labEvaluationResult || '';
+      // 結果の無い欄は出さない（「AIの結果」の欄に、結果のあるものだけをタブで並べる。refreshAiResults）
+      document.getElementById('lab-evaluation-panel')?.classList.toggle('hidden', !cp.labEvaluationResult);
       DOM.currentPatientTitle.textContent = cp.title;
 
       // 前回のAI分析結果（矛盾チェック・看護診断候補・経時変化サマリー）があれば患者切り替え時にも復元する
@@ -1128,8 +1167,8 @@
       const carePlanPanel = document.getElementById('careplan-panel');
       if (cp.carePlanResult) { carePlanPanel.classList.remove('hidden'); document.getElementById('careplan-content').innerHTML = cp.carePlanResult; }
       else { carePlanPanel.classList.add('hidden'); document.getElementById('careplan-content').innerHTML = ''; }
+      if (typeof refreshAiResults === 'function') refreshAiResults(false);
 
-      sourcePaneManual = null; // 患者を切り替えたら入力欄の大きさは自動に戻す
       // 看護計画のページの描き直し・画面を開いたときの自動の記録（js/13。読み込む前の最初の表示では呼ばない）
       if (typeof onPatientViewReloaded === 'function') onPatientViewReloaded(cp);
 
@@ -2446,26 +2485,27 @@
       updateSourceEditorCount();
       if (on && !DOM.sourceText.classList.contains('hidden')) DOM.sourceText.focus();
     };
-    // 【分類の前と後で入力欄の大きさを変える】利用者からの要望：分類前は記録の入力欄を広く、分類後はカードを広く。
-    // カードが無いうちは入力欄を横いっぱいにし、分類してカードができたら入力欄を左の細い列に戻す。
-    // 「広げる／狭める」で手動でも切り替えられる（患者を切り替える・分類し直すと自動に戻る）。
-    // sourcePaneManual（null＝自動 / 'wide' / 'narrow'）は、起動の途中の描画からも使うので先頭の方で宣言している
+    // 【分類ボードの並びはいつも同じ】利用者からの要望：「分類開始前のページが見づらい。最初から分類開始後の
+    // レイアウトにしてほしい。いちいち変えないでください」。以前は、カードが無いうちは入力欄を横いっぱいにし、
+    // 分類するとカードを広く表示するように、並びを自動で切り替えていた。今は分類の前も後も、
+    // 左に記録の入力欄・右にS/Oのカードの同じ並びにする（自動では変えない）。
+    // 「↔」のボタンで入力欄を広げたときだけ広くなり、もう一度押すまでそのまま（sourcePaneManual）。
     function updateSourcePaneLayout() {
       const view = DOM.viewSoBoard;
       if (!view || !view.classList) return;
-      const hasCards = (getCurrentPatient().items || []).length > 0;
-      const wide = sourcePaneManual ? sourcePaneManual === 'wide' : !hasCards;
+      const wide = sourcePaneManual === 'wide';
       view.classList.toggle('input-wide', wide);
-      view.classList.toggle('no-cards', !hasCards);
+      view.classList.remove('no-cards');
       const btn = document.getElementById('btn-source-wide');
       if (btn) {
         btn.innerHTML = wide ? '<i class="fa-solid fa-down-left-and-up-right-to-center"></i><span>狭める</span>' : '<i class="fa-solid fa-left-right"></i><span>広げる</span>';
-        btn.classList.toggle('hidden', !hasCards);
+        btn.classList.remove('hidden');
       }
     }
-    function resetSourcePaneLayout() { sourcePaneManual = null; updateSourcePaneLayout(); }
+    // 以前は分類・患者の切り替えのたびに並びを自動に戻していた。今は並びを変えないので、描き直すだけ
+    function resetSourcePaneLayout() { updateSourcePaneLayout(); }
     window.toggleSourcePaneWidth = function() {
-      sourcePaneManual = DOM.viewSoBoard.classList.contains('input-wide') ? 'narrow' : 'wide';
+      sourcePaneManual = sourcePaneManual === 'wide' ? null : 'wide';
       updateSourcePaneLayout();
     };
     // 【AIの結果は「要約＋詳細」】利用者からの指摘：検査値評価・矛盾チェック・診断候補・看護計画の結果が全部開くと、
@@ -2501,18 +2541,65 @@
       if (aiPanelOpen.has(panel.id)) aiPanelOpen.delete(panel.id); else aiPanelOpen.add(panel.id);
       refreshAiPanel(panel);
     };
+    // 【AIの結果はタブで1つだけ】利用者からの指摘：「AIを実行すると総合アセスメント表のページがごちゃごちゃする」。
+    // 以前は結果の欄が種類ごとに表の上へ積み重なっていた。結果のあるものだけを「AIの結果」の欄にタブで並べ、
+    // 選んだ1つだけを表示する（もう一度押すか「たたむ」で閉じる）。AIに頼んだときは、その結果のタブを開く。
+    const AI_RESULT_TABS = [
+      { panel: 'lab-evaluation-panel', label: '検査値の評価' },
+      { panel: 'contradiction-panel', label: 'S/O矛盾' },
+      { panel: 'diagnosis-panel', label: '看護診断候補' },
+      { panel: 'timeline-panel', label: '経過のまとめ' },
+      { panel: 'careplan-panel', label: '看護計画の叩き台' }
+    ];
+    let aiResultsActive = null; // 表示中の結果（null＝たたんでいる）
+    function refreshAiResults(keepActive = true) {
+      const box = document.getElementById('ai-results');
+      const tabs = document.getElementById('ai-results-tabs');
+      if (!box || !tabs) return;
+      const avail = AI_RESULT_TABS.filter(t => { const p = document.getElementById(t.panel); return p && !p.classList.contains('hidden'); });
+      if (!keepActive || !avail.some(t => t.panel === aiResultsActive)) aiResultsActive = null;
+      if (box.classList.contains('hidden') !== !avail.length) box.classList.toggle('hidden', !avail.length);
+      tabs.innerHTML = avail.map(t => {
+        const body = document.getElementById(t.panel).querySelector('.ai-panel-body');
+        const running = !!(body && body.querySelector && body.querySelector('.fa-spinner'));
+        const active = t.panel === aiResultsActive;
+        return `<button type="button" role="tab" class="ai-results-tab${active ? ' active' : ''}" aria-selected="${active}" onclick="showAiResult('${t.panel}')">${running ? '<i class="fa-solid fa-spinner fa-spin"></i> ' : ''}${t.label}</button>`;
+      }).join('');
+      AI_RESULT_TABS.forEach(t => {
+        const p = document.getElementById(t.panel);
+        if (!p) return;
+        const hide = t.panel !== aiResultsActive;
+        if (p.classList.contains('ai-tab-hidden') !== hide) p.classList.toggle('ai-tab-hidden', hide);
+      });
+      document.getElementById('ai-results-close')?.classList.toggle('hidden', !aiResultsActive);
+      if (typeof renderAiSteps === 'function') renderAiSteps(getCurrentPatient());
+    }
+    window.showAiResult = function(panelId) {
+      aiResultsActive = panelId && panelId !== aiResultsActive ? panelId : null;
+      refreshAiResults();
+    };
     (() => {
       if (typeof MutationObserver === 'undefined' || !document.querySelectorAll) return;
       document.querySelectorAll('.ai-panel').forEach(panel => {
         const body = panel.querySelector('.ai-panel-body');
         if (!body) return;
+        let wasHidden = panel.classList.contains('hidden');
         new MutationObserver(() => {
           // 処理中の表示（くるくる）が出たら開く＝利用者が今頼んだ結果
-          if (body.querySelector('.fa-spinner')) aiPanelOpen.add(panel.id);
+          if (body.querySelector('.fa-spinner')) { aiPanelOpen.add(panel.id); aiResultsActive = panel.id; }
           refreshAiPanel(panel);
+          refreshAiResults();
         }).observe(body, { childList: true, subtree: true, characterData: true });
+        // 結果の欄が出た・消えたとき（患者の切り替えなど）もタブを描き直す
+        new MutationObserver(() => {
+          const nowHidden = panel.classList.contains('hidden');
+          if (nowHidden === wasHidden) return;
+          wasHidden = nowHidden;
+          refreshAiResults();
+        }).observe(panel, { attributes: true, attributeFilter: ['class'] });
         refreshAiPanel(panel);
       });
+      refreshAiResults(false);
     })();
 
     // 操作方法（画面の説明文を短くし、詳しい使い方はここにまとめる）

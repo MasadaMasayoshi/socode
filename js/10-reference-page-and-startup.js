@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-09-30.2'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-09-30.3'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 参考データ ページ：看護基準・院内プロトコル等をユーザーが自由に登録・編集できる。
     // 「不足情報をAI推定」の判断材料としても使われる（evaluateMissingInfoAI 参照）。
@@ -396,13 +396,15 @@
         (p.referenceNotes && p.referenceNotes.length > 0) ||
         (p.sourceText && p.sourceText.trim().length > 0)
       );
-      if (hasData) {
+      // AIの処理の途中も、閉じる前に確かめる（閉じると結果が届かない）
+      if (hasData || aiRequestsRunning > 0) {
         e.preventDefault();
         e.returnValue = '';
       }
     });
 
     loadLocalState();
+    setTimeout(() => notifyLostAiRequests(), 1200); // 前回、AIの処理の途中でページを閉じていたら知らせる
     loadSharedLearningDict(); // 起動時に一度、共有学習データ（全利用者分）を取得してローカル学習にマージ
     loadSharedPatients().then(() => loadLocalState()); // 起動時に一度、共有カルテ（他端末分）を取得してマージし、画面を再描画する
     loadSharedCriteria(); // 起動時に一度、AI抽出・分類基準への追加の要望（全利用者分）を取得しておく
@@ -491,7 +493,7 @@ if (typeof module !== 'undefined' && module.exports) {
     detectPneumoniaMissingChecks,
     normalizeFieldLabelHeadingWord,
     FIELD_LABEL_HEADING_ALIASES,
-    buildExportPlainText, htmlToPlainText, isUntouchedAiMissing, cleanAiText,
+    buildExportPlainText, htmlToPlainText, isUntouchedAiMissing, cleanAiText, notifyLostAiRequests, cardTextWithLabFlagsHtml, resetCardLabFlags,
     buildExportBodyHtml,
     findSourceHighlightRanges,
     buildSelectedCardsExportText,

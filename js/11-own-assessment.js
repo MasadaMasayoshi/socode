@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-09-30.2'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-09-30.3'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -299,6 +299,27 @@
     // ==========================================================================
     // 「すべて」を表示しているときは、書いていない項目は1行にたたむ（開いた項目は覚えておく）
     const myAsmExpandedInAll = new Set();
+    // 【自分のアセスメントを毎回挟まない】利用者からの指摘：「総合アセスメント表のページに毎回『自分のアセスメント』が
+    // 挟まっているのがうざい」。既定では、表（「すべて」）の各欲求の間には出さず、1つの欲求のページでも下に1行だけ
+    // （押すと開く）にする。右上の「自分のアセスメント」ボタンで、常に表示する形に切り替えられる（このブラウザに覚える）。
+    let myAsmAlwaysShown = false;
+    try { myAsmAlwaysShown = localStorage.getItem('nursing_my_asm_show') === 'on'; } catch (e) { /* 覚えられなくても動く */ }
+    function myAssessmentAlwaysShown() { return myAsmAlwaysShown; }
+    function updateMyAsmShowButton() {
+      const btn = document.getElementById('btn-my-asm-show');
+      if (!btn) return;
+      btn.setAttribute('aria-pressed', String(myAsmAlwaysShown));
+      btn.classList.toggle('is-on', myAsmAlwaysShown);
+      btn.title = myAsmAlwaysShown ? '自分のアセスメントを各欲求の下に表示しています（押すと1行だけにします）' : '自分のアセスメントは、1つの欲求のページの下に1行だけ出しています（押すと表の各欲求の下にも表示します）';
+      const label = btn.querySelector('.my-asm-show-state');
+      if (label) label.textContent = myAsmAlwaysShown ? '常に表示' : '1行だけ';
+    }
+    window.toggleMyAssessmentShown = function() {
+      myAsmAlwaysShown = !myAsmAlwaysShown;
+      try { localStorage.setItem('nursing_my_asm_show', myAsmAlwaysShown ? 'on' : 'off'); } catch (e) { /* 覚えられなくても動く */ }
+      updateMyAsmShowButton();
+      renderAssessmentTable();
+    };
     const myAsmHistoryOpen = new Set();
     const myAsmReviewOpen = new Set();
 
@@ -814,6 +835,7 @@
         <p class="note">根拠の番号（S-1・O-1）は、総合アセスメント表の番号です。</p>`;
     }
 
+    updateMyAsmShowButton();
     // 起動時：js/10 の起動の処理で一度描いた表を、自分のアセスメントの行つきで描き直す
     try { renderAssessmentTable(); } catch (err) { console.warn('総合アセスメント表を描き直せませんでした:', err); }
 
@@ -823,7 +845,7 @@ if (typeof module !== 'undefined' && module.exports) {
     ensureMyAssessment, getMyAssessment, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
     myAssessmentStatus, myAssessmentNeedsReview, confirmMyAssessmentEntry, restoreMyAssessmentFromHistory,
     diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
-    renderMyAssessmentRowHtml, evidencePickerCandidates, buildMyAssessmentAiPrompt
+    renderMyAssessmentRowHtml, evidencePickerCandidates, buildMyAssessmentAiPrompt, myAssessmentAlwaysShown
   });
   if (module.exports.__testHooks) Object.assign(module.exports.__testHooks, { flushMyAssessmentSaves, saveMyAssessmentsSoon });
 }

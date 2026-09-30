@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-09-30.2'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-09-30.3'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -203,6 +203,7 @@
       if (oItems.length === 0) return showToast('Oデータ（検査値やバイタル）がありません。先に分類してください', 'warn');
 
       const labTexts = oItems.map(i => `[${i.timestamp}] ${i.text}`).join('\n');
+      document.getElementById('lab-evaluation-panel')?.classList.remove('hidden');
       DOM.labEvalContent.innerHTML = `<div class="flex items-center text-[var(--accent-dark)]"><i class="fa-solid fa-spinner fa-spin mr-2"></i> 登録された基準で検査値を確認しています...</div>`;
 
       if (!globalAppData.apiKey) {
@@ -242,7 +243,7 @@
       } catch (err) {
         console.warn('Lab evaluation error:', err);
         if (getCurrentPatient().id === cp.id) DOM.labEvalContent.innerHTML = `<span class="text-[var(--brick)]">評価中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。APIキーや通信状況をご確認ください。</span>`;
-        showToast(['検査値の評価を表示できませんでした', { text: '理由は「検査データ臨床評価」の欄に出しています。時間を置いてもう一度押すか、APIキーを外すとAIを使わない簡易チェックになります。', detail: true }], 'error');
+        showToast(['検査値の評価を表示できませんでした', { text: '理由は「検査データ臨床評価」の欄に出しています。時間を置いてもう一度押すか、APIキーを外すとAIを使わない簡易チェックになります。', detail: true }], 'warn');
       }
     };
 
@@ -585,11 +586,39 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       return steps;
     }
     const AI_STEP_ACTIONS = { missing: 'evaluateMissingInfoAI()', diagnosis: 'suggestNursingDiagnosesAI()', careplan: 'generateCarePlanAI()' };
+    // 【AIのボタンを使いやすく】利用者からの要望：「AIのボタンをもう少し使いやすく」「AIを実行すると総合アセスメント表の
+    // ページがごちゃごちゃする」。以前は、右上の「AI分析ツール」の中に7つのボタンが隠れ、その下に「AIで進める順番」の
+    // 案内が別にあり、AIを実行するたびに結果の欄が表の上へ1つずつ積み重なっていた。
+    //  ・AIのボタンは1列にまとめて常に見せる（左：①不足情報→②看護診断→③看護計画の順番、右：そのほかの確認）。
+    //    済んだものには✓と件数、実行中はくるくるを出す。
+    //  ・結果は「AIの結果」の欄に種類ごとのタブで1つだけ表示し、表の上に積み重ねない（refreshAiResults）。
+    const AI_EXTRA_TOOLS = [
+      { key: 'lab', label: '検査値の評価', icon: 'fa-flask-vial', action: 'evaluateLabValuesAI()', panel: 'lab-evaluation-panel', title: '検査値を登録された基準で確認し、臨床的な意味をまとめます' },
+      { key: 'contradiction', label: 'S/O矛盾', icon: 'fa-triangle-exclamation', action: 'checkContradictionsAI()', panel: 'contradiction-panel', title: 'S（発言）とO（観察）の食い違いを探します' },
+      { key: 'timeline', label: '経過のまとめ', icon: 'fa-clock-rotate-left', action: 'generateTimelineSummaryAI()', panel: 'timeline-panel', title: '日ごとの変化をまとめます' },
+      { key: 'review', label: '分類の評価', icon: 'fa-list-check', action: 'openAiReview()', panel: null, title: 'S/O・タグの分類をAIに見てもらい、改善点を一覧にします（別の画面で開きます）' }
+    ];
+    const AI_STEP_PANELS = { missing: null, diagnosis: 'diagnosis-panel', careplan: 'careplan-panel' };
+    function aiPanelRunning(panelId) {
+      const body = panelId && document.getElementById(panelId)?.querySelector?.('.ai-panel-body');
+      return !!(body && body.querySelector && body.querySelector('.fa-spinner'));
+    }
     function renderAiSteps(cp) {
       const el = document.getElementById('ai-steps');
       if (!el) return;
-      el.innerHTML = '<span class="ai-steps-title"><i class="fa-solid fa-route"></i> AIでアセスメントを進める順番</span>' +
-        computeAiStepStatus(cp).map((s, k) => `${k ? '<i class="fa-solid fa-arrow-right ai-steps-arrow"></i>' : ''}<button type="button" class="ai-step${s.done ? ' done' : ''}${s.next ? ' next' : ''}" onclick="${AI_STEP_ACTIONS[s.key]}">${s.done ? '<i class="fa-solid fa-check"></i> ' : ''}${s.label}<span class="ai-step-status">${escapeHtml(s.detail)}</span></button>`).join('');
+      const steps = computeAiStepStatus(cp).map((s, k) => {
+        const running = aiPanelRunning(AI_STEP_PANELS[s.key]);
+        const status = running ? '<i class="fa-solid fa-spinner fa-spin"></i> 実行中' : escapeHtml(s.detail);
+        return `${k ? '<i class="fa-solid fa-chevron-right ai-steps-arrow" aria-hidden="true"></i>' : ''}<button type="button" class="ai-step${s.done ? ' done' : ''}${s.next ? ' next' : ''}" onclick="${AI_STEP_ACTIONS[s.key]}" title="${s.done ? 'もう一度実行します' : '押すとAIが実行します'}">${s.done ? '<i class="fa-solid fa-check"></i>' : ''}<span class="ai-step-label">${s.label}</span><span class="ai-step-status">${status}</span></button>`;
+      }).join('');
+      const extras = AI_EXTRA_TOOLS.map(t => {
+        const running = aiPanelRunning(t.panel);
+        const done = t.key === 'lab' ? !!cp.labEvaluationResult : t.key === 'contradiction' ? !!cp.contradictionResult : t.key === 'timeline' ? !!cp.timelineResult : false;
+        return `<button type="button" class="ai-tool${done ? ' done' : ''}" onclick="${t.action}" title="${escapeHtml(t.title)}"><i class="fa-solid ${running ? 'fa-spinner fa-spin' : done ? 'fa-check' : t.icon}"></i>${t.label}</button>`;
+      }).join('');
+      el.innerHTML = `<span class="ai-steps-title"><i class="fa-solid fa-wand-magic-sparkles"></i> AI</span>
+        <div class="ai-bar-group ai-bar-steps" aria-label="AIで順番に進める">${steps}</div>
+        <div class="ai-bar-group ai-bar-tools" aria-label="そのほかのAIの確認">${extras}</div>`;
     }
     function renderDiagnosisPanel(cp) {
       const panel = document.getElementById('diagnosis-panel');
@@ -652,7 +681,7 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       } catch (err) {
         console.warn('Contradiction check error:', err);
         if (getCurrentPatient().id === cp.id) content.innerHTML = `<span class="text-[var(--brick)]">チェック中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。</span>`;
-        showToast(['S/O矛盾チェックができませんでした', { text: '理由は結果の欄に出しています。時間を置いてもう一度押してください。ほかの作業はそのまま続けられます。', detail: true }], 'error');
+        showToast(['S/O矛盾チェックができませんでした', { text: '理由は結果の欄に出しています。時間を置いてもう一度押してください。ほかの作業はそのまま続けられます。', detail: true }], 'warn');
       }
     };
 
@@ -685,7 +714,7 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       } catch (err) {
         console.warn('Diagnosis suggestion error:', err);
         if (getCurrentPatient().id === cp.id) content.innerHTML = `<span class="text-[var(--brick)]">生成中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。</span>`;
-        showToast(['看護診断候補を作れませんでした', { text: '理由は結果の欄に出しています。時間を置いてもう一度押してください。自分のアセスメント・看護計画はAIなしでも書けます。', detail: true }], 'error');
+        showToast(['看護診断候補を作れませんでした', { text: '理由は結果の欄に出しています。時間を置いてもう一度押してください。自分のアセスメント・看護計画はAIなしでも書けます。', detail: true }], 'warn');
       }
     };
 
@@ -718,7 +747,7 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       } catch (err) {
         console.warn('Timeline summary error:', err);
         if (getCurrentPatient().id === cp.id) content.innerHTML = `<span class="text-[var(--brick)]">生成中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。</span>`;
-        showToast(['経時変化サマリーを作れませんでした', { text: '理由は結果の欄に出しています。時間を置いてもう一度押してください。', detail: true }], 'error');
+        showToast(['経時変化サマリーを作れませんでした', { text: '理由は結果の欄に出しています。時間を置いてもう一度押してください。', detail: true }], 'warn');
       }
     };
 
@@ -770,7 +799,7 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       } catch (err) {
         console.warn('Care plan generation error:', err);
         if (getCurrentPatient().id === cp.id) content.innerHTML = `<span class="text-[var(--brick)]">生成中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。</span>`;
-        showToast(['看護計画の叩き台を作れませんでした', { text: '理由は結果の欄に出しています。時間を置いてもう一度押すか、「看護計画」タブで直接書いてください。', detail: true }], 'error');
+        showToast(['看護計画の叩き台を作れませんでした', { text: '理由は結果の欄に出しています。時間を置いてもう一度押すか、「看護計画」タブで直接書いてください。', detail: true }], 'warn');
       }
     };
 
@@ -1118,7 +1147,25 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       if (!el.open && cp.items.some(i => i.type === 'unclassified')) boardAuxClosedByUser = true;
       if (el.open) boardAuxClosedByUser = false;
     };
+    // 【キーボードだけで使えるように】カードの選択（チェックボックス）・︙メニュー・タグの選択の後は、ボードを描き直すため
+    // それまで選んでいた場所（フォーカス）が消え、Tabキーで最初からたどり直しになっていた。描き直した後も、
+    // 同じカードの同じ部品へフォーカスを戻す（カードがほかの列へ移っても、そのカードの部品へ戻す）。
+    function captureBoardFocus() {
+      const el = document.activeElement;
+      const card = el && el.closest ? el.closest('.rec-card') : null;
+      if (!card || !card.id) return null;
+      const part = el.classList.contains('card-select-checkbox') ? '.card-select-checkbox' : el.classList.contains('card-menu-btn') ? '.card-menu-btn' : el.tagName === 'SELECT' ? 'select' : null;
+      return part ? { id: card.id, part } : null;
+    }
+    function restoreBoardFocus(f) {
+      if (!f) return;
+      const card = document.getElementById(f.id);
+      const el = card && card.querySelector ? card.querySelector(f.part) : null;
+      if (el && typeof el.focus === 'function' && document.activeElement !== el) el.focus({ preventScroll: false });
+    }
     function renderSoBoard() {
+      resetCardLabFlags();
+      const focusBefore = captureBoardFocus();
       const cp = getCurrentPatient();
       // 【修正】以前は患者背景（item.patientBackground）の付いたカードを専用の「患者背景」列に
       // 表示していたが、利用者からの指摘（看護記録の原則では、年齢・既往歴・家族構成等の基本情報も
@@ -1163,10 +1210,11 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
         if (totalCounts.unclassified && !boardAuxClosedByUser) auxUnc.open = true;
         if (!totalCounts.unclassified) auxUnc.open = false;
       }
-      // 分類の前は入力欄を広く、分類の後はカードを広く（js/05 の updateSourcePaneLayout）
+      // 入力欄の広さ（分類の前も後も同じ並び。js/05 の updateSourcePaneLayout）
       if (typeof updateSourcePaneLayout === 'function') updateSourcePaneLayout();
       if (typeof renderWorkflowSteps === 'function') renderWorkflowSteps();
       renderBulkActionBar();
+      restoreBoardFocus(focusBefore);
     }
 
     // ==========================================================================
@@ -1731,6 +1779,56 @@ ${cardLines}
       return { columns: used, rows };
     }
     const LAB_TREND_VITAL_REF_TEXT = { '体温': '37.5未満', '脈拍': '60〜100', '血圧': '上90〜139・下90未満', '呼吸数': '12〜20', 'SpO2': '95以上' };
+
+    // 【カードの検査値の色分け】利用者からの要望：「検査値の推移の色分けがよかったので、分類ボードのカードにも」。
+    // 検査値の推移の表と同じ判定（同じ項目の基準値・バイタルの目安）で、カードの文章の中の値に
+    // 高い値＝赤（↑）・低い値＝青（↓）の色を付ける。表と判定をそろえるため、表を作る処理（buildLabTrendTable）の結果を使う。
+    let cardLabFlagCache = null;
+    function resetCardLabFlags() { cardLabFlagCache = null; }
+    function cardLabFlagsFor(itemId) {
+      if (!cardLabFlagCache) {
+        cardLabFlagCache = new Map();
+        try {
+          const cp = getCurrentPatient();
+          const table = buildLabTrendTable((cp && cp.items) || [], { includeVitals: true });
+          table.rows.forEach(r => Object.values(r.cells).forEach(list => list.forEach(c => {
+            if (!c.itemId || !c.flag) return;
+            if (!cardLabFlagCache.has(c.itemId)) cardLabFlagCache.set(c.itemId, []);
+            cardLabFlagCache.get(c.itemId).push({ value: c.value, flag: c.flag, key: r.key });
+          })));
+        } catch (e) { /* 色分けできなくてもカードはそのまま表示する */ }
+      }
+      return cardLabFlagCache.get(itemId) || [];
+    }
+    // カードの文章を、検査値の色分けを付けたHTMLにする（色の付く値が無ければ、ふつうに文字を安全な形にするだけ）
+    function cardTextWithLabFlagsHtml(item) {
+      const text = String((item && item.text) || '');
+      const flags = item && item.id ? cardLabFlagsFor(item.id) : [];
+      if (!flags.length) return escapeHtml(text);
+      // 値の位置を先に探し（同じ値が2回あれば順に別の場所を使う）、文章の順に並べてから色を付ける
+      const hits = [];
+      flags.forEach(f => {
+        const pattern = String(f.value).split('/').map(escapeRegExp).join('\\s*\\/\\s*');
+        const re = new RegExp(`(?<![\\d.,])${pattern}(?![\\d])`, 'g');
+        let m;
+        while ((m = re.exec(text)) !== null) {
+          const start = m.index, end = m.index + m[0].length;
+          if (hits.some(h => start < h.end && end > h.start)) continue;
+          hits.push({ start, end, f });
+          break;
+        }
+      });
+      hits.sort((a, b) => a.start - b.start);
+      let html = '', pos = 0;
+      hits.forEach(({ start, end, f }) => {
+        const hasArrow = /^\s*[^\s\d(（、,。↑↓]{0,12}\s*[↑↓]/.test(text.slice(end));
+        const label = f.flag === 'high' ? '基準より高い値' : '基準より低い値';
+        html += escapeHtml(text.slice(pos, start)) +
+          `<span class="lt-val lt-${f.flag} card-lab-flag" title="${escapeHtml(f.key)}：${label}（検査値の推移と同じ判定）">${escapeHtml(text.slice(start, end))}${hasArrow ? '' : `<span class="lt-arrow">${f.flag === 'high' ? '↑' : '↓'}</span>`}</span>`;
+        pos = end;
+      });
+      return html + escapeHtml(text.slice(pos));
+    }
 
     // 表をExcelなどに貼れる形（タブ区切り）にする
     function labTrendTableToTsv(table) {

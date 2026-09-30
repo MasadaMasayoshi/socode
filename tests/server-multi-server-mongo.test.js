@@ -76,3 +76,81 @@ test('以前の形式（全患者を1つの文書に保存）からの移行：�
   assert.equal(old1.data.items[0].text, '古い形式の患者');
   assert.equal(old2.rev, 5, '既にある患者は上書きしない');
 });
+
+// ---- 患者以外の共有データ（学習データ・事例ログ・報告・スナップショット・基準） ----
+const post = (url, p, body) => fetch(`${url}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+test('学習データ・事例ログ：別々のサーバーで同時に学習しても、両方の票とログが残る', async () => {
+  const sends = [];
+  for (let i = 0; i < 6; i++) {
+    sends.push(post(i % 2 ? urlA : urlB, '/api/learning-event', { text: '同時に学習する文', action: 'type', payload: { type: 'o' } }));
+    sends.push(post(i % 2 ? urlB : urlA, '/api/learning-event', { text: `別の文${i}`, action: 'type', payload: { type: 's' } }));
+  }
+  const results = await Promise.all(sends);
+  results.forEach(r => assert.equal(r.status, 200));
+  for (const url of [urlA, urlB]) {
+    const dict = await (await fetch(`${url}/api/learning-dict`)).json();
+    assert.equal(dict['同時に学習する文'].typeVotes.o, 6, `${url}：票が6票とも残る`);
+    for (let i = 0; i < 6; i++) assert.ok(dict[`別の文${i}`], `${url}：別の文${i} が消えていない`);
+    const log = await (await fetch(`${url}/api/case-log`)).json();
+    assert.equal(log.filter(e => e.text === '同時に学習する文' || /^別の文/.test(e.text)).length, 12, `${url}：事例ログが12件とも残る`);
+  }
+});
+
+test('カードの報告・スナップショット・追加の基準：2台から交互に追加しても消えない', async () => {
+  await Promise.all([
+    post(urlA, '/api/card-reports', { sessionId: 'sA', cardText: 'Aの報告' }),
+    post(urlB, '/api/card-reports', { sessionId: 'sB', cardText: 'Bの報告' }),
+    post(urlA, '/api/patient-snapshot', { clientId: 'cA', patients: [{ patientId: 'p1', items: [] }] }),
+    post(urlB, '/api/patient-snapshot', { clientId: 'cB', patients: [{ patientId: 'p2', items: [] }] }),
+    post(urlA, '/api/extraction-criteria', { text: 'Aの基準' }),
+    post(urlB, '/api/extraction-criteria', { text: 'Bの基準' })
+  ]);
+  const reports = await (await fetch(`${urlB}/api/card-reports`)).json();
+  assert.deepEqual(reports.map(r => r.items[0].cardText).sort(), ['Aの報告', 'Bの報告']);
+  const snaps = await (await fetch(`${urlA}/api/patient-snapshots`)).json();
+  assert.deepEqual(snaps.map(s => s.clientId).sort(), ['cA', 'cB']);
+  const crit = await (await fetch(`${urlA}/api/extraction-criteria`)).json();
+  assert.deepEqual(crit.map(c => c.text).sort(), ['Aの基準', 'Bの基準']);
+  // もう一方のサーバーで追加した基準も、編集・削除できる（手元に無くても最新を読み直す）
+  const idB = crit.find(c => c.text === 'Bの基準').id;
+  const put2 = await fetch(`${urlA}/api/extraction-criteria/${idB}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: 'Bの基準（Aで直した）' }) });
+  assert.equal(put2.status, 200);
+  const crit2 = await (await fetch(`${urlB}/api/extraction-criteria`)).json();
+  assert.ok(crit2.some(c => c.text === 'Bの基準（Aで直した）'));
+  // 同じセッションの2件目の報告は、別のサーバーに届いても同じまとまりに入る
+  await post(urlB, '/api/card-reports', { sessionId: 'sA', cardText: 'Aの2件目' });
+  const reports2 = await (await fetch(`${urlA}/api/card-reports`)).json();
+  assert.equal(reports2.find(r => r.sessionId === 'sA').items.length, 2);
+});
+
+test('以前の形式（版の無い文書）も、最初の保存で版を付けて上書きの競合を見つけられる', async () => {
+  const client = new fakeMongo.MongoClient('mongodb://fake-for-test/shared');
+  await client.connect();
+  const col = client.db(process.env.MONGODB_DB_NAME || 'nursing_assessment').collection('app_state');
+  await col.updateOne({ _id: 'reference-sources' }, { $set: { data: [{ id: 'old', title: '古い', url: 'https://example.com', content: '' }] } }, { upsert: true });
+  await Promise.all([
+    post(urlA, '/api/reference-sources', { title: 'A', url: 'https://a.example' }),
+    post(urlB, '/api/reference-sources', { title: 'B', url: 'https://b.example' })
+  ]);
+  const doc = await col.findOne({ _id: 'reference-sources' });
+  assert.deepEqual(doc.data.map(r => r.title).sort(), ['A', 'B', '古い']);
+  assert.equal(doc.rev, 2);
+});
+
+test('自動整理：2台で同時に整理しても、アーカイブへ二重に入れず、新しい記録を消さない', async () => {
+  const client = new fakeMongo.MongoClient('mongodb://fake-for-test/shared');
+  await client.connect();
+  const col = client.db(process.env.MONGODB_DB_NAME || 'nursing_assessment').collection('app_state');
+  const old = new Date(Date.now() - 200 * 86400000).toISOString();
+  const cur = await col.findOne({ _id: 'patient-snapshots' });
+  const data = cur.data.concat([{ id: 'oldsnap', clientId: 'x', patientId: 'p', items: [], closedAt: old }]);
+  await col.updateOne({ _id: 'patient-snapshots' }, { $set: { data, rev: cur.rev + 1 } });
+  await Promise.all([serverA.runArchiving(), serverB.runArchiving(), post(urlA, '/api/patient-snapshot', { clientId: 'new', patients: [{ patientId: 'p3', items: [] }] })]);
+  const arc = await (await fetch(`${urlB}/api/patient-snapshots/archive`)).json();
+  assert.equal(arc.filter(s => s.id === 'oldsnap').length, 1);
+  const snaps = await (await fetch(`${urlB}/api/patient-snapshots`)).json();
+  assert.ok(!snaps.some(s => s.id === 'oldsnap'));
+  assert.ok(snaps.some(s => s.clientId === 'new'));
+  assert.ok(snaps.some(s => s.clientId === 'cA'));
+});

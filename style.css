@@ -343,15 +343,38 @@
     .ai-evidence-chip.ai-ev-o { background: var(--slate-soft); border-color: var(--slate-line); }
 
     /* AIでアセスメントを進める順番（改善案D。js/08 の renderAiSteps） */
-    .ai-steps { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; font-size: 11px; padding: .5rem .7rem; border: 1px dashed var(--line); border-radius: var(--radius); background: var(--paper); }
+    /* AIのボタン（1列にまとめて常に見せる。js/08 の renderAiSteps） */
+    .ai-steps { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem .6rem; font-size: 11px; padding: .45rem .6rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); }
     .ai-steps:empty { display: none; }
-    .ai-steps-title { font-weight: 700; color: var(--ink); margin-right: .3rem; }
-    .ai-steps-arrow { color: var(--ink-muted); font-size: 10px; }
-    .ai-step { display: inline-flex; flex-direction: column; align-items: flex-start; padding: .3rem .6rem; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-weight: 600; line-height: 1.3; }
-    .ai-step:hover { border-color: var(--accent); }
-    .ai-step.done { border-color: var(--accent); color: var(--accent-dark); }
-    .ai-step.next { border: 2px solid var(--brick); box-shadow: 0 0 0 3px var(--brick-soft); }
-    .ai-step-status { font-weight: 400; font-size: 10px; color: var(--ink-muted); }
+    .ai-steps-title { font-weight: 700; color: var(--accent-dark); display: inline-flex; align-items: center; gap: .3rem; }
+    .ai-bar-group { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem; }
+    .ai-bar-tools { margin-left: auto; padding-left: .6rem; border-left: 1px solid var(--line); }
+    .ai-steps-arrow { color: var(--ink-muted); font-size: 9px; }
+    .ai-step, .ai-tool { display: inline-flex; align-items: center; gap: .35rem; padding: .3rem .6rem; min-height: 30px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-weight: 600; line-height: 1.2; white-space: nowrap; }
+    .ai-step:hover, .ai-tool:hover { border-color: var(--accent); color: var(--accent-dark); }
+    .ai-step:focus-visible, .ai-tool:focus-visible, .ai-results-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .ai-step.done, .ai-tool.done { border-color: var(--accent-line); color: var(--accent-dark); }
+    .ai-step.done > .fa-check, .ai-tool.done > .fa-check { color: var(--accent); }
+    .ai-step.next { border: 1.5px solid var(--accent); background: var(--accent-soft); color: var(--accent-dark); }
+    .ai-step-status { font-weight: 500; font-size: 10px; color: var(--ink-muted); }
+    .ai-tool i { color: var(--ink-muted); font-size: 10.5px; }
+    /* AIの結果（タブで1つだけ表示。js/05 の refreshAiResults） */
+    .ai-results { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .ai-results-bar { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem; padding: .35rem .6rem; }
+    .ai-results-title { font-size: 11px; font-weight: 700; color: var(--ink); display: inline-flex; align-items: center; gap: .3rem; margin-right: .2rem; }
+    .ai-results-title i { color: var(--accent); }
+    .ai-results-tabs { display: flex; flex-wrap: wrap; gap: .3rem; }
+    .ai-results-tab { font-size: 11px; font-weight: 600; padding: .2rem .65rem; border-radius: 999px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); }
+    .ai-results-tab:hover { border-color: var(--accent); }
+    .ai-results-tab.active { background: var(--accent); border-color: var(--accent); color: var(--on-fill); }
+    .ai-results-close { margin-left: auto; font-size: 10.5px; font-weight: 700; color: var(--ink-muted); padding: .15rem .5rem; border-radius: var(--radius-sm); }
+    .ai-results-close:hover { color: var(--ink); background: var(--paper); }
+    .ai-results .ai-panel { background: transparent !important; border: none !important; border-top: 1px solid var(--line-soft) !important; border-radius: 0 !important; padding: .55rem .6rem .6rem !important; }
+    .ai-results .ai-panel.ai-tab-hidden { display: none !important; }
+    .ai-results .ai-panel-head { display: none; }
+    .ai-results .ai-panel .ai-panel-body { display: block; max-height: 55vh; overflow: auto; }
+    .ai-results .ai-panel .ai-note { display: block; }
+    .ai-results .ai-panel .dx-actions { display: flex; }
 
     /* 看護診断候補を1件ずつ選ぶ表示（改善案D。js/08 の renderDiagnosisPanel） */
     .dx-hint { font-size: 11px; color: var(--ink-muted); margin-bottom: .4rem; }
@@ -409,6 +432,12 @@
     .lt-val small { font-size: 9px; color: var(--ink-muted); font-weight: 500; }
     .lt-val.lt-high { color: var(--brick); background: var(--brick-soft); }
     .lt-val.lt-low { color: var(--slate); background: var(--slate-soft); }
+    /* カードの文章の中の検査値の色分け（検査値の推移と同じ色） */
+    .lt-val.card-lab-flag { display: inline; padding: 0 .25rem; margin: 0 .05rem; font-weight: 700; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+    .lt-val.card-lab-flag:hover { background: inherit; }
+    .lt-val.card-lab-flag.lt-high:hover { background: var(--brick-soft); }
+    .lt-val.card-lab-flag.lt-low:hover { background: var(--slate-soft); }
+    .lt-val.card-lab-flag + .lt-val.card-lab-flag { margin-left: .05rem; }
     .lt-arrow { font-weight: 800; }
     .lt-note { font-size: 9.5px; color: var(--ink-muted); font-weight: 500; margin-left: .2rem; }
     .lt-legend { display: inline-block; font-weight: 800; padding: 0 .3rem; border-radius: 3px; }
@@ -796,26 +825,9 @@
     .ai-text .ai-key .ai-list { font-weight: 600; }
     .ai-text .ai-label { color: var(--accent-dark); }
     .ai-text .ai-evidence-chip { font-size: .82em; padding: 0 .3em; margin: 0 .1em; opacity: .9; }
-    /* 写真の文字起こし：1行の細い枠（利用者からの指摘：場所を取りすぎ） */
-    .ocr-drop { display: flex; align-items: center; justify-content: center; gap: .45rem; flex-wrap: wrap; padding: .4rem .6rem; border: 1px dashed var(--line); border-radius: var(--radius-sm); background: var(--paper); cursor: pointer; font-size: 11.5px; color: var(--ink); transition: border-color .15s ease, background .15s ease; }
-    .ocr-drop:hover, .ocr-drop:focus-visible, .ocr-drop.drag-over { border-color: var(--accent); background: var(--accent-soft); outline: none; }
-    .ocr-drop i { color: var(--ink-muted); }
-    .ocr-drop-main { font-weight: 600; }
-    .ocr-drop-sub { font-size: 10px; color: var(--ink-muted); }
-    /* 分類開始・分類方法・例文 */
-    .classify-actions { display: flex; flex-direction: column; gap: .45rem; }
-    .classify-actions .classify-start { width: 100%; }
-    .classify-note { margin: -.15rem 0 0; }
-    .sample-link { align-self: flex-end; font-size: 10.5px; color: var(--accent); }
-    .sample-link:hover { text-decoration: underline; }
-    /* 入力欄を広げているときは、横に1行で並べる（分類開始は必要な幅だけ） */
-    #view-so-board.input-wide .classify-actions { flex-direction: row; flex-wrap: wrap; align-items: center; gap: .6rem; }
-    #view-so-board.input-wide .classify-actions .classify-start { width: auto; min-width: 11rem; padding-left: 1.5rem; padding-right: 1.5rem; }
-    #view-so-board.input-wide .classify-mode { width: auto; }
-    #view-so-board.input-wide .classify-mode button { padding: .45rem .8rem; }
-    #view-so-board.input-wide .classify-note { flex: 1; min-width: 12rem; margin: 0; }
-    #view-so-board.input-wide .sample-link { align-self: center; }
-    #view-so-board.input-wide #source-text, #view-so-board.input-wide #source-highlight-view { min-height: 42vh; }
-    #view-so-board.input-wide > section:first-child { gap: .6rem; }
+    /* 写真の文字起こしの枠：キーボードで選んだとき・ドラッグ中の見た目 */
+    .ocr-drop:focus-visible, .ocr-drop.drag-over { border-color: var(--accent); background: var(--accent-soft); outline: none; }
     .classify-mode button { white-space: nowrap; }
-    #view-so-board:not(.input-wide) .ocr-drop-sub { display: none; }
+    /* 自分のアセスメントの表示の切り替え（js/11 の toggleMyAssessmentShown） */
+    .my-asm-show-btn.is-on { border-color: var(--accent); color: var(--accent-dark); background: var(--accent-soft); }
+    .my-asm-show-btn .my-asm-show-state { font-weight: 700; }

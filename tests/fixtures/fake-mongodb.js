@@ -9,6 +9,7 @@ function matches(doc, filter) {
     if (cond && typeof cond === 'object' && !Array.isArray(cond)) {
       if ('$in' in cond) return cond.$in.includes(v);
       if ('$ne' in cond) return v !== cond.$ne;
+      if ('$exists' in cond) return cond.$exists ? v !== undefined : v === undefined;
     }
     return v === cond;
   });

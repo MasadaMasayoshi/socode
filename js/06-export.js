@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-09-30.2'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-09-30.3'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 書式付き書き出し（Word / PDF）
     // ------------------------------------------------------------------------
@@ -334,7 +334,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       out += `出力日時: ${new Date().toLocaleString('ja-JP')}\n`;
 
       out += plainSectionTitle('1. 検査データ臨床評価・アセスメントノート');
-      out += htmlToPlainText(DOM.labEvalContent.innerHTML) + '\n';
+      out += htmlToPlainText(cp.labEvaluationResult || '（検査値の評価はまだ行っていません）') + '\n';
 
       const isMissingOnly = i => typeof isMissingInfoOnlyItem === 'function' && isMissingInfoOnlyItem(i);
       out += plainSectionTitle('2. 主観的情報（Sデータ）');

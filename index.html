@@ -5,20 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-09-30.2">
+  <meta name="app-version" content="2026-09-30.3">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
-  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-09-30.2">
+  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-09-30.3">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=2026-09-30.2">
+  <link rel="stylesheet" href="style.css?v=2026-09-30.3">
   <!-- 画面の見た目の部品（Tailwind CSS 3.4）。以前は開くたびにネット（cdn.tailwindcss.com）から読み込み、
        その場で作っていたため、ネットが不安定だったり配信が止まったりすると画面のレイアウトが崩れた。
        使っている部品だけを vendor/tailwind.css に作っておき、それを読み込む（改善提案7。作り直しは
        npm run build:css）。以前と同じく style.css より後に読み込み、同じ強さの指定ではこちらを優先する。 -->
-  <link rel="stylesheet" href="vendor/tailwind.css?v=2026-09-30.2">
+  <link rel="stylesheet" href="vendor/tailwind.css?v=2026-09-30.3">
   <script>
     // ダークモードの初期適用（画面が一瞬だけ元のテーマで表示される「ちらつき」を防ぐため、
     // CSS読み込み直後・本文描画前にこの小さなスクリプトで先に data-theme を決めてしまう）。
@@ -155,12 +155,12 @@
         </h2>
 
         <!-- 画像OCRドロップゾーン -->
-        <!-- 【場所を取りすぎないように】利用者からの指摘「こいつら場所取りすぎじゃない？」。写真の読み込みは1行の細い枠にした -->
-        <div id="ocr-dropzone" class="ocr-drop" role="button" tabindex="0" title="記録メモや検査結果の写真をここへドラッグ＆ドロップするか、押してファイルを選ぶと文字起こしします">
+        <!-- 利用者からの要望「分類ボードはこの並びだけにして、いちいち変えないで」：以前の大きさの枠に戻した（キーボードでも押せる） -->
+        <div id="ocr-dropzone" class="ocr-drop border border-dashed border-[var(--line)] hover:border-[var(--accent)] bg-[var(--paper)] hover:bg-[var(--accent-soft)] rounded-[var(--radius)] p-3 text-center cursor-pointer transition" role="button" tabindex="0" title="記録メモや検査結果の写真をここへドラッグ＆ドロップするか、押してファイルを選ぶと文字起こしします">
           <input type="file" id="ocr-file-input" accept="image/*" class="hidden">
-          <i class="fa-solid fa-camera"></i>
-          <span class="ocr-drop-main">写真から文字起こし</span>
-          <span class="ocr-drop-sub">ドラッグ＆ドロップ／押して選ぶ</span>
+          <i class="fa-solid fa-camera text-[var(--ink-muted)] text-base mb-1"></i>
+          <p class="text-xs font-medium text-[var(--ink)]">記録メモ・検査結果写真をドラッグ＆ドロップ</p>
+          <p class="text-[9px] text-[var(--ink-muted)] mt-0.5">またはクリックしてファイル選択</p>
         </div>
         <div id="ocr-status" class="hidden text-xs text-[var(--accent-dark)] font-medium bg-[var(--accent-soft)] p-2 rounded-[var(--radius-sm)] items-center justify-between">
           <span id="ocr-status-text"><i class="fa-solid fa-spinner fa-spin mr-1"></i> 文字起こし中...</span>
@@ -183,7 +183,7 @@
           <span class="source-editor-title"><i class="fa-solid fa-file-lines"></i> 記録メモ<span id="source-editor-count" class="source-editor-count"></span></span>
           <span class="flex items-center gap-2">
             <button type="button" id="btn-source-fullscreen-classify" class="btn btn-primary text-[11px] py-1 source-fs-only" onclick="classifyFromFullscreen()"><i class="fa-solid fa-bolt"></i> 分類開始</button>
-            <button type="button" id="btn-source-wide" class="source-fs-btn source-wide-btn" onclick="toggleSourcePaneWidth()" title="入力欄を広く／狭くします（分類の前は広く、分類の後はカードを広く表示します）"><i class="fa-solid fa-left-right"></i><span>広げる</span></button>
+            <button type="button" id="btn-source-wide" class="source-fs-btn source-wide-btn" onclick="toggleSourcePaneWidth()" title="入力欄を広く／狭くします（もう一度押すと元の並びに戻ります）"><i class="fa-solid fa-left-right"></i><span>広げる</span></button>
             <button type="button" id="btn-source-fullscreen" class="source-fs-btn" onclick="toggleSourceFullscreen()" title="入力欄を画面いっぱいに広げます（Escで戻る）"><i class="fa-solid fa-expand"></i><span>全画面</span></button>
           </span>
         </div>
@@ -191,18 +191,20 @@
         <div id="source-highlight-view" class="field source-highlight-view hidden" title="クリックすると編集に戻ります"></div>
         </div>
 
-        <!-- 分類開始・分類方法（AIなし／AIあり）・例文。入力欄を広げているときは1行に並べる（style.css の .classify-actions） -->
-        <div class="classify-actions">
-          <button id="btn-start-classify" class="btn btn-primary py-2.5 text-[13px] classify-start">
-            <i class="fa-solid fa-bolt"></i> 分類開始
-          </button>
-          <!-- 分類方法の切り替え（js/07 の getClassifyMode）：AIなしで分類（ルールだけ）／AIありで分類 -->
-          <div class="classify-mode" role="group" aria-label="分類方法">
-            <button type="button" data-classify-mode="rules" onclick="setClassifyMode('rules')"><i class="fa-solid fa-list-check"></i> AIなし</button>
-            <button type="button" data-classify-mode="ai" onclick="setClassifyMode('ai')"><i class="fa-solid fa-wand-magic-sparkles"></i> AIあり</button>
-          </div>
-          <p id="classify-mode-note" class="classify-note text-[10px] text-[var(--ink-muted)] leading-snug"></p>
-          <button id="btn-load-sample" class="sample-link" title="動作を試すための例文を入力欄に入れます">例文を入れる</button>
+        <!-- 分類開始ボタン -->
+        <button id="btn-start-classify" class="btn btn-primary w-full py-2.5 text-[13px]">
+          <i class="fa-solid fa-bolt"></i> 分類開始
+        </button>
+        <!-- 分類方法の切り替え（js/07 の getClassifyMode）：AIなしで分類（ルールだけ）／AIありで分類 -->
+        <div class="classify-mode" role="group" aria-label="分類方法">
+          <button type="button" data-classify-mode="rules" onclick="setClassifyMode('rules')"><i class="fa-solid fa-list-check"></i> AIなしで分類</button>
+          <button type="button" data-classify-mode="ai" onclick="setClassifyMode('ai')"><i class="fa-solid fa-wand-magic-sparkles"></i> AIありで分類</button>
+        </div>
+        <p id="classify-mode-note" class="text-[10px] text-[var(--ink-muted)] leading-snug -mt-1"></p>
+
+        <div class="flex items-center justify-between pt-1 border-t border-[var(--line-soft)]">
+          <span class="text-[11px] text-[var(--ink-muted)]">テスト用:</span>
+          <button id="btn-load-sample" class="text-[11px] text-[var(--accent)] hover:underline">例文をセット</button>
         </div>
       </section>
 
@@ -296,34 +298,29 @@
           </h2>
         </div>
         <div class="flex items-center space-x-2">
-          <div class="relative">
-            <button id="btn-ai-tools-toggle" class="btn btn-outline" style="border-bottom:2px solid var(--accent);">
-              <i class="fa-solid fa-wand-magic-sparkles" style="color:var(--accent);"></i> AI分析ツール <i class="fa-solid fa-chevron-down text-[9px] ml-1"></i>
-            </button>
-            <div id="ai-tools-menu" class="hidden absolute right-0 mt-1 w-60 bg-[var(--surface)] border border-[var(--line)] rounded-[var(--radius)] shadow-lg z-40 py-1 flex flex-col">
-              <button onclick="evaluateLabValuesAI(); closeAiToolsMenu();" class="text-left px-3 py-2 text-xs hover:bg-[var(--paper)] flex items-center gap-2"><i class="fa-solid fa-flask-vial text-[var(--accent)] w-4"></i> 検査値AI総合評価</button>
-              <button onclick="evaluateMissingInfoAI(); closeAiToolsMenu();" class="text-left px-3 py-2 text-xs hover:bg-[var(--paper)] flex items-center gap-2"><i class="fa-solid fa-magnifying-glass text-[var(--brick)] w-4"></i> 不足情報をAI推定</button>
-              <button onclick="checkContradictionsAI(); closeAiToolsMenu();" class="text-left px-3 py-2 text-xs hover:bg-[var(--paper)] flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-[var(--gold)] w-4"></i> S/O矛盾チェック</button>
-              <button onclick="suggestNursingDiagnosesAI(); closeAiToolsMenu();" class="text-left px-3 py-2 text-xs hover:bg-[var(--paper)] flex items-center gap-2"><i class="fa-solid fa-clipboard-list text-[var(--slate)] w-4"></i> 看護診断候補を提案</button>
-              <button onclick="generateTimelineSummaryAI(); closeAiToolsMenu();" class="text-left px-3 py-2 text-xs hover:bg-[var(--paper)] flex items-center gap-2"><i class="fa-solid fa-clock-rotate-left text-[var(--accent-dark)] w-4"></i> 経時変化サマリー</button>
-              <button onclick="openAiReview(); closeAiToolsMenu();" class="text-left px-3 py-2 text-xs hover:bg-[var(--paper)] flex items-center gap-2"><i class="fa-solid fa-list-check text-[var(--accent)] w-4"></i> 分類をAIで評価（改善点）</button>
-              <button onclick="generateCarePlanAI(); closeAiToolsMenu();" class="text-left px-3 py-2 text-xs hover:bg-[var(--paper)] flex items-center gap-2"><i class="fa-solid fa-notes-medical text-[var(--brick)] w-4"></i> 看護計画を自動生成</button>
-            </div>
-          </div>
+          <button type="button" id="btn-my-asm-show" class="btn btn-outline my-asm-show-btn" onclick="toggleMyAssessmentShown()" aria-pressed="false">
+            <i class="fa-solid fa-user-pen"></i> 自分のアセスメント：<span class="my-asm-show-state">1行だけ</span>
+          </button>
           <button onclick="printAssessmentSheet()" class="btn btn-outline" title="総合アセスメント表を、ボタン等を除いた印刷用の形（A4横）で印刷・PDF保存します">
             <i class="fa-solid fa-print"></i> 印刷 / PDF
           </button>
         </div>
       </div>
 
-      <!-- AIでアセスメントを進める順番（改善案D。js/08 の renderAiSteps）：①不足情報 → ②看護診断候補 → ③看護計画 -->
+      <!-- AIのボタン（js/08 の renderAiSteps）：左は順番に進めるもの（①不足情報 → ②看護診断候補 → ③看護計画）、右はそのほかの確認。
+           結果は下の「AIの結果」の欄に種類ごとのタブで1つだけ出す（js/05 の refreshAiResults。表の上に積み重ねない） -->
       <div id="ai-steps" class="ai-steps"></div>
+      <div id="ai-results" class="ai-results hidden">
+        <div class="ai-results-bar">
+          <span class="ai-results-title"><i class="fa-solid fa-comment-medical"></i> AIの結果</span>
+          <div id="ai-results-tabs" class="ai-results-tabs" role="tablist" aria-label="AIの結果の種類"></div>
+          <button type="button" id="ai-results-close" class="ai-results-close hidden" onclick="showAiResult(null)"><i class="fa-solid fa-chevron-up"></i> たたむ</button>
+        </div>
 
       <!-- 検査値評価サマリーパネル -->
-      <div id="lab-evaluation-panel" class="ai-panel bg-[var(--accent-soft)] border border-[var(--accent-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
+      <div id="lab-evaluation-panel" class="ai-panel hidden bg-[var(--accent-soft)] border border-[var(--accent-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
         <button type="button" class="ai-panel-head" onclick="toggleAiPanel(this)" aria-expanded="false" style="color:var(--accent-dark);"><i class="fa-solid fa-microscope"></i><span class="ai-panel-title">検査データ臨床評価</span><span class="ai-panel-summary"></span><span class="ai-panel-toggle">詳細を開く</span></button>
         <div id="lab-evaluation-content" class="ai-panel-body text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--accent-line)] min-h-[50px]">
-          「検査値AI総合評価」ボタンを押すと、Oデータの検査値を登録された基準で確認し、臨床的意味を評価します。
         </div>
         <details class="ai-note"><summary><i class="fa-solid fa-circle-info"></i> AIの参考案です。根拠を確認し、最終判断は医療従事者が行ってください</summary><p>AIや簡易チェックの結果は臨床判断の代替にはなりません。基準値は施設・検査法で異なることがあります。最終評価は必ず医療従事者が行ってください。</p></details>
       </div>
@@ -355,6 +352,7 @@
         <div id="careplan-content" class="ai-panel-body text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--brick-line)] min-h-[40px]"></div>
         <details class="ai-note"><summary><i class="fa-solid fa-circle-info"></i> AIの参考案です。根拠を確認し、最終判断は医療従事者が行ってください</summary><p>個別性を踏まえて書き直し、「看護計画」タブで自分の計画として管理してください（「AIの結果から取り込む」で取り込めます）。</p></details>
       </div>
+      </div><!-- /ai-results -->
 
       <!-- 【欲求ごとのページ】利用者からの要望：「総合アセスメント表も下にスクロールするのが面倒なので、ボタン一つで
            各欲求のページが表示されるようにしたい」。1〜14のボタンで、その欲求の行だけを表示する（「すべて」で全行）。
@@ -1221,18 +1219,18 @@
 
   <!-- プログラム本体（以前の app.js を内容ごとに10ファイルに分けたもの）。この順番で読み込むこと。
        順番は tests/app-helpers.js の APP_SCRIPT_FILES と同じにする（tests/app-files-order.test.js で確認）。 -->
-  <script src="js/01-henderson-keywords.js?v=2026-09-30.2"></script>
-  <script src="js/02-reference-data.js?v=2026-09-30.2"></script>
-  <script src="js/03-extraction-helpers.js?v=2026-09-30.2"></script>
-  <script src="js/04-server-sync.js?v=2026-09-30.2"></script>
-  <script src="js/05-app-state-and-ui.js?v=2026-09-30.2"></script>
-  <script src="js/06-export.js?v=2026-09-30.2"></script>
-  <script src="js/07-classification.js?v=2026-09-30.2"></script>
-  <script src="js/08-assessment-tools.js?v=2026-09-30.2"></script>
-  <script src="js/09-board.js?v=2026-09-30.2"></script>
-  <script src="js/10-reference-page-and-startup.js?v=2026-09-30.2"></script>
-  <script src="js/11-own-assessment.js?v=2026-09-30.2"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=2026-09-30.2"></script>
-  <script src="js/13-compare-and-report.js?v=2026-09-30.2"></script>
+  <script src="js/01-henderson-keywords.js?v=2026-09-30.3"></script>
+  <script src="js/02-reference-data.js?v=2026-09-30.3"></script>
+  <script src="js/03-extraction-helpers.js?v=2026-09-30.3"></script>
+  <script src="js/04-server-sync.js?v=2026-09-30.3"></script>
+  <script src="js/05-app-state-and-ui.js?v=2026-09-30.3"></script>
+  <script src="js/06-export.js?v=2026-09-30.3"></script>
+  <script src="js/07-classification.js?v=2026-09-30.3"></script>
+  <script src="js/08-assessment-tools.js?v=2026-09-30.3"></script>
+  <script src="js/09-board.js?v=2026-09-30.3"></script>
+  <script src="js/10-reference-page-and-startup.js?v=2026-09-30.3"></script>
+  <script src="js/11-own-assessment.js?v=2026-09-30.3"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=2026-09-30.3"></script>
+  <script src="js/13-compare-and-report.js?v=2026-09-30.3"></script>
 </body>
 </html>

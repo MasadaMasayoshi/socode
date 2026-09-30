@@ -5,7 +5,7 @@
     //   （コピー・テキストファイル・印刷／PDF）。
     // （js/10 の起動の処理より後に読み込む。最後に総合アセスメント表などを描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-09-30.2'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-09-30.3'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // ④ 記録した時点（cp.checkpoints[ID] = { id, label, kind, at, updatedAt, items:[カードの写し] }。
@@ -119,6 +119,9 @@
     // 分類し直す前の自動の記録（js/07 の「分類開始」から呼ぶ）
     function checkpointBeforeClassify(cp) {
       if (!cp || !(cp.items || []).length) return null;
+      // 同じ内容のまま続けて分類し直したときは、同じ記録を増やさない（繰り返し入力の確認で発覚）
+      const latest = checkpointList(cp)[0];
+      if (latest && JSON.stringify(latest.items) === JSON.stringify((cp.items || []).map(checkpointItemCopy))) return latest;
       return createCheckpoint(cp, { kind: 'classify' });
     }
 
@@ -669,7 +672,7 @@
         <span class="wf-no">${s.done ? '<i class="fa-solid fa-check"></i>' : k + 1}</span><span class="wf-label">${s.label}</span>${s.note ? `<span class="wf-note">${escapeHtml(s.note)}</span>` : ''}${s.current ? '<span class="wf-next">次はここ</span>' : ''}</button>`).join('<i class="fa-solid fa-chevron-right wf-sep" aria-hidden="true"></i>');
     }
     window.goWorkflowStep = function(key) {
-      if (key === 'paste') { switchView('so'); if (typeof resetSourcePaneLayout === 'function' && (getCurrentPatient().items || []).length) { sourcePaneManual = 'wide'; updateSourcePaneLayout(); } DOM.sourceText.focus(); }
+      if (key === 'paste') { switchView('so'); DOM.sourceText.focus(); }
       else if (key === 'classify') { switchView('so'); document.getElementById('btn-start-classify')?.focus(); }
       else if (key === 'fix') {
         switchView('so');
