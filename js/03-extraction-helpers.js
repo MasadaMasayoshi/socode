@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = '2026-09-30.5'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = '2026-09-30.6'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 検査値カードの抽出：値のすぐ後（スペースの有無を問わず）に単位まで書かれている場合、
     // 値と単位が別々のカードに分かれてしまう不具合の対策。

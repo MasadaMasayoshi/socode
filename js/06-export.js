@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-09-30.5'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-09-30.6'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 書式付き書き出し（Word / PDF）
     // ------------------------------------------------------------------------
@@ -235,26 +235,94 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches && window.innerWidth < 900);
       } catch (e) { return false; }
     }
-    const MOBILE_PRINT_BAR = `<div id="mobile-print-bar" style="position:sticky;top:0;z-index:10;margin:0 -10px 10px;background:#1F4E45;color:#fff;padding:10px 12px;font:14px/1.6 sans-serif;display:flex;flex-direction:column;gap:6px;">
-      <button type="button" onclick="window.print()" style="font:700 16px sans-serif;padding:10px 14px;border-radius:8px;border:0;background:#fff;color:#1F4E45;">印刷・PDFに保存</button>
-      <div style="font-size:12.5px;">iPhone：ボタン →（プリンタを選ばずに）右上の共有ボタン →「"ファイル"に保存」でPDFになります。<br>Android：ボタン → プリンタで「PDFとして保存」を選び、ダウンロードのボタンを押します。</div>
-      <button type="button" onclick="window.close()" style="font:13px sans-serif;padding:6px;border-radius:6px;border:1px solid #fff;background:transparent;color:#fff;">閉じてアプリに戻る</button>
-    </div><style>@media print { #mobile-print-bar { display: none !important; } }</style>`;
+    // 【スマホのPDFは同じ画面の中で】前の版（2026-09-30.5）では、スマホは印刷用のページを新しいタブ（blob:のURL）で
+    // 開いていたが、利用者から「PDF保存できなくなっている」との指摘があった。ホーム画面に追加したアプリ・LINEなどの
+    // アプリ内ブラウザでは新しいタブが開けなかったり、別のブラウザで開かれてページが空になったりし、アプリを
+    // 切り替えて戻るとタブが読み込み直されて空になることもあった。
+    // 今は新しいタブを開かず、印刷用の文書をアプリの画面の上に全画面で重ねて表示し（見本を兼ねる）、上の
+    // 「印刷・PDFに保存」でアプリのページそのものを印刷する（印刷のときは重ねた文書だけが出る）。
+    // 文書の見た目の決まり（PRINT_BASE_CSS）がアプリの画面に混ざらないよう、文書は shadow DOM の中に入れる。
+    function splitPrintCss(css) {
+      // @page（A4の向き・余白）はページ全体の決まりなので shadow DOM の外に出す。@font-face はアプリで読み込み済み。
+      const pageRules = [];
+      let rest = '';
+      let i = 0;
+      while (i < css.length) {
+        const m = /@(page|font-face)\b/.exec(css.slice(i));
+        if (!m) { rest += css.slice(i); break; }
+        const start = i + m.index;
+        rest += css.slice(i, start);
+        const open = css.indexOf('{', start);
+        if (open < 0) { rest += css.slice(start); break; }
+        let depth = 0, j = open;
+        for (; j < css.length; j++) {
+          if (css[j] === '{') depth++;
+          else if (css[j] === '}') { depth--; if (depth === 0) break; }
+        }
+        if (m[1] === 'page') pageRules.push(css.slice(start, j + 1));
+        i = j + 1;
+      }
+      // html / body に向けた決まりは、shadow DOM の中の文書の入れ物（.pv-body）に向ける
+      rest = rest.replace(/(^|[\s,{}])(?:html|body)(?=[\s,{.:#\[*>])/g, '$1.pv-body');
+      return { pageRules: pageRules.join('\n'), bodyCss: rest };
+    }
+    function closeMobilePrintView() {
+      document.getElementById('print-view')?.remove();
+      document.getElementById('print-view-style')?.remove();
+      document.documentElement.classList.remove('print-view-open');
+    }
+    function showMobilePrintView(html) {
+      closeMobilePrintView();
+      const parsed = new DOMParser().parseFromString(html, 'text/html');
+      const css = Array.from(parsed.querySelectorAll('style')).map(s => s.textContent).join('\n');
+      const { pageRules, bodyCss } = splitPrintCss(css);
+      const docStyle = document.createElement('style');
+      docStyle.id = 'print-view-style';
+      docStyle.textContent = `${pageRules}
+  html.print-view-open, html.print-view-open body { overflow: hidden !important; }
+  #print-view { position: fixed; inset: 0; z-index: 10000; background: #fff; overflow: auto; -webkit-overflow-scrolling: touch; color: #1f1d1a; }
+  #print-view .pv-bar { position: sticky; top: 0; z-index: 2; background: #1F4E45; color: #fff; padding: 10px 12px; font: 14px/1.6 sans-serif; display: flex; flex-direction: column; gap: 6px; }
+  #print-view .pv-bar button { display: block !important; font: 700 16px sans-serif; padding: 10px 14px; border-radius: 8px; border: 0; background: #fff; color: #1F4E45; }
+  #print-view .pv-bar button.pv-close { font: 13px sans-serif; padding: 6px; border: 1px solid #fff; background: transparent; color: #fff; }
+  #print-view .pv-note { font-size: 12.5px; }
+  #print-view .pv-doc { padding: 10px 10px 24px; }
+  @media print {
+    html.print-view-open body > *:not(#print-view) { display: none !important; }
+    html.print-view-open, html.print-view-open body { overflow: visible !important; height: auto !important; background: #fff !important; }
+    #print-view { position: static !important; overflow: visible !important; inset: auto; }
+    #print-view .pv-bar { display: none !important; }
+    #print-view .pv-doc { padding: 0; }
+  }`;
+      document.head.appendChild(docStyle);
+      const view = document.createElement('div');
+      view.id = 'print-view';
+      view.setAttribute('role', 'dialog');
+      view.setAttribute('aria-modal', 'true');
+      view.setAttribute('aria-label', '印刷・PDFの見本');
+      view.innerHTML = `<div class="pv-bar">
+        <button type="button" class="pv-print">印刷・PDFに保存</button>
+        <div class="pv-note">iPhone：ボタン →（プリンタを選ばずに）右上の共有ボタン →「"ファイル"に保存」でPDFになります。<br>Android：ボタン → プリンタで「PDFとして保存」を選び、ダウンロードのボタンを押します。</div>
+        <button type="button" class="pv-close">閉じてアプリに戻る</button>
+      </div><div class="pv-doc"></div>`;
+      const host = view.querySelector('.pv-doc');
+      const root = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host;
+      root.innerHTML = `<style>${bodyCss}
+  @media screen { .pv-body table { width: 100% !important; } }</style><div class="pv-body">${parsed.body.innerHTML}</div>`;
+      view.querySelector('.pv-print').addEventListener('click', () => {
+        try { window.print(); } catch (e) { showToast(['印刷画面を開けませんでした', { text: 'ブラウザのメニュー（共有・︙）から「印刷」を選んでください。', detail: true }], 'error'); }
+      });
+      view.querySelector('.pv-close').addEventListener('click', closeMobilePrintView);
+      view.addEventListener('keydown', e => { if (e.key === 'Escape') closeMobilePrintView(); });
+      document.body.appendChild(view);
+      document.documentElement.classList.add('print-view-open');
+      view.querySelector('.pv-print').focus();
+      return true;
+    }
+    window.closeMobilePrintView = closeMobilePrintView;
     function printHtmlDocument(html) {
       const fontCss = printFontCss();
       if (fontCss) html = html.replace('</head>', `<style>${fontCss}</style></head>`);
-      if (isMobilePrintTarget()) {
-        // 印刷用のページをファイル（blob）として作り、新しいタブで開く（書体の読み込みも普通のページと同じに行われる）
-        // スマホの画面の幅に合わせて表示する（印刷はA4のまま）
-        const mobileHead = '<meta name="viewport" content="width=device-width, initial-scale=1"><style>@media screen { html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } body { margin: 0; padding: 0 10px 20px; } table { width: 100% !important; } }</style>';
-        const pageHtml = html.replace('</head>', `${mobileHead}</head>`).replace(/<body([^>]*)>/, `<body$1>${MOBILE_PRINT_BAR}`);
-        const url = URL.createObjectURL(new Blob([pageHtml], { type: 'text/html;charset=utf-8' }));
-        const w = window.open(url, '_blank');
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
-        if (w) return true;
-        showToast(['印刷用のページを開けませんでした', { text: 'ブラウザがポップアップ（新しいタブ）を止めています。設定でこのサイトのポップアップを許可してから、もう一度押してください。', detail: true }], 'error');
-        return false;
-      }
+      if (isMobilePrintTarget()) return showMobilePrintView(html);
       const old = document.getElementById('print-frame');
       if (old) old.remove();
       const frame = document.createElement('iframe');
@@ -274,7 +342,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const cp = getCurrentPatient();
       if (!(cp.items || []).some(i => i.type !== 'unnecessary')) return showToast('印刷するカードがありません。先に「分類開始」で分類してください', 'warn');
       printHtmlDocument(buildAssessmentPrintHtml(cp));
-      showToast(isMobilePrintTarget() ? '印刷用のページを新しいタブで開きました。上の「印刷・PDFに保存」を押してください' : '印刷画面を開きます。「送信先」で「PDFに保存」を選ぶとPDFになります', 'info');
+      showToast(isMobilePrintTarget() ? '印刷用の見本を開きました。上の「印刷・PDFに保存」を押してください' : '印刷画面を開きます。「送信先」で「PDFに保存」を選ぶとPDFになります', 'info');
     };
 
     // 「PDF書き出し」用：記録整理シート（A4縦）の本文。S/Oデータは表で、14項目別は入院前・入院後・不足情報に分けて載せる。
@@ -763,5 +831,5 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       // 以前は新しいタブを開いて印刷していた（ポップアップのブロックで開けないことがあった）。
       // 「印刷 / PDF」と同じく、見えない枠に読み込んで印刷画面を開く。
       printHtmlDocument(buildExportDocument(cp));
-      showToast(isMobilePrintTarget() ? '印刷用のページを新しいタブで開きました。上の「印刷・PDFに保存」を押してください' : '印刷画面を開きます。「送信先」で「PDFに保存」を選ぶとPDFになります', 'info');
+      showToast(isMobilePrintTarget() ? '印刷用の見本を開きました。上の「印刷・PDFに保存」を押してください' : '印刷画面を開きます。「送信先」で「PDFに保存」を選ぶとPDFになります', 'info');
     });

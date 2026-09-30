@@ -5,7 +5,7 @@
     //   （コピー・テキストファイル・印刷／PDF）。
     // （js/10 の起動の処理より後に読み込む。最後に総合アセスメント表などを描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-09-30.5'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-09-30.6'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // ④ 記録した時点（cp.checkpoints[ID] = { id, label, kind, at, updatedAt, items:[カードの写し] }。
@@ -484,7 +484,7 @@
     };
     window.printReport = function() {
       printHtmlDocument(reportToHtml(getCurrentPatient(), currentReport()));
-      showToast(isMobilePrintTarget() ? '印刷用のページを新しいタブで開きました。上の「印刷・PDFに保存」を押してください' : '印刷画面を開きます。「送信先」で「PDFに保存」を選ぶとPDFになります', 'info');
+      showToast(isMobilePrintTarget() ? '印刷用の見本を開きました。上の「印刷・PDFに保存」を押してください' : '印刷画面を開きます。「送信先」で「PDFに保存」を選ぶとPDFになります', 'info');
     };
 
     // ==========================================================================

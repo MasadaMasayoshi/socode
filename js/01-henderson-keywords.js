@@ -4,7 +4,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['01'] = '2026-09-30.5'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['01'] = '2026-09-30.6'; // 版（scripts/stamp-version.js が書き込む）
     // ヘンダーソン14項目定義
     // keywords はアップロードされた基準表（「アセスメントの視点に必要な情報項目の例」体力・意思力・知識）を
     // もとに拡充している。表内の全項目をそのまま単語化するのではなく、看護記録の文章中に実際に

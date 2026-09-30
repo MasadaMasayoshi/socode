@@ -65,9 +65,12 @@ test('APIキーが無いときは、取得のページ（Google AI Studio）と�
   assert.ok(src.indexOf("requireApiKey('AIありで分類'") < src.indexOf("title: '今あるカードをどうしますか？'") || !src.includes("title: '今あるカードをどうしますか？'"));
 });
 
-test('スマホでは印刷用のページを新しいタブで開き、「印刷・PDFに保存」のボタンと保存のしかたを出す', () => {
+test('スマホでは印刷用の文書を同じ画面の上に重ねて開き、「印刷・PDFに保存」のボタンと保存のしかたを出す', () => {
   assert.match(src, /function isMobilePrintTarget\(\)/);
-  assert.match(src, /if \(isMobilePrintTarget\(\)\) \{[\s\S]*?URL\.createObjectURL\(new Blob\([\s\S]*?window\.open\(url, '_blank'\)/);
+  // スマホは新しいタブ（blob）を開かず、同じ画面の上に文書を重ねて印刷する（ホーム画面のアプリ等で開けなかったため）
+  assert.match(src, /if \(isMobilePrintTarget\(\)\) return showMobilePrintView\(html\);/);
+  assert.doesNotMatch(src, /window\.open\(url, '_blank'\)/);
+  assert.match(src, /html\.print-view-open body > \*:not\(#print-view\) \{ display: none !important; \}/);
   assert.match(src, /印刷・PDFに保存/);
   assert.match(src, /"ファイル"に保存/);
   assert.match(src, /PDFとして保存/);
