@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-09-30.3'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-09-30.4'; // 版（scripts/stamp-version.js が書き込む）
     // 「祖母を胃がん、父を前立腺がんで亡くしている〜」のような家族歴の文は、本人の食事・栄養
     // 状態の所見ではないにもかかわらず、id2(食事)の疾患名キーワード（「胃がん」等）に一致して
     // しまい、食事に無関係な家族歴が「2. 食事」に混入していた（利用者からの報告事例）。
@@ -1124,7 +1124,9 @@
     // 【学生の実習記録】目標・行動計画・考察・明日の課題・振り返り・指導者からの助言は、学生自身の計画や考えで
     // 患者の情報ではないので不要カードにする（実習記録のテスト：以前は「9:00 バイタルサイン測定」の計画が
     // 実施した記録と同じ時刻のカードになり、考察の文にもタグが付いていた）
-    const STUDENT_SECTION_HEADING_REGEX = /^[【\[＜<■●◆]\s*(?:本日の|今日の|明日の|実習)?(?:目標|行動計画|看護計画|計画|考察|評価|自己評価|課題|学び|感想|振り返り|反省|気づき|明日への課題|今後の課題)(?:[・と][^】\]＞>]{0,12})?\s*[】\]＞>]?\s*$/;
+    // 「【学生の考察】」「【指導者からの助言】」「【情報の整理（学生）】」も学生・指導者の書いた部分（実習生の記録のテストで発覚：
+    // 見出しが消え、中身が患者の観察（O）のカードになっていた）
+    const STUDENT_SECTION_HEADING_REGEX = /^[【\[＜<■●◆]\s*(?:本日の|今日の|明日の|実習|学生の)?(?:目標|行動計画|看護計画|計画|考察|評価|自己評価|課題|学び|感想|振り返り|反省|気づき|明日への課題|今後の課題|指導者(?:から|より)?の?(?:助言|コメント|指導)|指導者より|助言|情報の整理)(?:[・と][^】\]＞>]{0,12})?\s*(?:[(（]\s*(?:学生|自分)[^)）]{0,6}[)）])?\s*[】\]＞>]?\s*$/;
     const STUDENT_NOTE_LINE_REGEX = /^(?:学生の(?:関わりの)?)?(?:アセスメント|考察|振り返り|感想|反省|今日の学び|学び|明日の課題|今後の課題|自己評価|看護問題|看護計画|目標|場面を選んだ理由|この場面を選んだ理由|気づいたこと|気付いたこと)\s*[:：]/;
     // プロセスレコード：「②私が感じたこと・考えたこと：」「③私の言動：」は学生の考えや働きかけなので不要カード。
     // 「①患者の言動：」は見出しを外して、患者の言動だけを残す（①はNFKCで「1」になる）
@@ -1158,6 +1160,7 @@
       const step1 = [];
       const firstIdx = raw.findIndex(l => String(l).trim() !== '');
       let soapPart = null;
+      let babySection = false; // 「＜児（新生児）＞」の見出しの下を読んでいる間
       let lastDayHeading = null; // 直前の「Day N（…）」の見出し（{ n, label }）。かっこの無い「Day N」の日を決めるのに使う
       raw.forEach((original, idx) => {
         const line = original.trim();
@@ -1201,6 +1204,37 @@
             step1.push(label);
             lastDayHeading = { n, label };
           }
+          soapPart = null;
+          return;
+        }
+        // 【日付の見出し】実習生の記録のテストで発覚：「10/7（火）術後1日目」「10/7（月）透析日」のような日付＋曜日の見出しが
+        // 見出しとして読まれず、その下のカードが「日時不明」や時刻だけ（「6:00」）になっていた。
+        // かっこの曜日の後ろの短い言葉に日の呼び方（術後1日目・入院3日目 など）があればそれを、無ければ日付（10月7日）を日の区切りにする。
+        // 【母性：児（新生児）の記録】実習生の記録のテストで発覚：「＜児（新生児）＞」の下の体温・心拍・体重が母親のカードと
+        // 区別できず、検査値の推移では母親の脈拍・呼吸数として「高い」と表示されていた。児の見出しの下の行には「児：」を付け、
+        // 次の見出し・日付・時刻まで続ける（「児：」の付いたカードは、検査値の推移の表に入れない）。
+        if (/^[<＜【\[■●◆]?\s*(?:児|新生児|赤ちゃん|ベビー)\s*(?:[(（][^)）]{0,10}[)）])?\s*(?:の(?:状態|様子|観察|記録))?\s*[>＞】\]]?\s*$/.test(line)) {
+          babySection = true; step1.push(SOURCE_TITLE_MARK + line); return;
+        }
+        if (babySection) {
+          if (!line) { step1.push(original); return; }
+          if (/^[<＜【\[■●◆]/.test(line) || /^\d{1,2}[:：時]\d{0,2}/.test(line) || /^(?:Day|DAY|day)\s*\d/.test(line) || /^\d{1,2}\s*[\/月]\s*\d{1,2}/.test(line)) babySection = false;
+          else { step1.push(/^(?:児|新生児)\s*[:：]/.test(line) || /^[「『]/.test(line) ? line : `児：${line}`); return; }
+        }
+        const dateHeading = line.match(/^[【\[<＜]?\s*(\d{1,2})\s*[\/月]\s*(\d{1,2})\s*日?\s*[(（]\s*[月火水木金土日](?:曜日?)?\s*[)）]\s*([^、。,:：「」]{0,20}?)\s*[】\]>＞]?$/);
+        if (dateHeading && Number(dateHeading[1]) >= 1 && Number(dateHeading[1]) <= 12 && Number(dateHeading[2]) >= 1 && Number(dateHeading[2]) <= 31) {
+          const restDay = (dateHeading[3] || '').match(new RegExp(DAY_HEADING_WORD_SOURCE));
+          step1.push(SOURCE_TITLE_MARK + line);
+          step1.push(restDay ? normalizeDayLabel(restDay[0]) : `${Number(dateHeading[1])}月${Number(dateHeading[2])}日`);
+          soapPart = null;
+          return;
+        }
+        // 「訪問1回目（10/7 14:00〜15:00）」のような訪問の見出し：日付と始めの時刻を、その下のカードの日時にする
+        const visitHeading = line.match(/^[【\[<＜・]?\s*(?:訪問|面接|実習)\s*\d+\s*(?:回目|日目)\s*[(（]\s*(\d{1,2})\s*[\/月]\s*(\d{1,2})\s*日?\s*(?:[(（][月火水木金土日][)）])?\s*(\d{1,2}:\d{2})?[^)）]*[)）]\s*[】\]>＞]?$/);
+        if (visitHeading && Number(visitHeading[1]) >= 1 && Number(visitHeading[1]) <= 12 && Number(visitHeading[2]) >= 1 && Number(visitHeading[2]) <= 31) {
+          step1.push(SOURCE_TITLE_MARK + line);
+          step1.push(`${Number(visitHeading[1])}月${Number(visitHeading[2])}日`);
+          if (visitHeading[3]) step1.push(visitHeading[3]);
           soapPart = null;
           return;
         }
@@ -1327,6 +1361,65 @@
         if (/^[【\[＜<■●◆]/.test(t) || t.startsWith(SOURCE_TITLE_MARK)) currentNeed = null;
         return currentNeed && t && !t.startsWith(SOAP_ASSESSMENT_MARK) ? `\u0003${currentNeed}\u0003${t}` : line;
       });
+    }
+    // 【Excelなどから貼った検査の表（タブ区切り）】実習生の記録のテストで発覚：「項目⇥基準値⇥10/2⇥10/7」の表を貼ると、
+    // 基準値の「8〜20」の下限を値と読み違え「BUN 8 mg/dL」という記録に無い値のカードができ、実際の値（78・42）は
+    // 意味の分からない断片のカードになっていた。基準値の列のある表は、行（項目）と列（日付）ごとに
+    // 「BUN 78 mg/dL (基準値: 8〜20 mg/dL)」の形の行に直してから読む（列の見出しの日付・日の呼び方をその日時にする）。
+    const TAB_TABLE_REF_HEADER_REGEX = /^(?:基準値|基準範囲|正常値|参考値|正常範囲)$/;
+    function tabTableColumnDay(label) {
+      const t = String(label || '').normalize('NFKC').trim();
+      let m;
+      if ((m = t.match(/^(\d{1,2})\s*[\/月]\s*(\d{1,2})\s*日?(?:\s*[(（][^)）]*[)）])?$/)) && Number(m[1]) >= 1 && Number(m[1]) <= 12 && Number(m[2]) >= 1 && Number(m[2]) <= 31) return `${Number(m[1])}月${Number(m[2])}日`;
+      if (new RegExp(`^${DAY_HEADING_WORD_SOURCE}$`).test(t.replace(/\s+/g, '')) || /^(?:入院時|入院前|術前|手術当日)$/.test(t)) return normalizeDayLabel(t);
+      return null;
+    }
+    function expandTabSeparatedLabTables(lines) {
+      const out = [];
+      for (let i = 0; i < lines.length; i++) {
+        const cells = String(lines[i]).split('\t').map(c => c.trim());
+        const refIdx = cells.findIndex(c => TAB_TABLE_REF_HEADER_REGEX.test(c.normalize('NFKC')));
+        if (cells.length < 3 || refIdx < 1) { out.push(lines[i]); continue; }
+        const valueCols = cells.map((c, k) => k).filter(k => k > 0 && k !== refIdx && cells[k]);
+        const rows = [];
+        let j = i + 1;
+        for (; j < lines.length; j++) {
+          const rc = String(lines[j]).split('\t').map(c => c.trim());
+          if (rc.length < 2 || !rc[0]) break;
+          rows.push(rc);
+        }
+        if (!rows.length || !valueCols.length) { out.push(lines[i]); continue; }
+        const unitOf = ref => ((String(ref).normalize('NFKC').match(/\d\s*((?:[×x]\s*10\^?\d+\s*)?[\/A-Za-zμµ%][^\s]*)\s*$/) || [])[1] || '');
+        const line = (row, k) => {
+          const v = (row[k] || '').trim();
+          if (!v || /^[-ー－―‐]+$/.test(v)) return null;
+          const ref = (row[refIdx] || '').trim();
+          const unit = /[A-Za-zμµ%]/.test(v) ? '' : unitOf(ref);
+          // 表の「P」は脈拍ではなくリン（mg/dL）なので、分かるように「P(リン)」と書く（検査値の推移で脈拍の行に入らないように）
+          const name = /^P$/i.test(row[0]) && /mg\/dL/i.test(unit || v) ? 'P(リン)' : row[0];
+          return `${name} ${v}${unit ? ` ${unit}` : ''}${ref && !/^[-ー－―‐]+$/.test(ref) ? ` (基準値: ${ref})` : ''}`;
+        };
+        const days = valueCols.map(k => tabTableColumnDay(cells[k]));
+        out.push(SOURCE_TITLE_MARK + cells.join(' '));
+        if (days.every(Boolean)) {
+          valueCols.forEach((k, n) => {
+            const list = rows.map(r => line(r, k)).filter(Boolean);
+            if (!list.length) return;
+            out.push(days[n]);
+            list.forEach(l => out.push(l));
+          });
+        } else {
+          // 列の見出しが日付でないときは、1つの項目を1行にまとめる（「BUN 前回 78 → 今回 42 mg/dL (基準値: …)」）
+          rows.forEach(r => {
+            const parts = valueCols.map(k => ((r[k] || '').trim() && !/^[-ー－―‐]+$/.test(r[k].trim()) ? `${cells[k]} ${r[k].trim()}` : null)).filter(Boolean);
+            if (!parts.length) return;
+            const ref = (r[refIdx] || '').trim();
+            out.push(`${r[0]} ${parts.join(' → ')}${unitOf(ref) ? ` ${unitOf(ref)}` : ''}${ref ? ` (基準値: ${ref})` : ''}`);
+          });
+        }
+        i = j - 1;
+      }
+      return out;
     }
     function groupClinicalPhrasesWithTimestamps(text) {
       bareWoundLabelReplacement = NON_ABDOMINAL_SURGERY_REGEX.test(String(text || '')) && !/腹腔鏡|開腹|胃切除|胃全摘|結腸|直腸|胆嚢/.test(String(text || ''))
@@ -1523,7 +1616,7 @@
       // 話し手だけの行は、続く「…」で始まる行（最大5行）とつなげて1行として扱う。
       const SPEAKER_LEAD_ONLY_REGEX = /^(?:本人|患者|患者様|担当看護師|受け?持ち?看護師|看護師|Ns|主治医|担当医|執刀医|医師|Dr\.?|PT|OT|理学療法士|作業療法士|薬剤師|栄養士|家族|長男|長女|次男|次女|妻|夫|息子|娘|嫁)(?:さん|氏)?(?:より|から|が|は)?[:：]?$/;
       const lines = (() => {
-        const raw = preprocessFreeFormLines(text.split(/\r?\n/));
+        const raw = preprocessFreeFormLines(expandTabSeparatedLabTables(text.split(/\r?\n/)));
         const joined = [];
         for (let i = 0; i < raw.length; i++) {
           let line = raw[i];
@@ -2090,22 +2183,50 @@
             if (/^(?:に|まで|へ|を|が|で|と|の|→|⇒|->|から|維持|上昇|低下|回復|改善|増加|減少|前後|程度|台)/.test(after)) return true;
             if (/(?:後|前|で)$/.test(before) && !/(?:入院前|術前|術後|手術前)$/.test(before)) return true;
           }
+          // 「透析前：体重 62.4kg、BP 168/92mmHg」「歩行後：SpO2 92%」のように、行の頭に「〜前・〜後・〜中」の見出しがある行は、
+          // 値を抜き出すと、いつの値か（透析の前か後か）が分からなくなるので、行ごと1枚にする（実習生の記録のテストで発覚）
+          if (/^(?!入院|術|手術)[^\d:：、。()（）\s]{1,8}(?:前|後|中)\s*[:：]/.test(cleanLine)) return true;
+          if (/^(?:児|新生児)\s*[:：]/.test(cleanLine)) return true; // 児の値は、母親の値と分かれないよう行ごと1枚にする
           return false;
         })();
+        // 「血液検査（10/8 6:00）：Na 133…」「バイタル 10:00 BT 37.4℃…」のように行の頭に書いた時刻は、その行の値の時刻にする
+        // （以前は「血液検査(10/8 6:00):、」「バイタル 10:00」だけのカードが残り、値のカードには時刻が付かなかった）
+        const leadLabelTime = !embeddedLabInSentence && cleanLine.match(/^(?:血液検査|採血|検査結果|バイタル(?:サイン)?|VS|V\/S|検温)\s*(?:[(（]\s*(?:\d{1,2}\/\d{1,2}\s*)?(\d{1,2}:\d{2})?\s*[)）]|(\d{1,2}:\d{2}))\s*[:：]?/i);
+        if (leadLabelTime && (leadLabelTime[1] || leadLabelTime[2]) && new RegExp(`(${LAB_REGEX_SOURCE})`, 'i').test(cleanLine.slice(leadLabelTime[0].length))) {
+          globalTimestamp = applyTimeMarker(leadLabelTime[1] || leadLabelTime[2]);
+        }
         while (!embeddedLabInSentence && (lMatch = labRegex.exec(cleanLine)) !== null) {
           // 【記録に書かれた基準値を残す】繰り返し入力の確認で発覚：「WBC 12000/μL (基準値: 3300〜8600)」の
           // 値だけを抜き出していたため、カードにはアプリの基準値（4,000〜9,000）が付き、記録の基準値は
           // 「(基準値: 3300〜8600)」だけの別のカードになっていた。値の直後に書かれた基準値は、値と同じカードに入れる
           // （基準値が書いてあるので、アプリの基準値は付けない。formatLabValueString 参照）。
-          const writtenRef = cleanLine.slice(lMatch.index + lMatch[0].length).match(/^\s*[↑↓]?\s*[（(]\s*(?:基準値|基準範囲|正常値|基準)\s*[:：]?\s*[^)）]{1,40}[)）]/);
+          // 基準値の後ろの「↑」「↓」（「Na 131 mEq/L（基準値：138〜145）↓」）も、値の印として同じカードに残す（値の直後に置く）。
+          const writtenRef = cleanLine.slice(lMatch.index + lMatch[0].length).match(/^(\s*[↑↓]?)\s*[（(]\s*(?:基準値|基準範囲|正常値|基準)\s*[:：]?\s*([^)）]{1,40})[)）](\s*[↑↓])?/);
+          let writtenRefText = null;
           if (writtenRef) {
-            const whole = lMatch[0] + writtenRef[0];
+            const valuePart = lMatch[0];
+            const arrow = ((writtenRef[1] || '') + (writtenRef[3] || '')).replace(/\s+/g, '');
+            const whole = valuePart + writtenRef[0];
+            writtenRefText = `${valuePart.replace(/\s+$/, '')}${arrow && !/[↑↓]\s*$/.test(valuePart) ? arrow : ''} (基準値: ${writtenRef[2].trim()})`;
             lMatch = Object.assign([whole, ...lMatch.slice(1)], { index: lMatch.index, input: lMatch.input });
             labRegex.lastIndex = lMatch.index + whole.length;
           }
-          let lClean = writtenRef
-            ? cleanExtractedPhrase(lMatch[0].replace(/\s*[（(]\s*(?:基準値|基準範囲|正常値|基準)\s*[:：]?\s*([^)）]*)[)）]\s*$/, (x, r) => ` (基準値: ${r.trim()})`))
-            : cleanExtractedPhrase(lMatch[0]);
+          // 値の直後のかっこ書きの注記（「HbA1c 7.8%（9/30 受診時）」「BP 146/82mmHg（家庭血圧手帳：朝 130〜140台）」）と、
+          // 脈の「整」「不整」（「P 72回/分、整」）も、値と同じカードに残す（以前は注記だけのカードに分かれたり、「整」が消えたりしていた）
+          if (!writtenRef) {
+            const after = cleanLine.slice(lMatch.index + lMatch[0].length);
+            const note = after.match(/^(\s*[↑↓]?)\s*[（(](?!\s*(?:基準|正常値|随時|早朝空腹時|空腹時|食前|食後|眠前|就寝前))([^()（）]{1,30})[)）]/);
+            const rhythm = !note && /(?:回\/分|bpm)\s*$/i.test(lMatch[0]) ? after.match(/^\s*[、,]?\s*(不整|整)(?=$|[、,。\s])/) : null;
+            if (note || rhythm) {
+              const whole = lMatch[0] + (note || rhythm)[0];
+              writtenRefText = note
+                ? `${lMatch[0].replace(/\s+$/, '')}${(note[1] || '').trim()} (${note[2].trim()})`
+                : `${lMatch[0].replace(/\s+$/, '')} ${rhythm[1]}`;
+              lMatch = Object.assign([whole, ...lMatch.slice(1)], { index: lMatch.index, input: lMatch.input });
+              labRegex.lastIndex = lMatch.index + whole.length;
+            }
+          }
+          let lClean = cleanExtractedPhrase(writtenRefText || lMatch[0]);
           // 「随時血糖246」「空腹時血糖130」の「随時・空腹時・食後」は値の意味を変えるので、項目名に付けて残す。
           // 基準値（70〜109）は空腹時の値なので、随時・食後の血糖には付けない（7事例のテスト：糖尿病足病変）
           const glucoseQual = cleanLine.slice(0, lMatch.index).match(/(随時|早朝空腹時|空腹時|食後\s*\d*\s*時間?)\s*$/);
@@ -2136,6 +2257,9 @@
         if (extracted.length > lineStartIndex) {
           lSubText = splitSentencesOutsideQuotes(lSubText).filter(sent => {
             const core = sent.replace(/[、。\s,]/g, '');
+            // 「血液検査(10/8 6:00):」「バイタル 10:00」のような、見出しと日時だけが残ったものも捨てる
+            const bare = core.replace(/[(（][\d\/:：〜~\-\s]*[)）]/g, '').replace(/\d{1,2}:\d{2}/g, '').replace(/[:：]/g, '');
+            if (/^(?:血液検査|採血|検査|検査結果|血液データ|バイタル(?:サイン)?|VS|V\/S|検温)$/i.test(bare)) return false;
             return !(core.length <= 12 && !/\d/.test(core) && /(?:では|には|は|時|随時|空腹時|食後|結果|検査)$/.test(core));
           }).join('');
         }

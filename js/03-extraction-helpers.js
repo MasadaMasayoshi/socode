@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = '2026-09-30.3'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = '2026-09-30.4'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 検査値カードの抽出：値のすぐ後（スペースの有無を問わず）に単位まで書かれている場合、
     // 値と単位が別々のカードに分かれてしまう不具合の対策。
@@ -342,10 +342,18 @@
     const CARE_START_ONLY_REGEX = /^(?:[^、。]{0,12}(?:より|から))?受け?持(?:ち)?(?:開始|つ|ちを開始する)。?$/;
     // 「入院時の検査データ」「術後の血液データ」のような、表の前の見出しだけの行（値を含まない）
     const LAB_TABLE_TITLE_ONLY_REGEX = /^[【\[]?(?:(?:入院時|術前|術後|手術前|入院\d+日目|術後\d+日目)の?)?(?:血液|採血|検査)(?:データ|結果|所見)?(?:一覧)?[】\]]?[:：]?$/;
+    // 【章タイトルの後に値が続く行は捨てない】実習生の記録のテストで発覚：「血液検査：Na 131 mEq/L（基準値：138〜145）↓」
+    // のように、章タイトル（血液検査 など）の後に同じ行で検査値が続くと、行ごと「不要な情報」になっていた（検査値が消える）。
+    // 章タイトルの後に数字を含む内容が続く行は、見出しだけの行ではないので不要にしない（学籍番号などの事務の行はこれまでどおり）。
+    const SECTION_TITLE_WITH_VALUES_REGEX = new RegExp('^(?:' + [...SECTION_HEADER_PASSTHROUGH_KEYS, ...SECTION_HEADER_KEYS].join('|') + ')\\s*[:：]\\s*(.+)$');
+    function isSectionTitleWithValues(trimmed) {
+      const m = trimmed.match(SECTION_TITLE_WITH_VALUES_REGEX);
+      return !!(m && /\d/.test(m[1]));
+    }
     function isUnnecessaryBoilerplateText(str) {
       if (!str) return false;
       const trimmed = str.trim();
-      return LAB_TABLE_TITLE_ONLY_REGEX.test(trimmed) || UNNECESSARY_BOILERPLATE_REGEX.test(trimmed) || BARE_PATIENT_HONORIFIC_REGEX.test(trimmed) ||
+      return LAB_TABLE_TITLE_ONLY_REGEX.test(trimmed) || (UNNECESSARY_BOILERPLATE_REGEX.test(trimmed) && !isSectionTitleWithValues(trimmed)) || BARE_PATIENT_HONORIFIC_REGEX.test(trimmed) ||
         STUDENT_CARE_START_REGEX.test(trimmed) || ROOM_MOVE_ONLY_REGEX.test(trimmed) || SCHEDULE_COLUMN_HEADER_REGEX.test(trimmed) ||
         SECTION_TITLE_ONLY_REGEX.test(trimmed) || COURSE_INFO_REGEX.test(trimmed) || CARE_START_ONLY_REGEX.test(trimmed) || isOcrNoiseText(trimmed);
     }
@@ -601,7 +609,9 @@
       // 感染対策（9）だけを付ける。誤嚥性肺炎は、原因である誤嚥（食事・嚥下）の2と、嚥下の指導の14も付ける。
       // 各項目の観察の不足は「不足情報をAI推定」（detectPneumoniaMissingChecks）で確認する。
       { pattern: /誤嚥性肺炎/, tagIds: [1, 2, 7, 9, 14] },
-      { pattern: /市中肺炎|院内肺炎|医療[・]?介護関連肺炎|\bCAP\b|\bHAP\b|\bNHCAP\b|\bVAP\b/, tagIds: [1, 7, 9] }
+      { pattern: /市中肺炎|院内肺炎|医療[・]?介護関連肺炎|\bCAP\b|\bHAP\b|\bNHCAP\b|\bVAP\b/, tagIds: [1, 7, 9] },
+      // 帝王切開・骨盤位など分娩の方法（母性の実習記録のテストで追加）：分娩と同じ9
+      { pattern: /帝王切開|骨盤位|前置胎盤|常位胎盤早期剥離/, tagIds: [9] }
     ];
     function detectDiagnosisTagHints(text) {
       const ids = new Set();
@@ -613,6 +623,8 @@
     // 診断名専用だった判定を既往歴にも広げる。
     // 呼び出し側で、検査値の食事(2)自動付与と同様、学習結果が既にある場合は追加しない（ユーザーの判断を尊重）。
     function fieldLabelHintTags(fieldLabel, text) {
+      // 「既往歴：特になし」も、これまでの健康状態の情報として9（入院歴・手術歴と同じ）に入れる（実習生の記録のテストで追加）
+      if (fieldLabel === '既往歴' && /^\s*(?:特に|とくに)?(?:なし|無し|ない|特記事項なし|特記すべきことなし)\s*[。.]?\s*$/.test(String(text || '').normalize('NFKC'))) return [9];
       if (fieldLabel === '診断名' || fieldLabel === '既往歴') return detectDiagnosisTagHints(text);
       return FIELD_LABEL_DEFAULT_TAGS[fieldLabel] || [];
     }

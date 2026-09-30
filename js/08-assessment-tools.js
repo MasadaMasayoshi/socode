@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-09-30.3'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-09-30.4'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -1635,6 +1635,8 @@ ${cardLines}
     const LAB_TREND_ITEM_REGEX = new RegExp(`(?:^|(?<=[、,。\\s]))(${LAB_TREND_KEYS.map(escapeRegExp).join('|')})(?![A-Za-z])(\\s*[(（][^)）]{1,12}[)）])?\\s*[:：=]?\\s*(\\d[\\d,]*(?:\\.\\d+)?(?:\\s*\\/\\s*\\d{1,3})?)`, 'gi');
 
     function labTrendCanonicalKey(name, qualifier) {
+      // 「P(リン)」は脈拍ではなくリン
+      if (/^P$/i.test(name) && /リン/.test(qualifier || '')) return { key: 'P(リン)', vital: null };
       const vital = LAB_TREND_VITAL_BY_NAME.get(String(name).toLowerCase());
       if (vital) return { key: vital.key, vital };
       const base = LAB_TREND_ALIASES[name] || LAB_TREND_ALIASES[String(name).toUpperCase()] || name;
@@ -1662,11 +1664,20 @@ ${cardLines}
       let t = String(text || '').normalize('NFKC').trim();
       // 「検温: 体温36.6度、…」「体格: 身長 165cm …」のような前置きの見出しは外して読む
       const lead = t.match(/^([^:：、。「」\d]{1,10})[:：]\s*/);
+      // 「透析前：」「歩行後：」のような時期の見出しは、値の注記として残す（同じ日の前と後の値を見分けられるように）
+      let phaseNote = '';
       if (lead) {
         LAB_TREND_ITEM_REGEX.lastIndex = 0;
         const after = t.slice(lead[0].length);
         const first = LAB_TREND_ITEM_REGEX.exec(after);
         if (first && first.index === 0) t = after;
+        else if (/(?:前|後|中)$/.test(lead[1].trim()) && !/^(?:入院|術|手術)/.test(lead[1].trim())) {
+          // 「透析前：体重 62.4kg、BP …」：見出しの後ろの最初の項目から読む（見出しと項目の間の言葉は、値の注記として扱わない）
+          LAB_TREND_ITEM_REGEX.lastIndex = 0;
+          const firstAny = LAB_TREND_ITEM_REGEX.exec(after);
+          if (firstAny) { t = after.slice(firstAny.index); phaseNote = lead[1].trim(); }
+        }
+        if (!phaseNote && t === after && /(?:前|後|中)$/.test(lead[1].trim()) && !/^(?:入院|術|手術)/.test(lead[1].trim())) phaseNote = lead[1].trim();
       }
       const matches = [];
       LAB_TREND_ITEM_REGEX.lastIndex = 0;
@@ -1696,7 +1707,7 @@ ${cardLines}
         // 単位が「度」「回」だけのものは表記をそろえる
         if (unit === '度' || unit === '℃') unit = '°C';
         const { key, vital } = labTrendCanonicalKey(mm[1], mm[2]);
-        entries.push({ key, name: mm[1], value: mm[3].replace(/\s+/g, ''), unit, ref, flag, note: notes.join(' '), vital });
+        entries.push({ key, name: mm[1], value: mm[3].replace(/\s+/g, ''), unit, ref, flag, note: [phaseNote, ...notes].filter(Boolean).join(' '), vital });
       }
       return entries;
     }
@@ -1732,7 +1743,8 @@ ${cardLines}
     // カードの一覧から表を作る。columns：日時（日ごと・時刻順）、rows：項目（グループ順）、cells：rows[r].cells[columnKey] = [{value, flag, note, itemId}]
     function buildLabTrendTable(items, options = {}) {
       const includeVitals = options.includeVitals !== false;
-      const expanded = expandCombinedLabItems((items || []).filter(i => i && i.type !== 'unnecessary'));
+      // 「児：」の付いたカード（母性の記録の新生児の値）は、受け持ちの患者（母親）の表に入れない
+      const expanded = expandCombinedLabItems((items || []).filter(i => i && i.type !== 'unnecessary' && !/^(?:児|新生児)\s*[:：]/.test(String(i.text || '').normalize('NFKC'))));
       const parsed = [];
       expanded.forEach(item => {
         const entries = parseLabTrendEntries(item.text);
