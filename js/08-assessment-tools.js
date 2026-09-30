@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-09-30.4'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-09-30.5'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -196,6 +196,7 @@
     }
 
     window.evaluateLabValuesAI = async function() {
+      if (!(await requireApiKey('検査値の評価', { fallbackLabel: 'AIなしで簡易チェック' }))) return;
       const cp = getCurrentPatient();
       const addedMetrics = calculateAndAddDerivedMetricCards();
       if (addedMetrics > 0) showToast(`${addedMetrics}件の指標（BMI・ブリンクマン指数等）を自動算出してカードに追加しました`, 'info');
@@ -237,7 +238,7 @@
       }
 
       try {
-        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長・指導者です。以下の「基準ノート」（登録された基準）の検査値評価規則を根拠にして、患者のOデータに含まれる検査値やバイタルの臨床的意味を評価し、総合評価欄向けに分かりやすく解説・アセスメント文章を作成してください。\n【基準ノート】\n${buildEffectiveNotebookContent()}\n【患者のOデータ一覧】\n${labTexts}\n要点では、基準を外れた値と、看護で最も注意すべきことを示してください。詳細は系統ごと（呼吸・循環／炎症・感染／栄養・代謝／腎機能 など）の見出しにし、各値は「項目 値（基準値）：意味」の形で1行にしてください。最後に「### まとめ（アセスメント文）」として、記録にそのまま使える3〜4文の文章を付けてください。${AI_STYLE_INSTRUCTION}` }] }]);
+        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長・指導者です。以下の「基準ノート」（登録された基準）の検査値評価規則を根拠にして、患者のOデータに含まれる検査値やバイタルの臨床的意味を評価し、総合評価欄向けに分かりやすく解説・アセスメント文章を作成してください。\n【基準ノート】\n${buildEffectiveNotebookContent()}\n【患者のOデータ一覧】\n${labTexts}\n${typeof drugPromptSection === 'function' ? drugPromptSection(cp) : ''}要点では、基準を外れた値と、看護で最も注意すべきことを示してください。詳細は系統ごと（呼吸・循環／炎症・感染／栄養・代謝／腎機能 など）の見出しにし、各値は「項目 値（基準値）：意味」の形で1行にしてください。最後に「### まとめ（アセスメント文）」として、記録にそのまま使える3〜4文の文章を付けてください。${AI_STYLE_INSTRUCTION}` }] }]);
         cp.labEvaluationResult = formatAiResultHtml(text, '評価の生成に失敗しました。');
         if (finishAiResult(cp, () => { DOM.labEvalContent.innerHTML = cp.labEvaluationResult; }, '検査値の評価')) showToast('検査値の評価を表示しました', 'success');
       } catch (err) {
@@ -336,6 +337,7 @@
     }
 
     window.evaluateMissingInfoAI = async function() {
+      if (!(await requireApiKey('不足情報の推定', { fallbackLabel: 'AIなしで簡易チェック' }))) return;
       const cp = getCurrentPatient();
       const activeItems = cp.items.filter(i => i.type !== 'unnecessary');
       if (activeItems.length === 0) return showToast('カードがありません。先にカルテを分類してください', 'warn');
@@ -430,6 +432,8 @@ ${perNeedSummary.map(n => `${n.name}\n入院前: ${n.pre.join(' / ') || '(記録
 【Oデータ（検査値・バイタル等）一覧】
 ${labTexts || '(なし)'}
 
+${typeof drugPromptSection === 'function' ? drugPromptSection(cp) : ''}
+挙げる順番は優先度の高い順にし、アセスメントや安全に直結するもの（例：肺炎なら呼吸数・酸素投与の量・喀痰・意識・水分出納、糖尿病なら血糖）を先にしてください。信仰・余暇のようにどの患者にも当てはまる一般的な項目は、この患者で確かめる理由が記録から読み取れるときだけ挙げてください。記録に無い治療（例：利尿薬）があるものとして書かないでください。
 各不足情報は必ず "原因: <不足に至った理由> → <補足すべき内容>と考えられる" という文言そのものを text とし、対応するヘンダーソン番号(1〜14の整数)を hendersonId とするJSON配列のみを出力してください。該当がなければ空配列 [] を返してください。余計な説明やMarkdown記号は出力しないでください。
 例: [{"hendersonId":1,"text":"原因: 入院後のSpO2測定記録がない → 呼吸状態の再アセスメントが必要と考えられる"}]
 text は読みやすさのため全体で70字程度までにし、「→」の後ろは「何を確かめるか」を具体的に書いてください（「〜の把握が必要」のような言い方の繰り返しは避ける）。1つの項目につき、本当に大事なものを1〜2件までにしてください。すでに「不足情報」欄にある内容と同じものは出さないでください。
@@ -595,7 +599,7 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
     const AI_EXTRA_TOOLS = [
       { key: 'lab', label: '検査値の評価', icon: 'fa-flask-vial', action: 'evaluateLabValuesAI()', panel: 'lab-evaluation-panel', title: '検査値を登録された基準で確認し、臨床的な意味をまとめます' },
       { key: 'contradiction', label: 'S/O矛盾', icon: 'fa-triangle-exclamation', action: 'checkContradictionsAI()', panel: 'contradiction-panel', title: 'S（発言）とO（観察）の食い違いを探します' },
-      { key: 'timeline', label: '経過のまとめ', icon: 'fa-clock-rotate-left', action: 'generateTimelineSummaryAI()', panel: 'timeline-panel', title: '日ごとの変化をまとめます' },
+      { key: 'timeline', label: '経時変化サマリー', icon: 'fa-clock-rotate-left', action: 'generateTimelineSummaryAI()', panel: 'timeline-panel', title: '日ごとの変化をまとめます' },
       { key: 'review', label: '分類の評価', icon: 'fa-list-check', action: 'openAiReview()', panel: null, title: 'S/O・タグの分類をAIに見てもらい、改善点を一覧にします（別の画面で開きます）' }
     ];
     const AI_STEP_PANELS = { missing: null, diagnosis: 'diagnosis-panel', careplan: 'careplan-panel' };
@@ -616,7 +620,13 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
         const done = t.key === 'lab' ? !!cp.labEvaluationResult : t.key === 'contradiction' ? !!cp.contradictionResult : t.key === 'timeline' ? !!cp.timelineResult : false;
         return `<button type="button" class="ai-tool${done ? ' done' : ''}" onclick="${t.action}" title="${escapeHtml(t.title)}"><i class="fa-solid ${running ? 'fa-spinner fa-spin' : done ? 'fa-check' : t.icon}"></i>${t.label}</button>`;
       }).join('');
+      // 「看護計画までまとめて実行」（js/13 の runAiPipelineToCarePlan）。実行中は今どこまで進んだかを出す
+      const pipe = window.aiPipelineStatus;
+      const runAll = pipe && pipe.running
+        ? `<span class="ai-run-all is-running" role="status"><i class="fa-solid fa-spinner fa-spin"></i> ${escapeHtml(pipe.label || '実行中')}</span>`
+        : `<button type="button" class="ai-run-all" onclick="runAiPipelineToCarePlan()" title="①不足情報の推定 → ②看護診断候補（優先度の高い順に選ぶ）→ ③看護計画 → 「看護計画」タブへの取り込み までを、順番に自動で行います"><i class="fa-solid fa-forward"></i> 看護計画までまとめて実行</button>`;
       el.innerHTML = `<span class="ai-steps-title"><i class="fa-solid fa-wand-magic-sparkles"></i> AI</span>
+        ${runAll}
         <div class="ai-bar-group ai-bar-steps" aria-label="AIで順番に進める">${steps}</div>
         <div class="ai-bar-group ai-bar-tools" aria-label="そのほかのAIの確認">${extras}</div>`;
     }
@@ -660,6 +670,7 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
 
     // 「S/O矛盾チェック」：SデータとOデータの間で内容が食い違っていないかをAIに確認してもらう
     window.checkContradictionsAI = async function() {
+      if (!(await requireApiKey('S/O矛盾チェック'))) return;
       const cp = getCurrentPatient();
       const activeItems = cp.items.filter(i => (i.type === 's' || i.type === 'o') && !isMissingInfoOnlyItem(i));
       const panel = document.getElementById('contradiction-panel');
@@ -674,7 +685,7 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       const ev = buildEvidenceIndex(activeItems);
       const list = activeItems.map(i => evidenceLine(ev, i)).join('\n');
       try {
-        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長です。以下は患者のSデータ（主観的情報＝患者の発言）とOデータ（客観的情報＝観察所見・検査値）の一覧です。SデータとOデータの間で内容が食い違っている、あるいは併せて考えると注意が必要な組み合わせがあれば指摘してください。矛盾が見当たらない場合はその旨を一言述べてください。\n\n【S/Oデータ一覧】\n${list}\n\n指摘ごとに根拠となった発言・所見のカードを示してください。${EVIDENCE_INSTRUCTION}${AI_STYLE_INSTRUCTION}要点には、食い違いの有無と一番確かめるべきことを書いてください。` }] }]);
+        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長です。以下は患者のSデータ（主観的情報＝患者の発言）とOデータ（客観的情報＝観察所見・検査値）の一覧です。SデータとOデータの間で内容が食い違っている、あるいは併せて考えると注意が必要な組み合わせがあれば指摘してください。本当に食い違っているもの（同じ時点の訴えと観察が合わない等）だけを挙げ、別々の事柄を並べただけのものは挙げないでください。訴えを確かめるための同じ時点の客観データ（SpO2・呼吸数など）が記録に無いときは、そのことを書いてください。矛盾が見当たらない場合はその旨を一言述べてください。\n\n【S/Oデータ一覧】\n${list}\n\n指摘ごとに根拠となった発言・所見のカードを示してください。${EVIDENCE_INSTRUCTION}${AI_STYLE_INSTRUCTION}要点には、食い違いの有無と一番確かめるべきことを書いてください。` }] }]);
         const resultText = formatAiResultHtml(text, undefined, ev);
         cp.contradictionResult = resultText;
         if (finishAiResult(cp, () => { content.innerHTML = resultText; }, 'S/O矛盾チェック')) showToast('矛盾チェックが完了しました', 'success');
@@ -688,6 +699,7 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
     // 「看護診断候補を提案」：ヘンダーソン項目別のアセスメント内容から看護診断の候補をAIに挙げてもらう
     // （改善案D：候補を1件ずつ選べる形にし、①の不足情報も判断材料として渡す）
     window.suggestNursingDiagnosesAI = async function() {
+      if (!(await requireApiKey('看護診断候補'))) return;
       const cp = getCurrentPatient();
       const activeItems = cp.items.filter(i => i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i));
       const panel = document.getElementById('diagnosis-panel');
@@ -704,7 +716,7 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       if (!perNeedText) { content.innerHTML = `<span class="text-[var(--ink-muted)]">ヘンダーソンタグが付いたカードがありません。先にタグ付けしてください。</span>`; return; }
       const missingText = buildMissingInfoText(cp);
       try {
-        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長・指導者です。以下はヘンダーソン14の基本的欲求ごとに整理された患者のアセスメント情報です。この内容から、想定される看護診断の候補を優先度が高いと思われる順に2〜4個程度提案してください。\n\n【ヘンダーソン項目別アセスメント情報】\n${perNeedText}\n\n【不足している情報（まだ記録が無く、確認が必要なもの）】\n${missingText || '(なし)'}\n\n${ownAssessmentPromptSection(cp)}出力は次の形式を必ず守ってください（候補ごとに「■」で始め、候補の間は空行で区切る）。\n■ 看護診断名\n根拠：アセスメント根拠の要約（${EVIDENCE_INSTRUCTION}）\n理由：この診断を挙げた理由\n不足情報：この診断を確かめるために追加で確認したい情報（あれば）\n\n前置き・あいさつは書かず、最初の行から「■」で始めてください。根拠・理由・不足情報は、それぞれ1〜2文で簡潔に書いてください。太字(**語**)以外の記号は使わないでください。` }] }]);
+        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長・指導者です。以下はヘンダーソン14の基本的欲求ごとに整理された患者のアセスメント情報です。この内容から、想定される看護診断の候補を優先度が高いと思われる順に2〜4個程度提案してください。看護診断名はNANDA-I看護診断（日本語版）の正式な名称を使い、その診断の定義と、記録にある診断指標（症状・所見）が合うものを選んでください（例：SpO2の低下などの低酸素ならガス交換障害、咳・痰・喘鳴なら非効果的気道浄化。呼吸数や呼吸のリズムの記録が無いのに非効果的呼吸パターンを選ばない）。ほかの問題の結果として起こる問題（例：息苦しさによる不眠）は、原因の問題の計画で扱えるなら別の候補にしないでください。既往・治療から起こりうるリスク型の診断（例：糖尿病と感染があれば血糖不安定リスク、発熱と摂取不足があれば体液量不足リスク）も検討してください。${AI_ACCURACY_RULES}\n\n【ヘンダーソン項目別アセスメント情報】\n${perNeedText}\n\n【不足している情報（まだ記録が無く、確認が必要なもの）】\n${missingText || '(なし)'}\n\n${ownAssessmentPromptSection(cp)}${typeof drugPromptSection === 'function' ? drugPromptSection(cp) : ''}出力は次の形式を必ず守ってください（候補ごとに「■」で始め、候補の間は空行で区切る）。\n■ 看護診断名\n根拠：アセスメント根拠の要約（${EVIDENCE_INSTRUCTION}）\n理由：この診断を挙げた理由\n不足情報：この診断を確かめるために追加で確認したい情報（あれば）\n\n前置き・あいさつは書かず、最初の行から「■」で始めてください。根拠・理由・不足情報は、それぞれ1〜2文で簡潔に書いてください。太字(**語**)以外の記号は使わないでください。` }] }]);
         const cands = parseDiagnosisCandidates(text).map((c, k) => ({ id: `dx_${Date.now().toString(36)}_${k}`, name: c.name, bodyHtml: formatAiResultHtml(c.body, '', ev) }));
         cp.diagnosisCandidates = cands;
         cp.selectedDiagnosisIds = [];
@@ -720,6 +732,7 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
 
     // 「経時変化サマリー」：入院前後で記録がどう変化したかをヘンダーソン項目ごとにAIが要約する
     window.generateTimelineSummaryAI = async function() {
+      if (!(await requireApiKey('経時変化サマリー'))) return;
       const cp = getCurrentPatient();
       const activeItems = cp.items.filter(i => i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i));
       const panel = document.getElementById('timeline-panel');
@@ -740,7 +753,7 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       }).filter(Boolean).join('\n\n');
       if (!perNeedText) { content.innerHTML = `<span class="text-[var(--ink-muted)]">入院前・入院後に振り分けられたカードがありません。総合アセスメント表で「前」「後」に分類してください。</span>`; return; }
       try {
-        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師です。以下はヘンダーソン14の基本的欲求ごとの、入院前と入院後の記録の比較です。項目ごとに入院前後でどのように変化したかを簡潔にまとめてください。変化が読み取れない項目は省略して構いません。\n\n${perNeedText}\n\n詳細は項目ごとに「### 1. 呼吸」のような見出しを付け、変化を「- 」の箇条書き（1〜2文）で書いてください。要点には、入院前後で大きく変わった項目を書いてください。${EVIDENCE_INSTRUCTION}${AI_STYLE_INSTRUCTION}` }] }]);
+        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師です。以下はヘンダーソン14の基本的欲求ごとの、入院前と入院後の記録の比較です。項目ごとに入院前後でどのように変化したかを簡潔にまとめてください。変化が読み取れない項目は省略して構いません。入院前の記録が無い項目は、入院後の日ごと・時刻ごとの変化を中心に書いてください。記録に無い解釈（例：内服していることを「学び」とみなす）はしないでください。\n\n${perNeedText}\n\n詳細は項目ごとに「### 1. 呼吸」のような見出しを付け、変化を「- 」の箇条書き（1〜2文）で書いてください。要点には、入院前後で大きく変わった項目を書いてください。${EVIDENCE_INSTRUCTION}${AI_STYLE_INSTRUCTION}` }] }]);
         const resultText = formatAiResultHtml(text, undefined, ev);
         cp.timelineResult = resultText;
         if (finishAiResult(cp, () => { content.innerHTML = resultText; }, '経時変化サマリー')) showToast('経時変化サマリーを生成しました', 'success');
@@ -756,6 +769,7 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
     // 【改善案D】看護診断候補でチェックした診断があれば、その診断ごとに計画を作る。①の不足情報は
     // OPで確認する項目に含めてもらう。診断を選んでいない場合は、先に選ぶか・このまま作るかを尋ねる。
     window.generateCarePlanAI = async function() {
+      if (!(await requireApiKey('看護計画の叩き台'))) return;
       const cp = getCurrentPatient();
       const activeItems = cp.items.filter(i => i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i));
       if (activeItems.length === 0) return showToast('カードがありません。先にカルテを分類してください', 'warn');
@@ -790,7 +804,7 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
         ? `次の看護診断（学生が選んだもの）それぞれについて、看護計画を作成してください。これ以外の看護問題は追加しないでください。\n${selected.map((c, k) => `${k + 1}. ${c.name}\n${plain(c.bodyHtml)}`).join('\n\n')}`
         : 'この内容から、優先度の高い看護問題を1〜3個選び、それぞれについて看護計画を作成してください。';
       try {
-        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師・看護計画の指導者です。以下はヘンダーソン14の基本的欲求ごとに整理された患者のアセスメント情報です。${target}\n\n【ヘンダーソン項目別アセスメント情報】\n${perNeedText}\n\n【不足している情報（まだ記録が無く、確認が必要なもの）】\n${missingText || '(なし)'}\n\n${ownAssessmentPromptSection(cp)}各看護問題について、目標と、観察計画OP・援助計画TP・教育計画EPの3区分（各3〜5項目程度）を具体的に作成してください。「不足している情報」のうちその問題に関係するものは、OPで確認する項目に必ず含めてください。個別性のある具体的な内容にし、一般論だけで終わらせないでください。${EVIDENCE_INSTRUCTION}\n\n出力形式：前置きは書かず、最初に「### 要点」として看護問題の優先順位と一番大事なケアを2〜3個の短い箇条書きで示してください。そのあと看護問題ごとに「### ■看護問題名」の見出しを付け、その下に「#### 目標」「#### OP（観察計画）」「#### TP（援助計画）」「#### EP（教育計画）」の見出しと、番号付きの箇条書き（1項目1文）を続けてください。根拠のカードの番号は文の終わりの句点の後ろに付けてください。` }] }]);
+        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師・看護計画の指導者です。以下はヘンダーソン14の基本的欲求ごとに整理された患者のアセスメント情報です。${target}\n\n【ヘンダーソン項目別アセスメント情報】\n${perNeedText}\n\n【不足している情報（まだ記録が無く、確認が必要なもの）】\n${missingText || '(なし)'}\n\n${ownAssessmentPromptSection(cp)}${typeof drugPromptSection === 'function' ? drugPromptSection(cp) : ''}各看護問題について、目標と、観察計画OP・援助計画TP・教育計画EPの3区分（各3〜5項目程度）を具体的に作成してください。目標は患者を主語にし、いつまでに（例：3日後までに）・何が・どうなるかが測れる形で書いてください（検査値の改善のような医師の治療の成果だけを目標にしない）。発熱時のクーリングは悪寒のあるときは避けて保温する、転倒・誤嚥を防ぐなどの安全上の注意も必要に応じて含めてください。${AI_ACCURACY_RULES}「不足している情報」のうちその問題に関係するものは、OPで確認する項目に必ず含めてください。個別性のある具体的な内容にし、一般論だけで終わらせないでください。${EVIDENCE_INSTRUCTION}\n\n出力形式：前置きは書かず、最初に「### 要点」として看護問題の優先順位と一番大事なケアを2〜3個の短い箇条書きで示してください。そのあと看護問題ごとに「### ■看護問題名」の見出しを付け、その下に「#### 目標」「#### OP（観察計画）」「#### TP（援助計画）」「#### EP（教育計画）」の見出しと、番号付きの箇条書き（1項目1文）を続けてください。根拠のカードの番号は文の終わりの句点の後ろに付けてください。` }] }]);
         const resultText = formatAiResultHtml(text, undefined, ev);
         cp.carePlanResult = resultText;
         cp.carePlanDiagnoses = selected.map(c => c.name);
@@ -1329,7 +1343,7 @@ ${cardLines}
       const items = (cp.items || []).filter(i => i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i));
       if (!items.length) return showToast('カードがありません。先に「分類開始」で分類してください', 'warn');
       if (!(cp.sourceText || '').trim()) return showToast('分類前の文章がありません（入力欄の文章と照らし合わせて評価します）', 'warn');
-      if (!globalAppData.apiKey) return showToast('この機能はAPIキーの設定が必要です（右上の︙→「API設定」）', 'warn');
+      if (!globalAppData.apiKey) { requireApiKey('分類をAIで評価'); return; }
       const body = document.getElementById('ai-review-body');
       body.innerHTML = `<div class="flex items-center gap-2 text-[var(--ink-muted)] text-xs p-4"><i class="fa-solid fa-spinner fa-spin"></i> Geminiが分類を評価しています（1〜2分かかることがあります）…</div>`;
       const ev = buildEvidenceIndex(items);
@@ -1623,7 +1637,7 @@ ${cardLines}
       'ナトリウム': 'Na', 'カリウム': 'K', 'クロール': 'Cl', '血糖値': '血糖', 'BS': '血糖', 'GLU': '血糖', 'グルコース': '血糖', 'FBS': '血糖',
       'GOT': 'AST', 'GPT': 'ALT', 'γ-GTP': 'γGTP', 'AMY': 'アミラーゼ', 'D-ダイマー': 'Dダイマー'
     };
-    const LAB_TREND_EXTRA_KEYS = ['NT-proBNP', 'eGFR', 'LDH', 'CK', 'UA', 'Ca', 'Mg', 'TG', 'LDL', 'HDL', 'T-Cho', 'APTT', 'FDP', 'PT%', 'INR',
+    const LAB_TREND_EXTRA_KEYS = ['NT-proBNP', 'eGFR', 'LDH', 'CK-MB', 'CK', 'トロポニンT', 'トロポニンI', 'LDL-C', 'HDL-C', '総ビリルビン', 'T-Bil', 'UA', 'Ca', 'Mg', 'TG', 'LDL', 'HDL', 'T-Cho', 'APTT', 'FDP', 'PT%', 'INR',
       'pH', 'PaO2', 'PaCO2', 'HCO3', 'BE', 'Lac', '乳酸', 'D-Bil', 'CPK', 'Fe', 'フェリチン', 'プロカルシトニン', 'PCT'];
     const LAB_TREND_VITAL_BY_NAME = new Map();
     LAB_TREND_VITALS.forEach(v => v.names.forEach(n => LAB_TREND_VITAL_BY_NAME.set(n.toLowerCase(), v)));
@@ -1661,7 +1675,11 @@ ${cardLines}
     }
     // 1枚のカードの文章から、項目ごとの値を読み取る。文の途中の値（「…に上昇」）が混ざるカードは読まない（null）
     function parseLabTrendEntries(text) {
-      let t = String(text || '').normalize('NFKC').trim();
+      let t = String(text || '').normalize('NFKC').trim()
+        // 「【検査】CK 1850 U/L…」「【バイタルサイン】BT…」のような括弧の見出しは外して読む（実習生の記録のテスト：心筋梗塞）
+        .replace(/^【[^】]{1,12}】\s*/, '')
+        // 「食前血糖 186mg/dL」「空腹時血糖 130」は「血糖(食前)」として読む（実習生の記録のテスト：1型糖尿病）
+        .replace(/^(朝食前|昼食前|夕食前|食前|食後\s*\d*\s*時間?|空腹時|早朝空腹時|随時|眠前|就寝前)\s*(血糖値?)/, (x, q, k) => `${k}(${q.replace(/\s+/g, '')})`);
       // 「検温: 体温36.6度、…」「体格: 身長 165cm …」のような前置きの見出しは外して読む
       const lead = t.match(/^([^:：、。「」\d]{1,10})[:：]\s*/);
       // 「透析前：」「歩行後：」のような時期の見出しは、値の注記として残す（同じ日の前と後の値を見分けられるように）
@@ -1696,11 +1714,13 @@ ${cardLines}
         let unit = unitM ? unitM[1] : '';
         rest = rest.slice(unitM ? unitM[0].length : 0);
         let flag = '';
-        if (/↑|\bH\b/.test(rest)) flag = 'high';
-        else if (/↓|\bL\b/.test(rest)) flag = 'low';
+        // かっこの注記の中（「(10/5 最大 4200 U/L)」の U/L の L）は、低い値の印「L」と読まない（実習生の記録のテスト：心筋梗塞）
+        const flagText = rest.replace(/[(（][^)）]*[)）]/g, ' ');
+        if (/↑|(?<![\/A-Za-z])H(?![A-Za-z])/.test(flagText)) flag = 'high';
+        else if (/↓|(?<![\/A-Za-z])L(?![A-Za-z])/.test(flagText)) flag = 'low';
         const notes = [];
-        rest = rest.replace(/[(（]([^)）]{1,20})[)）]/g, (x, inner) => { notes.push(inner.trim()); return ' '; });
-        rest = rest.replace(/[↑↓]|\b[HL]\b/g, ' ');
+        rest = rest.replace(/[(（]([^)）]{1,40})[)）]/g, (x, inner) => { notes.push(inner.trim()); return ' '; });
+        rest = rest.replace(/[↑↓]|(?<![\/A-Za-z])[HL](?![A-Za-z])/g, ' ');
         const leftover = rest.replace(/[、,。\s]/g, '');
         if (leftover && !/^(?:不?整(?:あり|なし)?|あり|なし)$/.test(leftover)) return null; // 文の途中の値
         if (leftover) notes.push(leftover);
@@ -1711,10 +1731,17 @@ ${cardLines}
       }
       return entries;
     }
-    function labTrendFlag(entry, refRange) {
+    // childGuide：子どもの記録のときの年齢の区分の目安（js/03 の CHILD_VITAL_GUIDES）。脈拍・呼吸数は子どもの目安で判定し、
+    // 血圧は年齢で目安が大きく違うので判定しない（大人の目安で「高い・低い」を付けない）
+    function labTrendFlag(entry, refRange, childGuide = null) {
       if (entry.flag) return entry.flag;
       const v = entry.vital;
       if (v && v.body) return '';
+      if (v && v.bp && childGuide) return '';
+      if (v && childGuide && !refRange && (v.key === '脈拍' || v.key === '呼吸数')) {
+        const [low, high] = v.key === '脈拍' ? childGuide.pulse : childGuide.resp;
+        return labTrendFlag({ ...entry, vital: { ...v, low, high } }, null, null);
+      }
       if (v && v.bp) {
         const bp = entry.value.match(/(\d+)\s*\/\s*(\d+)/);
         if (!bp) return '';
@@ -1777,11 +1804,22 @@ ${cardLines}
           (row.cells[col] = row.cells[col] || []).push({ value: e.value, unit: e.unit, flag: '', note: e.note, itemId: item.id || null, text: item.text, _e: e });
         });
       });
+      // 子どもの記録なら、脈拍・呼吸数は年齢の区分の目安で判定する（実習生の記録のテスト：乳児の脈拍140が「高い」になっていた）
+      const ageGroup = options.ageGroup !== undefined ? options.ageGroup
+        : detectAgeGroupFromText([options.sourceText || '', ...(items || []).slice(0, 40).map(i => (i && i.text) || '')].join('\n'));
+      const childGuide = ageGroup ? CHILD_VITAL_GUIDES[ageGroup] : null;
+      const vitalRefText = key => {
+        if (!childGuide) return LAB_TREND_VITAL_REF_TEXT[key] || '';
+        if (key === '脈拍') return `${childGuide.pulse[0]}〜${childGuide.pulse[1]}（${childGuide.label}）`;
+        if (key === '呼吸数') return `${childGuide.resp[0]}〜${childGuide.resp[1]}（${childGuide.label}）`;
+        if (key === '血圧') return `（${childGuide.label}は判定しません）`;
+        return LAB_TREND_VITAL_REF_TEXT[key] || '';
+      };
       const rows = Array.from(rowsByKey.values()).map(row => {
         const unit = Array.from(row.units.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || (row.vital ? row.vital.unit : '');
         const range = parseLabReferenceRange(row.ref);
-        Object.values(row.cells).forEach(list => list.forEach(c => { c.flag = labTrendFlag(c._e, range); delete c._e; }));
-        return { key: row.key, group: row.group, unit, ref: row.ref || (row.vital ? LAB_TREND_VITAL_REF_TEXT[row.key] || '' : ''), refIsGuide: !row.ref && !!row.vital, cells: row.cells };
+        Object.values(row.cells).forEach(list => list.forEach(c => { c.flag = labTrendFlag(c._e, range, childGuide); delete c._e; }));
+        return { key: row.key, group: row.group, unit, ref: row.ref || (row.vital ? vitalRefText(row.key) : ''), refIsGuide: !row.ref && !!row.vital, cells: row.cells };
       });
       const vitalOrder = k => LAB_TREND_VITALS.findIndex(v => v.key === k);
       rows.sort((a, b) => (LAB_TREND_GROUP_ORDER.indexOf(a.group) - LAB_TREND_GROUP_ORDER.indexOf(b.group)) ||
@@ -1802,7 +1840,7 @@ ${cardLines}
         cardLabFlagCache = new Map();
         try {
           const cp = getCurrentPatient();
-          const table = buildLabTrendTable((cp && cp.items) || [], { includeVitals: true });
+          const table = buildLabTrendTable((cp && cp.items) || [], { includeVitals: true, sourceText: (cp && cp.sourceText) || '' });
           table.rows.forEach(r => Object.values(r.cells).forEach(list => list.forEach(c => {
             if (!c.itemId || !c.flag) return;
             if (!cardLabFlagCache.has(c.itemId)) cardLabFlagCache.set(c.itemId, []);
@@ -1857,7 +1895,7 @@ ${cardLines}
       const wrap = document.getElementById('lab-trend-table-wrap');
       if (!wrap) return;
       const cp = getCurrentPatient();
-      const table = buildLabTrendTable(cp.items || [], { includeVitals: labTrendIncludeVitals });
+      const table = buildLabTrendTable(cp.items || [], { includeVitals: labTrendIncludeVitals, sourceText: cp.sourceText || '' });
       const toggle = document.getElementById('lab-trend-show-vitals');
       if (toggle) toggle.checked = labTrendIncludeVitals;
       window.__labTrendLast = table;
@@ -1939,8 +1977,10 @@ ${cardLines}
       let m;
       while ((m = wRe.exec(t)) !== null) weights.push({ value: Number(m[1]), src: t.slice(m.index, Math.min(t.length, m.index + m[0].length + 12)).split('\n')[0] });
       const usualM = t.match(/(?:普段|通常|平常時?|元々|もともと|以前|病前|健常時|半年前|\d{1,2}\s*(?:か月|ヶ月|カ月|ケ月|年)前)(?:は|の体重は?|体重は?)?\s*(\d{1,3}(?:\.\d+)?)\s*kg/);
+      // 乳児・新生児（「生後5か月」「日齢14」）は0歳として扱う（大人の BMI ではなくカウプ指数で見るため）
+      const infantAge = !ageM && /生後\s*\d+\s*(?:か月|ヶ月|カ月|ケ月|日)|日齢\s*\d+|修正\s*\d+\s*週/.test(t) ? 0 : null;
       return {
-        age: ageM ? Number(ageM[1]) : null,
+        age: ageM ? Number(ageM[1]) : infantAge,
         sex: sexM ? (/男/.test(sexM[1]) ? 'male' : 'female') : null,
         height: heightM ? Number(heightM[1]) : null,
         weight: weights.length ? weights[0].value : null,
@@ -2045,7 +2085,7 @@ ${cardLines}
           const pct = weight / ibw * 100;
           out.push({ key: 'ibw', name: '標準体重（BMI 22）', value: round1(ibw), unit: 'kg', detail: `22 ×（身長${height}cm）²`, note: `今の体重は標準体重の${Math.round(pct)}%（%IBW）${pct < 80 ? '：80%未満は中等度以上の栄養障害の目安' : pct > 120 ? '：120%を超えている' : ''}`, level: pct < 80 || pct > 120 ? 'warn' : '' });
         }
-      } else if (height || weight) missing.push({ name: 'BMI・標準体重', need: !height ? '身長' : '体重' });
+      } else if (height || weight) missing.push({ name: age !== null && age < 6 ? 'カウプ指数' : age !== null && age < 16 ? 'ローレル指数' : 'BMI・標準体重', need: !height ? '身長' : '体重' });
       if (weight && basics.usualWeight && basics.usualWeight !== weight) {
         const diff = weight - basics.usualWeight;
         const pct = diff / basics.usualWeight * 100;

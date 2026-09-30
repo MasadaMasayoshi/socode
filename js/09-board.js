@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-09-30.4'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-09-30.5'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カード → 元の文章（カルテ・看護記録入力欄）の該当箇所を探す
     // ------------------------------------------------------------------------
@@ -212,6 +212,15 @@
       }
     }
 
+    // 【薬の印】カードの文章に薬の名前（一般名・商品名）があれば「薬」の印を付け、押すと薬の情報を出す（js/14）
+    function drugChipHtml(item) {
+      if (typeof findDrugsInText !== 'function' || !item) return '';
+      const found = findDrugsInText(item.text);
+      if (!found.length) return '';
+      const alert = found.some(x => x.drug.highAlert);
+      const names = found.map(x => x.drug.name).join('・');
+      return `<button type="button" class="drug-chip${alert ? ' drug-chip-alert' : ''}" onclick="event.stopPropagation(); openDrugInfo('${escapeHtml(item.id)}')" title="薬の情報：${escapeHtml(names)}（押すと、看護で観ることと最新の添付文書へのリンクを表示）" aria-label="薬の情報：${escapeHtml(names)}"><i class="fa-solid fa-capsules"></i>薬${found.length > 1 ? found.length : ''}</button>`;
+    }
     function createCardElement(item) {
       const card = document.createElement('div');
       card.id = item.id;
@@ -262,7 +271,7 @@
             <label class="card-select-wrap" title="選択（複数選択の追加/解除。タップ操作のみで複数選択できます）">
               <input type="checkbox" class="card-select-checkbox" onchange="setCardSelected('${item.id}', this.checked)" ${isSelected ? 'checked' : ''}>
             </label>
-            ${untaggedWarningHtml}${patientBackgroundHtml}${fieldChipHtml}${timeChipHtml}${sceneChipHtml}${confidenceBadgeHtml}
+            ${untaggedWarningHtml}${patientBackgroundHtml}${fieldChipHtml}${timeChipHtml}${sceneChipHtml}${drugChipHtml(item)}${confidenceBadgeHtml}
           </div>
           <div class="flex items-center gap-1 ml-auto shrink-0">
             ${item.type === 'unnecessary' ? `<button onclick="setItemType('${item.id}', 'unclassified')" class="type-btn type-btn-restore" title="未分類に戻す">復帰</button>` : ''}
@@ -1253,7 +1262,7 @@
           ondragleave="event.currentTarget.classList.remove('drag-over');"
           ondrop="handleAssessmentCardDrop(event, '${item.id}', ${hId})"
           class="asc-card px-1.5 py-1 rounded-[var(--radius-sm)] border ${item.aiSuggested ? 'border-dashed' : ''} border-[var(--line)] text-[10.5px] cursor-grab active:cursor-grabbing hover:border-[var(--accent)] transition" style="background:${cardBg};border-left-width:3px;border-left-color:${accentColor};">
-          <div class="leading-snug break-words text-[var(--ink)]"><span class="inline-flex items-center gap-0.5 mr-1 align-[1px]">${badge}${evidenceTag}${familyMark}${aiTag}${fieldTag}${time}</span>${cardTextWithLabFlagsHtml(item)}</div>
+          <div class="leading-snug break-words text-[var(--ink)]"><span class="inline-flex items-center gap-0.5 mr-1 align-[1px]">${badge}${evidenceTag}${familyMark}${aiTag}${fieldTag}${time}${drugChipHtml(item)}</span>${cardTextWithLabFlagsHtml(item)}</div>
           ${isMissingCol && typeof missingCheckCardHtml === 'function' ? `<div class="mc-in-card">${missingCheckCardHtml(getCurrentPatient(), item)}</div>` : ''}
           <div class="asc-actions">
             <button onclick="moveAssessmentCard('${item.id}', ${hId}, 'up')" ${isFirst ? 'disabled' : ''} class="icon-btn" title="この欄の中で1つ上へ移動" style="${isFirst ? 'opacity:.3;cursor:not-allowed;' : ''}"><i class="fa-solid fa-chevron-up text-[9px]"></i></button>

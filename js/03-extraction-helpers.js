@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = '2026-09-30.4'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = '2026-09-30.5'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 検査値カードの抽出：値のすぐ後（スペースの有無を問わず）に単位まで書かれている場合、
     // 値と単位が別々のカードに分かれてしまう不具合の対策。
@@ -154,6 +154,38 @@
       LAB_CATEGORY_TAG_RULES.forEach(rule => { if (rule.regex.test(text)) rule.tags.forEach(t => { if (!tags.includes(t)) tags.push(t); }); });
       return tags.length ? tags : [2];
     }
+
+    // ==========================================================================
+    // 【子どもの記録】受け持ちが新生児・乳児・幼児・学童かを、記録の文章から見分ける（実習生の記録のテストで追加）。
+    // 子どもは脈拍・呼吸数の目安が大人と違い、検査値の基準値も年齢で違うため、大人の目安で「高い・低い」を
+    // 付けたり、大人の基準値を書き足したりしないようにする。家族の年齢（「兄（3歳）」「父（30歳）」）を読まないよう、
+    // 受け持ちを示す言葉（患児・受け持ち・患者・〜ちゃん など）のそばの年齢だけを見る。
+    // 返す値：'neonate'（新生児）｜'infant'（乳児）｜'toddler'（幼児）｜'school'（学童）｜null（大人・思春期・分からない）
+    // ==========================================================================
+    function detectAgeGroupFromText(text) {
+      const t = String(text || '').normalize('NFKC').slice(0, 1500);
+      if (/日齢\s*\d+|修正\s*\d+\s*週|NICU|GCU|早産児|低出生体重児|新生児(?:期|室)?(?:[:：]|\s|を|の受け持ち)/.test(t) && !/(?:褥婦|産褥|初産婦|経産婦)/.test(t.slice(0, 300))) return 'neonate';
+      const who = '(?:患児|受け?持ち?児?|患者|対象|本児|利用者|[A-ZＡ-Ｚ]\\s*(?:ちゃん|くん|君|さん|氏))';
+      if (new RegExp(`${who}[^。\\n]{0,20}?生後\\s*\\d+\\s*(?:か月|ヶ月|カ月|ケ月)`).test(t)) return 'infant';
+      const m = t.match(new RegExp(`${who}[^。\\n]{0,20}?(\\d{1,3})\\s*歳`));
+      if (!m) return null;
+      const age = Number(m[1]);
+      if (age < 1) return 'infant';
+      if (age <= 5) return 'toddler';
+      if (age <= 12) return 'school';
+      return null;
+    }
+    // 年齢の区分ごとの脈拍・呼吸数の目安（小児看護の教科書の一般的な値。施設で違うことがあるので「目安」と表示する）
+    const CHILD_VITAL_GUIDES = {
+      neonate: { label: '新生児', pulse: [120, 160], resp: [40, 60] },
+      infant: { label: '乳児', pulse: [110, 140], resp: [30, 40] },
+      toddler: { label: '幼児', pulse: [90, 120], resp: [20, 30] },
+      school: { label: '学童', pulse: [70, 110], resp: [18, 25] }
+    };
+    // 子どもの記録では、年齢で変わる検査の基準値（白血球・ヘモグロビン・アルブミン・クレアチニンなど）は大人の値を
+    // 書き足さない。年齢で大きく変わらないもの（CRP・Na・Cl）だけ書き足す。
+    const CHILD_SAFE_LAB_REFERENCE_KEYS = new Set(['CRP', 'Na', 'Cl']);
+    let childLabReferenceMode = false; // groupClinicalPhrasesWithTimestamps が、読み始めに記録全体から決める
 
     // ==========================================================================
     // 表やスプレッドシートをコピー貼り付けした際、セルの改行がそのまま反映されて
@@ -611,7 +643,7 @@
       { pattern: /誤嚥性肺炎/, tagIds: [1, 2, 7, 9, 14] },
       { pattern: /市中肺炎|院内肺炎|医療[・]?介護関連肺炎|\bCAP\b|\bHAP\b|\bNHCAP\b|\bVAP\b/, tagIds: [1, 7, 9] },
       // 帝王切開・骨盤位など分娩の方法（母性の実習記録のテストで追加）：分娩と同じ9
-      { pattern: /帝王切開|骨盤位|前置胎盤|常位胎盤早期剥離/, tagIds: [9] }
+      { pattern: /帝王切開|骨盤位|前置胎盤|常位胎盤早期剥離|切迫早産|切迫流産|妊娠高血圧|妊娠糖尿病|早産/, tagIds: [9] }
     ];
     function detectDiagnosisTagHints(text) {
       const ids = new Set();

@@ -5,20 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-09-30.4">
+  <meta name="app-version" content="2026-09-30.5">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
-  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-09-30.4">
+  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-09-30.5">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=2026-09-30.4">
+  <link rel="stylesheet" href="style.css?v=2026-09-30.5">
   <!-- 画面の見た目の部品（Tailwind CSS 3.4）。以前は開くたびにネット（cdn.tailwindcss.com）から読み込み、
        その場で作っていたため、ネットが不安定だったり配信が止まったりすると画面のレイアウトが崩れた。
        使っている部品だけを vendor/tailwind.css に作っておき、それを読み込む（改善提案7。作り直しは
        npm run build:css）。以前と同じく style.css より後に読み込み、同じ強さの指定ではこちらを優先する。 -->
-  <link rel="stylesheet" href="vendor/tailwind.css?v=2026-09-30.4">
+  <link rel="stylesheet" href="vendor/tailwind.css?v=2026-09-30.5">
   <script>
     // ダークモードの初期適用（画面が一瞬だけ元のテーマで表示される「ちらつき」を防ぐため、
     // CSS読み込み直後・本文描画前にこの小さなスクリプトで先に data-theme を決めてしまう）。
@@ -102,6 +102,9 @@
             <div class="hdr-menu-sep"></div>
             <button id="btn-toggle-font" class="hdr-menu-item" role="menuitem" onclick="toggleAppFont()">
               <i class="fa-solid fa-font"></i><span>文字の書体：<b id="font-current-label">明朝</b><small>押すと明朝（Noto Serif JP）とゴシックを切り替え</small></span>
+            </button>
+            <button type="button" class="hdr-menu-item" role="menuitem" onclick="openDrugInfo(null)">
+              <i class="fa-solid fa-capsules"></i><span>薬の情報<small>記録に出てくる薬・名前で探す</small></span>
             </button>
             <button id="btn-open-settings" class="hdr-menu-item" role="menuitem">
               <i class="fa-solid fa-gear"></i><span>API設定</span>
@@ -419,6 +422,9 @@
           <p class="text-[11px] text-[var(--ink-muted)] mt-0.5">看護基準・院内プロトコル・参考文献など自由に登録できるメモです。「不足情報をAI推定」の判断材料としても使われます。</p>
         </div>
         <div class="flex items-center gap-1.5">
+          <button type="button" class="btn btn-outline" onclick="openDrugInfo(null)" title="記録に出てくる薬の情報（分類・使い道・看護で観ること）と、最新の添付文書へのリンク">
+            <i class="fa-solid fa-capsules"></i> 薬の情報
+          </button>
           <button id="btn-reference-ocr" class="btn btn-outline">
             <i class="fa-solid fa-camera"></i> 画像から読み込む
             <input type="file" id="reference-ocr-input" accept="image/*" class="hidden">
@@ -723,6 +729,39 @@
   </div>
 
   <!-- API設定モーダル -->
+  <!-- 薬の情報（js/14 の openDrugInfo）：記録・カードに出てくる薬の要点と、最新の添付文書へのリンク -->
+  <div id="modal-drug-info" class="hidden fixed inset-0 z-[61] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="drug-info-title" onclick="if (event.target === this) closeDrugInfo()" onkeydown="if (event.key === 'Escape') closeDrugInfo()">
+    <div class="modal-surface w-full max-w-2xl p-4 flex flex-col gap-3 drug-modal">
+      <div class="flex items-center justify-between gap-2">
+        <h3 id="drug-info-title" class="font-display font-semibold text-sm text-[var(--ink)]"><i class="fa-solid fa-capsules text-[var(--accent)] mr-1"></i> 薬の情報</h3>
+        <button type="button" class="icon-btn" onclick="closeDrugInfo()" aria-label="閉じる"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <input type="search" id="drug-info-search" class="field" placeholder="一般名・商品名・分類で探す（例：ラシックス、利尿薬、インスリン）" oninput="searchDrugInfo(this.value)" aria-label="薬を探す">
+      <p id="drug-info-heading" class="text-[11px] font-bold text-[var(--ink)]"></p>
+      <div id="drug-info-list" class="drug-list"></div>
+      <p class="drug-caution"><i class="fa-solid fa-circle-info"></i> 各薬の添付文書の主な内容を、看護で観ることを中心に短くまとめた参考です（用量・禁忌・相互作用のすべてではありません）。必ず最新の添付文書と、医師・薬剤師の指示で確かめてください。見つからない薬は <a href="https://www.pmda.go.jp/PmdaSearch/iyakuSearch/" target="_blank" rel="noopener noreferrer">PMDA 医療用医薬品の添付文書情報</a> で調べられます。</p>
+    </div>
+  </div>
+
+  <!-- AIのAPIキーが未設定のときの案内（js/05 の requireApiKey）。取得のページ・説明のページへのリンクと、設定を開くボタン -->
+  <div id="modal-api-required" class="hidden fixed inset-0 z-[62] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="api-required-title">
+    <div class="modal-surface w-full max-w-md p-5 flex flex-col gap-3">
+      <h3 id="api-required-title" class="font-display font-semibold text-sm text-[var(--ink)] flex items-center gap-2"><i class="fa-solid fa-key text-[var(--gold)]"></i> AIを使うにはAPIキーの設定が必要です</h3>
+      <p id="api-required-feature" class="text-xs text-[var(--ink)] leading-relaxed"></p>
+      <ol class="api-req-steps">
+        <li><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square"></i> Google AI Studio の「APIキー」のページ</a>を開き、Googleアカウントでログインして「APIキーを作成」を押します（無料で作れます）。</li>
+        <li>できたキー（AIza… または AQ.…）をコピーします。</li>
+        <li>下の「APIキーを設定する」を押して、コピーしたキーを貼り付けて保存します。</li>
+      </ol>
+      <p class="text-[10.5px] text-[var(--ink-muted)] leading-relaxed">キーはこのブラウザだけに保存され、ほかの人とは共有されません。詳しい説明：<a class="api-req-link" href="https://ai.google.dev/gemini-api/docs/api-key?hl=ja" target="_blank" rel="noopener noreferrer">Gemini API キーの使い方（Google 公式）</a></p>
+      <div class="flex flex-wrap justify-end gap-2 pt-1">
+        <button type="button" class="btn btn-outline" data-api-req="close">閉じる</button>
+        <button type="button" class="btn btn-outline hidden" id="api-required-fallback" data-api-req="fallback"></button>
+        <button type="button" class="btn btn-primary" data-api-req="settings"><i class="fa-solid fa-key"></i> APIキーを設定する</button>
+      </div>
+    </div>
+  </div>
+
   <div id="modal-settings" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface max-w-md w-full p-5 flex flex-col gap-4">
       <div class="flex items-center justify-between border-b border-[var(--line-soft)] pb-2">
@@ -1219,18 +1258,19 @@
 
   <!-- プログラム本体（以前の app.js を内容ごとに10ファイルに分けたもの）。この順番で読み込むこと。
        順番は tests/app-helpers.js の APP_SCRIPT_FILES と同じにする（tests/app-files-order.test.js で確認）。 -->
-  <script src="js/01-henderson-keywords.js?v=2026-09-30.4"></script>
-  <script src="js/02-reference-data.js?v=2026-09-30.4"></script>
-  <script src="js/03-extraction-helpers.js?v=2026-09-30.4"></script>
-  <script src="js/04-server-sync.js?v=2026-09-30.4"></script>
-  <script src="js/05-app-state-and-ui.js?v=2026-09-30.4"></script>
-  <script src="js/06-export.js?v=2026-09-30.4"></script>
-  <script src="js/07-classification.js?v=2026-09-30.4"></script>
-  <script src="js/08-assessment-tools.js?v=2026-09-30.4"></script>
-  <script src="js/09-board.js?v=2026-09-30.4"></script>
-  <script src="js/10-reference-page-and-startup.js?v=2026-09-30.4"></script>
-  <script src="js/11-own-assessment.js?v=2026-09-30.4"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=2026-09-30.4"></script>
-  <script src="js/13-compare-and-report.js?v=2026-09-30.4"></script>
+  <script src="js/01-henderson-keywords.js?v=2026-09-30.5"></script>
+  <script src="js/02-reference-data.js?v=2026-09-30.5"></script>
+  <script src="js/03-extraction-helpers.js?v=2026-09-30.5"></script>
+  <script src="js/04-server-sync.js?v=2026-09-30.5"></script>
+  <script src="js/05-app-state-and-ui.js?v=2026-09-30.5"></script>
+  <script src="js/06-export.js?v=2026-09-30.5"></script>
+  <script src="js/07-classification.js?v=2026-09-30.5"></script>
+  <script src="js/08-assessment-tools.js?v=2026-09-30.5"></script>
+  <script src="js/09-board.js?v=2026-09-30.5"></script>
+  <script src="js/10-reference-page-and-startup.js?v=2026-09-30.5"></script>
+  <script src="js/11-own-assessment.js?v=2026-09-30.5"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=2026-09-30.5"></script>
+  <script src="js/13-compare-and-report.js?v=2026-09-30.5"></script>
+  <script src="js/14-drug-reference.js?v=2026-09-30.5"></script>
 </body>
 </html>

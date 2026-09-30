@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-09-30.4'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-09-30.5'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 書式付き書き出し（Word / PDF）
     // ------------------------------------------------------------------------
@@ -140,13 +140,19 @@
     }
     // 画面の総合アセスメント表と同じ番号（項目ごとに上から S-1, S-2 / O-1, O-2 …。不足情報欄は番号なし）
     // S-1・O-1の番号は、日の順番（assessmentDisplayOrder）で上から付ける（画面・印刷・テキスト書き出しで共通）
+    // 【番号は画面に並ぶ順】利用者からの指摘：「O-1、O-2の順番が時系列に整理しても整理されていない」。以前は欲求の中の
+    // 全カードを日の順に並べて番号を付けていたが、画面では欄（未分類→入院前→入院後）ごとに、しかも各欄の一番上に
+    // 「背景（診断名・現病歴など）」をまとめて出すため、「O-1 O-2 O-5 O-3」のように番号が飛んで見えていた。
+    // 画面・印刷と同じ並び（欄の順 → 欄の中の背景 → 日の順）で番号を付ける。
     function assessmentSeqLabels(matching, needId) {
       let sSeq = 0, oSeq = 0;
       const labels = {};
-      assessmentDisplayOrder(matching).forEach(i => {
-        if ((i.assessmentCols?.[needId] || 'unclassified') === 'missing') return;
-        if (i.type === 's') labels[i.id] = `S-${++sSeq}`;
-        else if (i.type === 'o') labels[i.id] = `O-${++oSeq}`;
+      ['unclassified', 'preadmission', 'postadmission'].forEach(col => {
+        const list = (matching || []).filter(i => (i.assessmentCols?.[needId] || 'unclassified') === col);
+        assessmentDayGroups(col, list).forEach(g => g.items.forEach(i => {
+          if (i.type === 's') labels[i.id] = `S-${++sSeq}`;
+          else if (i.type === 'o') labels[i.id] = `O-${++oSeq}`;
+        }));
       });
       return labels;
     }
@@ -217,9 +223,38 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       return `@font-face { font-family: 'Noto Serif JP App'; src: url('${url}') format('woff2'); font-weight: 200 900; }
   body, body * { font-family: 'Noto Serif JP App', 'Noto Serif JP', 'Yu Mincho', 'Hiragino Mincho ProN', serif !important; }`;
     }
+    // 【スマホでPDF】利用者からの指摘：「PDFがスマホでできない」。スマホ（iPhone・Android）のブラウザは、画面に見えない
+    // 枠（iframe）の中だけを印刷できず、何も起きなかったり、アプリの画面そのものが印刷されたりしていた。
+    // スマホでは、印刷用のページを新しいタブとして開き、そのページで印刷（＝PDFに保存）する。ページの上に
+    // 「印刷・PDFに保存」のボタンと、iPhone／Android それぞれのPDFの保存のしかたを出す（印刷のときは隠れる）。
+    function isMobilePrintTarget() {
+      try {
+        const ua = navigator.userAgent || '';
+        if (/iPhone|iPad|iPod|Android/i.test(ua)) return true;
+        if (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) return true; // iPadOS（デスクトップ表示）
+        return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches && window.innerWidth < 900);
+      } catch (e) { return false; }
+    }
+    const MOBILE_PRINT_BAR = `<div id="mobile-print-bar" style="position:sticky;top:0;z-index:10;margin:0 -10px 10px;background:#1F4E45;color:#fff;padding:10px 12px;font:14px/1.6 sans-serif;display:flex;flex-direction:column;gap:6px;">
+      <button type="button" onclick="window.print()" style="font:700 16px sans-serif;padding:10px 14px;border-radius:8px;border:0;background:#fff;color:#1F4E45;">印刷・PDFに保存</button>
+      <div style="font-size:12.5px;">iPhone：ボタン →（プリンタを選ばずに）右上の共有ボタン →「"ファイル"に保存」でPDFになります。<br>Android：ボタン → プリンタで「PDFとして保存」を選び、ダウンロードのボタンを押します。</div>
+      <button type="button" onclick="window.close()" style="font:13px sans-serif;padding:6px;border-radius:6px;border:1px solid #fff;background:transparent;color:#fff;">閉じてアプリに戻る</button>
+    </div><style>@media print { #mobile-print-bar { display: none !important; } }</style>`;
     function printHtmlDocument(html) {
       const fontCss = printFontCss();
       if (fontCss) html = html.replace('</head>', `<style>${fontCss}</style></head>`);
+      if (isMobilePrintTarget()) {
+        // 印刷用のページをファイル（blob）として作り、新しいタブで開く（書体の読み込みも普通のページと同じに行われる）
+        // スマホの画面の幅に合わせて表示する（印刷はA4のまま）
+        const mobileHead = '<meta name="viewport" content="width=device-width, initial-scale=1"><style>@media screen { html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } body { margin: 0; padding: 0 10px 20px; } table { width: 100% !important; } }</style>';
+        const pageHtml = html.replace('</head>', `${mobileHead}</head>`).replace(/<body([^>]*)>/, `<body$1>${MOBILE_PRINT_BAR}`);
+        const url = URL.createObjectURL(new Blob([pageHtml], { type: 'text/html;charset=utf-8' }));
+        const w = window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        if (w) return true;
+        showToast(['印刷用のページを開けませんでした', { text: 'ブラウザがポップアップ（新しいタブ）を止めています。設定でこのサイトのポップアップを許可してから、もう一度押してください。', detail: true }], 'error');
+        return false;
+      }
       const old = document.getElementById('print-frame');
       if (old) old.remove();
       const frame = document.createElement('iframe');
@@ -239,7 +274,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const cp = getCurrentPatient();
       if (!(cp.items || []).some(i => i.type !== 'unnecessary')) return showToast('印刷するカードがありません。先に「分類開始」で分類してください', 'warn');
       printHtmlDocument(buildAssessmentPrintHtml(cp));
-      showToast('印刷画面を開きます。「送信先」で「PDFに保存」を選ぶとPDFになります', 'info');
+      showToast(isMobilePrintTarget() ? '印刷用のページを新しいタブで開きました。上の「印刷・PDFに保存」を押してください' : '印刷画面を開きます。「送信先」で「PDFに保存」を選ぶとPDFになります', 'info');
     };
 
     // 「PDF書き出し」用：記録整理シート（A4縦）の本文。S/Oデータは表で、14項目別は入院前・入院後・不足情報に分けて載せる。
@@ -728,5 +763,5 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       // 以前は新しいタブを開いて印刷していた（ポップアップのブロックで開けないことがあった）。
       // 「印刷 / PDF」と同じく、見えない枠に読み込んで印刷画面を開く。
       printHtmlDocument(buildExportDocument(cp));
-      showToast('印刷画面を開きます。「送信先」で「PDFに保存」を選ぶとPDFになります', 'info');
+      showToast(isMobilePrintTarget() ? '印刷用のページを新しいタブで開きました。上の「印刷・PDFに保存」を押してください' : '印刷画面を開きます。「送信先」で「PDFに保存」を選ぶとPDFになります', 'info');
     });

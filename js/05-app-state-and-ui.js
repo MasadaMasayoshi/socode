@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-09-30.4'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-09-30.5'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -528,6 +528,45 @@
       showToast([`前回${when ? `（${when}）` : ''}AIの処理の途中でページを閉じたため、結果は届いていません`, { text: `${who ? `${who}で` : ''}実行していたAIの処理 ${lost.length}件。必要なら、もう一度AIのボタンを押してください。`, detail: true }], 'warn', 9000);
       return lost.length;
     }
+    // 【APIキーが未設定のとき】利用者からの要望：「APIを設定していないときにAI機能を使おうとすると『API設定してください』と
+    // 出るようにする。URLもしっかり準備する」。AIのボタンを押したときにキーが無ければ、取得のページ（Google AI Studio）と
+    // 設定の画面へ案内する。AIなしの簡易チェックがある機能は、そちらを選ぶこともできる（fallbackLabel）。
+    // 戻り値：'ok'（キーあり）｜'fallback'（AIなしで続ける）｜false（やめる）
+    function requireApiKey(featureName, { fallbackLabel = '' } = {}) {
+      if (globalAppData.apiKey) return Promise.resolve('ok');
+      const modal = document.getElementById('modal-api-required');
+      if (!modal || !modal.querySelector) {
+        showToast(`「${featureName}」はAIを使います。右上の「︙」→「API設定」でGemini APIキーを設定してください`, 'warn');
+        return Promise.resolve(false);
+      }
+      document.getElementById('api-required-feature').textContent = `「${featureName}」はAI（Gemini）を使います。まだAPIキーが設定されていません。次の手順で設定してください。`;
+      const fb = document.getElementById('api-required-fallback');
+      fb.textContent = fallbackLabel;
+      fb.classList.toggle('hidden', !fallbackLabel);
+      modal.classList.remove('hidden');
+      modal.querySelector('[data-api-req="settings"]').focus();
+      return new Promise(resolve => {
+        const done = (value, openSettings) => {
+          modal.classList.add('hidden');
+          modal.removeEventListener('click', onClick);
+          document.removeEventListener('keydown', onKey, true);
+          if (openSettings) document.getElementById('btn-open-settings')?.click();
+          resolve(value);
+        };
+        const onClick = e => {
+          const b = e.target.closest('[data-api-req]');
+          if (e.target === modal) return done(false);
+          if (!b) return;
+          if (b.dataset.apiReq === 'settings') done(false, true);
+          else if (b.dataset.apiReq === 'fallback') done('fallback');
+          else done(false);
+        };
+        const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); done(false); } };
+        modal.addEventListener('click', onClick);
+        document.addEventListener('keydown', onKey, true);
+      });
+    }
+    window.requireApiKey = requireApiKey;
     async function callGeminiAI(contents, options = {}) {
       const pendingId = 'ai_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
       let patientTitle = '';
@@ -937,7 +976,11 @@
       return `<div class="ai-text">${html}</div>`;
     }
     // AIへの指示文に付ける、書き方の指示（最初に要点、前置きなし、短い箇条書き、根拠の番号は文の終わり）
-    const AI_STYLE_INSTRUCTION = '【書き方】前置き・あいさつ・「〜の視点から」「〜をまとめました」のような説明は書かず、すぐ本題から書いてください。最初に「### 要点」の見出しを置き、結論を2〜3個の短い箇条書き（1つ40字程度まで）で示してください。そのあと詳細を「### 見出し」と「- 」の箇条書きで書き、1つの箇条書きは1〜2文にしてください。根拠のカードの番号は、文の終わりの句点の後ろにまとめて付けてください。';
+    // 【AIの内容の正確さ】利用者からの依頼「AIが出した内容をすべて評価して」で見つかった問題（記録に無い手術・薬を前提にした説明、
+    // 「著明な」などの誇張、基準値内の値を「低下」と書く、存在しない看護技術の名前、どのカードにも同じ根拠を付ける）を防ぐ決まり。
+    // すべてのAIの指示に添える。
+    const AI_ACCURACY_RULES = '【正確さの決まり】記録に書かれていない事実（手術・使っている薬・既往など）を前提にしないでください。数値の程度を誇張しないでください（「著明」「重度」は基準値を大きく外れるときだけ使い、基準値内の値を「低下」「異常」と書かないでください）。アセスメントに必要なのに記録に無い値（例：肺炎なら呼吸数・意識・血糖など）は「記録がない」と書いてください。医学用語・看護技術の名前は教科書で使われる正確なものだけを使い、確かでない言葉は使わないでください。薬の量や治療を変える提案はしないでください。根拠のカードの番号は、その文に直接関係するカードだけに付け、同じカードを繰り返し付けないでください。';
+    const AI_STYLE_INSTRUCTION = '【書き方】前置き・あいさつ・「〜の視点から」「〜をまとめました」のような説明は書かず、すぐ本題から書いてください。最初に「### 要点」の見出しを置き、結論を2〜3個の短い箇条書き（1つ40字程度まで）で示してください。そのあと詳細を「### 見出し」と「- 」の箇条書きで書き、1つの箇条書きは1〜2文にしてください。根拠のカードの番号は、文の終わりの句点の後ろにまとめて付けてください。' + AI_ACCURACY_RULES;
 
     function persistData() {
       const cp = getCurrentPatient();
@@ -2371,7 +2414,7 @@
     let cachedReportSummaryLines = [];
     async function summarizeCardReportsAI() {
       if (!Array.isArray(cachedCardReports) || cachedCardReports.length === 0) return showToast('要約できる報告がありません', 'warn');
-      if (!globalAppData.apiKey) return showToast('API設定からGemini APIキーを入力してください', 'warn');
+      if (!(await requireApiKey('報告のAI要約'))) return;
 
       const summaryEl = document.getElementById('admin-reports-summary');
       summaryEl.classList.remove('hidden');
@@ -2548,7 +2591,7 @@
       { panel: 'lab-evaluation-panel', label: '検査値の評価' },
       { panel: 'contradiction-panel', label: 'S/O矛盾' },
       { panel: 'diagnosis-panel', label: '看護診断候補' },
-      { panel: 'timeline-panel', label: '経過のまとめ' },
+      { panel: 'timeline-panel', label: '経時変化サマリー' },
       { panel: 'careplan-panel', label: '看護計画の叩き台' }
     ];
     let aiResultsActive = null; // 表示中の結果（null＝たたんでいる）

@@ -702,8 +702,10 @@
     .toast-close:hover { opacity: 1; background: var(--surface); }
     #toast-container > div { max-width: min(420px, calc(100vw - 2rem)); }
     /* カードの「︙」メニュー（js/09 の openCardMenu） */
-    .card-menu-btn { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); color: var(--ink-muted); border: 1px solid transparent; }
-    .card-menu-btn:hover, .card-menu-btn:focus-visible { color: var(--accent); border-color: var(--line); background: var(--paper); }
+    /* カードの「︙」：利用者からの要望「縦三点リーダーが強調されるようにする」。枠と色を付け、押せる場所だと分かるようにする */
+    .card-menu-btn { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; color: var(--accent-dark); background: var(--accent-soft); border: 1px solid var(--accent-line); font-size: 14px; font-weight: 900; box-shadow: 0 1px 0 var(--line); transition: background .12s ease, color .12s ease, transform .12s ease; }
+    .card-menu-btn i { font-size: 14px; }
+    .card-menu-btn:hover, .card-menu-btn:focus-visible, .card-menu-btn[aria-expanded="true"] { color: var(--on-fill); background: var(--accent); border-color: var(--accent); outline: none; transform: scale(1.06); }
     .card-menu { position: fixed; z-index: 80; min-width: 13rem; padding: .3rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 10px 28px rgba(0,0,0,.18); display: flex; flex-direction: column; }
     .card-menu.hidden { display: none; }
     .card-menu button { display: flex; align-items: center; gap: .55rem; padding: .45rem .6rem; border-radius: var(--radius-sm); font-size: 12px; color: var(--ink); text-align: left; }
@@ -831,3 +833,31 @@
     /* 自分のアセスメントの表示の切り替え（js/11 の toggleMyAssessmentShown） */
     .my-asm-show-btn.is-on { border-color: var(--accent); color: var(--accent-dark); background: var(--accent-soft); }
     .my-asm-show-btn .my-asm-show-state { font-weight: 700; }
+    /* APIキーが未設定のときの案内（js/05 の requireApiKey） */
+    .api-req-steps { margin: 0; padding-left: 1.2rem; list-style: decimal; font-size: 12px; line-height: 1.7; color: var(--ink); display: flex; flex-direction: column; gap: .2rem; }
+    .api-req-steps a, .api-req-link { color: var(--accent-dark); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+    .api-req-steps a i { font-size: 10px; margin-right: .15rem; }
+    /* 看護計画までまとめて実行（js/13 の runAiPipelineToCarePlan） */
+    .ai-run-all { display: inline-flex; align-items: center; gap: .4rem; padding: .35rem .8rem; min-height: 30px; border-radius: var(--radius-sm); background: var(--accent); color: var(--on-fill); font-weight: 700; font-size: 11.5px; border: 1px solid var(--accent); white-space: nowrap; }
+    .ai-run-all:hover { filter: brightness(1.08); }
+    .ai-run-all:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .ai-run-all.is-running { background: var(--accent-soft); color: var(--accent-dark); border-color: var(--accent-line); }
+    /* 薬の情報（js/14） */
+    .drug-modal { max-height: 88vh; }
+    .drug-list { overflow: auto; display: flex; flex-direction: column; gap: .5rem; max-height: 60vh; }
+    .drug-card { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: .55rem .7rem; background: var(--surface); font-size: 12px; line-height: 1.6; color: var(--ink); }
+    .drug-card.drug-alert { border-color: var(--brick-line); }
+    .drug-card-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .45rem; margin-bottom: .2rem; }
+    .drug-card-head b { font-size: 13px; }
+    .drug-brands { color: var(--ink-muted); font-size: 11px; }
+    .drug-alert-badge { font-size: 10px; font-weight: 700; color: var(--brick); background: var(--brick-soft); border-radius: 999px; padding: 0 .45rem; }
+    .drug-row { display: grid; grid-template-columns: 7.5em 1fr; gap: .4rem; }
+    .drug-row > span { color: var(--ink-muted); font-size: 11px; }
+    .drug-watch { font-weight: 600; }
+    .drug-links a, .drug-caution a { color: var(--accent-dark); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; font-size: 11px; }
+    .drug-caution { font-size: 10.5px; color: var(--ink-muted); line-height: 1.6; }
+    .drug-empty { font-size: 12px; color: var(--ink-muted); padding: 1rem 0; }
+    .drug-chip { display: inline-flex; align-items: center; gap: .2rem; font-size: 9.5px; font-weight: 700; padding: 0 .4rem; border-radius: 999px; background: var(--slate-soft); color: var(--slate); border: 1px solid var(--slate-line); line-height: 1.6; }
+    .drug-chip:hover, .drug-chip:focus-visible { background: var(--slate); color: var(--on-fill); outline: none; }
+    .drug-chip.drug-chip-alert { background: var(--brick-soft); color: var(--brick); border-color: var(--brick-line); }
+    @media (max-width: 640px) { .drug-row { grid-template-columns: 1fr; gap: 0; } }

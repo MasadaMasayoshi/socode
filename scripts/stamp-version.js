@@ -39,4 +39,4 @@ let html = fs.readFileSync(htmlFile, 'utf8');
 html = html.replace(/<meta name="app-version" content="[^"]*">/, `<meta name="app-version" content="${version}">`);
 html = html.replace(/((?:src|href)="(?:js\/[\w-]+\.js|style\.css|vendor\/[\w./-]+\.css))(?:\?v=[\w.-]*)?"/g, `$1?v=${version}"`);
 fs.writeFileSync(htmlFile, html);
-console.log(`版 ${version} を書き込みました（index.html と js/01〜13）。`);
+console.log(`版 ${version} を書き込みました（index.html と js の各ファイル）。`);

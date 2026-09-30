@@ -5,7 +5,7 @@
     //   （コピー・テキストファイル・印刷／PDF）。
     // （js/10 の起動の処理より後に読み込む。最後に総合アセスメント表などを描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-09-30.4'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-09-30.5'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // ④ 記録した時点（cp.checkpoints[ID] = { id, label, kind, at, updatedAt, items:[カードの写し] }。
@@ -484,7 +484,7 @@
     };
     window.printReport = function() {
       printHtmlDocument(reportToHtml(getCurrentPatient(), currentReport()));
-      showToast('印刷画面を開きます。「送信先」で「PDFに保存」を選ぶとPDFになります', 'info');
+      showToast(isMobilePrintTarget() ? '印刷用のページを新しいタブで開きました。上の「印刷・PDFに保存」を押してください' : '印刷画面を開きます。「送信先」で「PDFに保存」を選ぶとPDFになります', 'info');
     };
 
     // ==========================================================================
@@ -693,6 +693,56 @@
     }
     // 起動時：js/10 の起動の処理で一度描いた画面を、js/11〜13 の分も入れて描き直す
     try { renderAssessmentTable(); renderCarePlans(); renderWorkflowSteps(); } catch (err) { console.warn('画面を描き直せませんでした:', err); }
+
+    // ==========================================================================
+    // 【ボタン1つで看護計画まで】利用者からの要望：「ボタン一つで順番に処理して看護計画立案」。
+    // ①不足情報の推定 → ②看護診断候補 → 優先度の高い候補（AIが優先順に挙げた上から2件）を選ぶ → ③看護計画の叩き台
+    // → 「看護計画」タブへ取り込み、までを順番に行う。途中で患者を切り替えたり、どこかで失敗したりしたら、そこで止める。
+    // 選んだ診断・計画は、あとから自由に選び直し・書き直しできる（AIの参考案であることは各結果の欄に表示）。
+    // ==========================================================================
+    window.aiPipelineStatus = { running: false, label: '' };
+    const AI_PIPELINE_SELECT_COUNT = 2;
+    function setAiPipelineStatus(running, label = '') {
+      window.aiPipelineStatus = { running, label };
+      if (typeof renderAiSteps === 'function') renderAiSteps(getCurrentPatient());
+    }
+    window.runAiPipelineToCarePlan = async function() {
+      if (window.aiPipelineStatus.running) return;
+      if (!(await requireApiKey('看護計画までまとめて実行'))) return;
+      const cp = getCurrentPatient();
+      if (!(cp.items || []).some(i => i.type !== 'unnecessary')) return showToast('カードがありません。先に分類ボードで「分類開始」を押してください', 'warn');
+      const same = () => getCurrentPatient().id === cp.id;
+      const stop = msg => { setAiPipelineStatus(false); if (msg) showToast(msg, 'warn', 6000); };
+      try {
+        setAiPipelineStatus(true, '① 不足情報を推定しています…（1/3）');
+        const before1 = (cp.aiRunAt || {}).missing;
+        await window.evaluateMissingInfoAI();
+        if (!same()) return stop('患者を切り替えたため、まとめて実行を止めました');
+        if ((cp.aiRunAt || {}).missing === before1) return stop('不足情報の推定ができなかったため、ここで止めました（理由は通知・結果の欄をご覧ください）');
+        setAiPipelineStatus(true, '② 看護診断候補を考えています…（2/3）');
+        const before2 = (cp.aiRunAt || {}).diagnosis;
+        await window.suggestNursingDiagnosesAI();
+        if (!same()) return stop('患者を切り替えたため、まとめて実行を止めました');
+        const cands = cp.diagnosisCandidates || [];
+        if ((cp.aiRunAt || {}).diagnosis === before2 || !cands.length) return stop('看護診断候補を作れなかったため、ここで止めました');
+        cp.selectedDiagnosisIds = cands.slice(0, AI_PIPELINE_SELECT_COUNT).map(c => c.id);
+        persistData();
+        if (typeof renderDiagnosisPanel === 'function') renderDiagnosisPanel(cp);
+        setAiPipelineStatus(true, '③ 看護計画を作っています…（3/3）');
+        const before3 = (cp.aiRunAt || {}).careplan;
+        await window.generateCarePlanAI();
+        if (!same()) return stop('患者を切り替えたため、まとめて実行を止めました');
+        if ((cp.aiRunAt || {}).careplan === before3 || !cp.carePlanResult) return stop('看護計画を作れなかったため、ここで止めました');
+        const fresh = typeof importCarePlans === 'function' ? importCarePlans(cp, 'ai') : [];
+        if (fresh.length && typeof commitCarePlanChange === 'function') commitCarePlanChange(cp);
+        setAiPipelineStatus(false);
+        if (typeof showAiResult === 'function') { window.showAiResult(null); window.showAiResult('careplan-panel'); }
+        showToast([`看護計画までできました（看護診断 ${cp.selectedDiagnosisIds.length}件・看護計画 ${fresh.length}件を「看護計画」タブに取り込み）`, { text: '優先度の高い順に上から2件の看護診断を選んでいます。選び直すときは「看護診断候補」のチェックを変えて「③ 看護計画」を押してください。取り込んだ計画は自分の言葉で書き直しましょう。', detail: true }], 'success', 8000);
+      } catch (err) {
+        console.warn('AI pipeline error:', err);
+        stop(`まとめて実行の途中で止まりました（${err && err.message ? err.message : 'エラー'}）`);
+      }
+    };
 
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {

@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-09-30.4'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-09-30.5'; // 版（scripts/stamp-version.js が書き込む）
     // 「祖母を胃がん、父を前立腺がんで亡くしている〜」のような家族歴の文は、本人の食事・栄養
     // 状態の所見ではないにもかかわらず、id2(食事)の疾患名キーワード（「胃がん」等）に一致して
     // しまい、食事に無関係な家族歴が「2. 食事」に混入していた（利用者からの報告事例）。
@@ -410,6 +410,8 @@
           const noteText = note ? ` (${note})` : '';
           // 随時・食後の血糖には、空腹時の基準値（70〜109）を付けない
           if (/随時|食後/.test(alias)) return `${match[1]}${alias} ${value} ${shownUnit}${flag}${noteText}`;
+          // 子どもの記録では、年齢で変わる基準値は大人の値を書き足さない（js/03 の detectAgeGroupFromText）
+          if (childLabReferenceMode && !CHILD_SAFE_LAB_REFERENCE_KEYS.has(key)) return `${match[1]}${alias} ${value} ${shownUnit}${flag}${noteText}`;
           return `${match[1]}${alias} ${value} ${shownUnit}${flag}${noteText} (基準値: ${info.ref} ${shownUnit})`;
         }
       }
@@ -480,7 +482,8 @@
     let bareWoundLabelReplacement = '腹部創部（手術創）：';
     function cleanExtractedPhrase(str) {
       if (!str) return '';
-      let cleaned = str.trim().replace(/^[\]\)\]〕』】〉、。・,\.\-\s〜〜]+/g, '').replace(/[,\-\s〜〜（〈〔『【「『]+$/g, '');
+      // 行の頭の「:」（「入院時：胸痛…」の「入院時」を日時として外した残り）と、文の終わりの「、」も外す（実習生の記録のテスト）
+      let cleaned = str.trim().replace(/^[\]\)\]〕』】〉、。・,\.\-\s〜〜:：]+/g, '').replace(/[,\-\s〜〜（〈〔『【「『、]+$/g, '');
       cleaned = formatLabValueString(cleaned);
       cleaned = cleaned.replace(BARE_WOUND_LABEL_REGEX, bareWoundLabelReplacement);
       // 文中の検査値・バイタルを別カードに切り出した後に残る連続した空白は1つにする（患者36の帰室の行）
@@ -1229,6 +1232,18 @@
           soapPart = null;
           return;
         }
+        // 「実習1日目（入院2日目）10/8」のように、かっこで囲まない実習の日の見出し（実習生の記録のテスト：乳児のRSウイルス）
+        const practiceDay = line.match(/^[・]?\s*実習\s*\d+\s*日目\s*(?:[(（]([^)）]{1,20})[)）])?\s*(?:(\d{1,2})\s*[\/月]\s*(\d{1,2})\s*日?)?\s*(?:[(（][月火水木金土日][)）])?\s*$/);
+        if (practiceDay && (practiceDay[1] || practiceDay[2])) {
+          const inner = extractDayLabelFromHeading(practiceDay[1] || '');
+          const date = practiceDay[2] && Number(practiceDay[2]) <= 12 && Number(practiceDay[3]) <= 31 ? `${Number(practiceDay[2])}月${Number(practiceDay[3])}日` : null;
+          if (inner || date) {
+            step1.push(SOURCE_TITLE_MARK + line);
+            step1.push(inner || date);
+            soapPart = null;
+            return;
+          }
+        }
         // 「訪問1回目（10/7 14:00〜15:00）」のような訪問の見出し：日付と始めの時刻を、その下のカードの日時にする
         const visitHeading = line.match(/^[【\[<＜・]?\s*(?:訪問|面接|実習)\s*\d+\s*(?:回目|日目)\s*[(（]\s*(\d{1,2})\s*[\/月]\s*(\d{1,2})\s*日?\s*(?:[(（][月火水木金土日][)）])?\s*(\d{1,2}:\d{2})?[^)）]*[)）]\s*[】\]>＞]?$/);
         if (visitHeading && Number(visitHeading[1]) >= 1 && Number(visitHeading[1]) <= 12 && Number(visitHeading[2]) >= 1 && Number(visitHeading[2]) <= 31) {
@@ -1422,6 +1437,7 @@
       return out;
     }
     function groupClinicalPhrasesWithTimestamps(text) {
+      childLabReferenceMode = !!detectAgeGroupFromText(text);
       bareWoundLabelReplacement = NON_ABDOMINAL_SURGERY_REGEX.test(String(text || '')) && !/腹腔鏡|開腹|胃切除|胃全摘|結腸|直腸|胆嚢/.test(String(text || ''))
         ? '創部（手術創）：' : '腹部創部（手術創）：';
       const extracted = [];
@@ -1847,7 +1863,10 @@
         // 剥がすと「より受け持つ。」のような意味の通らない文が残る（利用者からのアップロード
         // 文書で発覚）ため、この場合はマーカーとして扱わず、行全体をそのまま文章として残す。
         const timestampBeforeMarkers = { ts: globalTimestamp, day: dayLabel, clock: lastClockMin };
-        const timePhraseIsPartOfSentence = /^[\[【]?(?:(?:入院時|入院前|入院当日|入院\d+日目|手術当日|術前|術中|術後|\d+日目)\s*)+[\]】]?\s*(?:より|から|まで)/.test(cleanLine);
+        const timePhraseIsPartOfSentence = /^[\[【]?(?:(?:入院時|入院前|入院当日|入院\d+日目|手術当日|術前|術中|術後|\d+日目)\s*)+[\]】]?\s*(?:より|から|まで)/.test(cleanLine)
+          // 「10:30頃にお菓子を食べていたことを…」のように、行頭の時刻に「頃に・に・から・まで」が続く文も、時刻は文の一部
+          // （実習生の記録のテストで発覚：時刻だけ剥がされ「頃にお菓子を…」という文が残っていた）
+          || /^\d{1,2}[:時]\d{2}分?\s*(?:ごろ|頃|過ぎ)?\s*(?:に|から|まで|の)/.test(cleanLine);
         while (!timePhraseIsPartOfSentence && (marker = cleanLine.match(TIME_MARKER_REGEX))) {
           const rawMarker = marker[1].replace(/[\[\]【】]/g, '').replace(/\s+/g, '');
           if (!/^\d{1,2}(?::\d{2}|時(?:\d{2}分?)?)$/.test(rawMarker)) strippedClockOnly = false;
@@ -2181,6 +2200,7 @@
             const after = cleanLine.slice(m.index + m[0].length).replace(/^\s+/, '');
             const before = cleanLine.slice(0, m.index).replace(/\s+$/, '');
             if (/^(?:に|まで|へ|を|が|で|と|の|→|⇒|->|から|維持|上昇|低下|回復|改善|増加|減少|前後|程度|台)/.test(after)) return true;
+            if (/^[〜~～]\s*\d/.test(after)) return true; // 「SpO2 95〜98%で経過」のような値の幅（以前は「SpO2 95」と「〜98%で経過」に分かれていた）
             if (/(?:後|前|で)$/.test(before) && !/(?:入院前|術前|術後|手術前)$/.test(before)) return true;
           }
           // 「透析前：体重 62.4kg、BP 168/92mmHg」「歩行後：SpO2 92%」のように、行の頭に「〜前・〜後・〜中」の見出しがある行は、
@@ -2258,10 +2278,12 @@
           lSubText = splitSentencesOutsideQuotes(lSubText).filter(sent => {
             const core = sent.replace(/[、。\s,]/g, '');
             // 「血液検査(10/8 6:00):」「バイタル 10:00」のような、見出しと日時だけが残ったものも捨てる
-            const bare = core.replace(/[(（][\d\/:：〜~\-\s]*[)）]/g, '').replace(/\d{1,2}:\d{2}/g, '').replace(/[:：]/g, '');
+            const bare = core.replace(/[(（][\d\/:：〜~\-\s]*[)）]/g, '').replace(/\d{1,2}:\d{2}/g, '').replace(/[:：【】\[\]]/g, '');
             if (/^(?:血液検査|採血|検査|検査結果|血液データ|バイタル(?:サイン)?|VS|V\/S|検温)$/i.test(bare)) return false;
             return !(core.length <= 12 && !/\d/.test(core) && /(?:では|には|は|時|随時|空腹時|食後|結果|検査)$/.test(core));
           }).join('');
+          // 「血液検査：、総ビリルビン 6.8 mg/dL」のように、値を抜いた後に見出しと「、」だけが頭に残ったら外す
+          lSubText = lSubText.replace(/^[【\[]?(?:血液検査|採血|検査結果|検査|バイタル(?:サイン)?|検温)[】\]]?\s*(?:[(（][^)）]*[)）])?\s*[:：]?\s*[、,]\s*/, '');
         }
 
         // 現病歴・既往歴・診断名・保険・入院日・主訴・治療方針・治療内容などの見出しラベル付き項目を、
@@ -2562,7 +2584,8 @@
     // 「疼痛訴えなく」「呼吸困難訴えなし」のように、訴え・発言が「無い」ことは、看護師が
     // 観察・確認した客観的な所見であり、患者の発言（Sデータ）ではない（利用者からのアップロード
     // 文書で発覚：これらがSデータになっていた）。直後に否定が続く場合は発言の手がかりにしない。
-    const S_KEYWORD_REGEX = /(?:訴え|発言|話す)(?!\s*(?:なし|無し|なく|無く|ない|無い|は(?:なし|無し|ない|無い|なく)|も(?:なし|なく|ない)))/;
+    // 「話す」は「〜と話す」「」話す」のときだけ発言の手がかりにする（「2語文〜3語文で話す」「笑顔で話す」は様子の観察。実習生の記録のテスト）
+    const S_KEYWORD_REGEX = /(?:訴え|発言|(?:と|」)\s*話す)(?!\s*(?:なし|無し|なく|無く|ない|無い|は(?:なし|無し|ない|無い|なく)|も(?:なし|なく|ない)))/;
     function countSubstantiveLeadSentences(leadText) {
       return leadText.split('。').map(s => s.trim()).filter(s => s.length >= 4).length;
     }
@@ -2617,8 +2640,15 @@
       //    （利用者からの指摘・患者36：「氏名・76歳・血液型」は4.姿勢には明らかに不要）
       //  ・「疾患: 右アテローム血栓性脳梗塞」のように病名が書かれた行 → 診断名と同じく病名から推測（DIAGNOSIS_TAG_HINTS）
       if (detectedHIds.length === 0 && !hasLearnedSignal(userLearned)) {
-        if (/\d{1,3}歳/.test(cleanedText) && /(?:男性|女性)/.test(cleanedText) && cleanedText.length <= 40) FIELD_LABEL_DEFAULT_TAGS['年齢'].forEach(h => detectedHIds.push(h));
-        else detectDiagnosisTagHints(cleanedText).forEach(h => detectedHIds.push(h));
+        // 子ども・妊婦の「生後5か月 男児」「3歳2か月 女児」「13歳 女子」「29歳 初妊婦」も年齢と性別の基本情報（実習生の記録のテスト）
+        if (/\d{1,3}歳|生後\s*\d+\s*(?:か月|ヶ月|カ月|ケ月|日)|日齢\s*\d+|(?:ちゃん|くん)\s*[(（]/.test(cleanedText) && /(?:男性|女性|男児|女児|男子|女子|男の子|女の子|初妊婦|経妊婦|初産婦|経産婦|妊婦|褥婦)/.test(cleanedText) && cleanedText.length <= 40) FIELD_LABEL_DEFAULT_TAGS['年齢'].forEach(h => detectedHIds.push(h));
+        // 同じ行に病名もあれば（「Qちゃん 4歳 女児 気管支肺炎」）、病名からの推測も合わせる
+        detectDiagnosisTagHints(cleanedText).forEach(h => { if (!detectedHIds.includes(h)) detectedHIds.push(h); });
+      }
+      // 薬の名前が書かれたカード（「内服：アムロジピン 5mg」「リトドリン 持続点滴」）は、薬の分類から関係の深い項目も補う
+      // （js/14 の薬の情報。学習結果がある場合は、利用者の判断を尊重して足さない）
+      if (!hasLearnedSignal(userLearned) && typeof drugTagsForText === 'function' && /(?:内服|処方|点滴|注射|投与|持続|静注|使用|貼付|服薬|頓用|mg|単位|ml\/h)/i.test(cleanedText)) {
+        drugTagsForText(cleanedText, { primaryOnly: true }).forEach(h => { if (!detectedHIds.includes(h)) detectedHIds.push(h); });
       }
       // 学生がヘンダーソンの項目の見出しの下に書いた情報には、その項目のタグも付ける
       if (chunk.needHint && !hasLearnedSignal(userLearned) && !detectedHIds.includes(chunk.needHint)) detectedHIds.push(chunk.needHint);
@@ -2709,8 +2739,14 @@
       // マッチしないため、全角文字を半角に正規化してから抽出処理に渡す（NFKC正規化）。
       const text = DOM.sourceText.value.trim().normalize('NFKC');
       if (!text) return showToast('文章を入力してください', 'warn');
-      if (typeof resetSourcePaneLayout === 'function') resetSourcePaneLayout(); // 分類したらカードを広く表示する
+      if (typeof resetSourcePaneLayout === 'function') resetSourcePaneLayout();
       const cp = getCurrentPatient();
+      // 「AIあり」でキーが無いときは、今のカードを置き換える前に案内する（以前は置き換えを選んだ後にやめてしまい、カードが消えていた）
+      if (getClassifyMode() === 'ai' && !globalAppData.apiKey) {
+        const st = await requireApiKey('AIありで分類', { fallbackLabel: 'AIなしで分類する' });
+        if (st !== 'fallback') return;
+        window.setClassifyMode('rules');
+      }
 
       // 既にカードがある患者で分類し直す場合、以前は今のカードを残したまま新しいカードを「追加」する
       // だけだったため、分類ルールを直した後に分類し直しても、直す前の古いカード（例：「入室」だけの

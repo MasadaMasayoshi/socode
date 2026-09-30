@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-09-30.4'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-09-30.5'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -792,7 +792,7 @@
       const cp = getCurrentPatient();
       const e = getMyAssessment(cp, needId);
       if (!e || !MY_ASSESSMENT_FIELDS.some(f => String(e[f.key] || '').trim())) return showToast('先に「情報の解釈」などを書いてください。書いた内容にAIが助言します', 'warn');
-      if (!globalAppData.apiKey) return showToast('AIの助言は、APIキーを設定したときだけ使えます（「API設定」からGemini APIキーを登録してください）', 'warn');
+      if (!(await requireApiKey('自分のアセスメントへのAIの助言'))) return;
       const patientId = cp.id;
       const evIndexItems = (() => {
         const evItems = (e.evidenceIds || []).map(id => (cp.items || []).find(i => i.id === id)).filter(i => i && i.type !== 'unnecessary');

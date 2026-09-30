@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-09-30.4'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-09-30.5'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 参考データ ページ：看護基準・院内プロトコル等をユーザーが自由に登録・編集できる。
     // 「不足情報をAI推定」の判断材料としても使われる（evaluateMissingInfoAI 参照）。
@@ -85,7 +85,7 @@
     referenceOcrInput.addEventListener('change', e => { if (e.target.files[0]) doReferenceOcr(e.target.files[0]); e.target.value = ''; });
 
     async function doReferenceOcr(file) {
-      if (!globalAppData.apiKey) return showToast('API設定からキーを入力してください', 'warn');
+      if (!(await requireApiKey('写真の文字起こし'))) return;
       showToast('画像から文字起こし中...', 'info');
       const reader = new FileReader();
       reader.onload = async e => {
@@ -250,7 +250,7 @@
     ocrFileInput.addEventListener('change', e => { if(e.target.files[0]) doOcr(e.target.files[0]); });
 
     async function doOcr(file) {
-      if (!globalAppData.apiKey) return showToast('API設定からキーを入力してください', 'warn');
+      if (!(await requireApiKey('写真の文字起こし'))) return;
       document.getElementById('ocr-status').classList.remove('hidden');
       const reader = new FileReader();
       reader.onload = async e => {
@@ -421,7 +421,7 @@
       if (label) label.textContent = expected;
       if (expected === 'dev') return [];
       const versions = window.APP_FILE_VERSIONS || {};
-      const ids = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13'];
+      const ids = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14'];
       const mismatched = ids.filter(id => versions[id] !== expected);
       if (mismatched.length) {
         const warn = document.getElementById('app-version-warning');
@@ -493,7 +493,7 @@ if (typeof module !== 'undefined' && module.exports) {
     detectPneumoniaMissingChecks,
     normalizeFieldLabelHeadingWord,
     FIELD_LABEL_HEADING_ALIASES,
-    buildExportPlainText, htmlToPlainText, isUntouchedAiMissing, cleanAiText, notifyLostAiRequests, cardTextWithLabFlagsHtml, resetCardLabFlags,
+    buildExportPlainText, htmlToPlainText, isUntouchedAiMissing, cleanAiText, notifyLostAiRequests, cardTextWithLabFlagsHtml, resetCardLabFlags, detectAgeGroupFromText,
     buildExportBodyHtml,
     findSourceHighlightRanges,
     buildSelectedCardsExportText,
