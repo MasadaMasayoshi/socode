@@ -105,6 +105,7 @@ test('AIの処理の途中でページを閉じたら、次に開いたときに
 test('キーボード：ボードを描き直しても、同じカードの同じ部品へフォーカスを戻す。︙メニューで移したカードへも戻す', () => {
   assert.match(src, /const focusBefore = captureBoardFocus\(\);/);
   assert.match(src, /restoreBoardFocus\(focusBefore\);/);
-  assert.match(src, /class="card-menu-btn" data-card-id="\$\{item\.id\}"/);
+  // （レビューの修正で、IDは属性用に変換して入れるようになった：escapeHtml(item.id)）
+  assert.match(src, /class="card-menu-btn" data-card-id="\$\{(?:escapeHtml\()?item\.id\)?\}"/);
   assert.match(src, /if \(e\.detail === 0\) document\.getElementById\(id\)\?\.querySelector\('\.card-menu-btn'\)\?\.focus\(\);/);
 });

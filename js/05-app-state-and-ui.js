@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-09-30.6'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-01.1'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -58,7 +58,14 @@
         const raw = localStorage.getItem(PATIENTS_STORAGE_KEY);
         if (!raw) return null;
         const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.patients) && parsed.patients.length) return parsed;
+        if (parsed && Array.isArray(parsed.patients) && parsed.patients.length) {
+          // 【レビューで発見】患者・カード・参考データのIDに使えない文字があれば直す（repairPatientsList）
+          const r = repairPatientsList(parsed.patients);
+          if (!r.patients.length) return null;
+          parsed.patients = r.patients;
+          if (r.idMap[parsed.currentPatientId]) parsed.currentPatientId = r.idMap[parsed.currentPatientId];
+          return parsed;
+        }
       } catch (e) {
         console.warn('保存済みのカルテデータの読み込みに失敗しました:', e);
       }
@@ -94,7 +101,9 @@
       // 学習専用ファイル（data/learning-dict.json）の内容を取得し、ここへマージする
       // （サーバー未起動時は、このブラウザ内の学習データだけで動作する）。
       learningUserDict: persistedLearningDict || {},
-      apiKey: normalizeApiKey(localStorage.getItem('gemini_api_key') || ''), // 前後の空白・引用符などは取り除いて使う
+      // 前後の空白・引用符などは取り除いて使う。【レビューで発見】サイトのデータ保存が止められている環境では
+      // localStorage に触るだけで例外になり、このファイル以降が読み込まれず画面全体が動かなくなっていた（storageGet は例外を出さない）
+      apiKey: normalizeApiKey(storageGet('gemini_api_key') || ''),
       notebookContent: DEFAULT_NOTEBOOK_CONTENT, // 起動直後の初期値。loadNotebookContent()でサーバー側の保存内容（あれば）に置き換わる
       // NotebookLM基準ノート本体は「学習データ管理」画面の「分類基準」タブから編集でき、
       // サーバー側 data/notebook-content.json に保存され全利用者で共有される。それに加えて、
@@ -157,6 +166,35 @@
       if (e.target.closest('.hdr-menu-item') || !e.target.closest('.hdr-menu')) closeHeaderMenus();
     });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeHeaderMenus(); });
+    // 【レビューで発見】確認のダイアログ・患者の一覧・学習データ管理・統合・報告などの画面の多くは、Esc キーで閉じられなかった。
+    // しかも分類ボードの Esc（カードの選択をすべて解除）だけが後ろで動き、画面は開いたまま選んでいたカードの選択が消えていた。
+    // Esc を押したら、いちばん手前に開いている画面（.fixed.inset-0）の「閉じる／キャンセル」ボタンを押したのと同じ動きで閉じ、
+    // 後ろの画面の Esc の処理には渡さない。APIキーの案内（modal-api-required）は、自分で Esc を受け取るのでそのままにする。
+    function topmostOpenModal() {
+      const open = Array.from(document.querySelectorAll('.fixed.inset-0:not(.hidden)'));
+      let best = null, bestZ = -Infinity;
+      open.forEach(el => {
+        let z = 0;
+        try { z = parseInt((window.getComputedStyle ? window.getComputedStyle(el).zIndex : '') || '0', 10) || 0; } catch (err) { z = 0; }
+        if (z >= bestZ) { best = el; bestZ = z; } // 同じ高さなら、後ろに書かれている（後から重なる）方
+      });
+      return best;
+    }
+    function closeModalByEscape(modal) {
+      if (!modal || modal.id === 'modal-api-required') return false;
+      const btn = modal.querySelector('#dialog-cancel, [id^="btn-close"], [id^="btn-cancel"], button[onclick^="close"]');
+      if (btn && typeof btn.click === 'function') btn.click();
+      if (!modal.classList.contains('hidden')) modal.classList.add('hidden'); // 閉じるボタンが無い画面の保険
+      return true;
+    }
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Escape' || e.isComposing) return;
+      const modal = topmostOpenModal();
+      if (!modal || modal.id === 'modal-api-required') return;
+      e.preventDefault();
+      e.stopPropagation();
+      closeModalByEscape(modal);
+    }, true);
     // 文字の書体（明朝＝Noto Serif JP が既定／ゴシック）。このブラウザに覚えておく
     function currentAppFont() { return document.documentElement.getAttribute('data-font') === 'gothic' ? 'gothic' : 'serif'; }
     function setAppFont(font) {
@@ -330,7 +368,17 @@
 
     // 削除・リセット系の操作の直後に「元に戻す」ボタン付きトーストを出す共通処理。
     // undoFn は元に戻す処理そのもの（呼び出し側でsaveDataAndSync等の再描画も行う）。
-    function showUndoToast(message, undoFn) {
+    // 【レビューで発見】「元に戻す」は、押した時点で表示している患者（saveDataAndSync が保存・共有先へ送る患者）とは
+    // 別の患者を書き換えることがある（削除の直後に別の患者へ切り替えてから押した場合など）。以前はその患者の
+    // updatedAt も変えず共有先へも送らなかったため、他の端末では削除されたままになっていた。
+    // options.patientId を渡すと、その患者の更新日時を進め、共有先への保存も予約する。
+    function markPatientChanged(patientId) {
+      const p = globalAppData.patients.find(x => x.id === patientId);
+      if (!p) return;
+      p.updatedAt = new Date().toISOString();
+      if (typeof schedulePatientSync === 'function') schedulePatientSync(patientId);
+    }
+    function showUndoToast(message, undoFn, options = {}) {
       const toast = document.createElement('div');
       toast.className = 'toast-enter p-3 rounded-[var(--radius-sm)] border text-xs font-medium flex items-center gap-3 panel-shadow';
       toast.style.cssText = 'background:var(--surface);color:var(--ink);border-color:var(--line);pointer-events:auto;';
@@ -347,6 +395,7 @@
       const dismiss = () => { if (dismissed) return; dismissed = true; toast.classList.replace('toast-enter', 'toast-exit'); setTimeout(() => toast.remove(), 300); };
       undoBtn.addEventListener('click', () => {
         undoFn();
+        if (options && options.patientId) markPatientChanged(options.patientId);
         saveDataAndSync();
         dismiss();
         showToast('元に戻しました', 'info');
@@ -366,8 +415,15 @@
     // 確認が必要な場合のための2つ目の選択ボタン（openDialogのsecondaryLabel。押すと'secondary'を返す）。
     const dialogSecondaryBtn = document.getElementById('dialog-secondary');
     let dialogResolve = null;
+    let dialogReturnFocus = null;
 
+    // 【レビューで発見】①入力欄の無い確認ダイアログでは、フォーカスが後ろの画面（開いたボタン）に残っていたため、
+    // Enter で後ろのボタンがもう一度押されて2つ目のダイアログが開き、1つ目を待っている処理がずっと終わらなかった。
+    // 確認ボタンにフォーカスを移し、まだ答えの出ていないダイアログがあれば「キャンセル（null）」で終わらせてから開く。
+    // ②閉じたら、開く前にフォーカスのあった場所へ戻す（キーボードで続けて操作できるように）。
     function openDialog({ title, message = '', inputValue, placeholder = '', confirmLabel = 'OK', danger = false, secondaryLabel = null }) {
+      if (dialogResolve) { const pending = dialogResolve; dialogResolve = null; pending(null); }
+      else dialogReturnFocus = document.activeElement || null;
       return new Promise(resolve => {
         dialogResolve = resolve;
         dialogTitleEl.textContent = title;
@@ -387,11 +443,17 @@
         dialogConfirmBtn.style.cssText = danger ? 'background:var(--brick);border-color:var(--brick);color:var(--on-fill);' : '';
         dialogEl.classList.remove('hidden');
         if (inputValue !== undefined) setTimeout(() => { dialogInputEl.focus(); dialogInputEl.select(); }, 30);
+        else if (typeof dialogConfirmBtn.focus === 'function') dialogConfirmBtn.focus();
       });
     }
     function closeDialog(result) {
       dialogEl.classList.add('hidden');
-      if (dialogResolve) { dialogResolve(result); dialogResolve = null; }
+      if (dialogResolve) { const r = dialogResolve; dialogResolve = null; r(result); }
+      const back = dialogReturnFocus;
+      dialogReturnFocus = null;
+      if (back && back.isConnected && typeof back.focus === 'function' && dialogEl.classList.contains('hidden')) {
+        try { back.focus(); } catch (e) { /* 戻せなくても操作は続けられる */ }
+      }
     }
     dialogCancelBtn.addEventListener('click', () => closeDialog(null));
     if (dialogSecondaryBtn) dialogSecondaryBtn.addEventListener('click', () => closeDialog('secondary'));
@@ -402,6 +464,132 @@
     function escapeHtml(str) {
       if (!str) return '';
       return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    }
+
+    // 【レビューで発見】onclick="fn('${id}')" のように、IDを引用符で囲んで属性の中のJavaScriptに入れていた。
+    // escapeHtml で ' を &#39; にしても、ブラウザは属性を読むときに ' へ戻してから実行するため防げない
+    // （IDに ' を含むカードがあると、押したときに任意のスクリプトが動く）。JSON.stringify で文字列の書き方にし、
+    // さらに escapeHtml で属性用に変換したものを、引用符を付けずにそのまま引数に書く：onclick="fn(${jsArg(id)})"
+    function jsArg(v) {
+      return escapeHtml(JSON.stringify(v == null ? '' : String(v)));
+    }
+
+    // 【レビューで発見】患者・カード・参考データのID。共有先（サーバー）やファイルの読み込みから、HTMLや
+    // JavaScriptとして意味を持つ文字（' " < > など）を含むIDが入り込むと、画面の部品の属性が壊れたり
+    // スクリプトが動いたりする。使える文字は英数字と _ . : - だけにし、それ以外のIDは作り直す。
+    // 作り直すIDは元のIDから毎回同じものを計算する（共有先から同じカードが何度届いても、同じ1枚にまとまるように）。
+    // （起動直後の localStorage の読み込み＝このファイルの先頭でも使うため、const を使わず関数の中に書く）
+    function isSafeRecordId(id) { return typeof id === 'string' && /^[\w.:-]{1,120}$/.test(id); }
+    // 患者の一覧全体（localStorage・ファイルの読み込み）：患者のIDも確かめて直し、同じIDの患者は1人にまとめる。
+    // 戻り値：{ patients, idMap（直した患者の 元のID→新しいID）, fixed }
+    function repairPatientsList(patients) {
+      const idMap = {};
+      let fixed = 0;
+      const seen = new Set();
+      const list = (Array.isArray(patients) ? patients : []).filter(p => p && typeof p === 'object').filter(p => {
+        if (!isSafeRecordId(p.id)) {
+          const nid = repairedRecordId('patient', p.id);
+          if (typeof p.id === 'string') idMap[p.id] = nid;
+          p.id = nid;
+          fixed++;
+        }
+        if (seen.has(p.id)) return false;
+        seen.add(p.id);
+        fixed += repairPatientRecordIds(p);
+        return true;
+      });
+      return { patients: list, idMap, fixed };
+    }
+    function repairedRecordId(prefix, badId) {
+      const s = String(badId == null ? '' : badId);
+      let h = 0x811c9dc5; // FNV-1a（32ビット）
+      for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+      return `${prefix}_fix_${h.toString(36)}_${s.length.toString(36)}`;
+    }
+    // 1人分の患者の記録の中のカード・参考データのIDを確かめて直す（直したら、元のIDは削除の記録として残し、
+    // 共有先にある古いIDのカードが次の保存で消えるようにする）。戻り値：直した数
+    function repairPatientRecordIds(p) {
+      if (!p || typeof p !== 'object') return 0;
+      let fixed = 0;
+      const now = new Date().toISOString();
+      if (Array.isArray(p.items)) {
+        const seen = new Set();
+        p.items = p.items.filter(i => i && typeof i === 'object').filter(i => {
+          if (!isSafeRecordId(i.id)) {
+            const bad = i.id;
+            i.id = repairedRecordId('item', bad);
+            fixed++;
+            if (typeof bad === 'string' && bad) {
+              if (!Array.isArray(p.deletedItemIds)) p.deletedItemIds = [];
+              if (!p.deletedItemIds.some(t => t && t.id === bad)) p.deletedItemIds.push({ id: bad, at: now });
+            }
+            if (!i._touchedAt) i._touchedAt = now;
+          }
+          if (seen.has(i.id)) return false; // 同じIDのカードは1枚にまとめる
+          seen.add(i.id);
+          return true;
+        });
+      }
+      if (Array.isArray(p.referenceNotes)) {
+        p.referenceNotes = p.referenceNotes.filter(n => n && typeof n === 'object');
+        p.referenceNotes.forEach(n => { if (!isSafeRecordId(n.id)) { n.id = repairedRecordId('ref', n.id); fixed++; } });
+      }
+      return fixed;
+    }
+
+    // 【レビューで発見】AIの結果（検査値の評価・矛盾チェック・経時変化・看護計画・自分のアセスメントへの助言）は
+    // HTMLのまま患者の記録に保存され、共有先（サーバー）やファイルの読み込みから届いたものが、そのまま innerHTML で
+    // 表示されていた（誰でもサーバーへ送れるため、<img onerror=…> などを入れた記録を開くとスクリプトが動いた）。
+    // 表示する前に、動く部品（script・iframe・フォーム等）、on〜 の属性、style 属性、javascript: などのリンクを取り除く。
+    // 根拠のカードへのボタン（onclick="jumpToEvidenceCard('…')"）は、data-evidence-id に置き換えて、
+    // 下のまとめた処理（document のクリック）で同じように動かす。
+    function sanitizeStoredHtml(html) {
+      if (html == null || html === '') return '';
+      const src = String(html);
+      const DROP_TAGS = ['script', 'style', 'iframe', 'frame', 'frameset', 'object', 'embed', 'link', 'meta', 'base', 'form', 'input', 'button', 'textarea', 'select', 'option', 'svg', 'math', 'template', 'noscript', 'applet', 'audio', 'video', 'source', 'track', 'img', 'picture'];
+      const URL_ATTRS = ['href', 'src', 'xlink:href', 'action', 'formaction', 'srcset', 'poster', 'background', 'data', 'ping', 'cite'];
+      const EVIDENCE_ONCLICK = /^\s*jumpToEvidenceCard\(\s*(['"])([\w.:-]{1,120})\1\s*\)\s*;?\s*$/;
+      if (typeof DOMParser === 'undefined') {
+        // テスト環境（DOMParser が無い）では、タグを全部外して文字として表示する
+        const text = src.replace(/<(script|style)[\s\S]*?<\/\1\s*>/gi, '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '')
+          .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+        return escapeHtml(text).replace(/\n/g, '<br>');
+      }
+      let doc;
+      try { doc = new DOMParser().parseFromString(`<!DOCTYPE html><html><body>${src}</body></html>`, 'text/html'); } catch (e) { return escapeHtml(src); }
+      const body = doc && doc.body;
+      if (!body) return escapeHtml(src);
+      body.querySelectorAll(DROP_TAGS.join(',')).forEach(el => el.remove());
+      body.querySelectorAll('*').forEach(el => {
+        Array.from(el.attributes).forEach(attr => {
+          const name = attr.name.toLowerCase();
+          if (name.startsWith('on')) {
+            const m = name === 'onclick' ? attr.value.match(EVIDENCE_ONCLICK) : null;
+            if (m) el.setAttribute('data-evidence-id', m[2]);
+            el.removeAttribute(attr.name);
+            return;
+          }
+          if (name === 'style' || name === 'srcdoc') { el.removeAttribute(attr.name); return; }
+          if (URL_ATTRS.includes(name)) {
+            const v = String(attr.value || '').replace(/[\u0000- \u007f-\u009f]+/g, '').toLowerCase();
+            if (/^(?:javascript|data|vbscript):/.test(v)) el.removeAttribute(attr.name);
+          }
+        });
+      });
+      return body.innerHTML;
+    }
+    // 根拠のカードのボタン（sanitizeStoredHtml が onclick を data-evidence-id に置き換えたもの）を押したとき
+    if (typeof document !== 'undefined' && document.addEventListener) {
+      const openEvidenceChip = el => { if (typeof window.jumpToEvidenceCard === 'function') window.jumpToEvidenceCard(el.getAttribute('data-evidence-id')); };
+      document.addEventListener('click', e => {
+        const chip = e.target && e.target.closest ? e.target.closest('[data-evidence-id]') : null;
+        if (chip && !chip.hasAttribute('onclick')) openEvidenceChip(chip);
+      });
+      document.addEventListener('keydown', e => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const chip = e.target && e.target.closest ? e.target.closest('[data-evidence-id]') : null;
+        if (chip && !chip.hasAttribute('onclick')) { e.preventDefault(); openEvidenceChip(chip); }
+      });
     }
 
     // ---- Gemini AI呼び出しの共通処理 ----
@@ -592,7 +780,12 @@
       const body = { contents: maskedContents, ...(options.json ? { generationConfig: { responseMimeType: 'application/json' } } : {}) };
       const data = await requestGemini(globalAppData.apiKey, body);
       if (ctx.originals.length > 0) showToast(`AIに送る前に、個人情報らしい語句を${ctx.originals.length}件伏せ字にしました`, 'info');
-      return restoreMaskedText(extractGeminiText(data), ctx);
+      const text = extractGeminiText(data);
+      // 【レビューで発見】AIが空の答えを返したとき（candidates が空・STOPなのに文字が無い）、以前は '' を返し、各機能が
+      // 「結果を取得できませんでした」を“成功した結果”として保存して、前の良い結果（看護計画など）を上書きしていた。
+      // 空の答えは失敗として扱い、前の結果はそのまま残す。
+      if (!String(text || '').trim()) throw new Error('AIの答えが空でした。少し待ってから、もう一度試してください（前の結果はそのまま残しています）。');
+      return restoreMaskedText(text, ctx);
     }
 
     // ---- Gemini への接続（キーの種類の見分け・送り先とモデルの選択・エラーの日本語化） ----
@@ -1018,6 +1211,9 @@
       return lastLocalSaveOk;
     }
     function changeCurrentPatient(nextId, { saveCurrent = true } = {}) {
+      // 記録メモの入力の保存待ち（下の scheduleSourceTextSave）は、ここで今の患者に保存する（①）ので取り消す。
+      // 取り消さないと、切り替えた後に保存待ちが動き、切り替え先の患者の更新日時だけが進んでしまう。
+      cancelSourceTextSave();
       const currentExists = globalAppData.patients.some(p => p.id === globalAppData.currentPatientId);
       if (saveCurrent && currentExists) persistData(); // ①入力欄の本文は、今表示している患者に保存する
       globalAppData.currentPatientId = nextId;          // ②
@@ -1117,8 +1313,11 @@
       return out;
     }
     function mergePatientRecordClient(local, server, now = Date.now()) {
+      // 【レビューで発見】共有先から届いた記録のカード・参考データのIDも確かめて直す（repairPatientRecordIds）
+      if (server) repairPatientRecordIds(server);
       if (!server) return local;
       if (!local) return server;
+      repairPatientRecordIds(local);
 
       const localTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
       const serverTime = server.updatedAt ? new Date(server.updatedAt).getTime() : 0;
@@ -1191,24 +1390,25 @@
       DOM.sourceText.value = cp.sourceText || '';
       // 別の患者に切り替えたら、前の患者の文章に付けた印の表示は閉じて入力欄に戻す。
       if (highlightedSourceItemId != null) clearSourceHighlight(false);
-      DOM.labEvalContent.innerHTML = cp.labEvaluationResult || '';
+      // 【レビューで発見】保存されたAIの結果のHTMLは、表示の前に sanitizeStoredHtml で動く部品を取り除く
+      DOM.labEvalContent.innerHTML = sanitizeStoredHtml(cp.labEvaluationResult);
       // 結果の無い欄は出さない（「AIの結果」の欄に、結果のあるものだけをタブで並べる。refreshAiResults）
       document.getElementById('lab-evaluation-panel')?.classList.toggle('hidden', !cp.labEvaluationResult);
       DOM.currentPatientTitle.textContent = cp.title;
 
       // 前回のAI分析結果（矛盾チェック・看護診断候補・経時変化サマリー）があれば患者切り替え時にも復元する
       const contradictionPanel = document.getElementById('contradiction-panel');
-      if (cp.contradictionResult) { contradictionPanel.classList.remove('hidden'); document.getElementById('contradiction-content').innerHTML = cp.contradictionResult; }
+      if (cp.contradictionResult) { contradictionPanel.classList.remove('hidden'); document.getElementById('contradiction-content').innerHTML = sanitizeStoredHtml(cp.contradictionResult); }
       else { contradictionPanel.classList.add('hidden'); document.getElementById('contradiction-content').innerHTML = ''; }
       // 看護診断候補は、1件ずつ選べる形で表示する（改善案D。js/08 の renderDiagnosisPanel）。
       // 「AIでアセスメントを進める順番」の案内も、この患者の進み具合で描き直す（renderAiSteps）。
       if (typeof renderDiagnosisPanel === 'function') renderDiagnosisPanel(cp);
       if (typeof renderAiSteps === 'function') renderAiSteps(cp);
       const timelinePanel = document.getElementById('timeline-panel');
-      if (cp.timelineResult) { timelinePanel.classList.remove('hidden'); document.getElementById('timeline-content').innerHTML = cp.timelineResult; }
+      if (cp.timelineResult) { timelinePanel.classList.remove('hidden'); document.getElementById('timeline-content').innerHTML = sanitizeStoredHtml(cp.timelineResult); }
       else { timelinePanel.classList.add('hidden'); document.getElementById('timeline-content').innerHTML = ''; }
       const carePlanPanel = document.getElementById('careplan-panel');
-      if (cp.carePlanResult) { carePlanPanel.classList.remove('hidden'); document.getElementById('careplan-content').innerHTML = cp.carePlanResult; }
+      if (cp.carePlanResult) { carePlanPanel.classList.remove('hidden'); document.getElementById('careplan-content').innerHTML = sanitizeStoredHtml(cp.carePlanResult); }
       else { carePlanPanel.classList.add('hidden'); document.getElementById('careplan-content').innerHTML = ''; }
       if (typeof refreshAiResults === 'function') refreshAiResults(false);
 
@@ -1250,10 +1450,10 @@
         row.className = `patient-menu-row${isActive ? ' active' : ''}`;
         const cardCount = (pat.items || []).filter(i => i.type !== 'unnecessary').length;
         row.innerHTML = `
-          <button class="patient-menu-name hdr-menu-item" role="menuitem" onclick="switchPatient('${pat.id}')">
+          <button class="patient-menu-name hdr-menu-item" role="menuitem" data-patient-action="switch" data-patient-id="${escapeHtml(pat.id)}">
             <i class="fa-solid ${isActive ? 'fa-check' : 'fa-user-injured'}"></i><span class="truncate">${escapeHtml(pat.title)}<small>カード ${cardCount}枚</small></span>
           </button>
-          ${visible.length > 1 ? `<button onclick="deletePatient('${pat.id}', event)" class="icon-btn danger" title="アーカイブする（「すべてのページ・アーカイブ」からいつでも復元できます）"><i class="fa-solid fa-box-archive text-[9px]"></i></button>` : ''}
+          ${visible.length > 1 ? `<button data-patient-action="archive" data-patient-id="${escapeHtml(pat.id)}" class="icon-btn danger" title="アーカイブする（「すべてのページ・アーカイブ」からいつでも復元できます）"><i class="fa-solid fa-box-archive text-[9px]"></i></button>` : ''}
         `;
         frag.appendChild(row);
       });
@@ -1271,6 +1471,23 @@
       box.addEventListener('input', () => renderPatientTabs());
       box.addEventListener('click', e => e.stopPropagation());
     })();
+    // 【レビューで発見】患者の一覧のボタンは、以前は押したときの処理（onclick）の中に、患者のIDを引用符で囲んで
+    // そのまま JavaScript に書き込んでいた（共有先から ' を含むIDの患者が届くと、押したときにスクリプトが動く）。
+    // IDは data-patient-id に入れ、ここでまとめて受け取る（見た目・動きは以前と同じ）。
+    function handlePatientActionClick(e) {
+      const el = e.target && e.target.closest ? e.target.closest('[data-patient-action]') : null;
+      if (!el) return;
+      const id = el.getAttribute('data-patient-id');
+      const action = el.getAttribute('data-patient-action');
+      if (action === 'switch') window.switchPatient(id);
+      else if (action === 'archive') window.deletePatient(id, e);
+      else if (action === 'switch-from-list') window.switchPatientFromList(id);
+      else if (action === 'unarchive') window.unarchivePatient(id);
+      else if (action === 'archive-from-list') window.archivePatient(id);
+      else if (action === 'hard-delete') window.hardDeletePatientFromList(id);
+    }
+    if (DOM.patientTabs && DOM.patientTabs.addEventListener) DOM.patientTabs.addEventListener('click', handlePatientActionClick);
+    document.getElementById('patient-list-body')?.addEventListener('click', handlePatientActionClick);
 
     window.switchPatient = function(patId) {
       if (typeof closeHeaderMenus === 'function') closeHeaderMenus();
@@ -1410,15 +1627,15 @@
         row.className = `flex items-center justify-between gap-2 p-2 rounded-[var(--radius-sm)] border ${pat.id === globalAppData.currentPatientId ? 'border-[var(--accent)]' : 'border-[var(--line)]'}`;
         row.style.background = pat.id === globalAppData.currentPatientId ? 'var(--accent-soft)' : 'var(--surface)';
         row.innerHTML = `
-          <div class="min-w-0 flex-1 cursor-pointer" onclick="switchPatientFromList('${pat.id}')">
+          <div class="min-w-0 flex-1 cursor-pointer" data-patient-action="switch-from-list" data-patient-id="${escapeHtml(pat.id)}">
             <div class="text-xs font-semibold text-[var(--ink)] truncate">${escapeHtml(pat.title)}${pat.archived ? ' <span class="text-[9px] text-[var(--ink-muted)] font-normal">(アーカイブ済み)</span>' : ''}</div>
             <div class="text-[10px] text-[var(--ink-muted)]">${pat.updatedAt ? formatRelativeTime(pat.updatedAt) : '更新履歴なし'}・${(pat.items || []).length}件のカード</div>
           </div>
           <div class="flex items-center gap-1 shrink-0">
             ${pat.archived
-              ? `<button onclick="unarchivePatient('${pat.id}')" class="icon-btn-outline" title="復元"><i class="fa-solid fa-box-open"></i></button>`
-              : `<button onclick="archivePatient('${pat.id}')" class="icon-btn-outline" title="アーカイブ"><i class="fa-solid fa-box-archive"></i></button>`}
-            <button onclick="hardDeletePatientFromList('${pat.id}')" class="icon-btn-outline danger" title="完全に削除"><i class="fa-solid fa-trash-can"></i></button>
+              ? `<button data-patient-action="unarchive" data-patient-id="${escapeHtml(pat.id)}" class="icon-btn-outline" title="復元"><i class="fa-solid fa-box-open"></i></button>`
+              : `<button data-patient-action="archive-from-list" data-patient-id="${escapeHtml(pat.id)}" class="icon-btn-outline" title="アーカイブ"><i class="fa-solid fa-box-archive"></i></button>`}
+            <button data-patient-action="hard-delete" data-patient-id="${escapeHtml(pat.id)}" class="icon-btn-outline danger" title="完全に削除"><i class="fa-solid fa-trash-can"></i></button>
           </div>
         `;
         frag.appendChild(row);
@@ -2193,7 +2410,7 @@
           <span class="text-xs">「<b>${escapeHtml(r.keyword)}</b>」を含むとき</span>${tags}
           <span class="text-[10px] text-[var(--ink-muted)]">今の患者で該当 ${hits}枚</span>
           ${r.note ? `<span class="text-[10px] text-[var(--ink-muted)] break-words">メモ：${escapeHtml(r.note)}</span>` : ''}
-          <button class="icon-btn-outline danger ml-auto" onclick="deleteCustomTagRule('${r.id}')" title="このルールを削除"><i class="fa-solid fa-times"></i></button>
+          <button class="icon-btn-outline danger ml-auto" onclick="deleteCustomTagRule(${jsArg(r.id)})" title="このルールを削除"><i class="fa-solid fa-times"></i></button>
         </div>`;
       }).join('');
     }
@@ -2678,5 +2895,33 @@
       });
     };
 
-    DOM.sourceText.addEventListener('input', () => saveDataAndSync());
-    document.getElementById('btn-load-sample').addEventListener('click', () => { DOM.sourceText.value = SAMPLE_TEXT; saveDataAndSync(); });
+    // 【レビューで発見】記録メモの入力欄は、1文字打つたびに全患者分の保存（localStorageへの書き込みと読み直し）と、
+    // 分類ボード・総合アセスメント表・参考データの描き直しをしていたため、カードや記録が多いと入力が重くなっていた。
+    // 打っている間は、患者の本文（と更新日時）だけをすぐに書き換え、保存と描き直しは打ち終わって少し待ってから1回にまとめる。
+    // 待っている分は、患者の切り替え（changeCurrentPatient）・「分類開始」・ページを閉じる／別のタブへ移るときに、すぐ保存する。
+    var sourceTextSaveTimer = null;
+    const SOURCE_TEXT_SAVE_DELAY_MS = 600;
+    function cancelSourceTextSave() {
+      if (sourceTextSaveTimer) { clearTimeout(sourceTextSaveTimer); sourceTextSaveTimer = null; }
+    }
+    function flushSourceTextSave() {
+      if (!sourceTextSaveTimer) return false;
+      cancelSourceTextSave();
+      saveDataAndSync();
+      return true;
+    }
+    function scheduleSourceTextSave() {
+      const cp = getCurrentPatient();
+      cp.sourceText = DOM.sourceText.value;          // ほかの処理（書き出し・AI等）がすぐ最新の本文を使えるように
+      cp.updatedAt = new Date().toISOString();       // 起動時の共有先とのまとめ（新しい方の本文を使う）でも負けないように
+      cancelSourceTextSave();
+      sourceTextSaveTimer = setTimeout(() => { sourceTextSaveTimer = null; saveDataAndSync(); }, SOURCE_TEXT_SAVE_DELAY_MS);
+    }
+    DOM.sourceText.addEventListener('input', scheduleSourceTextSave);
+    document.getElementById('btn-start-classify')?.addEventListener('click', flushSourceTextSave, true);
+    if (typeof window !== 'undefined' && window.addEventListener) {
+      window.addEventListener('beforeunload', flushSourceTextSave);
+      window.addEventListener('pagehide', flushSourceTextSave);
+    }
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSourceTextSave(); });
+    document.getElementById('btn-load-sample').addEventListener('click', () => { cancelSourceTextSave(); DOM.sourceText.value = SAMPLE_TEXT; saveDataAndSync(); });

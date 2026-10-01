@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = '2026-09-30.6'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = '2026-10-01.1'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 検査値カードの抽出：値のすぐ後（スペースの有無を問わず）に単位まで書かれている場合、
     // 値と単位が別々のカードに分かれてしまう不具合の対策。
@@ -61,14 +61,20 @@
       // 「セファゾリンNa 1g」が「Na 1 mEq/L」という検査値のカードにされていた）。「血清Na 140」のように
       // 漢字が前にある場合は検査値のままとする。
       const guard = /^[A-Za-z]/.test(key) ? '(?<![A-Za-zァ-ヶー])' : '';
-      return `${guard}${escapeRegExp(key)}\\s*${numPattern}${unitSuffix}`;
+      // 【レビューで発見】値の後ろの異常の印（「K 5.8 mEq/L↑」「Hb 9.1↓」「WBC 11200 H」）を拾っていなかったため、
+      // 印だけが値のカードから外れ、「↓、倦怠感強い」「採血結果 H、 H、 L」のように隣の文章のカードに付いていた。
+      // 値と同じカードに残す（H・L は空白の後の1文字で、後ろに英字が続かないときだけ。「Hb」等の次の項目名は拾わない）。
+      const flagSuffix = '(?:\\s*[↑↓]|\\s+[HL](?![A-Za-z0-9]))?';
+      return `${guard}${escapeRegExp(key)}\\s*${numPattern}${unitSuffix}${flagSuffix}`;
     }).concat([
       // 体温・血圧・SpO2はLAB_STANDARDSに無いバイタルサインのため、単位はこれまで通り直接指定する
       // 単位は「℃」（U+2103の1文字）だけでなく、OCRや他システムからの貼り付けで多い
       // 「°C」（度記号＋C、2文字）の表記も同じ値の一部として続けて拾えるようにする。
       // 「体温 37.0度」の「度」も単位として一緒に拾う（拾わないと「度 血圧125/70」のように
       // 次のカードの先頭に「度」だけが残っていた。利用者からのアップロード文書で発覚）。
-      '体温\\s*\\d{2}(?:\\.\\d)?\\s*(?:℃|°C|°c|度)?(?:\\s*[(（](?:腋窩|腋下|口腔|鼓膜|直腸|耳)[)）])?',
+      // 【レビューで発見】「体温37度2分」（37.2℃の書き方）は「体温37度」までしか拾わず、残った「2分」が同じ行の
+      // 別のバイタルのカードの末尾に付いて「血圧 130/80mmHg2分」のように値が壊れていた。「度◯分」まで拾う。
+      '体温\\s*\\d{2}(?:\\.\\d)?\\s*(?:℃|°C|°c|度(?:\\s*\\d\\s*分)?)?(?:\\s*[(（](?:腋窩|腋下|口腔|鼓膜|直腸|耳)[)）])?',
       '血圧\\s*\\d{2,3}\\/\\d{2,3}(?:\\s*mmHg)?(?![\\d])',
       'SpO2\\s*\\d{2,3}\\s*%?(?:\\s*[\\(（][^)）]{0,20}[\\)）])?',
       // 脈拍・呼吸数も体温・血圧・SpO2と同様によく使われるバイタルサインだが、これまで専用の
@@ -82,9 +88,9 @@
       '(?<![A-Za-z])BP\\s*\\d{2,3}\\/\\d{2,3}\\s*(?:mmHg)?',
       '(?<![A-Za-z])P\\s*\\d{2,3}\\s*回\\s*\\/\\s*分',
       '(?<![A-Za-z])R\\s*\\d{1,2}\\s*回\\s*\\/\\s*分',
-      '(?<![A-Za-z])T\\s*\\d{2}(?:\\.\\d)?\\s*(?:℃|°C|°c|度)',
+      '(?<![A-Za-z])T\\s*\\d{2}(?:\\.\\d)?\\s*(?:℃|°C|°c|度(?:\\s*\\d\\s*分)?)',
       // BT・HR・PR・RR（単位を書かないことも多い。COPDの事例で「BT 37.8℃ HR 108 RR 26」が1つの体温のカードになっていた）
-      '(?<![A-Za-z])BT\\s*\\d{2}(?:\\.\\d)?\\s*(?:℃|°C|°c|度)?',
+      '(?<![A-Za-z])BT\\s*\\d{2}(?:\\.\\d)?\\s*(?:℃|°C|°c|度(?:\\s*\\d\\s*分)?)?',
       '(?<![A-Za-z])(?:HR|PR)\\s*\\d{2,3}(?:\\s*回\\s*\\/\\s*分|\\s*bpm)?(?![\\d.])',
       '(?<![A-Za-z])RR\\s*\\d{1,2}(?:\\s*回\\s*\\/\\s*分)?(?![\\d.])'
     ]).join('|');
@@ -92,6 +98,28 @@
     // 判定するための正規表現（食事タグの自動付与などに使う。LAB_REGEX_SOURCE自体は抽出用に前後一致を厳密には
     // 求めていないため、ここでは文章中に含まれているかどうかの簡易判定として流用する）。
     const LAB_VALUE_TEST_REGEX = new RegExp(LAB_REGEX_SOURCE, 'i');
+    // 【レビューで発見】LAB_REGEX_SOURCE は単位の「mg/dl」等の小文字にも合わせるため大文字・小文字を区別せずに使うが、
+    // そのせいで検査値ではない語まで検査値として切り出し、元の文章を壊していた：
+    //  ・「点滴を1hr 100mlで投与」の「hr 100」が心拍数のカードになり、残りが「点滴を1mlで投与」（意味が変わる）
+    //  ・「PT 2単位実施」（理学療法）が「PT 2 秒 (基準値: 10〜13 秒)」という記録に無い検査値になる
+    //  ・「TP1 清拭を実施する」（看護計画の番号）が「TP 1 g/dL」になる
+    // 切り出す前にこの関数で確かめ、検査値らしくないものは切り出さない（文章のまま残す）。
+    //  ①2文字以下の略語（hr・bp・pt・tp・na・k など）が小文字だけで書かれたものは、単位や英語の一部とみなす
+    //  ②値の直後に「単位」「分」「回」「名」等の数え方の語が続くものは、検査値ではなく回数・時間・量
+    //  ③TP・PT の後ろに小数点も単位も無い小さな整数が直接続くもの（「TP1」「PT2」）は看護計画・リハビリの番号
+    const LAB_COUNTER_WORD_AFTER_REGEX = /^\s*(?:単位|分間?|回(?!\s*\/)|名|人|日間?|週間?|か月|ヶ月|カ月|時間|歩|セット|本|枚|個|錠|包|m(?![A-Za-zμ\/²2]))/;
+    function isPlausibleLabMatch(matchText, afterText) {
+      const m = String(matchText || '');
+      const lead = (m.match(/^[A-Za-z][A-Za-z\-]*/) || [''])[0];
+      if (lead && lead.length <= 2 && /^[a-z]+$/.test(lead)) return false;
+      if (LAB_COUNTER_WORD_AFTER_REGEX.test(String(afterText || ''))) return false;
+      if (/^(?:TP|PT)\s*\d{1,2}$/i.test(m.trim()) && !/^\s*(?:[.,]\d|%|秒|g\/)/.test(String(afterText || ''))) {
+        // 「TP 7」「PT 11」のように空白を挟んだ値は検査値のまま（番号は「TP1」「PT2」のように空白無しで書くことが多い）
+        if (!/\s/.test(m.trim())) return false;
+        if (/^\s*[:：]?\s*[^\d\s.,、。)）]/.test(String(afterText || '')) && /^(?:TP|PT)\s*\d$/i.test(m.trim())) return false;
+      }
+      return true;
+    }
     // 「各検査項目は食事タグを付与」：LAB_VALUE_TEST_REGEXは項目名の直後に数値が続く場合しか
     // 一致しないため、「WBCが上昇傾向」のように数値を伴わず項目名だけが文章中に出てくる場合は
     // 対象外だった。項目名（LAB_KEY_NUM_PATTERNSのキー）が単語として含まれているかどうかだけを
@@ -132,6 +160,13 @@
       '(?:(?<![ァ-ヶー])\\b(?:' + LAB_ITEM_ASCII_KEYS.map(escapeRegExp).join('|') + ')(?![A-Za-z])(?!\\s*(?:さん|様|氏|君|ちゃん|とともに|と一緒|による|の介入|の訓練|の指導|の計画|の説明|の評価|の方針|訓練|室|より|から|が|介入|実施|と共に|見守り|[)）、,]|[:：]\\s*(?![\\d.])))' +
       (LAB_ITEM_NON_ASCII_KEYS.length ? '|(?:' + LAB_ITEM_NON_ASCII_KEYS.map(escapeRegExp).join('|') + ')' : '') + ')', 'i'
     );
+    // 【レビューで発見】LAB_ITEM_NAME_REGEX は大文字・小文字を区別しないため、看護記録でよく使う「Pt」（患者）が
+    // 検査の「PT」と読まれ、「Ptは午前中ずっと臥床していた」に2.食事のタグが付いていた。
+    // 数字・%・括弧が続かない「Pt」「pt」は患者の略として外してから判定する（大文字の「PT」はこれまで通り）。
+    function mentionsLabItemName(text) {
+      const t = String(text || '').replace(/(?<![A-Za-z])(?:Pt|pt)(?![A-Za-z])(?!\s*[-\d%(（.])/g, '');
+      return LAB_ITEM_NAME_REGEX.test(t);
+    }
 
     // 検査値・バイタルサインのカードに自動で付けるヘンダーソンタグを、その検査が何を見る指標かで決める。
     // 【修正】以前は検査値・バイタルサインであれば一律に2(食事)を付けていたため、腎機能（Cre・BUN・eGFR）、
@@ -166,8 +201,12 @@
       const t = String(text || '').normalize('NFKC').slice(0, 1500);
       if (/日齢\s*\d+|修正\s*\d+\s*週|NICU|GCU|早産児|低出生体重児|新生児(?:期|室)?(?:[:：]|\s|を|の受け持ち)/.test(t) && !/(?:褥婦|産褥|初産婦|経産婦)/.test(t.slice(0, 300))) return 'neonate';
       const who = '(?:患児|受け?持ち?児?|患者|対象|本児|利用者|[A-ZＡ-Ｚ]\\s*(?:ちゃん|くん|君|さん|氏))';
-      if (new RegExp(`${who}[^。\\n]{0,20}?生後\\s*\\d+\\s*(?:か月|ヶ月|カ月|ケ月)`).test(t)) return 'infant';
-      const m = t.match(new RegExp(`${who}[^。\\n]{0,20}?(\\d{1,3})\\s*歳`));
+      // 【レビューで発見】「78歳男性。患者の孫（3歳）が面会」のように、受け持ちを示す語と年齢の間に家族の語が
+      // あると、家族の年齢を読んで大人の記録を「幼児」と判定し、検査値の基準値を書き足さなくなっていた。
+      // 間に家族の語がある年齢は読まない。
+      const gap = '(?:(?!妻|夫|孫|息子|娘|長男|長女|次男|次女|三男|三女|兄|姉|弟|妹|父|母|祖父|祖母|家族|嫁|婿|甥|姪)[^。\\n]){0,20}?';
+      if (new RegExp(`${who}${gap}生後\\s*\\d+\\s*(?:か月|ヶ月|カ月|ケ月)`).test(t)) return 'infant';
+      const m = t.match(new RegExp(`${who}${gap}(\\d{1,3})\\s*歳`));
       if (!m) return null;
       const age = Number(m[1]);
       if (age < 1) return 'infant';
@@ -185,7 +224,9 @@
     // 子どもの記録では、年齢で変わる検査の基準値（白血球・ヘモグロビン・アルブミン・クレアチニンなど）は大人の値を
     // 書き足さない。年齢で大きく変わらないもの（CRP・Na・Cl）だけ書き足す。
     const CHILD_SAFE_LAB_REFERENCE_KEYS = new Set(['CRP', 'Na', 'Cl']);
-    let childLabReferenceMode = false; // groupClinicalPhrasesWithTimestamps が、読み始めに記録全体から決める
+    // 【レビューで発見】以前はここに「子どもの記録か」の状態を1つだけ持ち、groupClinicalPhrasesWithTimestamps が
+    // 読むたびに書き換えていたため、前に分類した別の患者の状態が、AIでの分類・カードの手直しに残っていた。
+    // 今は js/07 の extractionContext()（分類中の文章、無ければ今の患者の元の文章から決める）を使う。
 
     // ==========================================================================
     // 表やスプレッドシートをコピー貼り付けした際、セルの改行がそのまま反映されて
@@ -700,7 +741,7 @@
     function suggestHendersonTagsForText(text, fieldLabel, userLearned) {
       const ruleHIds = detectMultipleHendersonTags(text);
       const ids = Array.from(new Set([...ruleHIds, ...(userLearned?.preferredHendersonIds || [])]));
-      if (LAB_ITEM_NAME_REGEX.test(text) && !hasLearnedSignal(userLearned)) labCategoryTags(text).forEach(h => { if (!ids.includes(h)) ids.push(h); });
+      if (mentionsLabItemName(text) && !hasLearnedSignal(userLearned)) labCategoryTags(text).forEach(h => { if (!ids.includes(h)) ids.push(h); });
       if (fieldLabel && !hasLearnedSignal(userLearned)) {
         fieldLabelHintTags(fieldLabel, text).forEach(hid => { if (!ids.includes(hid)) ids.push(hid); });
       }
@@ -787,9 +828,19 @@
       if ((m = t.match(/^術後(\d+)日目$/))) return `術後${Number(m[1]) + 1}日目`;
       if ((m = t.match(/^入院(\d+)日目$/))) return `入院${Number(m[1]) + 1}日目`;
       if ((m = t.match(/^産褥(\d+)日目$/))) return `産褥${Number(m[1]) + 1}日目`;
-      if (t === '入院前日') return '手術当日';
+      // 【レビューで発見】以前は「入院前日」の次を「手術当日」にしていたため、「入院前日 22:00」の後の「6:00」が
+      // 「手術当日 6:00」になっていた。入院前日の次の日は入院当日。
+      if (t === '入院前日') return '入院当日';
+      // 【レビューで発見】それまでに日が書かれていない記録の「翌日」は「翌日」のままで、2回目の「翌日」も同じ「翌日」に
+      // なっていた（別の日の同じ文章が「同じ日時の同じカード」として1枚に減っていた）。翌日→翌々日→3日後…と進める。
+      if (t === '翌日' || t === '翌朝') return '翌々日';
+      if (t === '翌々日') return '3日後';
+      if ((m = t.match(/^(\d+)日後$/))) return `${Number(m[1]) + 1}日後`;
       if ((m = t.match(/^(\d+)日目$/))) return `${Number(m[1]) + 1}日目`;
       if ((m = t.match(/^(?:(\d{1,4})年)?(\d{1,2})月(\d{1,2})日/))) {
+        // 【レビューで発見】年が無い「2月29日」の次が「3月2日」になっていた（うるう年でない年で計算していたため）。
+        // 2月29日と書かれているならうるう年なので、次の日は3月1日。
+        if (!m[1] && Number(m[2]) === 2 && Number(m[3]) === 29) return '3月1日';
         const year = m[1] ? Number(m[1]) : 2001; // 年が無いときはうるう年でない年で計算する
         const d = new Date(year, Number(m[2]) - 1, Number(m[3]) + 1);
         return `${m[1] ? `${d.getFullYear()}年` : ''}${d.getMonth() + 1}月${d.getDate()}日`;
@@ -830,7 +881,8 @@
       if (t === '手術前日') return 39;
       if (t === '手術当日') return 40;
       if (t === '術中') return 40.5;
-      if (t === '入院前日') return 39;
+      // 【レビューで発見】以前は39（手術前日と同じ）で、「入院当日」「入院2日目」より後ろに並んでいた。入院前日は入院当日の前。
+      if (t === '入院前日') return 9;
       if ((m = t.match(/^産褥(\d+)日目$/))) return 60 + Number(m[1]);
       if (t === '術後') return 41;
       if ((m = t.match(/^術後(\d+)日目$/))) return 41 + Number(m[1]);
@@ -851,8 +903,21 @@
         if (!byDay.has(day)) { byDay.set(day, []); order.push(day); }
         byDay.get(day).push(item);
       });
-      const knownSlots = order.map((d, i) => (dayRank(d) !== null ? i : -1)).filter(i => i >= 0);
-      const knownSorted = knownSlots.map(i => order[i]).sort((a, b) => dayRank(a) - dayRank(b));
+      // 【レビューで発見】年の書かれていない日付は「12月31日」より「1月1日」の順番が前になり、年をまたぐ記録で
+      // 1月1日の記録が12月31日より上に並んでいた。出てきた順に見て、月が大きく戻ったら次の年とみなして順番を付ける。
+      const rankOf = new Map();
+      let yearOffset = 0, prevMonth = null;
+      order.forEach(d => {
+        const dm = normalizeDayLabel(d).match(/^(\d{1,2})月(\d{1,2})日$/);
+        if (dm) {
+          const month = Number(dm[1]);
+          if (prevMonth !== null && month + 6 < prevMonth) yearOffset++;
+          prevMonth = month;
+          rankOf.set(d, 100000 + yearOffset * 400 + month * 32 + Number(dm[2]));
+        } else rankOf.set(d, dayRank(d));
+      });
+      const knownSlots = order.map((d, i) => (rankOf.get(d) !== null ? i : -1)).filter(i => i >= 0);
+      const knownSorted = knownSlots.map(i => order[i]).sort((a, b) => rankOf.get(a) - rankOf.get(b));
       knownSlots.forEach((slot, k) => { order[slot] = knownSorted[k]; });
       return order.map(day => ({ day, items: byDay.get(day) }));
     }

@@ -49,7 +49,9 @@ test('A：答えの中の〔C番号〕を、根拠のカードへのボタンに
   const ev = app.buildEvidenceIndex(items);
   const html = app.formatAiResultHtml('発言〔C1〕と記録〔C2〕が食い違う。〔C1、C2〕参照。〔C9〕は無い。SpO2 <90%', undefined, ev);
   assert.equal((html.match(/class="ai-evidence-chip/g) || []).length, 4);
-  assert.match(html, /jumpToEvidenceCard\('item_a'\)/);
+  // 【レビューで発見】IDは onclick の文字列ではなく data-evidence-id に入れる（js/05 の document のクリックで移動）
+  assert.match(html, /data-evidence-id="item_a"/);
+  assert.doesNotMatch(html, /onclick=/);
   assert.match(html, /〔S 「痛くて眠れない」〕/);
   assert.match(html, /〔C9〕/, '一覧に無い番号はボタンにしない');
   assert.match(html, /SpO2 &lt;90%/, 'AIの答えの「<」で表示が崩れない');

@@ -22,8 +22,9 @@ const fnBody = name => {
 
 test('一覧のカードのクリック・チェックは selectCardFromOverview を呼ぶ（ボードへの移動だけではない）', () => {
   const build = app.slice(app.indexOf('function buildCardOverviewHtml'), app.indexOf('function fitCardOverview'));
-  assert.match(build, /onclick="selectCardFromOverview\('\$\{i\.id\}', true\)"/);
-  assert.match(build, /onchange="selectCardFromOverview\('\$\{i\.id\}', this\.checked\)"/);
+  // 【レビューで発見】IDは safeDomId を通してから onclick に入れる
+  assert.match(build, /onclick="selectCardFromOverview\('\$\{safeDomId\(i\.id\)\}', true\)"/);
+  assert.match(build, /onchange="selectCardFromOverview\('\$\{safeDomId\(i\.id\)\}', this\.checked\)"/);
   assert.doesNotMatch(build, /closeCardOverview\(\); jumpToBoardCard/);
 });
 

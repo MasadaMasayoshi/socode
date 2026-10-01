@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = '2026-09-30.6'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = '2026-10-01.1'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 共有学習（全利用者・全カードで共有する学習データ）
     // ------------------------------------------------------------------------
@@ -227,7 +227,11 @@
         });
         if (res.status === 410) { handlePatientDeletedElsewhere(patientId); ok = true; return; }
         const result = await res.json().catch(() => null);
-        if (!res.ok || !result || result.ok === false) throw new Error((result && result.error) || `HTTP ${res.status}`);
+        if (!res.ok || !result || result.ok === false) {
+          const err = new Error((result && result.error) || `HTTP ${res.status}`);
+          err.status = res.status;
+          throw err;
+        }
         // 共有先が確かにこの患者を受け取ったかを確かめる（別の患者の応答や空の応答は保存できたとみなさない）
         if (result.patient && result.patient.id && result.patient.id !== patientId) throw new Error('共有先の応答が別の患者のものでした');
         // サーバー側は、他端末が同じ患者を同時に編集していた場合、カード単位でマージした結果を返す。
@@ -235,6 +239,9 @@
         applyServerPatientResult(patientId, result.patient, sentSnapshot, sentRev);
         ok = true;
         st.retryCount = 0;
+        st.rejectedStatus = null;
+        // 【レビューで発見】以前は保存できた後も、前の失敗で予約した送り直しのタイマーが残り、余分な保存（PUT）が1回走っていた
+        if (st.retryTimer) { clearTimeout(st.retryTimer); st.retryTimer = null; }
         if ((patientLocalRev[patientId] || 0) === sentRev) unsyncedPatientIds.delete(patientId);
         // 表示中の患者の保存が終わり、その後の変更も無いときだけ「保存済み」にする
         if (getCurrentPatient().id === patientId && (patientLocalRev[patientId] || 0) === sentRev) updateSaveStatus('saved');
@@ -242,6 +249,20 @@
         console.warn('患者カルテのサーバーへの保存に失敗しました（この端末内には保存されています。自動で送り直します）:', e);
         unsyncedPatientIds.add(patientId);
         if (getCurrentPatient().id === patientId) updateSaveStatus('error');
+        // 【レビューで発見】以前は、送り直しても結果が変わらない断り（413＝大きすぎる・400＝形が正しくない など）でも、
+        // 2分おきに同じ内容を永遠に送り直していた（毎回最大5MBの通信）。408（時間切れ）・409（保存の競合）・
+        // 429（送信の集中）以外の4xxは自動では送り直さず、「未保存」のまま残して知らせる
+        // （次にカルテを編集したとき・右上の「共有先への保存に失敗」を押したときには、もう一度送る）。
+        const status = e && typeof e.status === 'number' ? e.status : 0;
+        if (status >= 400 && status < 500 && ![408, 409, 429].includes(status)) {
+          if (st.retryTimer) { clearTimeout(st.retryTimer); st.retryTimer = null; }
+          if (st.rejectedStatus !== status && !(typeof IS_FILE_PROTOCOL !== 'undefined' && IS_FILE_PROTOCOL)) {
+            const p = globalAppData.patients.find(x => x.id === patientId);
+            showToast([`「${p ? p.title : ''}」を共有先に保存できませんでした（共有先が受け付けませんでした：HTTP ${status}）`, { text: `このブラウザには保存されています。${status === 413 ? 'カルテが大きすぎる可能性があります。使っていないカード・カルテ本文を減らしてから、右上の「共有先への保存に失敗」を押してください。' : '自動の送り直しはしません。内容を確かめてから、右上の「共有先への保存に失敗」を押してください。'}`, detail: true }], 'error');
+          }
+          st.rejectedStatus = status;
+          return;
+        }
         // 失敗し始めたときに1回だけ知らせる（何ができなかったか・次に何をするか）。直るまで右上の表示でも分かる
         if (!(st.retryCount > 0) && !(typeof IS_FILE_PROTOCOL !== 'undefined' && IS_FILE_PROTOCOL)) {
           const p = globalAppData.patients.find(x => x.id === patientId);
@@ -796,6 +817,7 @@
       const content = contentEl ? contentEl.value.trim() : '';
       if (!title) return showToast('名前を入力してください', 'warn');
       if (!url) return showToast('リンク（URL）を入力してください', 'warn');
+      if (!/^https?:\/\//i.test(url)) return showToast('リンクは http:// か https:// で始まる形で入力してください', 'warn');
       if (!(await confirmSharedChange(`参照元「${title.slice(0, 40)}」を書き換えます。`))) return;
 
       try {
@@ -841,7 +863,9 @@
         return `
           <div class="flex items-start justify-between gap-2 p-1.5 rounded-[var(--radius-sm)] border border-[var(--line-soft)] text-[11px]" style="background:var(--surface);">
             <div class="flex-1 min-w-0">
-              <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer" class="font-semibold text-[var(--accent-dark)] break-words hover:underline"><i class="fa-solid fa-link text-[9px] mr-1"></i>${escapeHtml(r.title)}</a>
+              ${/^https?:\/\//i.test(String(r.url || '').trim())
+                ? `<a href="${escapeHtml(String(r.url).trim())}" target="_blank" rel="noopener noreferrer" class="font-semibold text-[var(--accent-dark)] break-words hover:underline"><i class="fa-solid fa-link text-[9px] mr-1"></i>${escapeHtml(r.title)}</a>`
+                : `<span class="font-semibold text-[var(--accent-dark)] break-words"><i class="fa-solid fa-link text-[9px] mr-1"></i>${escapeHtml(r.title)}</span>` /* 【レビューで発見】http(s) 以外（javascript: など）はリンクにしない */}
               <div class="text-[9px] text-[var(--ink-muted)] break-all mt-0.5">${escapeHtml(r.url)}</div>
               ${contentPreview ? `<div class="text-[10px] text-[var(--ink)] break-words mt-1 line-clamp-2" style="opacity:.8;">${escapeHtml(contentPreview.slice(0, 200))}${contentPreview.length > 200 ? '…' : ''}</div>` : `<div class="text-[9px] text-[var(--ink-muted)] mt-1"><i class="fa-solid fa-triangle-exclamation"></i> 内容が未貼付のため、分類には反映されません（リンクのみ）</div>`}
             </div>

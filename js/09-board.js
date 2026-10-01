@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-09-30.6'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-01.1'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カード → 元の文章（カルテ・看護記録入力欄）の該当箇所を探す
     // ------------------------------------------------------------------------
@@ -219,7 +219,7 @@
       if (!found.length) return '';
       const alert = found.some(x => x.drug.highAlert);
       const names = found.map(x => x.drug.name).join('・');
-      return `<button type="button" class="drug-chip${alert ? ' drug-chip-alert' : ''}" onclick="event.stopPropagation(); openDrugInfo('${escapeHtml(item.id)}')" title="薬の情報：${escapeHtml(names)}（押すと、看護で観ることと最新の添付文書へのリンクを表示）" aria-label="薬の情報：${escapeHtml(names)}"><i class="fa-solid fa-capsules"></i>薬${found.length > 1 ? found.length : ''}</button>`;
+      return `<button type="button" class="drug-chip${alert ? ' drug-chip-alert' : ''}" onclick="event.stopPropagation(); openDrugInfo(${jsArg(item.id)})" title="薬の情報：${escapeHtml(names)}（押すと、看護で観ることと最新の添付文書へのリンクを表示）" aria-label="薬の情報：${escapeHtml(names)}"><i class="fa-solid fa-capsules"></i>薬${found.length > 1 ? found.length : ''}</button>`;
     }
     function createCardElement(item) {
       const card = document.createElement('div');
@@ -248,7 +248,7 @@
 
       const tagsHtml = (item.hendersonIds || []).map(hId => {
         const need = HENDERSON_NEEDS.find(n => n.id === hId);
-        return need ? `<span class="tag-chip">${need.name} <button onclick="removeHendersonTag('${item.id}', ${need.id})" class="text-[var(--accent)]/60 hover:text-[var(--brick)] transition"><i class="fa-solid fa-times"></i></button></span>` : '';
+        return need ? `<span class="tag-chip">${need.name} <button onclick="removeHendersonTag(${jsArg(item.id)}, ${need.id})" class="text-[var(--accent)]/60 hover:text-[var(--brick)] transition"><i class="fa-solid fa-times"></i></button></span>` : '';
       }).join('');
       const untaggedWarningHtml = isUntagged ? `<span class="field-chip" style="background:var(--brick);color:var(--on-fill);cursor:help;" title="${escapeHtml(untaggedReasonOf(item))}"><i class="fa-solid fa-triangle-exclamation mr-0.5"></i>タグ未設定 <i class="fa-regular fa-circle-question ml-0.5"></i></span>` : '';
       // 「患者背景」という区分は廃止したため（renderSoBoardの説明を参照）、カード上にも表示しない。
@@ -263,25 +263,25 @@
       const confidenceBadgeHtml = confidenceBadgeFor(item.predictionSource);
       // 発言と観察を分けた同じ場面のもう1枚（押すとそのカードへ移動して光らせる）
       const scenePartner = item.sceneId ? (getCurrentPatient().items || []).find(i => i.sceneId === item.sceneId && i.id !== item.id) : null;
-      const sceneChipHtml = scenePartner ? `<button onclick="jumpToBoardCard('${scenePartner.id}')" class="scene-chip" title="同じ場面の${scenePartner.type === 's' ? '発言（S）' : '観察（O）'}のカード：${escapeHtml(scenePartner.text.slice(0, 40))}"><i class="fa-solid fa-link mr-0.5"></i>同じ場面の${scenePartner.type === 's' ? 'S' : 'O'}</button>` : '';
+      const sceneChipHtml = scenePartner ? `<button onclick="jumpToBoardCard(${jsArg(scenePartner.id)})" class="scene-chip" title="同じ場面の${scenePartner.type === 's' ? '発言（S）' : '観察（O）'}のカード：${escapeHtml(scenePartner.text.slice(0, 40))}"><i class="fa-solid fa-link mr-0.5"></i>同じ場面の${scenePartner.type === 's' ? 'S' : 'O'}</button>` : '';
 
       card.innerHTML = `
         <div class="flex items-center justify-between gap-1">
           <div class="flex items-center gap-1 flex-wrap">
             <label class="card-select-wrap" title="選択（複数選択の追加/解除。タップ操作のみで複数選択できます）">
-              <input type="checkbox" class="card-select-checkbox" onchange="setCardSelected('${item.id}', this.checked)" ${isSelected ? 'checked' : ''}>
+              <input type="checkbox" class="card-select-checkbox" onchange="setCardSelected(${jsArg(item.id)}, this.checked)" ${isSelected ? 'checked' : ''}>
             </label>
             ${untaggedWarningHtml}${patientBackgroundHtml}${fieldChipHtml}${timeChipHtml}${sceneChipHtml}${drugChipHtml(item)}${confidenceBadgeHtml}
           </div>
           <div class="flex items-center gap-1 ml-auto shrink-0">
-            ${item.type === 'unnecessary' ? `<button onclick="setItemType('${item.id}', 'unclassified')" class="type-btn type-btn-restore" title="未分類に戻す">復帰</button>` : ''}
-            <button type="button" onclick="openCardMenu(event, '${item.id}')" class="card-menu-btn" data-card-id="${item.id}" aria-haspopup="menu" aria-label="このカードの操作" title="操作（S/Oの変更・編集・不要・削除・報告）"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+            ${item.type === 'unnecessary' ? `<button onclick="setItemType(${jsArg(item.id)}, 'unclassified')" class="type-btn type-btn-restore" title="未分類に戻す">復帰</button>` : ''}
+            <button type="button" onclick="openCardMenu(event, ${jsArg(item.id)})" class="card-menu-btn" data-card-id="${escapeHtml(item.id)}" aria-haspopup="menu" aria-label="このカードの操作" title="操作（S/Oの変更・編集・不要・削除・報告）"><i class="fa-solid fa-ellipsis-vertical"></i></button>
           </div>
         </div>
         <p class="card-text font-medium leading-snug break-words text-[var(--ink)]">${cardTextWithLabFlagsHtml(item)}</p>
         <div class="flex flex-wrap gap-1 items-center">
           ${tagsHtml}
-          <select onchange="addHendersonTagFromDropdown('${item.id}', this.value); this.value='';" aria-label="タグを追加" class="max-w-[92px] w-auto text-[9px] bg-[var(--paper)] hover:bg-[var(--line-soft)] border ${isUntagged ? 'border-[var(--brick)]' : 'border-[var(--line)]'} rounded-[var(--radius-sm)] px-1 py-0.5 text-[var(--ink-muted)] cursor-pointer focus:outline-none mt-0.5" style="max-width:92px;"><option value="">＋ タグ</option>${HENDERSON_NEEDS.map(n => `<option value="${n.id}">${n.name}</option>`).join('')}</select>
+          <select onchange="addHendersonTagFromDropdown(${jsArg(item.id)}, this.value); this.value='';" aria-label="タグを追加" class="max-w-[92px] w-auto text-[9px] bg-[var(--paper)] hover:bg-[var(--line-soft)] border ${isUntagged ? 'border-[var(--brick)]' : 'border-[var(--line)]'} rounded-[var(--radius-sm)] px-1 py-0.5 text-[var(--ink-muted)] cursor-pointer focus:outline-none mt-0.5" style="max-width:92px;"><option value="">＋ タグ</option>${HENDERSON_NEEDS.map(n => `<option value="${n.id}">${n.name}</option>`).join('')}</select>
         </div>
       `;
       return card;
@@ -468,7 +468,9 @@
       if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT' || document.activeElement?.isContentEditable) return;
       if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return; // Ctrl+1 などのブラウザの操作・日本語入力中は奪わない
       if (!DOM.viewSoBoard || DOM.viewSoBoard.classList.contains('hidden')) return;
-      if (document.querySelector('.fixed.inset-0:not(.hidden)') && e.key !== 'Escape') return; // 画面（ダイアログ）を開いている間は働かない
+      // 画面（ダイアログ）を開いている間は働かない。【レビューで発見】以前は Esc だけは通していたため、確認のダイアログ等を
+      // 開いたまま Esc を押すと、画面は閉じずに後ろのカードの選択だけが消えていた（Esc で画面を閉じるのは js/05 がまとめて行う）
+      if (document.querySelector('.fixed.inset-0:not(.hidden)')) return;
       if (e.key === 'Escape' && selectedCardIds.size > 0) { selectedCardIds.clear(); renderSoBoard(); return; }
       if (selectedCardIds.size !== 1) return;
       if (/^[0-9]$/.test(e.key)) {
@@ -638,7 +640,7 @@
         const idx = Math.min(clampedIndex, p.items.length);
         removedItems.forEach(i => { touchItem(i); unmarkItemDeleted(p, i.id); }); // 統合元は復元された扱いにする
         p.items.splice(idx, 0, ...removedItems);
-      });
+      }, { patientId: patId }); // 【レビューで発見】別の患者に切り替えてから押しても、その患者を共有先へ送り直す（showUndoToast）
     });
 
     // ==========================================================================
@@ -688,7 +690,13 @@
       if (!item) return;
       const oldText = item.text;
       const newText = await openDialog({ title: 'カードの内容を編集', inputValue: item.text, confirmLabel: '更新する' });
-      if (newText !== null && (item.text = cleanExtractedPhrase(newText))) {
+      // 【レビューで発見】以前は代入を条件の中で行っていたため、空（や「。」だけ）で確定すると、元の文章が
+      // 消えたまま保存もされず残っていた。空になるときは何も変えずに知らせる（消したいときは「消去」を使う）。
+      if (newText === null) return;
+      const cleaned = cleanExtractedPhrase(newText);
+      if (!cleaned) { showToast('空の内容にはできません。カードを消すときは「消去」を使ってください', 'warn'); return; }
+      item.text = cleaned;
+      {
         touchItem(item);
         saveDataAndSync(); showToast('カード内容を更新しました', 'success');
         if (item.text !== oldText) {
@@ -879,7 +887,8 @@
       if (!hIdStr) return;
       const hId = parseInt(hIdStr, 10), cp = getCurrentPatient(), item = cp.items.find(i => i.id === id);
       if (item && !(item.hendersonIds || (item.hendersonIds = [])).includes(hId)) {
-        item.hendersonIds.push(hId); item.assessmentCols[hId] = 'unclassified';
+        // 【レビューで発見】古いデータ・読み込んだデータで assessmentCols が無いカードだと、ここで止まり半端に変わっていた
+        item.hendersonIds.push(hId); (item.assessmentCols = item.assessmentCols || {})[hId] = 'unclassified';
         logItemEdit(item, { kind: 'tagAdd', hId });
         // ヘンダーソンタグが手動で付けられたら、患者背景（基本情報／医学情報）の受け皿は
         // 使わない（「他のどのタグにも一致しなかった場合の最後の受け皿」という原則を維持する）。
@@ -919,7 +928,7 @@
       if (item?.hendersonIds) {
         item.hendersonIds = item.hendersonIds.filter(idNum => idNum !== hId);
         logItemEdit(item, { kind: 'tagRemove', hId });
-        delete item.assessmentCols[hId];
+        if (item.assessmentCols) delete item.assessmentCols[hId];
         item.predictionSource = 'confirmed';
         const learned = globalAppData.learningUserDict[item.text] = { ...globalAppData.learningUserDict[item.text] };
         learned.hendersonVotes = { ...(learned.hendersonVotes || {}) };
@@ -974,7 +983,7 @@
             const p = globalAppData.patients.find(x => x.id === patId);
             const it = p?.items.find(i => i.id === id);
             if (it) { it.type = prevType; touchItem(it); }
-          });
+          }, { patientId: patId });
         }
       }
     };
@@ -995,7 +1004,7 @@
           unmarkItemDeleted(p, id);
           p.items.splice(Math.min(idx, p.items.length), 0, removed);
         }
-      });
+      }, { patientId: patId });
     };
 
     window.clearUnnecessary = async function() {
@@ -1015,7 +1024,7 @@
           removed.forEach(i => { touchItem(i); unmarkItemDeleted(p, i.id); });
           p.items.push(...removed);
         }
-      });
+      }, { patientId: patId });
     };
 
     window.allowDrop = e => e.preventDefault();
@@ -1225,9 +1234,9 @@
       // Sは金、Oは藍と色分けし、通し番号(S-1/O-2等)を太字ラベルで表示。カード左端にも同色のバーを付けて色でも一目で判別できるようにする
       // バッジをクリックすると分類ボード側の該当カードへジャンプ・ハイライトする
       const badge = isS
-        ? `<span onclick="jumpToBoardCard('${item.id}')" class="px-1.5 py-[1px] rounded-[var(--radius-sm)] font-bold text-[9px] tracking-tight cursor-pointer" title="分類ボードの該当カードを表示" style="background:var(--gold);color:var(--on-fill);">${seqLabel || 'S'}</span>`
+        ? `<span onclick="jumpToBoardCard(${jsArg(item.id)})" class="px-1.5 py-[1px] rounded-[var(--radius-sm)] font-bold text-[9px] tracking-tight cursor-pointer" title="分類ボードの該当カードを表示" style="background:var(--gold);color:var(--on-fill);">${seqLabel || 'S'}</span>`
         : (isO
-          ? `<span onclick="jumpToBoardCard('${item.id}')" class="px-1.5 py-[1px] rounded-[var(--radius-sm)] font-bold text-[9px] tracking-tight cursor-pointer" title="分類ボードの該当カードを表示" style="background:var(--slate);color:var(--on-fill);">${seqLabel || 'O'}</span>`
+          ? `<span onclick="jumpToBoardCard(${jsArg(item.id)})" class="px-1.5 py-[1px] rounded-[var(--radius-sm)] font-bold text-[9px] tracking-tight cursor-pointer" title="分類ボードの該当カードを表示" style="background:var(--slate);color:var(--on-fill);">${seqLabel || 'O'}</span>`
           : '');
       const familyMark = isFamilySpeech(item.text) ? '<span class="text-[8px] font-bold px-1 rounded-[var(--radius-sm)]" style="background:var(--gold-soft);color:var(--gold);" title="家族の発言">家族</span>' : '';
       const cardBg = isS ? 'var(--gold-soft)' : (isO ? 'var(--slate-soft)' : 'var(--surface)');
@@ -1245,7 +1254,7 @@
       const colBtn = (col, label) => {
         const c = COL_COLORS[col];
         const active = currentCol === col;
-        return `<button onclick="setAssessmentCol('${item.id}', ${hId}, '${col}')" class="px-1 py-0.5 rounded-[var(--radius-sm)] text-[8px] font-bold border-2 transition" style="${active ? `background:${c};border-color:${c};color:var(--on-fill);` : `border-color:${c};color:${c};background:var(--surface);`}">${label}</button>`;
+        return `<button onclick="setAssessmentCol(${jsArg(item.id)}, ${hId}, '${col}')" class="px-1 py-0.5 rounded-[var(--radius-sm)] text-[8px] font-bold border-2 transition" style="${active ? `background:${c};border-color:${c};color:var(--on-fill);` : `border-color:${c};color:${c};background:var(--surface);`}">${label}</button>`;
       };
 
       // 【UIの見直し】以前は、カードごとに本文の横に上下・編集・不要の4つのアイコン、下に未・前・後・欠の
@@ -1254,22 +1263,22 @@
       // カードの右上に重ねて出す（タッチ操作の端末ではこれまで通り常に表示。style.css の .asc-actions）。
       // 印刷には出さない。
       return `
-        <div id="asc_${item.id}_${hId}" draggable="true"
-          ondragstart="handleAssessmentDragStart(event, '${item.id}')"
+        <div id="asc_${escapeHtml(item.id)}_${hId}" draggable="true"
+          ondragstart="handleAssessmentDragStart(event, ${jsArg(item.id)})"
           ondragend="handleAssessmentDragEnd(event)"
           ondragover="event.preventDefault(); event.stopPropagation();"
           ondragenter="event.preventDefault(); event.currentTarget.classList.add('drag-over');"
           ondragleave="event.currentTarget.classList.remove('drag-over');"
-          ondrop="handleAssessmentCardDrop(event, '${item.id}', ${hId})"
+          ondrop="handleAssessmentCardDrop(event, ${jsArg(item.id)}, ${hId})"
           class="asc-card px-1.5 py-1 rounded-[var(--radius-sm)] border ${item.aiSuggested ? 'border-dashed' : ''} border-[var(--line)] text-[10.5px] cursor-grab active:cursor-grabbing hover:border-[var(--accent)] transition" style="background:${cardBg};border-left-width:3px;border-left-color:${accentColor};">
           <div class="leading-snug break-words text-[var(--ink)]"><span class="inline-flex items-center gap-0.5 mr-1 align-[1px]">${badge}${evidenceTag}${familyMark}${aiTag}${fieldTag}${time}${drugChipHtml(item)}</span>${cardTextWithLabFlagsHtml(item)}</div>
           ${isMissingCol && typeof missingCheckCardHtml === 'function' ? `<div class="mc-in-card">${missingCheckCardHtml(getCurrentPatient(), item)}</div>` : ''}
           <div class="asc-actions">
-            <button onclick="moveAssessmentCard('${item.id}', ${hId}, 'up')" ${isFirst ? 'disabled' : ''} class="icon-btn" title="この欄の中で1つ上へ移動" style="${isFirst ? 'opacity:.3;cursor:not-allowed;' : ''}"><i class="fa-solid fa-chevron-up text-[9px]"></i></button>
-            <button onclick="moveAssessmentCard('${item.id}', ${hId}, 'down')" ${isLast ? 'disabled' : ''} class="icon-btn" title="この欄の中で1つ下へ移動" style="${isLast ? 'opacity:.3;cursor:not-allowed;' : ''}"><i class="fa-solid fa-chevron-down text-[9px]"></i></button>
-            <button onclick="editItemText('${item.id}')" class="icon-btn" title="内容を編集"><i class="fa-solid fa-pen text-[9px]"></i></button>
-            <button onclick="setItemType('${item.id}', 'unnecessary')" class="icon-btn danger" title="不要判定"><i class="fa-solid fa-ban text-[9px]"></i></button>
-            ${!isMissingCol && typeof toggleMyEvidence === 'function' ? `<button onclick="toggleMyEvidence(${hId}, '${item.id}')" class="icon-btn${isEvidence ? ' active' : ''}" title="${isEvidence ? '自分のアセスメントの根拠から外す' : '自分のアセスメントの根拠にする'}"><i class="fa-solid fa-link${isEvidence ? '-slash' : ''} text-[9px]"></i></button>` : ''}
+            <button onclick="moveAssessmentCard(${jsArg(item.id)}, ${hId}, 'up')" ${isFirst ? 'disabled' : ''} class="icon-btn" title="この欄の中で1つ上へ移動" style="${isFirst ? 'opacity:.3;cursor:not-allowed;' : ''}"><i class="fa-solid fa-chevron-up text-[9px]"></i></button>
+            <button onclick="moveAssessmentCard(${jsArg(item.id)}, ${hId}, 'down')" ${isLast ? 'disabled' : ''} class="icon-btn" title="この欄の中で1つ下へ移動" style="${isLast ? 'opacity:.3;cursor:not-allowed;' : ''}"><i class="fa-solid fa-chevron-down text-[9px]"></i></button>
+            <button onclick="editItemText(${jsArg(item.id)})" class="icon-btn" title="内容を編集"><i class="fa-solid fa-pen text-[9px]"></i></button>
+            <button onclick="setItemType(${jsArg(item.id)}, 'unnecessary')" class="icon-btn danger" title="不要判定"><i class="fa-solid fa-ban text-[9px]"></i></button>
+            ${!isMissingCol && typeof toggleMyEvidence === 'function' ? `<button onclick="toggleMyEvidence(${hId}, ${jsArg(item.id)})" class="icon-btn${isEvidence ? ' active' : ''}" title="${isEvidence ? '自分のアセスメントの根拠から外す' : '自分のアセスメントの根拠にする'}"><i class="fa-solid fa-link${isEvidence ? '-slash' : ''} text-[9px]"></i></button>` : ''}
             <span class="asc-actions-sep"></span>
             ${colBtn('unclassified', '未')}${colBtn('preadmission', '前')}${colBtn('postadmission', '後')}${colBtn('missing', '欠')}
           </div>
@@ -1334,6 +1343,8 @@
       const [draggedItem] = cp.items.splice(draggedIdx, 1);
       const prevCol = draggedItem.assessmentCols?.[hId] || 'unclassified';
       (draggedItem.assessmentCols = draggedItem.assessmentCols || {})[hId] = targetCol;
+      // 【レビューで発見】変更の時刻を付けないと、別の端末の古い保存で欄の移動が元に戻されることがあった
+      if (prevCol !== targetCol) touchItem(draggedItem);
       const newTargetIdx = cp.items.findIndex(i => i.id === targetItemId);
       cp.items.splice(newTargetIdx, 0, draggedItem); // ドロップ先カードの直前に挿入し、その位置に応じてS-1/O-1等が振り直される
       saveDataAndSync();
@@ -1348,6 +1359,7 @@
       const item = getCurrentPatient().items.find(i => i.id === id);
       if (item) {
         (item.assessmentCols = item.assessmentCols || {})[hId] = colName;
+        touchItem(item); // 【レビューで発見】別の端末の古い保存で欄の移動が元に戻らないよう、変更の時刻を付ける
         const dict = globalAppData.learningUserDict[item.text] = globalAppData.learningUserDict[item.text] || {};
         (dict.preferredCols = dict.preferredCols || {})[hId] = colName;
         saveDataAndSync();

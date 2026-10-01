@@ -125,6 +125,29 @@ function sendServerError(res, err) {
 });
 const PORT = process.env.PORT || 3000;
 
+// 【レビューで発見】Render などのホスティングでは、利用者の通信は手前の中継サーバー（プロキシ）を通って届く。
+// そのままだと req.ip が中継サーバーの住所になり、IPアドレスごとのレート制限（rateLimit）が「全利用者で1つ」に
+// なっていた（例：サイト全体で情報カードの報告が1分に20件まで、患者の保存が1分に200件まで）。
+// Render上（環境変数 RENDER が自動で設定される）か、TRUST_PROXY を設定したときだけ、1段目の中継サーバーが
+// 伝える元の住所（X-Forwarded-For）を使う（中継サーバーの無いローカル実行では、偽装できないよう使わない）。
+if (process.env.RENDER || process.env.TRUST_PROXY) {
+  const hops = Number(process.env.TRUST_PROXY);
+  app.set('trust proxy', Number.isInteger(hops) && hops > 0 ? hops : 1);
+}
+
+// 【レビューで発見】'__proto__' などの名前を、共有データ（学習辞書・患者の一覧など、文字列をキーにした
+// オブジェクト）のキーとして使うと、Object.prototype（全オブジェクトの共通の親）を書き換えてしまっていた
+// （例：text='__proto__' の学習イベントで、サーバー内のすべてのオブジェクトに updatedAt などが生えた）。
+// こうした名前はキーとして受け付けず、キーの有無は必ず「自分自身のキーか」（Object.hasOwn）で確かめる。
+const UNSAFE_OBJECT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+function isSafeKey(key) {
+  return typeof key === 'string' && key.length > 0 && !UNSAFE_OBJECT_KEYS.has(key);
+}
+const hasOwn = (obj, key) => obj != null && Object.prototype.hasOwnProperty.call(obj, key);
+const isPlainObject = v => !!v && typeof v === 'object' && !Array.isArray(v);
+// JSONとして保存できる内容の複製（保存に失敗したときに元へ戻すための控え）
+const cloneJson = v => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
+
 // MongoDB Atlas（無料枠）への接続文字列。設定されていればデータの保存先をMongoDBに切り替える
 // （未設定ならこれまで通りローカルのJSONファイルに保存する。ローカル開発・自動テストでは
 // 通常設定しない）。接続先のデータベース名はMONGODB_DB_NAMEで変更できる（既定値あり）。
@@ -340,6 +363,19 @@ async function loadFromMongo() {
   });
   // 以前の形式（app_state の 'patients' 文書に全患者をまとめて保存）からの移行：患者1人＝1文書にする。
   // すでに patients コレクションにある患者は上書きしない（移行を何度実行しても安全）。
+  // 【レビューで発見】以前の形式の「完全に削除した患者の記録」（app_state の 'patient-deletions' 文書）が
+  // 移されずに無視されていたため、削除の後に古い端末から保存が来ると、削除した患者が復活していた。
+  // 患者の移行より先に、削除済みの印の文書として移す（すでに patients コレクションにある患者は上書きしない）。
+  const legacyDeletions = dataById.get('patient-deletions');
+  if (isPlainObject(legacyDeletions)) {
+    const patients = await getPatientsCollection();
+    for (const [id, deletedAt] of Object.entries(legacyDeletions)) {
+      if (!isSafeKey(id)) continue;
+      const at = typeof deletedAt === 'string' ? deletedAt : new Date().toISOString();
+      try { await patients.insertOne({ _id: id, rev: 1, deleted: true, deletedAt: at, data: null, savedAt: at }); }
+      catch (e) { if (!(e && e.code === 11000)) throw e; }
+    }
+  }
   const legacy = dataById.get('patients');
   if (legacy && typeof legacy === 'object') {
     const patients = await getPatientsCollection();
@@ -469,9 +505,32 @@ class SkipSharedWrite extends Error {
 function updateSharedDoc(id, mutator) {
   const unwrapSkip = e => { if (e instanceof SkipSharedWrite) return e.value; throw e; };
   if (!MONGODB_URI) {
-    let result;
-    try { result = mutator(); } catch (e) { return Promise.resolve().then(() => unwrapSkip(e)); }
-    return persist([id]).then(() => result);
+    // 【レビューで発見】以前は保存（ファイルの書き込み）に失敗しても、手元の変数に加えた変更が残っていた
+    // （500・「保存できませんでした」と返したのに、直後の一覧取得には出てきて、次の保存でファイルにも入る。
+    // 利用者が送り直すと同じ基準が2件になる）。変更の前に控えを取り、失敗したら元に戻す。
+    // 同じ文書への変更は1つずつ順番に行う（先の保存の失敗で元に戻したときに、後から加えた別の変更まで
+    // 一緒に消し、その消えた内容を「保存できた」と返してしまわないように）。
+    const entry = sharedDocEntry(id);
+    const prevFile = sharedDocQueues.get(id) || Promise.resolve();
+    const runFile = prevFile.then(async () => {
+      const backup = cloneJson(entry.get());
+      let result;
+      try {
+        result = mutator();
+      } catch (e) {
+        if (!(e instanceof SkipSharedWrite)) entry.set(backup); // 途中まで変えてから失敗した場合も元に戻す
+        throw e;
+      }
+      try {
+        await persist([id]);
+      } catch (e) {
+        entry.set(backup);
+        throw e;
+      }
+      return result;
+    }).catch(unwrapSkip);
+    sharedDocQueues.set(id, runFile.catch(() => {}));
+    return runFile;
   }
   const prev = sharedDocQueues.get(id) || Promise.resolve();
   const run = prev.then(() => writeSharedDocOnce(id, mutator)).catch(unwrapSkip);
@@ -508,20 +567,41 @@ async function patientStoreGetAll() {
   });
   return { patients, deletions };
 }
+// 【レビューで発見】JSONファイル保存では、患者の保存・削除を1つずつ順番に行う。以前は同じ患者への保存Aと保存Bが
+// 重なると、Aの書き込みの失敗で「Aの前の内容」へ戻したときにBのマージ結果まで消え、その消えた内容のままBの
+// 書き込みが成功して、Bには 200（保存済み）を返していた（Bの端末は保存済みと思い、変更が失われる）。
+// patients.json は全患者で1つのファイルなので、患者が違っても順番に行う。
+let patientFileQueue = Promise.resolve();
+function runPatientFileOp(fn) {
+  const run = patientFileQueue.then(fn);
+  patientFileQueue = run.catch(() => {});
+  return run;
+}
+function assertSafePatientId(id) {
+  if (!isSafeKey(id)) {
+    const err = new Error('患者IDとして使えない名前です');
+    err.status = 400;
+    throw err;
+  }
+}
 async function patientStoreSave(id, incoming) {
+  assertSafePatientId(id);
   const col = await getPatientsCollection();
   if (!col) {
-    if (patientDeletions[id]) return { deleted: true };
-    const prev = patientsDict[id];
-    const merged = mergePatientRecord(incoming, prev);
-    patientsDict[id] = merged;
-    try {
-      await persist(['patients']);
-    } catch (e) {
-      if (prev === undefined) delete patientsDict[id]; else patientsDict[id] = prev; // 保存できなかった変更は取り消す
-      throw e;
-    }
-    return { patient: merged };
+    return runPatientFileOp(async () => {
+      if (hasOwn(patientDeletions, id) && patientDeletions[id]) return { deleted: true };
+      const hadPrev = hasOwn(patientsDict, id);
+      const prev = hadPrev ? patientsDict[id] : undefined;
+      const merged = mergePatientRecord(incoming, prev);
+      patientsDict[id] = merged;
+      try {
+        await persist(['patients']);
+      } catch (e) {
+        if (!hadPrev) delete patientsDict[id]; else patientsDict[id] = prev; // 保存できなかった変更は取り消す
+        throw e;
+      }
+      return { patient: merged };
+    });
   }
   for (let attempt = 0; attempt < PATIENT_SAVE_MAX_ATTEMPTS; attempt++) {
     const doc = await col.findOne({ _id: id });
@@ -546,28 +626,75 @@ async function patientStoreSave(id, incoming) {
   throw err;
 }
 async function patientStoreDelete(id) {
+  assertSafePatientId(id);
   const at = new Date().toISOString();
   const col = await getPatientsCollection();
   if (!col) {
-    const prev = patientsDict[id];
-    const prevDeletion = patientDeletions[id];
-    delete patientsDict[id];
-    patientDeletions[id] = at;
-    try {
-      await persist(['patients', 'patient-deletions']);
-    } catch (e) {
-      if (prev !== undefined) patientsDict[id] = prev;
-      if (prevDeletion === undefined) delete patientDeletions[id]; else patientDeletions[id] = prevDeletion;
-      throw e;
-    }
-    return;
+    return runPatientFileOp(async () => {
+      const hadPrev = hasOwn(patientsDict, id);
+      const prev = patientsDict[id];
+      const hadDeletion = hasOwn(patientDeletions, id);
+      const prevDeletion = patientDeletions[id];
+      delete patientsDict[id];
+      patientDeletions[id] = at;
+      try {
+        await persist(['patients', 'patient-deletions']);
+      } catch (e) {
+        if (hadPrev) patientsDict[id] = prev;
+        if (!hadDeletion) delete patientDeletions[id]; else patientDeletions[id] = prevDeletion;
+        throw e;
+      }
+    });
   }
   await col.updateOne({ _id: id }, { $set: { deleted: true, deletedAt: at, data: null, savedAt: at }, $inc: { rev: 1 } }, { upsert: true });
 }
 
+// 【レビューで発見】以前は learningDict[text] をそのまま見ていたため、'__proto__'・'toString' のような
+// 文章では Object.prototype などの「親から受け継いだ値」を学習の記録として扱い、書き換えていた。
+// また、一括同期などで学習の記録が文字列・数値などに壊れていると、以後その文章の学習イベントが
+// 毎回 500 になっていた。自分自身のキーだけを見て、形が壊れている記録は作り直す。
 function getEntry(text) {
-  if (!learningDict[text]) learningDict[text] = { preferredType: null, preferredCols: {}, preferredHendersonIds: [], typeVotes: {}, hendersonVotes: {} };
-  return learningDict[text];
+  if (!hasOwn(learningDict, text) || !isPlainObject(learningDict[text])) {
+    learningDict[text] = { preferredType: null, preferredCols: {}, preferredHendersonIds: [], typeVotes: {}, hendersonVotes: {} };
+    learningDictNewKeysSinceCap++;
+  }
+  const entry = learningDict[text];
+  if (!isPlainObject(entry.typeVotes)) entry.typeVotes = {};
+  if (!isPlainObject(entry.hendersonVotes)) entry.hendersonVotes = {};
+  if (!isPlainObject(entry.preferredCols)) entry.preferredCols = {};
+  return entry;
+}
+
+// 【レビューで発見】学習辞書（learning-dict）には件数・大きさの上限が無く、MongoDB利用時に1文書の上限（16MB）を
+// 超えると、以後すべての学習イベントの保存が失敗し続けてしまう（事例ログ等には capArrayByByteSize があるが、
+// 学習辞書には無かった）。文章（キー）の長さに上限を設け、件数・合計の大きさが上限を超えたら、最後に
+// 更新された日時（updatedAt）が古いものから外す。大きさの計算は重いので、新しい文章が一定数増えたとき・
+// 件数が上限を超えたときだけ行う。
+const LEARNING_TEXT_MAX_LENGTH = 2000; // 統合したカードなど長めの文章も学習できるよう、少し余裕を持たせる
+const LEARNING_DICT_MAX_ENTRIES = 20000;
+const LEARNING_DICT_MAX_BYTES = 8 * 1024 * 1024;
+const LEARNING_DICT_CAP_CHECK_EVERY = 200;
+let learningDictNewKeysSinceCap = 0;
+function capLearningDict(force = false) {
+  const keys = Object.keys(learningDict);
+  if (!force && keys.length <= LEARNING_DICT_MAX_ENTRIES && learningDictNewKeysSinceCap < LEARNING_DICT_CAP_CHECK_EVERY) return 0;
+  learningDictNewKeysSinceCap = 0;
+  const sizes = new Map(keys.map(k => [k, Buffer.byteLength(JSON.stringify(k), 'utf8') + Buffer.byteLength(JSON.stringify(learningDict[k]) || '', 'utf8') + 2]));
+  let total = 0;
+  sizes.forEach(s => { total += s; });
+  let count = keys.length;
+  if (count <= LEARNING_DICT_MAX_ENTRIES && total <= LEARNING_DICT_MAX_BYTES) return 0;
+  const time = k => { const e = learningDict[k]; const t = e && typeof e.updatedAt === 'string' ? new Date(e.updatedAt).getTime() : NaN; return Number.isNaN(t) ? 0 : t; };
+  const oldestFirst = keys.slice().sort((a, b) => time(a) - time(b));
+  let removed = 0;
+  for (const k of oldestFirst) {
+    if (count <= LEARNING_DICT_MAX_ENTRIES && total <= LEARNING_DICT_MAX_BYTES) break;
+    total -= sizes.get(k);
+    count--;
+    delete learningDict[k];
+    removed++;
+  }
+  return removed;
 }
 
 // 同じ文章に対して同じ編集（同じ分類・同じタグ）が繰り返された回数を票として数え、
@@ -584,15 +711,32 @@ function pickTopVote(votes) {
 
 // ---- ミドルウェア ----
 // 患者カルテ本体（カード多数・長い抽出元テキストを含む）を扱うため、上限を少し広めに取る
-app.use(express.json({ limit: '5mb' }));
+// 【レビューで発見】一括同期・スナップショットなど、経路ごとに受け取る大きさの上限（8mb・10kb など）を
+// 決めている経路があるが、画面側は Content-Type: application/json で送るため、先にこの共通の読み取り（5mb）が
+// 中身を読んでしまい、経路ごとの上限が一度も使われていなかった（5mbを超える一括同期・スナップショットは 413）。
+// 経路ごとの読み取りを持つ経路は、ここでは読まずにそちらに任せる。
+const ROUTE_BODY_PARSER_PATHS = new Set(['/api/learning-dict/sync', '/api/patients/sync', '/api/patient-snapshot', '/api/presence/leave']);
+const defaultJsonParser = express.json({ limit: '5mb' });
+app.use((req, res, next) => (ROUTE_BODY_PARSER_PATHS.has(req.path) ? next() : defaultJsonParser(req, res, next)));
 // 画面のファイル以外（患者の記録を含むdata/・分類の自動チェック用の事例の文章tests/・サーバーの
 // プログラムや設定など）は、URLを知っていても開けないようにする（公開した場合に備える）。
 // .envなど「.」で始まるファイルは、express.staticの既定で公開されない。
 const PRIVATE_PATH_REGEX = /^\/(?:data|tests|scripts|node_modules|Claude outputs)(?:\/|$)|^\/(?:server\.js|package(?:-lock)?\.json|README\.md|tailwind\.[\w.]+|app-\d+\.js)$/i;
+// 【レビューで発見】以前は受け取ったパスをそのまま調べていたため、express.static（send）が後で行う
+// パスの整理（「//」を1つにまとめる・「..」をたどる）で同じファイルに行き着く書き方
+// （例：//data/patients.json・/%2fdata/patients.json・/js/../data/patients.json）で、
+// 全患者のカルテや server.js をそのまま取得できていた。static と同じように整理してから調べる。
+function isPrivateStaticPath(rawPath) {
+  let p;
+  try { p = decodeURIComponent(String(rawPath || '/')); } catch (e) { return null; } // null＝パスとして不正
+  if (p.includes('\0')) return null;
+  p = path.posix.normalize('/' + p.replace(/\\/g, '/')); // 「//」「/./」「..」を整理する（ルートより上には出ない）
+  return PRIVATE_PATH_REGEX.test(p);
+}
 app.use((req, res, next) => {
-  let p = req.path;
-  try { p = decodeURIComponent(p); } catch (e) { return res.status(400).end(); }
-  if (PRIVATE_PATH_REGEX.test(p)) return res.status(404).end();
+  const priv = isPrivateStaticPath(req.path);
+  if (priv === null) return res.status(400).end();
+  if (priv) return res.status(404).end();
   next();
 });
 app.use(express.static(__dirname, { extensions: ['html'] }));
@@ -685,15 +829,31 @@ app.get('/api/case-log', sendSharedDoc(['case-log'], () => caseLog));
 // action: 'create' | 'type' | 'tagAdd' | 'tagRemove' | 'col' | 'edit' | 'delete' | 'merge'
 app.post('/api/learning-event', rateLimit('learning-event', { windowMs: 60000, max: 300 }), async (req, res) => {
   const { text, action, payload, at } = req.body || {};
-  const eventAt = at || new Date().toISOString(); // このリクエスト内で使う日時は1回だけ計算し使い回す
+  const eventAt = (typeof at === 'string' && at) ? at.slice(0, 40) : new Date().toISOString(); // このリクエスト内で使う日時は1回だけ計算し使い回す
 
   if (typeof text !== 'string' || !text) {
     return res.status(400).json({ error: 'text is required' });
+  }
+  // 【レビューで発見】'__proto__' などは学習辞書のキーにできない（Object.prototype を書き換えてしまうため。isSafeKey参照）。
+  // また、極端に長い文章は学習辞書を肥大化させるため受け付けない（LEARNING_TEXT_MAX_LENGTH参照）。
+  const newText = payload && typeof payload === 'object' ? payload.newText : undefined;
+  if (!isSafeKey(text) || (action === 'edit' && typeof newText === 'string' && newText && !isSafeKey(newText))) {
+    return res.status(400).json({ error: 'text cannot be used as a learning key' });
+  }
+  if (text.length > LEARNING_TEXT_MAX_LENGTH || (action === 'edit' && typeof newText === 'string' && newText.length > LEARNING_TEXT_MAX_LENGTH)) {
+    return res.status(413).json({ error: `text is too long (max ${LEARNING_TEXT_MAX_LENGTH})` });
   }
   const validActions = ['create', 'type', 'tagAdd', 'tagRemove', 'col', 'edit', 'delete', 'adjustTypeVote', 'adjustHendersonVote', 'merge'];
   if (!validActions.includes(action)) {
     return res.status(400).json({ error: `action must be one of ${validActions.join(', ')}` });
   }
+  // 【レビューで発見】以前は学習イベント1件ごとに学習辞書「全体」を返していた（件数が増えるほど毎回数MBの応答になる）。
+  // 画面側（reportLearningEvent）は応答の dict を起動後に使っていないため、今回変わった文章の分だけを返す。
+  const touchedDict = () => {
+    const out = {};
+    [text, action === 'edit' ? newText : null].forEach(k => { if (isSafeKey(k) && hasOwn(learningDict, k)) out[k] = learningDict[k]; });
+    return out;
+  };
 
   // 削除は「学習データ管理」画面からの個別削除用。既存エントリーを新規作成せずそのまま消す。
   // 学習データ（票）と事例ログは別々の文書なので、それぞれ「最新を読み直して変更を加える」形で保存する
@@ -705,17 +865,19 @@ app.post('/api/learning-event', rateLimit('learning-event', { windowMs: 60000, m
   if (action === 'delete') {
     await updateSharedDoc('learning-dict', () => { delete learningDict[text]; });
     await appendCaseLog();
-    return res.json({ ok: true, dict: learningDict });
+    return res.json({ ok: true, dict: touchedDict() });
   }
 
-  await updateSharedDoc('learning-dict', () => applyLearningEvent(text, action, payload, eventAt));
+  await updateSharedDoc('learning-dict', () => { applyLearningEvent(text, action, payload, eventAt); capLearningDict(); });
   await appendCaseLog();
-  res.json({ ok: true, dict: learningDict });
+  res.json({ ok: true, dict: touchedDict() });
 });
 
 // 学習の1件の変更（票の加算など）を learningDict に加える（やり直しのたびに最新の内容へ加え直せるよう関数にしてある）
 function applyLearningEvent(text, action, payload, eventAt) {
   const entry = getEntry(text);
+  // 票のキー（分類名）に '__proto__' などが来た場合は、票として数えない（isSafeKey参照）
+  if (payload && typeof payload === 'object' && payload.type != null && !isSafeKey(String(payload.type))) payload = { ...payload, type: null };
 
   switch (action) {
     case 'create':
@@ -753,10 +915,28 @@ function applyLearningEvent(text, action, payload, eventAt) {
       break;
     case 'edit':
       // 編集前のテキストで学習していた内容を、編集後のテキストへ引き継ぐ
-      if (payload && typeof payload.newText === 'string' && payload.newText && payload.newText !== text) {
-        const newEntry = getEntry(payload.newText);
-        Object.assign(newEntry, entry, { lastEditedFrom: text });
-        newEntry.updatedAt = eventAt;
+      // 【レビューで発見】以前は Object.assign(newEntry, entry) で、票の入れ物（typeVotes 等）を編集前と
+      // 編集後の文章で「共有」してしまい、以後どちらかに票を入れると両方の票が変わっていた。さらに編集後の文章に
+      // 既にあった学習（票）を、編集前の文章の内容でまるごと上書きして消していた。
+      // 複製して引き継ぎ、編集後の文章に既に票があれば、票ごとに多い方を残す（同じ編集が2回届いても票が倍にならない）。
+      if (payload && isSafeKey(payload.newText) && payload.newText !== text) {
+        const existed = hasOwn(learningDict, payload.newText) && isPlainObject(learningDict[payload.newText]);
+        const copy = cloneJson(entry);
+        if (!existed) {
+          learningDict[payload.newText] = { ...copy, lastEditedFrom: text, updatedAt: eventAt };
+          learningDictNewKeysSinceCap++;
+        } else {
+          const newEntry = getEntry(payload.newText);
+          newEntry.typeVotes = mergeVotesMax(newEntry.typeVotes, copy.typeVotes);
+          newEntry.hendersonVotes = mergeVotesMax(newEntry.hendersonVotes, copy.hendersonVotes);
+          newEntry.preferredCols = { ...(isPlainObject(copy.preferredCols) ? copy.preferredCols : {}), ...newEntry.preferredCols };
+          newEntry.preferredType = pickTopVote(newEntry.typeVotes) || newEntry.preferredType || copy.preferredType || null;
+          const tagIds = Object.entries(newEntry.hendersonVotes).filter(([, c]) => c > 0).map(([id]) => Number(id));
+          newEntry.preferredHendersonIds = tagIds.length ? tagIds
+            : Array.from(new Set([...(Array.isArray(newEntry.preferredHendersonIds) ? newEntry.preferredHendersonIds : []), ...(Array.isArray(copy.preferredHendersonIds) ? copy.preferredHendersonIds : [])]));
+          newEntry.lastEditedFrom = text;
+          newEntry.updatedAt = eventAt;
+        }
       }
       break;
     case 'adjustTypeVote':
@@ -787,8 +967,8 @@ function applyLearningEvent(text, action, payload, eventAt) {
         payload.sourceTexts.forEach(t => {
           if (typeof t !== 'string' || !t || seen.has(t)) return;
           seen.add(t);
-          const src = learningDict[t];
-          if (!src) return;
+          const src = hasOwn(learningDict, t) ? learningDict[t] : null; // 【レビューで発見】親から受け継いだ値を統合元として扱わない
+          if (!isPlainObject(src)) return;
           Object.entries(src.typeVotes || {}).forEach(([k, v]) => { typeVotes[k] = (typeVotes[k] || 0) + v; });
           Object.entries(src.hendersonVotes || {}).forEach(([k, v]) => { hendersonVotesRaw[k] = (hendersonVotesRaw[k] || 0) + v; });
           Object.assign(preferredColsRaw, src.preferredCols || {});
@@ -814,28 +994,87 @@ function applyLearningEvent(text, action, payload, eventAt) {
         entry.preferredType = pickTopVote(typeVotes) || (payload.type && payload.type !== 'unnecessary' ? payload.type : entry.preferredType);
         entry.preferredHendersonIds = Object.entries(hendersonVotes).filter(([, c]) => c > 0).map(([id]) => Number(id));
         entry.preferredCols = preferredCols;
-        entry.lastMergedFrom = payload.sourceTexts;
+        // 【レビューで発見】統合元の一覧は記録用なので、件数・長さに上限を設ける（学習辞書の肥大化を防ぐ）
+        entry.lastMergedFrom = payload.sourceTexts.filter(t => typeof t === 'string').slice(0, 50).map(t => t.slice(0, LEARNING_TEXT_MAX_LENGTH));
       }
       break;
   }
   entry.updatedAt = eventAt;
 }
 
+// 票（{ キー: 回数 }）を、キーごとに多い方を残してまとめる（同じ内容が何度届いても票が増えない）
+function mergeVotesMax(a, b) {
+  const out = {};
+  [a, b].forEach(votes => {
+    if (!isPlainObject(votes)) return;
+    Object.entries(votes).forEach(([k, v]) => {
+      if (!isSafeKey(k) || typeof v !== 'number' || !Number.isFinite(v) || v < 0) return;
+      if (!hasOwn(out, k) || v > out[k]) out[k] = v;
+    });
+  });
+  return out;
+}
+// 一括同期で届いた1件の学習の記録を、決まった形に整える（形が違うものは null＝受け付けない）
+function sanitizeSyncedLearningEntry(value) {
+  if (!isPlainObject(value)) return null;
+  const out = {
+    preferredType: typeof value.preferredType === 'string' && isSafeKey(value.preferredType) ? value.preferredType.slice(0, 40) : null,
+    preferredCols: {},
+    preferredHendersonIds: Array.isArray(value.preferredHendersonIds) ? value.preferredHendersonIds.map(Number).filter(n => Number.isInteger(n) && n >= 1 && n <= 14).slice(0, 14) : [],
+    typeVotes: mergeVotesMax(value.typeVotes, null),
+    hendersonVotes: mergeVotesMax(value.hendersonVotes, null)
+  };
+  if (isPlainObject(value.preferredCols)) {
+    Object.entries(value.preferredCols).forEach(([k, v]) => { if (isSafeKey(k) && typeof v === 'string') out.preferredCols[k] = v.slice(0, 40); });
+  }
+  if (typeof value.updatedAt === 'string') out.updatedAt = value.updatedAt.slice(0, 40);
+  if (typeof value.lastEditedFrom === 'string') out.lastEditedFrom = value.lastEditedFrom.slice(0, LEARNING_TEXT_MAX_LENGTH);
+  if (Array.isArray(value.lastMergedFrom)) out.lastMergedFrom = value.lastMergedFrom.filter(t => typeof t === 'string').slice(0, 50).map(t => t.slice(0, LEARNING_TEXT_MAX_LENGTH));
+  return out;
+}
+const learningTime = e => { const t = e && typeof e.updatedAt === 'string' ? new Date(e.updatedAt).getTime() : NaN; return Number.isNaN(t) ? 0 : t; };
+
 // ページを閉じる際などにブラウザ側の学習内容をまとめて反映するための一括同期。
 // 個別イベントの送信が何らかの理由で届いていなかった場合の保険（フォールバック）で、
-// キーごとに上書きするだけで、ここに含まれないキーを消したりはしない
-// （学習専用ファイルへの「追加」であり、他利用者分を巻き込んで消さないため）。
-app.post('/api/learning-dict/sync', express.json({ limit: '2mb', type: () => true }), async (req, res) => {
+// ここに含まれないキーを消したりはしない（学習専用ファイルへの「追加」であり、他利用者分を巻き込んで消さないため）。
+// 【レビューで発見】以前はキーごとに「まるごと上書き」していたため、タブを開いた時点（や数日前の
+// このブラウザの控え）の古い学習を持ったタブが閉じられるたびに、その後にほかの利用者が加えた票が
+// 巻き戻って消えていた。また中身を確かめていなかったため、壊れた値（文字列など）が届くと、以後その文章の
+// 学習イベントが毎回 500 になっていた。今は：
+//  ・中身を決まった形に整え、形の違うもの・'__proto__' などのキーは受け付けない
+//  ・サーバー側の記録の方が新しい（updatedAt）場合は、古い同期として何もしない（管理画面で減らした票も戻さない）
+//  ・そうでなければ、票はキーごとに多い方を残してまとめる（画面側の mergeLearningDicts と同じ考え方）
+//  ・送信の回数にもレート制限をかける
+app.post('/api/learning-dict/sync', express.json({ limit: '5mb', type: () => true }), rateLimit('learning-dict-sync', { windowMs: 60000, max: 30 }), async (req, res) => {
   const incoming = req.body;
   if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
     return res.status(400).json({ error: 'body must be an object' });
   }
-  await updateSharedDoc('learning-dict', () => {
-    for (const [text, value] of Object.entries(incoming)) {
-      if (typeof text === 'string' && text) learningDict[text] = value;
-    }
+  const accepted = [];
+  let rejected = 0;
+  Object.entries(incoming).forEach(([text, value]) => {
+    const clean = isSafeKey(text) && text.length <= LEARNING_TEXT_MAX_LENGTH ? sanitizeSyncedLearningEntry(value) : null;
+    if (clean) accepted.push([text, clean]); else rejected++;
   });
-  res.json({ ok: true });
+  await updateSharedDoc('learning-dict', () => {
+    accepted.forEach(([text, inc]) => {
+      const cur = hasOwn(learningDict, text) && isPlainObject(learningDict[text]) ? learningDict[text] : null;
+      if (!cur) { learningDict[text] = cloneJson(inc); learningDictNewKeysSinceCap++; return; }
+      if (learningTime(cur) > learningTime(inc)) return; // サーバー側の方が新しい＝古い同期
+      const merged = { ...cur, ...inc };
+      merged.typeVotes = mergeVotesMax(cur.typeVotes, inc.typeVotes);
+      merged.hendersonVotes = mergeVotesMax(cur.hendersonVotes, inc.hendersonVotes);
+      merged.preferredCols = { ...(isPlainObject(cur.preferredCols) ? cur.preferredCols : {}), ...inc.preferredCols };
+      merged.preferredType = pickTopVote(merged.typeVotes) || inc.preferredType || cur.preferredType || null;
+      const tagIds = Object.entries(merged.hendersonVotes).filter(([, c]) => c > 0).map(([k]) => Number(k));
+      merged.preferredHendersonIds = tagIds.length ? tagIds
+        : Array.from(new Set([...(Array.isArray(cur.preferredHendersonIds) ? cur.preferredHendersonIds : []), ...inc.preferredHendersonIds]));
+      if (!merged.updatedAt) delete merged.updatedAt;
+      learningDict[text] = merged;
+    });
+    capLearningDict();
+  });
+  res.json({ ok: true, accepted: accepted.length, rejected });
 });
 
 // ---- 患者カルテ本体（複数端末での共有用） ----
@@ -1030,7 +1269,7 @@ app.post('/api/patients/sync', express.json({ limit: '8mb', type: () => true }),
   const deleted = [];
   const failed = [];
   for (const [id, patient] of Object.entries(incoming)) {
-    if (typeof id === 'string' && id && patient && typeof patient === 'object') {
+    if (isSafeKey(id) && patient && typeof patient === 'object') { // 【レビューで発見】'__proto__' などの患者IDは受け付けない
       try {
         const r = await patientStoreSave(id, patient);
         if (r.deleted) deleted.push(id);
@@ -1165,6 +1404,11 @@ app.post('/api/reference-sources', rateLimit('reference-sources', { windowMs: 60
   if (typeof url !== 'string' || !url.trim()) {
     return res.status(400).json({ error: 'url is required' });
   }
+  // 【レビューで発見】リンクの形を確かめていなかったため、javascript: などのリンクを登録でき、押した人の画面で
+  // スクリプトが動くおそれがあった。http(s) のリンクだけを受け付ける。
+  if (!/^https?:\/\//i.test(url.trim())) {
+    return res.status(400).json({ error: 'url must start with http:// or https://' });
+  }
   const entry = {
     id: 'refsrc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
     title: capString(title.trim(), 200),
@@ -1184,6 +1428,11 @@ app.put('/api/reference-sources/:id', rateLimit('reference-sources', { windowMs:
   }
   if (typeof url !== 'string' || !url.trim()) {
     return res.status(400).json({ error: 'url is required' });
+  }
+  // 【レビューで発見】リンクの形を確かめていなかったため、javascript: などのリンクを登録でき、押した人の画面で
+  // スクリプトが動くおそれがあった。http(s) のリンクだけを受け付ける。
+  if (!/^https?:\/\//i.test(url.trim())) {
+    return res.status(400).json({ error: 'url must start with http:// or https://' });
   }
   const found = await updateSharedDoc('reference-sources', () => {
     const entry = referenceSources.find(r => r.id === id);
@@ -1425,5 +1674,8 @@ module.exports = {
   rateLimit,
   capString,
   capArrayByByteSize,
-  pickTopVote
+  pickTopVote,
+  isPrivateStaticPath,
+  isSafeKey,
+  LEARNING_TEXT_MAX_LENGTH
 };

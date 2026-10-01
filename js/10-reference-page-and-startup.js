@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-09-30.6'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-10-01.1'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 参考データ ページ：看護基準・院内プロトコル等をユーザーが自由に登録・編集できる。
     // 「不足情報をAI推定」の判断材料としても使われる（evaluateMissingInfoAI 参照）。
@@ -22,8 +22,8 @@
           <div class="flex items-start justify-between gap-1">
             <span class="font-semibold text-[var(--ink)] text-xs break-words">${escapeHtml(note.title || '(無題)')}</span>
             <div class="flex items-center space-x-0.5 shrink-0">
-              <button onclick="openReferenceModal('${note.id}')" class="icon-btn" title="編集"><i class="fa-solid fa-pen"></i></button>
-              <button onclick="deleteReferenceEntry('${note.id}')" class="icon-btn danger" title="削除"><i class="fa-solid fa-trash-can"></i></button>
+              <button data-ref-action="edit" data-ref-id="${escapeHtml(note.id)}" class="icon-btn" title="編集"><i class="fa-solid fa-pen"></i></button>
+              <button data-ref-action="delete" data-ref-id="${escapeHtml(note.id)}" class="icon-btn danger" title="削除"><i class="fa-solid fa-trash-can"></i></button>
             </div>
           </div>
           <p class="text-[var(--ink-muted)] leading-relaxed whitespace-pre-wrap break-words">${escapeHtml(note.text || '')}</p>
@@ -32,6 +32,15 @@
       });
       listEl.replaceChildren(frag);
     }
+    // 【レビューで発見】以前は押したときの処理（onclick）の中に、IDを引用符で囲んでそのまま書いていた
+    // （' を含むIDの参考データが共有先・ファイルから届くと、押したときにスクリプトが動く）。data-ref-id に入れてここで受け取る。
+    document.getElementById('reference-list')?.addEventListener('click', e => {
+      const btn = e.target && e.target.closest ? e.target.closest('[data-ref-action]') : null;
+      if (!btn) return;
+      const id = btn.getAttribute('data-ref-id');
+      if (btn.getAttribute('data-ref-action') === 'edit') window.openReferenceModal(id);
+      else window.deleteReferenceEntry(id);
+    });
 
     let referenceOcrPrefill = '';
     window.openReferenceModal = (id, prefillText) => {
@@ -77,7 +86,7 @@
       showUndoToast('参考データを削除しました', () => {
         const p = globalAppData.patients.find(x => x.id === patId);
         if (p) { p.referenceNotes = p.referenceNotes || []; p.referenceNotes.splice(Math.min(idx, p.referenceNotes.length), 0, removed); }
-      });
+      }, { patientId: patId }); // 【レビューで発見】別の患者を表示中に押しても、その患者を共有先へ送り直す
     };
 
     const referenceOcrInput = document.getElementById('reference-ocr-input');
@@ -105,30 +114,126 @@
     document.getElementById('btn-save-data').addEventListener('click', () => {
       saveDataAndSync();
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([JSON.stringify(globalAppData, null, 2)], { type: 'application/json' }));
+      // 【レビューで発見】以前は globalAppData をまるごと書き出していたため、ファイルに Gemini の APIキーまで入っていた
+      // （先生や友だちにファイルを渡すとキーも渡ってしまう）。キーは入れず、カルテと学習内容だけを書き出す。
+      const backup = { patients: globalAppData.patients, currentPatientId: globalAppData.currentPatientId, learningUserDict: globalAppData.learningUserDict };
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
       a.download = `nursing_assessment_all_patients_${Date.now()}.json`;
-      a.click(); showToast('全患者データを保存しました', 'success');
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      showToast('全患者データを保存しました', 'success');
     });
 
+    // ==========================================================================
+    // 「ファイルから読込」（「データをファイルに保存」で書き出した .json を読み込む）
+    // ------------------------------------------------------------------------
+    // 【レビューで発見】以前は次の問題があった：
+    //   ①読み込んだ直後に persistData() を呼んでいたため、入力欄に残っていた「前の患者」の記録メモが、
+    //     読み込んだ患者の記録メモに上書きされていた（患者の切り替えと同じ順番の誤り）。
+    //   ②中身を確かめずに今のカルテを置き換えていたため、患者が0人のファイルなどで画面全体が動かなくなった。
+    //     カードの配列だけのファイルは、確認なしに今のカルテ全部を「読み込みデータ」1件に置き換えていた。
+    //   ③IDやカードの形を確かめていなかった（タグの欄の記録が無いカードでタグの追加が失敗する等）。
+    // 今は ①ファイルの中身を先に全部確かめて整える（この間は何も書き換えない） ②何人分を読み込むか確認する
+    // ③今表示している患者の記録メモを今の患者に保存してから、読み込んだ患者を加える（同じIDの患者は置き換え、
+    // ほかの患者はそのまま残す） ④入力欄に読み込んだ患者を表示し、保存・共有先への送信を予約する、の順にする。
+    const IMPORT_ITEM_TYPES = ['s', 'o', 'unclassified', 'unnecessary'];
+    const IMPORT_COL_VALUES = ['unclassified', 'preadmission', 'postadmission', 'missing'];
+    function normalizeImportedItem(raw) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+      if (typeof raw.text !== 'string') return null;
+      const item = { ...raw };
+      if (!isSafeRecordId(item.id)) item.id = raw.id ? repairedRecordId('item', raw.id) : 'item_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      if (!IMPORT_ITEM_TYPES.includes(item.type)) item.type = 'unclassified';
+      item.hendersonIds = Array.from(new Set((Array.isArray(raw.hendersonIds) ? raw.hendersonIds : []).map(Number).filter(h => Number.isInteger(h) && h >= 1 && h <= 14)));
+      const cols = {};
+      const rawCols = raw.assessmentCols && typeof raw.assessmentCols === 'object' && !Array.isArray(raw.assessmentCols) ? raw.assessmentCols : {};
+      item.hendersonIds.forEach(h => { cols[h] = IMPORT_COL_VALUES.includes(rawCols[h]) ? rawCols[h] : 'unclassified'; });
+      item.assessmentCols = cols;
+      if (typeof item.timestamp !== 'string') item.timestamp = '日時不明';
+      return item;
+    }
+    function normalizeImportedPatient(raw, k) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+      const p = { ...raw };
+      if (!isSafeRecordId(p.id)) p.id = raw.id ? repairedRecordId('patient', raw.id) : `patient_import_${Date.now()}_${k}`;
+      p.title = typeof raw.title === 'string' && raw.title.trim() ? raw.title.trim() : `読み込みデータ${k + 1}`;
+      p.items = (Array.isArray(raw.items) ? raw.items : []).map(normalizeImportedItem).filter(Boolean);
+      p.sourceText = typeof raw.sourceText === 'string' ? raw.sourceText : '';
+      p.referenceNotes = (Array.isArray(raw.referenceNotes) ? raw.referenceNotes : []).filter(n => n && typeof n === 'object' && typeof n.text === 'string');
+      p.archived = raw.archived === true;
+      p.deletedItemIds = Array.isArray(raw.deletedItemIds) ? raw.deletedItemIds.filter(t => t && typeof t.id === 'string' && typeof t.at === 'string') : [];
+      ['labEvaluationResult', 'contradictionResult', 'timelineResult', 'carePlanResult'].forEach(f => { if (p[f] != null && typeof p[f] !== 'string') delete p[f]; });
+      repairPatientRecordIds(p); // 同じIDのカードをまとめ、参考データのIDも確かめる
+      return p;
+    }
+    // ファイルの文章を確かめて、読み込む内容を返す（globalAppData には触らない）。形が違えば日本語の理由で例外を投げる。
+    function parseImportedDataText(text) {
+      let parsed;
+      try { parsed = JSON.parse(String(text || '').replace(/^\uFEFF/, '')); } catch (e) { throw new Error('JSONとして読めませんでした（「データをファイルに保存」で書き出した .json を選んでください）'); }
+      let rawPatients, currentPatientId = null, learningUserDict = null;
+      if (Array.isArray(parsed)) {
+        // カードの配列だけのファイル（古い形式）は、1人分の新しい患者ページとして読み込む
+        rawPatients = [{ id: `patient_import_${Date.now()}`, title: '読み込みデータ', items: parsed }];
+      } else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.patients)) {
+        rawPatients = parsed.patients;
+        currentPatientId = typeof parsed.currentPatientId === 'string' ? parsed.currentPatientId : null;
+        if (parsed.learningUserDict && typeof parsed.learningUserDict === 'object' && !Array.isArray(parsed.learningUserDict)) learningUserDict = parsed.learningUserDict;
+      } else {
+        throw new Error('カルテのデータの形ではありません（patients の一覧がありません）');
+      }
+      const idMap = {};
+      const seen = new Set();
+      const patients = [];
+      rawPatients.forEach((raw, k) => {
+        const p = normalizeImportedPatient(raw, k);
+        if (!p || seen.has(p.id)) return;
+        if (raw && typeof raw.id === 'string') idMap[raw.id] = p.id;
+        seen.add(p.id);
+        patients.push(p);
+      });
+      if (!patients.length) throw new Error('読み込めるカルテ（患者ページ）が1件もありませんでした');
+      if (Array.isArray(parsed) && !patients[0].items.length) throw new Error('読み込めるカードが1枚もありませんでした');
+      const mapped = currentPatientId && idMap[currentPatientId];
+      const current = patients.find(p => p.id === mapped && !p.archived) || patients.find(p => !p.archived) || patients[0];
+      return { patients, currentPatientId: current.id, learningUserDict };
+    }
+    async function importPatientsDataText(text) {
+      let data;
+      try { data = parseImportedDataText(text); } catch (err) { showToast(['ファイルを読み込めませんでした', { text: err.message, detail: true }], 'warn'); return false; }
+      const existingIds = new Set(globalAppData.patients.map(p => p.id));
+      const replacing = data.patients.filter(p => existingIds.has(p.id)).length;
+      const cardCount = data.patients.reduce((n, p) => n + p.items.length, 0);
+      const ok = await openDialog({
+        title: `${data.patients.length}件のカルテを読み込みますか？`,
+        message: `カード ${cardCount}枚を含む ${data.patients.length}件のカルテを読み込みます。` +
+          (replacing ? `\nそのうち ${replacing}件は、今ある同じカルテを読み込んだ内容で置き換えます。` : '') +
+          '\nほかの今のカルテはそのまま残ります。' + (data.learningUserDict ? '\n学習データは、同じ文章の票（回数）の多い方を残して取り込みます。' : ''),
+        confirmLabel: '読み込む'
+      });
+      if (ok !== true) return false;
+      // ③今表示している患者の記録メモは、切り替える前に今の患者へ保存する
+      if (typeof cancelSourceTextSave === 'function') cancelSourceTextSave();
+      if (globalAppData.patients.some(p => p.id === globalAppData.currentPatientId)) persistData();
+      const byId = new Map(data.patients.map(p => [p.id, p]));
+      const kept = globalAppData.patients.filter(p => !byId.has(p.id));
+      globalAppData.patients = [...kept, ...data.patients];
+      if (data.learningUserDict) globalAppData.learningUserDict = mergeLearningDicts(globalAppData.learningUserDict, data.learningUserDict).dict;
+      // notebookContent はサーバー側で全利用者共有・管理されるため、読み込みファイル（他端末の古い保存分の可能性がある）の値では上書きしない
+      globalAppData.currentPatientId = data.currentPatientId;
+      loadLocalState();            // ④入力欄に読み込んだ患者の記録メモを表示する（本文は書き換えない）
+      savePatientsLocally();
+      if (data.learningUserDict) { try { localStorage.setItem(LEARNING_DICT_STORAGE_KEY, JSON.stringify(globalAppData.learningUserDict)); } catch (e) { /* 保存できなくても画面では使える */ } }
+      data.patients.forEach(p => schedulePatientSync(p.id));
+      updateSaveStatus('saving');
+      showToast(`${data.patients.length}件のカルテを読み込みました`, 'success');
+      return true;
+    }
     document.getElementById('input-load-data').addEventListener('change', e => {
-      const file = e.target.files[0];
+      const file = e.target.files && e.target.files[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = ev => {
-        try {
-          const parsed = JSON.parse(ev.target.result);
-          if (parsed.patients && Array.isArray(parsed.patients)) {
-            globalAppData.patients = parsed.patients;
-            globalAppData.currentPatientId = parsed.currentPatientId || parsed.patients[0].id;
-            if (parsed.learningUserDict) globalAppData.learningUserDict = parsed.learningUserDict;
-            // notebookContent はサーバー側で全利用者共有・管理されるため、読み込みファイル（他端末の古い保存分の可能性がある）の値では上書きしない
-          } else if (Array.isArray(parsed)) {
-            globalAppData.patients = [{ id: 'patient_1', title: '読み込みデータ', items: parsed, sourceText: '', labEvaluationResult: '', referenceNotes: [], archived: false, updatedAt: null }];
-            globalAppData.currentPatientId = 'patient_1';
-          }
-          persistData(); loadLocalState(); showToast('データを読み込みました', 'success');
-        } catch (err) { showToast('ファイル形式が不正です', 'warn'); }
-      };
+      reader.onload = ev => { importPatientsDataText(ev.target.result).catch(err => showToast(['ファイルを読み込めませんでした', { text: (err && err.message) || '', detail: true }], 'warn')); };
+      reader.onerror = () => showToast('ファイルを読み込めませんでした', 'warn');
       reader.readAsText(file, 'utf-8');
       e.target.value = '';
     });
@@ -188,7 +293,8 @@
       // キーを替えたら、前のキーで覚えた送り先は使わない（接続テストで覚えた直後なら残す）
       if (newKey !== globalAppData.apiKey && !lastTestedApiKeyOk(newKey)) { try { localStorage.removeItem('gemini_api_endpoint'); } catch (e) { /* 無視 */ } }
       globalAppData.apiKey = newKey;
-      localStorage.setItem('gemini_api_key', globalAppData.apiKey);
+      // 【レビューで発見】保存容量がいっぱいだとここで止まり、画面が閉じず他の設定も保存されなかった
+      try { localStorage.setItem('gemini_api_key', globalAppData.apiKey); } catch (e) { showToast(['APIキーをこのブラウザに保存できませんでした', { text: 'このページを開いている間は使えますが、閉じると消えます。保存容量やブラウザの設定を確かめてください。', detail: true }], 'warn'); }
       try { localStorage.setItem(MASK_TERMS_STORAGE_KEY, document.getElementById('input-mask-terms').value); } catch (e) { /* 保存できなくても続ける */ }
       try { localStorage.setItem('gemini_model_pref', document.getElementById('select-gemini-model').value); } catch (e) { /* 保存できなくても続ける */ }
       renderClassifyModeSwitch(); // 「AIで分類」の説明（APIキーの有無）を描き直す
@@ -212,6 +318,8 @@
       const content = contentInput.value.trim();
       if (!title) return showToast('名前を入力してください', 'warn');
       if (!url) return showToast('リンク（URL）を入力してください', 'warn');
+      // 【レビューで発見】サーバーは http(s) 以外のリンクを受け付けないため、送る前に知らせる
+      if (!/^https?:\/\//i.test(url)) return showToast('リンクは http:// か https:// で始まる形で入力してください', 'warn');
       const result = await addReferenceSource(title, url, content);
       if (result === 'cancelled') return;
       if (result === 'server') {
@@ -253,11 +361,23 @@
       if (!(await requireApiKey('写真の文字起こし'))) return;
       document.getElementById('ocr-status').classList.remove('hidden');
       const reader = new FileReader();
+      // 【レビューで発見】文字起こしは数秒〜かかるため、その間に別の患者に切り替えると、以前は結果が
+      // 切り替えた先の患者の入力欄に足されていた。頼んだときの患者に足す（その患者を表示中なら入力欄にも）。
+      const ocrPatientId = getCurrentPatient().id;
       reader.onload = async e => {
         try {
           const ocrText = await callGeminiAI([{ parts: [{ text: "画像に含まれるカルテ記載や検査データ結果（WBC, CRP, Hb, クレアチニン等）を正確に文字起こししてください。" }, { inline_data: { mime_type: file.type || "image/jpeg", data: e.target.result.split(',')[1] } }] }]);
           if (!ocrText) throw new Error('文字起こし結果が空でした');
-          DOM.sourceText.value += (DOM.sourceText.value ? '\n' : '') + ocrText;
+          const target = globalAppData.patients.find(p => p.id === ocrPatientId);
+          if (!target) throw new Error('文字起こしを頼んだ患者が見つかりません（削除された可能性があります）');
+          if (getCurrentPatient().id === ocrPatientId) {
+            DOM.sourceText.value += (DOM.sourceText.value ? '\n' : '') + ocrText;
+          } else {
+            target.sourceText = (target.sourceText || '') + (target.sourceText ? '\n' : '') + ocrText;
+            target.updatedAt = new Date().toISOString();
+            if (typeof schedulePatientSync === 'function') schedulePatientSync(target.id);
+            showToast(`文字起こしの結果を「${target.title || '頼んだ患者'}」の入力欄に足しました`, 'info');
+          }
           saveDataAndSync(); document.getElementById('ocr-status-text').innerHTML = '<i class="fa-solid fa-check"></i> 完了';
           setTimeout(() => document.getElementById('ocr-status').classList.add('hidden'), 2000);
         } catch (err) {

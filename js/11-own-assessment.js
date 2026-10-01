@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-09-30.6'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-01.1'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -356,8 +356,8 @@
         const d = describeMyEvidence(cp, needId, id, labels, e);
         const other = d.otherNeeds.length ? `<span class="my-ev-other">${escapeHtml(d.otherNeeds.map(h => `${h}.${hendersonNameOf(h).replace(/^\d+\.\s*/, '')}`).join('・'))}</span>` : '';
         return `<span class="my-ev-chip my-ev-${d.removed ? 'removed' : escapeHtml(d.type || 'x')}" title="${escapeHtml((d.timestamp && d.timestamp !== '日時不明' ? `[${d.timestamp}] ` : '') + d.text)}">
-          <button type="button" class="my-ev-main" onclick="flashAssessmentCard('${escapeHtml(id)}', ${needId})"><b>${escapeHtml(d.removed ? '消' : d.label)}</b>${other}<span class="my-ev-text">${escapeHtml(shortText(d.text, 28))}</span></button>
-          <button type="button" class="my-ev-x" onclick="unlinkMyEvidence(${needId}, '${escapeHtml(id)}')" title="根拠から外す" aria-label="根拠から外す"><i class="fa-solid fa-xmark"></i></button>
+          <button type="button" class="my-ev-main" onclick="flashAssessmentCard(${jsArg(id)}, ${needId})"><b>${escapeHtml(d.removed ? '消' : d.label)}</b>${other}<span class="my-ev-text">${escapeHtml(shortText(d.text, 28))}</span></button>
+          <button type="button" class="my-ev-x" onclick="unlinkMyEvidence(${needId}, ${jsArg(id)})" title="根拠から外す" aria-label="根拠から外す"><i class="fa-solid fa-xmark"></i></button>
         </span>`;
       }).join('');
 
@@ -368,10 +368,12 @@
           <input type="text" class="field my-asm-text" data-my-asm-need="${needId}" data-my-asm-field="revisionNote" value="${escapeHtml((e && e.revisionNote) || '')}" placeholder="例：排便があり腹部膨満が消えたため、便秘の状態は改善したと判断を変えた" oninput="onMyAssessmentInput(${needId}, 'revisionNote', this)">
         </label>` : '';
       const confirmLabel = st.version > 0 ? `再評価として確定（第${st.version + 1}版）` : '評価を確定（第1版）';
+      // 【レビューで発見】AIの助言は患者の記録にHTMLのまま保存され、共有先・ファイルから届いたものも表示するため、
+      // 表示の前に sanitizeStoredHtml（js/05）で動く部品を取り除く（根拠のカードのIDを入れるボタンは jsArg で書く）。
       const ai = e && e.aiFeedback ? `
         <div class="my-asm-ai">
           <div class="my-asm-ai-head"><span><i class="fa-solid fa-wand-magic-sparkles"></i> AIの助言（参考）${e.aiFeedbackAt ? `・${escapeHtml(formatMyDateTime(e.aiFeedbackAt))}` : ''}</span><button type="button" class="my-asm-link" onclick="clearMyAssessmentAi(${needId})">閉じる</button></div>
-          <div class="my-asm-ai-body">${e.aiFeedback}</div>
+          <div class="my-asm-ai-body">${sanitizeStoredHtml(e.aiFeedback)}</div>
         </div>` : '';
       const historyCount = (e && e.history || []).length;
       const history = historyCount && myAsmHistoryOpen.has(needId) ? myAssessmentHistoryHtml(cp, needId, e) : '';
@@ -418,7 +420,7 @@
     function myAssessmentCheckHtml(cp, needId) {
       const hints = reviewMyAssessment(cp, needId);
       const icon = { warn: 'fa-triangle-exclamation', info: 'fa-lightbulb', ok: 'fa-circle-check' };
-      return `<div class="my-asm-label"><i class="fa-solid fa-list-check"></i> 見直しのポイント（AIなし）</div><ul>${hints.map(h => `<li class="my-hint my-hint-${h.level}"><i class="fa-solid ${icon[h.level]}"></i><span>${escapeHtml(h.text)}</span>${h.itemId ? `<button type="button" class="my-asm-link" onclick="linkMyEvidence(${needId}, '${escapeHtml(h.itemId)}')">根拠に加える</button>` : ''}</li>`).join('')}</ul>`;
+      return `<div class="my-asm-label"><i class="fa-solid fa-list-check"></i> 見直しのポイント（AIなし）</div><ul>${hints.map(h => `<li class="my-hint my-hint-${h.level}"><i class="fa-solid ${icon[h.level]}"></i><span>${escapeHtml(h.text)}</span>${h.itemId ? `<button type="button" class="my-asm-link" onclick="linkMyEvidence(${needId}, ${jsArg(h.itemId)})">根拠に加える</button>` : ''}</li>`).join('')}</ul>`;
     }
 
     // 再評価のお知らせ：前回の確定のあとに増えた情報・変わった根拠を並べ、その場で根拠に加えられるようにする
@@ -427,16 +429,16 @@
       const last = lastConfirmedMyAssessment(e);
       if (!review) return '';
       const open = myAsmReviewOpen.has(needId);
-      const row = (i, extra = '') => `<li><span class="my-ev-chip my-ev-${escapeHtml(i.type || 'x')}"><button type="button" class="my-ev-main" onclick="flashAssessmentCard('${escapeHtml(i.id)}', ${needId})"><b>${escapeHtml(labels[i.id] || (i.type === 's' ? 'S' : 'O'))}</b><span class="my-ev-text">${escapeHtml(i.timestamp && i.timestamp !== '日時不明' ? `[${i.timestamp}] ` : '')}${escapeHtml(shortText(i.text, 60))}</span></button></span>${extra}
-        <span class="my-review-actions"><button type="button" class="my-asm-link" onclick="linkMyEvidence(${needId}, '${escapeHtml(i.id)}')">根拠に加える</button><button type="button" class="my-asm-link muted" onclick="acknowledgeMyAssessmentItem(${needId}, '${escapeHtml(i.id)}')">確認した（根拠にしない）</button></span></li>`;
+      const row = (i, extra = '') => `<li><span class="my-ev-chip my-ev-${escapeHtml(i.type || 'x')}"><button type="button" class="my-ev-main" onclick="flashAssessmentCard(${jsArg(i.id)}, ${needId})"><b>${escapeHtml(labels[i.id] || (i.type === 's' ? 'S' : 'O'))}</b><span class="my-ev-text">${escapeHtml(i.timestamp && i.timestamp !== '日時不明' ? `[${i.timestamp}] ` : '')}${escapeHtml(shortText(i.text, 60))}</span></button></span>${extra}
+        <span class="my-review-actions"><button type="button" class="my-asm-link" onclick="linkMyEvidence(${needId}, ${jsArg(i.id)})">根拠に加える</button><button type="button" class="my-asm-link muted" onclick="acknowledgeMyAssessmentItem(${needId}, ${jsArg(i.id)})">確認した（根拠にしない）</button></span></li>`;
       const byId = new Map((cp.items || []).map(i => [i.id, i]));
       const newList = st.newItems.map(i => row(i)).join('');
       const changedList = st.changedEvidence.map(c => {
         const i = byId.get(c.id);
-        return `<li><span class="my-ev-chip my-ev-${escapeHtml(i.type || 'x')}"><button type="button" class="my-ev-main" onclick="flashAssessmentCard('${escapeHtml(c.id)}', ${needId})"><b>${escapeHtml(labels[c.id] || 'O')}</b><span class="my-ev-text">${escapeHtml(shortText(c.after, 60))}</span></button></span><span class="my-review-before">前回：${escapeHtml(shortText(c.before, 40))}</span>
-          <span class="my-review-actions"><button type="button" class="my-asm-link muted" onclick="acknowledgeMyAssessmentItem(${needId}, '${escapeHtml(c.id)}')">確認した</button></span></li>`;
+        return `<li><span class="my-ev-chip my-ev-${escapeHtml(i.type || 'x')}"><button type="button" class="my-ev-main" onclick="flashAssessmentCard(${jsArg(c.id)}, ${needId})"><b>${escapeHtml(labels[c.id] || 'O')}</b><span class="my-ev-text">${escapeHtml(shortText(c.after, 60))}</span></button></span><span class="my-review-before">前回：${escapeHtml(shortText(c.before, 40))}</span>
+          <span class="my-review-actions"><button type="button" class="my-asm-link muted" onclick="acknowledgeMyAssessmentItem(${needId}, ${jsArg(c.id)})">確認した</button></span></li>`;
       }).join('');
-      const removedList = st.removedEvidence.map(r => `<li><span class="my-ev-chip my-ev-removed"><span class="my-ev-main"><b>消</b><span class="my-ev-text">${escapeHtml(shortText(r.text, 60))}</span></span></span><span class="my-review-actions"><button type="button" class="my-asm-link" onclick="unlinkMyEvidence(${needId}, '${escapeHtml(r.id)}')">根拠から外す</button></span></li>`).join('');
+      const removedList = st.removedEvidence.map(r => `<li><span class="my-ev-chip my-ev-removed"><span class="my-ev-main"><b>消</b><span class="my-ev-text">${escapeHtml(shortText(r.text, 60))}</span></span></span><span class="my-review-actions"><button type="button" class="my-asm-link" onclick="unlinkMyEvidence(${needId}, ${jsArg(r.id)})">根拠から外す</button></span></li>`).join('');
       const prevHtml = last ? `<details class="my-review-prev"${open ? ' open' : ''} ontoggle="toggleMyAssessmentReviewPrev(${needId}, this.open)"><summary>前回（第${last.version}版）の評価を見る</summary>${myAssessmentVersionBodyHtml(last)}</details>` : '';
       return `<div class="my-review">
         <div class="my-review-head"><i class="fa-solid fa-bell"></i> 前回の評価（第${st.version}版・${escapeHtml(formatMyDateTime(st.confirmedAt))}）のあとに、情報が変わりました。見直して再評価しましょう。</div>
@@ -705,7 +707,7 @@
         chosen.innerHTML = sel.size ? Array.from(sel).map(id => {
           const c = byId.get(id);
           const d = c ? { label: c.label, text: c.item.text, type: c.item.type } : describeMyEvidence(cp, evidencePicker.needId, id, labels, e);
-          return `<span class="my-ev-chip my-ev-${escapeHtml(d.type || 'x')}" title="${escapeHtml(d.text)}"><span class="my-ev-main"><b>${escapeHtml(d.label)}</b><span class="my-ev-text">${escapeHtml(shortText(d.text, 16))}</span></span><button type="button" class="my-ev-x" onclick="toggleEvidencePickerItem('${escapeHtml(id)}', false, true)" aria-label="外す"><i class="fa-solid fa-xmark"></i></button></span>`;
+          return `<span class="my-ev-chip my-ev-${escapeHtml(d.type || 'x')}" title="${escapeHtml(d.text)}"><span class="my-ev-main"><b>${escapeHtml(d.label)}</b><span class="my-ev-text">${escapeHtml(shortText(d.text, 16))}</span></span><button type="button" class="my-ev-x" onclick="toggleEvidencePickerItem(${jsArg(id)}, false, true)" aria-label="外す"><i class="fa-solid fa-xmark"></i></button></span>`;
         }).join('') : '<span class="my-asm-muted">まだ選んでいません。下の一覧でカードに印を付けます。</span>';
       }
       const wrap = document.getElementById('evidence-picker-list');
@@ -735,7 +737,7 @@
           const tags = c.own ? '' : `<span class="my-ev-other">${escapeHtml((i.hendersonIds || []).map(h => `${h}.${hendersonNameOf(h).replace(/^\d+\.\s*/, '')}`).join('・') || 'タグなし')}</span>`;
           const clock = g.day === 'ほかの項目のカード' ? i.timestamp : timestampClockPart(i.timestamp);
           const star = rec.has(i.id) ? `<span class="ep-rec" title="${escapeHtml(rec.get(i.id))}"><i class="fa-solid fa-star"></i>${escapeHtml(rec.get(i.id))}</span>` : '';
-          return `<label class="ep-row ep-${escapeHtml(i.type)}${sel.has(i.id) ? ' on' : ''}" title="${escapeHtml(i.text)}"><input type="checkbox" ${sel.has(i.id) ? 'checked' : ''} onchange="toggleEvidencePickerItem('${escapeHtml(i.id)}', this.checked)">
+          return `<label class="ep-row ep-${escapeHtml(i.type)}${sel.has(i.id) ? ' on' : ''}" title="${escapeHtml(i.text)}"><input type="checkbox" ${sel.has(i.id) ? 'checked' : ''} onchange="toggleEvidencePickerItem(${jsArg(i.id)}, this.checked)">
             <b class="ep-label">${escapeHtml(c.label)}</b>${tags}${clock && clock !== '日時不明' ? `<span class="ep-time">${escapeHtml(clock)}</span>` : ''}${star}<span class="ep-text">${escapeHtml(i.text)}</span></label>`;
         }).join('');
         return `<details class="ep-day"${open ? ' open' : ''} ontoggle="toggleEvidencePickerDay(${escapeHtml(JSON.stringify(g.day))}, this.open)">

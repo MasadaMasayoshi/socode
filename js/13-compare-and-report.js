@@ -5,7 +5,7 @@
     //   （コピー・テキストファイル・印刷／PDF）。
     // （js/10 の起動の処理より後に読み込む。最後に総合アセスメント表などを描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-09-30.6'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-01.1'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // ④ 記録した時点（cp.checkpoints[ID] = { id, label, kind, at, updatedAt, items:[カードの写し] }。
@@ -151,13 +151,14 @@
       const d = diffCards(base.items, cp.items);
       const f = compareState.filter;
       const chip = (key, label, n) => `<button type="button" class="cmp-filter cmp-${key}${f === key ? ' active' : ''}" onclick="setCompareFilter('${key}')">${label} <b>${n}</b></button>`;
+      // 【レビューで発見】カードのIDを onclick="…('…')" に入れるので、アプリが作る形のIDだけを使う（safeDomId、js/08）
       const cardLabel = c => `<span class="cmp-type cmp-type-${escapeHtml(c.type)}">${escapeHtml(CARD_TYPE_LABELS[c.type] || c.type)}</span>${c.timestamp && c.timestamp !== '日時不明' ? `<span class="ep-time">${escapeHtml(c.timestamp)}</span>` : ''}`;
       const exists = id => cp.items.some(i => i.id === id);
       const rows = [];
-      if (f === 'all' || f === 'added') d.added.forEach(c => rows.push(`<li class="cmp-row cmp-added"><span class="cmp-kind">追加</span>${cardLabel(c)}<button type="button" class="cmp-text" onclick="jumpFromCompare('${escapeHtml(c.id)}')">${escapeHtml(c.text)}</button></li>`));
-      if (f === 'all' || f === 'changed') d.changed.forEach(x => rows.push(`<li class="cmp-row cmp-changed"><span class="cmp-kind">変更</span>${cardLabel(x.after)}<button type="button" class="cmp-text" onclick="jumpFromCompare('${escapeHtml(x.after.id)}')">${x.changes.some(ch => ch.field === 'text') ? inlineTextDiffHtml(x.before.text, x.after.text) : escapeHtml(x.after.text)}</button>
+      if (f === 'all' || f === 'added') d.added.forEach(c => rows.push(`<li class="cmp-row cmp-added"><span class="cmp-kind">追加</span>${cardLabel(c)}<button type="button" class="cmp-text" onclick="jumpFromCompare('${safeDomId(c.id)}')">${escapeHtml(c.text)}</button></li>`));
+      if (f === 'all' || f === 'changed') d.changed.forEach(x => rows.push(`<li class="cmp-row cmp-changed"><span class="cmp-kind">変更</span>${cardLabel(x.after)}<button type="button" class="cmp-text" onclick="jumpFromCompare('${safeDomId(x.after.id)}')">${x.changes.some(ch => ch.field === 'text') ? inlineTextDiffHtml(x.before.text, x.after.text) : escapeHtml(x.after.text)}</button>
         <ul class="cmp-changes">${x.changes.filter(ch => ch.field !== 'text').map(ch => `<li><b>${escapeHtml(ch.label)}</b>${ch.field === 'tags' ? `${ch.plus.map(h => `<span class="cmp-plus">＋${h}.${escapeHtml(hendersonNameOf(h).replace(/^\d+\.\s*/, ''))}</span>`).join('')}${ch.minus.map(h => `<span class="cmp-minus">－${h}.${escapeHtml(hendersonNameOf(h).replace(/^\d+\.\s*/, ''))}</span>`).join('')}` : `${escapeHtml(ch.from)} → ${escapeHtml(ch.to)}`}</li>`).join('')}</ul></li>`));
-      if (f === 'all' || f === 'removed') d.removed.forEach(c => rows.push(`<li class="cmp-row cmp-removed"><span class="cmp-kind">削除</span>${cardLabel(c)}<span class="cmp-text">${escapeHtml(c.text)}</span>${exists(c.id) ? '' : `<button type="button" class="my-asm-link" onclick="restoreFromCompare('${escapeHtml(c.id)}')">元に戻す</button>`}</li>`));
+      if (f === 'all' || f === 'removed') d.removed.forEach(c => rows.push(`<li class="cmp-row cmp-removed"><span class="cmp-kind">削除</span>${cardLabel(c)}<span class="cmp-text">${escapeHtml(c.text)}</span>${exists(c.id) ? '' : `<button type="button" class="my-asm-link" onclick="restoreFromCompare('${safeDomId(c.id)}')">元に戻す</button>`}</li>`));
       body.innerHTML = `<div class="cmp-summary">${chip('all', 'すべて', d.added.length + d.changed.length + d.removed.length)}${chip('added', '追加', d.added.length)}${chip('changed', '変更', d.changed.length)}${chip('removed', '削除', d.removed.length)}<span class="my-asm-muted">変わらないカード ${d.same}枚</span></div>
         ${rows.length ? `<ul class="cmp-list">${rows.join('')}</ul>` : `<p class="my-asm-muted p-3">${f === 'all' ? 'この時点から変わったカードはありません。' : '当てはまるカードはありません。'}</p>`}`;
     }
@@ -365,7 +366,10 @@
           blocks.push({ title: '検査値の推移', lines });
         } else if (key === 'indices') {
           let list = [];
-          try { list = computeClinicalIndices(cp.sourceText || '', active).items || []; } catch (e) { list = []; }
+          // 【レビューで発見】computeClinicalIndices は { basics, indices, missing } を返す（.items は無い）ため、
+          // 以前はこの節が常に空だった。画面の「計算した指標」と同じく、カルテ本文が空ならカードの文章から計算する。
+          const idxText = cp.sourceText || active.map(i => i.text || '').join('\n');
+          try { list = computeClinicalIndices(idxText, active).indices || []; } catch (e) { list = []; }
           blocks.push({ title: '計算した指標', lines: list.map(x => `${x.name}：${x.value}${x.unit ? ` ${x.unit}` : ''}（${x.detail}）${x.note ? `　${x.note}` : ''}`) });
         } else if (key === 'missing') {
           const lines = missingInfoItems(cp).map(i => {
@@ -476,10 +480,8 @@
     window.downloadReport = function() {
       const cp = getCurrentPatient();
       const blob = new Blob([currentReportText()], { type: 'text/plain;charset=utf-8' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `${(cp.title || 'カルテ').replace(/[\\/:*?"<>|]/g, '_')}_${REPORT_FORMATS[reportState.format].label}.txt`;
-      a.click();
+      // 【レビューで発見】ページに追加しないまま押していた（ファイル名が反映されない環境がある）。js/06 の downloadTextBlob を使う
+      downloadTextBlob(blob, `${(cp.title || 'カルテ').replace(/[\\/:*?"<>|]/g, '_')}_${REPORT_FORMATS[reportState.format].label}.txt`);
       showToast('テキストファイル（.txt）を保存しました', 'success');
     };
     window.printReport = function() {
@@ -736,6 +738,13 @@
         const fresh = typeof importCarePlans === 'function' ? importCarePlans(cp, 'ai') : [];
         if (fresh.length && typeof commitCarePlanChange === 'function') commitCarePlanChange(cp);
         setAiPipelineStatus(false);
+        // 【レビューで発見】AIの看護計画の形を読み取れず1件も取り込めなかったときも「できました」と出ていた。
+        // 読み取れなかったときは、そのことを伝える（同じ看護問題が既にあって取り込まなかったときは従来どおり）。
+        const readable = parseCarePlanText(htmlToPlainText(cp.carePlanResult)).length;
+        if (!fresh.length && !readable) {
+          if (typeof showAiResult === 'function') { window.showAiResult(null); window.showAiResult('careplan-panel'); }
+          return showToast(['看護計画の叩き台はできましたが、「看護計画」タブに取り込める形で読み取れませんでした', { text: '「AIの結果」の看護計画を見て、「看護計画」タブで書き写すか、もう一度「③ 看護計画」を押してください。', detail: true }], 'warn', 8000);
+        }
         if (typeof showAiResult === 'function') { window.showAiResult(null); window.showAiResult('careplan-panel'); }
         showToast([`看護計画までできました（看護診断 ${cp.selectedDiagnosisIds.length}件・看護計画 ${fresh.length}件を「看護計画」タブに取り込み）`, { text: '優先度の高い順に上から2件の看護診断を選んでいます。選び直すときは「看護診断候補」のチェックを変えて「③ 看護計画」を押してください。取り込んだ計画は自分の言葉で書き直しましょう。', detail: true }], 'success', 8000);
       } catch (err) {
@@ -747,6 +756,8 @@
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {
     CHECKPOINT_MAX, createCheckpoint, deleteCheckpoint, checkpointList, diffCards, inlineTextDiffHtml, maybeCheckpointOnOpen,
-    restoreCardFromCheckpoint, splitCardIntoParts, undoLast, pushUndo, workflowStatus, REPORT_FORMATS, defaultReportLayout, buildReport, reportToText, reportToHtml, reportDayOptions
+    restoreCardFromCheckpoint, splitCardIntoParts, undoLast, pushUndo, workflowStatus, REPORT_FORMATS, defaultReportLayout, buildReport, reportToText, reportToHtml, reportDayOptions,
+    // レビューで見つけた不具合の確認用（tests/review-fixes-ai-export.test.js）
+    calculateAndAddDerivedMetricCards, parseAiJsonArray, safeDomId, buildPrintAiSectionsHtml, formatEditLogEntry, storedAiHtml, isAiStepRunning
   });
 }

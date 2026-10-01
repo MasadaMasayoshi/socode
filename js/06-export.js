@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-09-30.6'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-01.1'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 書式付き書き出し（Word / PDF）
     // ------------------------------------------------------------------------
@@ -14,6 +14,13 @@
     // 自動で呼び出す、という2通りの出口で使い回す。ライブラリ等を追加せず、ブラウザ標準の
     // 機能だけで完結する（オフラインでも動作する）。
     // AI分析結果は元々<br>や<b>タグを含むHTMLとして保持しているため、そのまま埋め込む。
+    // 【レビューで発見】患者の記録に保存されたAIの結果のHTML（検査値の評価・矛盾チェック・看護診断候補・経時変化・看護計画）は、
+    // 共有先（サーバー）やファイルの読み込みから届くこともあり、そのまま画面・印刷用の文書に入れると <img onerror=…> などが
+    // 動いた。画面・印刷・PDFに入れる前に、必ずここ（js/05 の sanitizeStoredHtml）を通して動く部品を取り除く。
+    function storedAiHtml(html) {
+      if (!html) return '';
+      return typeof sanitizeStoredHtml === 'function' ? sanitizeStoredHtml(html) : escapeHtml(String(html).replace(/<[^>]*>/g, ''));
+    }
     function exportHtmlOrPlaceholder(htmlStr) {
       return htmlStr ? htmlStr : '<p style="color:#776F62;">（未実施）</p>';
     }
@@ -160,16 +167,17 @@
     function buildPrintAiSectionsHtml(cp, startNo) {
       let n = startNo;
       let out = '';
+      // sec に渡すHTMLは、保存された部分を storedAiHtml で安全にしたもの
       const sec = (title, html) => { out += `<h2>${n++}. ${escapeHtml(title)}</h2><div class="ai">${html}</div>`; };
-      if (cp.labEvaluationResult) sec('検査データ臨床評価（AI・参考）', cp.labEvaluationResult);
-      if (cp.contradictionResult) sec('S/O矛盾チェック（AI・参考）', cp.contradictionResult);
+      if (cp.labEvaluationResult) sec('検査データ臨床評価（AI・参考）', storedAiHtml(cp.labEvaluationResult));
+      if (cp.contradictionResult) sec('S/O矛盾チェック（AI・参考）', storedAiHtml(cp.contradictionResult));
       const cands = cp.diagnosisCandidates || [];
       if (cands.length) {
         const sel = new Set(cp.selectedDiagnosisIds || []);
-        out += `<h2>${n++}. 看護診断候補（AI・参考）</h2>` + cands.map(c => `<div class="dx${sel.has(c.id) ? ' sel' : ''}"><div class="dx-name">${sel.has(c.id) ? '✓ ' : ''}${escapeHtml(c.name)}${sel.has(c.id) ? '<span class="tags">　（看護計画に使用）</span>' : ''}</div>${c.bodyHtml ? `<div>${c.bodyHtml}</div>` : ''}</div>`).join('');
-      } else if (cp.diagnosisResult) sec('看護診断候補（AI・参考）', cp.diagnosisResult);
-      if (cp.timelineResult) sec('経時変化サマリー（AI・参考）', cp.timelineResult);
-      if (cp.carePlanResult) sec('看護計画（AI・叩き台）', (cp.carePlanDiagnoses?.length ? `<p><b>選んだ看護診断：</b>${escapeHtml(cp.carePlanDiagnoses.join('／'))}</p>` : '') + cp.carePlanResult);
+        out += `<h2>${n++}. 看護診断候補（AI・参考）</h2>` + cands.map(c => `<div class="dx${sel.has(c.id) ? ' sel' : ''}"><div class="dx-name">${sel.has(c.id) ? '✓ ' : ''}${escapeHtml(c.name)}${sel.has(c.id) ? '<span class="tags">　（看護計画に使用）</span>' : ''}</div>${c.bodyHtml ? `<div>${storedAiHtml(c.bodyHtml)}</div>` : ''}</div>`).join('');
+      } else if (cp.diagnosisResult) sec('看護診断候補（AI・参考）', storedAiHtml(cp.diagnosisResult));
+      if (cp.timelineResult) sec('経時変化サマリー（AI・参考）', storedAiHtml(cp.timelineResult));
+      if (cp.carePlanResult) sec('看護計画（AI・叩き台）', (cp.carePlanDiagnoses?.length ? `<p><b>選んだ看護診断：</b>${escapeHtml(cp.carePlanDiagnoses.join('／'))}</p>` : '') + storedAiHtml(cp.carePlanResult));
       if (out) out += '<p class="note">AIによる結果は参考情報です。最終的な判断・看護診断・看護計画の決定は必ず医療従事者が行ってください。〔S …〕〔O …〕は根拠にしたカードです。</p>';
       return out;
     }
@@ -266,6 +274,15 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       rest = rest.replace(/(^|[\s,{}])(?:html|body)(?=[\s,{.:#\[*>])/g, '$1.pv-body');
       return { pageRules: pageRules.join('\n'), bodyCss: rest };
     }
+    function stripActivePrintContent(root) {
+      if (!root || !root.querySelectorAll) return;
+      root.querySelectorAll('script,iframe,frame,object,embed,link,meta,base,form,svg,math,template,noscript,img').forEach(el => el.remove());
+      root.querySelectorAll('*').forEach(el => Array.from(el.attributes || []).forEach(a => {
+        const name = a.name.toLowerCase();
+        if (name.startsWith('on') || name === 'srcdoc') el.removeAttribute(a.name);
+        else if (/^(?:href|src|action|formaction|xlink:href)$/.test(name) && /^\s*(?:javascript|data|vbscript):/i.test(a.value || '')) el.removeAttribute(a.name);
+      }));
+    }
     function closeMobilePrintView() {
       document.getElementById('print-view')?.remove();
       document.getElementById('print-view-style')?.remove();
@@ -275,6 +292,9 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       closeMobilePrintView();
       const parsed = new DOMParser().parseFromString(html, 'text/html');
       const css = Array.from(parsed.querySelectorAll('style')).map(s => s.textContent).join('\n');
+      // 【レビューで発見】この見本はアプリの画面そのものに入れるので、文書の中の動く部品（script・on〜の属性・
+      // javascript: のリンク）を取り除いてから入れる（AIの結果の部分は組み立てるときに storedAiHtml を通している）。
+      stripActivePrintContent(parsed.body);
       const { pageRules, bodyCss } = splitPrintCss(css);
       const docStyle = document.createElement('style');
       docStyle.id = 'print-view-style';
@@ -381,6 +401,10 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       if (!anyNeed) body += '<p class="muted">（タグが付いたカードがありません）</p>';
       const own = typeof buildMyAssessmentsPrintHtml === 'function' ? buildMyAssessmentsPrintHtml(cp, n) : '';
       if (own) { body += own; n++; }
+      // 【レビューで発見】「看護計画」のページで自分で立てた看護計画（目標・OP/TP/EP）と実施・評価の記録が、
+      // 書き出し（PDF・テキスト）に載っていなかった（AIの叩き台だけが載っていた）。
+      const plansText = typeof buildCarePlansText === 'function' ? buildCarePlansText(cp, { withRecords: true }) : '';
+      if (plansText) body += `<h2>${n++}. 看護計画と実施・評価</h2><p style="white-space:pre-wrap;margin:0;">${escapeHtml(plansText)}</p>`;
       body += buildPrintAiSectionsHtml(cp, n);
       const notes = cp.referenceNotes || [];
       if (notes.length > 0) {
@@ -472,6 +496,9 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
 
       const own = typeof buildMyAssessmentsText === 'function' ? buildMyAssessmentsText(cp) : '';
       if (own) { out += plainSectionTitle('自分のアセスメント'); out += own + '\n'; }
+      // 【レビューで発見】自分で立てた看護計画と実施・評価の記録も載せる（以前はAIの叩き台だけだった）
+      const plansText = typeof buildCarePlansText === 'function' ? buildCarePlansText(cp, { withRecords: true }) : '';
+      if (plansText) { out += plainSectionTitle('看護計画と実施・評価'); out += plansText + '\n'; }
 
       if (cp.contradictionResult) { out += plainSectionTitle('6. S/O矛盾チェック結果（AI）'); out += htmlToPlainText(cp.contradictionResult) + '\n'; }
       if (cp.diagnosisResult) { out += plainSectionTitle('7. 看護診断候補（AI提案）'); out += htmlToPlainText(cp.diagnosisResult) + '\n'; }
@@ -641,6 +668,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       return notes;
     }
     const EDIT_LOG_TYPE_LABELS = { s: 'Sデータ', o: 'Oデータ', unclassified: '未分類', unnecessary: '不必要な情報' };
+    const tagNamesForLog = ids => (Array.isArray(ids) && ids.length ? ids.map(h => `${h}.${hendersonNameOf(h).replace(/^\d+\.\s*/, '')}`).join('・') : 'なし');
     function formatEditLogEntry(e) {
       const when = e.at ? new Date(e.at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
       const body = (() => {
@@ -650,6 +678,11 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
           case 'tagAdd': return `タグを追加: ${hendersonNameOf(e.hId)}`;
           case 'tagRemove': return `タグを削除: ${hendersonNameOf(e.hId)}`;
           case 'merge': return `${(e.from || []).length}枚のカードを統合: ${(e.from || []).map(t => `「${t}」`).join('＋')}`;
+          // 【レビューで発見】AIの分類の評価で適用した編集（js/08）は、以前は「aiReviewTags」のような内部の名前だけが出ていた
+          case 'aiReviewTags': return `AIの評価でタグを変更: ${tagNamesForLog(e.from)} → ${tagNamesForLog(e.to)}`;
+          case 'aiReviewTimestamp': return `AIの評価で日時を変更: ${e.from || '日時不明'} → ${e.to || '日時不明'}`;
+          case 'aiReviewType': return `AIの評価で分類を変更: ${EDIT_LOG_TYPE_LABELS[e.from] || e.from || '未設定'} → ${EDIT_LOG_TYPE_LABELS[e.to] || e.to}`;
+          case 'aiReview': return Array.isArray(e.from) && e.from.length ? `AIの評価で作り直したカード（元: ${e.from.map(t => `「${t}」`).join('＋')}）` : 'AIの評価で作ったカード';
           default: return e.kind || '不明な編集';
         }
       })();
@@ -770,6 +803,15 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         modal.onclick = e => { if (e.target === modal) finish(null); };
       });
     }
+    function downloadTextBlob(blob, filename) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
     window.exportSelectedCardsText = async function() {
       const cp = getCurrentPatient();
       if (selectedCardIds.size === 0) return showToast('書き出すカードを選択してください', 'warn');
@@ -819,10 +861,9 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         ? `\n【分類前の文章（カルテ・看護記録入力欄）】\n${sourceForExport || '（入力欄に文章がありません）'}\n`
         : '');
       const blob = new Blob([sheet], { type: 'text/plain;charset=utf-8' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `${safeTitle}_看護アセスメント.txt`;
-      a.click();
+      // 【レビューで発見】ページに追加しないまま押すと、ファイル名が反映されない・何も起きない環境がある。
+      // 選択したカードの書き出しと同じく、一時的に追加してから押し、URLも後で解放する
+      downloadTextBlob(blob, `${safeTitle}_看護アセスメント.txt`);
       showToast('テキストファイル（.txt）を自動ダウンロードしました', 'success');
     });
 
