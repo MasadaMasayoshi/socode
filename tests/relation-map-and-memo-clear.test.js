@@ -813,3 +813,28 @@ test('スマホ：見出しのボタンを小さく・保存の状態は折り�
   assert.match(src, /const dis = wrap\.querySelector\('\.rm-node\[data-kind="disease"\]'\);/);
   assert.match(src, /rmShowCheck\(issues\.some\(i => i\.level !== 'info'\) \? issues : null\);/);
 });
+
+// 2026-10-06.23：長文事例（心不全・大腸がん術後・COPD）のテストで見つけたこと
+test('長文事例の見直し：長い文はかっこ書きから外して「…」で切らない・本人の息苦しさはガス交換の低下の結果・Kが低ければ電解質異常は事実・治療の「┤」は検査データの下の端まで', () => {
+  assert.equal(app.rmShorten('2型糖尿病(15年前から、インスリン自己注射)、肥満(BMI 28.4)、脂質異常症', 40), '2型糖尿病(15年前から、インスリン自己注射)、肥満、脂質異常症');
+  assert.equal(app.rmShorten('「息が苦しくて横になれない」（場面：呼吸困難の訴えあり）', 24), '「息が苦しくて横になれない」');
+  assert.deepEqual(plain(app.rmWrapText('（PaCO2 58 → 55Torr↑）', 13)), ['（PaCO2 58 → 55Torr↑）'], '閉じかっこだけの行を作らない');
+  ['colon_cancer_postop_long', 'heart_failure_long', 'copd_exacerbation_long'].forEach(name => {
+    caseMap(name).nodes.forEach(n => assert.doesNotMatch(n.label, /[(（][^)）]*…$/, `${name}: かっこの途中で切れている「${n.label}」`));
+  });
+  const copd = caseMap('copd_exacerbation_long');
+  const ds = copd.nodes.find(n => /^S：「息が苦しくて横になれない」/.test(n.label));
+  const into = copd.edges.filter(e => e.target === ds.id).map(e => copd.nodes.find(n => n.id === e.source).label);
+  assert.ok(into.some(l => /ガス交換の低下/.test(l)), into.join(' / '));
+  const hf = caseMap('heart_failure_long');
+  const el = hf.nodes.find(n => /電解質異常/.test(n.label));
+  assert.notEqual(el.observed, false, 'K 3.2↓ が記録にあるので事実');
+  assert.match(el.label, /低K血症/);
+  // 治療（楕円）から、検査データが下にくっついた四角への「┤」は、検査データの下の端で止まる（隠れない）
+  const by = new Map(copd.nodes.map(n => [n.id, n]));
+  const { routes } = app.rmRouteEdges(copd);
+  routes.filter(r => r.edge.relation === 'treats' && copd.nodes.some(n => n.attachTo === r.edge.target)).forEach(r => {
+    const bottom = Math.max(...copd.nodes.filter(n => n.attachTo === r.edge.target || n.id === r.edge.target).map(n => app.rmRect(n).y2));
+    assert.ok(Math.abs(r.pts[r.pts.length - 1][1] - bottom) < 1, `${by.get(r.edge.source).label} ┤ ${by.get(r.edge.target).label}`);
+  });
+});

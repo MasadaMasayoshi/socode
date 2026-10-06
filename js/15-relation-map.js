@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.22'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.23'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -127,7 +127,8 @@
         let cur = '', w = 0;
         for (const ch of Array.from(para)) {
           const cw = rmCharWidth(ch);
-          if (w + cw > maxEm && cur) { lines.push(cur); cur = ''; w = 0; }
+          // 行の頭に閉じかっこ・句読点だけが来ないようにする（「（PaCO2 58 → 55Torr↑」の次の行が「）」だけになっていた）
+          if (w + cw > maxEm && cur && !/[)）」』、。，．・ー↑↓]/.test(ch)) { lines.push(cur); cur = ''; w = 0; }
           cur += ch; w += cw;
         }
         lines.push(cur);
@@ -140,8 +141,20 @@
       return lines.length ? lines : [''];
     }
     function rmShorten(text, max = 46) {
-      const t = String(text || '').replace(/\s+/g, ' ').trim();
-      return t.length > max ? t.slice(0, max - 1) + '…' : t;
+      let t = String(text || '').replace(/\s+/g, ' ').trim();
+      if (t.length <= max) return t;
+      // 長いときは、まず後ろのかっこ書き（「(BMI 28.4)」「（場面：…）」など）から外す。途中で「…」と切れて
+      // 読めない四角が出ていた（長文事例のテスト：「2型糖尿病(…)、肥満(BM…」「腹腔ドレーン(淡血性…)、…」）
+      for (let k = 0; k < 6 && t.length > max; k++) {
+        const m = [...t.matchAll(/[(（][^()（）]{1,40}[)）]/g)].pop();
+        if (!m) break;
+        t = (t.slice(0, m.index) + t.slice(m.index + m[0].length)).replace(/\s{2,}/g, ' ').trim();
+      }
+      if (t.length <= max) return t;
+      // それでも長ければ、区切り（、。）の所で切る
+      const cut = t.slice(0, max - 1);
+      const at = Math.max(cut.lastIndexOf('、'), cut.lastIndexOf('。'));
+      return (at >= max * 0.5 ? cut.slice(0, at) : cut) + '…';
     }
     function rmNewId(prefix) { return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`; }
     function rmSafeId(id) { return /^[\w.:-]{1,80}$/.test(String(id || '')) ? String(id) : null; }
@@ -656,7 +669,10 @@
         } else {
           // 同じ列（上下）
           const down = b.cy > a.cy;
-          const sy = down ? a.y2 : a.y1, ty = down ? b.y1 : b.y2;
+          // 下にくっつけた検査データがある四角は、検査データの下の端までを1つのまとまりとして線をつなぐ
+          // （治療「┤」の先が検査データの後ろに隠れ、どこを抑えるのか見えなかった。長文事例のテスト）
+          const blockBottom = r => Math.max(r.y2, ...map.nodes.filter(n => n.attachTo === r.id).map(n => rectById.get(n.id)?.y2 ?? r.y2));
+          const sy = down ? blockBottom(a) : a.y1, ty = down ? b.y1 : blockBottom(b);
           let pts;
           if (Math.abs(a.cx - b.cx) < 2) pts = [[a.cx, sy], [b.cx, ty]];
           else { const my = (sy + ty) / 2; pts = [[a.cx, sy], [a.cx, my], [b.cx, my], [b.cx, ty]]; }
@@ -1275,7 +1291,9 @@
           if (o2Item) E(N('o2', 'treatment', o2Label(), { items: [o2Item] }), hyp, 'treats', { evidence: '酸素化の維持' });
           const pg = N('p_gas', 'nursing_problem', 'ガス交換障害', { cat: 'resp' });
           E(hyp, pg, 'results_in');
-          if (dysS) E(N('dys_s', 'symptom', `S：${short(dysS, 24)}`, { items: [dysS] }), pg, 'results_in');
+          // 本人の「息が苦しい」は、ガス交換の低下の結果として間に置く（原因の無い四角として左端に置くと、
+          // 線が重なって「息苦しさ → 気道の閉塞」のように見えていた。長文事例のテスト：COPD）
+          if (dysS) { const ds = N('dys_s', 'symptom', `S：${short(dysS, 24)}`, { items: [dysS] }); E(hyp, ds, 'causes', { evidence: '酸素が足りず息苦しい' }); E(ds, pg, 'results_in'); }
         }
       }
       // ⑤-3 嚥下機能の低下 → 誤嚥（誤嚥性肺炎の原因・再発のおそれ）
@@ -1353,10 +1371,14 @@
       if (diuretic) {
         const du = N('diuretic', 'treatment', `利尿薬（${diuretic.name}）`);
         if (disease && !edges.some(e => e.source === du.id)) E(du, disease, 'treats');
-        const dehyd = N('dehyd', 'future_risk', '脱水・電解質異常（低K血症など）の可能性', { source: 'knowledge', observed: false });
-        E(du, dehyd, 'predicts', { predicted: true, evidence: '尿量の増加による' });
+        // K が低いと記録にあれば、電解質異常はもう起きている事実（「可能性」の点線にしない。長文事例のテスト：心不全 K 3.2）
         const k = lab('K');
-        if (k && k.flag) E(labNode(k), dehyd, 'supports', { predicted: true });
+        const kLow = !!(k && k.flag === 'low');
+        const dehyd = kLow
+          ? N('dehyd', 'pathophysiology', '利尿薬による電解質異常（低K血症）', { source: 'knowledge' })
+          : N('dehyd', 'future_risk', '脱水・電解質異常（低K血症など）の可能性', { source: 'knowledge', observed: false });
+        E(du, dehyd, kLow ? 'causes' : 'predicts', { predicted: !kLow, evidence: '尿量の増加による' });
+        if (k && k.flag) E(labNode(k), dehyd, 'supports', { predicted: !kLow });
         E(dehyd, N('p_dehyd', 'nursing_problem', '体液量不足リスク状態（利尿薬による脱水・電解質異常）', { cat: 'circ' }), 'results_in', { predicted: true });
       }
 
@@ -2771,5 +2793,5 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
     if (typeof document !== 'undefined' && document.getElementById && document.getElementById('view-relation')) initRelationMapUi();
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel });
+  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel, rmShorten });
 }
