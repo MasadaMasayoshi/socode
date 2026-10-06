@@ -878,6 +878,8 @@
     .rm-empty { display: flex; flex-direction: column; align-items: center; gap: .4rem; text-align: center; padding: 2.2rem 1rem; border: 1px dashed var(--line); border-radius: var(--radius); color: var(--ink-muted); font-size: 12px; line-height: 1.7; }
     .rm-empty > i { font-size: 28px; color: var(--accent); opacity: .7; }
     .rm-empty p { max-width: 40rem; }
+    /* スマホ・小さい画面：関連図のページではヘッダーを上に固定しない（固定すると図の上の方が隠れるため） */
+    @media (max-width: 767px) { body.is-relation-view > header { position: static; } }
     .rm-canvas-wrap { position: relative; overflow: auto; height: min(72vh, 820px); min-height: 320px; border: 1px solid var(--line); border-radius: var(--radius); background-color: var(--surface);
       background-image: radial-gradient(var(--line-soft) 1px, transparent 1px); background-size: 18px 18px; -webkit-overflow-scrolling: touch; }
     .rm-canvas-wrap:focus { outline: none; }

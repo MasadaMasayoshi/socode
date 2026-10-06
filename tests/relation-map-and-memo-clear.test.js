@@ -528,3 +528,10 @@ test('関連図のボードをドラッグ・スワイプで動かす／2本指�
   assert.match(src, /wrap\.addEventListener\('wheel', e => \{\s*if \(!\(e\.ctrlKey \|\| e\.metaKey\)/);
   assert.equal(typeof app.rmZoomAt, 'function');
 });
+
+test('関連図：スマホでは関連図のページを開いている間だけ、上の見出し（ヘッダー）を固定しない（図の上の方が隠れないように）', () => {
+  assert.match(src, /document\.body\.classList\.toggle\('is-relation-view', viewName === 'relation'\)/);
+  assert.match(css, /@media \(max-width: 767px\) \{ body\.is-relation-view > header \{ position: static; \} \}/);
+  // パソコンの画面や、ほかのページでは今までどおり固定する
+  assert.match(html, /<header class="[^"]*sticky top-0/);
+});
