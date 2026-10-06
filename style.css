@@ -926,3 +926,11 @@
     html[data-theme="dark"] .rm-canvas-wrap .rm-header text { fill: #EAE5DA; }
     @media print { #view-relation .rm-toolbar, #view-relation .rm-selbar { display: none !important; } }
     html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-selected[data-kind] .rm-box, html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-connect-from[data-kind] .rm-box { stroke: #F59E6B; }
+    /* 関連図：選んだ四角の原因・結果の流れだけを濃く（js/15 の rmApplySelectionClasses） */
+    .rm-canvas-wrap .rm-svg.rm-focus .rm-node:not(.is-path) { opacity: .22; }
+    .rm-canvas-wrap .rm-svg.rm-focus .rm-link:not(.is-path) { opacity: .1; }
+    .rm-canvas-wrap .rm-svg.rm-focus .rm-link.is-path .rm-link-line { stroke-width: 2.2px; }
+    .rm-canvas-wrap .rm-node, .rm-canvas-wrap .rm-link { transition: opacity .15s; }
+    .rm-canvas-wrap .rm-link:hover .rm-link-line { stroke-width: 2.4px; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-band { fill: #1F1C19; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-band.is-odd { fill: #26221E; }

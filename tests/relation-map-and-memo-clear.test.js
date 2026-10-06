@@ -248,3 +248,74 @@ test('関連図：画面の操作（やり直す・チェック・事実／予�
   assert.match(src, /printHtmlDocument\(relationMapPrintHtml\(cp, map\), \{ keepSvg: true \}\)/);
   assert.deepEqual(plain(app.rmWrapText('あいうえおかきくけこさしすせそたちつてと', 13)), ['あいうえおかきくけこさしす', 'せそたちつてと']);
 });
+
+// ---- 3つの事例で作って確かめる（1回目：大腿骨頸部骨折の術後／2回目：誤嚥性肺炎／3回目：心原性脳塞栓症） ----
+const caseMap = name => app.buildRelationMapFromRecord(patientOf(fs.readFileSync(path.join(ROOT, `tests/fixtures/relation-map/${name}.txt`), 'utf8')));
+const probLabels = map => map.nodes.filter(n => n.type === 'nursing_problem').sort((a, b) => a.priority - b.priority).map(n => n.label);
+function commonChecks(map, label) {
+  const issues = app.validateRelationMap(map);
+  assert.deepEqual(plain(issues.filter(i => i.level === 'error').map(i => i.msg)), [], `${label}：要修正なし`);
+  map.nodes.forEach(n => assert.ok(map.edges.some(e => e.source === n.id || e.target === n.id), `${label}：浮島 ${n.label}`));
+  const probs = map.nodes.filter(n => n.type === 'nursing_problem');
+  assert.ok(probs.length >= 4 && probs.length <= 7, `${label}：看護問題 ${probs.length}`);
+  const ids = new Set(); map.nodes.forEach(n => n.itemIds.forEach(id => { if (n.type === 'symptom' || n.type === 'patient_fact') { assert.ok(!ids.has(id), `${label}：同じカードが2つの四角に`); ids.add(id); } }));
+  map.edges.filter(e => e.relation === 'treats').forEach(e => assert.equal(map.nodes.find(n => n.id === e.source).type, 'treatment'));
+  map.nodes.filter(n => n.type === 'future_risk').forEach(n => assert.equal(n.observed, false));
+}
+
+test('事例1（大腿骨頸部骨折・人工骨頭置換術・84歳）：DVT・褥瘡・せん妄・脱臼・骨粗鬆症からの骨折の成り立ち', () => {
+  const map = caseMap('hip_fracture');
+  commonChecks(map, '事例1');
+  const probs = probLabels(map);
+  ['深部静脈血栓症', '皮膚統合性障害（褥瘡）', '急性混乱（術後せん妄）', '人工骨頭の脱臼', '急性疼痛', '感染リスク'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
+  assert.ok(probs.indexOf(probs.find(p => /深部静脈/.test(p))) < probs.indexOf(probs.find(p => /疼痛/.test(p))), '血栓（循環）は疼痛より上');
+  const osteo = find(map, /骨密度の低下・骨の脆弱化/), fx = map.nodes.find(n => n.type === 'disease');
+  assert.ok(osteo && hasEdge(map, osteo, fx));
+  assert.ok(!map.nodes.some(n => /腹腔内感染/.test(n.label)), '股関節の手術で腹腔内感染とは書かない');
+  assert.ok(find(map, /Dダイマー 8\.5/));
+  const pain = find(map, /^創部痛（NRS 5）/);
+  assert.ok(pain && !/転倒/.test(pain.label), '受傷時の痛みを術後の創部痛にしない');
+  assert.ok(!map.nodes.some(n => n.type === 'treatment' && /SpO2|体温/.test(n.label)), '「SpO2 95」を酸素投与と取り違えない');
+});
+
+test('事例2（誤嚥性肺炎・88歳・手術なし）：炎症→痰→気道浄化、酸素化→ガス交換、嚥下→誤嚥、発熱・絶食→脱水', () => {
+  const map = caseMap('aspiration_pneumonia');
+  commonChecks(map, '事例2');
+  const probs = probLabels(map);
+  assert.deepEqual(plain(probs.slice(0, 4)), ['非効果的気道浄化', 'ガス交換障害', '誤嚥リスク状態', '体液量不足（脱水）']);
+  const dx = map.nodes.find(n => n.type === 'disease');
+  const abx = find(map, /^抗菌薬（アンピシリン/), o2 = find(map, /^酸素投与（鼻カニュラ酸素2L\/分）$/), suc = find(map, /^吸引$/);
+  assert.ok(abx && map.edges.some(e => e.source === abx.id && e.target === dx.id && e.relation === 'treats'));
+  assert.ok(o2 && suc, '酸素・吸引は「治療 → 対象」');
+  assert.ok(find(map, /湿性ラ音/), '痰は入院後の観察の記録を使う');
+  assert.equal(map.nodes.filter(n => /誤嚥性肺炎$/.test(n.label)).length, 1, '診断名を2つの四角にしない');
+  assert.ok(hasEdge(map, find(map, /嚥下反射・咳反射の低下/), dx), '嚥下機能の低下 → 誤嚥性肺炎');
+  assert.ok(find(map, /BUN 32/) && find(map, /Na 148/));
+});
+
+test('事例3（心原性脳塞栓症・72歳）：心房細動→血栓→脳塞栓→麻痺・失語・嚥下、抗凝固薬→出血リスク、糖尿病→血糖', () => {
+  const map = caseMap('cerebral_infarction');
+  commonChecks(map, '事例3');
+  const probs = probLabels(map);
+  ['誤嚥リスク状態', '出血リスク状態', '血糖不安定リスク状態', '転倒転落リスク状態', '言語的コミュニケーション障害', 'セルフケア不足'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
+  const clot = find(map, /心房内の血栓/), dx = map.nodes.find(n => n.type === 'disease'), lesion = find(map, /脳の血流の途絶/);
+  assert.ok(hasEdge(map, clot, dx) && hasEdge(map, dx, lesion));
+  ['麻痺', '失語'].forEach(w => assert.ok(map.edges.some(e => e.source === lesion.id && map.nodes.find(n => n.id === e.target).label.includes(w)), w));
+  assert.ok(hasEdge(map, lesion, find(map, /嚥下反射・咳反射の低下/)));
+  const ac = find(map, /^抗凝固薬（エドキサバン）/);
+  assert.ok(map.edges.some(e => e.source === ac.id && e.target === clot.id && e.relation === 'treats'), '抗凝固薬 → 血栓（治療 → 対象）');
+  assert.ok(map.edges.some(e => e.source === ac.id && e.predicted && /出血/.test(map.nodes.find(n => n.id === e.target).label)));
+  assert.ok(!map.nodes.some(n => n.type === 'pathophysiology' && /体動の制限/.test(n.label) && map.edges.some(e => e.target === n.id && /食事/.test(map.nodes.find(x => x.id === e.source).label))), '食事の介助を活動の制限にしない');
+});
+
+test('関連図の見やすさ：看護問題ごとの帯・丸めた曲がり角・選んだ四角の流れだけを濃く・カードの文は要点だけ', () => {
+  const map = caseMap('hip_fracture');
+  assert.ok(map.bands.length >= 5, '看護問題ごとの帯');
+  const svg = app.relationMapSvg(map, {});
+  assert.match(svg, /<rect class="rm-band/);
+  assert.match(svg, / Q-?\d/, '曲がり角を丸める');
+  assert.match(src, /svg\.classList\.toggle\('rm-focus', path\.size > 0\)/);
+  assert.match(css, /\.rm-svg\.rm-focus \.rm-node:not\(\.is-path\) \{ opacity: \.22; \}/);
+  map.nodes.filter(n => n.type === 'symptom' && n.itemIds.length).forEach(n => assert.ok(n.label.length <= 40, n.label));
+  assert.ok(!map.nodes.some(n => /^\d{1,2}:\d{2}/.test(n.label)), '時刻は四角に入れない');
+});

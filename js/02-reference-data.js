@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = '2026-10-06.1'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = '2026-10-06.3'; // 版（scripts/stamp-version.js が書き込む）
     const SAMPLE_TEXT = `[入院時] 現病歴3日前から咳嗽と発熱が持続し、本日呼吸苦が増悪したため救急搬送となった。
 既往歴は2型糖尿病、高血圧症にて内服加療中。
 家族関係：長男夫婦と同居、キーパーソンは長男の妻。
