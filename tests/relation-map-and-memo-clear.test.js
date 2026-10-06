@@ -125,20 +125,22 @@ test('関連図：術後のWBC・CRPは感染と断定せず、手術侵襲に�
   assert.ok(!map.nodes.some(n => n.observed !== false && /^(?:創部感染|感染症)$/.test(n.label)));
 });
 
-test('関連図：看護問題は右端・#の優先順位の順に上から並び、すべてに根拠の道筋がある。浮島は無い', () => {
+test('関連図：看護問題は原因のすぐ右（右端にそろえない）・#の優先順位の順に上から並び、すべてに根拠の道筋がある。浮島は無い', () => {
   const map = app.buildRelationMapFromRecord(patientOf(GASTRIC));
   const probs = map.nodes.filter(n => n.type === 'nursing_problem').sort((a, b) => a.priority - b.priority);
   assert.deepEqual(plain(probs.map(p => p.priority)), plain(probs.map((p, i) => i + 1)));
   assert.ok(probs.length >= 5, probs.map(p => p.label).join(' / '));
   assert.deepEqual(plain(probs.map(p => app.rmProblemCategory(p.label).key)), ['resp', 'inf', 'pain', 'nutr', 'act', 'anx']);
-  const maxX = Math.max(...map.nodes.filter(n => n.type !== 'nursing_problem' && !n.attachTo).map(n => n.x));
-  probs.forEach(p => assert.ok(p.x > maxX, '看護問題は右端'));
+  // 2026-10-06.16：利用者からの要望「看護問題はいちばん右でなくてよい」。原因のいちばん右の四角よりは右に置く
+  probs.forEach(p => { const causes = map.edges.filter(e => e.target === p.id).map(e => map.nodes.find(n => n.id === e.source)).filter(n => n && n.type !== 'nursing_problem' && !n.attachTo);
+    assert.ok(causes.length && causes.every(c => c.x < p.x), `原因より右：${p.label}`); });
+  assert.ok(new Set(probs.map(p => p.x)).size > 1, '看護問題は1つの列にそろえない');
   for (let i = 1; i < probs.length; i++) assert.ok(probs[i].y > probs[i - 1].y, '重要な問題ほど上');
   const issues = app.validateRelationMap(map);
   assert.deepEqual(plain(issues.filter(i => i.level === 'error')), []);
   map.nodes.forEach(n => assert.ok(map.edges.some(e => e.source === n.id || e.target === n.id), `浮島：${n.label}`));
-  // 列の見出し（左：背景 … 右端：看護問題）
-  assert.deepEqual(plain(map.headers.map(h => h.label)), ['生活背景・既往・要因', '疾患・病態の発生・進行', '治療', '治療後の身体の変化・症状・生活への影響', '看護問題']);
+  // 列の見出しは出さない（利用者からの要望）
+  assert.deepEqual(plain(map.headers), []);
 });
 
 test('関連図：看護計画があれば、その看護問題の名前と順番を使う（記録から考えられる別の問題は「候補」）', () => {
@@ -586,4 +588,23 @@ test('関連図：1本道の流れを同じ列に縦に積み、横長になり�
     map.edges.forEach(e => { const s = map.nodes.find(n => n.id === e.source), t = map.nodes.find(n => n.id === e.target); const a = byId.get(e.source), b = byId.get(e.target);
       if (Math.abs(a.cx - b.cx) < 2 && b.y1 > a.y2 && !t.attachTo) assert.ok(![s.type, t.type].some(x => ['patient_fact', 'treatment', 'nursing_problem'].includes(x)), `${s.label} → ${t.label}`); });
   });
+});
+
+// 2026-10-06.16：時系列・看護問題の一覧
+test('関連図：術後・入院2日目以降の記録の四角は治療より右（時系列）／看護問題の一覧（押すとその四角へ）', () => {
+  assert.equal(app.rmPhaseOfItems([{ timestamp: '入院前' }]), 0);
+  assert.equal(app.rmPhaseOfItems([{ timestamp: '入院時' }]), 1);
+  assert.equal(app.rmPhaseOfItems([{ timestamp: '術後2日目 9:00' }]), 2);
+  assert.equal(app.rmPhaseOfItems([{ timestamp: '入院3日目 10:00' }]), 2);
+  assert.equal(app.rmPhaseOfItems([{ timestamp: '9:00' }]), null);
+  const items = app.classifyTextByRules(GASTRIC).map((i, k) => ({ ...i, id: `it${k}`, timestamp: i.timestamp === '入院前' ? i.timestamp : `術後2日目 ${i.timestamp}` }));
+  const map = app.buildRelationMapFromRecord({ id: 'p1', title: 'A氏', sourceText: GASTRIC, items, carePlans: {}, selectedDiagnosisIds: [], diagnosisCandidates: [] });
+  const treat = map.nodes.filter(n => n.type === 'treatment' && n.phase !== 2);
+  if (treat.length) {
+    const tx = Math.min(...treat.map(n => n.x));
+    map.nodes.filter(n => n.phase === 2 && n.type !== 'treatment' && n.type !== 'nursing_problem' && !n.attachTo).forEach(n => assert.ok(n.x > tx, `治療より右：${n.label}`));
+  }
+  assert.match(html, /id="rm-problems" class="rm-problems hidden"/);
+  assert.match(src, /else if \(act === 'goto-problem'\)/);
+  assert.match(src, /data-rm-action="goto-problem" data-node-id=/);
 });

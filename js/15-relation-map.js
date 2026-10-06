@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.15'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.16'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -188,7 +188,8 @@
           priority: type === 'nursing_problem' ? priority : 0,
           x: Number.isFinite(Number(n.x)) ? Number(n.x) : 0,
           y: Number.isFinite(Number(n.y)) ? Number(n.y) : 0,
-          itemIds: Array.isArray(n.itemIds) ? n.itemIds.filter(x => rmSafeId(x)).slice(0, 20) : []
+          itemIds: Array.isArray(n.itemIds) ? n.itemIds.filter(x => rmSafeId(x)).slice(0, 20) : [],
+          ...([0, 1, 2].includes(n.phase) ? { phase: n.phase } : {})
         });
       });
       const byId = new Map(nodes.map(n => [n.id, n]));
@@ -265,6 +266,22 @@
         res.set(n.id, host.target);
       });
       return res;
+    }
+    // 【時系列】四角の元になったカードの日時から、時期を決める（0：入院前・既往・生活／1：発症・入院時・術前・手術当日／
+    // 2：術後・入院2日目以降）。並べるときに、後の時期の四角が前の時期の治療より左に来ないようにする。分からなければ null。
+    function rmPhaseOfItems(items) {
+      let best = null;
+      (items || []).forEach(i => {
+        if (!i) return;
+        const t = String(i.timestamp || '').normalize('NFKC');
+        let p = null;
+        if (/入院前|既往|生活歴|現病歴/.test(t) || i.admissionPhase === 'preadmission') p = 0;
+        if (/入院時|術前|手術当日|術当日|入院当日|入院1日目|発症/.test(t)) p = 1;
+        const m = t.match(/(?:入院|術後|病日)\s*(\d+)\s*日目|術後|POD\s*\d+/);
+        if (m) p = /術後|POD/.test(m[0]) ? 2 : (Number(m[1]) >= 2 ? 2 : 1);
+        if (p !== null && (best === null || p > best)) best = p;
+      });
+      return best;
     }
     function layoutRelationMap(map) {
       if (!map || !map.nodes.length) return map;
@@ -361,10 +378,19 @@
       const sInn = new Map(heads.map(h => [h, [...new Set(inn.get(h).map(x => head.get(x)))].filter(x => x !== h)]));
       const sOut = new Map(heads.map(h => [h, [...new Set(out.get(lastOf(h)).map(x => head.get(x)))].filter(x => x !== h)]));
       const hr = new Map();
-      order.filter(id => head.get(id) === id && !probIds.has(id)).forEach(h => {
-        const n = byId.get(h), ps = sInn.get(h).filter(x => !probIds.has(x));
-        hr.set(h, n.type === 'patient_fact' && !ps.length ? 0 : Math.max(minRank(n), ...ps.map(x => (hr.get(x) ?? 0) + 1)));
-      });
+      const phaseOf = h => Math.max(-1, ...members.get(h).map(m => (Number.isInteger(byId.get(m).phase) ? byId.get(m).phase : -1)));
+      const rankHeads = floorOf => {
+        hr.clear();
+        order.filter(id => head.get(id) === id && !probIds.has(id)).forEach(h => {
+          const n = byId.get(h), ps = sInn.get(h).filter(x => !probIds.has(x));
+          hr.set(h, n.type === 'patient_fact' && !ps.length ? 0 : Math.max(minRank(n), floorOf(h), ...ps.map(x => (hr.get(x) ?? 0) + 1)));
+        });
+      };
+      rankHeads(() => 0);
+      // 【時系列】利用者からの要望：「時系列は気にするように」。術後・入院2日目以降の記録から作った四角は、
+      // 治療（手術など）の列より右に置く（治療より前に起きたように見えないようにする）
+      const treatRanks = heads.filter(h => !probIds.has(h) && byId.get(h).type === 'treatment' && phaseOf(h) !== 2).map(h => hr.get(h));
+      if (treatRanks.length) { const tr = Math.min(...treatRanks); rankHeads(h => (phaseOf(h) === 2 && byId.get(h).type !== 'treatment' ? tr + 1 : 0)); }
       const maxHr = Math.max(0, ...hr.values());
       [...order].reverse().forEach(h => {
         if (head.get(h) !== h || probIds.has(h)) return;
@@ -374,7 +400,13 @@
         if (succ - 1 > hr.get(h)) hr.set(h, succ - 1);
       });
       lastRank = Math.max(0, ...hr.values()) + 1;
-      ids.forEach(id => rank.set(id, probIds.has(id) ? lastRank : hr.get(head.get(id))));
+      // 【看護問題の位置】利用者からの要望：「看護問題はいちばん右でなくてよい（一覧にする機能があればよい）」。
+      // 看護問題は、つながる原因のいちばん右の列のすぐ右に置く（流れのすぐ先に見える。一覧は図の上の「看護問題の一覧」）
+      ids.forEach(id => {
+        if (!probIds.has(id)) { rank.set(id, hr.get(head.get(id))); return; }
+        const ps = sInn.get(id).filter(x => !probIds.has(x));
+        rank.set(id, ps.length ? Math.max(...ps.map(x => hr.get(x) ?? 0)) + 1 : lastRank);
+      });
       const stackW = h => Math.max(...members.get(h).map(m => rmNodeSize(byId.get(m)).w));
       const stackH = h => members.get(h).reduce((sum, m) => sum + blockH(byId.get(m)), 0) + (members.get(h).length - 1) * RM_STACK_GAP;
       const cols = [];
@@ -384,7 +416,7 @@
       const setPos = () => cols.forEach(c => c.forEach((e, k) => pos.set(e.id, k)));
       const sortCol = (c, nb, isProb) => {
         c.forEach(e => { const ps = nb(e.id).map(x => pos.get(x)).filter(v => v !== undefined); e.bary = ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : e.bary ?? e.i; });
-        c.sort((a, b) => isProb ? (byId.get(a.id).priority - byId.get(b.id).priority) : ((band.get(a.id) - band.get(b.id)) || (a.bary - b.bary) || (a.i - b.i)));
+        c.sort((a, b) => (band.get(a.id) - band.get(b.id)) || (probIds.has(a.id) && probIds.has(b.id) ? byId.get(a.id).priority - byId.get(b.id).priority : 0) || (a.bary - b.bary) || (a.i - b.i));
       };
       cols.forEach(c => c.forEach(e => { e.bary = e.i; }));
       cols.forEach((c, r) => sortCol(c, () => [], r === lastRank));
@@ -429,31 +461,8 @@
       map.nodes.forEach(n => { n.y = Math.round(n.y - minY); });
       // 看護問題ごとの帯（背景に薄い色を交互に付け、どの流れがどの看護問題のものかを見分けやすくする）
       map.bands = stripes.filter(st => st.p !== 999).map(st => ({ y1: Math.round(st.y1 - minY), y2: Math.round(st.y2 - minY), p: st.p }));
-      // 列の見出し（左：背景・要因／疾患・病態の発生／治療／治療後の身体の変化・症状・生活への影響／右端：看護問題）
-      const colTypes = cols.map(c => new Set(c.flatMap(e => members.get(e.id).map(m => byId.get(m).type))));
-      // 「治療」の列は、疾患より右で、治療（楕円）が半分以上を占める最初の列（内科の事例で治療が散らばるときは作らない）
-      const colNodes = cols.map(c => c.flatMap(e => members.get(e.id).map(m => byId.get(m))));
-      const diseaseCol = colNodes.findIndex(c => c.some(n => n.type === 'disease'));
-      const firstTreat = colNodes.findIndex((c, r) => r > Math.max(0, diseaseCol) && r < lastRank && c.length && c.filter(n => n.type === 'treatment').length * 2 >= c.length);
-      const labelOf = r => {
-        if (r === lastRank) return '看護問題';
-        if (r === 0 && colTypes[0].has('patient_fact')) return '生活背景・既往・要因';
-        if (diseaseCol >= 0 && r <= diseaseCol) return '疾患・病態の発生・進行';
-        if (firstTreat < 0) return diseaseCol >= 0 ? '病態・症状・生活への影響' : '病態・症状・生活への影響';
-        if (r < firstTreat) return '疾患・病態の発生・進行';
-        if (r === firstTreat) return '治療';
-        return '治療後の身体の変化・症状・生活への影響';
-      };
-      const headers = [];
-      cols.forEach((c, r) => {
-        if (!c.length) return;
-        const label = labelOf(r);
-        const w = Math.max(...c.map(e => stackW(e.id)));
-        const last = headers[headers.length - 1];
-        if (last && last.label === label && last.r === r - 1) { last.x2 = colX[r] + w; last.r = r; }
-        else headers.push({ x1: colX[r], x2: colX[r] + w, label, r });
-      });
-      map.headers = headers.map(h => ({ x1: h.x1, x2: h.x2, label: h.label }));
+      // 列の見出し（生活背景・疾患・治療・治療後・看護問題）は、利用者からの要望で出さない（列にとらわれず、時系列と因果で並べる）
+      map.headers = [];
       return map;
     }
 
@@ -635,10 +644,9 @@
       if (!map.nodes.length) return { x: 0, y: 0, w: 600, h: 300 };
       let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
       map.nodes.forEach(n => { const r = rmRect(n); x1 = Math.min(x1, r.x1); y1 = Math.min(y1, r.y1); x2 = Math.max(x2, r.x2); y2 = Math.max(y2, r.y2); });
-      (map.headers || []).forEach(h => { x1 = Math.min(x1, h.x1); x2 = Math.max(x2, h.x2); });
       (map.bands || []).forEach(st => { y1 = Math.min(y1, st.y1); y2 = Math.max(y2, st.y2); });
       const pad = 34;
-      const top = (map.headers || []).length ? 40 : 0;
+      const top = 0; // 列の見出しは出さない（前に保存した図に見出しが残っていても描かない）
       return { x: x1 - pad, y: y1 - pad - top, w: x2 - x1 + pad * 2, h: y2 - y1 + pad * 2 + top };
     }
     function rmEdgesSvg(map, { interactive }) {
@@ -677,7 +685,7 @@
       </g>`;
     }
     function rmHeadersSvg(map, b) {
-      return (map.headers || []).map(h => `<g class="rm-header"><rect x="${h.x1}" y="${b.y + 6}" width="${Math.max(10, h.x2 - h.x1)}" height="28" rx="3" fill="#ECEAE4"/><text x="${(h.x1 + h.x2) / 2}" y="${b.y + 25}" text-anchor="middle" font-size="14" font-weight="700" fill="#3F3B35">${escapeHtml(h.label)}</text></g>`).join('');
+      return [].map(h => `<g class="rm-header"><rect x="${h.x1}" y="${b.y + 6}" width="${Math.max(10, h.x2 - h.x1)}" height="28" rx="3" fill="#ECEAE4"/><text x="${(h.x1 + h.x2) / 2}" y="${b.y + 25}" text-anchor="middle" font-size="14" font-weight="700" fill="#3F3B35">${escapeHtml(h.label)}</text></g>`).join('');
     }
     function relationMapSvg(map, { interactive = false, zoom = 1, title = '' } = {}) {
       const b = rmBounds(map);
@@ -867,6 +875,8 @@
         const srcItems = (o.items || []).filter(Boolean);
         if (srcItems.length === 1 && ['patient_fact', 'symptom'].includes(type) && byItem.has(srcItems[0])) { const ex = byItem.get(srcItems[0]); nodes.set(key, ex); return ex; }
         const n = { id: rmNewId('n'), key, type, label: rmShorten(label, o.max || 44), evidence: o.evidence || '', observed: o.observed !== false, source: o.source || 'record', priority: 0, x: 0, y: 0, itemIds: (o.items || []).map(i => i && i.id).filter(Boolean).slice(0, 10), cat: o.cat };
+        const ph = rmPhaseOfItems(srcItems);
+        if (ph !== null) n.phase = ph;
         nodes.set(key, n);
         if (srcItems.length === 1 && ['patient_fact', 'symptom'].includes(type)) byItem.set(srcItems[0], n);
         return n;
@@ -1793,12 +1803,30 @@ ${cards}`;
         wrap.classList.toggle('is-connecting', !!rmState.connectFrom);
         if (has) rmApplySelectionClasses();
       }
+      rmRenderProblemList(map);
       const legend = document.getElementById('rm-legend');
       if (legend && !legend.dataset.ready) { legend.innerHTML = rmLegendHtml(); legend.dataset.ready = '1'; }
       const info = document.getElementById('rm-info');
       if (info) info.textContent = has ? `${map.nodes.length}個の四角・${map.edges.length}本の矢印・看護問題${map.nodes.filter(n => n.type === 'nursing_problem').length}個${map.updatedAt ? `（最終更新 ${new Date(map.updatedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}）` : ''}` : '';
       rmRenderSelectionBar();
       rmRenderToolbarState();
+    }
+    // 【看護問題の一覧】利用者からの要望：「看護問題はいちばん右でなくてよい。一覧にする機能があればよい」。
+    // 図の上に優先順位（#）の順に並べ、押すとその四角を選んで図の真ん中に見せる。
+    function rmRenderProblemList(map) {
+      const box = document.getElementById('rm-problems');
+      if (!box) return;
+      const probs = map ? map.nodes.filter(n => n.type === 'nursing_problem').sort((a, b) => (a.priority || 999) - (b.priority || 999)) : [];
+      box.classList.toggle('hidden', !probs.length);
+      box.innerHTML = probs.length ? `<span class="rm-problems-title"><i class="fa-solid fa-list-ol"></i> 看護問題の一覧</span>` + probs.map(n => `<button type="button" class="rm-prob-btn${/リスク|可能性|おそれ|危険/.test(n.label) ? ' is-risk' : ''}" data-rm-action="goto-problem" data-node-id="${escapeHtml(n.id)}" title="図の中のこの看護問題へ移ります">${escapeHtml(rmDisplayLabel(n))}</button>`).join('') : '';
+    }
+    function rmScrollToNode(id) {
+      const wrap = document.getElementById('rm-canvas-wrap');
+      const g = wrap && wrap.querySelector(`.rm-node[data-node-id="${rmCssEsc(id)}"]`);
+      if (!g) return;
+      const r = g.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+      wrap.scrollLeft += (r.left + r.width / 2) - (wr.left + wrap.clientWidth / 2);
+      wrap.scrollTop += (r.top + r.height / 2) - (wr.top + wrap.clientHeight / 2);
     }
     function rmRenderEdgesOnly(map) {
       const g = document.querySelector('#rm-canvas-wrap .rm-links');
@@ -2166,6 +2194,7 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
         else if (act === 'bridge') rmBridgeAll();
         else if (act === 'toggle-added') rmToggleAdded();
         else if (act === 'fullscreen') rmSetFullscreen();
+        else if (act === 'goto-problem') { const id = btn.dataset.nodeId; if (rmNodeById(rmMap(), id)) { rmSelect({ type: 'node', id }); rmScrollToNode(id); } }
         else if (act === 'print') rmPrint();
         else if (act === 'png') rmSavePng();
         else if (act === 'clear') rmClearAll();
@@ -2359,5 +2388,5 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
     if (typeof document !== 'undefined' && document.getElementById && document.getElementById('view-relation')) initRelationMapUi();
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi, rmSetFullscreen });
+  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi, rmSetFullscreen, rmPhaseOfItems });
 }
