@@ -79,6 +79,8 @@ function reaches(map, a, b) {
   return false;
 }
 
+// 直接の矢印か、間に「＋補足」の四角を1つはさんだ矢印
+const linked = (map, a, b) => hasEdge(map, a, b) || map.nodes.some(m => m.added && hasEdge(map, a, m) && hasEdge(map, m, b));
 test('関連図：事実図ではなく、病態の中間過程を補い、複数の原因が #1 呼吸の問題へ合流する（胃全摘・術後）', () => {
   const map = app.buildRelationMapFromRecord(patientOf(GASTRIC));
   const p1 = map.nodes.find(n => n.type === 'nursing_problem' && n.priority === 1);
@@ -87,7 +89,7 @@ test('関連図：事実図ではなく、病態の中間過程を補い、複�
   [smoke, anes, pain, fev].forEach(n => assert.ok(n && reaches(map, n, p1), `${n && n.label} → #1`));
   // 中間過程（深呼吸・咳嗽の抑制 → 排痰困難）と、予測（破線）の無気肺・肺炎
   const suppress = find(map, /深呼吸・咳嗽の抑制/), sputum = find(map, /^排痰困難/);
-  assert.ok(hasEdge(map, pain, suppress) && hasEdge(map, suppress, sputum));
+  assert.ok(linked(map, pain, suppress) && linked(map, suppress, sputum));
   const atel = find(map, /無気肺・肺炎の可能性/);
   assert.equal(atel.type, 'future_risk'); assert.equal(atel.observed, false);
   assert.ok(map.edges.filter(e => e.target === atel.id).every(e => e.predicted), '予測への矢印は破線');
@@ -301,10 +303,11 @@ test('事例3（心原性脳塞栓症・72歳）：心房細動→血栓→脳�
   const clot = find(map, /心房内の血栓/), dx = map.nodes.find(n => n.type === 'disease'), lesion = find(map, /脳の血流の途絶/);
   assert.ok(hasEdge(map, clot, dx) && hasEdge(map, dx, lesion));
   ['麻痺', '失語'].forEach(w => assert.ok(map.edges.some(e => e.source === lesion.id && map.nodes.find(n => n.id === e.target).label.includes(w)), w));
-  assert.ok(hasEdge(map, lesion, find(map, /嚥下反射・咳反射の低下/)));
+  assert.ok(linked(map, lesion, find(map, /嚥下反射・咳反射の低下/)));
   const ac = find(map, /^抗凝固薬（エドキサバン）/);
   assert.ok(map.edges.some(e => e.source === ac.id && e.target === clot.id && e.relation === 'treats'), '抗凝固薬 → 血栓（治療 → 対象）');
-  assert.ok(map.edges.some(e => e.source === ac.id && e.predicted && /出血/.test(map.nodes.find(n => n.id === e.target).label)));
+  const bleed = find(map, /出血（脳出血/);
+  assert.ok(linked(map, ac, bleed) && map.edges.some(e => e.target === bleed.id && e.predicted), '抗凝固薬 ⇢［凝固能の低下］⇢ 出血の可能性');
   assert.ok(!map.nodes.some(n => n.type === 'pathophysiology' && /体動の制限/.test(n.label) && map.edges.some(e => e.target === n.id && /食事/.test(map.nodes.find(x => x.id === e.source).label))), '食事の介助を活動の制限にしない');
 });
 
@@ -348,4 +351,51 @@ test('関連図の線の整理：同じ四角からの線は1本の幹・回り�
   assert.ok(!/class="rm-kind"[^>]*>病態生理/.test(svg), '四角の上の種類名はなくす（色と凡例で区別）');
   assert.match(svg, /<g class="rm-tag">/, '予測・知識は小さな札で示す');
   assert.match(svg, /<title>[^<]*（医学知識で補った）/);
+});
+
+test('関連図の読みやすさ：文字14pxのゴシック体・作った直後は85%より小さくしない・100%ボタン・前の大きさの図は並べ直す', () => {
+  const svg = app.relationMapSvg(caseMap('gastric_postop'), {});
+  assert.match(svg, /font-size="14"[^>]*fill="#1C1917"/);
+  assert.match(svg, /font-family="[^"]*Noto Sans JP[^"]*sans-serif"/);
+  assert.match(css, /\.rm-svg text, \.rm-svg tspan \{ font-family: 'Noto Sans JP'[^}]*sans-serif; \}/, 'ページ全体の明朝体より優先');
+  assert.match(src, /factor === 'fit' \? 0\.25 : 0\.85/);
+  assert.match(html, /data-rm-action="zoom-100"/);
+  assert.match(src, /m\.layoutStyle !== RM_LAYOUT_STYLE\) layoutRelationMap\(m\)/);
+  const old = app.normalizeRelationMap({ version: 2, nodes: [{ id: 'a', type: 'symptom', label: 'x', x: 0, y: 0 }], edges: [] });
+  assert.equal(old.layoutStyle, 1, '保存してあった図は版を持たない → 並べ直しの対象');
+});
+
+test('矢印の間を補う：決まった知識で中間過程を入れ、紫の「＋補足」で一目で分かる・手で/AIで入れる操作もある', () => {
+  const map = caseMap('gastric_postop');
+  const added = map.nodes.filter(n => n.added);
+  assert.ok(added.length >= 8, `補足 ${added.length}`);
+  // 手術侵襲 →［発痛物質の放出］→ 創部痛
+  const inv = find(map, /^手術侵襲（組織の損傷）/), pain = find(map, /^創部痛（NRS 2）/), mid = find(map, /発痛物質/);
+  assert.ok(mid.added && hasEdge(map, inv, mid) && hasEdge(map, mid, pain));
+  // 補足は前後どちらにもつながる（浮島にならない）、同じ過程は重ならない
+  added.forEach(n => assert.ok(map.edges.some(e => e.target === n.id) && map.edges.some(e => e.source === n.id), n.label));
+  assert.equal(new Set(added.map(n => n.label)).size, added.length);
+  assert.ok(!app.validateRelationMap(map).some(i => i.level === 'error'), '補ってもエラーにならない');
+  // 股関節の手術では「腹部」の過程は入れない
+  assert.ok(!caseMap('hip_fracture').nodes.some(n => /腹部・胸部に力/.test(n.label)));
+  // 予測の矢印の間の補足は予測（破線）のまま
+  const m2 = { version: 2, nodes: [{ id: 'a', type: 'pathophysiology', label: '皮膚・粘膜のバリア機能の低下', observed: true, source: 'knowledge', x: 0, y: 0 }, { id: 'b', type: 'future_risk', label: '感染の可能性', observed: false, source: 'knowledge', x: 0, y: 0 }], edges: [{ id: 'e', source: 'a', target: 'b', relation: 'predicts', predicted: true }] };
+  assert.equal(app.rmApplyBridges(m2), 1);
+  const x = m2.nodes.find(n => n.added);
+  assert.equal(x.observed, false);
+  assert.ok(m2.edges.every(e => e.predicted));
+  assert.equal(app.rmApplyBridges(m2), 0, '2回目は増えない');
+  // 見た目：紫の枠・「＋補足」の札・凡例
+  const svg = app.relationMapSvg(map, {});
+  assert.match(svg, /class="rm-node is-added/);
+  assert.match(svg, /stroke="#7C3AED"/);
+  assert.match(svg, />＋補足/);
+  // 保存しても added は残る
+  assert.ok(app.normalizeRelationMap(JSON.parse(JSON.stringify(map))).nodes.some(n => n.added));
+  // 操作：図全体を補うボタン・選んだ矢印の間に入れる（手で/AIで）・AIの形に a
+  assert.match(html, /data-rm-action="bridge"/);
+  assert.match(src, /rmBtn\('mid-ai'/); assert.match(src, /rmBtn\('mid-add'/);
+  assert.match(src, /"a":0/);
+  const ai = app.relationMapFromAiJson({ n: [{ i: 'n1', t: 'pathophysiology', l: '手術侵襲', o: 1 }, { i: 'n2', t: 'pathophysiology', l: '発痛物質の放出', o: 1, k: 1, a: 1 }, { i: 'n3', t: 'nursing_problem', l: '急性疼痛', p: 1 }], e: [{ s: 'n1', d: 'n2', r: 'causes' }, { s: 'n2', d: 'n3', r: 'results_in' }] });
+  assert.ok(ai.nodes.find(n => n.label === '発痛物質の放出').added);
 });

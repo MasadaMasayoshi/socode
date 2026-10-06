@@ -922,12 +922,18 @@
     html[data-theme="dark"] .rm-canvas-wrap .rm-node[data-kind="symptom"] .rm-box { fill: #33291A; stroke: #E0B25C; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-node .rm-kind { fill: #CFC8B9; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-node .rm-tag rect { fill: #24211D; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-added .rm-box { fill: #2A2140; stroke: #B9A2F5; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-added .rm-tag rect { fill: #7C3AED; }
+    .rm-bridge-btn { border-color: #C4B5FD; color: #6D28D9; }
+    html[data-theme="dark"] .rm-bridge-btn { border-color: #6D28D9; color: #C4B5FD; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-link.is-treat .rm-link-line { stroke: #8DB3EA; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-header rect { fill: #2E2A25; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-header text { fill: #EAE5DA; }
     @media print { #view-relation .rm-toolbar, #view-relation .rm-selbar { display: none !important; } }
     html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-selected[data-kind] .rm-box, html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-connect-from[data-kind] .rm-box { stroke: #F59E6B; }
     /* 関連図：選んだ四角の原因・結果の流れだけを濃く（js/15 の rmApplySelectionClasses） */
+    /* 関連図の文字は、小さく表示しても読みやすいゴシック体（ページ全体の明朝体より優先） */
+    .rm-svg text, .rm-svg tspan { font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic UI', 'Yu Gothic', 'Meiryo', sans-serif; }
     .rm-canvas-wrap .rm-svg.rm-focus .rm-node:not(.is-path) { opacity: .22; }
     .rm-canvas-wrap .rm-svg.rm-focus .rm-link:not(.is-path) { opacity: .1; }
     .rm-canvas-wrap .rm-svg.rm-focus .rm-link.is-path .rm-link-line { stroke-width: 2.2px; }
