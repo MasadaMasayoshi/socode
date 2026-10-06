@@ -319,3 +319,33 @@ test('関連図の見やすさ：看護問題ごとの帯・丸めた曲がり�
   map.nodes.filter(n => n.type === 'symptom' && n.itemIds.length).forEach(n => assert.ok(n.label.length <= 40, n.label));
   assert.ok(!map.nodes.some(n => /^\d{1,2}:\d{2}/.test(n.label)), '時刻は四角に入れない');
 });
+
+test('関連図の線の整理：同じ四角からの線は1本の幹・回り込む線は四角の後ろを通らない・四角の見出しは札だけ', () => {
+  ['gastric_postop', 'hip_fracture', 'aspiration_pneumonia', 'cerebral_infarction'].forEach(name => {
+    const map = caseMap(name);
+    const { routes } = app.rmRouteEdges(map);
+    assert.equal(routes.length, map.edges.length, name);
+    // 回り込み（通り道）を使った線の横の部分は、ほかの四角に重ならない
+    routes.filter(r => r.pts.length === 6).forEach(r => {
+      const [xa, y] = r.pts[2], xb = r.pts[3][0];
+      map.nodes.forEach(n => {
+        if (n.id === r.edge.source || n.id === r.edge.target) return;
+        const b = app.rmRect(n);
+        assert.ok(!(y > b.y1 && y < b.y2 && Math.max(xa, xb) > b.x1 && Math.min(xa, xb) < b.x2), `${name}: ${n.label}`);
+      });
+    });
+    // 同じすき間で、同じ四角から出る（または同じ四角へ入る）線の縦の位置はそろう
+    const trunk = new Map();
+    routes.filter(r => r.pts.length === 4 && Math.abs(r.pts[0][1] - r.pts[1][1]) < 0.5).forEach(r => {
+      const k = `${r.edge.target}|${Math.round(r.pts[3][0])}|${Math.round(r.pts[3][1])}`;
+      if (!trunk.has(k)) trunk.set(k, new Set());
+      trunk.get(k).add(Math.round(r.pts[1][0]));
+    });
+    const mergedIntoOne = [...trunk.values()].filter(set => set.size === 1).length;
+    assert.ok(mergedIntoOne >= trunk.size * 0.7, `${name}: 合流が幹にまとまる`);
+  });
+  const svg = app.relationMapSvg(caseMap('gastric_postop'), {});
+  assert.ok(!/class="rm-kind"[^>]*>病態生理/.test(svg), '四角の上の種類名はなくす（色と凡例で区別）');
+  assert.match(svg, /<g class="rm-tag">/, '予測・知識は小さな札で示す');
+  assert.match(svg, /<title>[^<]*（医学知識で補った）/);
+});

@@ -921,6 +921,7 @@
     html[data-theme="dark"] .rm-canvas-wrap .rm-node[data-kind="lab"] .rm-box { fill: #1E2833; stroke: #8FB0D0; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-node[data-kind="symptom"] .rm-box { fill: #33291A; stroke: #E0B25C; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-node .rm-kind { fill: #CFC8B9; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-node .rm-tag rect { fill: #24211D; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-link.is-treat .rm-link-line { stroke: #8DB3EA; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-header rect { fill: #2E2A25; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-header text { fill: #EAE5DA; }

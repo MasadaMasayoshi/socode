@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.3'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.4'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -38,7 +38,7 @@
     const RM_V1_KIND = { patient: 'patient_fact', psychosocial: 'patient_fact', disease: 'disease', treatment: 'treatment', pathology: 'pathophysiology', symptom: 'symptom', problem: 'nursing_problem', risk: 'nursing_problem' };
 
     const RM_RECT_W = 176, RM_ELLIPSE_W = 196;
-    const RM_FONT = 12, RM_LINE_H = 16, RM_PAD = 8, RM_HEAD_H = 12;
+    const RM_FONT = 12, RM_LINE_H = 16, RM_PAD = 8, RM_HEAD_H = 0;
     const RM_COL_GAP = 80, RM_ROW_GAP = 22;
     const RM_MAX_NODES = 60, RM_MAX_EDGES = 140, RM_TEXT_MAX = 120, RM_UNDO_MAX = 40;
     const RM_BRIDGE_R = 5;
@@ -322,36 +322,110 @@
       const rects = map.nodes.map(n => ({ id: n.id, ...rmRect(n) }));
       const rectById = new Map(rects.map(r => [r.id, r]));
       const routes = [];
-      const channelUse = new Map();
-      const offsetFor = key => { const k = Math.round(key / 8); const n = channelUse.get(k) || 0; channelUse.set(k, n + 1); return (n % 2 ? 1 : -1) * Math.ceil(n / 2) * 6; };
+      // 列のすき間（縦の線を通す所）。四角の左右の端から求める
+      const cols = [];
+      rects.slice().sort((p, q) => p.x1 - q.x1).forEach(r => {
+        const c = cols.find(c => r.x1 < c.x2 - 4 && r.x2 > c.x1 + 4);
+        if (c) { c.x1 = Math.min(c.x1, r.x1); c.x2 = Math.max(c.x2, r.x2); } else cols.push({ x1: r.x1, x2: r.x2 });
+      });
+      cols.sort((p, q) => p.x1 - q.x1);
+      const gapRight = x => { const k = cols.findIndex(c => c.x1 >= x - 1); return k > 0 ? { key: k, x1: cols[k - 1].x2, x2: cols[k].x1 } : null; }; // x より右の最初のすき間
+      const gapLeft = x => { let k = -1; cols.forEach((c, i) => { if (c.x2 <= x + 1) k = i; }); return k >= 0 && k + 1 < cols.length ? { key: k + 1, x1: cols[k].x2, x2: cols[k + 1].x1 } : null; };
+      // 同じ四角から出る線・同じ四角へ入る線の数（幹にまとめるかを決める）
+      const dirOf = e => { const a = rectById.get(e.source), b = rectById.get(e.target); return !a || !b ? 0 : b.x1 > a.x2 + 8 ? 1 : a.x1 > b.x2 + 8 ? -1 : 0; };
+      const bent = e => { const a = rectById.get(e.source), b = rectById.get(e.target); return dirOf(e) && Math.abs(a.cy - b.cy) >= 2; };
+      const fanOut = new Map(), fanIn = new Map();
+      map.edges.forEach(e => { if (!bent(e)) return; const d = dirOf(e); fanOut.set(e.source + d, (fanOut.get(e.source + d) || 0) + 1); fanIn.set(e.target + d, (fanIn.get(e.target + d) || 0) + 1); });
+      const groups = new Map(); // すき間ごと・幹ごとに縦の線をまとめる
       map.edges.forEach(e => {
         const a = rectById.get(e.source), b = rectById.get(e.target);
         if (!a || !b) return;
-        let pts;
-        if (b.x1 > a.x2 + 8 || a.x1 > b.x2 + 8) {
-          const right = b.x1 > a.x2;
+        const d = dirOf(e);
+        if (d) {
+          const right = d > 0;
           const sx = right ? a.x2 : a.x1, tx = right ? b.x1 : b.x2;
           const sy = a.cy, ty = b.cy;
-          if (Math.abs(sy - ty) < 2) pts = [[sx, sy], [tx, ty]];
-          else {
-            // 縦の線を引く位置：出てすぐ曲がるか、入る直前で曲がるか、間の四角に重ならない方
-            const nearS = sx + (right ? 1 : -1) * RM_COL_GAP / 2, nearT = tx - (right ? 1 : -1) * RM_COL_GAP / 2;
-            const skip = new Set([e.source, e.target]);
-            const costS = rmHitsRects({ y: ty, a: nearS, b: tx }, rects, skip) + rmHitsRects({ x: nearS, a: sy, b: ty }, rects, skip);
-            const costT = rmHitsRects({ y: sy, a: sx, b: nearT }, rects, skip) + rmHitsRects({ x: nearT, a: sy, b: ty }, rects, skip);
-            const mx0 = costT <= costS ? nearT : nearS;
-            const mx = mx0 + offsetFor(mx0);
-            pts = [[sx, sy], [mx, sy], [mx, ty], [tx, ty]];
+          if (Math.abs(sy - ty) < 2) { routes.push({ edge: e, pts: [[sx, sy], [tx, ty]] }); return; }
+          const gS = right ? gapRight(sx) : gapLeft(sx), gT = right ? gapLeft(tx) : gapRight(tx);
+          const mid = g => g ? (g.x1 + g.x2) / 2 : null;
+          const nearS = mid(gS) ?? sx + d * RM_COL_GAP / 2, nearT = mid(gT) ?? tx - d * RM_COL_GAP / 2;
+          const skip = new Set([e.source, e.target]);
+          const costS = rmHitsRects({ y: ty, a: nearS, b: tx }, rects, skip) + rmHitsRects({ x: nearS, a: sy, b: ty }, rects, skip);
+          const costT = rmHitsRects({ y: sy, a: sx, b: nearT }, rects, skip) + rmHitsRects({ x: nearT, a: sy, b: ty }, rects, skip);
+          // 合流（同じ四角へ入る）・分岐（同じ四角から出る）は1本の幹にまとめる。四角に重なる方は避ける
+          let useT = costT <= costS;
+          if (costT === costS) { if ((fanIn.get(e.target + d) || 0) > 1) useT = true; else if ((fanOut.get(e.source + d) || 0) > 1) useT = false; }
+          const route = { edge: e, pts: null, sx, sy, tx, ty };
+          routes.push(route);
+          // どちらで曲がっても四角の後ろを通ってしまう長い線は、空いている高さ（通り道）を通して回り込む
+          if (costS > 0 && costT > 0 && gS && gT && gS.key !== gT.key) {
+            const xa = Math.min(nearS, nearT), xb = Math.max(nearS, nearT);
+            const cands = [sy, ty];
+            let topY = Infinity;
+            rects.forEach(r => { if (r.x2 > xa && r.x1 < xb) { cands.push(r.y1 - 9, r.y2 + 9); topY = Math.min(topY, r.y1); } });
+            if (topY < Infinity) cands.push(topY - 14);
+            // ほかの矢印の縦の線をいくつ横切るか（おおよそ）
+            const spans = map.edges.filter(o => o !== e).map(o => { const p = rectById.get(o.source), q = rectById.get(o.target); return p && q ? { a: Math.min(p.cy, q.cy), b: Math.max(p.cy, q.cy), x1: Math.min(p.x2, q.x2), x2: Math.max(p.x1, q.x1) } : null; }).filter(Boolean);
+            const crossEst = y => spans.filter(o => y > o.a + 1 && y < o.b - 1 && o.x2 > xa && o.x1 < xb).length;
+            const free = cands.filter(y => !rmHitsRects({ y, a: xa, b: xb }, rects, skip) && !rmHitsRects({ x: nearS, a: sy, b: y }, rects, skip) && !rmHitsRects({ x: nearT, a: y, b: ty }, rects, skip));
+            if (free.length) {
+              const score = y => crossEst(y) * 60 + Math.abs(y - sy) + Math.abs(y - ty);
+              const yc = free.sort((p, q) => score(p) - score(q))[0];
+              route.yc = yc;
+              [['S', gS, sy, yc], ['T', gT, yc, ty]].forEach(([part, g, ya, yb]) => {
+                if (g.x2 - g.x1 < 16) { route['x' + part] = (g.x1 + g.x2) / 2; return; }
+                const key = `${g.key}|C${e.id}${part}`;
+                groups.set(key, { gap: g, routes: [], parts: [[route, part]], hs: [{ y: ya, side: right ? 'L' : 'R' }, { y: yb, side: right ? 'R' : 'L' }] });
+              });
+              return;
+            }
           }
+          const g = useT ? gT : gS;
+          if (!g || g.x2 - g.x1 < 16) { route.pts = [[sx, sy], [useT ? nearT : nearS, sy], [useT ? nearT : nearS, ty], [tx, ty]]; return; }
+          const key = `${g.key}|${useT ? 'T' + e.target : 'S' + e.source}|${d}`;
+          if (!groups.has(key)) groups.set(key, { gap: g, routes: [], hs: [] });
+          const gr = groups.get(key);
+          gr.routes.push(route);
+          gr.hs.push({ y: sy, side: right ? 'L' : 'R' }, { y: ty, side: right ? 'R' : 'L' });
         } else {
           // 同じ列（上下）
           const down = b.cy > a.cy;
           const sy = down ? a.y2 : a.y1, ty = down ? b.y1 : b.y2;
+          let pts;
           if (Math.abs(a.cx - b.cx) < 2) pts = [[a.cx, sy], [b.cx, ty]];
           else { const my = (sy + ty) / 2; pts = [[a.cx, sy], [a.cx, my], [b.cx, my], [b.cx, ty]]; }
+          routes.push({ edge: e, pts });
         }
-        routes.push({ edge: e, pts });
       });
+      // すき間ごとに、幹を等間隔に並べる。順番は交差がいちばん少なくなるように選ぶ
+      const byGap = new Map();
+      groups.forEach(gr => { gr.y1 = Math.min(...gr.hs.map(h => h.y)); gr.y2 = Math.max(...gr.hs.map(h => h.y)); const k = gr.gap.key; if (!byGap.has(k)) byGap.set(k, []); byGap.get(k).push(gr); });
+      const inside = (y, g) => y > g.y1 + 1 && y < g.y2 - 1;
+      const pairCost = (L, R) => R.hs.filter(h => h.side === 'L' && inside(h.y, L)).length + L.hs.filter(h => h.side === 'R' && inside(h.y, R)).length; // L を左、R を右に置いたときの交差
+      byGap.forEach(list => {
+        let order;
+        if (list.length <= 6) {
+          let best = null, bestCost = Infinity;
+          const perm = (rest, cur) => {
+            if (!rest.length) { let c = 0; for (let i = 0; i < cur.length; i++) for (let j = i + 1; j < cur.length; j++) c += pairCost(cur[i], cur[j]); if (c < bestCost) { bestCost = c; best = cur.slice(); } return; }
+            rest.forEach((g, i) => perm(rest.filter((_, k) => k !== i), cur.concat([g])));
+          };
+          perm(list, []);
+          order = best;
+        } else {
+          order = [];
+          list.slice().sort((p, q) => (p.y2 - p.y1) - (q.y2 - q.y1)).forEach(g => {
+            let bi = 0, bc = Infinity;
+            for (let i = 0; i <= order.length; i++) { const t = order.slice(0, i).concat([g], order.slice(i)); let c = 0; for (let a = 0; a < t.length; a++) for (let b = a + 1; b < t.length; b++) c += pairCost(t[a], t[b]); if (c < bc) { bc = c; bi = i; } }
+            order.splice(bi, 0, g);
+          });
+        }
+        const gap = list[0].gap, n = order.length;
+        const step = Math.min(14, (gap.x2 - gap.x1 - 16) / Math.max(1, n - 1));
+        const mid = (gap.x1 + gap.x2) / 2;
+        order.forEach((gr, i) => { const x = n === 1 ? mid : mid + (i - (n - 1) / 2) * step; gr.routes.forEach(r => { r.pts = [[r.sx, r.sy], [x, r.sy], [x, r.ty], [r.tx, r.ty]]; }); (gr.parts || []).forEach(([r, part]) => { r['x' + part] = x; }); });
+      });
+      routes.forEach(r => { if (r.yc != null) r.pts = [[r.sx, r.sy], [r.xS, r.sy], [r.xS, r.yc], [r.xT, r.yc], [r.xT, r.ty], [r.tx, r.ty]].filter((p, k, a) => !k || Math.abs(p[0] - a[k - 1][0]) + Math.abs(p[1] - a[k - 1][1]) > 0.5); });
       // 飛び越え：横の線が、ほかの矢印の縦の線と交わる所
       const verticals = [];
       routes.forEach((r, ri) => { for (let k = 0; k < r.pts.length - 1; k++) { const [x1, y1] = r.pts[k], [x2, y2] = r.pts[k + 1]; if (Math.abs(x1 - x2) < 0.5) verticals.push({ ri, x: x1, a: Math.min(y1, y2), b: Math.max(y1, y2) }); } });
@@ -440,10 +514,12 @@
       const ell = t.shape === 'ellipse';
       const textX = ell ? s.w / 2 : RM_PAD;
       const anchor = ell ? ' text-anchor="middle"' : '';
-      const head = `${t.label}${dashed ? '（予測）' : ''}${n.source === 'knowledge' ? ' ※知識' : ''}`;
+      const tag = [dashed ? '予測' : '', n.source === 'knowledge' ? '※知識' : ''].filter(Boolean).join(' ');
+      const tagW = tag.length * 8.5 + 10;
       return `<g class="rm-node${sel ? ' is-selected' : ''}${from ? ' is-connect-from' : ''}" data-node-id="${escapeHtml(n.id)}" data-kind="${escapeHtml(n.type)}" transform="translate(${n.x},${n.y})"${interactive ? ` tabindex="0" role="button" aria-label="${escapeHtml(`${t.label}${dashed ? '（予測）' : ''}：${rmDisplayLabel(n)}`)}"` : ''}>
         ${shape}
-        <text class="rm-kind" x="${textX}" y="${RM_PAD + 8 + (ell ? 8 : 0)}"${anchor} font-size="9" fill="${t.stroke}" font-weight="700">${escapeHtml(head)}</text>
+        <title>${escapeHtml(`${t.label}${dashed ? '（予測）' : ''}${n.source === 'knowledge' ? '（医学知識で補った）' : ''}`)}</title>
+        ${tag ? `<g class="rm-tag"><rect x="${s.w - tagW - 6}" y="-7" width="${tagW}" height="13" rx="6.5" fill="#FFFFFF" stroke="${t.stroke}" stroke-width="0.8"/><text class="rm-kind" x="${s.w - tagW / 2 - 6}" y="3" text-anchor="middle" font-size="8.5" fill="${t.stroke}" font-weight="700">${escapeHtml(tag)}</text></g>` : ''}
         <text class="rm-text" x="${textX}" y="${RM_PAD + RM_HEAD_H + RM_FONT + (ell ? 8 : 0)}"${anchor} font-size="${RM_FONT}" fill="#262420"${t.bold ? ' font-weight="700"' : ''}>${s.lines.map((line, i) => `<tspan x="${textX}" dy="${i ? RM_LINE_H : 0}">${escapeHtml(line)}</tspan>`).join('')}</text>
       </g>`;
     }
@@ -1767,5 +1843,5 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
     if (typeof document !== 'undefined' && document.getElementById && document.getElementById('view-relation')) initRelationMapUi();
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi });
+  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi });
 }
