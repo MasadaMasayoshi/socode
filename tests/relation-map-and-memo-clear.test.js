@@ -259,8 +259,9 @@ function commonChecks(map, label) {
   assert.deepEqual(plain(issues.filter(i => i.level === 'error').map(i => i.msg)), [], `${label}：要修正なし`);
   map.nodes.forEach(n => assert.ok(map.edges.some(e => e.source === n.id || e.target === n.id), `${label}：浮島 ${n.label}`));
   const probs = map.nodes.filter(n => n.type === 'nursing_problem');
-  assert.ok(probs.length >= 4 && probs.length <= 7, `${label}：看護問題 ${probs.length}`);
-  const ids = new Set(); map.nodes.forEach(n => n.itemIds.forEach(id => { if (n.type === 'symptom' || n.type === 'patient_fact') { assert.ok(!ids.has(id), `${label}：同じカードが2つの四角に`); ids.add(id); } }));
+  assert.ok(probs.length >= 4 && probs.length <= 8, `${label}：看護問題 ${probs.length}`);
+  // 不安の言葉は、同じカードの別の文（「…」）を使うことがあるので重複の確認から外す
+  const ids = new Set(); map.nodes.forEach(n => n.itemIds.forEach(id => { if ((n.type === 'symptom' || n.type === 'patient_fact') && !/不安の言動）$/.test(n.label)) { assert.ok(!ids.has(id), `${label}：同じカードが2つの四角に`); ids.add(id); } }));
   map.edges.filter(e => e.relation === 'treats').forEach(e => assert.equal(map.nodes.find(n => n.id === e.source).type, 'treatment'));
   map.nodes.filter(n => n.type === 'future_risk').forEach(n => assert.equal(n.observed, false));
 }
@@ -291,7 +292,7 @@ test('事例2（誤嚥性肺炎・88歳・手術なし）：炎症→痰→気�
   assert.ok(o2 && suc, '酸素・吸引は「治療 → 対象」');
   assert.ok(find(map, /湿性ラ音/), '痰は入院後の観察の記録を使う');
   assert.equal(map.nodes.filter(n => /誤嚥性肺炎$/.test(n.label)).length, 1, '診断名を2つの四角にしない');
-  assert.ok(hasEdge(map, find(map, /嚥下反射・咳反射の低下/), dx), '嚥下機能の低下 → 誤嚥性肺炎');
+  assert.ok(linked(map, find(map, /嚥下反射・咳反射の低下/), dx), '嚥下機能の低下 →［気管に入りやすい］→ 誤嚥性肺炎');
   assert.ok(find(map, /BUN 32/) && find(map, /Na 148/));
 });
 
@@ -447,4 +448,73 @@ test('検査データは根拠になる四角のすぐ下にくっつける（�
   // 親を動かすとデータも一緒に動く／データを引きはがすと矢印で描く
   assert.match(src, /l\.attachTo === node\.id\) \{ l\.x \+= mx; l\.y \+= my;/);
   assert.match(src, /if \(node\.attachTo\) delete node\.attachTo;/);
+});
+
+// ---- 長文の事例3つ：＋補足なし（前）と＋補足あり（後）で比べる ----
+const jumpEdges = map => {
+  const byId = new Map(map.nodes.map(n => [n.id, n]));
+  return map.edges.filter(e => e.relation !== 'treats' && ['treatment', 'disease', 'patient_fact'].includes(byId.get(e.source).type) && ['symptom', 'nursing_problem', 'future_risk'].includes(byId.get(e.target).type));
+};
+const depthAvg = map => {
+  const memo = new Map();
+  const depth = id => { if (memo.has(id)) return memo.get(id); memo.set(id, 0); const ins = map.edges.filter(e => e.target === id); const d = ins.length ? 1 + Math.max(...ins.map(e => depth(e.source))) : 0; memo.set(id, d); return d; };
+  const probs = map.nodes.filter(n => n.type === 'nursing_problem');
+  return probs.reduce((s, p) => s + depth(p.id), 0) / probs.length;
+};
+const beforeAfter = name => {
+  const after = caseMap(name);
+  const before = JSON.parse(JSON.stringify(after));
+  app.rmHideAdded(before);
+  commonChecks(after, `${name}（補足あり）`);
+  commonChecks(before, `${name}（補足なし）`);
+  assert.ok(jumpEdges(after).length === 0, `${name}：一足飛びの矢印 ${jumpEdges(after).map(e => e.id).join(',')}`);
+  assert.ok(jumpEdges(after).length <= jumpEdges(before).length);
+  assert.ok(depthAvg(after) > depthAvg(before), `${name}：根拠の段が深くなる`);
+  return { after, before };
+};
+
+test('長文事例A（COPD急性増悪・細菌性肺炎・78歳）：気道閉塞・CO2貯留・ステロイドの高血糖・呼吸のエネルギーと栄養', () => {
+  const { after: map } = beforeAfter('copd_exacerbation_long');
+  const probs = probLabels(map);
+  ['非効果的気道浄化', 'ガス交換障害', '血糖不安定', '睡眠', '栄養摂取量不足', 'セルフケア不足', '不安'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
+  const obst = find(map, /末梢気道の閉塞/), co2 = find(map, /CO2の貯留/), paco2 = find(map, /PaCO2/);
+  assert.ok(hasEdge(map, obst, co2) && paco2.attachTo === co2.id, 'PaCO2 は CO2貯留にくっつく');
+  const st = find(map, /^ステロイド（プレドニゾロン30mg）/), hg = find(map, /ステロイドの副作用による高血糖/);
+  assert.ok(hasEdge(map, st, hg) && map.edges.some(e => e.source === st.id && e.relation === 'treats'), 'ステロイドは治療、副作用で高血糖');
+  assert.ok(['WBC', 'CRP'].every(k => find(map, new RegExp(k)).attachTo === find(map, /肺胞・気道の炎症/).id), '炎症の値は肺の炎症にくっつく');
+  assert.ok(!map.nodes.some(n => /在宅酸素療法 安静時/.test(n.label) && n.type === 'symptom'), '既往の「安静時」を活動の制限にしない');
+  assert.ok(linked(map, find(map, /呼吸に使うエネルギーの増加/), find(map, /^食事は息切れのため3割摂取/)));
+  const words = find(map, /不安の言動/);
+  assert.ok(/本人・家族/.test(words.label) && (words.label.match(/「/g) || []).length === (words.label.match(/」/g) || []).length, words.label);
+});
+
+test('長文事例B（S状結腸がん・腹腔鏡下手術・糖尿病）：術後イレウス・DVT（腹部の手術）・高血糖→感染・オピオイド', () => {
+  const { after: map, before } = beforeAfter('colon_cancer_postop_long');
+  const probs = probLabels(map);
+  ['術後呼吸器合併症', '深部静脈血栓症', '感染リスク', '血糖不安定', '急性疼痛', '栄養摂取量不足', 'セルフケア不足', '便秘リスク'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
+  const il = find(map, /^腸の動き（蠕動運動）の低下/), opi = find(map, /^オピオイド（フェンタニル）/);
+  assert.ok(hasEdge(map, opi, il) && hasEdge(map, find(map, /^体動の制限/), il));
+  assert.ok(linked(map, il, find(map, /^腹部膨満あり/)) && find(map, /術後イレウス/).observed === false);
+  assert.ok(find(map, /^術後の安静による静脈血のうっ滞/), '腹部の手術で「下肢の手術」と書かない');
+  assert.ok(!map.nodes.some(n => /下肢の手術/.test(n.label)));
+  assert.ok(hasEdge(map, find(map, /インスリン作用の不足による高血糖/), find(map, /免疫機能・創傷治癒の低下/)), '高血糖 → 免疫・創傷治癒');
+  assert.ok(!map.nodes.some(n => /腹部・胸部に力/.test(n.label)) === false, '腹部の手術では腹部の痛みの過程を補う');
+  assert.ok(map.nodes.filter(n => n.added).length >= 10 && !before.nodes.some(n => n.added));
+});
+
+test('長文事例C（慢性心不全の急性増悪・84歳・独居）：増悪の誘因（塩分・飲み忘れ）・利尿薬→夜間頻尿→転倒/睡眠・塩分制限食と食欲', () => {
+  const { after: map, before } = beforeAfter('heart_failure_long');
+  const probs = probLabels(map);
+  ['ガス交換障害', '体液量過剰', '体液量不足リスク', '転倒転落', '睡眠', '栄養摂取量不足', 'セルフケア不足', '健康自主管理'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
+  assert.ok(find(map, /^呼吸困難あり、起座呼吸/), '入院後の観察（現病歴の文ではなく）');
+  assert.ok(find(map, /^両下腿に圧痕性浮腫/));
+  const trig = find(map, /塩分・水分の過剰や内服の中断/);
+  assert.ok(hasEdge(map, find(map, /^塩辛い漬物/), trig) && hasEdge(map, find(map, /^内服を飲み忘れる/), trig));
+  const du = find(map, /^利尿薬（フロセミド）/), noct = find(map, /^夜間頻尿/);
+  assert.ok(noct.added && hasEdge(map, du, noct) && hasEdge(map, noct, find(map, /^夜間トイレに行く途中、ふらつき/)) && hasEdge(map, noct, find(map, /夜はおしっこで何度も起きる/)), '利尿薬 →［夜間頻尿］→ ふらつき・睡眠（同じ補足を通す）');
+  assert.equal(map.nodes.filter(n => /^夜間頻尿/.test(n.label)).length, 1);
+  assert.ok(linked(map, find(map, /^塩分制限食/), find(map, /^食事は「味がしない」/)));
+  assert.ok(jumpEdges(before).length >= 4, '補足なしでは一足飛びの矢印が残っている');
+  const headers = map.headers.map(h => h.label);
+  assert.ok(!headers.includes('治療'), `内科の事例で治療が散らばるときは「治療」の列を作らない：${headers.join('、')}`);
 });
