@@ -36,7 +36,8 @@ const APP_SCRIPT_FILES = [
   'js/11-own-assessment.js',
   'js/12-missing-checks-and-care-plan.js',
   'js/13-compare-and-report.js',
-  'js/14-drug-reference.js'
+  'js/14-drug-reference.js',
+  'js/15-relation-map.js'
 ];
 const ROOT_DIR = path.join(__dirname, '..');
 // すべてのファイルをつなげたプログラムの文章（ソースの中身を確かめるテストで使う）

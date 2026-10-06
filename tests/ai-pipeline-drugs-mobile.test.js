@@ -68,7 +68,7 @@ test('APIキーが無いときは、取得のページ（Google AI Studio）と�
 test('スマホでは印刷用の文書を同じ画面の上に重ねて開き、「印刷・PDFに保存」のボタンと保存のしかたを出す', () => {
   assert.match(src, /function isMobilePrintTarget\(\)/);
   // スマホは新しいタブ（blob）を開かず、同じ画面の上に文書を重ねて印刷する（ホーム画面のアプリ等で開けなかったため）
-  assert.match(src, /if \(isMobilePrintTarget\(\)\) return showMobilePrintView\(html\);/);
+  assert.match(src, /if \(isMobilePrintTarget\(\)\) return showMobilePrintView\(html, options\);/);
   assert.doesNotMatch(src, /window\.open\(url, '_blank'\)/);
   assert.match(src, /html\.print-view-open body > \*:not\(#print-view\) \{ display: none !important; \}/);
   assert.match(src, /印刷・PDFに保存/);

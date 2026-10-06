@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-01.1'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-06.1'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 書式付き書き出し（Word / PDF）
     // ------------------------------------------------------------------------
@@ -274,9 +274,11 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       rest = rest.replace(/(^|[\s,{}])(?:html|body)(?=[\s,{.:#\[*>])/g, '$1.pv-body');
       return { pageRules: pageRules.join('\n'), bodyCss: rest };
     }
-    function stripActivePrintContent(root) {
+    // keepSvg：関連図（js/15）のように、アプリが自分で組み立てた図（SVG）を載せる文書のときは図を残す
+    // （その場合も、図の中の script・foreignObject・アニメーション・外部の参照は取り除く）。
+    function stripActivePrintContent(root, { keepSvg = false } = {}) {
       if (!root || !root.querySelectorAll) return;
-      root.querySelectorAll('script,iframe,frame,object,embed,link,meta,base,form,svg,math,template,noscript,img').forEach(el => el.remove());
+      root.querySelectorAll(`script,iframe,frame,object,embed,link,meta,base,form,${keepSvg ? 'foreignObject,animate,set,animateTransform,animateMotion,use,image' : 'svg'},math,template,noscript,img`).forEach(el => el.remove());
       root.querySelectorAll('*').forEach(el => Array.from(el.attributes || []).forEach(a => {
         const name = a.name.toLowerCase();
         if (name.startsWith('on') || name === 'srcdoc') el.removeAttribute(a.name);
@@ -288,13 +290,13 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       document.getElementById('print-view-style')?.remove();
       document.documentElement.classList.remove('print-view-open');
     }
-    function showMobilePrintView(html) {
+    function showMobilePrintView(html, options = {}) {
       closeMobilePrintView();
       const parsed = new DOMParser().parseFromString(html, 'text/html');
       const css = Array.from(parsed.querySelectorAll('style')).map(s => s.textContent).join('\n');
       // 【レビューで発見】この見本はアプリの画面そのものに入れるので、文書の中の動く部品（script・on〜の属性・
       // javascript: のリンク）を取り除いてから入れる（AIの結果の部分は組み立てるときに storedAiHtml を通している）。
-      stripActivePrintContent(parsed.body);
+      stripActivePrintContent(parsed.body, { keepSvg: !!options.keepSvg });
       const { pageRules, bodyCss } = splitPrintCss(css);
       const docStyle = document.createElement('style');
       docStyle.id = 'print-view-style';
@@ -339,10 +341,10 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       return true;
     }
     window.closeMobilePrintView = closeMobilePrintView;
-    function printHtmlDocument(html) {
+    function printHtmlDocument(html, options = {}) {
       const fontCss = printFontCss();
       if (fontCss) html = html.replace('</head>', `<style>${fontCss}</style></head>`);
-      if (isMobilePrintTarget()) return showMobilePrintView(html);
+      if (isMobilePrintTarget()) return showMobilePrintView(html, options);
       const old = document.getElementById('print-frame');
       if (old) old.remove();
       const frame = document.createElement('iframe');

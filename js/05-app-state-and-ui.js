@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-01.1'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-06.1'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -1414,6 +1414,7 @@
 
       // 看護計画のページの描き直し・画面を開いたときの自動の記録（js/13。読み込む前の最初の表示では呼ばない）
       if (typeof onPatientViewReloaded === 'function') onPatientViewReloaded(cp);
+      if (typeof onRelationMapPatientReloaded === 'function') onRelationMapPatientReloaded(cp); // 関連図のページ（js/15）
 
       selectedCardIds.clear();
       boardSearchTerm = '';
@@ -2696,6 +2697,7 @@
     DOM.tabReference.addEventListener('click', () => switchView('reference'));
     DOM.tabLabs.addEventListener('click', () => switchView('labs'));
     document.getElementById('tab-careplan')?.addEventListener('click', () => switchView('careplan'));
+    document.getElementById('tab-relation')?.addEventListener('click', () => switchView('relation'));
 
     // 総合アセスメント表の欲求の切り替えボタンは、上のヘッダーのすぐ下に貼り付ける（ヘッダーの高さに合わせる）
     function updateNeedNavTop() {
@@ -2719,6 +2721,11 @@
       const tabCarePlan = document.getElementById('tab-careplan');
       if (tabCarePlan) tabCarePlan.className = `tab-pill ${viewName === 'careplan' ? 'active' : ''}`;
       if (viewName === 'careplan' && typeof renderCarePlans === 'function') renderCarePlans();
+      // 関連図のページ（js/15）
+      document.getElementById('view-relation')?.classList.toggle('hidden', viewName !== 'relation');
+      const tabRelation = document.getElementById('tab-relation');
+      if (tabRelation) tabRelation.className = `tab-pill ${viewName === 'relation' ? 'active' : ''}`;
+      if (viewName === 'relation' && typeof renderRelationMap === 'function') renderRelationMap();
       if (viewName === 'assessment') renderAssessmentTable();
       if (viewName === 'reference') renderReferenceList();
       if (viewName === 'labs') renderLabTrend();
@@ -2925,3 +2932,30 @@
     }
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSourceTextSave(); });
     document.getElementById('btn-load-sample').addEventListener('click', () => { cancelSourceTextSave(); DOM.sourceText.value = SAMPLE_TEXT; saveDataAndSync(); });
+
+    // 【記録メモを空にする】利用者からの要望：「記録メモのボックスの中身を空にする機能を追加してください」。
+    // 記録メモの文章だけを消す（分類ボードのカード・総合アセスメント表・看護計画などはそのまま）。
+    // 消す前に確かめ、消したあとも数秒間は「元に戻す」で戻せる（別の患者に切り替えた後でも、消した患者に戻す）。
+    window.clearSourceText = async function() {
+      const text = DOM.sourceText.value;
+      if (!text.trim()) { showToast('記録メモはすでに空です', 'info'); return; }
+      const ok = await openDialog({
+        title: '記録メモを空にしますか？',
+        message: `記録メモの文章（${text.length.toLocaleString()}文字）をすべて消します。\n分類ボードのカード・総合アセスメント表・看護計画などは消えません。\n消したあと少しの間は「元に戻す」で戻せます。`,
+        confirmLabel: '空にする', danger: true
+      });
+      if (ok !== true) return;
+      const patId = getCurrentPatient().id;
+      cancelSourceTextSave();
+      if (highlightedSourceItemId != null) clearSourceHighlight(false);
+      DOM.sourceText.value = '';
+      updateSourceEditorCount();
+      saveDataAndSync();
+      showUndoToast('記録メモを空にしました', () => {
+        const p = globalAppData.patients.find(x => x.id === patId);
+        if (!p) return;
+        if (getCurrentPatient().id === patId) { DOM.sourceText.value = text; updateSourceEditorCount(); }
+        else p.sourceText = text;
+      }, { patientId: patId });
+      DOM.sourceText.focus();
+    };

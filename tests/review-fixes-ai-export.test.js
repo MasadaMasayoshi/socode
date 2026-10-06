@@ -255,7 +255,7 @@ test('印刷・PDF：保存されたAIの結果の動く部品は入れない。
   const card = app.carePlanCardHtml({ items: [] }, { id: "p');alert(1);//", problem: 'x', relatedNeeds: [], records: [], status: 'active', op: [], tp: [], ep: [] }, 0, 1);
   assert.doesNotMatch(card, /alert\(1\)/);
   // 印刷の見本（スマホ）でも、文書の中の動く部品を取り除いてから画面に入れる
-  assert.match(src, /stripActivePrintContent\(parsed\.body\);/);
+  assert.match(src, /stripActivePrintContent\(parsed\.body, \{ keepSvg: !!options\.keepSvg \}\);/);
 });
 
 test('手で編集した履歴：AIの分類の評価で適用した編集を、内部の名前ではなく内容で書き出す', () => {
