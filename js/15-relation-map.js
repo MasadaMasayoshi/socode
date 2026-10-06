@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.13'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.14'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -2076,7 +2076,7 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
       const vb = svg.viewBox.baseVal;
       return { x: vb.x + (e.clientX - r.left) / rmState.zoom, y: vb.y + (e.clientY - r.top) / rmState.zoom };
     }
-    // 【全画面】利用者からの要望：「関連図に全画面機能を」。関連図のページ（ボタン・図・凡例）を画面いっぱいに広げる。
+    // 【全画面】利用者からの要望：「関連図に全画面機能を」「サイト全体ではなく関連図の範囲だけを広げる」。図の枠だけを画面いっぱいに広げる（CSS の .rm-fullscreen）。
     // もう一度押すか Esc キーで元に戻る。ほかのページに切り替えたときも元に戻す（js/05 の switchView）。
     function rmSetFullscreen(force) {
       const view = document.getElementById('view-relation');
@@ -2084,12 +2084,10 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
       const on = typeof force === 'boolean' ? force : !view.classList.contains('rm-fullscreen');
       view.classList.toggle('rm-fullscreen', on);
       document.body.classList.toggle('rm-fs-open', on);
-      const b = document.querySelector('[data-rm-action="fullscreen"]');
-      if (b) {
-        b.setAttribute('aria-pressed', on ? 'true' : 'false');
-        b.title = on ? '元の大きさに戻します（Escキーでも戻ります）' : '関連図を画面いっぱいに広げます（Escキーで元に戻ります）';
-        b.innerHTML = on ? '<i class="fa-solid fa-compress"></i> 元の大きさ' : '<i class="fa-solid fa-expand"></i> 全画面';
-      }
+      const b = document.querySelector('.rm-toolbar [data-rm-action="fullscreen"]');
+      if (b) b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      // 広げた後・戻した後の大きさで、図が見える位置を保つ（拡大率はそのまま）
+      document.getElementById('rm-canvas-wrap')?.focus({ preventScroll: true });
       return on;
     }
     window.rmSetFullscreen = rmSetFullscreen;

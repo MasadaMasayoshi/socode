@@ -567,6 +567,8 @@ test('関連図：全画面ボタンがあり、Esc・ほかのページへの�
   assert.equal(order.indexOf('toggle-added'), order.indexOf('build-rules') + 1, order.join(','));
   assert.match(src, /else if \(act === 'fullscreen'\) rmSetFullscreen\(\);/);
   assert.match(src, /if \(viewName !== 'relation' && typeof window\.rmSetFullscreen === 'function'\) window\.rmSetFullscreen\(false\);/);
-  assert.match(css, /#view-relation\.rm-fullscreen \{ position: fixed; inset: 0; z-index: 50;/);
+  assert.match(css, /#view-relation\.rm-fullscreen \.rm-canvas-wrap \{ position: fixed; inset: 0; z-index: 50;/, '広げるのは図の枠だけ');
+  assert.doesNotMatch(css, /#view-relation\.rm-fullscreen \{ position: fixed/, 'ページ全体は広げない');
+  assert.match(view, /class="rm-fs-controls"[\s\S]*?data-rm-action="fullscreen"/, '全画面の中に「元の大きさ」');
   assert.equal(typeof app.rmSetFullscreen, 'function');
 });
