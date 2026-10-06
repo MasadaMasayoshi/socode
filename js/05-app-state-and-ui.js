@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-06.11'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-06.13'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -2785,6 +2785,7 @@
       // スマホでは上の見出し（ヘッダー）が画面の3分の1ほどの高さになり、関連図の上の方を隠してしまう。
       // 関連図のページを開いている間だけ、スマホではヘッダーを上に固定しない（CSS の body.is-relation-view）。
       document.body.classList.toggle('is-relation-view', viewName === 'relation');
+      if (viewName !== 'relation' && typeof window.rmSetFullscreen === 'function') window.rmSetFullscreen(false);
       const tabRelation = document.getElementById('tab-relation');
       if (tabRelation) tabRelation.className = `tab-pill ${viewName === 'relation' ? 'active' : ''}`;
       if (viewName === 'relation' && typeof renderRelationMap === 'function') renderRelationMap();

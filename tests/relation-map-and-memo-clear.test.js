@@ -525,7 +525,7 @@ test('関連図のボードをドラッグ・スワイプで動かす／2本指�
   assert.match(src, /wrap\.scrollLeft = pan\.sl - \(e\.clientX - pan\.sx\)/);
   assert.match(src, /if \(touch && !selectedHere && !rmState\.connectFrom\) \{ startPan/, 'スマホは選んでいない四角の上でもスワイプで動かす');
   assert.match(src, /if \(pointers\.size === 2\) \{ startPinch\(\)/);
-  assert.match(src, /wrap\.addEventListener\('wheel', e => \{\s*if \(!\(e\.ctrlKey \|\| e\.metaKey\)/);
+  assert.match(src, /wrap\.addEventListener\('wheel', e => \{[\s\S]{0,120}if \(!\(e\.ctrlKey \|\| e\.metaKey \|\| leftHeld\)/);
   assert.equal(typeof app.rmZoomAt, 'function');
 });
 
@@ -554,4 +554,19 @@ test('関連図：最新のガイドラインを根拠にした「＋補足」�
   assert.ok(colon.nodes.some(m => m.added && /ウィルヒョウ/.test(m.label)), '手術侵襲→ウィルヒョウの3つの要因→静脈血のうっ滞');
   // 新しい知識で四角が増えすぎない（上限60個を超えない）
   [hf, asp, copd, colon].forEach(m => assert.ok(m.nodes.length <= 60, String(m.nodes.length)));
+});
+
+// 2026-10-06.12：利用者からの要望「関連図は全画面機能の追加、説明書きの削除、補足ありのボタンを記録から作るの横に配置」
+test('関連図：全画面ボタンがあり、Esc・ほかのページへの切り替えで元に戻る／上の説明書きを消し、＋補足のボタンは「記録から作る」の横／左クリック＋ホイールで拡大・縮小', () => {
+  const view = html.slice(html.indexOf('<div id="view-relation"'), html.indexOf('<div id="view-reference"'));
+  assert.match(view, /data-rm-action="fullscreen"/);
+  assert.doesNotMatch(view, /事実を並べた図ではなく/);
+  assert.match(view, /自動で作った図はたたき台です/, '消すのは上の説明だけ（下の注意書きは残す）');
+  assert.match(src, /const leftHeld = \(\(e\.buttons & 1\) === 1 \|\| mouseLeftDown\) && !rmState\.drag;/, 'パソコンは左クリック＋ホイールで拡大・縮小');
+  const order = [...view.matchAll(/data-rm-action="([\w-]+)"/g)].map(m => m[1]);
+  assert.equal(order.indexOf('toggle-added'), order.indexOf('build-rules') + 1, order.join(','));
+  assert.match(src, /else if \(act === 'fullscreen'\) rmSetFullscreen\(\);/);
+  assert.match(src, /if \(viewName !== 'relation' && typeof window\.rmSetFullscreen === 'function'\) window\.rmSetFullscreen\(false\);/);
+  assert.match(css, /#view-relation\.rm-fullscreen \{ position: fixed; inset: 0; z-index: 50;/);
+  assert.equal(typeof app.rmSetFullscreen, 'function');
 });

@@ -880,6 +880,19 @@
     .rm-empty p { max-width: 40rem; }
     /* スマホ・小さい画面：関連図のページではヘッダーを上に固定しない（固定すると図の上の方が隠れるため） */
     @media (max-width: 767px) { body.is-relation-view > header { position: static; } }
+    /* 関連図の全画面表示（「全画面」ボタン・Escで戻る）。ページ全体の上に関連図のページを広げ、図の枠を残りの高さいっぱいにする。
+       上のヘッダー（z-30）より上、確認の画面・通知（z-60〜80）より下にして、全画面のままでも確認の画面が見えるようにする */
+    #view-relation.rm-fullscreen { position: fixed; inset: 0; z-index: 50; margin: 0; border-radius: 0; height: 100vh; height: 100dvh; overflow-y: auto; padding: 12px max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); background: var(--surface); }
+    #view-relation.rm-fullscreen > * { flex-shrink: 0; }
+    #view-relation.rm-fullscreen .rm-canvas-wrap { flex: 1 1 0; flex-shrink: 1; height: auto; min-height: 240px; }
+    body.rm-fs-open { overflow: hidden; }
+    /* スマホの全画面：操作ボタンを横1列（横にスクロール）にして、図をできるだけ大きく見せる */
+    @media (max-width: 767px) {
+      #view-relation.rm-fullscreen .rm-toolbar { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+      #view-relation.rm-fullscreen .rm-group { flex-wrap: nowrap; flex-shrink: 0; }
+      #view-relation.rm-fullscreen .rm-group > * { flex-shrink: 0; }
+      #view-relation.rm-fullscreen .rm-canvas-wrap { min-height: 62vh; min-height: 62dvh; }
+    }
     .rm-canvas-wrap { position: relative; overflow: auto; height: min(72vh, 820px); min-height: 320px; border: 1px solid var(--line); border-radius: var(--radius); background-color: var(--surface);
       background-image: radial-gradient(var(--line-soft) 1px, transparent 1px); background-size: 18px 18px; -webkit-overflow-scrolling: touch; }
     .rm-canvas-wrap:focus { outline: none; }

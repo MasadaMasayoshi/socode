@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.11'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.13'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -1828,7 +1828,7 @@ ${cards}`;
         bar.innerHTML = `<span class="rm-sel-label"><i class="fa-solid fa-arrow-right-long"></i> 矢印の行き先の四角を押してください（治療からなら「治療 → 対象」になります）</span>${rmBtn('cancel-connect', 'やめる（Esc）')}`;
         return;
       }
-      if (!map || !sel) { bar.innerHTML = '<span class="rm-sel-hint">四角を押すと、文字の編集・種類・事実／予測・矢印でつなぐ・削除ができます（2回続けて押すと文字の編集）。矢印を押すと、向き・種類・事実／予測・「なぜ？」が選べます。<br><b>図を動かす</b>：何もない所をドラッグ（スマホは指でスワイプ）。<b>拡大・縮小</b>：2本指で広げる・つまむ、または Ctrl＋ホイール。スマホで四角を動かすときは、一度タップして選んでからドラッグします。</span>'; return; }
+      if (!map || !sel) { bar.innerHTML = '<span class="rm-sel-hint">四角を押すと、文字の編集・種類・事実／予測・矢印でつなぐ・削除ができます（2回続けて押すと文字の編集）。矢印を押すと、向き・種類・事実／予測・「なぜ？」が選べます。<br><b>図を動かす</b>：何もない所をドラッグ（スマホは指でスワイプ）。<b>拡大・縮小</b>：2本指で広げる・つまむ、または左クリックを押したまま（または Ctrl を押しながら）ホイール。スマホで四角を動かすときは、一度タップして選んでからドラッグします。</span>'; return; }
       if (sel.type === 'node') {
         const n = rmNodeById(map, sel.id);
         if (!n) { rmState.selected = null; return rmRenderSelectionBar(); }
@@ -2076,6 +2076,23 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
       const vb = svg.viewBox.baseVal;
       return { x: vb.x + (e.clientX - r.left) / rmState.zoom, y: vb.y + (e.clientY - r.top) / rmState.zoom };
     }
+    // 【全画面】利用者からの要望：「関連図に全画面機能を」。関連図のページ（ボタン・図・凡例）を画面いっぱいに広げる。
+    // もう一度押すか Esc キーで元に戻る。ほかのページに切り替えたときも元に戻す（js/05 の switchView）。
+    function rmSetFullscreen(force) {
+      const view = document.getElementById('view-relation');
+      if (!view) return false;
+      const on = typeof force === 'boolean' ? force : !view.classList.contains('rm-fullscreen');
+      view.classList.toggle('rm-fullscreen', on);
+      document.body.classList.toggle('rm-fs-open', on);
+      const b = document.querySelector('[data-rm-action="fullscreen"]');
+      if (b) {
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.title = on ? '元の大きさに戻します（Escキーでも戻ります）' : '関連図を画面いっぱいに広げます（Escキーで元に戻ります）';
+        b.innerHTML = on ? '<i class="fa-solid fa-compress"></i> 元の大きさ' : '<i class="fa-solid fa-expand"></i> 全画面';
+      }
+      return on;
+    }
+    window.rmSetFullscreen = rmSetFullscreen;
     function initRelationMapUi() {
       const view = document.getElementById('view-relation');
       if (!view || view.dataset.ready) return;
@@ -2106,6 +2123,7 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
         else if (act === 'zoom-100') { rmState.zoom = 1; renderRelationMap(); }
         else if (act === 'bridge') rmBridgeAll();
         else if (act === 'toggle-added') rmToggleAdded();
+        else if (act === 'fullscreen') rmSetFullscreen();
         else if (act === 'print') rmPrint();
         else if (act === 'png') rmSavePng();
         else if (act === 'clear') rmClearAll();
@@ -2242,11 +2260,26 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
       wrap.addEventListener('pointerup', endDrag);
       wrap.addEventListener('pointercancel', endDrag);
       // Ctrl（Mac は ⌘）＋ホイール、トラックパッドのピンチで拡大・縮小（ふつうのホイールはスクロール）
+      // 【拡大・縮小】Ctrl（Mac は ⌘）＋ホイールに加え、利用者からの要望でパソコンでは「左クリックを押したまま＋ホイール」でも
+      // 拡大・縮小する（四角を動かしている最中は除く）。押したままのボードの移動（pan）は、拡大・縮小した後の位置から続ける。
+      // 左ボタンを押しているかは自分でも覚えておく（ブラウザによってはホイールの e.buttons に押したボタンが入らない）
+      let mouseLeftDown = false;
+      wrap.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse' && e.button === 0) mouseLeftDown = true; });
+      ['pointerup', 'pointercancel', 'blur'].forEach(t => window.addEventListener(t, () => { mouseLeftDown = false; }));
       wrap.addEventListener('wheel', e => {
-        if (!(e.ctrlKey || e.metaKey) || !rmMap()) return;
+        const leftHeld = ((e.buttons & 1) === 1 || mouseLeftDown) && !rmState.drag;
+        if (!(e.ctrlKey || e.metaKey || leftHeld) || !rmMap()) return;
         e.preventDefault();
         rmZoomAt(rmState.zoom * Math.exp(-e.deltaY * 0.0025), e.clientX, e.clientY);
+        if (pan) { pan.sx = e.clientX; pan.sy = e.clientY; pan.sl = wrap.scrollLeft; pan.st = wrap.scrollTop; pan.moved = true; }
       }, { passive: false });
+      document.addEventListener('keydown', e => {
+        if (e.key !== 'Escape' || e.defaultPrevented) return;
+        const view = document.getElementById('view-relation');
+        if (!view || !view.classList.contains('rm-fullscreen')) return;
+        if (rmState.connectFrom || rmState.selected) return;
+        rmSetFullscreen(false);
+      });
       wrap.addEventListener('keydown', e => {
         const g = e.target.closest('.rm-node');
         if (e.key === 'Escape' && (rmState.connectFrom || rmState.selected)) { e.stopPropagation(); rmState.connectFrom = null; rmSelect(null); return; }
@@ -2284,5 +2317,5 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
     if (typeof document !== 'undefined' && document.getElementById && document.getElementById('view-relation')) initRelationMapUi();
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi });
+  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi, rmSetFullscreen });
 }

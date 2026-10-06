@@ -9,7 +9,7 @@
     // 添付文書（リンク先）と医師・薬剤師の指示を確かめること（画面にも同じ注意を出す）。
     // 内容を確かめた時期：2026年9月（添付文書の改訂で変わることがあるため、リンク先の最新版を正とする）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['14'] = '2026-10-06.11'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['14'] = '2026-10-06.13'; // 版（scripts/stamp-version.js が書き込む）
 
     // 1件＝[一般名, 商品名（/区切り）, 分類, 主な使い道, 看護で観ること（主な副作用・注意）, 関係の深いヘンダーソンの項目（最初がいちばん深い）, 特に注意（ハイリスク薬）]
     const DRUG_REFERENCE_ROWS = [

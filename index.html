@@ -5,20 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-06.11">
+  <meta name="app-version" content="2026-10-06.13">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
-  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.11">
+  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.13">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=2026-10-06.11">
+  <link rel="stylesheet" href="style.css?v=2026-10-06.13">
   <!-- 画面の見た目の部品（Tailwind CSS 3.4）。以前は開くたびにネット（cdn.tailwindcss.com）から読み込み、
        その場で作っていたため、ネットが不安定だったり配信が止まったりすると画面のレイアウトが崩れた。
        使っている部品だけを vendor/tailwind.css に作っておき、それを読み込む（改善提案7。作り直しは
        npm run build:css）。以前と同じく style.css より後に読み込み、同じ強さの指定ではこちらを優先する。 -->
-  <link rel="stylesheet" href="vendor/tailwind.css?v=2026-10-06.11">
+  <link rel="stylesheet" href="vendor/tailwind.css?v=2026-10-06.13">
   <script>
     // ダークモードの初期適用（画面が一瞬だけ元のテーマで表示される「ちらつき」を防ぐため、
     // CSS読み込み直後・本文描画前にこの小さなスクリプトで先に data-theme を決めてしまう）。
@@ -423,10 +423,10 @@
         <h2 class="font-display font-semibold text-[var(--ink)] text-[15px] flex items-center"><i class="fa-solid fa-diagram-project text-[var(--accent)] mr-2"></i>関連図</h2>
         <span id="rm-info" class="text-[11px] text-[var(--ink-muted)]"></span>
       </div>
-      <p class="text-[11px] text-[var(--ink-muted)] leading-relaxed">事実を並べた図ではなく、「背景・誘因 → 病態生理 → 身体の変化 → 症状・徴候 → 生活への影響 → 看護問題」の因果を表します。左から背景・疾患・治療・治療後の変化と並び、看護問題は右端（重要なものほど上）。治療は楕円で「治療 → 治療の対象」、予測・可能性は破線、※知識は医学知識で補った過程です。作ったあとは「チェック」で浮島・矢印の向き・根拠の道筋などを確かめられます。</p>
       <div class="rm-toolbar" role="toolbar" aria-label="関連図の操作">
         <div class="rm-group">
           <button type="button" class="btn btn-primary text-[11px] py-1.5" data-rm-action="build-rules" title="分類したカード・検査値の推移・看護計画（または選んだ看護診断）から、AIを使わずに関連図のたたき台を作ります"><i class="fa-solid fa-diagram-project"></i> 記録から作る</button>
+          <button type="button" class="btn btn-outline text-[11px] py-1.5 rm-bridge-btn" data-rm-action="toggle-added" data-rm-needs-map aria-pressed="false" title="矢印の間に補った過程（紫の「＋補足」）のあり・なしを切り替えます。補足が無いときは、医学知識で補います"><i class="fa-solid fa-eye-slash"></i> ＋補足：なし</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="build-ai" title="記録の内容だけを使って、病態のつながりを含む関連図の案をAIに作ってもらいます（APIキーが必要）"><i class="fa-solid fa-wand-magic-sparkles"></i> AIで作る</button>
         </div>
         <div class="rm-group">
@@ -443,7 +443,6 @@
           </select>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="add"><i class="fa-solid fa-plus"></i> 追加</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="relayout" data-rm-needs-map title="左から右へ因果の順に並べ直し、看護問題を右端（重要なものほど上）にそろえます"><i class="fa-solid fa-table-cells"></i> 並べ直す</button>
-          <button type="button" class="btn btn-outline text-[11px] py-1.5 rm-bridge-btn" data-rm-action="toggle-added" data-rm-needs-map aria-pressed="false" title="矢印の間に補った過程（紫の「＋補足」）のあり・なしを切り替えます。補足が無いときは、医学知識で補います"><i class="fa-solid fa-eye-slash"></i> ＋補足：なし</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="undo" title="ひとつ前の状態に戻します（Ctrl+Z）"><i class="fa-solid fa-rotate-left"></i> 元に戻す</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="redo" title="元に戻した操作をやり直します（Ctrl+Y）"><i class="fa-solid fa-rotate-right"></i> やり直す</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="check" data-rm-needs-map title="浮島・重複・矢印の向き・事実と予測・看護問題の根拠などを確かめます"><i class="fa-solid fa-list-check"></i> チェック</button>
@@ -453,6 +452,7 @@
           <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="zoom-fit" data-rm-needs-map title="全体が見える大きさにします">全体</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="zoom-100" data-rm-needs-map title="文字がいちばん読みやすい等倍（100%）で表示します">100%</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="zoom-in" data-rm-needs-map title="大きく表示"><i class="fa-solid fa-magnifying-glass-plus"></i><span class="sr-only">大きく</span></button>
+          <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="fullscreen" aria-pressed="false" title="関連図を画面いっぱいに広げます（Escキーで元に戻ります）"><i class="fa-solid fa-expand"></i> 全画面</button>
         </div>
         <div class="rm-group">
           <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="print" data-rm-needs-map title="A4横で印刷・PDF保存します"><i class="fa-solid fa-print"></i> 印刷 / PDF</button>
@@ -1318,20 +1318,20 @@
 
   <!-- プログラム本体（以前の app.js を内容ごとに10ファイルに分けたもの）。この順番で読み込むこと。
        順番は tests/app-helpers.js の APP_SCRIPT_FILES と同じにする（tests/app-files-order.test.js で確認）。 -->
-  <script src="js/01-henderson-keywords.js?v=2026-10-06.11"></script>
-  <script src="js/02-reference-data.js?v=2026-10-06.11"></script>
-  <script src="js/03-extraction-helpers.js?v=2026-10-06.11"></script>
-  <script src="js/04-server-sync.js?v=2026-10-06.11"></script>
-  <script src="js/05-app-state-and-ui.js?v=2026-10-06.11"></script>
-  <script src="js/06-export.js?v=2026-10-06.11"></script>
-  <script src="js/07-classification.js?v=2026-10-06.11"></script>
-  <script src="js/08-assessment-tools.js?v=2026-10-06.11"></script>
-  <script src="js/09-board.js?v=2026-10-06.11"></script>
-  <script src="js/10-reference-page-and-startup.js?v=2026-10-06.11"></script>
-  <script src="js/11-own-assessment.js?v=2026-10-06.11"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-06.11"></script>
-  <script src="js/13-compare-and-report.js?v=2026-10-06.11"></script>
-  <script src="js/14-drug-reference.js?v=2026-10-06.11"></script>
-  <script src="js/15-relation-map.js?v=2026-10-06.11"></script>
+  <script src="js/01-henderson-keywords.js?v=2026-10-06.13"></script>
+  <script src="js/02-reference-data.js?v=2026-10-06.13"></script>
+  <script src="js/03-extraction-helpers.js?v=2026-10-06.13"></script>
+  <script src="js/04-server-sync.js?v=2026-10-06.13"></script>
+  <script src="js/05-app-state-and-ui.js?v=2026-10-06.13"></script>
+  <script src="js/06-export.js?v=2026-10-06.13"></script>
+  <script src="js/07-classification.js?v=2026-10-06.13"></script>
+  <script src="js/08-assessment-tools.js?v=2026-10-06.13"></script>
+  <script src="js/09-board.js?v=2026-10-06.13"></script>
+  <script src="js/10-reference-page-and-startup.js?v=2026-10-06.13"></script>
+  <script src="js/11-own-assessment.js?v=2026-10-06.13"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-06.13"></script>
+  <script src="js/13-compare-and-report.js?v=2026-10-06.13"></script>
+  <script src="js/14-drug-reference.js?v=2026-10-06.13"></script>
+  <script src="js/15-relation-map.js?v=2026-10-06.13"></script>
 </body>
 </html>
