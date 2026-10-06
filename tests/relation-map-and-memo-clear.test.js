@@ -384,7 +384,7 @@ test('関連図の読みやすさ：文字14pxのゴシック体・作った直�
   assert.match(svg, /font-size="14"[^>]*fill="#1C1917"/);
   assert.match(svg, /font-family="[^"]*Noto Sans JP[^"]*sans-serif"/);
   assert.match(css, /\.rm-svg text, \.rm-svg tspan \{ font-family: 'Noto Sans JP'[^}]*sans-serif; \}/, 'ページ全体の明朝体より優先');
-  assert.match(src, /factor === 'fit' \? 0\.25 : 0\.85/);
+  assert.match(src, /factor === 'fit' \? 0\.25 : wrap\.clientWidth < 600 \? 0\.55 : 0\.85/, 'パソコンは85%、スマホの幅は55%より小さくしない');
   assert.match(html, /data-rm-action="zoom-100"/);
   assert.match(src, /m\.layoutStyle !== RM_LAYOUT_STYLE\) layoutRelationMap\(m\)/);
   const old = app.normalizeRelationMap({ version: 2, nodes: [{ id: 'a', type: 'symptom', label: 'x', x: 0, y: 0 }], edges: [] });
@@ -736,7 +736,7 @@ test('関連図：操作は 作る｜編集｜見る・出す にまとめ、拡
   assert.match(view, /class="rm-zoom-pad"[\s\S]*?data-rm-action="zoom-in"[\s\S]*?data-rm-action="zoom-out"[\s\S]*?data-rm-action="zoom-fit"[\s\S]*?data-rm-action="zoom-100"/);
   assert.match(css, /\.rm-zoom-pad \{ position: absolute; right: 18px; bottom: 18px;/);
   assert.match(src, /else if \(act === 'toggle-more'\)/);
-  assert.match(src, /<details class="rm-help"><summary>四角や矢印（線）を押す・右クリックすると、編集できます/, '案内は1行（くわしくは開いたときだけ）');
+  assert.match(src, /<details class="rm-help"><summary>四角や矢印（線）を押す・右クリック（スマホは長押し）すると、編集できます/, '案内は1行（くわしくは開いたときだけ）');
   // 地の色（画面）と、予測の流れは薄く
   const map = caseMap('gastric_postop');
   const live = app.relationMapSvg(map, { interactive: true });
@@ -799,4 +799,17 @@ test('関連図：右クリックで編集（四角・矢印）と追加（何�
   assert.match(src, /key: 'patient_fact', label: '患者情報・背景', shape: 'rect', fill: '#EEF4EC'/);
   assert.match(css, /html\[data-theme="dark"\] \.rm-canvas-wrap \.rm-node\[data-kind="patient_fact"\] \.rm-box \{ fill: #1F2A1F;/);
   assert.match(css, /html\[data-theme="dark"\] \.rm-canvas-wrap \.rm-link-line\[stroke-dasharray\] \{ stroke: #7A7366; \}/);
+});
+
+// 2026-10-06.22：利用者「スマホ版が見づらい」
+test('スマホ：見出しのボタンを小さく・保存の状態は折り返す（横にはみ出さない）／関連図は長押しでメニュー・最初は疾患を上下のまん中に・チェックは直すことがあるときだけ', () => {
+  const mob = css.slice(css.indexOf('/* ===== スマホの見やすさ'));
+  assert.match(mob, /@media \(max-width: 639px\) \{/);
+  assert.match(mob, /#save-status \{ white-space: normal; min-width: 0;/);
+  assert.match(mob, /#presence-indicator \{ display: none; \}/);
+  assert.match(mob, /\.rm-group-sep \{ padding-left: 0; border-left: 0; \}/);
+  assert.match(src, /const longPress = \{ timer: 0, fired: false, sx: 0, sy: 0 \};/);
+  assert.match(src, /longPress\.fired = true;\s*rmShowCtx\(\{ target: tgt, clientX: cx, clientY: cy \}\);/);
+  assert.match(src, /const dis = wrap\.querySelector\('\.rm-node\[data-kind="disease"\]'\);/);
+  assert.match(src, /rmShowCheck\(issues\.some\(i => i\.level !== 'info'\) \? issues : null\);/);
 });

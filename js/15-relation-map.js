@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.21'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.22'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -1842,7 +1842,7 @@ ${cards}`;
         const map = relationMapFromAiJson(rmParseAiJsonObject(text));
         rmCommit(cp, map, { pushUndo: true });
         if (cp.id === getCurrentPatient().id) rmZoom('fit-readable');
-        rmShowCheck(validateRelationMap(map));
+        rmShowCheckIfNeeded(map);
         showToast(`関連図の案を作りました（${map.nodes.length}個の四角）。下のチェックと内容を確かめて、必要なら直してください`, 'success', 7000);
       } catch (err) {
         showAiErrorToast('関連図をAIで作れませんでした（前の図はそのまま残しています）。', err);
@@ -2026,7 +2026,7 @@ ${cards}`;
       if (!map.nodes.length) { showToast('記録から関連図に使える情報が見つかりませんでした。「追加」で手で作るか「AIで作る」を使ってください', 'warn'); return; }
       rmCommit(cp, map, { pushUndo: true });
       rmZoom('fit-readable'); // 作った直後は全体が見える大きさにする
-      rmShowCheck(validateRelationMap(map));
+      rmShowCheckIfNeeded(map);
       const nAdded = map.nodes.filter(n => n.added).length;
       showToast(`記録から関連図を作りました（${map.nodes.length}個${nAdded ? `・うち紫の「＋補足」${nAdded}個は矢印の間に補った過程` : ''}）。病態のつながりを確かめて直してください`, 'success', 8000);
     }
@@ -2218,7 +2218,7 @@ ${cards}`;
         return;
       }
       // 何も選んでいないときの案内は1行だけ（長い説明は「操作のしかた」を開いたときだけ。ごちゃごちゃして見えないように）
-      if (!map || !sel) { bar.innerHTML = '<span class="rm-sel-hint"><details class="rm-help"><summary>四角や矢印（線）を押す・右クリックすると、編集できます（何もない所の右クリックで追加） <span class="rm-help-more">操作のしかた</span></summary><div>四角を押すと、文字の編集・種類・事実／予測・矢印でつなぐ・削除ができます（2回続けて押すと文字の編集）。矢印（線）を押すと、<b>向きを逆にする</b>・種類・事実／予測・「なぜ？」が選べます。<br><b>図を動かす</b>：何もない所をドラッグ（スマホは指でスワイプ）。<b>拡大・縮小</b>：右下の ＋・－、2本指で広げる・つまむ、または左クリックを押したまま（または Ctrl を押しながら）ホイール。スマホで四角を動かすときは、一度タップして選んでからドラッグします。</div></details></span>'; return; }
+      if (!map || !sel) { bar.innerHTML = '<span class="rm-sel-hint"><details class="rm-help"><summary>四角や矢印（線）を押す・右クリック（スマホは長押し）すると、編集できます（何もない所で右クリック・長押しすると追加） <span class="rm-help-more">操作のしかた</span></summary><div>四角を押すと、文字の編集・種類・事実／予測・矢印でつなぐ・削除ができます（2回続けて押すと文字の編集）。矢印（線）を押すと、<b>向きを逆にする</b>・種類・事実／予測・「なぜ？」が選べます。<br><b>図を動かす</b>：何もない所をドラッグ（スマホは指でスワイプ）。<b>拡大・縮小</b>：右下の ＋・－、2本指で広げる・つまむ、または左クリックを押したまま（または Ctrl を押しながら）ホイール。スマホで四角を動かすときは、一度タップして選んでからドラッグします。</div></details></span>'; return; }
       if (sel.type === 'node') {
         const n = rmNodeById(map, sel.id);
         if (!n) { rmState.selected = null; return rmRenderSelectionBar(); }
@@ -2351,7 +2351,7 @@ ${cards}`;
         const wrap = document.getElementById('rm-canvas-wrap');
         const map = rmMap();
         // 「全体」は図全体が入る大きさ。作った直後（fit-readable）は、文字が読める大きさ（85%）より小さくしない（はみ出す分は横にスクロール）
-        if (wrap && map && map.nodes.length) { const b = rmBounds(map); rmState.zoom = Math.max(factor === 'fit' ? 0.25 : 0.85, Math.min(1.2, Math.min((wrap.clientWidth - 8) / b.w, (wrap.clientHeight - 8) / b.h))); }
+        if (wrap && map && map.nodes.length) { const b = rmBounds(map); rmState.zoom = Math.max(factor === 'fit' ? 0.25 : wrap.clientWidth < 600 ? 0.55 : 0.85, Math.min(1.2, Math.min((wrap.clientWidth - 8) / b.w, (wrap.clientHeight - 8) / b.h))); }
         else rmState.zoom = 1;
       } else rmState.zoom = Math.max(0.25, Math.min(2, Math.round(rmState.zoom * factor * 100) / 100));
       renderRelationMap();
@@ -2366,6 +2366,18 @@ ${cards}`;
       const r = svg.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
       wrap.scrollLeft = Math.max(0, r.left - wr.left + wrap.scrollLeft - dx);
       wrap.scrollTop = Math.max(0, r.top - wr.top + wrap.scrollTop - dy);
+      // 図が枠より高いとき（スマホなど）は、疾患（図のまん中の幹）が枠の上下のまん中に来るようにする
+      // （左上から見せると、何もない所しか見えないことがあった）
+      if (!center && svg.clientHeight > wrap.clientHeight) {
+        const dis = wrap.querySelector('.rm-node[data-kind="disease"]');
+        if (dis) { const d = dis.getBoundingClientRect(); wrap.scrollTop = Math.max(0, wrap.scrollTop + (d.top + d.height / 2) - (wr.top + wrap.clientHeight / 2)); }
+      }
+    }
+    // 作った直後のチェック結果は、直すべきこと（要修正・確認）があるときだけ出す。ヒントだけなら出さない
+    // （スマホで図の上がチェックの枠で埋まり、図が見えにくかった。2026-10-06.22）。「チェック」を押せばいつでも見られる
+    function rmShowCheckIfNeeded(map) {
+      const issues = validateRelationMap(map);
+      rmShowCheck(issues.some(i => i.level !== 'info') ? issues : null);
     }
     async function rmClearAll() {
       const map = rmMap();
@@ -2570,6 +2582,7 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
       // ボードを動かす：何もない所（スマホは四角の上も）をドラッグ・スワイプするとスクロール。2本指で拡大・縮小
       const pointers = new Map();
       let pan = null, pinch = null;
+      const longPress = { timer: 0, fired: false, sx: 0, sy: 0 };
       const nodeTap = id => {
         if (rmState.connectFrom) { rmConnectTo(id); return; }
         // 同じ四角を続けて2回押したら文字の編集（pointerdown で既定の動きを止めているため、dblclick は使わない）
@@ -2595,6 +2608,20 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
         const g = e.target.closest('.rm-node');
         const lg = e.target.closest('.rm-link');
         const touch = e.pointerType === 'touch' || e.pointerType === 'pen';
+        // 【長押しでメニュー】スマホ・タブレットは右クリックの代わりに、動かさずに長押し（0.55秒）で同じメニューを出す
+        clearTimeout(longPress.timer);
+        longPress.fired = false;
+        if (touch) {
+          const tgt = e.target, cx = e.clientX, cy = e.clientY, pid = e.pointerId;
+          longPress.sx = cx; longPress.sy = cy;
+          longPress.timer = setTimeout(() => {
+            if (pointers.size !== 1 || (pan && pan.moved) || (rmState.drag && rmState.drag.moved)) return;
+            if (pan && pan.pointerId === pid) { pan = null; wrap.classList.remove('is-panning'); }
+            if (rmState.drag && rmState.drag.pointerId === pid) rmState.drag = null;
+            longPress.fired = true;
+            rmShowCtx({ target: tgt, clientX: cx, clientY: cy });
+          }, 550);
+        }
         const startPan = tap => { pan = { pointerId: e.pointerId, sx: e.clientX, sy: e.clientY, sl: wrap.scrollLeft, st: wrap.scrollTop, moved: false, tap }; };
         if (g) {
           const map = rmMap();
@@ -2611,6 +2638,7 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
       });
       wrap.addEventListener('pointermove', e => {
         if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (longPress.timer && Math.hypot(e.clientX - longPress.sx, e.clientY - longPress.sy) > 8) { clearTimeout(longPress.timer); longPress.timer = 0; }
         if (pinch && pointers.size >= 2) {
           const [a, b] = [...pointers.values()];
           const z = pinch.z0 * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d0;
@@ -2643,6 +2671,8 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
       });
       const endDrag = e => {
         pointers.delete(e.pointerId);
+        clearTimeout(longPress.timer); longPress.timer = 0;
+        if (longPress.fired) { longPress.fired = false; return; } // 長押しでメニューを出したときは、タップとして扱わない
         if (pinch) { if (pointers.size < 2) pinch = null; return; }
         if (pan && pan.pointerId === e.pointerId) {
           const p = pan;

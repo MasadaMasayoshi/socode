@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-06.14'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-06.22'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -1841,6 +1841,8 @@ ${cardLines}
         if (refM) rest = rest.replace(refM[0], ' ');
         const unitM = rest.match(/^\s*([^\s(（↑↓、,。]*)/);
         let unit = unitM ? unitM[1] : '';
+        // 「体重 1か月で2.0kg減少」の「1」は期間（1か月）で、体重の値ではない（検査値の推移に「体重 1」と出ていた）
+        if (/^(?:か月|ヶ月|ヵ月|カ月|ケ月|週|日間|日で|年|時間)/.test(unit)) return null;
         rest = rest.slice(unitM ? unitM[0].length : 0);
         let flag = '';
         // かっこの注記の中（「(10/5 最大 4200 U/L)」の U/L の L）は、低い値の印「L」と読まない（実習生の記録のテスト：心筋梗塞）

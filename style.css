@@ -1010,3 +1010,31 @@
     .rm-canvas-wrap .rm-link:hover .rm-link-line { stroke-width: 2.4px; }
     /* 図の下は無地（点の模様が線や四角の後ろに見えて読みにくいため。点は図の外の余白だけ）2026-10-06.19 */
     html[data-theme="dark"] .rm-canvas-wrap .rm-bg.is-paper { fill: #171512; }
+
+    /* ===== スマホの見やすさ（2026-10-06.22：利用者「スマホ版が見づらい」） ===== */
+    @media (max-width: 639px) {
+      /* 上の見出し：カルテ名と書き出しボタンを1行に（小さめのボタン）。接続人数は省く */
+      header > div:first-child { padding: .5rem .75rem; gap: .4rem; }
+      header .ml-auto { gap: .3rem; }
+      header .btn { padding: .32rem .5rem; font-size: 11px; }
+      #presence-indicator { display: none; }
+      .patient-switcher { max-width: 38vw; }
+      /* 保存の状態の文が長いと横にはみ出していた（ページ全体が横にずれる）→ 折り返す */
+      #save-status { white-space: normal; min-width: 0; line-height: 1.4; }
+      header .text-xs.flex { min-width: 0; max-width: 100%; }
+      /* 関連図の操作：区切りの線・右寄せをやめ、ボタンを小さめに詰める */
+      .rm-toolbar { gap: .4rem; }
+      .rm-group { gap: .3rem; }
+      .rm-group-sep { padding-left: 0; border-left: 0; }
+      .rm-group-end { margin-left: 0; }
+      .rm-toolbar .btn { padding: .3rem .5rem; font-size: 11px; }
+      .rm-add-kind { max-width: 9.5rem; font-size: 11px; }
+      .rm-canvas-wrap { height: 68vh; min-height: 300px; }
+      /* 拡大・縮小はスマホでは横1列（縦に並べると図の右側を大きくふさいでいた） */
+      .rm-zoom-pad { right: 10px; bottom: 10px; flex-direction: row; }
+      .rm-zoom-pad button { min-width: 40px; height: 36px; border-top: 0; border-left: 1px solid var(--line-soft); }
+      .rm-zoom-pad button:first-child { border-left: 0; }
+      .rm-stage { padding: 22vh 30vw; }
+      .rm-check { font-size: 11px; }
+      .rm-legend { font-size: 10.5px; gap: .25rem .7rem; }
+    }
