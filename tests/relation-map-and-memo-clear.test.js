@@ -131,7 +131,7 @@ test('関連図：看護問題は右端・#の優先順位の順に上から並�
   assert.deepEqual(plain(probs.map(p => p.priority)), plain(probs.map((p, i) => i + 1)));
   assert.ok(probs.length >= 5, probs.map(p => p.label).join(' / '));
   assert.deepEqual(plain(probs.map(p => app.rmProblemCategory(p.label).key)), ['resp', 'inf', 'pain', 'nutr', 'act', 'anx']);
-  const maxX = Math.max(...map.nodes.filter(n => n.type !== 'nursing_problem').map(n => n.x));
+  const maxX = Math.max(...map.nodes.filter(n => n.type !== 'nursing_problem' && !n.attachTo).map(n => n.x));
   probs.forEach(p => assert.ok(p.x > maxX, '看護問題は右端'));
   for (let i = 1; i < probs.length; i++) assert.ok(probs[i].y > probs[i - 1].y, '重要な問題ほど上');
   const issues = app.validateRelationMap(map);
@@ -327,7 +327,8 @@ test('関連図の線の整理：同じ四角からの線は1本の幹・回り�
   ['gastric_postop', 'hip_fracture', 'aspiration_pneumonia', 'cerebral_infarction'].forEach(name => {
     const map = caseMap(name);
     const { routes } = app.rmRouteEdges(map);
-    assert.equal(routes.length, map.edges.length, name);
+    const attachedN = map.edges.filter(e => (map.nodes.find(n => n.id === e.source) || {}).attachTo === e.target).length;
+    assert.equal(routes.length, map.edges.length - attachedN, name);
     // 回り込み（通り道）を使った線の横の部分は、ほかの四角に重ならない
     routes.filter(r => r.pts.length === 6).forEach(r => {
       const [xa, y] = r.pts[2], xb = r.pts[3][0];
@@ -393,9 +394,57 @@ test('矢印の間を補う：決まった知識で中間過程を入れ、紫�
   // 保存しても added は残る
   assert.ok(app.normalizeRelationMap(JSON.parse(JSON.stringify(map))).nodes.some(n => n.added));
   // 操作：図全体を補うボタン・選んだ矢印の間に入れる（手で/AIで）・AIの形に a
-  assert.match(html, /data-rm-action="bridge"/);
+  assert.match(html, /data-rm-action="toggle-added"/);
   assert.match(src, /rmBtn\('mid-ai'/); assert.match(src, /rmBtn\('mid-add'/);
   assert.match(src, /"a":0/);
   const ai = app.relationMapFromAiJson({ n: [{ i: 'n1', t: 'pathophysiology', l: '手術侵襲', o: 1 }, { i: 'n2', t: 'pathophysiology', l: '発痛物質の放出', o: 1, k: 1, a: 1 }, { i: 'n3', t: 'nursing_problem', l: '急性疼痛', p: 1 }], e: [{ s: 'n1', d: 'n2', r: 'causes' }, { s: 'n2', d: 'n3', r: 'results_in' }] });
   assert.ok(ai.nodes.find(n => n.label === '発痛物質の放出').added);
+});
+
+test('＋補足のあり・なしをボタン1つで入れ替える（隠すと前後を直接つなぎ、戻すと同じ位置に戻る）', () => {
+  const map = caseMap('gastric_postop');
+  const before = plain({ nodes: map.nodes.map(n => [n.id, n.x, n.y]).sort(), edges: map.edges.map(e => `${e.source}>${e.target}`).sort() });
+  const nAdded = map.nodes.filter(n => n.added).length;
+  assert.equal(app.rmHideAdded(map), nAdded);
+  assert.ok(!map.nodes.some(n => n.added));
+  const inv = find(map, /^手術侵襲（組織の損傷）/), pain = find(map, /^創部痛（NRS 2）/);
+  assert.ok(hasEdge(map, inv, pain), '隠すと 手術侵襲 → 創部痛 を直接つなぐ');
+  assert.ok(!app.validateRelationMap(map).some(i => i.level === 'error'));
+  // 保存して読み込み直しても、隠したものは取っておける
+  const saved = app.normalizeRelationMap(JSON.parse(JSON.stringify(map)));
+  assert.equal(saved.addedStash.nodes.length, nAdded);
+  assert.equal(app.rmShowAdded(saved), nAdded);
+  assert.ok(!saved.addedStash);
+  const after = plain({ nodes: saved.nodes.map(n => [n.id, n.x, n.y]).sort(), edges: saved.edges.map(e => `${e.source}>${e.target}`).sort() });
+  assert.deepEqual(after, before, '戻すと元どおり（位置も同じ）');
+  // 隠している間に四角を消しても壊れない
+  app.rmHideAdded(saved);
+  saved.nodes = saved.nodes.filter(n => n.id !== pain.id); saved.edges = saved.edges.filter(e => e.source !== pain.id && e.target !== pain.id);
+  app.rmShowAdded(saved);
+  saved.nodes.filter(n => n.added).forEach(n => assert.ok(saved.edges.some(e => e.target === n.id) && saved.edges.some(e => e.source === n.id)));
+  assert.match(src, /act === 'toggle-added'\) rmToggleAdded\(\)/);
+  assert.match(src, /＋補足：\$\{on \? 'あり' : 'なし'\}/);
+});
+
+test('検査データは根拠になる四角のすぐ下にくっつける（同じ四角の中ではなく、別の四角をぴったり付ける）', () => {
+  const map = caseMap('gastric_postop');
+  const labs = map.nodes.filter(n => n.type === 'lab');
+  assert.ok(labs.length >= 3);
+  labs.forEach(l => {
+    assert.ok(l.attachTo, l.label);
+    const host = map.nodes.find(n => n.id === l.attachTo), hr = app.rmRect(host), lr = app.rmRect(l);
+    assert.ok(map.edges.some(e => e.source === l.id && e.target === host.id), 'データとしての矢印は残す');
+    assert.ok(Math.abs(lr.cx - hr.cx) < 1, '親の真下');
+    assert.ok(lr.y1 >= hr.y2 - 0.5 && lr.y1 - hr.y2 < 200, '親の下にくっつく');
+    assert.ok(!map.nodes.some(o => o !== l && o !== host && !o.attachTo && (() => { const r = app.rmRect(o); return r.x1 < lr.x2 && r.x2 > lr.x1 && r.y1 < lr.y2 && r.y2 > lr.y1; })()), '他の四角と重ならない');
+  });
+  const wbc = find(map, /WBC/), crp = find(map, /CRP/);
+  assert.equal(wbc.attachTo, crp.attachTo, 'WBC・CRP は同じ「炎症反応」の下に重ねる');
+  assert.ok(app.rmRect(crp).y1 >= app.rmRect(wbc).y2 - 0.5);
+  // くっつけたデータの矢印は描かない（くっついていること自体が矢印の代わり）
+  const { routes } = app.rmRouteEdges(map);
+  assert.ok(!routes.some(r => labs.some(l => r.edge.source === l.id && r.edge.target === l.attachTo)));
+  // 親を動かすとデータも一緒に動く／データを引きはがすと矢印で描く
+  assert.match(src, /l\.attachTo === node\.id\) \{ l\.x \+= mx; l\.y \+= my;/);
+  assert.match(src, /if \(node\.attachTo\) delete node\.attachTo;/);
 });

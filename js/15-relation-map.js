@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.5'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.6'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -150,6 +150,8 @@
           observed: v1 ? true : n.observed !== false,
           source: ['record', 'knowledge', 'user', 'plan', 'ai'].includes(n.source) ? n.source : (v1 ? 'user' : 'record'),
           added: !v1 && n.added === true,
+          ...(typeof n.attachTo === 'string' && rmSafeId(n.attachTo) ? { attachTo: n.attachTo } : {}),
+          ...(n.detached === true ? { detached: true } : {}),
           priority: type === 'nursing_problem' ? priority : 0,
           x: Number.isFinite(Number(n.x)) ? Number(n.x) : 0,
           y: Number.isFinite(Number(n.y)) ? Number(n.y) : 0,
@@ -157,6 +159,7 @@
         });
       });
       const byId = new Map(nodes.map(n => [n.id, n]));
+      nodes.forEach(n => { if (n.attachTo && !byId.has(n.attachTo)) delete n.attachTo; });
       const edges = [];
       const pairs = new Set();
       const rawEdges = v1 ? (Array.isArray(raw.links) ? raw.links.map(l => l && ({ source: l.from, target: l.to, predicted: !!l.dashed, relation: 'causes', evidence: l.label || '' })) : [])
@@ -176,7 +179,8 @@
         edges.push({ id: rmSafeId(e.id) || rmNewId('e'), source, target, relation, predicted: !!e.predicted, evidence: String(e.evidence || '').slice(0, 200) });
       });
       const map = { version: 2, nodes, edges: edges.slice(0, RM_MAX_EDGES), bands: Array.isArray(raw.bands) && !v1 ? raw.bands.filter(b => b && Number.isFinite(b.y1) && Number.isFinite(b.y2)).slice(0, 12).map(b => ({ y1: b.y1, y2: b.y2, p: Number(b.p) || 0 })) : [], headers: Array.isArray(raw.headers) && !v1 ? raw.headers.filter(h => h && Number.isFinite(h.x1) && Number.isFinite(h.x2)).slice(0, 8).map(h => ({ x1: h.x1, x2: h.x2, label: String(h.label || '').slice(0, 30) })) : [],
-        source: String(raw.source || 'manual'), layoutStyle: Number(raw.layoutStyle) || 1, createdAt: raw.createdAt || null, updatedAt: raw.updatedAt || null };
+        source: String(raw.source || 'manual'), layoutStyle: Number(raw.layoutStyle) || 1,
+        ...(raw.addedStash && Array.isArray(raw.addedStash.nodes) && Array.isArray(raw.addedStash.edges) ? { addedStash: { nodes: raw.addedStash.nodes.slice(0, RM_MAX_NODES), edges: raw.addedStash.edges.slice(0, RM_MAX_EDGES), created: Array.isArray(raw.addedStash.created) ? raw.addedStash.created.slice(0, RM_MAX_EDGES) : [], positions: raw.addedStash.positions && typeof raw.addedStash.positions === 'object' ? raw.addedStash.positions : {}, bands: Array.isArray(raw.addedStash.bands) ? raw.addedStash.bands : [], headers: Array.isArray(raw.addedStash.headers) ? raw.addedStash.headers : [] } } : {}), createdAt: raw.createdAt || null, updatedAt: raw.updatedAt || null };
       rmRenumberProblems(map, { keepOrder: true });
       if (v1 && nodes.length) layoutRelationMap(map); // 版1の段の並びは版2の列の並びに直す
       return map;
@@ -211,12 +215,32 @@
       // 治療は「治療の対象」の右に置く（治療 → 対象 の矢印は左向きになる）
       return map.edges.map(e => e.relation === 'treats' ? { from: e.target, to: e.source } : { from: e.source, to: e.target });
     }
+    const RM_ATTACH_GAP = 0; // 検査データは親の四角にぴったりくっつける
+    // くっつける検査データ：矢印が入って来ず、出る先（検査データ以外）がある。出る先が複数なら看護問題以外の最初の先
+    function rmLabAttachments(map) {
+      const byId = new Map(map.nodes.map(n => [n.id, n]));
+      const res = new Map();
+      map.nodes.forEach(n => {
+        if (n.type !== 'lab' || n.detached || map.edges.some(e => e.target === n.id)) return;
+        const outs = map.edges.filter(e => e.source === n.id && byId.has(e.target) && byId.get(e.target).type !== 'lab' && e.relation !== 'treats');
+        if (!outs.length) return;
+        const host = outs.find(e => byId.get(e.target).type !== 'nursing_problem') || outs[0];
+        res.set(n.id, host.target);
+      });
+      return res;
+    }
     function layoutRelationMap(map) {
       if (!map || !map.nodes.length) return map;
       map.layoutStyle = RM_LAYOUT_STYLE;
-      const ids = map.nodes.map(n => n.id);
       const byId = new Map(map.nodes.map(n => [n.id, n]));
-      const flows = rmFlowEdges(map).filter(f => byId.has(f.from) && byId.has(f.to));
+      // 検査データは、根拠になる四角のすぐ下にくっつけて置く（別の列に離して置かない）
+      const attach = rmLabAttachments(map);
+      map.nodes.forEach(n => { if (attach.has(n.id)) n.attachTo = attach.get(n.id); else delete n.attachTo; });
+      const hung = new Map(); // 親の四角 → くっつく検査データ
+      attach.forEach((host, lab) => { if (!hung.has(host)) hung.set(host, []); hung.get(host).push(byId.get(lab)); });
+      const blockH = n => rmNodeSize(n).h + (hung.get(n.id) || []).reduce((h, l) => h + rmNodeSize(l).h + RM_ATTACH_GAP, 0);
+      const ids = map.nodes.filter(n => !attach.has(n.id)).map(n => n.id);
+      const flows = rmFlowEdges(map).filter(f => byId.has(f.from) && byId.has(f.to) && !attach.has(f.from) && !attach.has(f.to));
       const out = new Map(ids.map(id => [id, []])), inn = new Map(ids.map(id => [id, []]));
       // 循環（A→B→A）は、深さを決めるときだけ無視する
       const state = new Map();
@@ -250,7 +274,7 @@
       });
       // 矢印の入って来ない四角（検査データなど）は、つながる先のすぐ左に置く（遠くから長い線を引かない＝交差を減らす）
       const probIds = new Set(map.nodes.filter(n => n.type === 'nursing_problem').map(n => n.id));
-      const maxNonProb = Math.max(0, ...map.nodes.filter(n => !probIds.has(n.id)).map(n => rank.get(n.id)));
+      const maxNonProb = Math.max(0, ...ids.filter(id => !probIds.has(id)).map(id => rank.get(id)));
       [...order].reverse().forEach(id => {
         const n = byId.get(id);
         if (n.type === 'patient_fact' || n.type === 'nursing_problem' || inn.get(id).length || !out.get(id).length) return;
@@ -258,9 +282,9 @@
         if (succ - 1 > rank.get(id)) rank.set(id, succ - 1);
       });
       // 看護問題はいちばん右の列にまとめる
-      const nonProb = map.nodes.filter(n => n.type !== 'nursing_problem');
+      const nonProb = ids.map(id => byId.get(id)).filter(n => n.type !== 'nursing_problem');
       const lastRank = (nonProb.length ? Math.max(...nonProb.map(n => rank.get(n.id))) : 0) + 1;
-      map.nodes.forEach(n => { if (n.type === 'nursing_problem') rank.set(n.id, lastRank); });
+      ids.forEach(id => { if (byId.get(id).type === 'nursing_problem') rank.set(id, lastRank); });
       // その四角がつながる看護問題のうち、いちばん優先度の高い番号（＝上から並べる帯）
       const band = new Map();
       const bandOf = (id, seenSet = new Set()) => {
@@ -310,13 +334,19 @@
       const stripes = [];
       bands.forEach(bv => {
         const perCol = cols.map(c => c.filter(e => band.get(e.id) === bv));
-        const colH = perCol.map(c => c.reduce((h, e) => h + rmNodeSize(byId.get(e.id)).h, 0) + Math.max(0, c.length - 1) * RM_ROW_GAP);
+        const colH = perCol.map(c => c.reduce((h, e) => h + blockH(byId.get(e.id)), 0) + Math.max(0, c.length - 1) * RM_ROW_GAP);
         const bandH = Math.max(0, ...colH);
         perCol.forEach((c, r) => {
           let y = top + (bandH - colH[r]) / 2;
-          c.forEach(e => { const n = byId.get(e.id); n.y = Math.round(y); y += rmNodeSize(n).h + RM_ROW_GAP; });
+          c.forEach(e => { const n = byId.get(e.id); n.y = Math.round(y); y += blockH(n) + RM_ROW_GAP; });
         });
         if (bandH > 0) { stripes.push({ y1: top - RM_ROW_GAP * 0.9, y2: top + bandH + RM_ROW_GAP * 0.9, p: bv }); top += bandH + RM_ROW_GAP * 2.2; }
+      });
+      // くっつける検査データの位置：親の四角の真下（すき間なし）に、上から順に重ねる
+      hung.forEach((labs, hostId) => {
+        const host = byId.get(hostId), hs = rmNodeSize(host);
+        let y = host.y + hs.h + RM_ATTACH_GAP;
+        labs.forEach(l => { const ls = rmNodeSize(l); l.x = Math.round(host.x + (hs.w - ls.w) / 2); l.y = Math.round(y); y += ls.h + RM_ATTACH_GAP; });
       });
       const minY = Math.min(...map.nodes.map(n => n.y));
       map.nodes.forEach(n => { n.y = Math.round(n.y - minY); });
@@ -377,9 +407,10 @@
       const fanOut = new Map(), fanIn = new Map();
       map.edges.forEach(e => { if (!bent(e)) return; const d = dirOf(e); fanOut.set(e.source + d, (fanOut.get(e.source + d) || 0) + 1); fanIn.set(e.target + d, (fanIn.get(e.target + d) || 0) + 1); });
       const groups = new Map(); // すき間ごと・幹ごとに縦の線をまとめる
+      const attachedEdge = e => { const s = byId.get(e.source); return !!(s && s.attachTo === e.target); };
       map.edges.forEach(e => {
         const a = rectById.get(e.source), b = rectById.get(e.target);
-        if (!a || !b) return;
+        if (!a || !b || attachedEdge(e)) return; // くっつけた検査データは、くっついていること自体が矢印の代わり
         const d = dirOf(e);
         if (d) {
           const right = d > 0;
@@ -1405,6 +1436,69 @@ ${cards}`;
       } catch (err) { showAiErrorToast('理由を説明できませんでした。', err); }
     }
 
+    // ＋補足を隠す：補った四角を外して、前後を直接の矢印でつなぐ（外したものは addedStash に取っておき、表示で元に戻す）
+    function rmHideAdded(map) {
+      const added = map.nodes.filter(n => n.added);
+      if (!added.length) return 0;
+      const old = map.addedStash && typeof map.addedStash === 'object' ? map.addedStash : null;
+      const stash = { nodes: old ? old.nodes.slice() : [], edges: old ? old.edges.slice() : [], created: old ? old.created.slice() : [],
+        positions: Object.fromEntries(map.nodes.map(n => [n.id, { x: n.x, y: n.y, attachTo: n.attachTo || null }])), bands: map.bands || [], headers: map.headers || [] };
+      const created = new Set(stash.created);
+      added.forEach(x => {
+        const ins = map.edges.filter(e => e.target === x.id), outs = map.edges.filter(e => e.source === x.id);
+        ins.forEach(i => outs.forEach(o => {
+          if (i.source === o.target || map.edges.some(e => e.source === i.source && e.target === o.target)) return;
+          const ne = { id: rmNewId('e'), source: i.source, target: o.target, relation: o.relation, predicted: !!(i.predicted || o.predicted), evidence: o.evidence || i.evidence || '' };
+          map.edges.push(ne); created.add(ne.id);
+        }));
+        [...ins, ...outs].forEach(e => { if (created.has(e.id)) created.delete(e.id); else stash.edges.push(e); });
+        map.edges = map.edges.filter(e => e.source !== x.id && e.target !== x.id);
+        map.nodes = map.nodes.filter(n => n !== x);
+        stash.nodes.push(x);
+      });
+      stash.created = [...created];
+      map.addedStash = stash;
+      layoutRelationMap(map);
+      return added.length;
+    }
+    // ＋補足を表示：取っておいた四角と矢印を戻す（隠している間に消した四角につながるものは戻さない）
+    function rmShowAdded(map) {
+      const st = map.addedStash;
+      delete map.addedStash;
+      if (!st || !Array.isArray(st.nodes) || !st.nodes.length) return 0;
+      const created = new Set(st.created || []);
+      map.edges = map.edges.filter(e => !created.has(e.id));
+      const ids = new Set(map.nodes.map(n => n.id));
+      st.nodes.forEach(n => { if (n && !ids.has(n.id)) { map.nodes.push(n); ids.add(n.id); } });
+      (st.edges || []).forEach(e => { if (e && ids.has(e.source) && ids.has(e.target) && !map.edges.some(x => x.id === e.id || (x.source === e.source && x.target === e.target))) map.edges.push(e); });
+      // 前か後ろが無くなった補足は戻さない
+      let changed = true;
+      while (changed) {
+        changed = false;
+        map.nodes.filter(n => n.added).forEach(n => {
+          if (map.edges.some(e => e.target === n.id) && map.edges.some(e => e.source === n.id)) return;
+          map.nodes = map.nodes.filter(x => x !== n); map.edges = map.edges.filter(e => e.source !== n.id && e.target !== n.id); changed = true;
+        });
+      }
+      const clean = normalizeRelationMap({ ...map, version: 2 });
+      map.nodes = clean.nodes; map.edges = clean.edges;
+      // 隠す前と同じ四角のままなら、前の位置に戻す。変わっていれば並べ直す
+      const pos = st.positions || {};
+      if (map.nodes.every(n => pos[n.id])) {
+        map.nodes.forEach(n => { n.x = pos[n.id].x; n.y = pos[n.id].y; if (pos[n.id].attachTo) n.attachTo = pos[n.id].attachTo; else delete n.attachTo; });
+        map.bands = st.bands || []; map.headers = st.headers || [];
+      } else layoutRelationMap(map);
+      return map.nodes.filter(n => n.added).length;
+    }
+    // ボタン1つで ＋補足 のあり・なしを入れ替える（隠したものが無く、補足も無いときは決まった知識で補う）
+    function rmToggleAdded() {
+      const map = rmMap();
+      if (!map || !map.nodes.length) return;
+      if (map.nodes.some(n => n.added)) { let n = 0; rmMutate(m => { n = rmHideAdded(m); }); showToast(`＋補足を隠しました（${n}個）。もう一度押すと戻ります`, 'info'); }
+      else if (map.addedStash) { let n = 0; rmMutate(m => { n = rmShowAdded(m); }); showToast(`＋補足を表示しました（${n}個）`, 'success'); }
+      else rmBridgeAll();
+      rmRenderToolbarState();
+    }
     // 図全体：決まった知識で矢印の間を補う
     function rmBridgeAll() {
       const map = rmMap();
@@ -1541,6 +1635,13 @@ ${cards}`;
       const map = rmMap();
       const has = !!(map && map.nodes.length);
       document.querySelectorAll('[data-rm-needs-map]').forEach(b => { b.disabled = !has; });
+      const tg = document.querySelector('[data-rm-action="toggle-added"]');
+      if (tg) {
+        const on = !!(map && map.nodes.some(n => n.added)), hidden = !!(map && map.addedStash);
+        tg.setAttribute('aria-pressed', on ? 'true' : 'false');
+        tg.classList.toggle('is-on', on);
+        tg.innerHTML = `<i class="fa-solid ${on ? 'fa-eye' : 'fa-eye-slash'}"></i> ＋補足：${on ? 'あり' : 'なし'}${hidden && !on ? `（${map.addedStash.nodes.length}個を隠しています）` : ''}`;
+      }
     }
     function rmCssEsc(id) { return (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(String(id)) : String(id).replace(/["\\]/g, '\\$&'); }
     function rmApplySelectionClasses() {
@@ -1852,6 +1953,7 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
         else if (act === 'zoom-fit') rmZoom('fit');
         else if (act === 'zoom-100') { rmState.zoom = 1; renderRelationMap(); }
         else if (act === 'bridge') rmBridgeAll();
+        else if (act === 'toggle-added') rmToggleAdded();
         else if (act === 'print') rmPrint();
         else if (act === 'png') rmSavePng();
         else if (act === 'clear') rmClearAll();
@@ -1913,9 +2015,12 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
         const node = map && rmNodeById(map, d.id);
         if (!node) return;
         const p = rmClientToMap(e);
-        node.x = Math.round(p.x - d.dx); node.y = Math.round(p.y - d.dy);
-        const g = wrap.querySelector(`.rm-node[data-node-id="${rmCssEsc(node.id)}"]`);
-        if (g) g.setAttribute('transform', `translate(${node.x},${node.y})`);
+        const nx = Math.round(p.x - d.dx), ny = Math.round(p.y - d.dy), mx = nx - node.x, my = ny - node.y;
+        node.x = nx; node.y = ny;
+        if (node.attachTo) delete node.attachTo; // くっついていた検査データを引きはがしたら、矢印で表示する
+        const moveG = n => { const g = wrap.querySelector(`.rm-node[data-node-id="${rmCssEsc(n.id)}"]`); if (g) g.setAttribute('transform', `translate(${n.x},${n.y})`); };
+        moveG(node);
+        map.nodes.forEach(l => { if (l.attachTo === node.id) { l.x += mx; l.y += my; moveG(l); } }); // くっついている検査データも一緒に動かす
         if (!raf) raf = requestAnimationFrame(() => { raf = 0; rmRenderEdgesOnly(map); });
       });
       const endDrag = e => {
@@ -1977,5 +2082,5 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
     if (typeof document !== 'undefined' && document.getElementById && document.getElementById('view-relation')) initRelationMapUi();
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi });
+  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi });
 }
