@@ -572,3 +572,18 @@ test('関連図：全画面ボタンがあり、Esc・ほかのページへの�
   assert.match(view, /class="rm-fs-controls"[\s\S]*?data-rm-action="fullscreen"/, '全画面の中に「元の大きさ」');
   assert.equal(typeof app.rmSetFullscreen, 'function');
 });
+
+// 2026-10-06.15：利用者からの要望「関連図が横長になりすぎている」。1本道の流れは同じ列に縦に積む（3つまで）
+test('関連図：1本道の流れを同じ列に縦に積み、横長になりすぎない（幅が高さの2倍以内）', () => {
+  ['gastric_postop', 'hip_fracture', 'colon_cancer_postop_long', 'copd_exacerbation_long'].forEach(name => {
+    const map = caseMap(name);
+    const rects = map.nodes.map(n => app.rmRect(n));
+    const W = Math.max(...rects.map(r => r.x2)), H = Math.max(...rects.map(r => r.y2));
+    assert.ok(W <= H * 2, `${name}: ${W} x ${H}`);
+    const byId = new Map(map.nodes.map(n => [n.id, app.rmRect(n)]));
+    assert.ok(map.edges.some(e => { const a = byId.get(e.source), b = byId.get(e.target); return Math.abs(a.cx - b.cx) < 2 && b.y1 > a.y2; }), `${name}: 縦に積んだ流れ（下向きの矢印）がある`);
+    // 背景・治療・看護問題は積まない
+    map.edges.forEach(e => { const s = map.nodes.find(n => n.id === e.source), t = map.nodes.find(n => n.id === e.target); const a = byId.get(e.source), b = byId.get(e.target);
+      if (Math.abs(a.cx - b.cx) < 2 && b.y1 > a.y2 && !t.attachTo) assert.ok(![s.type, t.type].some(x => ['patient_fact', 'treatment', 'nursing_problem'].includes(x)), `${s.label} → ${t.label}`); });
+  });
+});

@@ -101,18 +101,19 @@ test('AIの結果：結果が返る前に別の患者に切り替えていたら
   assert.match(src, /pushMissingInfoCard\(hId, text, cp\)/);
 });
 
-test('作業の流れ：次に進む所に印（記録 → 分類 → 手直し → アセスメント → 看護計画 → 書き出し）', () => {
+test('作業の流れ：次に進む所に印（情報収集 → アセスメント → 看護計画 → 書き出し。記録を貼る・分類・手直しは「情報収集」に1つ）', () => {
   const app = loadApp();
   const st = app.__testHooks.state();
   const cp = st.patients[0];
   cp.items = []; cp.sourceText = '';
   const cur = () => app.workflowStatus(cp).find(s => s.current).key;
-  assert.equal(cur(), 'paste');
+  assert.deepEqual(JSON.parse(JSON.stringify(app.workflowStatus(cp).map(s => s.label))), ['情報収集', 'アセスメント', '看護計画', '書き出し']);
+  assert.equal(cur(), 'collect');
   cp.sourceText = '体温37.8℃';
-  assert.equal(cur(), 'classify');
+  assert.equal(cur(), 'collect');
   cp.items = [{ id: 'a', type: 'unclassified', text: '体温37.8℃', hendersonIds: [7] }];
-  assert.equal(cur(), 'fix');
-  assert.match(app.workflowStatus(cp).find(s => s.key === 'fix').note, /未分類1/);
+  assert.equal(cur(), 'collect');
+  assert.match(app.workflowStatus(cp).find(s => s.key === 'collect').note, /1枚・未分類1/);
   cp.items[0].type = 'o';
   assert.equal(cur(), 'assess');
   const e = app.ensureMyAssessment(cp, 7); e.interpretation = '発熱している'; app.linkMyEvidenceIds(cp, 7, ['a']); app.confirmMyAssessmentEntry(cp, 7);

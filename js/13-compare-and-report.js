@@ -5,7 +5,7 @@
     //   （コピー・テキストファイル・印刷／PDF）。
     // （js/10 の起動の処理より後に読み込む。最後に総合アセスメント表などを描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-06.14'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-06.15'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // ④ 記録した時点（cp.checkpoints[ID] = { id, label, kind, at, updatedAt, items:[カードの写し] }。
@@ -641,6 +641,7 @@
 
     // ==========================================================================
     // 作業の流れ（利用者の確認項目：「記録を貼り付ける→分類→手直し→アセスメント→書き出し」で次に押すボタンが分かるか）
+    // 2026-10-06.15：「記録を貼る・分類・手直し」を「情報収集」の1つにまとめた（情報収集 → アセスメント → 看護計画 → 書き出し）
     // ==========================================================================
     function workflowStatus(cp) {
       const items = cp.items || [];
@@ -652,9 +653,9 @@
       const confirmed = asm.filter(e => (e.history || []).length).length;
       const plans = carePlanList(cp);
       const steps = [
-        { key: 'paste', label: '記録を貼る', done: !!String(cp.sourceText || '').trim() || items.length > 0, note: '' },
-        { key: 'classify', label: '分類', done: items.length > 0, note: items.length ? `${items.length}枚` : '' },
-        { key: 'fix', label: '手直し', done: items.length > 0 && !unclassified && !untagged, note: unclassified || untagged ? [unclassified ? `未分類${unclassified}` : '', untagged ? `タグなし${untagged}` : ''].filter(Boolean).join('・') : '' },
+        // 利用者からの要望：「記録を貼る・分類・手直しを『情報収集』にまとめる」。記録を貼って分類し、未分類・タグなしが無くなれば済み
+        { key: 'collect', label: '情報収集', done: items.length > 0 && !unclassified && !untagged,
+          note: [items.length ? `${items.length}枚` : '', unclassified ? `未分類${unclassified}` : '', untagged ? `タグなし${untagged}` : ''].filter(Boolean).join('・') },
         { key: 'assess', label: 'アセスメント', done: confirmed > 0, note: written ? `${written}項目${confirmed ? `（確定${confirmed}）` : ''}` : '' },
         { key: 'plan', label: '看護計画', done: plans.length > 0, note: plans.length ? `${plans.length}件` : '' },
         { key: 'export', label: '書き出し', done: false, note: '' }
@@ -669,11 +670,16 @@
       const cp = getCurrentPatient();
       const steps = workflowStatus(cp);
       const doneN = steps.filter(s => s.done).length;
-      if (nav.setAttribute) nav.setAttribute('data-progress', `（6段階のうち${doneN}つ済み）`);
+      if (nav.setAttribute) nav.setAttribute('data-progress', `（${steps.length}段階のうち${doneN}つ済み）`);
       nav.innerHTML = `<span class="wf-patient" title="今表示しているカルテ"><i class="fa-solid fa-hospital-user"></i> ${escapeHtml(cp.title || '')}</span>` + steps.map((s, k) => `<button type="button" class="wf-step${s.done ? ' done' : ''}${s.current ? ' current' : ''}" onclick="goWorkflowStep('${s.key}')" ${s.current ? 'aria-current="step"' : ''}>
         <span class="wf-no">${s.done ? '<i class="fa-solid fa-check"></i>' : k + 1}</span><span class="wf-label">${s.label}</span>${s.note ? `<span class="wf-note">${escapeHtml(s.note)}</span>` : ''}${s.current ? '<span class="wf-next">次はここ</span>' : ''}</button>`).join('<i class="fa-solid fa-chevron-right wf-sep" aria-hidden="true"></i>');
     }
     window.goWorkflowStep = function(key) {
+      // 情報収集：まだ記録が無ければ記録メモへ、貼ってあって分類前なら「分類開始」へ、分類後は未分類・タグなしのカードへ
+      if (key === 'collect') {
+        const cp = getCurrentPatient(), items = cp.items || [];
+        key = !items.length ? (String(cp.sourceText || '').trim() ? 'classify' : 'paste') : 'fix';
+      }
       if (key === 'paste') { switchView('so'); DOM.sourceText.focus(); }
       else if (key === 'classify') { switchView('so'); document.getElementById('btn-start-classify')?.focus(); }
       else if (key === 'fix') {

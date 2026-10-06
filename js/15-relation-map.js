@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.14'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.15'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -250,6 +250,9 @@
       return map.edges.map(e => e.relation === 'treats' ? { from: e.target, to: e.source } : { from: e.source, to: e.target });
     }
     const RM_ATTACH_GAP = 0; // 検査データは親の四角にぴったりくっつける
+    // 【横長を抑える】1本道の流れ（A→B だけでつながり、B へ入る矢印が A からだけ）は、同じ列に縦に積む（下向きの矢印）。
+    // 1つの列に積むのは3つまで。矢印を通すため、積んだ四角の間は少し空ける。
+    const RM_STACK_MAX = 3, RM_STACK_GAP = 30;
     // くっつける検査データ：矢印が入って来ず、出る先（検査データ以外）がある。出る先が複数なら看護問題以外の最初の先
     function rmLabAttachments(map) {
       const byId = new Map(map.nodes.map(n => [n.id, n]));
@@ -317,7 +320,7 @@
       });
       // 看護問題はいちばん右の列にまとめる
       const nonProb = ids.map(id => byId.get(id)).filter(n => n.type !== 'nursing_problem');
-      const lastRank = (nonProb.length ? Math.max(...nonProb.map(n => rank.get(n.id))) : 0) + 1;
+      let lastRank = (nonProb.length ? Math.max(...nonProb.map(n => rank.get(n.id))) : 0) + 1;
       ids.forEach(id => { if (byId.get(id).type === 'nursing_problem') rank.set(id, lastRank); });
       // その四角がつながる看護問題のうち、いちばん優先度の高い番号（＝上から並べる帯）
       const band = new Map();
@@ -334,8 +337,48 @@
       ids.forEach(id => bandOf(id));
       // 看護問題へ流れの続かない治療（鎮痛薬 → 創部痛 など）は、治療の対象と同じ帯に置く
       map.edges.forEach(e => { if (e.relation === 'treats' && band.get(e.source) === 999 && band.has(e.target)) band.set(e.source, band.get(e.target)); });
+      // 【横長を抑える】利用者からの要望：「関連図が横長になりすぎている」。以前は因果の深さごとに1列にしていたため、
+      // 1本道の長い流れ（「＋補足」をはさむと特に）で列が12〜18個になり、横に長くなっていた。1本道の続き
+      // （A の矢印が B だけへ出て、B へ入る矢印が A からだけ。同じ看護問題の帯の中）は、A と同じ列の下に積む。
+      // 背景（患者情報）・治療・看護問題は積まない。積んだまとまりを1つの四角として、列・並び順・高さを決め直す。
+      const head = new Map(), members = new Map();
+      const stackable = (u, v) => {
+        const nu = byId.get(u), nv = byId.get(v);
+        // 治療（楕円）は「治療」の列にまとめて見せるので積まない
+        if (!nu || !nv || probIds.has(u) || probIds.has(v) || [nu.type, nv.type].some(t => t === 'patient_fact' || t === 'treatment')) return false;
+        return out.get(u).length === 1 && inn.get(v).length === 1 && band.get(u) === band.get(v);
+      };
+      order.forEach(id => {
+        const p = inn.get(id).length === 1 ? inn.get(id)[0] : null;
+        if (p && head.has(p) && stackable(p, id)) {
+          const h = head.get(p), mem = members.get(h);
+          if (mem.length < RM_STACK_MAX && mem[mem.length - 1] === p) { mem.push(id); head.set(id, h); return; }
+        }
+        head.set(id, id); members.set(id, [id]);
+      });
+      const lastOf = h => members.get(h)[members.get(h).length - 1];
+      const heads = ids.filter(id => head.get(id) === id);
+      const sInn = new Map(heads.map(h => [h, [...new Set(inn.get(h).map(x => head.get(x)))].filter(x => x !== h)]));
+      const sOut = new Map(heads.map(h => [h, [...new Set(out.get(lastOf(h)).map(x => head.get(x)))].filter(x => x !== h)]));
+      const hr = new Map();
+      order.filter(id => head.get(id) === id && !probIds.has(id)).forEach(h => {
+        const n = byId.get(h), ps = sInn.get(h).filter(x => !probIds.has(x));
+        hr.set(h, n.type === 'patient_fact' && !ps.length ? 0 : Math.max(minRank(n), ...ps.map(x => (hr.get(x) ?? 0) + 1)));
+      });
+      const maxHr = Math.max(0, ...hr.values());
+      [...order].reverse().forEach(h => {
+        if (head.get(h) !== h || probIds.has(h)) return;
+        const n = byId.get(h);
+        if (n.type === 'patient_fact' || sInn.get(h).length || !sOut.get(h).length) return;
+        const succ = Math.min(...sOut.get(h).map(t => (probIds.has(t) ? maxHr + 1 : hr.get(t))));
+        if (succ - 1 > hr.get(h)) hr.set(h, succ - 1);
+      });
+      lastRank = Math.max(0, ...hr.values()) + 1;
+      ids.forEach(id => rank.set(id, probIds.has(id) ? lastRank : hr.get(head.get(id))));
+      const stackW = h => Math.max(...members.get(h).map(m => rmNodeSize(byId.get(m)).w));
+      const stackH = h => members.get(h).reduce((sum, m) => sum + blockH(byId.get(m)), 0) + (members.get(h).length - 1) * RM_STACK_GAP;
       const cols = [];
-      ids.forEach((id, i) => { const r = rank.get(id); (cols[r] = cols[r] || []).push({ id, i }); });
+      heads.forEach(id => { const r = rank.get(id); (cols[r] = cols[r] || []).push({ id, i: ids.indexOf(id) }); });
       for (let r = 0; r < cols.length; r++) cols[r] = cols[r] || [];
       const pos = new Map();
       const setPos = () => cols.forEach(c => c.forEach((e, k) => pos.set(e.id, k)));
@@ -348,16 +391,16 @@
       setPos();
       // 交差を減らす（左から・右からの並べ替えを数回）
       for (let it = 0; it < 4; it++) {
-        for (let r = 1; r < cols.length; r++) { sortCol(cols[r], id => inn.get(id), r === lastRank); setPos(); }
-        for (let r = cols.length - 2; r >= 0; r--) { sortCol(cols[r], id => out.get(id), false); setPos(); }
+        for (let r = 1; r < cols.length; r++) { sortCol(cols[r], id => sInn.get(id), r === lastRank); setPos(); }
+        for (let r = cols.length - 2; r >= 0; r--) { sortCol(cols[r], id => sOut.get(id), false); setPos(); }
       }
       // x：列ごとに、いちばん幅の広い四角に合わせる
       const colX = [];
       let x = 0;
       cols.forEach((c, r) => {
         colX[r] = x;
-        const w = c.length ? Math.max(...c.map(e => rmNodeSize(byId.get(e.id)).w)) : RM_RECT_W;
-        c.forEach(e => { const n = byId.get(e.id); n.x = Math.round(x + (w - rmNodeSize(n).w) / 2); });
+        const w = c.length ? Math.max(...c.map(e => stackW(e.id))) : RM_RECT_W;
+        c.forEach(e => members.get(e.id).forEach(m => { const n = byId.get(m); n.x = Math.round(x + (w - rmNodeSize(n).w) / 2); }));
         x += w + RM_COL_GAP;
       });
       // y：看護問題ごとの「帯」に分けて上から並べる（#1 の流れがいちばん上の帯、#2 がその下…）。
@@ -368,11 +411,11 @@
       const stripes = [];
       bands.forEach(bv => {
         const perCol = cols.map(c => c.filter(e => band.get(e.id) === bv));
-        const colH = perCol.map(c => c.reduce((h, e) => h + blockH(byId.get(e.id)), 0) + Math.max(0, c.length - 1) * RM_ROW_GAP);
+        const colH = perCol.map(c => c.reduce((h, e) => h + stackH(e.id), 0) + Math.max(0, c.length - 1) * RM_ROW_GAP);
         const bandH = Math.max(0, ...colH);
         perCol.forEach((c, r) => {
           let y = top + (bandH - colH[r]) / 2;
-          c.forEach(e => { const n = byId.get(e.id); n.y = Math.round(y); y += blockH(n) + RM_ROW_GAP; });
+          c.forEach(e => { members.get(e.id).forEach((m, k) => { const n = byId.get(m); if (k) y += RM_STACK_GAP; n.y = Math.round(y); y += blockH(n); }); y += RM_ROW_GAP; });
         });
         if (bandH > 0) { stripes.push({ y1: top - RM_ROW_GAP * 0.9, y2: top + bandH + RM_ROW_GAP * 0.9, p: bv }); top += bandH + RM_ROW_GAP * 2.2; }
       });
@@ -387,10 +430,11 @@
       // 看護問題ごとの帯（背景に薄い色を交互に付け、どの流れがどの看護問題のものかを見分けやすくする）
       map.bands = stripes.filter(st => st.p !== 999).map(st => ({ y1: Math.round(st.y1 - minY), y2: Math.round(st.y2 - minY), p: st.p }));
       // 列の見出し（左：背景・要因／疾患・病態の発生／治療／治療後の身体の変化・症状・生活への影響／右端：看護問題）
-      const colTypes = cols.map(c => new Set(c.map(e => byId.get(e.id).type)));
+      const colTypes = cols.map(c => new Set(c.flatMap(e => members.get(e.id).map(m => byId.get(m).type))));
       // 「治療」の列は、疾患より右で、治療（楕円）が半分以上を占める最初の列（内科の事例で治療が散らばるときは作らない）
-      const diseaseCol = cols.findIndex(c => c.some(e => byId.get(e.id).type === 'disease'));
-      const firstTreat = cols.findIndex((c, r) => r > Math.max(0, diseaseCol) && r < lastRank && c.length && c.filter(e => byId.get(e.id).type === 'treatment').length * 2 >= c.length);
+      const colNodes = cols.map(c => c.flatMap(e => members.get(e.id).map(m => byId.get(m))));
+      const diseaseCol = colNodes.findIndex(c => c.some(n => n.type === 'disease'));
+      const firstTreat = colNodes.findIndex((c, r) => r > Math.max(0, diseaseCol) && r < lastRank && c.length && c.filter(n => n.type === 'treatment').length * 2 >= c.length);
       const labelOf = r => {
         if (r === lastRank) return '看護問題';
         if (r === 0 && colTypes[0].has('patient_fact')) return '生活背景・既往・要因';
@@ -404,7 +448,7 @@
       cols.forEach((c, r) => {
         if (!c.length) return;
         const label = labelOf(r);
-        const w = Math.max(...c.map(e => rmNodeSize(byId.get(e.id)).w));
+        const w = Math.max(...c.map(e => stackW(e.id)));
         const last = headers[headers.length - 1];
         if (last && last.label === label && last.r === r - 1) { last.x2 = colX[r] + w; last.r = r; }
         else headers.push({ x1: colX[r], x2: colX[r] + w, label, r });

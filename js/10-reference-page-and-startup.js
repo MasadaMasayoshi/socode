@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-10-06.14'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-10-06.15'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 参考データ ページ：看護基準・院内プロトコル等をユーザーが自由に登録・編集できる。
     // 「不足情報をAI推定」の判断材料としても使われる（evaluateMissingInfoAI 参照）。
@@ -542,7 +542,12 @@
       if (expected === 'dev') return [];
       const versions = window.APP_FILE_VERSIONS || {};
       const ids = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15'];
-      const mismatched = ids.filter(id => versions[id] !== expected);
+      // 2026-10-06.15 から、版は中身が変わったファイルだけ上げる（scripts/stamp-version.js）。index.html の
+      // app-file-versions（「01:版,02:版,…」）に書いた各ファイルの版と比べる。無い古い index.html では全体の版と比べる。
+      const perFile = {};
+      const fvMeta = document.querySelector('meta[name="app-file-versions"]');
+      String((fvMeta && fvMeta.getAttribute('content')) || '').split(',').forEach(pair => { const k = pair.indexOf(':'); if (k > 0) perFile[pair.slice(0, k).trim()] = pair.slice(k + 1).trim(); });
+      const mismatched = ids.filter(id => versions[id] !== (perFile[id] || expected));
       if (mismatched.length) {
         const warn = document.getElementById('app-version-warning');
         if (warn) {

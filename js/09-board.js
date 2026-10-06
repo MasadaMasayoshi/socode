@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-06.14'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-06.15'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カード → 元の文章（カルテ・看護記録入力欄）の該当箇所を探す
     // ------------------------------------------------------------------------
@@ -1147,8 +1147,8 @@
       const unchecked = typeof missingCheckStatus === 'function' ? missItems.filter(i => missingCheckStatus(cp, i.id) === 'unchecked').length : nMiss;
       const drop = col => `ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, '${col}')"`;
       const name = need.name.replace(/^\d+\.\s*/, '');
-      // 既定では1行にたたんで出す（押すと開く）。「自分のアセスメント：表示中」のときは開いた形で出す（js/11）
-      const own = typeof renderMyAssessmentRowHtml === 'function' ? `<div class="asm-own">${renderMyAssessmentRowHtml(cp, need, !myAssessmentAlwaysShown())}</div>` : '';
+      // 利用者からの要望：「自分のアセスメントは表示か非表示だけでいい」。「表示」のときだけ開いた形で出し、「非表示」のときは出さない（js/11）
+      const own = typeof renderMyAssessmentRowHtml === 'function' && myAssessmentAlwaysShown() ? `<div class="asm-own">${renderMyAssessmentRowHtml(cp, need, false)}</div>` : '';
       return `<div class="asm-single-head"><span class="need-number asm-single-no">${need.id}</span><i class="fa-solid ${need.icon} text-[var(--accent)]"></i><b>${escapeHtml(name)}</b><span class="my-asm-muted">カード ${matching.length}枚</span></div>
         <section class="asm-aux asm-aux-unc${nUnc ? '' : ' is-empty'}" ${drop('unclassified')}>
           <div class="asm-aux-title"><span class="col-dot" style="background:var(--ink-muted)"></span>未分類 <b>${nUnc}</b><span class="my-asm-muted">${nUnc ? '入院前・入院後に振り分けてください（ドラッグ、またはカードの「前」「後」）' : '未分類のカードはありません'}</span></div>

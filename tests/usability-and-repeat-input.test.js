@@ -68,12 +68,14 @@ test('分類ボードの並びは分類の前も後も同じ（カードが無�
   assert.match(html, /id="btn-load-sample"[^>]*>例文をセット</);
 });
 
-test('総合アセスメント表：自分のアセスメントは既定では表の各欲求の間に挟まず、1つの欲求のページでは1行だけ', () => {
+test('総合アセスメント表：自分のアセスメントは「表示／非表示」の2つ（既定は非表示。1行だけの形は無い）', () => {
   const app = loadApp();
   assert.equal(app.myAssessmentAlwaysShown(), false);
   assert.match(html, /id="btn-my-asm-show"[^>]*onclick="toggleMyAssessmentShown\(\)"/);
+  assert.match(html, /自分のアセスメント：<span class="my-asm-show-state">非表示<\/span>/);
   assert.match(src, /selectedNeed === 'all' && myAssessmentAlwaysShown\(\)/);
-  assert.match(src, /renderMyAssessmentRowHtml\(cp, need, !myAssessmentAlwaysShown\(\)\)/);
+  assert.match(src, /renderMyAssessmentRowHtml === 'function' && myAssessmentAlwaysShown\(\) \? `<div class="asm-own">\$\{renderMyAssessmentRowHtml\(cp, need, false\)\}/);
+  assert.match(src, /label\.textContent = myAsmAlwaysShown \? '表示' : '非表示'/);
   assert.match(src, /localStorage\.setItem\('nursing_my_asm_show'/);
 });
 

@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-06.14'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-06.15'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -302,6 +302,7 @@
     // 【自分のアセスメントを毎回挟まない】利用者からの指摘：「総合アセスメント表のページに毎回『自分のアセスメント』が
     // 挟まっているのがうざい」。既定では、表（「すべて」）の各欲求の間には出さず、1つの欲求のページでも下に1行だけ
     // （押すと開く）にする。右上の「自分のアセスメント」ボタンで、常に表示する形に切り替えられる（このブラウザに覚える）。
+    // 2026-10-06.15：利用者からの要望「表示か非表示だけでいい」で、「1行だけ」をやめ「表示／非表示」の2つにした。
     let myAsmAlwaysShown = false;
     try { myAsmAlwaysShown = localStorage.getItem('nursing_my_asm_show') === 'on'; } catch (e) { /* 覚えられなくても動く */ }
     function myAssessmentAlwaysShown() { return myAsmAlwaysShown; }
@@ -310,9 +311,9 @@
       if (!btn) return;
       btn.setAttribute('aria-pressed', String(myAsmAlwaysShown));
       btn.classList.toggle('is-on', myAsmAlwaysShown);
-      btn.title = myAsmAlwaysShown ? '自分のアセスメントを各欲求の下に表示しています（押すと1行だけにします）' : '自分のアセスメントは、1つの欲求のページの下に1行だけ出しています（押すと表の各欲求の下にも表示します）';
+      btn.title = myAsmAlwaysShown ? '自分のアセスメントを各欲求の下に表示しています（押すと非表示にします）' : '自分のアセスメントを非表示にしています（押すと各欲求の下に表示します）';
       const label = btn.querySelector('.my-asm-show-state');
-      if (label) label.textContent = myAsmAlwaysShown ? '常に表示' : '1行だけ';
+      if (label) label.textContent = myAsmAlwaysShown ? '表示' : '非表示';
     }
     window.toggleMyAssessmentShown = function() {
       myAsmAlwaysShown = !myAsmAlwaysShown;
