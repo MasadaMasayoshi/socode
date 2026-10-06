@@ -871,8 +871,11 @@
     .rm-group { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
     .rm-group .btn[disabled] { opacity: .45; cursor: not-allowed; }
     .rm-danger { color: var(--brick) !important; }
-    .rm-problems { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; font-size: 11px; }
-    .rm-problems-title { font-weight: 700; color: var(--ink); margin-right: .15rem; }
+    .rm-prob-menu { position: relative; display: inline-flex; }
+    .rm-prob-count { margin-left: .2rem; font-variant-numeric: tabular-nums; }
+    .rm-problems { position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; display: flex; flex-direction: column; align-items: stretch; gap: .3rem; width: max-content; min-width: 200px; max-width: min(340px, calc(100vw - 32px)); max-height: 60vh; overflow: auto; padding: .5rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 6px 18px rgba(0,0,0,.14); font-size: 11px; }
+    .rm-problems-title { font-weight: 700; color: var(--ink); padding: 0 .1rem .1rem; }
+    #view-relation.rm-fullscreen .rm-problems { position: fixed; top: calc(max(10px, env(safe-area-inset-top)) + 46px); right: max(10px, env(safe-area-inset-right)); left: auto; z-index: 53; }
     .rm-prob-btn { display: inline-flex; align-items: center; gap: .3rem; max-width: 100%; padding: .2rem .55rem; border: 1px solid #B03A55; border-radius: var(--radius-sm); background: #FBDDE3; color: #6B1F33; font-size: 11px; font-weight: 600; text-align: left; }
     .rm-prob-btn:hover { filter: brightness(.96); }
     .rm-prob-btn.is-risk { border-style: dashed; }

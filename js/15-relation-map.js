@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.16'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.17'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -400,13 +400,9 @@
         if (succ - 1 > hr.get(h)) hr.set(h, succ - 1);
       });
       lastRank = Math.max(0, ...hr.values()) + 1;
-      // 【看護問題の位置】利用者からの要望：「看護問題はいちばん右でなくてよい（一覧にする機能があればよい）」。
-      // 看護問題は、つながる原因のいちばん右の列のすぐ右に置く（流れのすぐ先に見える。一覧は図の上の「看護問題の一覧」）
-      ids.forEach(id => {
-        if (!probIds.has(id)) { rank.set(id, hr.get(head.get(id))); return; }
-        const ps = sInn.get(id).filter(x => !probIds.has(x));
-        rank.set(id, ps.length ? Math.max(...ps.map(x => hr.get(x) ?? 0)) + 1 : lastRank);
-      });
+      // 【看護問題の位置】いちばん右の列にそろえる（2026-10-06.16 で原因のすぐ右に置いたが、利用者から「前のほうがよかった」。
+      // 右端にそろえ、重要なものほど上。見つけやすくするための「看護問題」の一覧は、ツールバーのボタンから開く）
+      ids.forEach(id => rank.set(id, probIds.has(id) ? lastRank : hr.get(head.get(id))));
       const stackW = h => Math.max(...members.get(h).map(m => rmNodeSize(byId.get(m)).w));
       const stackH = h => members.get(h).reduce((sum, m) => sum + blockH(byId.get(m)), 0) + (members.get(h).length - 1) * RM_STACK_GAP;
       const cols = [];
@@ -416,7 +412,7 @@
       const setPos = () => cols.forEach(c => c.forEach((e, k) => pos.set(e.id, k)));
       const sortCol = (c, nb, isProb) => {
         c.forEach(e => { const ps = nb(e.id).map(x => pos.get(x)).filter(v => v !== undefined); e.bary = ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : e.bary ?? e.i; });
-        c.sort((a, b) => (band.get(a.id) - band.get(b.id)) || (probIds.has(a.id) && probIds.has(b.id) ? byId.get(a.id).priority - byId.get(b.id).priority : 0) || (a.bary - b.bary) || (a.i - b.i));
+        c.sort((a, b) => isProb ? (byId.get(a.id).priority - byId.get(b.id).priority) : ((band.get(a.id) - band.get(b.id)) || (a.bary - b.bary) || (a.i - b.i)));
       };
       cols.forEach(c => c.forEach(e => { e.bary = e.i; }));
       cols.forEach((c, r) => sortCol(c, () => [], r === lastRank));
@@ -1734,7 +1730,7 @@ ${cards}`;
     }
 
     // ---- 画面の状態 ----
-    const rmState = { patientId: null, selected: null, connectFrom: null, zoom: 1, undo: [], redo: [], drag: null, lastTap: null };
+    const rmState = { patientId: null, selected: null, connectFrom: null, zoom: 1, undo: [], redo: [], drag: null, lastTap: null, problemsOpen: false };
     function rmMap(cp = getCurrentPatient()) {
       if (!cp) return null;
       if (cp.relationMap && !cp.relationMap.__normalized) {
@@ -1811,14 +1807,27 @@ ${cards}`;
       rmRenderSelectionBar();
       rmRenderToolbarState();
     }
-    // 【看護問題の一覧】利用者からの要望：「看護問題はいちばん右でなくてよい。一覧にする機能があればよい」。
-    // 図の上に優先順位（#）の順に並べ、押すとその四角を選んで図の真ん中に見せる。
+    // 【看護問題の一覧】看護問題を優先順位（#）の順に並べ、押すとその四角を選んで図の真ん中に見せる。
+    // 利用者から「図の上の一覧は邪魔」との声があり、ツールバー（全画面では右上）の「看護問題」ボタンで開く小さな一覧にした。
+    // 開いた一覧は図の上に重ねて出すので、図の場所をとらない。項目を押す・外を押す・Esc で閉じる。
     function rmRenderProblemList(map) {
       const box = document.getElementById('rm-problems');
       if (!box) return;
       const probs = map ? map.nodes.filter(n => n.type === 'nursing_problem').sort((a, b) => (a.priority || 999) - (b.priority || 999)) : [];
-      box.classList.toggle('hidden', !probs.length);
-      box.innerHTML = probs.length ? `<span class="rm-problems-title"><i class="fa-solid fa-list-ol"></i> 看護問題の一覧</span>` + probs.map(n => `<button type="button" class="rm-prob-btn${/リスク|可能性|おそれ|危険/.test(n.label) ? ' is-risk' : ''}" data-rm-action="goto-problem" data-node-id="${escapeHtml(n.id)}" title="図の中のこの看護問題へ移ります">${escapeHtml(rmDisplayLabel(n))}</button>`).join('') : '';
+      if (!probs.length) rmState.problemsOpen = false;
+      const open = !!rmState.problemsOpen;
+      box.classList.toggle('hidden', !open);
+      document.querySelectorAll('#view-relation [data-rm-action="toggle-problems"]').forEach(b => {
+        b.setAttribute('aria-expanded', open ? 'true' : 'false');
+        b.disabled = !probs.length;
+        const c = b.querySelector('.rm-prob-count');
+        if (c) c.textContent = probs.length ? `（${probs.length}）` : '';
+      });
+      box.innerHTML = open ? `<span class="rm-problems-title">看護問題の一覧（押すと図の中へ移ります）</span>` + probs.map(n => `<button type="button" role="menuitem" class="rm-prob-btn${/リスク|可能性|おそれ|危険/.test(n.label) ? ' is-risk' : ''}" data-rm-action="goto-problem" data-node-id="${escapeHtml(n.id)}" title="図の中のこの看護問題へ移ります">${escapeHtml(rmDisplayLabel(n))}</button>`).join('') : '';
+    }
+    function rmSetProblemsOpen(open) {
+      rmState.problemsOpen = !!open;
+      rmRenderProblemList(rmMap());
     }
     function rmScrollToNode(id) {
       const wrap = document.getElementById('rm-canvas-wrap');
@@ -2194,7 +2203,8 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
         else if (act === 'bridge') rmBridgeAll();
         else if (act === 'toggle-added') rmToggleAdded();
         else if (act === 'fullscreen') rmSetFullscreen();
-        else if (act === 'goto-problem') { const id = btn.dataset.nodeId; if (rmNodeById(rmMap(), id)) { rmSelect({ type: 'node', id }); rmScrollToNode(id); } }
+        else if (act === 'toggle-problems') rmSetProblemsOpen(!rmState.problemsOpen);
+        else if (act === 'goto-problem') { const id = btn.dataset.nodeId; rmSetProblemsOpen(false); if (rmNodeById(rmMap(), id)) { rmSelect({ type: 'node', id }); rmScrollToNode(id); } }
         else if (act === 'print') rmPrint();
         else if (act === 'png') rmSavePng();
         else if (act === 'clear') rmClearAll();
@@ -2344,8 +2354,15 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
         rmZoomAt(rmState.zoom * Math.exp(-e.deltaY * 0.0025), e.clientX, e.clientY);
         if (pan) { pan.sx = e.clientX; pan.sy = e.clientY; pan.sl = wrap.scrollLeft; pan.st = wrap.scrollTop; pan.moved = true; }
       }, { passive: false });
+      // 看護問題の一覧は、一覧とボタンの外を押すと閉じる
+      document.addEventListener('click', e => {
+        if (!rmState.problemsOpen) return;
+        if (e.target.closest && e.target.closest('#rm-problems, [data-rm-action="toggle-problems"]')) return;
+        rmSetProblemsOpen(false);
+      });
       document.addEventListener('keydown', e => {
         if (e.key !== 'Escape' || e.defaultPrevented) return;
+        if (rmState.problemsOpen) { rmSetProblemsOpen(false); return; }
         const view = document.getElementById('view-relation');
         if (!view || !view.classList.contains('rm-fullscreen')) return;
         if (rmState.connectFrom || rmState.selected) return;

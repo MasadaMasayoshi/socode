@@ -125,16 +125,16 @@ test('関連図：術後のWBC・CRPは感染と断定せず、手術侵襲に�
   assert.ok(!map.nodes.some(n => n.observed !== false && /^(?:創部感染|感染症)$/.test(n.label)));
 });
 
-test('関連図：看護問題は原因のすぐ右（右端にそろえない）・#の優先順位の順に上から並び、すべてに根拠の道筋がある。浮島は無い', () => {
+test('関連図：看護問題は右端・#の優先順位の順に上から並び、すべてに根拠の道筋がある。浮島は無い', () => {
   const map = app.buildRelationMapFromRecord(patientOf(GASTRIC));
   const probs = map.nodes.filter(n => n.type === 'nursing_problem').sort((a, b) => a.priority - b.priority);
   assert.deepEqual(plain(probs.map(p => p.priority)), plain(probs.map((p, i) => i + 1)));
   assert.ok(probs.length >= 5, probs.map(p => p.label).join(' / '));
   assert.deepEqual(plain(probs.map(p => app.rmProblemCategory(p.label).key)), ['resp', 'inf', 'pain', 'nutr', 'act', 'anx']);
-  // 2026-10-06.16：利用者からの要望「看護問題はいちばん右でなくてよい」。原因のいちばん右の四角よりは右に置く
-  probs.forEach(p => { const causes = map.edges.filter(e => e.target === p.id).map(e => map.nodes.find(n => n.id === e.source)).filter(n => n && n.type !== 'nursing_problem' && !n.attachTo);
-    assert.ok(causes.length && causes.every(c => c.x < p.x), `原因より右：${p.label}`); });
-  assert.ok(new Set(probs.map(p => p.x)).size > 1, '看護問題は1つの列にそろえない');
+  // 2026-10-06.17：利用者から「前のほうがよかった」。看護問題は右端にそろえる（一覧はボタンで開く）
+  const maxX = Math.max(...map.nodes.filter(n => n.type !== 'nursing_problem' && !n.attachTo).map(n => n.x));
+  probs.forEach(p => assert.ok(p.x > maxX, '看護問題は右端'));
+  assert.equal(new Set(probs.map(p => p.x)).size, 1, '看護問題は1つの列にそろえる');
   for (let i = 1; i < probs.length; i++) assert.ok(probs[i].y > probs[i - 1].y, '重要な問題ほど上');
   const issues = app.validateRelationMap(map);
   assert.deepEqual(plain(issues.filter(i => i.level === 'error')), []);
@@ -591,7 +591,7 @@ test('関連図：1本道の流れを同じ列に縦に積み、横長になり�
 });
 
 // 2026-10-06.16：時系列・看護問題の一覧
-test('関連図：術後・入院2日目以降の記録の四角は治療より右（時系列）／看護問題の一覧（押すとその四角へ）', () => {
+test('関連図：術後・入院2日目以降の記録の四角は治療より右（時系列）／看護問題の一覧（ボタンで開き、押すとその四角へ）', () => {
   assert.equal(app.rmPhaseOfItems([{ timestamp: '入院前' }]), 0);
   assert.equal(app.rmPhaseOfItems([{ timestamp: '入院時' }]), 1);
   assert.equal(app.rmPhaseOfItems([{ timestamp: '術後2日目 9:00' }]), 2);
@@ -604,7 +604,12 @@ test('関連図：術後・入院2日目以降の記録の四角は治療より�
     const tx = Math.min(...treat.map(n => n.x));
     map.nodes.filter(n => n.phase === 2 && n.type !== 'treatment' && n.type !== 'nursing_problem' && !n.attachTo).forEach(n => assert.ok(n.x > tx, `治療より右：${n.label}`));
   }
-  assert.match(html, /id="rm-problems" class="rm-problems hidden"/);
+  // 2026-10-06.17：図の上に置いた一覧は「邪魔」との声で、ツールバーと全画面の右上の「看護問題」ボタンで開く小さな一覧にした
+  assert.match(html, /class="rm-prob-menu">[\s\S]*?data-rm-action="toggle-problems"[\s\S]*?id="rm-problems" class="rm-problems hidden" role="menu"/);
+  assert.match(html, /class="rm-fs-controls"[\s\S]*?data-rm-action="toggle-problems"/, '全画面でも開ける');
+  assert.doesNotMatch(html, /<div id="rm-problems"[^>]*><\/div>\s*<div id="rm-selection-bar"/, '図の上には置かない');
+  assert.match(css, /\.rm-problems \{ position: absolute;/, '図の上に重ねて出し、場所をとらない');
+  assert.match(src, /else if \(act === 'toggle-problems'\) rmSetProblemsOpen\(!rmState\.problemsOpen\);/);
   assert.match(src, /else if \(act === 'goto-problem'\)/);
   assert.match(src, /data-rm-action="goto-problem" data-node-id=/);
 });
