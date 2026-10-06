@@ -868,6 +868,34 @@
 
     /* ==== 関連図（js/15） ==== */
     .rm-toolbar { display: flex; flex-wrap: wrap; gap: .5rem .9rem; align-items: center; }
+    /* 2026-10-06.20 操作の整理：作る｜編集｜見る・出す（右寄せ）。区切りは細い線 */
+    .rm-group-sep { padding-left: .9rem; border-left: 1px solid var(--line-soft); }
+    .rm-group-end { margin-left: auto; }
+    .rm-add-kind { width: auto; max-width: 11.5rem; }
+    .rm-icon-btn { padding-left: .55rem; padding-right: .55rem; }
+    .rm-more { left: auto; right: 0; min-width: 170px; }
+    .rm-more-item { display: flex; align-items: center; gap: .45rem; width: 100%; padding: .4rem .55rem; border-radius: var(--radius-sm); font-size: 12px; color: var(--ink); text-align: left; }
+    .rm-more-item:hover:not([disabled]) { background: var(--paper); }
+    .rm-more-item[disabled] { opacity: .45; cursor: not-allowed; }
+    .rm-more-item.rm-danger { color: #B42318; }
+    /* 拡大・縮小：図の右下に重ねる */
+    .rm-canvas-frame { position: relative; }
+    .rm-zoom-pad { position: absolute; right: 18px; bottom: 18px; z-index: 5; display: flex; flex-direction: column; overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 3px 10px rgba(0,0,0,.12); }
+    .rm-zoom-pad button { min-width: 44px; height: 32px; padding: 0 .4rem; font-size: 11px; font-weight: 600; color: var(--ink); border-top: 1px solid var(--line-soft); }
+    .rm-zoom-pad button:first-child { border-top: 0; }
+    .rm-zoom-pad button:hover:not([disabled]) { background: var(--paper); }
+    .rm-zoom-pad button[disabled] { opacity: .4; }
+    .rm-canvas-wrap.hidden ~ .rm-zoom-pad, #view-relation.rm-fullscreen .rm-zoom-pad { display: none; }
+    /* 何も選んでいないときの案内は1行。くわしい説明は開いたときだけ */
+    .rm-help summary { cursor: pointer; list-style: none; }
+    .rm-help summary::-webkit-details-marker { display: none; }
+    .rm-help-more { margin-left: .5rem; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+    .rm-help[open] > div { margin-top: .35rem; line-height: 1.7; }
+    /* 図の四角に、ごく薄い影（地の色から浮き出て見え、どこが四角か分かりやすい） */
+    .rm-canvas-wrap .rm-box { filter: drop-shadow(0 1px 1.5px rgba(60, 50, 40, .14)); }
+    .rm-canvas-wrap .rm-node.is-pred .rm-box { filter: none; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-gap { fill: #1F1C19; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-pred .rm-text { fill: #A39C8F; }
     .rm-group { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
     .rm-group .btn[disabled] { opacity: .45; cursor: not-allowed; }
     .rm-danger { color: var(--brick) !important; }

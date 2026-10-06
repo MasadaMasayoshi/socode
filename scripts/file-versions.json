@@ -56,12 +56,12 @@
     "hash": "b90c3185deaf3a8c"
   },
   "js/15-relation-map.js": {
-    "version": "2026-10-06.19",
-    "hash": "32b97fd3e1476a36"
+    "version": "2026-10-06.20",
+    "hash": "c3d4425f55da83a0"
   },
   "style.css": {
-    "version": "2026-10-06.19",
-    "hash": "43759d77173a48d4"
+    "version": "2026-10-06.20",
+    "hash": "29018670d9e416d0"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",

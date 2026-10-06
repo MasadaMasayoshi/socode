@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.19'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.20'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -112,7 +112,11 @@
     const RM_LAYOUT_STYLE = 2; // 四角の大きさを変えたら上げる（前の大きさで並べた図は自動で並べ直す）
     const RM_COL_GAP = 80, RM_ROW_GAP = 22;
     const RM_MAX_NODES = 60, RM_MAX_EDGES = 140, RM_TEXT_MAX = 120, RM_UNDO_MAX = 40;
-    const RM_BRIDGE_R = 5;
+    const RM_BRIDGE_R = 6;
+    // 図の地の色（画面）。白い四角が浮き出て見えるよう、ごく薄い色にする（印刷・画像は白）
+    const RM_PAPER = '#F4F2EC';
+    // 予測（起こるおそれ）の流れは薄い色にして、今ある事実の流れを目立たせる（利用者が選んだ案。2026-10-06.20）
+    const RM_PRED_LINE = '#A8A29E', RM_PRED_TEXT = '#6B655C';
 
     // ---- 文字の折り返し ----
     function rmCharWidth(ch) { return /[\u0000-\u00ff\uff61-\uff9f]/.test(ch) ? 0.56 : 1; }
@@ -739,6 +743,11 @@
     }
     function rmEdgesSvg(map, { interactive }) {
       const { routes } = rmRouteEdges(map);
+      // 【飛び越えの下の線を切る】利用者の指摘：「飛び越える線はできているが、下に張った線がそのままで線が変」。
+      // 飛び越え（∩）の所は、下を通る線を地の色の丸で隠し、すき間を空ける（線を全部描いた後に重ねる）
+      const gaps = [];
+      routes.forEach(r => (r.segs || []).forEach(sg => (sg.cross || []).forEach(cx => gaps.push([cx, sg.y1]))));
+      const gapSvg = gaps.length ? `<g class="rm-gaps">${gaps.map(([x, y]) => `<circle class="rm-gap" cx="${Math.round(x * 10) / 10}" cy="${Math.round(y * 10) / 10}" r="${RM_BRIDGE_R - 1}" fill="${interactive ? RM_PAPER : '#FFFFFF'}"/>`).join('')}</g>` : '';
       return routes.map(r => {
         const e = r.edge;
         const d = rmRoutePath(r);
@@ -746,9 +755,9 @@
         const sel = interactive && rmState.selected && rmState.selected.type === 'edge' && rmState.selected.id === e.id;
         return `<g class="rm-link${treat ? ' is-treat' : ''}${sel ? ' is-selected' : ''}" data-link-id="${escapeHtml(e.id)}">
           ${interactive ? `<path class="rm-link-hit" d="${d}" fill="none" stroke="transparent" stroke-width="20"/>` : ''}
-          <path class="rm-link-line" d="${d}" fill="none" stroke="${treat ? '#2563EB' : '#57534E'}" stroke-width="1.4"${e.predicted ? ' stroke-dasharray="6 4"' : ''} marker-end="url(#rm-arrow${treat ? '-blue' : ''})"/>
+          <path class="rm-link-line" d="${d}" fill="none" stroke="${treat ? '#2563EB' : e.predicted ? RM_PRED_LINE : '#57534E'}" stroke-width="1.4"${e.predicted ? ' stroke-dasharray="6 4"' : ''} marker-end="url(#rm-arrow${treat ? '-blue' : e.predicted ? '-pred' : ''})"/>
         </g>`;
-      }).join('');
+      }).join('') + gapSvg;
     }
     function rmNodeSvg(n, { interactive }) {
       const t = rmType(n);
@@ -756,21 +765,25 @@
       const sel = interactive && rmState.selected && rmState.selected.type === 'node' && rmState.selected.id === n.id;
       const from = interactive && rmState.connectFrom === n.id;
       const dashed = n.observed === false;
+      // 予測の四角（看護問題を除く）は、線と文字を薄くして、今ある事実の流れを目立たせる
+      const faint = dashed && n.type !== 'nursing_problem';
+      const fill = n.added ? RM_ADDED.fill : t.fill;
+      const stroke = faint ? (n.added ? '#B79CF3' : RM_PRED_LINE) : (n.added ? RM_ADDED.stroke : t.stroke);
       const shape = t.shape === 'ellipse'
-        ? `<ellipse class="rm-box" cx="${s.w / 2}" cy="${s.h / 2}" rx="${s.w / 2}" ry="${s.h / 2}" fill="${n.added ? RM_ADDED.fill : t.fill}" stroke="${n.added ? RM_ADDED.stroke : t.stroke}" stroke-width="1.6"${dashed ? ' stroke-dasharray="6 4"' : ''}/>`
-        : `<rect class="rm-box" width="${s.w}" height="${s.h}" rx="${n.type === 'nursing_problem' ? 6 : 3}" fill="${n.added ? RM_ADDED.fill : t.fill}" stroke="${n.added ? RM_ADDED.stroke : t.stroke}" stroke-width="${t.bold || n.added ? 1.8 : 1.3}"${dashed ? ' stroke-dasharray="6 4"' : ''}/>`;
+        ? `<ellipse class="rm-box" cx="${s.w / 2}" cy="${s.h / 2}" rx="${s.w / 2}" ry="${s.h / 2}" fill="${fill}" stroke="${stroke}" stroke-width="1.6"${dashed ? ' stroke-dasharray="6 4"' : ''}/>`
+        : `<rect class="rm-box" width="${s.w}" height="${s.h}" rx="${n.type === 'nursing_problem' ? 6 : 3}" fill="${fill}" stroke="${stroke}" stroke-width="${t.bold || n.added ? 1.8 : 1.3}"${dashed ? ' stroke-dasharray="6 4"' : ''}/>`;
       const ell = t.shape === 'ellipse';
       // 文字は四角のまん中にそろえる（左詰めだと行の長さがばらばらに見え、読みにくい。利用者の指摘：2026-10-06.19）
       const textX = s.w / 2;
       const anchor = ' text-anchor="middle"';
       const tag = [n.added ? '＋補足' : '', dashed ? '予測' : '', n.source === 'knowledge' && !n.added ? '※知識' : ''].filter(Boolean).join(' ');
       const tagW = Array.from(tag).reduce((w, ch) => w + (ch === ' ' ? 4 : 10), 0) + 12;
-      const tagColor = n.added ? RM_ADDED.stroke : t.stroke;
-      return `<g class="rm-node${n.added ? ' is-added' : ''}${sel ? ' is-selected' : ''}${from ? ' is-connect-from' : ''}" data-node-id="${escapeHtml(n.id)}" data-kind="${escapeHtml(n.type)}" transform="translate(${n.x},${n.y})"${interactive ? ` tabindex="0" role="button" aria-label="${escapeHtml(`${t.label}${dashed ? '（予測）' : ''}：${rmDisplayLabel(n)}`)}"` : ''}>
+      const tagColor = faint ? stroke : n.added ? RM_ADDED.stroke : t.stroke;
+      return `<g class="rm-node${n.added ? ' is-added' : ''}${faint ? ' is-pred' : ''}${sel ? ' is-selected' : ''}${from ? ' is-connect-from' : ''}" data-node-id="${escapeHtml(n.id)}" data-kind="${escapeHtml(n.type)}" transform="translate(${n.x},${n.y})"${interactive ? ` tabindex="0" role="button" aria-label="${escapeHtml(`${t.label}${dashed ? '（予測）' : ''}：${rmDisplayLabel(n)}`)}"` : ''}>
         ${shape}
         <title>${escapeHtml(`${t.label}${dashed ? '（予測）' : ''}${n.added ? '（矢印の間に補った過程）' : n.source === 'knowledge' ? '（医学知識で補った）' : ''}`)}</title>
-        ${tag ? `<g class="rm-tag"><rect x="${s.w - tagW - 6}" y="-8" width="${tagW}" height="16" rx="8" fill="${n.added ? RM_ADDED.stroke : '#FFFFFF'}" stroke="${tagColor}" stroke-width="0.9"/><text class="rm-kind" x="${s.w - tagW / 2 - 6}" y="4" text-anchor="middle" font-size="10" fill="${n.added ? '#FFFFFF' : tagColor}" font-weight="700">${escapeHtml(tag)}</text></g>` : ''}
-        <text class="rm-text" x="${textX}" y="${RM_PAD + RM_HEAD_H + RM_FONT + (ell ? 8 : 0)}"${anchor} font-size="${RM_FONT}" fill="#1C1917"${t.bold ? ' font-weight="700"' : ''}>${s.lines.map((line, i) => `<tspan x="${textX}" dy="${i ? RM_LINE_H : 0}">${escapeHtml(line)}</tspan>`).join('')}</text>
+        ${tag ? `<g class="rm-tag"><rect x="${s.w - tagW - 6}" y="-8" width="${tagW}" height="16" rx="8" fill="${n.added ? tagColor : '#FFFFFF'}" stroke="${tagColor}" stroke-width="0.9"/><text class="rm-kind" x="${s.w - tagW / 2 - 6}" y="4" text-anchor="middle" font-size="10" fill="${n.added ? '#FFFFFF' : tagColor}" font-weight="700">${escapeHtml(tag)}</text></g>` : ''}
+        <text class="rm-text" x="${textX}" y="${RM_PAD + RM_HEAD_H + RM_FONT + (ell ? 8 : 0)}"${anchor} font-size="${RM_FONT}" fill="${faint ? RM_PRED_TEXT : '#1C1917'}"${t.bold ? ' font-weight="700"' : ''}>${s.lines.map((line, i) => `<tspan x="${textX}" dy="${i ? RM_LINE_H : 0}">${escapeHtml(line)}</tspan>`).join('')}</text>
       </g>`;
     }
     function rmHeadersSvg(map, b) {
@@ -782,8 +795,8 @@
       const font = "'Noto Sans JP','Hiragino Kaku Gothic ProN','Hiragino Sans','Yu Gothic UI','Yu Gothic','Meiryo',sans-serif";
       const marker = (id, color) => `<marker id="${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${color}"/></marker>`;
       return `<svg xmlns="http://www.w3.org/2000/svg" class="rm-svg" viewBox="${b.x} ${b.y} ${b.w} ${b.h}" width="${Math.round(b.w * zoom)}" height="${Math.round(b.h * zoom)}" font-family="${escapeHtml(font)}" role="img" aria-label="${escapeHtml(title || '関連図')}">
-        <defs>${marker('rm-arrow', '#3F3B35')}${marker('rm-arrow-blue', '#2563EB')}${marker('rm-arrow-sel', '#C2410C')}</defs>
-        <rect class="rm-bg${interactive ? ' is-paper' : ''}" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="#FFFFFF"/>
+        <defs>${marker('rm-arrow', '#3F3B35')}${marker('rm-arrow-blue', '#2563EB')}${marker('rm-arrow-sel', '#C2410C')}${marker('rm-arrow-pred', RM_PRED_LINE)}</defs>
+        <rect class="rm-bg${interactive ? ' is-paper' : ''}" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${interactive ? RM_PAPER : '#FFFFFF'}"/>
         <g class="rm-headers">${rmHeadersSvg(map, b)}</g>
         <g class="rm-links">${rmEdgesSvg(map, { interactive })}</g>
         <g class="rm-nodes">${map.nodes.map(n => rmNodeSvg(n, { interactive })).join('')}</g>
@@ -1910,7 +1923,7 @@ ${cards}`;
     }
 
     // ---- 画面の状態 ----
-    const rmState = { patientId: null, selected: null, connectFrom: null, zoom: 1, undo: [], redo: [], drag: null, lastTap: null, problemsOpen: false };
+    const rmState = { patientId: null, selected: null, connectFrom: null, zoom: 1, undo: [], redo: [], drag: null, lastTap: null, problemsOpen: false, moreOpen: false };
     function rmMap(cp = getCurrentPatient()) {
       if (!cp) return null;
       if (cp.relationMap && !cp.relationMap.__normalized) {
@@ -2009,6 +2022,13 @@ ${cards}`;
       });
       box.innerHTML = open ? `<span class="rm-problems-title">看護問題の一覧（押すと図の中へ移ります）</span>` + probs.map(n => `<button type="button" role="menuitem" class="rm-prob-btn${/リスク|可能性|おそれ|危険/.test(n.label) ? ' is-risk' : ''}" data-rm-action="goto-problem" data-node-id="${escapeHtml(n.id)}" title="図の中のこの看護問題へ移ります">${escapeHtml(rmDisplayLabel(n))}</button>`).join('') : '';
     }
+    // 「その他」（印刷・画像で保存・すべて消す）の小さな一覧
+    function rmSetMoreOpen(open) {
+      rmState.moreOpen = !!open;
+      const box = document.getElementById('rm-more');
+      if (box) box.classList.toggle('hidden', !rmState.moreOpen);
+      document.querySelectorAll('#view-relation [data-rm-action="toggle-more"]').forEach(b => b.setAttribute('aria-expanded', rmState.moreOpen ? 'true' : 'false'));
+    }
     function rmSetProblemsOpen(open) {
       rmState.problemsOpen = !!open;
       rmRenderProblemList(rmMap());
@@ -2093,7 +2113,8 @@ ${cards}`;
         bar.innerHTML = `<span class="rm-sel-label"><i class="fa-solid fa-arrow-right-long"></i> 矢印の行き先の四角を押してください（治療からなら「治療 → 対象」になります）</span>${rmBtn('cancel-connect', 'やめる（Esc）')}`;
         return;
       }
-      if (!map || !sel) { bar.innerHTML = '<span class="rm-sel-hint">四角を押すと、文字の編集・種類・事実／予測・矢印でつなぐ・削除ができます（2回続けて押すと文字の編集）。矢印（線）を押すと、<b>向きを逆にする</b>・種類・事実／予測・「なぜ？」が選べます。<br><b>図を動かす</b>：何もない所をドラッグ（スマホは指でスワイプ）。<b>拡大・縮小</b>：2本指で広げる・つまむ、または左クリックを押したまま（または Ctrl を押しながら）ホイール。スマホで四角を動かすときは、一度タップして選んでからドラッグします。</span>'; return; }
+      // 何も選んでいないときの案内は1行だけ（長い説明は「操作のしかた」を開いたときだけ。ごちゃごちゃして見えないように）
+      if (!map || !sel) { bar.innerHTML = '<span class="rm-sel-hint"><details class="rm-help"><summary>四角や矢印（線）を押すと、編集できます <span class="rm-help-more">操作のしかた</span></summary><div>四角を押すと、文字の編集・種類・事実／予測・矢印でつなぐ・削除ができます（2回続けて押すと文字の編集）。矢印（線）を押すと、<b>向きを逆にする</b>・種類・事実／予測・「なぜ？」が選べます。<br><b>図を動かす</b>：何もない所をドラッグ（スマホは指でスワイプ）。<b>拡大・縮小</b>：右下の ＋・－、2本指で広げる・つまむ、または左クリックを押したまま（または Ctrl を押しながら）ホイール。スマホで四角を動かすときは、一度タップして選んでからドラッグします。</div></details></span>'; return; }
       if (sel.type === 'node') {
         const n = rmNodeById(map, sel.id);
         if (!n) { rmState.selected = null; return rmRenderSelectionBar(); }
@@ -2398,11 +2419,12 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
         else if (act === 'bridge') rmBridgeAll();
         else if (act === 'toggle-added') rmToggleAdded();
         else if (act === 'fullscreen') rmSetFullscreen();
-        else if (act === 'toggle-problems') rmSetProblemsOpen(!rmState.problemsOpen);
+        else if (act === 'toggle-problems') { rmSetMoreOpen(false); rmSetProblemsOpen(!rmState.problemsOpen); }
+        else if (act === 'toggle-more') { rmSetProblemsOpen(false); rmSetMoreOpen(!rmState.moreOpen); }
         else if (act === 'goto-problem') { const id = btn.dataset.nodeId; rmSetProblemsOpen(false); if (rmNodeById(rmMap(), id)) { rmSelect({ type: 'node', id }); rmScrollToNode(id); } }
-        else if (act === 'print') rmPrint();
-        else if (act === 'png') rmSavePng();
-        else if (act === 'clear') rmClearAll();
+        else if (act === 'print') { rmSetMoreOpen(false); rmPrint(); }
+        else if (act === 'png') { rmSetMoreOpen(false); rmSavePng(); }
+        else if (act === 'clear') { rmSetMoreOpen(false); rmClearAll(); }
         else if (!sel) return;
         else if (act === 'edit-node') rmEditNodeText(sel.id);
         else if (act === 'connect') { rmState.connectFrom = sel.id; rmApplySelectionClasses(); rmRenderSelectionBar(); }
@@ -2555,6 +2577,7 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
       }, { passive: false });
       // 看護問題の一覧は、一覧とボタンの外を押すと閉じる
       document.addEventListener('click', e => {
+        if (rmState.moreOpen && !(e.target.closest && e.target.closest('#rm-more, [data-rm-action="toggle-more"]'))) rmSetMoreOpen(false);
         if (!rmState.problemsOpen) return;
         if (e.target.closest && e.target.closest('#rm-problems, [data-rm-action="toggle-problems"]')) return;
         rmSetProblemsOpen(false);
@@ -2562,6 +2585,7 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
       document.addEventListener('keydown', e => {
         if (e.key !== 'Escape' || e.defaultPrevented) return;
         if (rmState.problemsOpen) { rmSetProblemsOpen(false); return; }
+        if (rmState.moreOpen) { rmSetMoreOpen(false); return; }
         const view = document.getElementById('view-relation');
         if (!view || !view.classList.contains('rm-fullscreen')) return;
         if (rmState.connectFrom || rmState.selected) return;

@@ -201,8 +201,12 @@ test('関連図：交差する線は飛び越え（∩）で描く', () => {
   const { routes, bridges } = app.rmRouteEdges(m);
   assert.equal(bridges, 1);
   const d = app.rmRoutePath(routes.find(r => r.edge.id === 'e1'));
-  assert.match(d, / A5,5 0 0 1 /);
-  assert.match(app.relationMapSvg(m, {}), / A5,5 0 0 1 /);
+  assert.match(d, / A6,6 0 0 1 /);
+  const svg = app.relationMapSvg(m, {});
+  assert.match(svg, / A6,6 0 0 1 /);
+  // 飛び越えの下を通る線は、地の色の丸で隠してすき間を空ける（利用者の指摘：下の線がそのままで変）
+  assert.match(svg, /<g class="rm-gaps"><circle class="rm-gap" cx="\d+(?:\.\d)?" cy="\d+(?:\.\d)?" r="5" fill="#FFFFFF"\/><\/g>/);
+  assert.ok(svg.indexOf('class="rm-gaps"') > svg.lastIndexOf('class="rm-link-line"'), '線を全部描いた後に重ねる');
 });
 
 test('関連図：AIの答え（短い名前のJSON）を読み取り、確かめて安全に直してから並べる', () => {
@@ -617,7 +621,7 @@ test('関連図：術後・入院2日目以降の記録の四角は治療より�
   assert.match(html, /class="rm-fs-controls"[\s\S]*?data-rm-action="toggle-problems"/, '全画面でも開ける');
   assert.doesNotMatch(html, /<div id="rm-problems"[^>]*><\/div>\s*<div id="rm-selection-bar"/, '図の上には置かない');
   assert.match(css, /\.rm-problems \{ position: absolute;/, '図の上に重ねて出し、場所をとらない');
-  assert.match(src, /else if \(act === 'toggle-problems'\) rmSetProblemsOpen\(!rmState\.problemsOpen\);/);
+  assert.match(src, /else if \(act === 'toggle-problems'\) \{ rmSetMoreOpen\(false\); rmSetProblemsOpen\(!rmState\.problemsOpen\); \}/);
   assert.match(src, /else if \(act === 'goto-problem'\)/);
   assert.match(src, /data-rm-action="goto-problem" data-node-id=/);
 });
@@ -702,4 +706,27 @@ test('関連図：矢印の向きを逆にする（並べ直して左向きを�
   assert.match(css, /\.rm-stage \{ display: inline-block; padding: min\(28vh, 220px\) min\(28vw, 320px\);/);
   assert.ok(html.indexOf('id="tab-careplan"') < html.indexOf('id="tab-labs"'), '看護計画のタブが先');
   assert.ok(html.indexOf('id="tab-labs"') < html.indexOf('id="tab-relation"'));
+});
+
+// 2026-10-06.20：利用者の声「操作のボタンがごちゃごちゃ」「背景を見やすく」「予測の流れを薄く（案3）」
+test('関連図：操作は 作る｜編集｜見る・出す にまとめ、拡大・縮小は図の右下、印刷・画像・すべて消すは「その他」の中／地の色・予測は薄く', () => {
+  const view = html.slice(html.indexOf('<div id="view-relation"'), html.indexOf('<div id="view-reference"'));
+  const bar = view.slice(view.indexOf('class="rm-toolbar"'), view.indexOf('id="rm-selection-bar"'));
+  assert.match(bar, /class="rm-group rm-group-sep" aria-label="編集"/);
+  assert.match(bar, /class="rm-group rm-group-end" aria-label="見る・出す"/);
+  assert.match(bar, /id="rm-more" class="rm-problems rm-more hidden"[\s\S]*?data-rm-action="print"[\s\S]*?data-rm-action="png"[\s\S]*?data-rm-action="clear"/, '印刷・画像・すべて消すは「その他」の中');
+  assert.doesNotMatch(bar, /data-rm-action="zoom-/, '拡大・縮小はツールバーに置かない');
+  assert.match(view, /class="rm-zoom-pad"[\s\S]*?data-rm-action="zoom-in"[\s\S]*?data-rm-action="zoom-out"[\s\S]*?data-rm-action="zoom-fit"[\s\S]*?data-rm-action="zoom-100"/);
+  assert.match(css, /\.rm-zoom-pad \{ position: absolute; right: 18px; bottom: 18px;/);
+  assert.match(src, /else if \(act === 'toggle-more'\)/);
+  assert.match(src, /<details class="rm-help"><summary>四角や矢印（線）を押すと、編集できます/, '案内は1行（くわしくは開いたときだけ）');
+  // 地の色（画面）と、予測の流れは薄く
+  const map = caseMap('gastric_postop');
+  const live = app.relationMapSvg(map, { interactive: true });
+  assert.match(live, /<rect class="rm-bg is-paper"[^>]*fill="#F4F2EC"/);
+  assert.match(app.relationMapSvg(map, {}), /<rect class="rm-bg"[^>]*fill="#FFFFFF"/, '印刷・画像は白');
+  const pe = map.edges.find(e => e.predicted);
+  assert.ok(pe);
+  assert.match(live, /stroke="#A8A29E" stroke-width="1.4" stroke-dasharray="6 4" marker-end="url\(#rm-arrow-pred\)"/);
+  assert.match(live, /class="rm-node[^"]* is-pred"/);
 });
