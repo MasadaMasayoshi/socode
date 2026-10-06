@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.7'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.8'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -1789,7 +1789,7 @@ ${cards}`;
         bar.innerHTML = `<span class="rm-sel-label"><i class="fa-solid fa-arrow-right-long"></i> 矢印の行き先の四角を押してください（治療からなら「治療 → 対象」になります）</span>${rmBtn('cancel-connect', 'やめる（Esc）')}`;
         return;
       }
-      if (!map || !sel) { bar.innerHTML = '<span class="rm-sel-hint">四角を押すと、文字の編集・種類・事実／予測・矢印でつなぐ・削除ができます（2回続けて押すと文字の編集）。矢印を押すと、向き・種類・事実／予測・「なぜ？」が選べます。</span>'; return; }
+      if (!map || !sel) { bar.innerHTML = '<span class="rm-sel-hint">四角を押すと、文字の編集・種類・事実／予測・矢印でつなぐ・削除ができます（2回続けて押すと文字の編集）。矢印を押すと、向き・種類・事実／予測・「なぜ？」が選べます。<br><b>図を動かす</b>：何もない所をドラッグ（スマホは指でスワイプ）。<b>拡大・縮小</b>：2本指で広げる・つまむ、または Ctrl＋ホイール。スマホで四角を動かすときは、一度タップして選んでからドラッグします。</span>'; return; }
       if (sel.type === 'node') {
         const n = rmNodeById(map, sel.id);
         if (!n) { rmState.selected = null; return rmRenderSelectionBar(); }
@@ -2012,6 +2012,24 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
     }
 
     // ---- 画面の操作の受け取り ----
+    // 指（またはマウス）の位置を中心に拡大・縮小する。図を描き直さず、大きさだけ変える（2本指の操作でも軽い）
+    function rmZoomAt(z, clientX, clientY) {
+      const wrap = document.getElementById('rm-canvas-wrap');
+      const svg = wrap && wrap.querySelector('svg.rm-svg');
+      if (!svg) return;
+      z = Math.max(0.25, Math.min(2, z));
+      const old = rmState.zoom;
+      if (Math.abs(z - old) < 0.001) return;
+      const r = svg.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+      const mx = (clientX - r.left) / old, my = (clientY - r.top) / old; // 指の下にある図の位置
+      const left = r.left - wr.left + wrap.scrollLeft, top = r.top - wr.top + wrap.scrollTop;
+      const vb = svg.viewBox.baseVal;
+      rmState.zoom = Math.round(z * 1000) / 1000;
+      svg.setAttribute('width', Math.round(vb.width * rmState.zoom));
+      svg.setAttribute('height', Math.round(vb.height * rmState.zoom));
+      wrap.scrollLeft = left + mx * rmState.zoom - (clientX - wr.left);
+      wrap.scrollTop = top + my * rmState.zoom - (clientY - wr.top);
+    }
     function rmClientToMap(e) {
       const svg = document.querySelector('#rm-canvas-wrap svg');
       if (!svg) return { x: 0, y: 0 };
@@ -2082,26 +2100,64 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
       const wrap = document.getElementById('rm-canvas-wrap');
       if (!wrap) return;
       let raf = 0;
+      // ボードを動かす：何もない所（スマホは四角の上も）をドラッグ・スワイプするとスクロール。2本指で拡大・縮小
+      const pointers = new Map();
+      let pan = null, pinch = null;
+      const nodeTap = id => {
+        if (rmState.connectFrom) { rmConnectTo(id); return; }
+        // 同じ四角を続けて2回押したら文字の編集（pointerdown で既定の動きを止めているため、dblclick は使わない）
+        const now = Date.now();
+        const last = rmState.lastTap;
+        rmState.lastTap = { id, at: now };
+        if (last && last.id === id && now - last.at < 450) { rmState.lastTap = null; rmSelect({ type: 'node', id }); rmEditNodeText(id); }
+        else rmSelect({ type: 'node', id });
+      };
+      const startPinch = () => {
+        const [a, b] = [...pointers.values()];
+        pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: rmState.zoom };
+        pan = null;
+        if (rmState.drag) { const d = rmState.drag; rmState.drag = null; if (d.moved) { rmState.undo.push(d.before); rmState.redo = []; rmCommit(getCurrentPatient(), rmMap()); } }
+      };
       wrap.addEventListener('pointerdown', e => {
         if (e.button !== undefined && e.button !== 0) return;
+        if (!e.target.closest('svg')) return; // ボードの外（スクロールバーなど）はブラウザに任せる
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        try { wrap.setPointerCapture(e.pointerId); } catch (err) { /* 無視 */ }
+        if (pointers.size === 2) { startPinch(); e.preventDefault(); return; }
+        if (pointers.size > 2) return;
         const g = e.target.closest('.rm-node');
         const lg = e.target.closest('.rm-link');
+        const touch = e.pointerType === 'touch' || e.pointerType === 'pen';
+        const startPan = tap => { pan = { pointerId: e.pointerId, sx: e.clientX, sy: e.clientY, sl: wrap.scrollLeft, st: wrap.scrollTop, moved: false, tap }; };
         if (g) {
           const map = rmMap();
           const node = map && rmNodeById(map, g.dataset.nodeId);
           if (!node) return;
+          const selectedHere = rmState.selected && rmState.selected.type === 'node' && rmState.selected.id === node.id;
+          // スマホ・タブレットでは、選んでいない四角の上のスワイプはボードを動かす（四角を動かすのは、選んでから）
+          if (touch && !selectedHere && !rmState.connectFrom) { startPan({ type: 'node', id: node.id }); e.preventDefault(); return; }
           const p = rmClientToMap(e);
           rmState.drag = { id: node.id, dx: p.x - node.x, dy: p.y - node.y, sx: e.clientX, sy: e.clientY, moved: false, before: rmSnapshot(getCurrentPatient()), pointerId: e.pointerId };
-          try { wrap.setPointerCapture(e.pointerId); } catch (err) { /* 無視 */ }
           e.preventDefault();
-        } else if (lg) {
-          if (!rmState.connectFrom) rmSelect({ type: 'edge', id: lg.dataset.linkId });
-        } else if (e.target.closest('svg')) {
-          if (rmState.connectFrom) { rmState.connectFrom = null; rmApplySelectionClasses(); rmRenderSelectionBar(); return; }
-          if (rmState.selected) rmSelect(null);
-        }
+        } else if (lg) { startPan({ type: 'edge', id: lg.dataset.linkId }); e.preventDefault(); }
+        else { startPan({ type: 'bg' }); e.preventDefault(); }
       });
       wrap.addEventListener('pointermove', e => {
+        if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pinch && pointers.size >= 2) {
+          const [a, b] = [...pointers.values()];
+          const z = pinch.z0 * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d0;
+          rmZoomAt(z, (a.x + b.x) / 2, (a.y + b.y) / 2);
+          return;
+        }
+        if (pan && pan.pointerId === e.pointerId) {
+          if (!pan.moved && Math.hypot(e.clientX - pan.sx, e.clientY - pan.sy) < 5) return;
+          pan.moved = true;
+          wrap.classList.add('is-panning');
+          wrap.scrollLeft = pan.sl - (e.clientX - pan.sx);
+          wrap.scrollTop = pan.st - (e.clientY - pan.sy);
+          return;
+        }
         const d = rmState.drag;
         if (!d || d.pointerId !== e.pointerId) return;
         if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 4) return;
@@ -2119,8 +2175,22 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
         if (!raf) raf = requestAnimationFrame(() => { raf = 0; rmRenderEdgesOnly(map); });
       });
       const endDrag = e => {
+        pointers.delete(e.pointerId);
+        if (pinch) { if (pointers.size < 2) pinch = null; return; }
+        if (pan && pan.pointerId === e.pointerId) {
+          const p = pan;
+          pan = null;
+          wrap.classList.remove('is-panning');
+          if (p.moved || e.type !== 'pointerup') return;
+          // 動かさずに離した＝タップ
+          if (p.tap.type === 'node') nodeTap(p.tap.id);
+          else if (p.tap.type === 'edge') { if (!rmState.connectFrom) rmSelect({ type: 'edge', id: p.tap.id }); }
+          else if (rmState.connectFrom) { rmState.connectFrom = null; rmApplySelectionClasses(); rmRenderSelectionBar(); }
+          else if (rmState.selected) rmSelect(null);
+          return;
+        }
         const d = rmState.drag;
-        if (!d || (e && d.pointerId !== e.pointerId)) return;
+        if (!d || d.pointerId !== e.pointerId) return;
         rmState.drag = null;
         const cp = getCurrentPatient();
         if (d.moved) {
@@ -2128,18 +2198,16 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
           if (rmState.undo.length > RM_UNDO_MAX) rmState.undo.shift();
           rmState.redo = [];
           rmCommit(cp, rmMap(cp));
-        } else if (rmState.connectFrom) rmConnectTo(d.id);
-        else {
-          // 同じ四角を続けて2回押したら文字の編集（pointerdown で既定の動きを止めているため、dblclick は使わない）
-          const now = Date.now();
-          const last = rmState.lastTap;
-          rmState.lastTap = { id: d.id, at: now };
-          if (last && last.id === d.id && now - last.at < 450) { rmState.lastTap = null; rmSelect({ type: 'node', id: d.id }); rmEditNodeText(d.id); }
-          else rmSelect({ type: 'node', id: d.id });
-        }
+        } else if (e.type === 'pointerup') nodeTap(d.id);
       };
       wrap.addEventListener('pointerup', endDrag);
       wrap.addEventListener('pointercancel', endDrag);
+      // Ctrl（Mac は ⌘）＋ホイール、トラックパッドのピンチで拡大・縮小（ふつうのホイールはスクロール）
+      wrap.addEventListener('wheel', e => {
+        if (!(e.ctrlKey || e.metaKey) || !rmMap()) return;
+        e.preventDefault();
+        rmZoomAt(rmState.zoom * Math.exp(-e.deltaY * 0.0025), e.clientX, e.clientY);
+      }, { passive: false });
       wrap.addEventListener('keydown', e => {
         const g = e.target.closest('.rm-node');
         if (e.key === 'Escape' && (rmState.connectFrom || rmState.selected)) { e.stopPropagation(); rmState.connectFrom = null; rmSelect(null); return; }
@@ -2177,5 +2245,5 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
     if (typeof document !== 'undefined' && document.getElementById && document.getElementById('view-relation')) initRelationMapUi();
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi });
+  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi });
 }

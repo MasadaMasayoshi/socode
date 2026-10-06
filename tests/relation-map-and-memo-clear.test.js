@@ -518,3 +518,13 @@ test('長文事例C（慢性心不全の急性増悪・84歳・独居）：増�
   const headers = map.headers.map(h => h.label);
   assert.ok(!headers.includes('治療'), `内科の事例で治療が散らばるときは「治療」の列を作らない：${headers.join('、')}`);
 });
+
+test('関連図のボードをドラッグ・スワイプで動かす／2本指・Ctrl＋ホイールで拡大縮小', () => {
+  assert.match(css, /\.rm-canvas-wrap svg \{ display: block; touch-action: none; cursor: grab;/);
+  assert.match(css, /\.rm-canvas-wrap\.is-panning/);
+  assert.match(src, /wrap\.scrollLeft = pan\.sl - \(e\.clientX - pan\.sx\)/);
+  assert.match(src, /if \(touch && !selectedHere && !rmState\.connectFrom\) \{ startPan/, 'スマホは選んでいない四角の上でもスワイプで動かす');
+  assert.match(src, /if \(pointers\.size === 2\) \{ startPinch\(\)/);
+  assert.match(src, /wrap\.addEventListener\('wheel', e => \{\s*if \(!\(e\.ctrlKey \|\| e\.metaKey\)/);
+  assert.equal(typeof app.rmZoomAt, 'function');
+});
