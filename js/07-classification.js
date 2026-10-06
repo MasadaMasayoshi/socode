@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-06.9'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-06.10'; // 版（scripts/stamp-version.js が書き込む）
     // 「祖母を胃がん、父を前立腺がんで亡くしている〜」のような家族歴の文は、本人の食事・栄養
     // 状態の所見ではないにもかかわらず、id2(食事)の疾患名キーワード（「胃がん」等）に一致して
     // しまい、食事に無関係な家族歴が「2. 食事」に混入していた（利用者からの報告事例）。
@@ -2970,8 +2970,17 @@ ${text}
 
 出力は余計な解説を含めず、必ず有効なJSON配列のみを出力してください。`;
 
-          const aiText = await callGeminiAI([{ role: "user", parts: [{ text: prompt }] }]);
-          const jsonMatch = aiText.match(/\[\s*\{[\s\S]*\}\s*\]/);
+          // 【AI機能の評価で発見】以前はJSONの答えを指定せず、答えの最初の「[{」から最後の「}]」までを JSON.parse していた。
+          // 長い記録で答えが途中で切れる・最後に余分な「,」がある・前後に説明が付くと読み取れず、何も知らせずに
+          // AIなし（ルール）の分類に切り替わり「分類しました」と出ていた。JSONの答えを指定し、崩れを直して読み取り
+          // （途中で切れたら読み取れた所まで使う）、読み取れずにルールで分類したときはそのことを知らせる。
+          const aiText = await callGeminiAI([{ role: "user", parts: [{ text: prompt }] }], { json: true, quietTruncation: true });
+          const parsedInfo = typeof parseAiJsonLooseInfo === 'function' ? parseAiJsonLooseInfo(aiText) : { value: undefined };
+          const parsedArr = Array.isArray(parsedInfo.value) ? parsedInfo.value
+            : (parsedInfo.value && typeof parsedInfo.value === 'object' ? Object.values(parsedInfo.value).find(v => Array.isArray(v) && v.some(x => x && typeof x === 'object')) : null);
+          // 途中で切れた答えを使うと、記録の後ろの方がカードにならない。そのときは記録全体をルールで分類する
+          const jsonMatch = parsedArr && parsedArr.length && !parsedInfo.truncated ? [JSON.stringify(parsedArr)] : null;
+          if (!jsonMatch) showToast([parsedInfo.truncated ? 'AIの答えが長すぎて途中で切れていたため、記録全体をAIなし（ルール）で分類しました' : 'AIの答えを読み取れなかったため、AIなし（ルール）で分類しました', { text: parsedInfo.truncated ? '記録を何回かに分けて貼り付けると、AIで分類できます。' : 'もう一度「分類開始」を押すと、AIで分類し直せます。', detail: true }], 'warn', 9000);
           if (jsonMatch) {
             // 【レビューで発見】AIの結果の文章を整える（cleanExtractedPhrase）ときも、前に分類した別の患者ではなく
             // この文章を元に子どもの記録か等を決める（下の finally で元に戻す。extractionContext の説明を参照）

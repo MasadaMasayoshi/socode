@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-06.9'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-06.10'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -785,8 +785,67 @@
       // 「結果を取得できませんでした」を“成功した結果”として保存して、前の良い結果（看護計画など）を上書きしていた。
       // 空の答えは失敗として扱い、前の結果はそのまま残す。
       if (!String(text || '').trim()) throw new Error('AIの答えが空でした。少し待ってから、もう一度試してください（前の結果はそのまま残しています）。');
-      return restoreMaskedText(text, ctx);
+      // 【AI機能の評価で発見】答えが長すぎて途中で切れたとき（finishReason が MAX_TOKENS）も、以前は何も知らせずに
+      // 完成した結果として保存していた（看護計画の最後の問題のEPが無い、等に気づけない）。
+      // 文章の答えには途中で切れたことを書き足し、JSONの答えは読み取れた所までを使うことを知らせる。
+      const finish = data?.candidates?.[0]?.finishReason;
+      let out = restoreMaskedText(text, ctx);
+      if (finish === 'MAX_TOKENS') {
+        if (options.json) { if (!options.quietTruncation) showToast('AIの答えが長すぎて途中で切れていました。読み取れた所までを使っています', 'warn', 6000); }
+        else out += '\n\n※AIの答えが長すぎて、ここで途中で切れています。必要なら、もう一度実行してください。';
+      }
+      return out;
     }
+
+    // 【AI機能の評価で発見】AIの答えのJSONは、```json の囲み・前後の説明・最後の余分な「,」・答えの途中切れで
+    // 崩れることがある。以前は機能ごとに JSON.parse していたため、これだけで「読み取れませんでした」になっていた。
+    // 崩れを直して読み取る共通の処理（読み取れないときは undefined）。truncated は途中切れを補ったか。
+    function removeJsonTrailingCommas(s) {
+      let out = '', inStr = false, esc = false;
+      for (let i = 0; i < s.length; i++) {
+        const c = s[i];
+        if (inStr) { out += c; if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false; continue; }
+        if (c === '"') { inStr = true; out += c; continue; }
+        if (c === ',') { const rest = s.slice(i + 1).match(/^\s*([\]}])/); if (rest) continue; }
+        out += c;
+      }
+      return out;
+    }
+    function parseAiJsonLooseInfo(text) {
+      const raw = String(text || '').replace(/```(?:json)?/gi, '').trim();
+      const tryParse = s => { try { return JSON.parse(s); } catch (e) { try { return JSON.parse(removeJsonTrailingCommas(s)); } catch (e2) { return undefined; } } };
+      let v = tryParse(raw);
+      if (v !== undefined && v !== null && typeof v === 'object') return { value: v, truncated: false };
+      for (let i = 0; i < raw.length; i++) {
+        if (raw[i] !== '[' && raw[i] !== '{') continue;
+        // 括弧の対応を数える（文字列の中は数えない）。閉じ終わった要素の位置を覚えておき、途中で切れていたらそこで閉じる
+        const stack = []; let inStr = false, esc = false, end = -1, lastCut = -1, lastStack = null;
+        for (let j = i; j < raw.length; j++) {
+          const c = raw[j];
+          if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false; continue; }
+          if (c === '"') inStr = true;
+          else if (c === '[' || c === '{') stack.push(c);
+          else if (c === ']' || c === '}') {
+            stack.pop();
+            if (!stack.length) { end = j; break; }
+            lastCut = j + 1; lastStack = stack.slice();
+          }
+        }
+        if (end >= 0) {
+          v = tryParse(raw.slice(i, end + 1));
+          if (v !== undefined && v !== null && typeof v === 'object') return { value: v, truncated: false };
+          continue;
+        }
+        if (lastCut > 0) {
+          const close = lastStack.slice().reverse().map(c => (c === '[' ? ']' : '}')).join('');
+          v = tryParse(raw.slice(i, lastCut) + close);
+          if (v !== undefined && v !== null && typeof v === 'object') return { value: v, truncated: true };
+        }
+        break;
+      }
+      return { value: undefined, truncated: false };
+    }
+    function parseAiJsonLoose(text) { return parseAiJsonLooseInfo(text).value; }
 
     // ---- Gemini への接続（キーの種類の見分け・送り先とモデルの選択・エラーの日本語化） ----
     // HTMLファイルを直接開いて（file://）使っても、AIはブラウザから直接Googleに送るので動く。

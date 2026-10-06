@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-06.9'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-06.10'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -251,7 +251,7 @@
       }
 
       try {
-        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長・指導者です。以下の「基準ノート」（登録された基準）の検査値評価規則を根拠にして、患者のOデータに含まれる検査値やバイタルの臨床的意味を評価し、総合評価欄向けに分かりやすく解説・アセスメント文章を作成してください。\n【基準ノート】\n${buildEffectiveNotebookContent()}\n【患者のOデータ一覧】\n${labTexts}\n${typeof drugPromptSection === 'function' ? drugPromptSection(cp) : ''}要点では、基準を外れた値と、看護で最も注意すべきことを示してください。詳細は系統ごと（呼吸・循環／炎症・感染／栄養・代謝／腎機能 など）の見出しにし、各値は「項目 値（基準値）：意味」の形で1行にしてください。最後に「### まとめ（アセスメント文）」として、記録にそのまま使える3〜4文の文章を付けてください。${AI_STYLE_INSTRUCTION}` }] }]);
+        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長・指導者です。以下の「基準ノート」（登録された基準）の検査値評価規則を根拠にして、患者のOデータに含まれる検査値やバイタルの臨床的意味を評価し、総合評価欄向けに分かりやすく解説・アセスメント文章を作成してください。\n【基準ノート】\n${buildAssessmentNotebookContent()}\n【患者のOデータ一覧】\n${labTexts}\n${typeof drugPromptSection === 'function' ? drugPromptSection(cp) : ''}要点では、基準を外れた値と、看護で最も注意すべきことを示してください。詳細は系統ごと（呼吸・循環／炎症・感染／栄養・代謝／腎機能 など）の見出しにし、各値は「項目 値（基準値）：意味」の形で1行にしてください。最後に「### まとめ（アセスメント文）」として、記録にそのまま使える3〜4文の文章を付けてください。${AI_STYLE_INSTRUCTION}` }] }]);
         cp.labEvaluationResult = formatAiResultHtml(text, '評価の生成に失敗しました。');
         if (finishAiResult(cp, () => { DOM.labEvalContent.innerHTML = cp.labEvaluationResult; }, '検査値の評価')) showToast('検査値の評価を表示しました', 'success');
       } catch (err) {
@@ -438,7 +438,7 @@
 ③参考データ（看護基準・プロトコル等）に照らして通常確認すべきだが記録がない項目
 
 【基準ノート】
-${buildEffectiveNotebookContent()}
+${buildAssessmentNotebookContent()}
 
 【参考データ】
 ${referenceText || '(登録なし)'}
@@ -523,7 +523,8 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
         if (end < 0) continue;
         try { const v = pick(JSON.parse(raw.slice(i, end + 1))); if (v) return v; } catch (e) { /* 次の括弧から試す */ }
       }
-      return null;
+      // 最後の「,」・答えの途中切れなどの崩れを直して読む（parseAiJsonLoose の説明を参照）
+      return typeof parseAiJsonLoose === 'function' ? pick(parseAiJsonLoose(raw)) : null;
     }
 
     // AI分析ツールのドロップダウンメニュー開閉
@@ -760,6 +761,22 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
         }
         else if (cur) cur.lines.push(line);
       });
+      // 【AI機能の評価で発見】AIが「■」を付けずに「## 1. **心拍出量減少**」「1. 活動耐性低下」のような見出しで返すと、
+      // 候補が0件になり、まとめて実行も②で止まっていた。「■」の候補が1つも無いときは、次の行が「根拠：」で
+      // 始まる見出しの行を候補の名前として読む。
+      if (!blocks.length) {
+        const lines = (text || '').split('\n');
+        const nextText = k => { for (let j = k + 1; j < lines.length; j++) if (lines[j].trim()) return lines[j].trim(); return ''; };
+        lines.forEach((line, k) => {
+          const t = line.trim();
+          if (t && /^(?:\*\*)?根拠(?:\*\*)?\s*[:：]/.test(nextText(k)) && !/^(?:\*\*)?(?:根拠|理由|不足情報)/.test(t)) {
+            const name = t.replace(/^#{1,6}\s*/, '').replace(/\*\*/g, '').replace(/^(?:\d{1,2}\s*[.．)）、]\s*)/, '').replace(/^[-*・]\s*/, '')
+              .replace(EVIDENCE_CODE_REGEX, '').replace(/^(?:看護診断名?|診断名)\s*\d*\s*[:：]\s*/, '').trim();
+            if (name && name.length <= 40) { cur = { name, lines: [] }; blocks.push(cur); return; }
+          }
+          if (cur) cur.lines.push(line);
+        });
+      }
       return blocks.filter(b => b.name).map(b => ({ name: b.name, body: b.lines.join('\n').trim() }));
     }
 
@@ -814,6 +831,9 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       try {
         const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長・指導者です。以下はヘンダーソン14の基本的欲求ごとに整理された患者のアセスメント情報です。この内容から、想定される看護診断の候補を優先度が高いと思われる順に2〜4個程度提案してください。看護診断名はNANDA-I看護診断（日本語版）の正式な名称を使い、その診断の定義と、記録にある診断指標（症状・所見）が合うものを選んでください（例：SpO2の低下などの低酸素ならガス交換障害、咳・痰・喘鳴なら非効果的気道浄化。呼吸数や呼吸のリズムの記録が無いのに非効果的呼吸パターンを選ばない）。ほかの問題の結果として起こる問題（例：息苦しさによる不眠）は、原因の問題の計画で扱えるなら別の候補にしないでください。既往・治療から起こりうるリスク型の診断（例：糖尿病と感染があれば血糖不安定リスク、発熱と摂取不足があれば体液量不足リスク）も検討してください。${AI_ACCURACY_RULES}\n\n【ヘンダーソン項目別アセスメント情報】\n${perNeedText}\n\n【不足している情報（まだ記録が無く、確認が必要なもの）】\n${missingText || '(なし)'}\n\n${ownAssessmentPromptSection(cp)}${typeof drugPromptSection === 'function' ? drugPromptSection(cp) : ''}出力は次の形式を必ず守ってください（候補ごとに「■」で始め、候補の間は空行で区切る）。\n■ 看護診断名\n根拠：アセスメント根拠の要約（${EVIDENCE_INSTRUCTION}）\n理由：この診断を挙げた理由\n不足情報：この診断を確かめるために追加で確認したい情報（あれば）\n\n前置き・あいさつは書かず、最初の行から「■」で始めてください。根拠・理由・不足情報は、それぞれ1〜2文で簡潔に書いてください。太字(**語**)以外の記号は使わないでください。` }] }]);
         const cands = parseDiagnosisCandidates(text).map((c, k) => ({ id: `dx_${Date.now().toString(36)}_${k}`, name: c.name, bodyHtml: formatAiResultHtml(c.body, '', ev) }));
+        // 【AI機能の評価で発見】答えから候補を1つも読み取れなかったとき、以前は前の候補と選んだチェックを消して
+        // 「完了しました」と出していた。前の候補があるときは消さずに残し、失敗として知らせる。
+        if (!cands.length && (cp.diagnosisCandidates || []).length) throw new Error('AIの答えから看護診断の候補を読み取れませんでした（前の候補と選んだチェックはそのまま残しています）');
         cp.diagnosisCandidates = cands;
         cp.selectedDiagnosisIds = [];
         cp.diagnosisResult = formatAiResultHtml(text, undefined, ev); // 書き出し・形式が崩れた場合の表示用
@@ -1397,7 +1417,11 @@ ${cardLines}
       const start = raw.indexOf('{');
       const end = raw.lastIndexOf('}');
       if (start === -1 || end <= start) throw new Error('AIの答えを読み取れませんでした（JSONではありません）');
-      const obj = JSON.parse(raw.slice(start, end + 1));
+      let obj;
+      try { obj = JSON.parse(raw.slice(start, end + 1)); } catch (e) {
+        obj = typeof parseAiJsonLoose === 'function' ? parseAiJsonLoose(raw) : undefined;
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('AIの答えを読み取れませんでした（JSONの形が崩れています）');
+      }
       const tagList = v => (Array.isArray(v) ? v : []).map(Number).filter(n => n >= 1 && n <= 14);
       const code = v => (String(v || '').match(/C\s*\d{1,4}/i) || [''])[0].replace(/\s+/g, '').toUpperCase();
       const str = v => String(v || '').trim();

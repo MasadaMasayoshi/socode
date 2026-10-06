@@ -217,7 +217,7 @@ test('関連図：AIの答え（短い名前のJSON）を読み取り、確か�
   // 指示文：ルールの要点と、入力をしぼること
   const prompt = app.buildRelationMapPrompt(patientOf(GASTRIC));
   ['事実を並べた図ではなく', '治療は「治療→治療の対象」', 'o=0、その矢印はx=1', '感染と断定しない', '複数の原因が1つの問題へ合流', 'どこにもつながらない四角', '"n":[{"i":"n1"'].forEach(s => assert.ok(prompt.includes(s), s));
-  assert.ok(app.rmSelectCardsForAi(Array.from({ length: 200 }, (_, k) => ({ type: 'o', text: `記録${k}` }))).length <= 70);
+  assert.ok(app.rmSelectCardsForAi(Array.from({ length: 200 }, (_, k) => ({ type: 'o', text: `記録${k}` }))).length <= 100) // 長い記録で大事な検査・所見が漏れないよう、2026-10-06.10 で70枚→100枚に;
 });
 
 test('関連図：版1の図は開いたときに版2へ直す（治療の向き・看護問題の#・検査データ）', () => {

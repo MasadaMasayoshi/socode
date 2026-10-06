@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = '2026-10-06.9'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = '2026-10-06.10'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 共有学習（全利用者・全カードで共有する学習データ）
     // ------------------------------------------------------------------------
@@ -352,6 +352,17 @@
     // AIへの指示文（プロンプト）を組み立てる際は、必ず buildEffectiveNotebookContent()
     // 経由でこれらと結合したものを使う。
     // ==========================================================================
+    // 【AI機能の評価で発見】検査値の評価・不足情報の推定にも基準ノート全体（約2万字）を送っていたが、その半分は
+    // 第1〜4章（カードの作り方・S/Oの判定・タグ付け）で、この2つの判断には使わない。章の見出し（━━ 第N章 ━━）が
+    // あるときは第1〜4章を除いて送る（AIへの指示が短くなり、大事な基準が埋もれにくくなる）。見出しが無い・利用者が
+    // 章立てを変えたときは、今までどおり全体を送る。
+    function buildAssessmentNotebookContent() {
+      const full = buildEffectiveNotebookContent();
+      const ch1 = full.search(/━+\s*\n\s*第1章/);
+      const ch5 = full.search(/━+\s*\n\s*第5章/);
+      if (ch1 < 0 || ch5 <= ch1) return full;
+      return `${full.slice(0, ch1)}（第1〜4章：カードの作り方・S/O・タグ付けのルールは、この判断では使わないため省略）\n\n${full.slice(ch5)}`;
+    }
     function buildEffectiveNotebookContent() {
       const extras = (globalAppData.additionalCriteria || []).map(c => `- ${c.text}`).join('\n');
       const trend = buildLearningTrendSummary();

@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.9'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.10'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -1413,7 +1413,12 @@
       const t = String(text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '');
       const a = t.indexOf('{'), b = t.lastIndexOf('}');
       if (a < 0 || b <= a) throw new Error('AIの答えから関連図の形（JSON）を読み取れませんでした');
-      return JSON.parse(t.slice(a, b + 1));
+      try { return JSON.parse(t.slice(a, b + 1)); } catch (e) {
+        // 最後の余分な「,」・答えの途中切れなどは直して読む（js/05 の parseAiJsonLoose）
+        const v = typeof parseAiJsonLoose === 'function' ? parseAiJsonLoose(t) : undefined;
+        if (v && typeof v === 'object' && !Array.isArray(v)) return v;
+        throw new Error('AIの答えから関連図の形（JSON）を読み取れませんでした');
+      }
     }
     function relationMapFromAiJson(obj) {
       const rawNodes = obj && (obj.n || obj.nodes);
@@ -1448,13 +1453,19 @@
       return layoutRelationMap(map);
     }
     // AIに送る記録はしぼる（入力のトークンを抑える）：項目名のあるカード・症状のS・異常のあるO・治療・不安の言葉
-    function rmSelectCardsForAi(items, max = 70) {
+    // 【AI機能の評価で発見】長い記録（心不全の事例・121枚）では、EF 35%・心胸比・K・Cre・ALB・水泡音・頸静脈怒張、
+    // 悪化のきっかけの「塩分制限を守れていない」「利尿薬を自己判断で飲まなかった」、喫煙歴が選ばれずにAIへ送られて
+    // いなかった（Sの発言が先に枠を埋めていた・「ALB」は大文字で一致しなかった）。病態・悪化のきっかけ・検査と
+    // 身体所見を優先し、送る枚数も増やす（1枚90字までに縮めるので、100枚でも7千字ほど）。
+    function rmSelectCardsForAi(items, max = 100) {
       const score = i => {
         const t = String(i.text || '');
-        if (i.fieldLabel && /診断|病名|主訴|現病歴|既往|手術|術式|生活歴|喫煙/.test(i.fieldLabel)) return 10;
-        if (/術|麻酔|ドレーン|カテーテル|酸素|PCA|鎮痛|輸液|点滴/.test(t)) return 8;
-        if (i.type === 's' && /痛|苦し|息|不安|心配|迷惑|眠れ|食|だる/.test(t)) return 7;
-        if (/↑|↓|NRS|SpO2|WBC|CRP|Alb|BNP|Hb|体重|浮腫|痰|咳|発熱|ふらつ/.test(t)) return 6;
+        if (i.fieldLabel && /診断|病名|主訴|現病歴|既往|手術|術式|生活歴|喫煙|嗜好/.test(i.fieldLabel)) return 10;
+        if (/術|麻酔|ドレーン|カテーテル|酸素|PCA|鎮痛|輸液|点滴|静注|内服開始|投与/.test(t)) return 8;
+        if (/基準値|EF|心胸比|X線|CT|MRI|エコー|心電図|水泡音|副雑音|喘鳴|頸静脈|呼吸音|SpO2|BNP|WBC|CRP|Alb|Hb|Cre|BUN|eGFR|Na\b|K\b|血糖|HbA1c|mEq|mg\/dL|g\/dL/i.test(t)) return 8;
+        if (/守れていない|自己判断|任せ|飲まな|飲み忘|中断|塩分|塩辛|漬物|喫煙|タバコ|飲酒|間食|枕を|起座|息苦し|息切れ|眠れ|目が覚め|夜間|尿量|排便|便秘|浮腫|むくみ|体重/.test(t)) return 7;
+        if (i.type === 's' && /痛|苦し|息|不安|心配|迷惑|眠れ|食|だる|情けな|生きている意味/.test(t)) return 7;
+        if (/↑|↓|NRS|痰|咳|発熱|ふらつ|転倒|せん妄|褥瘡|発赤/.test(t)) return 6;
         if (i.type === 's') return 4;
         return 1;
       };
@@ -1628,7 +1639,9 @@ ${cards}`;
       try {
         const text = await callGeminiAI([{ parts: [{ text: `看護学生の関連図で「${rmDisplayLabel(a)}」→「${rmDisplayLabel(b)}」という矢印があります。この間に入る病態生理・身体の変化の中間過程を、原因に近い順に1〜2個、各25字以内で考えてください。すでに一足飛びでなく直接つながるなら空の配列にしてください。JSONだけを返す：{"steps":["過程1","過程2"],"why":"30字以内の理由"}` }] }], { json: true });
         const obj = rmParseAiJsonObject(text);
-        const steps = (Array.isArray(obj.steps) ? obj.steps : []).map(x => String(x || '').trim()).filter(Boolean).slice(0, 2);
+        // 【AI機能の評価で発見】steps を配列でなく「A、B」「A→B」の1つの文字で返すことがあり、以前は「間に入る過程は無い」と表示していた
+        const rawSteps = Array.isArray(obj.steps) ? obj.steps : (typeof obj.steps === 'string' ? obj.steps.split(/\s*(?:→|->|、|,|，|\n)\s*/) : []);
+        const steps = rawSteps.map(x => String(x || '').trim()).filter(Boolean).slice(0, 2);
         if (!steps.length) { showToast('AIの答え：この矢印は直接つながっていて、間に入る過程は特にありません', 'info', 6000); return; }
         let last = null;
         rmMutate(m => {

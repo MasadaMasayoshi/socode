@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-06.9'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-06.10'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -316,9 +316,16 @@
         if (key === 'goalLong' || key === 'goalShort') cur[key] = cur[key] ? `${cur[key]}\n${v}` : v;
         else cur[key].push(...carePlanLinesToList(v));
       };
+      // 【AI機能の評価で発見】AIは最初の「### 要点」に「#1 活動耐性低下：…」のような優先順位の一覧を書く。以前は
+      // これも看護問題の見出しとして読み、中身の無い看護計画が2件余分に取り込まれていた。要点の中の行は読まない
+      // （「■…」「看護問題1：…」の見出しが来たら要点は終わり）。
+      let inSummary = false;
       lines.forEach(raw => {
         const line = raw.trim();
         if (!line) return;
+        if (/^#*\s*(?:【\s*)?(?:要点|まとめ|優先順位)(?:\s*】)?\s*$/.test(line)) { inSummary = true; cur = null; sec = null; return; }
+        if (inSummary && !/^(?:\d{1,2}\s*[.．)）、]\s*)?(?:■|◆)|^(?:看護問題|看護診断)\s*#?\s*\d+\s*[:：.．]/.test(line)) return;
+        inSummary = false;
         const head = line.match(CARE_PROBLEM_HEAD_REGEX);
         if (head) {
           const problem = (head[1] || head[2]).replace(/^#\s*\d+[.．:：]?\s*/, '').replace(/^(?:看護問題|看護診断)\s*\d*\s*[:：]?\s*/, '').trim();
@@ -332,7 +339,10 @@
         if (m && cur) { sec = keyOf(m[1]); addTo(sec, m[2]); return; }
         if (cur && sec) addTo(sec, line);
       });
-      return plans.filter(p => p.problem);
+      // 中身（目標・OP・TP・EP）のある計画があるときは、名前だけの計画は取り込まない
+      const named = plans.filter(p => p.problem);
+      const hasBody = p => p.goalLong || p.goalShort || p.op.length || p.tp.length || p.ep.length;
+      return named.some(hasBody) ? named.filter(hasBody) : named;
     }
     // 看護診断候補（選んだもの）の名前
     function selectedDiagnosisNames(cp) {
