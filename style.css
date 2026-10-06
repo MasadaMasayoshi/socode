@@ -894,8 +894,24 @@
     /* 図の四角に、ごく薄い影（地の色から浮き出て見え、どこが四角か分かりやすい） */
     .rm-canvas-wrap .rm-box { filter: drop-shadow(0 1px 1.5px rgba(60, 50, 40, .14)); }
     .rm-canvas-wrap .rm-node.is-pred .rm-box { filter: none; }
-    html[data-theme="dark"] .rm-canvas-wrap .rm-gap { fill: #1F1C19; }
+    /* 右クリックのメニュー */
+    .rm-ctx { position: fixed; z-index: 70; min-width: 190px; max-width: min(300px, calc(100vw - 12px)); max-height: 70vh; overflow: auto; padding: .3rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,.18); font-size: 12px; }
+    .rm-ctx-title { padding: .3rem .55rem .35rem; font-size: 11px; font-weight: 700; color: var(--ink-muted); border-bottom: 1px solid var(--line-soft); margin-bottom: .2rem; }
+    .rm-ctx-item { display: flex; align-items: center; gap: .5rem; width: 100%; padding: .38rem .55rem; border-radius: var(--radius-sm); color: var(--ink); text-align: left; }
+    .rm-ctx-item:hover, .rm-ctx-item:focus-visible { background: var(--paper); outline: none; }
+    .rm-ctx-item.rm-danger { color: #B42318; }
+    .rm-ctx-swatch { display: inline-block; width: 18px; height: 12px; border: 1.5px solid; border-radius: 2px; flex: none; }
+    .rm-ctx-swatch.is-ellipse { border-radius: 50%; }
+    /* ダークモードの関連図（2026-10-06.21 調整）：地は暗く、四角は種類ごとの色を残し、予測は薄く */
     html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-pred .rm-text { fill: #A39C8F; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-pred .rm-box { stroke: #746C61; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-pred.is-added .rm-box { stroke: #8E7CC3; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-node[data-kind="patient_fact"] .rm-box { fill: #1F2A1F; stroke: #9DBB94; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-link-line[stroke-dasharray] { stroke: #7A7366; }
+    html[data-theme="dark"] .rm-canvas-wrap #rm-arrow-pred path { fill: #7A7366; }
+    html[data-theme="dark"] .rm-canvas-wrap #rm-tee-blue path { stroke: #8DB3EA; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-box { filter: none; }
+    html[data-theme="dark"] .rm-ctx-item.rm-danger, html[data-theme="dark"] .rm-more-item.rm-danger { color: #F7A28F; }
     .rm-group { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
     .rm-group .btn[disabled] { opacity: .45; cursor: not-allowed; }
     .rm-danger { color: var(--brick) !important; }
@@ -965,7 +981,7 @@
     .rm-check-warn > i { color: #B7791F; }
     .rm-check-info > i { color: var(--accent); }
     .rm-check-show { font-size: 10.5px; color: var(--accent); text-decoration: underline; white-space: nowrap; }
-    html[data-theme="dark"] .rm-canvas-wrap .rm-node .rm-box { fill: #2A2622; stroke: #B9B2A3; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-node .rm-box { fill: #2A2622; stroke: #A39C8F; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-node[data-kind="disease"] .rm-box { fill: #3A2420; stroke: #E3998A; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-node[data-kind="nursing_problem"] .rm-box { fill: #3D1F2A; stroke: #F0A3B5; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-node[data-kind="treatment"] .rm-box { fill: #1F2B3D; stroke: #8DB3EA; }
@@ -993,4 +1009,4 @@
     .rm-canvas-wrap .rm-node, .rm-canvas-wrap .rm-link { transition: opacity .15s; }
     .rm-canvas-wrap .rm-link:hover .rm-link-line { stroke-width: 2.4px; }
     /* 図の下は無地（点の模様が線や四角の後ろに見えて読みにくいため。点は図の外の余白だけ）2026-10-06.19 */
-    html[data-theme="dark"] .rm-canvas-wrap .rm-bg.is-paper { fill: #1F1C19; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-bg.is-paper { fill: #171512; }

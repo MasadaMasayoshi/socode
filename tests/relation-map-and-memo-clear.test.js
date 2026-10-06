@@ -111,7 +111,7 @@ test('関連図：治療は楕円で「治療 → 治療の対象」、治療ご
   assert.ok(!map.edges.some(e => map.edges.some(o => o.source === e.target && o.target === e.source)), '両向きの矢印は無い');
   const svg = app.relationMapSvg(map, {});
   assert.match(svg, /<ellipse class="rm-box"/);
-  assert.match(svg, /stroke="#2563EB"[^>]*marker-end="url\(#rm-arrow-blue\)"/); // 治療 → 対象 は青
+  assert.match(svg, /stroke="#2563EB"[^>]*marker-end="url\(#rm-tee-blue\)"/); // 治療 ┤ 対象 は青（線の先は「┤」＝抑える）
   assert.match(svg, /（WBC 11600\/μL↑）/); // 検査データは（ ）
 });
 
@@ -204,9 +204,16 @@ test('関連図：交差する線は飛び越え（∩）で描く', () => {
   assert.match(d, / A6,6 0 0 1 /);
   const svg = app.relationMapSvg(m, {});
   assert.match(svg, / A6,6 0 0 1 /);
-  // 飛び越えの下を通る線は、地の色の丸で隠してすき間を空ける（利用者の指摘：下の線がそのままで変）
-  assert.match(svg, /<g class="rm-gaps"><circle class="rm-gap" cx="\d+(?:\.\d)?" cy="\d+(?:\.\d)?" r="5" fill="#FFFFFF"\/><\/g>/);
-  assert.ok(svg.indexOf('class="rm-gaps"') > svg.lastIndexOf('class="rm-link-line"'), '線を全部描いた後に重ねる');
+  // 飛び越えの下の線は消さない。同じ高さで重なる横の線は、そろって飛び越える（片方だけまっすぐだと ∩ の下に線が残る）
+  assert.doesNotMatch(svg, /rm-gap/);
+  ['gastric_postop', 'hip_fracture', 'heart_failure_long'].forEach(name => {
+    const { routes } = app.rmRouteEdges(caseMap(name));
+    const hs = [];
+    routes.forEach(r => (r.segs || []).forEach(sg => { if (Math.abs(sg.y1 - sg.y2) < 0.5) hs.push(sg); }));
+    hs.forEach(a => a.cross.forEach(x => hs.forEach(b => {
+      if (Math.abs(a.y1 - b.y1) < 0.5 && x > Math.min(b.x1, b.x2) + 8 && x < Math.max(b.x1, b.x2) - 8) assert.ok(b.cross.some(c => Math.abs(c - x) < 0.5), `${name}: 重なった横の線の片方だけが飛び越えている（x=${x}, y=${a.y1}）`);
+    })));
+  });
 });
 
 test('関連図：AIの答え（短い名前のJSON）を読み取り、確かめて安全に直してから並べる', () => {
@@ -276,7 +283,10 @@ test('事例1（大腿骨頸部骨折・人工骨頭置換術・84歳）：DVT�
   const map = caseMap('hip_fracture');
   commonChecks(map, '事例1');
   const probs = probLabels(map);
-  ['深部静脈血栓症', '皮膚統合性障害（褥瘡）', '急性混乱（術後せん妄）', '人工骨頭の脱臼', '急性疼痛', '感染リスク'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
+  ['深部静脈血栓症', '皮膚統合性障害（褥瘡）', '急性混乱（術後せん妄）', '人工骨頭脱臼', '急性疼痛', '感染リスク'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
+  // 2026-10-06.21：転倒と人工骨頭の脱臼は原因が違うので、別々の看護問題にする（1つにまとめない）
+  assert.ok(probs.includes('転倒転落リスク状態'), probs.join('、'));
+  assert.ok(!probs.some(p => /転倒/.test(p) && /脱臼/.test(p)), '転倒と脱臼を1つにまとめない');
   assert.ok(probs.indexOf(probs.find(p => /深部静脈/.test(p))) < probs.indexOf(probs.find(p => /疼痛/.test(p))), '血栓（循環）は疼痛より上');
   const osteo = find(map, /骨密度の低下・骨の脆弱化/), fx = map.nodes.find(n => n.type === 'disease');
   assert.ok(osteo && hasEdge(map, osteo, fx));
@@ -659,8 +669,15 @@ test('関連図：看護計画の看護問題の頭の番号（「2.」など）
   const byId = new Map(map.nodes.map(n => [n.id, n]));
   map.edges.filter(e => byId.get(e.target).type === 'nursing_problem').forEach(e => assert.doesNotMatch(byId.get(e.source).label, /血液型|76歳/, '基本情報から看護問題へつながない'));
   const mob = probs.find(p => /身体可動性/.test(p.label));
-  assert.ok(map.edges.some(e => e.target === mob.id && /歩行|移動/.test(byId.get(e.source).label)), '歩行・移動の記録を根拠にする');
-  assert.ok(app.validateRelationMap(map).some(i => i.code === 'similar-problems'));
+  // 2026-10-06.21：同じことを指す「移動能力低下」は看護問題から外し、「身体可動性障害」へ至る途中の状態にする
+  const mid = map.nodes.find(n => n.label === '移動能力低下');
+  assert.equal(mid.type, 'pathophysiology');
+  assert.ok(map.edges.some(e => e.source === mid.id && e.target === mob.id));
+  assert.ok(map.edges.some(e => e.target === mid.id && /歩行|移動/.test(byId.get(e.source).label)), '歩行・移動の記録を根拠にする');
+  assert.ok(!app.validateRelationMap(map).some(i => i.code === 'similar-problems'), 'まとめたのでチェックの知らせは出ない');
+  // 似た看護問題の知らせ自体は残る（手で看護問題を足したとき）
+  const m2 = app.normalizeRelationMap({ version: 2, nodes: [{ id: 'a', type: 'symptom', label: '歩行時ふらつき', x: 0, y: 0 }, { id: 'b', type: 'nursing_problem', label: '身体可動性障害', priority: 1, source: 'plan', x: 300, y: 0 }, { id: 'c', type: 'nursing_problem', label: '移動能力低下', priority: 2, source: 'plan', x: 300, y: 100 }], edges: [{ id: 'e1', source: 'a', target: 'b', relation: 'results_in' }, { id: 'e2', source: 'a', target: 'c', relation: 'results_in' }] });
+  assert.ok(app.validateRelationMap(m2).some(i => i.code === 'similar-problems'));
 });
 
 // 2026-10-06.19：利用者の声「記録から看護問題へ直接は変」「チェックで分かるなら最初からそうして」「矢印の向きを変えたい」
@@ -719,14 +736,67 @@ test('関連図：操作は 作る｜編集｜見る・出す にまとめ、拡
   assert.match(view, /class="rm-zoom-pad"[\s\S]*?data-rm-action="zoom-in"[\s\S]*?data-rm-action="zoom-out"[\s\S]*?data-rm-action="zoom-fit"[\s\S]*?data-rm-action="zoom-100"/);
   assert.match(css, /\.rm-zoom-pad \{ position: absolute; right: 18px; bottom: 18px;/);
   assert.match(src, /else if \(act === 'toggle-more'\)/);
-  assert.match(src, /<details class="rm-help"><summary>四角や矢印（線）を押すと、編集できます/, '案内は1行（くわしくは開いたときだけ）');
+  assert.match(src, /<details class="rm-help"><summary>四角や矢印（線）を押す・右クリックすると、編集できます/, '案内は1行（くわしくは開いたときだけ）');
   // 地の色（画面）と、予測の流れは薄く
   const map = caseMap('gastric_postop');
   const live = app.relationMapSvg(map, { interactive: true });
-  assert.match(live, /<rect class="rm-bg is-paper"[^>]*fill="#F4F2EC"/);
+  assert.match(live, /<rect class="rm-bg is-paper"[^>]*fill="#F5F3EE"/);
   assert.match(app.relationMapSvg(map, {}), /<rect class="rm-bg"[^>]*fill="#FFFFFF"/, '印刷・画像は白');
   const pe = map.edges.find(e => e.predicted);
   assert.ok(pe);
   assert.match(live, /stroke="#A8A29E" stroke-width="1.4" stroke-dasharray="6 4" marker-end="url\(#rm-arrow-pred\)"/);
   assert.match(live, /class="rm-node[^"]* is-pred"/);
+});
+
+// 2026-10-06.21：看護関連図としての評価（7点）と、利用者の声（右クリックで編集・追加、全画面は図の中、色合い・ダークモード）
+test('関連図の評価への対応：治療の線の先は「┤」・線が四角の後ろを通らない・検査は矢印の途中に置かない・転倒と脱臼は別・推論を強くしすぎない', () => {
+  // 治療（鎮痛薬 ┤ 創部痛）は矢印でなく「┤」（抑える）。凡例にも書く
+  const gas = caseMap('gastric_postop');
+  const svg = app.relationMapSvg(gas, {});
+  assert.match(svg, /<marker id="rm-tee-blue"/);
+  assert.doesNotMatch(svg, /url\(#rm-arrow-blue\)/);
+  assert.match(src, /治療 ┤ 治療の対象（抑える・和らげる）/);
+  // 線が途中の四角の後ろを通らない（「加齢による呼吸予備力の低下 → 全身麻酔」に見えていた）
+  ['gastric_postop', 'hip_fracture', 'heart_failure_long', 'aspiration_pneumonia'].forEach(name => {
+    const m = caseMap(name);
+    const rects = m.nodes.map(n => ({ n, ...app.rmRect(n) }));
+    app.rmRouteEdges(m).routes.forEach(r => {
+      if (!r.pts) return;
+      for (let k = 0; k < r.pts.length - 1; k++) {
+        const [a, b] = [r.pts[k], r.pts[k + 1]];
+        if (Math.abs(a[1] - b[1]) >= 0.5) continue;
+        rects.forEach(R => {
+          if ([r.edge.source, r.edge.target].includes(R.n.id) || [r.edge.source, r.edge.target].includes(R.n.attachTo)) return;
+          assert.ok(!(a[1] > R.y1 + 1 && a[1] < R.y2 - 1 && Math.max(a[0], b[0]) > R.x1 + 1 && Math.min(a[0], b[0]) < R.x2 - 1), `${name}: 線が「${R.n.label}」の後ろを通る`);
+        });
+      }
+    });
+  });
+  // 検査データが矢印の途中（A → 検査 → B）にあれば、A → B にして検査は根拠として横に付ける（作った直後に直す）
+  const lm = app.normalizeRelationMap({ version: 2, nodes: [{ id: 'a', type: 'pathophysiology', label: '静脈血のうっ滞', x: 0, y: 0 }, { id: 'l', type: 'lab', label: 'Dダイマー 2.3μg/mL', x: 200, y: 0 }, { id: 'b', type: 'future_risk', label: '深部静脈血栓症の可能性', observed: false, x: 400, y: 0 }], edges: [{ id: 'e1', source: 'a', target: 'l', relation: 'causes' }, { id: 'e2', source: 'l', target: 'b', relation: 'causes', predicted: true }] });
+  assert.ok(app.validateRelationMap(lm).some(i => i.code === 'lab-in-chain'));
+  app.rmApplyFixes(lm, app.validateRelationMap(lm).filter(i => i.code === 'lab-in-chain'));
+  assert.ok(lm.edges.some(e => e.source === 'a' && e.target === 'b'), 'A → B');
+  assert.ok(!lm.edges.some(e => e.target === 'l'), '検査へ入る矢印はない');
+  assert.equal(lm.nodes.find(n => n.id === 'l').attachTo, 'b', '検査は根拠として横（下）に付く');
+  // 推論を強くしすぎない（記録にない「心配」「ふらつく」を言い切らない）
+  assert.doesNotMatch(src, /管が抜けないか心配で動きにくい/);
+  assert.match(src, /step: '全身へ運ぶ酸素が減る（疲れやすさ・ふらつきが出やすい）'/);
+  // 痰が出しにくいことが記録にあれば、実際に起きている「非効果的気道浄化」（リスクと混ぜた名前にしない）
+  assert.doesNotMatch(src, /非効果的気道浄化（無気肺・肺炎のリスク状態）/);
+});
+
+test('関連図：右クリックで編集（四角・矢印）と追加（何もない所）／全画面のボタンは図の中／色合い（患者情報は薄い緑）・ダークモード', () => {
+  assert.match(html, /<div id="rm-ctx" class="rm-ctx hidden" role="menu"/);
+  assert.match(src, /wrap\.addEventListener\('contextmenu', e => \{ if \(!rmMap\(\)\) return; e\.preventDefault\(\); rmShowCtx\(e\); \}\);/);
+  assert.match(src, /if \(act === 'ctx-add'\) rmAddNode\(btn\.dataset\.kind \|\| 'pathophysiology', rmState\.ctxPoint\);/);
+  ['edit-node', 'connect', 'toggle-observed', 'reverse', 'toggle-predicted', 'mid-add', 'why', 'delete'].forEach(a => assert.match(src.slice(src.indexOf('function rmShowCtx'), src.indexOf('function rmHideCtx')), new RegExp(`item\\('${a}'`), a));
+  const view = html.slice(html.indexOf('<div id="view-relation"'), html.indexOf('<div id="view-reference"'));
+  const bar = view.slice(view.indexOf('class="rm-toolbar"'), view.indexOf('id="rm-selection-bar"'));
+  assert.doesNotMatch(bar, /data-rm-action="fullscreen"/, '全画面はツールバーでなく図の中');
+  assert.match(view, /class="rm-zoom-pad"[^>]*>\s*<button type="button" data-rm-action="fullscreen"/);
+  assert.match(src, /document\.querySelector\('\.rm-zoom-pad \[data-rm-action="fullscreen"\]'\)/);
+  assert.match(src, /key: 'patient_fact', label: '患者情報・背景', shape: 'rect', fill: '#EEF4EC'/);
+  assert.match(css, /html\[data-theme="dark"\] \.rm-canvas-wrap \.rm-node\[data-kind="patient_fact"\] \.rm-box \{ fill: #1F2A1F;/);
+  assert.match(css, /html\[data-theme="dark"\] \.rm-canvas-wrap \.rm-link-line\[stroke-dasharray\] \{ stroke: #7A7366; \}/);
 });
