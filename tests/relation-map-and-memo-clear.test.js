@@ -535,3 +535,23 @@ test('関連図：スマホでは関連図のページを開いている間だ�
   // パソコンの画面や、ほかのページでは今までどおり固定する
   assert.match(html, /<header class="[^"]*sticky top-0/);
 });
+
+// 2026-10-06.11：関連図に使える知識集（2021〜2026年の最新のガイドライン）から「＋補足」の知識を追加
+test('関連図：最新のガイドラインを根拠にした「＋補足」が、矢印の間に入る（心不全・誤嚥性肺炎・COPD・術後）', () => {
+  const addedBetween = (map, a, b, re) => map.nodes.some(m => m.added && re.test(m.label) && hasEdge(map, a, m) && hasEdge(map, m, b));
+  const hf = beforeAfter('heart_failure_long').after;
+  assert.ok(addedBetween(hf, find(hf, /^心拍出量の低下・肺うっ血/), find(hf, /^腎血流量の低下/), /アンジオテンシン/), '低心拍出→腎臓がナトリウムと水をためこむ→体液の貯留');
+  assert.ok(hf.nodes.some(m => m.added && /横になると心臓に戻る血液が増え/.test(m.label)), '起座呼吸→肺のうっ血が強まる→眠れない');
+  const asp = beforeAfter('aspiration_pneumonia').after;
+  assert.ok(addedBetween(asp, find(asp, /^88歳/), find(asp, /^嚥下反射・咳反射の低下/), /のどの感覚の低下/), '加齢→のどの感覚の低下→嚥下反射の低下');
+  assert.ok(asp.nodes.some(m => m.added && /炎症で消費エネルギーが増え/.test(m.label)), '肺炎→炎症で消費エネルギーが増える→栄養状態の低下');
+  const copd = beforeAfter('copd_exacerbation_long').after;
+  assert.ok(addedBetween(copd, find(copd, /^気道・肺胞への慢性的な刺激/), find(copd, /COPD/), /肺気腫/), '喫煙の刺激→気道の炎症と肺胞の壊れ→COPD');
+  assert.ok(linked(copd, find(copd, /^末梢気道の閉塞/), find(copd, /^CO2の貯留/)), '気道閉塞→CO2の貯留は今までどおり');
+  assert.ok(!copd.nodes.some(m => m.added && /心臓に戻る血液/.test(m.label)), 'COPDの起座呼吸に心不全の過程を入れない');
+  const colon = beforeAfter('colon_cancer_postop_long').after;
+  assert.ok(colon.nodes.some(m => m.added && /交感神経の緊張と腸の炎症/.test(m.label)), '手術侵襲→交感神経の緊張・腸の炎症→腸の動きの低下');
+  assert.ok(colon.nodes.some(m => m.added && /ウィルヒョウ/.test(m.label)), '手術侵襲→ウィルヒョウの3つの要因→静脈血のうっ滞');
+  // 新しい知識で四角が増えすぎない（上限60個を超えない）
+  [hf, asp, copd, colon].forEach(m => assert.ok(m.nodes.length <= 60, String(m.nodes.length)));
+});
