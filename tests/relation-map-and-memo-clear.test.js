@@ -170,7 +170,7 @@ test('関連図：既往歴の手術（「70歳 PCI施行」）は今回の手�
   const du = find(map, /^利尿薬/);
   assert.equal(du.type, 'treatment');
   assert.ok(map.edges.some(e => e.source === du.id && e.relation === 'treats'));
-  assert.ok(find(map, /脱水・電解質異常/).observed === false);
+  assert.ok(find(map, /過剰な利尿による脱水の可能性/).observed === false);
 });
 
 test('関連図：自動チェック（浮島・重複・相互矢印・治療の向き・予測・根拠・#番号・交差）と自動で直す', () => {
@@ -515,7 +515,7 @@ test('長文事例A（COPD急性増悪・細菌性肺炎・78歳）：気道閉�
 test('長文事例B（S状結腸がん・腹腔鏡下手術・糖尿病）：術後イレウス・DVT（腹部の手術）・高血糖→感染・オピオイド', () => {
   const { after: map, before } = beforeAfter('colon_cancer_postop_long');
   const probs = probLabels(map);
-  ['術後呼吸器合併症', '深部静脈血栓症', '感染リスク', '血糖不安定', '急性疼痛', '栄養摂取量不足', 'セルフケア不足', '便秘リスク'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
+  ['術後肺合併症', '深部静脈血栓症', '感染リスク', '血糖不安定', '急性疼痛', '栄養摂取量不足', '活動耐性低下', '消化管運動機能障害'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
   const il = find(map, /^腸の動き（蠕動運動）の低下/), opi = find(map, /^オピオイド（フェンタニル）/);
   assert.ok(hasEdge(map, opi, il) && hasEdge(map, find(map, /^体動の制限/), il));
   assert.ok(linked(map, il, find(map, /^腹部膨満あり/)) && find(map, /術後イレウス/).observed === false);
@@ -827,9 +827,8 @@ test('長文事例の見直し：長い文はかっこ書きから外して「�
   const into = copd.edges.filter(e => e.target === ds.id).map(e => copd.nodes.find(n => n.id === e.source).label);
   assert.ok(into.some(l => /ガス交換の低下/.test(l)), into.join(' / '));
   const hf = caseMap('heart_failure_long');
-  const el = hf.nodes.find(n => /電解質異常/.test(n.label));
+  const el = hf.nodes.find(n => /低カリウム血症/.test(n.label));
   assert.notEqual(el.observed, false, 'K 3.2↓ が記録にあるので事実');
-  assert.match(el.label, /低K血症/);
   // 治療（楕円）から、検査データが下にくっついた四角への「┤」は、検査データの下の端で止まる（隠れない）
   const by = new Map(copd.nodes.map(n => [n.id, n]));
   const { routes } = app.rmRouteEdges(copd);
@@ -837,4 +836,44 @@ test('長文事例の見直し：長い文はかっこ書きから外して「�
     const bottom = Math.max(...copd.nodes.filter(n => n.attachTo === r.edge.target || n.id === r.edge.target).map(n => app.rmRect(n).y2));
     assert.ok(Math.abs(r.pts[r.pts.length - 1][1] - bottom) < 1, `${by.get(r.edge.source).label} ┤ ${by.get(r.edge.target).label}`);
   });
+});
+
+// 2026-10-06.24：長文事例3つの関連図の評価への対応
+test('関連図の評価（長文事例）：セルフケア不足は介助の記録があるときだけ・気道浄化は分泌物の貯留を通す・血糖は今の高血糖と今後の変動を分ける・Albは看護問題の根拠・イレウスと便秘を分ける・体液量不足リスクと低K血症を分ける', () => {
+  const by = m => new Map(m.nodes.map(n => [n.id, n]));
+  const srcOf = (m, id) => m.edges.filter(e => e.target === id).map(e => by(m).get(e.source));
+  // COPD：清拭・更衣に介助が必要（記録にある）→ セルフケア不足。その記録を図の中に見せる
+  const copd = caseMap('copd_exacerbation_long');
+  const act = copd.nodes.find(n => n.type === 'nursing_problem' && /セルフケア不足/.test(n.label));
+  assert.ok(act && srcOf(copd, act.id).some(n => /介助/.test(n.label)), '介助が要る記録から');
+  // COPD：分泌物の増加 → 気道にたまる → 湿性ラ音 → 非効果的気道浄化。吸引はたまった分泌物に
+  const retain = copd.nodes.find(n => /気道に分泌物がたまる/.test(n.label));
+  assert.ok(retain);
+  assert.ok(copd.edges.some(e => e.relation === 'treats' && e.target === retain.id && /吸引/.test(by(copd).get(e.source).label)));
+  // 血糖：今の高血糖（事実）→ これからの変動の可能性 → 血糖不安定リスク状態
+  const glu = copd.nodes.find(n => /血糖不安定/.test(n.label));
+  assert.ok(srcOf(copd, glu.id).every(n => n.type === 'future_risk' && /変動/.test(n.label)));
+  // 大腸がん術後：介助の記録が無い → 活動耐性低下／イレウスの流れは「消化管運動機能障害リスク状態」／呼吸は「術後肺合併症リスク状態」
+  const colon = caseMap('colon_cancer_postop_long');
+  const probs = colon.nodes.filter(n => n.type === 'nursing_problem').map(n => n.label);
+  assert.ok(probs.some(l => /^活動耐性低下/.test(l)) && !probs.some(l => /セルフケア不足/.test(l)), probs.join('、'));
+  assert.ok(probs.some(l => /消化管運動機能障害リスク状態/.test(l)) && !probs.some(l => /便秘/.test(l)), probs.join('、'));
+  assert.ok(probs.includes('術後肺合併症リスク状態'), probs.join('、'));
+  // Alb は看護問題（栄養摂取量不足）の根拠として付く（食事量の低下の結果としない）。食事量・体重の記録が無ければ「栄養状態の低下」の根拠
+  assert.match(colon.nodes.find(n => n.id === colon.nodes.find(x => x.type === 'lab' && /Alb/.test(x.label)).attachTo).label, /栄養状態の低下/);
+  [copd, caseMap('heart_failure_long')].forEach(m => {
+    const alb = m.nodes.find(n => n.type === 'lab' && /Alb/.test(n.label));
+    const nutr = m.nodes.find(n => n.type === 'nursing_problem' && /栄養摂取量不足/.test(n.label));
+    assert.equal(alb.attachTo, nutr.id);
+  });
+  // 心不全：今は体液量過剰 → 利尿薬 → 過剰な利尿による脱水の可能性 → 体液量不足リスク。低K血症は事実として別
+  const hf = caseMap('heart_failure_long');
+  const dh = hf.nodes.find(n => /体液量不足リスク/.test(n.label));
+  assert.doesNotMatch(dh.label, /電解質/);
+  assert.ok(srcOf(hf, dh.id).some(n => /過剰な利尿による脱水の可能性/.test(n.label)));
+  const hk = hf.nodes.find(n => /低カリウム血症/.test(n.label));
+  assert.notEqual(hk.observed, false);
+  assert.ok(!hf.edges.some(e => e.source === hk.id && e.target === dh.id), '低K血症を体液量不足リスクに混ぜない');
+  // 心不全：清拭は全介助の記録があるので、セルフケア不足のまま
+  assert.ok(hf.nodes.some(n => n.type === 'nursing_problem' && /セルフケア不足/.test(n.label)));
 });

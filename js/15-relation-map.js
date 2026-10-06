@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.23'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.24'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -247,7 +247,7 @@
 
     // ---- 看護問題の分類（優先順位の目安）：生命・呼吸 → 循環 → 合併症（感染など） → 疼痛 → 栄養 → 安全 → 活動 → 睡眠 → 心理・社会 ----
     const RM_PROBLEM_CATEGORIES = [
-      { key: 'resp', rank: 1, re: /気道|呼吸|ガス交換|換気|無気肺|肺炎|排痰|窒息|誤嚥/ },
+      { key: 'resp', rank: 1, re: /気道|呼吸|ガス交換|換気|無気肺|肺炎|肺合併症|排痰|窒息|誤嚥/ },
       { key: 'circ', rank: 2, re: /心拍出|循環|出血|ショック|体液量|組織灌流|不整脈|血栓|塞栓|神経血管/ },
       { key: 'inf', rank: 3, re: /感染/ },
       { key: 'skin', rank: 3.5, re: /皮膚|褥瘡|血糖/ },
@@ -1183,7 +1183,7 @@
         E(sputum, secretion, 'causes', { predicted: !secretionObs, evidence: '出せない痰が気道にたまる' });
         const atel = N('atel', atelObs ? 'symptom' : 'future_risk', atelObs ? '無気肺・肺炎' : '無気肺・肺炎の可能性', { observed: atelObs, source: atelObs ? 'record' : 'knowledge' });
         E(secretion, atel, atelObs ? 'causes' : 'predicts', { predicted: !atelObs, evidence: '分泌物で気道が詰まり肺胞がつぶれる・感染する' });
-        const pResp = N('p_resp', 'nursing_problem', sputumItem ? '非効果的気道浄化' : '術後呼吸器合併症のリスク状態（無気肺・肺炎）', { cat: 'resp' });
+        const pResp = N('p_resp', 'nursing_problem', sputumItem ? '非効果的気道浄化' : '術後肺合併症リスク状態', { cat: 'resp' });
         E(sputum, pResp, 'results_in', { evidence: '排痰困難', predicted: !sputumItem });
         E(atel, pResp, 'results_in', { predicted: !atelObs, evidence: '術後呼吸器合併症の予防が必要' });
         if (spo2 && (spo2.flag || o2Item)) {
@@ -1265,7 +1265,10 @@
             const hg = N('hyperglycemia', 'pathophysiology', 'ステロイドの副作用による高血糖（インスリンの効きが悪くなる）', { source: 'knowledge' });
             E(st, hg, 'causes', { evidence: '糖を作る働きが強まる' });
             E(labNode(g2), hg, 'supports');
-            E(hg, N('p_glu', 'nursing_problem', '血糖不安定リスク状態', { cat: 'skin' }), 'results_in', { predicted: true });
+            // 今ある高血糖（事実）と、これからの血糖の変動（予測）を分ける
+            const gv = N('glu_var', 'future_risk', 'これからも血糖が変動する可能性（高血糖・低血糖）', { source: 'knowledge', observed: false });
+            E(hg, gv, 'predicts', { predicted: true, evidence: '治療・食事量・薬の量の変化で血糖が上下する' });
+            E(gv, N('p_glu', 'nursing_problem', '血糖不安定リスク状態', { cat: 'skin' }), 'results_in', { predicted: true });
           }
         }
         const abx = drugs.find(d => /抗菌|抗生|ペニシリン|セフェム|セファロ|カルバペネム|マクロライド|キノロン|β-?ラクタム/.test(d.cls));
@@ -1274,9 +1277,13 @@
         const sputItem = findLast(/ラ音|水泡音|副雑音|喘鳴/) || findLast(/痰|吸引/);
         if (sputItem) {
           const sp = N('lung_sputum', 'symptom', short(sputItem, 36), { items: [sputItem] });
-          E(lung, sp, 'causes', { evidence: '分泌物が増え気道にたまる' });
+          // 分泌物の増加 → 出しきれず気道にたまる → 湿性ラ音など → 非効果的気道浄化（看護問題の根拠を1段ずつ見せる。
+          // 吸引は「たまった分泌物」に対する治療。関連図の評価への対応：2026-10-06.24）
+          const retain = N('airway_retain', 'pathophysiology', '痰を出しきれず気道に分泌物がたまる', { source: 'knowledge' });
+          E(lung, retain, 'causes', { evidence: '分泌物が増え、咳で出す力が追いつかない' });
+          E(retain, sp, 'causes', { evidence: 'たまった分泌物の音・所見' });
           const suc = findItem(/吸引/);
-          if (suc) E(N('suction', 'treatment', '吸引', { items: [suc] }), sp, 'treats', { evidence: '自力で出せない痰に対して' });
+          if (suc) E(N('suction', 'treatment', '吸引', { items: [suc] }), retain, 'treats', { evidence: '自力で出せない痰に対して' });
           E(sp, N('p_airway', 'nursing_problem', '非効果的気道浄化', { cat: 'resp' }), 'results_in');
         }
         const rr = lab('呼吸数');
@@ -1365,21 +1372,28 @@
         if (surgery && surgeryDone && invasion) E(invasion, hg, 'contributes_to', { evidence: '手術のストレスで血糖が上がる' });
         E(N('dm', 'patient_fact', short(dmItem0, 30), { items: [dmItem0] }), hg, 'causes');
         [glu, a1c].filter(l => l && l.flag === 'high').forEach(l => E(labNode(l), hg, 'supports'));
-        E(hg, N('p_glu', 'nursing_problem', '血糖不安定リスク状態', { cat: 'skin' }), 'results_in', { predicted: true });
+        const gv = N('glu_var', 'future_risk', 'これからも血糖が変動する可能性（高血糖・低血糖）', { source: 'knowledge', observed: false });
+        E(hg, gv, 'predicts', { predicted: true, evidence: '手術の侵襲・食事量・インスリンの量の変化で血糖が上下する' });
+        E(gv, N('p_glu', 'nursing_problem', '血糖不安定リスク状態', { cat: 'skin' }), 'results_in', { predicted: true });
       }
       // ⑥ 利尿薬の今後のリスク
       if (diuretic) {
         const du = N('diuretic', 'treatment', `利尿薬（${diuretic.name}）`);
         if (disease && !edges.some(e => e.source === du.id)) E(du, disease, 'treats');
-        // K が低いと記録にあれば、電解質異常はもう起きている事実（「可能性」の点線にしない。長文事例のテスト：心不全 K 3.2）
+        // 時間の流れを分ける：今は体液量過剰（#体液量過剰）→ 治療の利尿薬 → これから過剰に水分が出る可能性（#体液量不足リスク）。
+        // K が低いと記録にあれば、低K血症はもう起きている事実として別に置き、脱力・ふらつき・不整脈の可能性へつなぐ
+        // （「体液量不足リスク」と実際の低K血症を1つの箱にまとめていた。関連図の評価への対応：2026-10-06.24）
         const k = lab('K');
         const kLow = !!(k && k.flag === 'low');
-        const dehyd = kLow
-          ? N('dehyd', 'pathophysiology', '利尿薬による電解質異常（低K血症）', { source: 'knowledge' })
-          : N('dehyd', 'future_risk', '脱水・電解質異常（低K血症など）の可能性', { source: 'knowledge', observed: false });
-        E(du, dehyd, kLow ? 'causes' : 'predicts', { predicted: !kLow, evidence: '尿量の増加による' });
-        if (k && k.flag) E(labNode(k), dehyd, 'supports', { predicted: !kLow });
-        E(dehyd, N('p_dehyd', 'nursing_problem', '体液量不足リスク状態（利尿薬による脱水・電解質異常）', { cat: 'circ' }), 'results_in', { predicted: true });
+        const dehyd = N('dehyd', 'future_risk', '過剰な利尿による脱水の可能性', { source: 'knowledge', observed: false });
+        E(du, dehyd, 'predicts', { predicted: true, evidence: '尿量の増加による' });
+        E(dehyd, N('p_dehyd', 'nursing_problem', '体液量不足リスク状態（利尿薬による過剰な利尿）', { cat: 'circ' }), 'results_in', { predicted: true });
+        if (kLow) {
+          const hk = N('hypok', 'pathophysiology', '低カリウム血症（カリウムが尿に出る）', { source: 'knowledge' });
+          E(du, hk, 'causes', { evidence: 'カリウムが尿に出る' });
+          E(labNode(k), hk, 'supports', { evidence: '低K血症を示す' });
+          E(hk, N('hypok_eff', 'future_risk', '脱力・ふらつき・不整脈の可能性', { source: 'knowledge', observed: false }), 'predicts', { predicted: true, evidence: '筋肉・心臓の働きに影響する' });
+        } else if (k && k.flag) E(labNode(k), dehyd, 'supports', { predicted: true });
       }
 
       // ⑦ 感染（手術侵襲・ドレーン/カテーテル・糖尿病・炎症反応）
@@ -1424,7 +1438,9 @@
         E(il, sign, 'causes');
         const ileusRisk = N('ileus_risk', 'future_risk', '術後イレウス（腸閉塞）の可能性', { source: 'knowledge', observed: false });
         E(sign, ileusRisk, 'predicts', { predicted: true });
-        E(ileusRisk, N('p_elim', 'nursing_problem', '便秘リスク状態（術後の腸蠕動の低下）', { cat: 'elim' }), 'results_in', { predicted: true });
+        // 流れ（腸の動きの低下 → ガスがたまる → 腹部膨満 → 術後イレウスの可能性）と看護問題の名前をそろえる。
+        // 「便秘」とイレウスは別のもの（関連図の評価への対応：2026-10-06.24）
+        E(ileusRisk, N('p_elim', 'nursing_problem', '消化管運動機能障害リスク状態（術後イレウス）', { cat: 'elim' }), 'results_in', { predicted: true });
       }
 
       // ⑨ 栄養
@@ -1444,14 +1460,19 @@
       }
       if (weightItem || (albL && albL.flag === 'low') || intakeItem) {
         const low = N('undernutrition', 'symptom', [weightItem && short(weightItem, 20), intakeItem && short(intakeItem, 16)].filter(Boolean).join('・') || '栄養状態の低下', { items: [weightItem, intakeItem] });
-        if (albL) E(labNode(albL), low, 'supports', { evidence: '栄養状態を示す' });
+        // Alb は「食事量の低下の結果」ではなく、栄養状態を考える客観データ。食事量・体重の記録があるときは、
+        // 看護問題（栄養摂取量不足）の根拠として横（下）に付ける（関連図の評価への対応：2026-10-06.24）
+        const albToProblem = !!(albL && (weightItem || intakeItem));
+        if (albL && !albToProblem) E(labNode(albL), low, 'supports', { evidence: '栄養状態を示す' });
         if (nutrSign) E(nutrSign, low, 'causes');
         else if (nodes.has('ileus_path')) E(nodes.get('ileus_path'), low, 'causes', { evidence: '食事を進められない' });
         else if (nodes.has('copd_work')) E(nodes.get('copd_work'), low, 'causes', { evidence: '食べると息切れし、呼吸でエネルギーを使う' });
         else if (disease) E(disease, low, 'contributes_to');
         const lowSalt = findItem(/塩分制限|減塩/);
         if (lowSalt && intakeItem && /味がしない|味が薄|おいしくない/.test(intakeItem.text)) E(N('lowsalt', 'treatment', '塩分制限食', { items: [lowSalt] }), low, 'contributes_to', { evidence: '味が薄く食欲が落ちる' });
-        E(low, N('p_nutr', 'nursing_problem', gastric ? '栄養摂取量不足（消化吸収の変化に関連した低栄養状態）' : '栄養摂取量不足', { cat: 'nutr' }), 'results_in');
+        const pNutr = N('p_nutr', 'nursing_problem', gastric ? '栄養摂取量不足（消化吸収の変化に関連した低栄養状態）' : '栄養摂取量不足', { cat: 'nutr' });
+        E(low, pNutr, 'results_in');
+        if (albToProblem) E(labNode(albL), pNutr, 'supports', { evidence: '栄養状態を示す客観データ' });
       } else if (nutrSign) E(nutrSign, N('p_nutr', 'nursing_problem', '栄養摂取量不足（消化吸収の変化に関連）', { cat: 'nutr' }), 'results_in', { predicted: true });
 
       // ⑨-2 貧血（術後の出血など）
@@ -1501,7 +1522,20 @@
         if (pain && painItem) E(pain, mob, 'causes', { evidence: '痛みで動きにくい' });
         if (lineItem && nodes.has('lines')) E(nodes.get('lines'), mob, 'contributes_to', { evidence: '管があり動きにくい' });
         if (nodes.has('paralysis')) E(nodes.get('paralysis'), mob, 'causes', { evidence: '麻痺で体を動かしにくい' });
-        E(mob, N('p_act', 'nursing_problem', 'セルフケア不足（活動制限・体力の低下）', { cat: 'act' }), 'results_in');
+        // 清拭・更衣・排泄などに実際に介助が要る記録があれば「セルフケア不足」。無ければ、根拠があるのは「活動耐性低下」
+        // （「歩くとSpO2が下がる」だけでセルフケア不足にしていた。関連図の評価への対応：2026-10-06.24）
+        const adlItem = findLast(/(?:清拭|更衣|入浴|排泄|整容|洗面|トイレ|身の回り)[^\n]{0,10}(?:全?介助|一部介助|できない|手伝|見守り)|ADL[^\n]{0,6}(?:介助|一部)/, i => notHist(i));
+        const pAct = N('p_act', 'nursing_problem', adlItem ? 'セルフケア不足（活動制限・体力の低下）' : '活動耐性低下（動くと息切れ・体力の低下）', { cat: 'act' });
+        // 介助が要る記録は、図の中に根拠として見せる（「清拭・更衣に介助が必要」が「トイレまで歩くと…」と同じカードにあり、
+        // 図に出ていなかった）。活動の制限 → 介助が要る → セルフケア不足
+        const adlRe = /清拭|更衣|入浴|排泄|整容|洗面|身の回り|ADL|介助/;
+        const adlText = adlItem ? short(adlItem, 30, adlRe) : '';
+        const bedNode = nodes.get('bed');
+        if (adlItem && adlRe.test(adlText) && !(bedNode && bedNode.label === adlText)) {
+          const adl = N('adl', 'symptom', adlText, { items: adlItem === bedItem ? [] : [adlItem] });
+          E(mob, adl, 'causes', { evidence: '動ける範囲が限られる' });
+          E(adl, pAct, 'results_in');
+        } else E(mob, pAct, 'results_in');
         if (nodes.has('ileus_path')) E(mob, nodes.get('ileus_path'), 'contributes_to', { evidence: '動かないと腸の動きも戻りにくい' });
         const hypN = nodes.get('lung_hyp') || nodes.get('hypoxia');
         if (hypN) E(hypN, mob, 'contributes_to', { evidence: '動くと酸素が足りず息切れする' });
@@ -1543,6 +1577,17 @@
         const dis = N('dislocation', 'future_risk', '人工骨頭の脱臼の可能性（脱臼肢位：内転・内旋・過屈曲）', { source: 'knowledge', observed: false });
         E(surgery, dis, 'predicts', { predicted: true });
         E(dis, N('p_disloc', 'nursing_problem', '人工骨頭脱臼のリスク（術後の股関節の動き）', { cat: 'disloc' }), 'results_in', { predicted: true });
+      }
+      // 体液量不足リスクの根拠になる記録（利尿薬の節で四角を先に作ると、夜間頻尿の四角と同じカードを取り合うので、ここでつなぐ）
+      if (nodes.has('dehyd')) {
+        // 根拠になる記録：尿が多い・夜間に何度もトイレ（利尿薬が効いている所見）
+        const urineItem = findItem(/尿量[^\n]{0,12}(?:\d|多|増)/, i => notHist(i)) || findLast(/尿量[^\n]{0,10}(?:\d|多|増)|夜間頻尿|頻尿|夜中に[^\n]{0,6}トイレ|おしっこで[^\n]{0,8}起き/, i => notHist(i));
+        if (urineItem) { const ex = [...nodes.values()].find(n => (n.itemIds || []).includes(urineItem.id)); E(ex || N('urine_obs', 'symptom', short(urineItem, 30, /尿|トイレ|おしっこ/), { items: [urineItem] }), nodes.get('dehyd'), 'contributes_to', { predicted: true, evidence: '尿が多く出ている' }); }
+      }
+      // 低K血症の先（脱力・ふらつき・不整脈の可能性）は、転倒の看護問題があればそこへ、無ければ体液量不足リスクへ
+      if (nodes.has('hypok_eff')) {
+        const tgt = nodes.get('fall_risk_node') || [...nodes.values()].find(n => n.type === 'future_risk' && /転倒/.test(n.label)) || nodes.get('p_fall') || nodes.get('p_dehyd');
+        if (tgt) E(nodes.get('hypok_eff'), tgt, tgt.type === 'nursing_problem' ? 'results_in' : 'contributes_to', { predicted: true, evidence: '力が入りにくく、ふらつきやすい' });
       }
       // ⑫ 睡眠
       const sleepItem = findItem(/眠れ(?:ない|なかった|ず)|不眠|中途覚醒/);
