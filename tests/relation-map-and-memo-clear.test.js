@@ -658,3 +658,48 @@ test('関連図：看護計画の看護問題の頭の番号（「2.」など）
   assert.ok(map.edges.some(e => e.target === mob.id && /歩行|移動/.test(byId.get(e.source).label)), '歩行・移動の記録を根拠にする');
   assert.ok(app.validateRelationMap(map).some(i => i.code === 'similar-problems'));
 });
+
+// 2026-10-06.19：利用者の声「記録から看護問題へ直接は変」「チェックで分かるなら最初からそうして」「矢印の向きを変えたい」
+// 「端で止まるので余裕が欲しい」「文字が左詰めで読みにくい」「検査値の推移と看護計画のタブを逆に」
+test('関連図：看護計画の看護問題は、記録から直接ではなく病態の流れの中から（同じ種類の問題の手前の病態、または＋補足の病態 → 記録 → 問題）', () => {
+  const text = 'A氏 76歳 女性 血液型 A Rh+\n診断名：変形性膝関節症\n入院時\n「膝が痛くて歩くのがつらい」と話す。\n歩行時は杖を使用し、トイレまでの移動に見守りが必要。\nNRS 5';
+  const items = app.classifyTextByRules(text).map((i, k) => ({ ...i, id: `it${k}` }));
+  const plan = (id, order, problem) => ({ id, order, problem, relatedNeeds: [4, 9], records: [] });
+  const map = app.buildRelationMapFromRecord({ id: 'p1', title: 'A氏', sourceText: text, items, carePlans: { a: plan('a', 1, '1. 急性疼痛'), b: plan('b', 2, '2. 身体可動性障害'), c: plan('c', 3, '2. 移動能力低下') }, selectedDiagnosisIds: [], diagnosisCandidates: [] });
+  const byId = new Map(map.nodes.map(n => [n.id, n]));
+  map.nodes.filter(n => n.type === 'nursing_problem').forEach(p => {
+    map.edges.filter(e => e.target === p.id).forEach(e => assert.ok(map.edges.some(x => x.target === e.source), `「${byId.get(e.source).label}」→「${p.label}」の手前にも流れがある`));
+  });
+  // ひな形の同じ種類の看護問題があれば、その手前の病態から枝分かれ（大腿骨頸部骨折）
+  const hipText = fs.readFileSync(path.join(ROOT, 'tests/fixtures/relation-map/hip_fracture.txt'), 'utf8');
+  const hipItems = app.classifyTextByRules(hipText).map((i, k) => ({ ...i, id: `it${k}` }));
+  const hip = app.buildRelationMapFromRecord({ id: 'p2', title: 'B氏', sourceText: hipText, items: hipItems, carePlans: { a: plan('a', 1, '急性疼痛'), b: plan('b', 2, 'セルフケア不足'), c: plan('c', 3, '身体可動性障害') }, selectedDiagnosisIds: [], diagnosisCandidates: [] });
+  const hb = new Map(hip.nodes.map(n => [n.id, n]));
+  const mob = hip.nodes.find(n => n.label === '身体可動性障害');
+  const srcs = hip.edges.filter(e => e.target === mob.id).map(e => hb.get(e.source));
+  assert.ok(srcs.length && srcs.every(n => !['patient_fact', 'lab'].includes(n.type)), srcs.map(n => n.type + ':' + n.label).join(' / '));
+});
+
+test('関連図：作った直後に、チェックで自動で直せるものは直してある（予測 → 事実もない）／交差は「並べ直す」で減るときだけ勧める', () => {
+  ['gastric_postop', 'hip_fracture', 'aspiration_pneumonia', 'cerebral_infarction', 'colon_cancer_postop_long', 'copd_exacerbation_long', 'heart_failure_long'].forEach(name => {
+    const issues = app.validateRelationMap(caseMap(name));
+    const left = issues.filter(i => i.fix && ['isolated', 'duplicate', 'mutual', 'treat-source', 'treat-direction', 'treat-reverse', 'from-problem', 'risk-solid', 'risk-observed', 'edge-to-pred', 'numbering', 'leftward'].includes(i.code));
+    assert.deepEqual(plain(left.map(i => i.code)), [], name);
+    assert.ok(!issues.some(i => i.code === 'pred-to-fact'), `${name}：予測 → 事実`);
+    const cr = issues.find(i => i.code === 'crossing');
+    assert.ok(!cr || !cr.fix, `${name}：作った直後は並べ直しても同じなので勧めない`);
+  });
+  assert.match(src, /function rmAutoFixBuilt\(map\)/);
+});
+
+test('関連図：矢印の向きを逆にする（並べ直して左向きを残さない）・文字はまん中ぞろえ・図のまわりに余白・タブは 看護計画 → 検査値の推移 の順', () => {
+  assert.match(src, /rmBtn\('reverse', '<i class="fa-solid fa-right-left"><\/i> 向きを逆にする', 'btn-primary'\)/);
+  assert.match(src, /else if \(act === 'reverse'\) \{[\s\S]{0,400}layoutRelationMap\(m\);/);
+  assert.match(src, /stroke="transparent" stroke-width="20"/, '線を押しやすく');
+  const svg = app.relationMapSvg(caseMap('gastric_postop'), {});
+  assert.ok(!/<text class="rm-text"(?![^>]*text-anchor="middle")/.test(svg), '文字はまん中ぞろえ');
+  assert.match(src, /<div class="rm-stage">\$\{relationMapSvg\(/);
+  assert.match(css, /\.rm-stage \{ display: inline-block; padding: min\(28vh, 220px\) min\(28vw, 320px\);/);
+  assert.ok(html.indexOf('id="tab-careplan"') < html.indexOf('id="tab-labs"'), '看護計画のタブが先');
+  assert.ok(html.indexOf('id="tab-labs"') < html.indexOf('id="tab-relation"'));
+});

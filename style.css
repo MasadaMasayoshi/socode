@@ -901,6 +901,8 @@
     .rm-canvas-wrap { position: relative; overflow: auto; height: min(72vh, 820px); min-height: 320px; border: 1px solid var(--line); border-radius: var(--radius); background-color: var(--surface);
       background-image: radial-gradient(var(--line-soft) 1px, transparent 1px); background-size: 18px 18px; -webkit-overflow-scrolling: touch; }
     .rm-canvas-wrap:focus { outline: none; }
+    /* 図のまわりの余白：端までドラッグしても少し先まで動かせる（図の外の点の模様の上） */
+    .rm-stage { display: inline-block; padding: min(28vh, 220px) min(28vw, 320px); vertical-align: top; }
     .rm-canvas-wrap svg { display: block; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; } /* 何もない所をドラッグ・スワイプしてボードを動かす */
     .rm-canvas-wrap.is-panning, .rm-canvas-wrap.is-panning * { cursor: grabbing !important; }
     .rm-canvas-wrap .rm-node { cursor: grab; touch-action: none; }
@@ -962,5 +964,5 @@
     .rm-canvas-wrap .rm-svg.rm-focus .rm-link.is-path .rm-link-line { stroke-width: 2.2px; }
     .rm-canvas-wrap .rm-node, .rm-canvas-wrap .rm-link { transition: opacity .15s; }
     .rm-canvas-wrap .rm-link:hover .rm-link-line { stroke-width: 2.4px; }
-    html[data-theme="dark"] .rm-canvas-wrap .rm-band { fill: #1F1C19; }
-    html[data-theme="dark"] .rm-canvas-wrap .rm-band.is-odd { fill: #26221E; }
+    /* 図の下は無地（点の模様が線や四角の後ろに見えて読みにくいため。点は図の外の余白だけ）2026-10-06.19 */
+    html[data-theme="dark"] .rm-canvas-wrap .rm-bg.is-paper { fill: #1F1C19; }
