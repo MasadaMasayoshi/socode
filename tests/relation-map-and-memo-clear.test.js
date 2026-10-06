@@ -314,11 +314,19 @@ test('事例3（心原性脳塞栓症・72歳）：心房細動→血栓→脳�
   assert.ok(!map.nodes.some(n => n.type === 'pathophysiology' && /体動の制限/.test(n.label) && map.edges.some(e => e.target === n.id && /食事/.test(map.nodes.find(x => x.id === e.source).label))), '食事の介助を活動の制限にしない');
 });
 
-test('関連図の見やすさ：看護問題ごとの帯・丸めた曲がり角・選んだ四角の流れだけを濃く・カードの文は要点だけ', () => {
+test('関連図の見やすさ：一体感（帯の色分けなし・疾患は上下のまん中の幹）・丸めた曲がり角・選んだ四角の流れだけを濃く・カードの文は要点だけ', () => {
   const map = caseMap('hip_fracture');
-  assert.ok(map.bands.length >= 5, '看護問題ごとの帯');
+  // 2026-10-06.18：利用者から「一体感がない」。看護問題ごとの帯の背景色はやめ、疾患を上下のまん中に置く
+  assert.deepEqual(plain(map.bands), []);
   const svg = app.relationMapSvg(map, {});
-  assert.match(svg, /<rect class="rm-band/);
+  assert.doesNotMatch(svg, /<rect class="rm-band/);
+  ['gastric_postop', 'hip_fracture', 'heart_failure_long'].forEach(name => {
+    const m = caseMap(name);
+    const dis = m.nodes.find(n => n.type === 'disease');
+    const probs = m.nodes.filter(n => n.type === 'nursing_problem').sort((a, b) => a.priority - b.priority);
+    const top = probs[0], bottom = probs[probs.length - 1];
+    assert.ok(dis.y > top.y && dis.y < bottom.y, `${name}：疾患は #1 と最後の看護問題の間の高さ`);
+  });
   assert.match(svg, / Q-?\d/, '曲がり角を丸める');
   assert.match(src, /svg\.classList\.toggle\('rm-focus', path\.size > 0\)/);
   assert.match(css, /\.rm-svg\.rm-focus \.rm-node:not\(\.is-path\) \{ opacity: \.22; \}/);
@@ -612,4 +620,41 @@ test('関連図：術後・入院2日目以降の記録の四角は治療より�
   assert.match(src, /else if \(act === 'toggle-problems'\) rmSetProblemsOpen\(!rmState\.problemsOpen\);/);
   assert.match(src, /else if \(act === 'goto-problem'\)/);
   assert.match(src, /data-rm-action="goto-problem" data-node-id=/);
+});
+
+// 2026-10-06.18：利用者からの指摘「矢印が左に伸びていると、さかのぼれない」「基本情報からいきなり看護問題（同じ情報が2つ）」
+test('関連図：左向きの矢印を作らない（治療は対象と同じ列のすぐ下・くっつけた検査データの先は親より右）', () => {
+  ['gastric_postop', 'hip_fracture', 'aspiration_pneumonia', 'cerebral_infarction', 'colon_cancer_postop_long', 'copd_exacerbation_long', 'heart_failure_long'].forEach(name => {
+    const map = caseMap(name);
+    const byId = new Map(map.nodes.map(n => [n.id, n]));
+    map.edges.forEach(e => {
+      const s = byId.get(e.source), t = byId.get(e.target);
+      if (s.attachTo === t.id) return;
+      const a = app.rmRect(s), b = app.rmRect(t);
+      assert.ok(b.x2 >= a.x1 - 4, `${name}: 左向き ${s.label} → ${t.label}`);
+      if (e.relation === 'treats') assert.ok(Math.abs(a.cx - b.cx) < 2 && a.y1 > b.y1, `${name}: 治療は対象の真下 ${s.label} → ${t.label}`);
+    });
+    assert.ok(!app.validateRelationMap(map).some(i => i.code === 'leftward'), name);
+  });
+  // 手で動かして左向きになったら、チェックで知らせる
+  const m = app.normalizeRelationMap({ version: 2, nodes: [{ id: 'a', type: 'symptom', label: '痛み', x: 600, y: 0 }, { id: 'b', type: 'nursing_problem', label: '急性疼痛', x: 0, y: 0, priority: 1 }], edges: [{ id: 'e', source: 'a', target: 'b', relation: 'results_in' }] });
+  assert.ok(app.validateRelationMap(m).some(i => i.code === 'leftward'));
+});
+
+test('関連図：看護計画の看護問題の頭の番号（「2.」など）を外し、基本情報（氏名・年齢・血液型）を根拠にしない／似た看護問題はチェックで知らせる', () => {
+  assert.equal(app.rmCleanProblemLabel('2. 身体可動性障害'), '身体可動性障害');
+  assert.equal(app.rmCleanProblemLabel('#3 2. 移動能力低下'), '移動能力低下');
+  assert.equal(app.rmCleanProblemLabel('①不安'), '不安');
+  assert.equal(app.rmCleanProblemLabel('2型糖尿病に関連した血糖不安定リスク状態'), '2型糖尿病に関連した血糖不安定リスク状態');
+  const text = 'A氏 76歳 女性 血液型 A Rh+\n診断名：変形性膝関節症\n入院時\n「膝が痛くて歩くのがつらい」と話す。\n歩行時は杖を使用し、トイレまでの移動に見守りが必要。\nNRS 5';
+  const items = app.classifyTextByRules(text).map((i, k) => ({ ...i, id: `it${k}` }));
+  const plan = (id, order, problem) => ({ id, order, problem, relatedNeeds: [4, 9], records: [] });
+  const map = app.buildRelationMapFromRecord({ id: 'p1', title: 'A氏', sourceText: text, items, carePlans: { a: plan('a', 1, '1. 急性疼痛'), b: plan('b', 2, '2. 身体可動性障害'), c: plan('c', 3, '2. 移動能力低下') }, selectedDiagnosisIds: [], diagnosisCandidates: [] });
+  const probs = map.nodes.filter(n => n.type === 'nursing_problem');
+  probs.forEach(p => assert.doesNotMatch(p.label, /^\d/, p.label));
+  const byId = new Map(map.nodes.map(n => [n.id, n]));
+  map.edges.filter(e => byId.get(e.target).type === 'nursing_problem').forEach(e => assert.doesNotMatch(byId.get(e.source).label, /血液型|76歳/, '基本情報から看護問題へつながない'));
+  const mob = probs.find(p => /身体可動性/.test(p.label));
+  assert.ok(map.edges.some(e => e.target === mob.id && /歩行|移動/.test(byId.get(e.source).label)), '歩行・移動の記録を根拠にする');
+  assert.ok(app.validateRelationMap(map).some(i => i.code === 'similar-problems'));
 });

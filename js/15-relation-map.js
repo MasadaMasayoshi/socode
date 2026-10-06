@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.17'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.18'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -243,12 +243,36 @@
       { key: 'comm', rank: 8.2, re: /コミュニケーション|言語/ },
       { key: 'anx', rank: 9, re: /不安|恐怖|心理|ボディイメージ|知識|コーピング|役割|家族/ }
     ];
+    // 看護問題の言葉ごとに、根拠になりやすい記録の言葉（看護計画の看護問題が、ひな形に無いときに使う）
+    const RM_PROBLEM_EVIDENCE = {
+      act: /歩行|歩け|移動|車椅子|車いす|ベッド上|安静|臥床|筋力|ADL|介助|立位|座位|起き上が|麻痺|骨折|リハビリ|MMT|ふらつ|動け|寝返り/,
+      fall: /転倒|転落|ふらつ|せん妄|夜間.{0,6}トイレ|つまず|見当識/,
+      pain: /痛|NRS|VAS/,
+      nutr: /食事|摂取|食欲|体重|Alb|アルブミン|嚥下|むせ|残食/,
+      sleep: /眠|睡眠|不眠|中途覚醒/,
+      elim: /排便|排尿|便秘|尿|ガス/,
+      anx: /不安|心配|怖|恐|落ち込|眠れない/,
+      resp: /呼吸|SpO2|痰|咳|息切れ|息苦し|喘鳴/,
+      circ: /血圧|脈拍|浮腫|むくみ|出血|Hb|尿量/,
+      inf: /発熱|体温|WBC|CRP|創|ドレーン|カテーテル/,
+      skin: /皮膚|発赤|褥瘡|浮腫|ブレーデン|乾燥/,
+      mgmt: /服薬|飲み忘れ|自己管理|塩分|指導|理解|知識/,
+      comm: /言葉|話せ|失語|構音|聞こえ/
+    };
+    // 看護問題の名前の頭に付いた番号（「#2」「2.」「2）」「①」など）を外す（「#3 2. 身体可動性障害」のように番号が重ならないように）
+    function rmCleanProblemLabel(label) {
+      let t = String(label || '').trim().replace(/^[①-⑳]\s*/, '').normalize('NFKC').trim();
+      for (let k = 0; k < 3; k++) t = t.replace(/^(?:#\s*\d+|看護問題\s*\d*|\d+\s*[.、):]|\(\d+\)|[①-⑳])\s*/, '').trim();
+      return t;
+    }
     function rmProblemCategory(label) { return RM_PROBLEM_CATEGORIES.find(c => c.re.test(String(label || ''))) || { key: 'other', rank: 8.5 }; }
 
     // ---- 並べ方：列（左→右の因果の深さ）と、列の中の上下（重要な看護問題の流れほど上）を決める ----
     function rmFlowEdges(map) {
-      // 治療は「治療の対象」の右に置く（治療 → 対象 の矢印は左向きになる）
-      return map.edges.map(e => e.relation === 'treats' ? { from: e.target, to: e.source } : { from: e.source, to: e.target });
+      // 治療は「治療の対象」と同じ列（対象のすぐ下）に置く。以前は対象の右に置いていたが、治療 → 対象 の矢印が
+      // 左向きになり、利用者から「左向きの矢印では（時間を）さかのぼれない」との声があった（2026-10-06.18）。
+      // 並べるときは「対象 → 治療」の流れとして扱い、深さは同じ（+0）にする（treat: true）。
+      return map.edges.map(e => e.relation === 'treats' ? { from: e.target, to: e.source, treat: true } : { from: e.source, to: e.target });
     }
     const RM_ATTACH_GAP = 0; // 検査データは親の四角にぴったりくっつける
     // 【横長を抑える】1本道の流れ（A→B だけでつながり、B へ入る矢印が A からだけ）は、同じ列に縦に積む（下向きの矢印）。
@@ -294,7 +318,10 @@
       attach.forEach((host, lab) => { if (!hung.has(host)) hung.set(host, []); hung.get(host).push(byId.get(lab)); });
       const blockH = n => rmNodeSize(n).h + (hung.get(n.id) || []).reduce((h, l) => h + rmNodeSize(l).h + RM_ATTACH_GAP, 0);
       const ids = map.nodes.filter(n => !attach.has(n.id)).map(n => n.id);
-      const flows = rmFlowEdges(map).filter(f => byId.has(f.from) && byId.has(f.to) && !attach.has(f.from) && !attach.has(f.to));
+      // くっつけた検査データから出るほかの矢印（体温 → 不感蒸泄 など）は、くっついている親の四角から出るものとして並べる
+      // （先の四角が親より左に置かれ、矢印が左向きになるのを防ぐ）
+      const flows = rmFlowEdges(map).map(f => (attach.has(f.from) && !f.treat ? { ...f, from: attach.get(f.from) } : f))
+        .filter(f => byId.has(f.from) && byId.has(f.to) && f.from !== f.to && !attach.has(f.from) && !attach.has(f.to));
       const out = new Map(ids.map(id => [id, []])), inn = new Map(ids.map(id => [id, []]));
       // 循環（A→B→A）は、深さを決めるときだけ無視する
       const state = new Map();
@@ -311,7 +338,9 @@
       };
       ids.filter(id => !flows.some(f => f.to === id)).concat(ids).forEach(id => { if (!state.get(id)) visit(id); });
       const uniq = new Set();
-      keep.forEach(f => { const k = `${f.from}>${f.to}`; if (uniq.has(k)) return; uniq.add(k); out.get(f.from).push(f.to); inn.get(f.to).push(f.from); });
+      const treatFlow = new Set(); // 「対象 → 治療」（同じ列に置く。深さを足さない）
+      keep.forEach(f => { const k = `${f.from}>${f.to}`; if (f.treat) treatFlow.add(k); if (uniq.has(k)) return; uniq.add(k); out.get(f.from).push(f.to); inn.get(f.to).push(f.from); });
+      const step = (p, id) => (treatFlow.has(`${p}>${id}`) ? 0 : 1);
       // 深さ（いちばん長い道のり）
       const hasFacts = map.nodes.some(n => n.type === 'patient_fact');
       const minRank = n => (n.type === 'patient_fact' || !hasFacts ? 0 : 1);
@@ -323,7 +352,7 @@
       ids.forEach(id => { if (!order.includes(id)) order.push(id); });
       order.forEach(id => {
         const n = byId.get(id);
-        const r = Math.max(minRank(n), ...inn.get(id).map(p => (rank.get(p) ?? 0) + 1));
+        const r = Math.max(minRank(n), ...inn.get(id).map(p => (rank.get(p) ?? 0) + step(p, id)));
         rank.set(id, n.type === 'patient_fact' && !inn.get(id).length ? 0 : r);
       });
       // 矢印の入って来ない四角（検査データなど）は、つながる先のすぐ左に置く（遠くから長い線を引かない＝交差を減らす）
@@ -352,17 +381,46 @@
         return b;
       };
       ids.forEach(id => bandOf(id));
+      // 【一体感】利用者から「関連図に一体感がない」との声（2026-10-06.18）。看護問題ごとの帯に分けて上から積むと、
+      // 小さな図が何枚も重なって見えた。疾患と、半分以上の看護問題へつながる病態（手術侵襲など）を「幹」として
+      // 図の上下のまん中に置き、幹から上下の看護問題の流れへ枝分かれさせる（原因は左から幹へ合流する）。
+      // 帯の番号：看護問題の優先順位。幹は、上半分の看護問題と下半分の看護問題の間（例：#1〜#3 と #4〜#6 の間）
+      const probPri = map.nodes.filter(n => n.type === 'nursing_problem').map(n => n.priority || 999).sort((a, b) => a - b);
+      if (probPri.length >= 3) {
+        const reach = new Map();
+        const reachOf = (id, seenSet = new Set()) => {
+          if (reach.has(id)) return reach.get(id);
+          if (seenSet.has(id)) return new Set();
+          seenSet.add(id);
+          const r = new Set(byId.get(id).type === 'nursing_problem' ? [id] : []);
+          out.get(id).forEach(t => reachOf(t, seenSet).forEach(x => r.add(x)));
+          reach.set(id, r);
+          return r;
+        };
+        ids.forEach(id => reachOf(id));
+        const trunkVal = probPri[Math.ceil(probPri.length / 2) - 1] + 0.5;
+        ids.forEach(id => {
+          const n = byId.get(id);
+          if (n.type === 'nursing_problem') return;
+          if (n.type === 'disease' || reach.get(id).size * 2 >= probPri.length) band.set(id, trunkVal);
+        });
+      }
       // 看護問題へ流れの続かない治療（鎮痛薬 → 創部痛 など）は、治療の対象と同じ帯に置く
       map.edges.forEach(e => { if (e.relation === 'treats' && band.get(e.source) === 999 && band.has(e.target)) band.set(e.source, band.get(e.target)); });
+      // 治療は対象のすぐ下に置くので、対象と同じ帯に入れる（帯が違うと、上下の矢印がほかの四角の上を通る）
+      treatFlow.forEach(k => { const [t, tr] = k.split('>'); if (band.has(t) && byId.get(tr) && byId.get(tr).type === 'treatment') band.set(tr, band.get(t)); });
       // 【横長を抑える】利用者からの要望：「関連図が横長になりすぎている」。以前は因果の深さごとに1列にしていたため、
       // 1本道の長い流れ（「＋補足」をはさむと特に）で列が12〜18個になり、横に長くなっていた。1本道の続き
       // （A の矢印が B だけへ出て、B へ入る矢印が A からだけ。同じ看護問題の帯の中）は、A と同じ列の下に積む。
       // 背景（患者情報）・治療・看護問題は積まない。積んだまとまりを1つの四角として、列・並び順・高さを決め直す。
       const head = new Map(), members = new Map();
+      const treatTargets = new Set([...treatFlow].map(k => k.split('>')[0]));
       const stackable = (u, v) => {
         const nu = byId.get(u), nv = byId.get(v);
         // 治療（楕円）は「治療」の列にまとめて見せるので積まない
         if (!nu || !nv || probIds.has(u) || probIds.has(v) || [nu.type, nv.type].some(t => t === 'patient_fact' || t === 'treatment')) return false;
+        // 治療の対象になる四角の下には治療を置くので、その下へは積まない
+        if (treatTargets.has(u)) return false;
         return out.get(u).length === 1 && inn.get(v).length === 1 && band.get(u) === band.get(v);
       };
       order.forEach(id => {
@@ -378,12 +436,14 @@
       const sInn = new Map(heads.map(h => [h, [...new Set(inn.get(h).map(x => head.get(x)))].filter(x => x !== h)]));
       const sOut = new Map(heads.map(h => [h, [...new Set(out.get(lastOf(h)).map(x => head.get(x)))].filter(x => x !== h)]));
       const hr = new Map();
+      // 積んだまとまり x から h へ：治療の対象 → 治療 の流れだけなら同じ列（+0）、ほかの矢印もあれば右の列（+1）
+      const hstep = (x, h) => (members.get(x).some(m => out.get(m).includes(h) && !treatFlow.has(`${m}>${h}`)) ? 1 : members.get(x).some(m => treatFlow.has(`${m}>${h}`)) ? 0 : 1);
       const phaseOf = h => Math.max(-1, ...members.get(h).map(m => (Number.isInteger(byId.get(m).phase) ? byId.get(m).phase : -1)));
       const rankHeads = floorOf => {
         hr.clear();
         order.filter(id => head.get(id) === id && !probIds.has(id)).forEach(h => {
           const n = byId.get(h), ps = sInn.get(h).filter(x => !probIds.has(x));
-          hr.set(h, n.type === 'patient_fact' && !ps.length ? 0 : Math.max(minRank(n), floorOf(h), ...ps.map(x => (hr.get(x) ?? 0) + 1)));
+          hr.set(h, n.type === 'patient_fact' && !ps.length ? 0 : Math.max(minRank(n), floorOf(h), ...ps.map(x => (hr.get(x) ?? 0) + hstep(x, h))));
         });
       };
       rankHeads(() => 0);
@@ -396,6 +456,7 @@
         if (head.get(h) !== h || probIds.has(h)) return;
         const n = byId.get(h);
         if (n.type === 'patient_fact' || sInn.get(h).length || !sOut.get(h).length) return;
+        if (members.get(h).some(m => treatTargets.has(m))) return; // 治療の対象は、治療と同じ列のまま
         const succ = Math.min(...sOut.get(h).map(t => (probIds.has(t) ? maxHr + 1 : hr.get(t))));
         if (succ - 1 > hr.get(h)) hr.set(h, succ - 1);
       });
@@ -422,6 +483,20 @@
         for (let r = 1; r < cols.length; r++) { sortCol(cols[r], id => sInn.get(id), r === lastRank); setPos(); }
         for (let r = cols.length - 2; r >= 0; r--) { sortCol(cols[r], id => sOut.get(id), false); setPos(); }
       }
+      // 治療（楕円）は、同じ列の「治療の対象」のすぐ下に置く（上向きの短い矢印になる）
+      cols.forEach(c => {
+        const tr = c.filter(e => byId.get(e.id).type === 'treatment' && members.get(e.id).length === 1);
+        tr.forEach(e => {
+          const tgtHeads = [...treatFlow].filter(k => k.endsWith(`>${e.id}`)).map(k => head.get(k.split('>')[0]));
+          const k0 = c.findIndex(x => tgtHeads.includes(x.id));
+          if (k0 < 0) return;
+          c.splice(c.indexOf(e), 1);
+          let k = c.findIndex(x => tgtHeads.includes(x.id));
+          while (k + 1 < c.length && byId.get(c[k + 1].id).type === 'treatment' && tr.includes(c[k + 1])) k++;
+          c.splice(k + 1, 0, e);
+        });
+      });
+      setPos();
       // x：列ごとに、いちばん幅の広い四角に合わせる
       const colX = [];
       let x = 0;
@@ -445,7 +520,7 @@
           let y = top + (bandH - colH[r]) / 2;
           c.forEach(e => { members.get(e.id).forEach((m, k) => { const n = byId.get(m); if (k) y += RM_STACK_GAP; n.y = Math.round(y); y += blockH(n); }); y += RM_ROW_GAP; });
         });
-        if (bandH > 0) { stripes.push({ y1: top - RM_ROW_GAP * 0.9, y2: top + bandH + RM_ROW_GAP * 0.9, p: bv }); top += bandH + RM_ROW_GAP * 2.2; }
+        if (bandH > 0) { stripes.push({ y1: top - RM_ROW_GAP * 0.9, y2: top + bandH + RM_ROW_GAP * 0.9, p: bv }); top += bandH + RM_ROW_GAP * 1.3; }
       });
       // くっつける検査データの位置：親の四角の真下（すき間なし）に、上から順に重ねる
       hung.forEach((labs, hostId) => {
@@ -456,7 +531,8 @@
       const minY = Math.min(...map.nodes.map(n => n.y));
       map.nodes.forEach(n => { n.y = Math.round(n.y - minY); });
       // 看護問題ごとの帯（背景に薄い色を交互に付け、どの流れがどの看護問題のものかを見分けやすくする）
-      map.bands = stripes.filter(st => st.p !== 999).map(st => ({ y1: Math.round(st.y1 - minY), y2: Math.round(st.y2 - minY), p: st.p }));
+      // 看護問題ごとの帯の背景色は付けない（図が横に切れて見え、一体感がなくなるため。2026-10-06.18）
+      map.bands = [];
       // 列の見出し（生活背景・疾患・治療・治療後・看護問題）は、利用者からの要望で出さない（列にとらわれず、時系列と因果で並べる）
       map.headers = [];
       return map;
@@ -786,6 +862,15 @@
       const facts = map.nodes.filter(n => n.type === 'patient_fact').length;
       if (facts > 6) add('info', 'too-many-facts', `患者の背景の四角が${facts}個あります。看護問題につながらないプロフィールは省いてください`);
       if (!probs.length) add('warn', 'no-problem', '看護問題がありません。右端に #1〜 の看護問題を置いてください');
+      // 似た看護問題（同じ種類：「身体可動性障害」と「移動能力低下」など）が2つ以上ある
+      const byCat = new Map();
+      probs.forEach(p => { const c = rmProblemCategory(p.label).key; if (c === 'other') return; if (!byCat.has(c)) byCat.set(c, []); byCat.get(c).push(p); });
+      byCat.forEach(ps => { if (ps.length > 1) add('info', 'similar-problems', `似た看護問題が${ps.length}つあります：${ps.map(p => `「${name(p)}」`).join('・')}。同じことを言っていないか、1つにまとめられないか確かめてください`, { nodeIds: ps.map(p => p.id) }); });
+      // 基本情報（氏名・年齢・血液型など）から、看護問題へ直接の矢印
+      map.edges.forEach(e => { const a = byId.get(e.source), b = byId.get(e.target); if (a && b && b.type === 'nursing_problem' && /血液型|Rh\s*[+\-]|氏\s*\d+\s*歳/.test(String(a.label).normalize('NFKC'))) add('warn', 'basic-to-problem', `基本情報「${name(a)}」から看護問題「${name(b)}」へ直接つながっています。間の病態・症状（例：筋力低下・痛み）を入れるか、根拠になる記録につなぎ直してください`, { edgeIds: [e.id] }); });
+      // 左向きの矢印（結果が原因より左にある。時間をさかのぼって見える）
+      const leftward = map.edges.filter(e => { const a = byId.get(e.source), b = byId.get(e.target); if (!a || !b || a.attachTo === b.id) return false; const ra = rmRect(a), rb = rmRect(b); return rb.x2 < ra.x1 - 4; });
+      if (leftward.length) add('info', 'leftward', `左向きの矢印が${leftward.length}本あります（結果が原因より左にあり、流れをさかのぼって見えます）。「並べ直す」で左から右へそろいます`, { edgeIds: leftward.map(e => e.id), fix: 'relayout' });
       // 11・12 線の交差（交差する所は飛び越えで描く）
       const { bridges } = rmRouteEdges(map);
       if (bridges) add('info', 'crossing', `線の交差が${bridges}か所あります（飛び越え∩で描いています）。「並べ直す」で減らせることがあります`, { fix: 'relayout' });
@@ -1391,22 +1476,33 @@
       // ⑭ 看護計画・選んだ看護診断があれば、その看護問題の名前と順番を使う
       const userProblems = (() => {
         const plans = typeof carePlanList === 'function' ? carePlanList(cp).filter(p => String(p.problem || '').trim()) : [];
-        if (plans.length) return plans.map(p => ({ label: p.problem, needs: p.relatedNeeds || [] }));
+        if (plans.length) return plans.map(p => ({ label: rmCleanProblemLabel(p.problem), needs: p.relatedNeeds || [] }));
         const sel = new Set(cp.selectedDiagnosisIds || []);
-        return (cp.diagnosisCandidates || []).filter(c => sel.has(c.id) && String(c.name || '').trim()).map(c => ({ label: c.name, needs: [] }));
-      })();
+        return (cp.diagnosisCandidates || []).filter(c => sel.has(c.id) && String(c.name || '').trim()).map(c => ({ label: rmCleanProblemLabel(c.name), needs: [] }));
+      })().filter(up => up.label);
+      // 看護問題の根拠にしないカード：氏名・年齢・性別・血液型などの基本情報（「A氏 76歳 女性 血液型 A Rh+」から
+      // いきなり看護問題へ矢印が出ると、病態の流れが途切れて見える。利用者からの指摘：2026-10-06.18）
+      const isBasicInfo = i => (i.fieldLabel && /氏名|基本情報|患者情報|プロフィール|血液型|性別|年齢/.test(i.fieldLabel))
+        || /血液型|Rh\s*[+\-]|^\s*\S{0,6}氏\s*\d+\s*歳|\d+\s*歳\s*(?:男|女)/.test(String(i.text).normalize('NFKC'));
+      const usedEv = new Set();
       const tplProblems = [...nodes.values()].filter(n => n.type === 'nursing_problem');
       const usedTpl = new Set();
       const ordered = [];
       userProblems.forEach(up => {
         const cat = rmProblemCategory(up.label).key;
         const match = tplProblems.find(t => !usedTpl.has(t) && (t.cat === cat || (cat === 'resp' && t.cat === 'resp')));
-        if (match) { usedTpl.add(match); match.label = rmShorten(String(up.label).replace(/^#\s*\d+\s*/, ''), 60); match.source = 'plan'; ordered.push(match); return; }
-        // ひな形に無い看護問題：同じヘンダーソンの欲求のカードから根拠を探す
-        const p = N(`p_user_${ordered.length}`, 'nursing_problem', String(up.label).replace(/^#\s*\d+\s*/, ''), { source: 'plan', max: 60 });
+        if (match) { usedTpl.add(match); match.label = rmShorten(up.label, 60); match.source = 'plan'; ordered.push(match); return; }
+        // ひな形に無い看護問題：問題の言葉に合う記録（歩行・介助・痛み など）と、同じヘンダーソンの欲求のカードから根拠を探す。
+        // 基本情報のカードは使わない。同じ種類の看護問題が2つあるときは、まだ使っていない記録を優先する
+        const p = N(`p_user_${ordered.length}`, 'nursing_problem', up.label, { source: 'plan', max: 60 });
         const needs = new Set((up.needs || []).map(Number));
-        const ev = items.find(i => (i.hendersonIds || []).some(h => needs.has(Number(h))) && (i.type === 's' || rmPositiveMatch(/なし|ない/, i.text) === null));
-        if (ev) E(N(`evn_${p.id}`, 'symptom', `${ev.type === 's' ? 'S：' : ''}${short(ev, 34)}`, { items: [ev] }), p, 'results_in', { evidence: '看護計画の根拠になる記録' });
+        const kw = RM_PROBLEM_EVIDENCE[cat];
+        const score = i => (kw && rmPositiveMatch(kw, i.text) ? 2 : 0) + ((i.hendersonIds || []).some(h => needs.has(Number(h))) ? 1 : 0) - (usedEv.has(i) ? 0.5 : 0);
+        const cands = items.filter(i => !isBasicInfo(i) && notDxS(i) && (i.type === 's' || rmPositiveMatch(/なし|ない/, i.text) === null) && score(i) >= 1);
+        const ev = cands.sort((a, b) => score(b) - score(a))[0];
+        // 同じ記録がすでに図の四角になっていれば、その四角から矢印を引く（同じ情報の四角を2つ作らない）
+        const exist = ev && [...nodes.values()].find(n => n.type !== 'nursing_problem' && (n.itemIds || []).includes(ev.id));
+        if (ev) { usedEv.add(ev); E(exist || N(`evn_${p.id}`, 'symptom', `${ev.type === 's' ? 'S：' : ''}${short(ev, 34, kw)}`, { items: [ev] }), p, 'results_in', { evidence: '看護計画の根拠になる記録' }); }
         else if (disease) E(disease, p, 'contributes_to', { evidence: '看護計画の看護問題（つながりを確かめてください）' });
         ordered.push(p);
       });
@@ -2405,5 +2501,5 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
     if (typeof document !== 'undefined' && document.getElementById && document.getElementById('view-relation')) initRelationMapUi();
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi, rmSetFullscreen, rmPhaseOfItems });
+  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel });
 }
