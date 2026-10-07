@@ -32,7 +32,8 @@ test('各ファイルの版が index.html のファイルごとの版（app-file
     assert.equal(manifest[f].version, m[2], `${f} の版（scripts/file-versions.json）`);
     assert.ok(m[2].localeCompare(expected, undefined, { numeric: true }) <= 0, `${f} の版は全体の版より新しくない`);
   });
-  assert.ok(Object.values(perFile).includes(expected), '今回の版で上げたファイルが少なくとも1つある');
+  // style.css など js 以外のファイルだけを上げた版も許す（manifest に今回の版のファイルがあればよい）
+  assert.ok(Object.values(perFile).includes(expected) || Object.values(manifest).some(v => v.version === expected), '今回の版で上げたファイルが少なくとも1つある');
   assert.match(fs.readFileSync(path.join(ROOT, 'js', '10-reference-page-and-startup.js'), 'utf8'), /versions\[id\] !== \(perFile\[id\] \|\| expected\)/);
 });
 

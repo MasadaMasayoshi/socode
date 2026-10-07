@@ -1197,3 +1197,22 @@
   .rm-toolbar .rm-group-sep { border-left: 0; padding-left: 0; }
   .rm-add-kind { max-width: 100%; }
 }
+
+/* いろいろな機種向け：①切り欠き・ホームバーのある画面の端（iPhone・iPad）に内容が隠れない ②文字の自動拡大を止める
+   ③幅320px（小さい機種）でもはみ出さない ④指で押す端末（pointer: coarse）では押す所を小さくしすぎない
+   ⑤iPhone/iPadは16px未満の入力欄を押すと画面が勝手に拡大されるので、幅767px以下では入力欄を16pxにする */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); padding-bottom: env(safe-area-inset-bottom); }
+@media (max-width: 420px) {
+  .cp-top-actions > .btn { white-space: normal; min-width: 0; line-height: 1.25; }
+  #view-reference .flex.items-center.gap-1\.5 { flex-wrap: wrap; justify-content: center; }
+  #view-reference .btn { white-space: normal; }
+}
+@media (max-width: 767px) and (pointer: coarse) {
+  input:not([type=checkbox]):not([type=radio]), textarea, select { font-size: 16px !important; }
+}
+@media (pointer: coarse) {
+  button, select, summary, [role=button] { min-height: 30px; }
+  button:not(.tab-pill):not(.card-menu-btn):not(.rm-tiny), .btn { min-width: 30px; }
+  .card-menu-btn { min-width: 34px; min-height: 34px; }
+}
