@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.14'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.15'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -763,7 +763,10 @@
         if (d) {
           const right = d > 0;
           const sx = right ? a.x2 : a.x1, tx = right ? b.x1 : b.x2;
-          const sy = a.cy, ty = b.cy;
+          // 【左へ向かう矢印・行き来する矢印を見やすく】左へ向かう線は、受ける側の右端で「その四角から右へ出る線」と同じ点に重なり、
+          // 矢じりがどちらの線のものか見分けにくかった。左向きは少し下の高さで出入りし、A→B と B→A がある2本は上下に分ける（2026-10-07.15）
+          const lane = (d < 0 ? 7 : 0) + (map.edges.some(o => o.source === e.target && o.target === e.source) ? (e.source < e.target ? -6 : 6) : 0);
+          const sy = a.cy + lane, ty = b.cy + lane;
           // 同じ高さならまっすぐ。ただし途中の四角の後ろを通るときは回り込む（「加齢による呼吸予備力の低下」からの線が
           // 「全身麻酔」の楕円を通り抜け、麻酔の原因のように見えていた。2026-10-06.21）
           if (Math.abs(sy - ty) < 2 && !rmHitsRects({ y: sy, a: sx, b: tx }, rects, new Set([e.source, e.target]))) { routes.push({ edge: e, pts: [[sx, sy], [tx, ty]] }); return; }
