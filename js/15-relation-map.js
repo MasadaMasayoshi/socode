@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.38'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.40'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -885,7 +885,7 @@
             const lo = Math.min(x1, x2) + RM_BRIDGE_R + RM_CORNER_R + 2, hi = Math.max(x1, x2) - RM_BRIDGE_R - RM_CORNER_R - 2; // 曲がり角の丸みと重ならない所だけ
             verticals.forEach(v => {
               if (v.ri === ri || routes[v.ri].edge.target === r.edge.target || routes[v.ri].edge.source === r.edge.source) return; // 同じ所へ合流・同じ所から分岐する線は交差ではない
-              if (turnPoints.some(t => t.ri !== ri && Math.abs(t.x - v.x) < 1.5 && Math.abs(t.y - y1) < 1.5)) return;
+              if (turnPoints.some(t => t.ri !== ri && Math.abs(t.x - v.x) < 22 && Math.abs(t.y - y1) < 1.5)) return; // 別の線が同じ高さで合流・分岐する所の近くは、飛び越えない（飛び越えと曲がり角が重なって線が二重に見える）
               if (v.x > lo && v.x < hi && y1 > v.a + 1 && y1 < v.b - 1) seg.cross.push(v.x);
             });
             seg.cross.sort((p, q) => (x2 > x1 ? p - q : q - p));
@@ -1277,7 +1277,15 @@
       const notSurgeryLine = i => !/^【?\s*(?:予定)?(?:術式|手術(?:名|予定)?)\s*】?\s*[:：]/.test(String(i.text || '').normalize('NFKC')) && !/^(?:予定)?術式$/.test(i.fieldLabel || '');
       const dxItems = items.filter(i => i.fieldLabel && /^(?:診断名|病名|主病名|疾患名|主診断)$/.test(i.fieldLabel) && notSurgeryLine(i));
       const dxText = dxItems.length ? dxItems : items.filter(i => /^【?(?:診断名?|病名|疾患名)】?\s*[:：]/.test(String(i.text).normalize('NFKC')) && notSurgeryLine(i));
-      const disease = dxText[0] ? N('disease', 'disease', String(dxText[0].text).normalize('NFKC').replace(/^【?(?:診断名?|病名|疾患名)】?\s*[:：]\s*/, ''), { items: [dxText[0]] }) : null;
+      // 診断名の欄に「予定術式：…」まで入っているときは、術式の部分を外す。診断名が残らなければ、記録の中のがんの病名を探す
+      const cleanDx = t => String(t).normalize('NFKC').replace(/^【?(?:診断名?|病名|疾患名)】?\s*[:：]\s*/, '').replace(/[\s、,，]*[（(]?\s*(?:予定)?(?:術式|手術名?)\s*[:：][\s\S]*$/, '').trim();
+      let dxLabel0 = dxText[0] ? cleanDx(dxText[0].text) : '';
+      let dxHost = dxText[0] || null;
+      if (dxText[0] && !dxLabel0) {
+        const cancerItem = items.find(i => /(?:胃|大腸|結腸|直腸|肝|膵|肺|乳腺|食道|前立腺|子宮|卵巣)(?:がん|癌)/.test(String(i.text).normalize('NFKC')) && notSurgeryLine(i));
+        if (cancerItem) { dxHost = cancerItem; dxLabel0 = ((String(cancerItem.text).normalize('NFKC').match(/(?:胃|大腸|結腸|直腸|肝|膵|肺|乳腺|食道|前立腺|子宮|卵巣)(?:がん|癌)[^、。\n]{0,30}/) || [])[0] || '').trim(); }
+      }
+      const disease = dxHost && dxLabel0 ? N('disease', 'disease', dxLabel0, { items: [dxHost] }) : null;
       const dxLabel = disease ? disease.label : '';
       // ② 背景・要因（疾患の成り立ち）
       const historyText = items.filter(i => /既往|生活歴|嗜好|喫煙|飲酒/.test(`${i.fieldLabel || ''}${i.text}`)).map(i => i.text).join('\n');
