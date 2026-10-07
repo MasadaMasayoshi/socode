@@ -89,3 +89,23 @@ test('判定（明確な誤り／分類基準次第／原文確認が必要）�
   const src = fs.readFileSync(path.join(__dirname, '..', 'js', '08-assessment-tools.js'), 'utf8');
   assert.match(src, /x\.verdict === 'error' \? `\$\{section\}:\$\{k\}`/, 'まとめて適用は明確な誤りだけ');
 });
+
+test('不必要なタグ追加の提案は出さない：根拠が原文に無いタグ追加は表示せず、未設定カードのタグ提案は「要確認」にする', () => {
+  const source = '「体重かけても大丈夫なの？怖い」となかなか荷重かけられず\n足背動脈触知良好、左右差なし';
+  const result = app.parseAiReviewJson(JSON.stringify({
+    tagIssues: { summary: '', items: [
+      { card: 'C1', current: [4], suggested: [4, 12], reason: '今後の役割', evidence: '', verdict: 'error' },
+      { card: 'C1', current: [4], suggested: [4, 12], reason: 'x', evidence: '仕事に戻りたい', verdict: 'error' },
+      { card: 'C1', current: [4, 9], suggested: [4], reason: '外す', evidence: '', verdict: 'error' },
+      { card: 'C1', current: [4], suggested: [4, 9], reason: '怖い', evidence: '「体重かけても大丈夫なの？怖い」', verdict: 'criteria' }] },
+    timeline: { summary: '', items: [] }, extractionIssues: { summary: '', items: [] },
+    untagged: { summary: '', items: [{ card: 'C2', suggested: [9], reason: '循環', evidence: '', verdict: 'error' }, { card: 'C3', suggested: [9], reason: '循環', evidence: '足背動脈触知良好', verdict: 'criteria' }] }
+  }));
+  app.filterAiReviewResult(result, source, {});
+  assert.equal(result.tagIssues.length, 2, '根拠が無い・原文に無いタグ追加は消え、タグを外す提案と根拠のある追加は残る');
+  assert.deepEqual(Array.from(result.tagIssues.map(x => x.verdict)), ['error', 'criteria']);
+  assert.match(result.tagSummary, /2件は表示しません/);
+  assert.deepEqual(Array.from(result.untagged[0].suggested), [], '根拠が無い未設定カードのタグ提案は付けない');
+  assert.equal(result.untagged[0].verdict, 'check');
+  assert.deepEqual(Array.from(result.untagged[1].suggested), [9], '根拠が原文にあれば残す');
+});

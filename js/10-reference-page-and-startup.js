@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-10-06.15'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-10-07.19'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 参考データ ページ：看護基準・院内プロトコル等をユーザーが自由に登録・編集できる。
     // 「不足情報をAI推定」の判断材料としても使われる（evaluateMissingInfoAI 参照）。
@@ -582,7 +582,7 @@ if (typeof module !== 'undefined' && module.exports) {
     GASTRIC_POSTOP_EXPECTED_CHECKS,
     LAB_ALIAS_FALLBACK_TESTS,
     LAB_ITEM_NAME_REGEX,
-    parseAiReviewJson, buildAiReviewPrompt, buildAiReviewMarkdown,
+    parseAiReviewJson, buildAiReviewPrompt, buildAiReviewMarkdown, filterAiReviewResult, aiReviewEvidenceFound,
     normalizeApiKey, detectApiKeyKind, geminiEndpointOrder, describeGeminiError, isEndpointMismatch, requestGemini, testGeminiConnection, GEMINI_ENDPOINTS, chooseBestFlashModel, isGeminiModelProblem,
     nextDayLabel, normalizeDayLabel, extractDayLabelFromHeading, timestampDayPart, timestampClockPart, groupItemsByDay, assessmentDayGroups, isAssessmentBackgroundItem, assessmentDisplayOrder, dayRank, groupItemsByScene, assessmentSceneKey, applySceneTagInheritance, expandCombinedLabItems,
     LAB_VALUE_TEST_REGEX,

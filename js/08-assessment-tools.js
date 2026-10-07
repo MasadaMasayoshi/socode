@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-07.18'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-07.19'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -1393,7 +1393,7 @@ ${(cp.sourceText || '').slice(0, 20000)}
 ${cardLines}
 
 【評価のルール（誤った指摘を出さないために、必ず守る）】
-A. 原文の事実と推測を分ける。各指摘の evidence に、根拠にした原文の文（分類前の文章からの引用）を書く。原文に直接の根拠が無い提案は出さない（「〜にも関わる」「波及する」といった一般論や推測だけでタグを足さない。そうした助言は advice に書く）。
+A. 原文の事実と推測を分ける。タグを増やす提案には evidence（原文の引用）が必須で、引用が分類前の文章に無い提案は、アプリが表示しない。各指摘の evidence に、根拠にした原文の文（分類前の文章からの引用）を書く。原文に直接の根拠が無い提案は出さない（「〜にも関わる」「波及する」といった一般論や推測だけでタグを足さない。そうした助言は advice に書く）。
 B. 各指摘に verdict を付ける。error＝明確な誤り（原文・基準ノートで確実に言える）／criteria＝分類基準次第（基準ノート・アプリの分類基準でどちらにも言える）／check＝原文確認が必要（原文だけでは決められない・原文どうしが食い違う）。迷ったら criteria か check にする。
 C. タグ：suggested は、そのカードの文に直接の根拠（語句・内容）があるものだけ。今のタグを増やす提案は、追加するタグごとに根拠の語句を reason に引用する。
 D. 未設定のカード：基準ノートやアプリの分類基準で当てはまるか分からない項目（例：生殖・出産歴・閉経、足背動脈の触知など）は、タグを断定しない。suggested を空にし、verdict を check にして reason に「要確認」と書く。
@@ -1463,6 +1463,31 @@ H. この評価は患者データへ一括適用される前提で書かない�
         untaggedSummary: untagSec.summary
       };
     }
+    // 【不必要なタグ追加の提案を出さない】利用者の指摘：「不必要に分類したタグ付けするように修正案が出る」。
+    // タグを増やす提案は、根拠にした原文の文（evidence）が分類前の文章に実在するときだけ残す。根拠が無い・原文に無い提案は
+    // 表示しない（件数だけ総評に書く）。未設定カードのタグ提案は、根拠が無ければ「要確認」にしてタグを付けない。
+    function aiReviewEvidenceFound(evidence, sourceText) {
+      const norm = t => String(t || '').normalize('NFKC').replace(/[\s「」『』（）()"'“”]/g, '');
+      const src = norm(sourceText);
+      const pieces = String(evidence || '').normalize('NFKC').split(/[／\/…・、。，,;；\n]/).map(norm).filter(x => x.length >= 3);
+      return pieces.some(x => src.includes(x));
+    }
+    function filterAiReviewResult(result, sourceText, cardTags) {
+      let dropped = 0, demoted = 0;
+      result.tagIssues = result.tagIssues.filter(x => {
+        const cur = (x.current && x.current.length) ? x.current : ((cardTags && cardTags[x.card]) || []);
+        const added = x.suggested.filter(h => !cur.includes(h));
+        if (!added.length) return true; // タグを外す・変えない提案は残す
+        if (aiReviewEvidenceFound(x.evidence, sourceText)) return true;
+        dropped++; return false;
+      });
+      result.untagged.forEach(x => {
+        if (x.suggested.length && !aiReviewEvidenceFound(x.evidence, sourceText)) { x.suggested = []; x.verdict = 'check'; x.reason = `${x.reason ? x.reason + '（' : ''}原文に根拠が確かめられないため、タグは提案しません。要確認${x.reason ? '）' : ''}`; demoted++; }
+      });
+      if (dropped) result.tagSummary = `${result.tagSummary ? result.tagSummary + ' ' : ''}（原文に根拠が確かめられない、タグを増やす提案${dropped}件は表示しません）`;
+      if (demoted) result.untaggedSummary = `${result.untaggedSummary ? result.untaggedSummary + ' ' : ''}（根拠が確かめられないタグ提案${demoted}件は「要確認」にしました）`;
+      return result;
+    }
     // 評価したときのカードの一覧（〔C番号〕→カードのid）。カードが後で消えた・変わった場合は「適用」できない
     function aiReviewItemOf(cp, review, codeStr) {
       const id = review && review.codes ? review.codes[codeStr] : null;
@@ -1493,6 +1518,9 @@ H. この評価は患者データへ一括適用される前提で書かない�
         const result = parseAiReviewJson(text);
         const codes = {};
         ev.byCode.forEach((c, k) => { codes[k] = c.id; });
+        const cardTags = {};
+        ev.byCode.forEach((c, k) => { const it = items.find(i => i.id === c.id); cardTags[k] = (it && it.hendersonIds) || []; });
+        filterAiReviewResult(result, cp.sourceText, cardTags);
         cp.aiReview = { at: new Date().toISOString(), result, codes, applied: {} };
         // 【レビューで発見】以前は評価の途中で患者を切り替えると、結果は元の患者に入るのに、保存・共有先への送信は
         // 切り替え先の患者の分だけ行われていた。ほかのAIと同じく finishAiResult で、頼んだ患者に保存する。
