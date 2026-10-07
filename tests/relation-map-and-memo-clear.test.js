@@ -84,7 +84,7 @@ const linked = (map, a, b) => hasEdge(map, a, b) || map.nodes.some(m => m.added 
 test('関連図：事実図ではなく、病態の中間過程を補い、複数の原因が #1 呼吸の問題へ合流する（胃全摘・術後）', () => {
   const map = app.buildRelationMapFromRecord(patientOf(GASTRIC));
   const p1 = map.nodes.find(n => n.type === 'nursing_problem' && n.priority === 1);
-  assert.match(p1.label, /痰をうまく出せず/);
+  assert.match(p1.label, /非効果的気道浄化/);
   const smoke = find(map, /^喫煙/), anes = find(map, /全身麻酔・気管内挿管/), pain = find(map, /^創部痛（NRS 2）/), fev = find(map, /FEV1% 69\.33%/);
   [smoke, anes, pain, fev].forEach(n => assert.ok(n && reaches(map, n, p1), `${n && n.label} → #1`));
   // 中間過程（深呼吸・咳嗽の抑制 → 排痰困難）と、予測（破線）の無気肺・肺炎
@@ -164,11 +164,11 @@ test('関連図：看護計画があれば、その看護問題の名前と順�
 
 test('関連図：既往歴の手術（「70歳 PCI施行」）は今回の手術にしない。心不全は病態→症状→看護問題につながる', () => {
   const map = app.buildRelationMapFromRecord(hfPatient());
-  assert.ok(!map.nodes.some(n => /痰をうまく出せず|手術侵襲/.test(n.label)));
+  assert.ok(!map.nodes.some(n => /非効果的気道浄化|手術侵襲/.test(n.label)));
   const hf = find(map, /心拍出量の低下・肺うっ血/);
   const dx = map.nodes.find(n => n.type === 'disease');
   assert.ok(hasEdge(map, dx, hf));
-  const gas = find(map, /酸素を十分に取り込めず/), fluid = find(map, /体に水分がたまり/);
+  const gas = find(map, /ガス交換障害/), fluid = find(map, /体液量過剰/);
   assert.ok(gas && fluid && reaches(map, hf, gas) && reaches(map, hf, fluid));
   const du = find(map, /^利尿薬/);
   assert.equal(du.type, 'treatment');
@@ -287,11 +287,11 @@ test('事例1（大腿骨頸部骨折・人工骨頭置換術・84歳）：DVT�
   const map = caseMap('hip_fracture');
   commonChecks(map, '事例1');
   const probs = probLabels(map);
-  ['肺塞栓を起こすおそれ', '褥瘡（床ずれ）ができている', '術後せん妄があり', '人工骨頭が脱臼', '手術の傷の痛み', '感染を起こすおそれ'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
+  ['深部静脈血栓症', '皮膚統合性障害（褥瘡）', '急性混乱（術後せん妄）', '人工骨頭脱臼', '急性疼痛', '感染リスク'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
   // 2026-10-06.21：転倒と人工骨頭の脱臼は原因が違うので、別々の看護問題にする（1つにまとめない）
-  assert.ok(probs.includes('転倒・転落の危険性がある'), probs.join('、'));
+  assert.ok(probs.includes('転倒転落リスク状態'), probs.join('、'));
   assert.ok(!probs.some(p => /転倒/.test(p) && /脱臼/.test(p)), '転倒と脱臼を1つにまとめない');
-  assert.ok(probs.indexOf(probs.find(p => /血栓/.test(p))) < probs.indexOf(probs.find(p => /痛み/.test(p))), '血栓（循環）は疼痛より上');
+  assert.ok(probs.indexOf(probs.find(p => /深部静脈/.test(p))) < probs.indexOf(probs.find(p => /疼痛/.test(p))), '血栓（循環）は疼痛より上');
   const osteo = find(map, /骨密度の低下・骨の脆弱化/), fx = map.nodes.find(n => n.type === 'disease');
   assert.ok(osteo && hasEdge(map, osteo, fx));
   assert.ok(!map.nodes.some(n => /腹腔内感染/.test(n.label)), '股関節の手術で腹腔内感染とは書かない');
@@ -305,9 +305,9 @@ test('事例2（誤嚥性肺炎・88歳・手術なし）：炎症→痰→気�
   const map = caseMap('aspiration_pneumonia');
   commonChecks(map, '事例2');
   const probs = probLabels(map);
-  assert.deepEqual(plain(probs.slice(0, 3)), ['痰をうまく出せず、気道に分泌物がたまっている', '酸素を十分に取り込めず、息苦しさがある', '体の水分が足りず、脱水がある']);
+  assert.deepEqual(plain(probs.slice(0, 3)), ['非効果的気道浄化', 'ガス交換障害', '体液量不足（脱水）']);
   // 2026-10-06.25：むせが記録にある → 今ある「嚥下障害」（誤嚥リスク状態にしない）
-  assert.ok(probs.includes('うまく飲み込めず、むせがある') && !probs.includes('誤嚥（食べ物・唾液が気管に入る）のおそれがある'), probs.join('、'));
+  assert.ok(probs.includes('嚥下障害') && !probs.includes('誤嚥リスク状態'), probs.join('、'));
   const dx = map.nodes.find(n => n.type === 'disease');
   const abx = find(map, /^抗菌薬（アンピシリン/), o2 = find(map, /^酸素投与（鼻カニュラ酸素2L\/分）$/), suc = find(map, /^吸引$/);
   assert.ok(abx && map.edges.some(e => e.source === abx.id && e.target === dx.id && e.relation === 'treats'));
@@ -322,7 +322,7 @@ test('事例3（心原性脳塞栓症・72歳）：心房細動→血栓→脳�
   const map = caseMap('cerebral_infarction');
   commonChecks(map, '事例3');
   const probs = probLabels(map);
-  ['うまく飲み込めず、むせがある', '出血するおそれ', '血糖が上がったり', '転倒・転落の危険性がある', '言葉で思いを伝えにくい', '身の回りのこと', '自分で体を動かす・歩くことが難しい'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
+  ['嚥下障害', '出血リスク状態', '血糖不安定リスク状態', '転倒転落リスク状態', '言語的コミュニケーション障害', 'セルフケア不足', '身体可動性障害'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
   const clot = find(map, /心房内の血栓/), dx = map.nodes.find(n => n.type === 'disease'), lesion = find(map, /脳の血流の途絶/);
   assert.ok(hasEdge(map, clot, dx) && hasEdge(map, dx, lesion));
   ['麻痺', '失語'].forEach(w => assert.ok(map.edges.some(e => e.source === lesion.id && map.nodes.find(n => n.id === e.target).label.includes(w)), w));
@@ -506,7 +506,7 @@ const beforeAfter = name => {
 test('長文事例A（COPD急性増悪・細菌性肺炎・78歳）：気道閉塞・CO2貯留・ステロイドの高血糖・呼吸のエネルギーと栄養', () => {
   const { after: map } = beforeAfter('copd_exacerbation_long');
   const probs = probLabels(map);
-  ['痰をうまく出せず、気道に分泌物がたまっている', '酸素を十分に取り込めず', '血糖が上がったり', '眠れていない', '栄養が足りて', '身の回りのこと', '不安'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
+  ['非効果的気道浄化', 'ガス交換障害', '血糖不安定', '睡眠', '栄養摂取量不足', 'セルフケア不足', '不安'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
   const obst = find(map, /末梢気道の閉塞/), co2 = find(map, /CO2の貯留/), paco2 = find(map, /PaCO2/);
   assert.ok(hasEdge(map, obst, co2) && paco2.attachTo === co2.id, 'PaCO2 は CO2貯留にくっつく');
   const st = find(map, /^ステロイド（プレドニゾロン30mg）/), hg = find(map, /ステロイドの副作用による高血糖/);
@@ -521,7 +521,7 @@ test('長文事例A（COPD急性増悪・細菌性肺炎・78歳）：気道閉�
 test('長文事例B（S状結腸がん・腹腔鏡下手術・糖尿病）：術後イレウス・DVT（腹部の手術）・高血糖→感染・オピオイド', () => {
   const { after: map, before } = beforeAfter('colon_cancer_postop_long');
   const probs = probLabels(map);
-  ['無気肺・肺炎を起こすおそれ', '肺塞栓を起こすおそれ', '感染を起こすおそれ', '血糖が上がったり', '手術の傷の痛み', '栄養が足りて', '活動を続けられない', '腸の動きが弱まり', '便秘がある'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
+  ['術後呼吸器合併症', '静脈血栓塞栓症', '感染リスク', '血糖不安定', '急性疼痛', '栄養摂取量不足', '活動耐性低下', '消化管運動機能障害', '便秘'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
   const il = find(map, /^腸の動き（蠕動運動）の低下/), opi = find(map, /^オピオイド（フェンタニル）/);
   assert.ok(hasEdge(map, opi, il) && hasEdge(map, find(map, /^体動の制限/), il));
   assert.ok(linked(map, il, find(map, /^腹部膨満あり/)) && find(map, /術後イレウス/).observed === false);
@@ -535,7 +535,7 @@ test('長文事例B（S状結腸がん・腹腔鏡下手術・糖尿病）：術
 test('長文事例C（慢性心不全の急性増悪・84歳・独居）：増悪の誘因（塩分・飲み忘れ）・利尿薬→夜間頻尿→転倒/睡眠・塩分制限食と食欲', () => {
   const { after: map, before } = beforeAfter('heart_failure_long');
   const probs = probLabels(map);
-  ['酸素を十分に取り込めず', '体に水分がたまり', '脱水になるおそれ', '転倒・転落', '眠れていない', '栄養が足りて', '身の回りのこと', '内服を続けることが難しい'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
+  ['ガス交換障害', '体液量過剰', '体液量不足リスク', '転倒転落', '睡眠', '栄養摂取量不足', 'セルフケア不足', '健康自主管理'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
   assert.ok(find(map, /^呼吸困難あり、起座呼吸/), '入院後の観察（現病歴の文ではなく）');
   assert.ok(find(map, /^両下腿に圧痕性浮腫/));
   const trig = find(map, /塩分・水分の過剰や内服の中断/);
@@ -850,39 +850,39 @@ test('関連図の評価（長文事例）：セルフケア不足は介助の�
   const srcOf = (m, id) => m.edges.filter(e => e.target === id).map(e => by(m).get(e.source));
   // COPD：清拭・更衣に介助が必要（記録にある）→ セルフケア不足。その記録を図の中に見せる
   const copd = caseMap('copd_exacerbation_long');
-  const act = copd.nodes.find(n => n.type === 'nursing_problem' && /身の回りのこと/.test(n.label));
+  const act = copd.nodes.find(n => n.type === 'nursing_problem' && /セルフケア不足/.test(n.label));
   assert.ok(act && srcOf(copd, act.id).some(n => /介助/.test(n.label)), '介助が要る記録から');
   // COPD：分泌物の増加 → 気道にたまる → 湿性ラ音 → 非効果的気道浄化。吸引はたまった分泌物に
   const retain = copd.nodes.find(n => /気道に分泌物がたまる/.test(n.label));
   assert.ok(retain);
   assert.ok(copd.edges.some(e => e.relation === 'treats' && e.target === retain.id && /吸引/.test(by(copd).get(e.source).label)));
   // 血糖：今の高血糖（事実）→ これからの変動の可能性 → 血糖不安定リスク状態
-  const glu = copd.nodes.find(n => /血糖が上がったり/.test(n.label));
+  const glu = copd.nodes.find(n => /血糖不安定/.test(n.label));
   assert.ok(srcOf(copd, glu.id).every(n => n.type === 'future_risk' && /変動/.test(n.label)));
   // 大腸がん術後：介助の記録が無い → 活動耐性低下／イレウスの流れは「消化管運動機能障害リスク状態」／呼吸は「術後肺合併症リスク状態」
   const colon = caseMap('colon_cancer_postop_long');
   const probs = colon.nodes.filter(n => n.type === 'nursing_problem').map(n => n.label);
-  assert.ok(probs.some(l => /活動を続けられない/.test(l)) && !probs.some(l => /身の回りのこと/.test(l)), probs.join('、'));
+  assert.ok(probs.some(l => /^活動耐性低下/.test(l)) && !probs.some(l => /セルフケア不足/.test(l)), probs.join('、'));
   // 腹部膨満などが実際にある → 今ある「消化管運動機能障害」（リスクにしない）。便秘は排便の記録から別に
-  assert.ok(probs.some(l => /^術後に腸の動きが弱まり/.test(l)), probs.join('、'));
-  assert.ok(probs.includes('術後に無気肺・肺炎を起こすおそれがある'), probs.join('、'));
+  assert.ok(probs.some(l => /^消化管運動機能障害（/.test(l)), probs.join('、'));
+  assert.ok(probs.includes('術後呼吸器合併症リスク状態'), probs.join('、'));
   // Alb は看護問題（栄養摂取量不足）の根拠として付く（食事量の低下の結果としない）。食事量・体重の記録が無ければ「栄養状態の低下」の根拠
   assert.match(colon.nodes.find(n => n.id === colon.nodes.find(x => x.type === 'lab' && /Alb/.test(x.label)).attachTo).label, /栄養状態の低下/);
   [copd, caseMap('heart_failure_long')].forEach(m => {
     const alb = m.nodes.find(n => n.type === 'lab' && /Alb/.test(n.label));
-    const nutr = m.nodes.find(n => n.type === 'nursing_problem' && /栄養が足りて/.test(n.label));
+    const nutr = m.nodes.find(n => n.type === 'nursing_problem' && /栄養摂取量不足/.test(n.label));
     assert.equal(alb.attachTo, nutr.id);
   });
   // 心不全：今は体液量過剰 → 利尿薬 → 過剰な利尿による脱水の可能性 → 体液量不足リスク。低K血症は事実として別
   const hf = caseMap('heart_failure_long');
-  const dh = hf.nodes.find(n => /脱水になるおそれ/.test(n.label));
+  const dh = hf.nodes.find(n => /体液量不足リスク/.test(n.label));
   assert.doesNotMatch(dh.label, /電解質/);
   assert.ok(srcOf(hf, dh.id).some(n => /過剰な利尿による脱水の可能性/.test(n.label)));
   const hk = hf.nodes.find(n => /低カリウム血症/.test(n.label));
   assert.notEqual(hk.observed, false);
   assert.ok(!hf.edges.some(e => e.source === hk.id && e.target === dh.id), '低K血症を体液量不足リスクに混ぜない');
   // 心不全：清拭は全介助の記録があるので、セルフケア不足のまま
-  assert.ok(hf.nodes.some(n => n.type === 'nursing_problem' && /身の回りのこと/.test(n.label)));
+  assert.ok(hf.nodes.some(n => n.type === 'nursing_problem' && /セルフケア不足/.test(n.label)));
 });
 
 // 2026-10-06.25：看護問題の判定基準の見直し（今ある問題／リスク状態を症状の有無で分ける・追加の看護問題）
@@ -892,33 +892,33 @@ test('看護問題の判定：症状があれば今ある問題、無ければ�
   const build = text => app.buildRelationMapFromRecord(patientOf(text));
   // 腹部の手術：腹部膨満があれば今ある「消化管運動機能障害」、無ければ「消化管運動機能障害リスク状態」
   const colon = caseMap('colon_cancer_postop_long');
-  assert.ok(labels(colon).some(l => /^術後に腸の動きが弱まり/.test(l)));
-  assert.ok(labels(caseMap('gastric_postop')).some(l => /^術後イレウス/.test(l)));
+  assert.ok(labels(colon).some(l => /^消化管運動機能障害（/.test(l)));
+  assert.ok(labels(caseMap('gastric_postop')).some(l => /^消化管運動機能障害リスク状態/.test(l)));
   // 感染リスク状態の手前（感染の可能性）に炎症反応を置かない。看護問題の根拠のデータとしてつなぐ
   const infRisk = colon.nodes.find(n => n.type === 'future_risk' && /感染/.test(n.label));
   colon.edges.filter(e => e.target === infRisk.id).forEach(e => assert.doesNotMatch(by(colon).get(e.source).label, /炎症反応/));
   // Dダイマーは静脈血栓塞栓症の「可能性」の原因にしない（看護問題の根拠として下に付く）
   const dd = colon.nodes.find(n => /ダイマー/.test(n.label));
-  assert.match(by(colon).get(dd.attachTo).label, /^足の静脈に血栓/);
+  assert.match(by(colon).get(dd.attachTo).label, /^静脈血栓塞栓症リスク状態/);
   // 痰の記録だけ（出せない・多い等が無い）なら非効果的気道浄化にしない
   const base = '診断名：胃がん\n10/1 胃全摘出術施行（全身麻酔）\n<10/2 術後1日目>\n';
-  assert.ok(labels(build(base + '喀痰あり。創部痛 NRS 4。')).includes('術後に無気肺・肺炎を起こすおそれがある'));
-  assert.ok(labels(build(base + '痰が多く自力で出せない。創部痛 NRS 4。')).includes('痰をうまく出せず、気道に分泌物がたまっている'));
+  assert.ok(labels(build(base + '喀痰あり。創部痛 NRS 4。')).includes('術後呼吸器合併症リスク状態'));
+  assert.ok(labels(build(base + '痰が多く自力で出せない。創部痛 NRS 4。')).includes('非効果的気道浄化'));
   // 浅い呼吸 → 非効果的呼吸パターン／悪心 → 悪心／排尿できない → 排尿障害（尿閉）／便秘
   const m2 = build(base + '浅い呼吸。創部痛 NRS 4。「気持ちが悪い」と話す。カテーテル抜去後、排尿できず導尿。3日間排便なし。');
-  ['呼吸が浅く、十分に換気できていない', '吐き気がある', '尿を自分で出せない（尿閉）', '便秘がある'].forEach(w => assert.ok(labels(m2).includes(w), `${w} / ${labels(m2).join('、')}`));
+  ['非効果的呼吸パターン', '悪心', '排尿障害（尿閉）', '便秘'].forEach(w => assert.ok(labels(m2).includes(w), `${w} / ${labels(m2).join('、')}`));
   // 知識不足：本人が「わからない」「大丈夫なの？」
   const hip = caseMap('hip_fracture');
   assert.ok(app.rmProblemCategory('知識不足（治療・退院後の生活）').key === 'anx');
   // 体液量不足リスク状態は利尿薬だけで決めない（摂取量の低下・尿量などがあるとき）
-  assert.ok(labels(caseMap('heart_failure_long')).some(l => /脱水になるおそれ/.test(l)));
+  assert.ok(labels(caseMap('heart_failure_long')).some(l => /体液量不足リスク状態/.test(l)));
   // 急性混乱リスク状態：せん妄の症状は無いが、高齢・手術などがある
   const old = build('80歳 男性\n診断名：大腸がん\n10/1 結腸切除術施行（全身麻酔）\n<10/2 術後1日目>\n創部痛 NRS 3。');
-  assert.ok(labels(old).some(l => /^術後せん妄を起こすおそれ/.test(l)), labels(old).join('、'));
+  assert.ok(labels(old).some(l => /^急性混乱リスク状態/.test(l)), labels(old).join('、'));
   // 嚥下：むせがあれば「嚥下障害」
-  assert.ok(labels(caseMap('aspiration_pneumonia')).includes('うまく飲み込めず、むせがある'));
+  assert.ok(labels(caseMap('aspiration_pneumonia')).includes('嚥下障害'));
   // 身体可動性障害：片麻痺など
-  assert.ok(labels(caseMap('cerebral_infarction')).includes('自分で体を動かす・歩くことが難しい'));
+  assert.ok(labels(caseMap('cerebral_infarction')).includes('身体可動性障害'));
 });
 
 // 2026-10-06.26：利用者の声「中央の線と箱が集中」「横に長く、スマホ・A4で小さくなる」
@@ -930,7 +930,7 @@ test('関連図：近道の矢印を省く・看護問題ごとの図（その�
   assert.ok(!m.edges.some(e => e.id === 'ab') && m.edges.some(e => e.id === 'ap'), '看護問題への矢印は残す');
   // 看護問題ごとの図：その看護問題へたどれる四角＋治療＋検査データだけ
   const colon = caseMap('colon_cancer_postop_long');
-  const pain = colon.nodes.find(n => n.type === 'nursing_problem' && /手術の傷の痛み/.test(n.label));
+  const pain = colon.nodes.find(n => n.type === 'nursing_problem' && /急性疼痛/.test(n.label));
   const sub = app.rmProblemSubmap(colon, pain.id);
   assert.ok(sub.nodes.length < colon.nodes.length / 2, `${sub.nodes.length} / ${colon.nodes.length}`);
   assert.equal(sub.nodes.filter(n => n.type === 'nursing_problem').length, 1);
@@ -946,16 +946,41 @@ test('関連図：近道の矢印を省く・看護問題ごとの図（その�
   assert.equal((doc.match(/<section class="page">/g) || []).length, colon.nodes.filter(n => n.type === 'nursing_problem').length);
 });
 
-// 2026-10-06.27：利用者「名称は NANDA に準拠しなくてよい」。看護問題は患者の状態をそのまま書く
-test('看護問題の名前：診断名（NANDA）ではなく、患者の状態をそのまま書く（今ある「〜がある」／リスク「〜のおそれがある」）', () => {
+// 2026-10-07.1：利用者「看護問題がわかりにくくなった。補足として今の説明をするように」。
+// 名前は短い看護問題名に戻し、患者の状態をそのまま書いた説明を「補足」として名前の下に小さく添える
+test('看護問題の補足：短い名前の下に、患者の状態をそのまま書いた説明を添える（図・一覧・編集・保存・AI）', () => {
   ['gastric_postop', 'hip_fracture', 'aspiration_pneumonia', 'cerebral_infarction', 'colon_cancer_postop_long', 'copd_exacerbation_long', 'heart_failure_long'].forEach(name => {
-    caseMap(name).nodes.filter(n => n.type === 'nursing_problem').forEach(p => {
-      assert.doesNotMatch(p.label, /リスク状態|非効果的|障害$|不足$|^急性(?:疼痛|混乱)|統合性|ガス交換障害|パターン/, `${name}：${p.label}`);
-      assert.notEqual(app.rmProblemCategory(p.label).key, 'other', `${name}：種類が分からない「${p.label}」`);
+    caseMap(name).nodes.filter(n => n.type === 'nursing_problem' && !/（候補）$/.test(n.label)).forEach(p => {
+      assert.ok(p.note && p.note.length >= 4, `${name}：「${p.label}」に補足がない`);
+      assert.match(p.note, /(?:ある|いる|ない|難しい|おそれがある|（尿閉）|伝えにくい)$/, `${name}：${p.note}`);
     });
   });
-  assert.match(src, /名前は診断名（NANDA）に合わせず/, 'AIへの指示にも書く');
-  // 看護計画に書いた名前（診断名でも）は、そのまま使う
-  const map = app.buildRelationMapFromRecord(patientOf(GASTRIC, { carePlans: { a: { id: 'a', order: 1, problem: '急性疼痛', relatedNeeds: [], records: [] } } }));
-  assert.ok(map.nodes.some(n => n.type === 'nursing_problem' && n.label === '急性疼痛'));
+  const colon = caseMap('colon_cancer_postop_long');
+  const pain = colon.nodes.find(n => n.type === 'nursing_problem' && /^急性疼痛/.test(n.label));
+  assert.equal(pain.note, '手術の傷の痛みがある');
+  // 図：補足のぶん四角が高くなり、名前の下に小さい字で描く
+  const plainSize = app.rmNodeSize({ ...pain, note: '' }), withNote = app.rmNodeSize(pain);
+  assert.ok(withNote.h > plainSize.h && withNote.noteLines.length >= 1);
+  const svg = app.relationMapSvg(colon, {});
+  assert.match(svg, /<text class="rm-note"[^>]*>.*手術の傷の痛みがある/);
+  // 保存しても残る（看護問題だけ）
+  const norm = app.normalizeRelationMap(JSON.parse(JSON.stringify(colon)));
+  assert.equal(norm.nodes.find(n => n.id === pain.id).note, '手術の傷の痛みがある');
+  assert.ok(!norm.nodes.some(n => n.type !== 'nursing_problem' && n.note));
+  // 看護計画の問題名：決まった補足があればそれ、中身がちがう名前なら補足は外す
+  const plan = problem => app.buildRelationMapFromRecord(patientOf(GASTRIC, { carePlans: { a: { id: 'a', order: 1, problem, relatedNeeds: [], records: [] } } }));
+  const m1 = plan('急性疼痛（手術創部の侵襲）');
+  assert.equal(m1.nodes.find(n => n.type === 'nursing_problem' && /^急性疼痛/.test(n.label)).note, '手術の傷の痛みがある');
+  assert.equal(app.rmPlainNote('急性疼痛(手術創部の侵襲)'), '手術の傷の痛みがある');
+  // 行の終わりに開きかっこだけが残らない
+  app.rmWrapText('#9 消化管運動機能障害（術後の腸蠕動の低下）', 12.5).forEach(l => assert.doesNotMatch(l, /[（(]$/, l));
+  // 編集：右クリック・選んだときのボタンから補足を直せる。一覧にも補足を出す
+  assert.match(src, /item\('edit-note', '<i class="fa-solid fa-comment-dots"><\/i> 補足（説明）を編集'\)/);
+  assert.match(src, /else if \(act === 'edit-note'\) rmEditNodeNote\(sel\.id\);/);
+  assert.match(src, /<small class="rm-prob-note">/);
+  assert.match(css, /\.rm-prob-note \{/);
+  assert.match(css, /html\[data-theme="dark"\] \.rm-canvas-wrap \.rm-note \{/);
+  // AI：l は短い看護問題名、m に補足
+  assert.match(src, /mに補足として患者の状態をそのまま書いた説明/);
+  assert.match(src, /"m":"看護問題の補足"/);
 });

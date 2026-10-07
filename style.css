@@ -923,6 +923,10 @@
     .rm-prob-btn { display: inline-flex; align-items: center; gap: .3rem; max-width: 100%; padding: .2rem .55rem; border: 1px solid #B03A55; border-radius: var(--radius-sm); background: #FBDDE3; color: #6B1F33; font-size: 11px; font-weight: 600; text-align: left; }
     .rm-prob-btn:hover { filter: brightness(.96); }
     .rm-prob-btn.is-risk { border-style: dashed; }
+    /* 看護問題の補足（状態をそのまま書いた説明）は名前の下に小さく */
+    .rm-prob-btn { flex-wrap: wrap; }
+    .rm-prob-note { flex-basis: 100%; font-size: 10px; font-weight: 400; color: #7C3A4B; line-height: 1.35; }
+    html[data-theme="dark"] .rm-prob-note { color: #E8BFCB; }
     html[data-theme="dark"] .rm-prob-btn { background: #3D1F2A; border-color: #F0A3B5; color: #F7D3DC; }
     .rm-selbar { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; min-height: 2.1rem; padding: .35rem .6rem; border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--paper); font-size: 11px; }
     .rm-sel-label { font-weight: 700; color: var(--accent-dark, var(--accent)); margin-right: .2rem; }
@@ -963,6 +967,7 @@
     .rm-legend-swatch { display: inline-block; width: 1.3rem; height: .85rem; border: 1.5px solid; border-radius: 3px; }
     /* ダークモード：図の色を暗い背景に合わせる（印刷・画像は属性の明るい色のまま） */
     html[data-theme="dark"] .rm-canvas-wrap .rm-text { fill: #EAE5DA; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-note { fill: #C9C2B5; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-link-line { stroke: #B9B2A3; }
     html[data-theme="dark"] .rm-canvas-wrap #rm-arrow path { fill: #B9B2A3; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-link-label { fill: #D8D2C5; stroke: #221F1B; }

@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.27'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.1'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -110,6 +110,8 @@
     // 文字は14px（画面で小さく縮めても読めるように）。四角の幅もそれに合わせて広げる
     const RM_RECT_W = 196, RM_ELLIPSE_W = 214;
     const RM_FONT = 14, RM_LINE_H = 19, RM_PAD = 10, RM_HEAD_H = 0;
+    // 看護問題の補足（名前の下の小さい説明文）
+    const RM_NOTE_FONT = 11.5, RM_NOTE_LINE_H = 15, RM_NOTE_GAP = 7, RM_NOTE_MAX = 60;
     const RM_LAYOUT_STYLE = 2; // 四角の大きさを変えたら上げる（前の大きさで並べた図は自動で並べ直す）
     const RM_COL_GAP = 80, RM_ROW_GAP = 22;
     const RM_MAX_NODES = 70, RM_MAX_EDGES = 160, RM_TEXT_MAX = 120, RM_UNDO_MAX = 40;
@@ -128,7 +130,11 @@
         for (const ch of Array.from(para)) {
           const cw = rmCharWidth(ch);
           // 行の頭に閉じかっこ・句読点だけが来ないようにする（「（PaCO2 58 → 55Torr↑」の次の行が「）」だけになっていた）
-          if (w + cw > maxEm && cur && !/[)）」』、。，．・ー↑↓]/.test(ch)) { lines.push(cur); cur = ''; w = 0; }
+          if (w + cw > maxEm && cur && !/[)）」』、。，．・ー↑↓]/.test(ch)) {
+            // 行の終わりに開きかっこだけが残らないようにする（「消化管運動機能障害（」で改行していた）
+            const open = /[(（「『]$/.test(cur) && cur.length > 1 ? cur.slice(-1) : '';
+            lines.push(open ? cur.slice(0, -1) : cur); cur = open; w = open ? rmCharWidth(open) : 0;
+          }
           cur += ch; w += cw;
         }
         lines.push(cur);
@@ -172,8 +178,10 @@
       const ell = t.shape === 'ellipse';
       const lines = rmWrapText(rmDisplayLabel(n), ell ? 11 : 12.5);
       const w = ell ? RM_ELLIPSE_W : RM_RECT_W;
-      const h = RM_PAD * 2 + RM_HEAD_H + lines.length * RM_LINE_H + (ell ? 16 : 0);
-      return { w, h, lines };
+      // 看護問題の補足は、小さい字で名前の下に（字が小さいぶん1行に多く入る）
+      const noteLines = n.type === 'nursing_problem' && n.note ? rmWrapText(n.note, 15, 4) : [];
+      const h = RM_PAD * 2 + RM_HEAD_H + lines.length * RM_LINE_H + (ell ? 16 : 0) + (noteLines.length ? RM_NOTE_GAP + noteLines.length * RM_NOTE_LINE_H : 0);
+      return { w, h, lines, noteLines };
     }
 
     // ---- 保存されている図を安全な形にそろえる（版1からの変換もここで行う） ----
@@ -203,6 +211,7 @@
           added: !v1 && n.added === true,
           ...(typeof n.attachTo === 'string' && rmSafeId(n.attachTo) ? { attachTo: n.attachTo } : {}),
           ...(n.detached === true ? { detached: true } : {}),
+          ...(type === 'nursing_problem' && typeof n.note === 'string' && n.note.trim() ? { note: n.note.trim().slice(0, RM_NOTE_MAX) } : {}),
           priority: type === 'nursing_problem' ? priority : 0,
           x: Number.isFinite(Number(n.x)) ? Number(n.x) : 0,
           y: Number.isFinite(Number(n.y)) ? Number(n.y) : 0,
@@ -248,6 +257,50 @@
     // ---- 看護問題の分類（優先順位の目安）：生命・呼吸 → 循環 → 合併症（感染など） → 疼痛 → 栄養 → 安全 → 活動 → 睡眠 → 心理・社会 ----
     // 看護問題の種類（並べる目安・似た問題の見分け）。看護問題の名前は診断名（NANDA）に合わせず、患者の状態をそのまま
     // 書く（利用者の希望：2026-10-06.27）。看護計画・AI の名前（診断名でも、ふつうの言葉でも）に当たるように言葉を広く持つ
+    // 看護問題の「補足」：名前（短い看護問題名）だけでは分かりにくいので、患者の状態をそのまま書いた説明を
+    // 四角の名前の下に小さく添える（利用者の指摘「看護問題がわかりにくくなった。補足として今の説明を」：2026-10-07.1）
+    const RM_PROBLEM_NOTES = {
+      '非効果的気道浄化': '痰をうまく出せず、気道に分泌物がたまっている',
+      '術後呼吸器合併症リスク状態': '術後に無気肺・肺炎を起こすおそれがある',
+      '非効果的呼吸パターン': '呼吸が浅く、十分に換気できていない',
+      'ガス交換障害': '酸素を十分に取り込めず、息苦しさがある',
+      '体液量過剰': '体に水分がたまり、むくみがある',
+      '非効果的健康自主管理（塩分制限・内服の継続）': '塩分制限や内服を続けることが難しい',
+      '血糖不安定リスク状態': '血糖が上がったり下がったりするおそれがある',
+      '嚥下障害': 'うまく飲み込めず、むせがある',
+      '誤嚥リスク状態': '誤嚥（食べ物・唾液が気管に入る）のおそれがある',
+      '体液量不足（脱水）': '体の水分が足りず、脱水がある',
+      '言語的コミュニケーション障害': '言葉で思いを伝えにくい',
+      '出血リスク状態': '抗凝固薬で出血するおそれがある',
+      '体液量不足リスク状態（利尿薬による過剰な利尿）': '利尿薬で水分が出すぎて、脱水になるおそれがある',
+      '感染リスク状態': '創部や管から感染を起こすおそれがある',
+      '急性疼痛（手術創部の侵襲）': '手術の傷の痛みがある',
+      '消化管運動機能障害（術後の腸蠕動の低下）': '術後に腸の動きが弱まり、お腹が張っている',
+      '消化管運動機能障害リスク状態（術後イレウス）': '術後イレウス（腸閉塞）を起こすおそれがある',
+      '栄養摂取量不足（消化吸収の変化に関連した低栄養状態）': '胃の手術後で食べられる量が少なく、栄養が足りていない',
+      '栄養摂取量不足': '食事が十分にとれず、栄養が足りていない',
+      '栄養摂取量不足（消化吸収の変化に関連）': '胃の手術後で食べられる量が少なく、栄養が足りなくなるおそれがある',
+      '静脈血栓塞栓症リスク状態（深部静脈血栓症・肺塞栓症）': '足の静脈に血栓ができ、肺塞栓を起こすおそれがある',
+      '急性混乱（術後せん妄）': '術後せん妄があり、混乱している',
+      '急性混乱リスク状態（術後せん妄）': '術後せん妄を起こすおそれがある',
+      'セルフケア不足（活動制限・体力の低下）': '身の回りのこと（清潔・着替えなど）を自分でできない',
+      '活動耐性低下（動くと息切れ・体力の低下）': '動くと息切れ・疲れが強く、活動を続けられない',
+      '身体可動性障害': '自分で体を動かす・歩くことが難しい',
+      '皮膚統合性障害（褥瘡）': '褥瘡（床ずれ）ができている',
+      '褥瘡のリスク状態': '褥瘡（床ずれ）ができるおそれがある',
+      '転倒転落リスク状態': '転倒・転落の危険性がある',
+      '人工骨頭脱臼のリスク（術後の股関節の動き）': '人工骨頭が脱臼するおそれがある',
+      '便秘': '便秘がある',
+      '排尿障害（尿閉）': '尿を自分で出せない（尿閉）',
+      '悪心': '吐き気がある',
+      '睡眠パターン混乱': '夜によく眠れていない',
+      '家族の不安（退院後の生活の変化に関連）': '家族が退院後の生活に不安を持っている',
+      '知識不足（治療・退院後の生活）': '治療や退院後の生活について、わからないことがある'
+    };
+    // 補足の引き当て（看護計画から来た名前は半角かっこ・空白ちがいでも同じ名前として扱う）
+    const rmNoteKey = l => String(l || '').normalize('NFKC').replace(/\s+/g, '');
+    const RM_PROBLEM_NOTE_BY_KEY = new Map(Object.entries(RM_PROBLEM_NOTES).map(([k, v]) => [rmNoteKey(k), v]));
+    function rmPlainNote(label) { return RM_PROBLEM_NOTE_BY_KEY.get(rmNoteKey(label)) || ''; }
     const RM_PROBLEM_CATEGORIES = [
       { key: 'resp', rank: 1, re: /気道|呼吸|ガス交換|換気|無気肺|肺炎|肺合併症|誤嚥|窒息|排痰|痰|息苦し|酸素を十分/ },
       { key: 'circ', rank: 2, re: /心拍出|循環|出血|ショック|体液量|組織灌流|不整脈|血栓|塞栓|神経血管|脱水|水分がたまり|むくみ|浮腫/ },
@@ -839,6 +892,7 @@
         <title>${escapeHtml(`${t.label}${dashed ? '（予測）' : ''}${n.added ? '（矢印の間に補った過程）' : n.source === 'knowledge' ? '（医学知識で補った）' : ''}`)}</title>
         ${tag ? `<g class="rm-tag"><rect x="${s.w - tagW - 6}" y="-8" width="${tagW}" height="16" rx="8" fill="${n.added ? tagColor : '#FFFFFF'}" stroke="${tagColor}" stroke-width="0.9"/><text class="rm-kind" x="${s.w - tagW / 2 - 6}" y="4" text-anchor="middle" font-size="10" fill="${n.added ? '#FFFFFF' : tagColor}" font-weight="700">${escapeHtml(tag)}</text></g>` : ''}
         <text class="rm-text" x="${textX}" y="${RM_PAD + RM_HEAD_H + RM_FONT + (ell ? 8 : 0)}"${anchor} font-size="${RM_FONT}" fill="${faint ? RM_PRED_TEXT : '#1C1917'}"${t.bold ? ' font-weight="700"' : ''}>${s.lines.map((line, i) => `<tspan x="${textX}" dy="${i ? RM_LINE_H : 0}">${escapeHtml(line)}</tspan>`).join('')}</text>
+        ${s.noteLines.length ? (() => { const y0 = RM_PAD + RM_HEAD_H + s.lines.length * RM_LINE_H + RM_NOTE_GAP / 2; return `<line class="rm-note-sep" x1="14" y1="${y0}" x2="${s.w - 14}" y2="${y0}" stroke="${t.stroke}" stroke-opacity="0.35" stroke-width="0.8"/><text class="rm-note" x="${textX}" y="${y0 + RM_NOTE_GAP / 2 + RM_NOTE_FONT}"${anchor} font-size="${RM_NOTE_FONT}" fill="#57534E">${s.noteLines.map((line, i) => `<tspan x="${textX}" dy="${i ? RM_NOTE_LINE_H : 0}">${escapeHtml(line)}</tspan>`).join('')}</text>`; })() : ''}
       </g>`;
     }
     function rmHeadersSvg(map, b) {
@@ -1068,6 +1122,7 @@
         const srcItems = (o.items || []).filter(Boolean);
         if (srcItems.length === 1 && ['patient_fact', 'symptom'].includes(type) && byItem.has(srcItems[0])) { const ex = byItem.get(srcItems[0]); nodes.set(key, ex); return ex; }
         const n = { id: rmNewId('n'), key, type, label: rmShorten(label, o.max || 44), evidence: o.evidence || '', observed: o.observed !== false, source: o.source || 'record', priority: 0, x: 0, y: 0, itemIds: (o.items || []).map(i => i && i.id).filter(Boolean).slice(0, 10), cat: o.cat };
+        if (type === 'nursing_problem') { const note = o.note != null ? o.note : rmPlainNote(label); if (note) n.note = rmShorten(note, RM_NOTE_MAX); }
         const ph = rmPhaseOfItems(srcItems);
         if (ph !== null) n.phase = ph;
         nodes.set(key, n);
@@ -1204,10 +1259,10 @@
         E(sputum, secretion, 'causes', { predicted: !secretionObs, evidence: '出せない痰が気道にたまる' });
         const atel = N('atel', atelObs ? 'symptom' : 'future_risk', atelObs ? '無気肺・肺炎' : '無気肺・肺炎の可能性', { observed: atelObs, source: atelObs ? 'record' : 'knowledge' });
         E(secretion, atel, atelObs ? 'causes' : 'predicts', { predicted: !atelObs, evidence: '分泌物で気道が詰まり肺胞がつぶれる・感染する' });
-        const pResp = N('p_resp', 'nursing_problem', sputumActual ? '痰をうまく出せず、気道に分泌物がたまっている' : '術後に無気肺・肺炎を起こすおそれがある', { cat: 'resp' });
+        const pResp = N('p_resp', 'nursing_problem', sputumActual ? '非効果的気道浄化' : '術後呼吸器合併症リスク状態', { cat: 'resp' });
         E(sputum, pResp, 'results_in', { evidence: '排痰困難', predicted: !sputumActual });
         // 浅い呼吸・努力呼吸などが記録にあれば「非効果的呼吸パターン」（痛みで深呼吸を控える → 浅い呼吸）
-        if (patternItem) { const pt = N('pattern_sign', 'symptom', short(patternItem, 30, /浅い|努力|補助筋|肩呼吸|頻呼吸|鼻翼|陥没/), { items: [patternItem] }); E(suppress, pt, 'causes', { evidence: '痛みで深く息を吸えない' }); E(pt, N('p_pattern', 'nursing_problem', '呼吸が浅く、十分に換気できていない', { cat: 'resp' }), 'results_in'); }
+        if (patternItem) { const pt = N('pattern_sign', 'symptom', short(patternItem, 30, /浅い|努力|補助筋|肩呼吸|頻呼吸|鼻翼|陥没/), { items: [patternItem] }); E(suppress, pt, 'causes', { evidence: '痛みで深く息を吸えない' }); E(pt, N('p_pattern', 'nursing_problem', '非効果的呼吸パターン', { cat: 'resp' }), 'results_in'); }
         E(atel, pResp, 'results_in', { predicted: !atelObs, evidence: '術後呼吸器合併症の予防が必要' });
         if (spo2 && (spo2.flag || o2Item)) {
           const sp = labNode(spo2, 'lab_spo2');
@@ -1232,9 +1287,9 @@
           if (o2Item) E(N('o2', 'treatment', o2Label(), { items: [o2Item] }), hyp, 'treats', { evidence: '酸素化の維持' });
           // ガス交換障害は、SpO2の低下だけでは決めない（呼吸困難・酸素が要ることと合わせる）
           if ((spo2 && spo2.flag === 'low' && (dys || o2Item)) || (dys && o2Item)) {
-            const pGas = N('p_gas', 'nursing_problem', '酸素を十分に取り込めず、息苦しさがある', { cat: 'resp' });
+            const pGas = N('p_gas', 'nursing_problem', 'ガス交換障害', { cat: 'resp' });
             E(hyp, pGas, 'results_in'); if (dys) E(dys, pGas, 'results_in');
-          } else if (dys) E(dys, N('p_pattern', 'nursing_problem', '呼吸が浅く、十分に換気できていない', { cat: 'resp' }), 'results_in');
+          } else if (dys) E(dys, N('p_pattern', 'nursing_problem', '非効果的呼吸パターン', { cat: 'resp' }), 'results_in');
         }
         const edemaItem = findItem(/浮腫|むくみ/, notHist) || findItem(/浮腫|むくみ|体重[^\n]{0,8}増加/);
         if (edemaItem) {
@@ -1242,7 +1297,7 @@
           E(hf, fluid, 'causes');
           const ed = N('edema', 'symptom', short(edemaItem, 36, /浮腫|むくみ/), { items: [edemaItem] });
           E(fluid, ed, 'causes');
-          const pFluid = N('p_fluid', 'nursing_problem', '体に水分がたまり、むくみがある', { cat: 'circ' });
+          const pFluid = N('p_fluid', 'nursing_problem', '体液量過剰', { cat: 'circ' });
           E(ed, pFluid, 'results_in');
           if (diuretic) { const du = N('diuretic', 'treatment', `利尿薬（${diuretic.name}）`); E(du, fluid, 'treats', { evidence: '体液の貯留に対して' }); }
         }
@@ -1259,7 +1314,7 @@
             if (dem) E(N('dementia', 'patient_fact', short(dem, 30), { items: [dem] }), trig, 'contributes_to', { evidence: '薬や食事の管理を覚えておくことが難しい' });
           }
           E(trig, disease || hf, 'contributes_to', { evidence: '心臓の負担が増える' });
-          E(trig, N('p_mgmt', 'nursing_problem', '塩分制限や内服を続けることが難しい', { cat: 'mgmt' }), 'results_in');
+          E(trig, N('p_mgmt', 'nursing_problem', '非効果的健康自主管理（塩分制限・内服の継続）', { cat: 'mgmt' }), 'results_in');
         }
       }
       // ⑤-2 肺炎など（手術の無い呼吸器の感染）：炎症 → 痰・ラ音 → 気道浄化／酸素化の低下 → ガス交換。抗菌薬・吸引・酸素は治療 → 対象
@@ -1294,7 +1349,7 @@
             // 今ある高血糖（事実）と、これからの血糖の変動（予測）を分ける
             const gv = N('glu_var', 'future_risk', 'これからも血糖が変動する可能性（高血糖・低血糖）', { source: 'knowledge', observed: false });
             E(hg, gv, 'predicts', { predicted: true, evidence: '治療・食事量・薬の量の変化で血糖が上下する' });
-            E(gv, N('p_glu', 'nursing_problem', '血糖が上がったり下がったりするおそれがある', { cat: 'skin' }), 'results_in', { predicted: true });
+            E(gv, N('p_glu', 'nursing_problem', '血糖不安定リスク状態', { cat: 'skin' }), 'results_in', { predicted: true });
           }
         }
         const abx = drugs.find(d => /抗菌|抗生|ペニシリン|セフェム|セファロ|カルバペネム|マクロライド|キノロン|β-?ラクタム/.test(d.cls));
@@ -1310,7 +1365,7 @@
           E(retain, sp, 'causes', { evidence: 'たまった分泌物の音・所見' });
           const suc = findItem(/吸引/);
           if (suc) E(N('suction', 'treatment', '吸引', { items: [suc] }), retain, 'treats', { evidence: '自力で出せない痰に対して' });
-          E(sp, N('p_airway', 'nursing_problem', '痰をうまく出せず、気道に分泌物がたまっている', { cat: 'resp' }), 'results_in');
+          E(sp, N('p_airway', 'nursing_problem', '非効果的気道浄化', { cat: 'resp' }), 'results_in');
         }
         const rr = lab('呼吸数');
         const dysS = items.find(i => i.type === 's' && /苦し|息/.test(i.text) && !rmIsFamilySpeech(i.text));
@@ -1318,14 +1373,14 @@
           const hyp = N('lung_hyp', 'pathophysiology', '肺胞でのガス交換の低下（酸素化の低下）', { source: 'knowledge' });
           E(lung, hyp, 'causes', { evidence: '炎症で肺胞に空気が入りにくい' });
           if (nodes.has('copd_obst')) E(nodes.get('copd_obst'), hyp, 'causes', { evidence: '古い空気が肺に残る' });
-          if (nodes.has('co2')) E(nodes.get('co2'), nodes.get('p_gas') || N('p_gas', 'nursing_problem', '酸素を十分に取り込めず、息苦しさがある', { cat: 'resp' }), 'results_in');
+          if (nodes.has('co2')) E(nodes.get('co2'), nodes.get('p_gas') || N('p_gas', 'nursing_problem', 'ガス交換障害', { cat: 'resp' }), 'results_in');
           if (spo2) E(labNode(spo2, 'lab_spo2'), hyp, 'supports', { evidence: '酸素化を示す' });
           if (rr && rr.flag) E(labNode(rr), hyp, 'supports', { evidence: '呼吸数で補っている' });
           if (o2Item) E(N('o2', 'treatment', o2Label(), { items: [o2Item] }), hyp, 'treats', { evidence: '酸素化の維持' });
           // ガス交換障害は SpO2 の低下＋呼吸困難（または酸素が要る）、または CO2 の貯留があるとき。
           // 呼吸数が多い・努力呼吸だけなら「非効果的呼吸パターン」
           const gasOk = (spo2 && spo2.flag === 'low' && (dysS || o2Item)) || nodes.has('co2');
-          const pg = gasOk ? N('p_gas', 'nursing_problem', '酸素を十分に取り込めず、息苦しさがある', { cat: 'resp' }) : N('p_pattern', 'nursing_problem', '呼吸が浅く、十分に換気できていない', { cat: 'resp' });
+          const pg = gasOk ? N('p_gas', 'nursing_problem', 'ガス交換障害', { cat: 'resp' }) : N('p_pattern', 'nursing_problem', '非効果的呼吸パターン', { cat: 'resp' });
           E(hyp, pg, 'results_in');
           // 本人の「息が苦しい」は、ガス交換の低下の結果として間に置く（原因の無い四角として左端に置くと、
           // 線が重なって「息苦しさ → 気道の閉塞」のように見えていた。長文事例のテスト：COPD）
@@ -1351,10 +1406,10 @@
         if (oral) E(N('oral', 'symptom', short(oral, 30), { items: [oral] }), asp, 'contributes_to', { predicted: true, evidence: '口の中の細菌が増える' });
         if (disease && /肺炎/.test(dxLabel)) E(sw, disease, 'contributes_to', { evidence: '口腔内細菌を含む唾液・食物が気道へ入る' });
         if (swSign) {
-          const pDys = N('p_dysphagia', 'nursing_problem', 'うまく飲み込めず、むせがある', { cat: 'nutr' });
+          const pDys = N('p_dysphagia', 'nursing_problem', '嚥下障害', { cat: 'nutr' });
           E(swNode, pDys, 'results_in');
           E(asp, pDys, 'results_in', { predicted: true, evidence: 'このままだと誤嚥・肺炎を繰り返す' });
-        } else E(asp, N('p_asp', 'nursing_problem', '誤嚥（食べ物・唾液が気管に入る）のおそれがある', { cat: 'resp' }), 'results_in', { predicted: true });
+        } else E(asp, N('p_asp', 'nursing_problem', '誤嚥リスク状態', { cat: 'resp' }), 'results_in', { predicted: true });
       }
       // ⑤-4 脱水（発熱・絶食・水分摂取の不足）
       const feverL = lab('体温');
@@ -1370,7 +1425,7 @@
         [bun, na].filter(l => l && l.flag === 'high').forEach(l => E(labNode(l), dry, 'supports', { evidence: '脱水で上がる' }));
         const ivItem = findItem(/輸液|補液|点滴(?!静注)/);
         if (ivItem) E(N('iv', 'treatment', '輸液', { items: [ivItem] }), loss, 'treats', { evidence: '水分・電解質の補充' });
-        E(dry, N('p_dehyd', 'nursing_problem', '体の水分が足りず、脱水がある', { cat: 'circ' }), 'results_in');
+        E(dry, N('p_dehyd', 'nursing_problem', '体液量不足（脱水）', { cat: 'circ' }), 'results_in');
       }
       // ⑤-5 脳梗塞・脳出血：脳の神経細胞の障害 → 片麻痺・失語・嚥下障害など。抗凝固薬は血栓に対する治療で、出血のおそれ
       if (/脳梗塞|脳塞栓|脳出血|脳卒中|くも膜下/.test(dxLabel)) {
@@ -1388,7 +1443,7 @@
         if (aph) {
           const an = N('aphasia', 'symptom', short(aph, 34), { items: [aph] });
           E(brainLesion, an, 'causes', { evidence: '言語中枢の障害' });
-          E(an, N('p_comm', 'nursing_problem', '言葉で思いを伝えにくい', { cat: 'comm' }), 'results_in');
+          E(an, N('p_comm', 'nursing_problem', '言語的コミュニケーション障害', { cat: 'comm' }), 'results_in');
         }
         const anticoag = drugs.find(d => /抗凝固|抗血栓|DOAC|ワルファリン|ヘパリン/.test(d.cls + d.name));
         if (anticoag) {
@@ -1399,7 +1454,7 @@
           E(ac, bleed, 'predicts', { predicted: true, evidence: '血液が固まりにくくなる' });
           const inr = lab('PT-INR');
           if (inr) E(labNode(inr), bleed, 'supports', { predicted: true, evidence: '凝固の状態を示す' });
-          E(bleed, N('p_bleed', 'nursing_problem', '抗凝固薬で出血するおそれがある', { cat: 'circ' }), 'results_in', { predicted: true });
+          E(bleed, N('p_bleed', 'nursing_problem', '出血リスク状態', { cat: 'circ' }), 'results_in', { predicted: true });
         }
       }
       // ⑤-6 糖尿病：高血糖（インスリン作用の不足） → 血糖不安定
@@ -1411,7 +1466,7 @@
         [glu, a1c].filter(l => l && l.flag === 'high').forEach(l => E(labNode(l), hg, 'supports'));
         const gv = N('glu_var', 'future_risk', 'これからも血糖が変動する可能性（高血糖・低血糖）', { source: 'knowledge', observed: false });
         E(hg, gv, 'predicts', { predicted: true, evidence: '手術の侵襲・食事量・インスリンの量の変化で血糖が上下する' });
-        E(gv, N('p_glu', 'nursing_problem', '血糖が上がったり下がったりするおそれがある', { cat: 'skin' }), 'results_in', { predicted: true });
+        E(gv, N('p_glu', 'nursing_problem', '血糖不安定リスク状態', { cat: 'skin' }), 'results_in', { predicted: true });
       }
       // ⑥ 利尿薬の今後のリスク
       if (diuretic) {
@@ -1427,7 +1482,7 @@
         if (dehydFactor) {
           const dehyd = N('dehyd', 'future_risk', '過剰な利尿による脱水の可能性', { source: 'knowledge', observed: false });
           E(du, dehyd, 'predicts', { predicted: true, evidence: '尿量の増加による' });
-          E(dehyd, N('p_dehyd', 'nursing_problem', '利尿薬で水分が出すぎて、脱水になるおそれがある', { cat: 'circ' }), 'results_in', { predicted: true });
+          E(dehyd, N('p_dehyd', 'nursing_problem', '体液量不足リスク状態（利尿薬による過剰な利尿）', { cat: 'circ' }), 'results_in', { predicted: true });
         }
         if (kLow) {
           const hk = N('hypok', 'pathophysiology', '低カリウム血症（カリウムが尿に出る）', { source: 'knowledge' });
@@ -1460,7 +1515,7 @@
           if (invasion) E(invasion, inf, 'causes', { evidence: '術後は手術侵襲でも炎症反応が上がる' });
           [wbc, crp, lab('体温')].filter(l => l && l.flag === 'high').forEach(l => E(labNode(l), inf, 'supports', { evidence: '炎症反応を示す（これだけで感染とは言えない）' }));
         }
-        const pInf = N('p_inf', 'nursing_problem', '創部や管から感染を起こすおそれがある', { cat: 'inf' });
+        const pInf = N('p_inf', 'nursing_problem', '感染リスク状態', { cat: 'inf' });
         E(infRisk, pInf, 'results_in', { predicted: true });
         // 炎症反応は「感染しやすい理由（危険因子）」ではない。感染の徴候が出ていないかを見るためのデータとして
         // 看護問題へ「根拠」の線でつなぐ（「感染の可能性」の手前には置かない。看護問題の判定基準の見直し：2026-10-06.25）
@@ -1468,7 +1523,7 @@
       }
 
       // ⑧ 疼痛
-      if (pain && painItem) E(pain, N('p_pain', 'nursing_problem', '手術の傷の痛みがある', { cat: 'pain' }), 'results_in');
+      if (pain && painItem) E(pain, N('p_pain', 'nursing_problem', '急性疼痛（手術創部の侵襲）', { cat: 'pain' }), 'results_in');
 
       // ⑧-2 腹部の手術後の腸の動きの低下（術後イレウス）：手術操作・麻酔・オピオイド・安静 → 腸蠕動の低下 → 腹部膨満・排ガスなし
       const abdOp = surgery && surgeryDone && /胃|腸|結腸|直腸|腹腔|肝|胆|膵|脾|虫垂|ヘルニア|子宮|卵巣/.test(surgery.label + dxLabel);
@@ -1486,12 +1541,12 @@
           const sign = N('ileus_sign', 'symptom', short(ileusItem, 30, /排ガス|蠕動|膨満|イレウス|嘔吐|悪心|嘔気/), { items: [ileusItem] });
           E(il, sign, 'causes');
           E(sign, ileusRisk, 'predicts', { predicted: true });
-          const pGi = N('p_elim', 'nursing_problem', '術後に腸の動きが弱まり、お腹が張っている', { cat: 'elim' });
+          const pGi = N('p_elim', 'nursing_problem', '消化管運動機能障害（術後の腸蠕動の低下）', { cat: 'elim' });
           E(sign, pGi, 'results_in');
           E(ileusRisk, pGi, 'results_in', { predicted: true, evidence: '進むと術後イレウスになる' });
         } else {
           E(il, ileusRisk, 'predicts', { predicted: true });
-          E(ileusRisk, N('p_elim', 'nursing_problem', '術後イレウス（腸閉塞）を起こすおそれがある', { cat: 'elim' }), 'results_in', { predicted: true });
+          E(ileusRisk, N('p_elim', 'nursing_problem', '消化管運動機能障害リスク状態（術後イレウス）', { cat: 'elim' }), 'results_in', { predicted: true });
         }
       }
 
@@ -1522,10 +1577,10 @@
         else if (disease) E(disease, low, 'contributes_to');
         const lowSalt = findItem(/塩分制限|減塩/);
         if (lowSalt && intakeItem && /味がしない|味が薄|おいしくない/.test(intakeItem.text)) E(N('lowsalt', 'treatment', '塩分制限食', { items: [lowSalt] }), low, 'contributes_to', { evidence: '味が薄く食欲が落ちる' });
-        const pNutr = N('p_nutr', 'nursing_problem', gastric ? '胃の手術後で食べられる量が少なく、栄養が足りていない' : '食事が十分にとれず、栄養が足りていない', { cat: 'nutr' });
+        const pNutr = N('p_nutr', 'nursing_problem', gastric ? '栄養摂取量不足（消化吸収の変化に関連した低栄養状態）' : '栄養摂取量不足', { cat: 'nutr' });
         E(low, pNutr, 'results_in');
         if (albToProblem) E(labNode(albL), pNutr, 'supports', { evidence: '栄養状態を示す客観データ' });
-      } else if (nutrSign) E(nutrSign, N('p_nutr', 'nursing_problem', '胃の手術後で食べられる量が少なく、栄養が足りなくなるおそれがある', { cat: 'nutr' }), 'results_in', { predicted: true });
+      } else if (nutrSign) E(nutrSign, N('p_nutr', 'nursing_problem', '栄養摂取量不足（消化吸収の変化に関連）', { cat: 'nutr' }), 'results_in', { predicted: true });
 
       // ⑨-2 貧血（術後の出血など）
       const hb = lab('Hb');
@@ -1544,7 +1599,7 @@
         if (invasion) E(invasion, stasis, 'contributes_to', { evidence: '手術侵襲で血液が固まりやすくなる' });
         const dvt = N('dvt', 'future_risk', '深部静脈血栓症・肺塞栓症の可能性', { source: 'knowledge', observed: false });
         E(stasis, dvt, 'predicts', { predicted: true, evidence: '血栓ができやすい' });
-        const pDvt = N('p_dvt', 'nursing_problem', '足の静脈に血栓ができ、肺塞栓を起こすおそれがある', { cat: 'circ' });
+        const pDvt = N('p_dvt', 'nursing_problem', '静脈血栓塞栓症リスク状態（深部静脈血栓症・肺塞栓症）', { cat: 'circ' });
         E(dvt, pDvt, 'results_in', { predicted: true });
         // Dダイマーは「血栓ができやすい理由」ではなく、血栓を疑うときの検査データ。看護問題の根拠として横（下）に付ける
         if (ddMatch) E(N('lab_dd', 'lab', `Dダイマー ${ddMatch[1]}μg/mL`, { items: [findItem(/ダイマー/)] }), pDvt, 'supports', { evidence: '血栓を疑うときに参考にする検査（危険因子ではない）' });
@@ -1564,7 +1619,7 @@
         if (pain && painItem) E(pain, brain, 'contributes_to', { evidence: '痛みはせん妄を誘発する' });
         const selfRemove = N('self_remove', 'future_risk', '点滴・ドレーン・カテーテルの自己抜去の可能性', { source: 'knowledge', observed: false });
         E(del, selfRemove, 'predicts', { predicted: true });
-        E(del, N('p_delirium', 'nursing_problem', '術後せん妄があり、混乱している', { cat: 'fall' }), 'results_in');
+        E(del, N('p_delirium', 'nursing_problem', '急性混乱（術後せん妄）', { cat: 'fall' }), 'results_in');
         E(selfRemove, nodes.get('p_delirium'), 'results_in', { predicted: true });
       } else if (surgery && surgeryDone && (dementiaItem || (aging && /(?:[89]\d|7[5-9])\s*歳/.test(aging.label)) || findItem(/眠れ(?:ない|なかった|ず)|不眠|睡眠薬|眠剤/))) {
         // せん妄の症状はまだ無いが、高齢（75歳以上）・認知症・睡眠不足・手術・環境の変化がある →「急性混乱リスク状態」
@@ -1574,7 +1629,7 @@
         if (invasion) E(invasion, brainR, 'contributes_to');
         const delR = N('delirium_risk', 'future_risk', '術後せん妄の可能性', { source: 'knowledge', observed: false });
         E(brainR, delR, 'predicts', { predicted: true });
-        E(delR, N('p_delirium', 'nursing_problem', '術後せん妄を起こすおそれがある', { cat: 'fall' }), 'results_in', { predicted: true });
+        E(delR, N('p_delirium', 'nursing_problem', '急性混乱リスク状態（術後せん妄）', { cat: 'fall' }), 'results_in', { predicted: true });
       }
       // ⑩ 活動・セルフケア
       // 動くこと・移動の記録（「食事を介助で摂取」などは活動の制限にしない）
@@ -1588,7 +1643,7 @@
         // 清拭・更衣・排泄などに実際に介助が要る記録があれば「セルフケア不足」。無ければ、根拠があるのは「活動耐性低下」
         // （「歩くとSpO2が下がる」だけでセルフケア不足にしていた。関連図の評価への対応：2026-10-06.24）
         const adlItem = findLast(/(?:清拭|更衣|入浴|排泄|整容|洗面|トイレ|身の回り)[^\n]{0,10}(?:全?介助|一部介助|できない|手伝|見守り)|ADL[^\n]{0,6}(?:介助|一部)/, i => notHist(i));
-        const pAct = N('p_act', 'nursing_problem', adlItem ? '身の回りのこと（清潔・着替えなど）を自分でできない' : '動くと息切れ・疲れが強く、活動を続けられない', { cat: 'act' });
+        const pAct = N('p_act', 'nursing_problem', adlItem ? 'セルフケア不足（活動制限・体力の低下）' : '活動耐性低下（動くと息切れ・体力の低下）', { cat: 'act' });
         // 介助が要る記録は、図の中に根拠として見せる（「清拭・更衣に介助が必要」が「トイレまで歩くと…」と同じカードにあり、
         // 図に出ていなかった）。活動の制限 → 介助が要る → セルフケア不足
         const adlRe = /清拭|更衣|入浴|排泄|整容|洗面|身の回り|ADL|介助/;
@@ -1605,7 +1660,7 @@
         if (mobItem) {
           const mi = [...nodes.values()].find(n => (n.itemIds || []).includes(mobItem.id)) || N('mob_sign', 'symptom', short(mobItem, 30, /寝返り|起き上が|立ち上が|起立|端坐位|歩行|移乗|免荷|荷重|麻痺|安静/), { items: [mobItem] });
           if (mi !== nodes.get('bed')) E(mob, mi, 'causes', { evidence: '体を動かす力・範囲が限られる' });
-          E(mi, N('p_mobility', 'nursing_problem', '自分で体を動かす・歩くことが難しい', { cat: 'act' }), 'results_in');
+          E(mi, N('p_mobility', 'nursing_problem', '身体可動性障害', { cat: 'act' }), 'results_in');
         }
         const hypN = nodes.get('lung_hyp') || nodes.get('hypoxia');
         if (hypN) E(hypN, mob, 'contributes_to', { evidence: '動くと酸素が足りず息切れする' });
@@ -1619,7 +1674,7 @@
         if (nodes.has('mobility')) E(nodes.get('mobility'), press, 'causes', { evidence: '自分で体の向きを変えにくい' });
         if (albL && albL.flag === 'low') E(labNode(albL), press, 'contributes_to', { evidence: '低栄養で皮膚が弱くなる' });
         E(press, sk, 'causes');
-        E(sk, N('p_skin', 'nursing_problem', /褥瘡|d\s*[1-4]|D[3-5U]/i.test(skinItem.text) ? '褥瘡（床ずれ）ができている' : '褥瘡（床ずれ）ができるおそれがある', { cat: 'skin' }), 'results_in');
+        E(sk, N('p_skin', 'nursing_problem', /褥瘡|d\s*[1-4]|D[3-5U]/i.test(skinItem.text) ? '皮膚統合性障害（褥瘡）' : '褥瘡のリスク状態', { cat: 'skin' }), 'results_in');
       }
       // ⑪ 転倒
       const fallItem = findItem(/ふらつ|転倒|夜間[^\n]{0,8}トイレ|頻尿/, i => !nodes.get('bed') || !nodes.get('bed').itemIds.includes(i.id)) || findItem(/ふらつ|転倒|せん妄|夜間[^\n]{0,8}トイレ|頻尿/);
@@ -1641,12 +1696,12 @@
         }
         // 転倒と人工骨頭の脱臼は原因が違う（転倒：高齢・筋力やバランスの低下・移動の不安定さ／脱臼：術後の股関節の動き）ので、
         // 1つの看護問題にまとめず別々にする（看護介入も違う。2026-10-06.21）
-        E(fr, N('p_fall', 'nursing_problem', '転倒・転落の危険性がある', { cat: 'fall' }), 'results_in', { predicted: true });
-        if (nodes.has('dislocation')) E(nodes.get('dislocation'), N('p_disloc', 'nursing_problem', '人工骨頭が脱臼するおそれがある', { cat: 'disloc' }), 'results_in', { predicted: true });
+        E(fr, N('p_fall', 'nursing_problem', '転倒転落リスク状態', { cat: 'fall' }), 'results_in', { predicted: true });
+        if (nodes.has('dislocation')) E(nodes.get('dislocation'), N('p_disloc', 'nursing_problem', '人工骨頭脱臼のリスク（術後の股関節の動き）', { cat: 'disloc' }), 'results_in', { predicted: true });
       } else if (dislocation) {
         const dis = N('dislocation', 'future_risk', '人工骨頭の脱臼の可能性（脱臼肢位：内転・内旋・過屈曲）', { source: 'knowledge', observed: false });
         E(surgery, dis, 'predicts', { predicted: true });
-        E(dis, N('p_disloc', 'nursing_problem', '人工骨頭が脱臼するおそれがある', { cat: 'disloc' }), 'results_in', { predicted: true });
+        E(dis, N('p_disloc', 'nursing_problem', '人工骨頭脱臼のリスク（術後の股関節の動き）', { cat: 'disloc' }), 'results_in', { predicted: true });
       }
       // 体液量不足リスクの根拠になる記録（利尿薬の節で四角を先に作ると、夜間頻尿の四角と同じカードを取り合うので、ここでつなぐ）
       if (nodes.has('dehyd')) {
@@ -1669,7 +1724,7 @@
         if (nodes.has('undernutrition')) E(nodes.get('undernutrition'), gut, 'contributes_to', { evidence: '食べる量・水分が少ない' });
         if (!edges.some(e => e.target === gut.id) && disease) E(disease, gut, 'contributes_to');
         E(gut, cs, 'causes');
-        E(cs, N('p_const', 'nursing_problem', '便秘がある', { cat: 'elim' }), 'results_in');
+        E(cs, N('p_const', 'nursing_problem', '便秘', { cat: 'elim' }), 'results_in');
       }
       const urineRetItem = findLast(/尿閉|排尿(?:困難|できない|が無い|がない|なし)|自尿(?:なし|が出ない|がない)|残尿感?|膀胱(?:膨満|緊満)|導尿/, i => notHist(i));
       if (urineRetItem) {
@@ -1679,14 +1734,14 @@
         if (nodes.has('opioid') || nodes.has('analgesia')) E(nodes.get('opioid') || nodes.get('analgesia'), bl, 'contributes_to', { evidence: '鎮痛薬（とくにオピオイド・硬膜外麻酔）で排尿しにくい' });
         if (!edges.some(e => e.target === bl.id)) E(surgery || disease, bl, 'contributes_to');
         E(bl, ur, 'causes');
-        E(ur, N('p_urine', 'nursing_problem', '尿を自分で出せない（尿閉）', { cat: 'elim' }), 'results_in');
+        E(ur, N('p_urine', 'nursing_problem', '排尿障害（尿閉）', { cat: 'elim' }), 'results_in');
       }
       const nauseaItem = findLast(/悪心|嘔気|吐き気|気持ち(?:が)?悪い|むかむか|ムカムカ/, i => notHist(i));
       if (nauseaItem && !(nodes.get('ileus_sign') && (nodes.get('ileus_sign').itemIds || []).includes(nauseaItem.id))) {
         const ns = N('nausea_sign', 'symptom', short(nauseaItem, 30, /悪心|嘔気|吐き気|気持ち|むかむか|ムカムカ/), { items: [nauseaItem] });
         const nsrc = nodes.get('opioid') || nodes.get('analgesia') || nodes.get('anes') || nodes.get('ileus_path') || disease;
         if (nsrc) E(nsrc, ns, nsrc.type === 'treatment' ? 'contributes_to' : 'causes', { evidence: '薬・麻酔・腸の動きの低下で吐き気が出る' });
-        E(ns, N('p_nausea', 'nursing_problem', '吐き気がある', { cat: 'nutr' }), 'results_in');
+        E(ns, N('p_nausea', 'nursing_problem', '悪心', { cat: 'nutr' }), 'results_in');
       }
       // ⑫ 睡眠
       const sleepItem = findItem(/眠れ(?:ない|なかった|ず)|不眠|中途覚醒/);
@@ -1698,7 +1753,7 @@
         if (dysN && /苦し|息|咳/.test(sleepItem.text)) { E(dysN, sl, 'causes', { evidence: '横になると息苦しい・咳で目が覚める' }); linked = true; }
         if (!linked && nodes.has('fall_sign') && /夜間|トイレ/.test(sleepItem.text + nodes.get('fall_sign').label)) E(nodes.get('fall_sign'), sl, 'causes');
         else if (!linked && pain && painItem) E(pain, sl, 'contributes_to');
-        E(sl, N('p_sleep', 'nursing_problem', '夜によく眠れていない', { cat: 'sleep' }), 'results_in');
+        E(sl, N('p_sleep', 'nursing_problem', '睡眠パターン混乱', { cat: 'sleep' }), 'results_in');
       }
       // ⑬ 心理・社会（本人の不安の言葉 → 生活の変化 → 不安）
       // 本人の不安の言葉を先に、家族の心配の言葉も使う（家族だけのときは「家族の不安」とする）
@@ -1713,7 +1768,7 @@
         const change = N('life_change', 'pathophysiology', `${disease ? '診断・' : ''}${surgery ? '手術・' : ''}入院・今後の生活の変化`, { source: 'knowledge' });
         E(words, change, 'contributes_to', { evidence: '本人の言葉' });
         if (surgery) E(surgery, change, 'contributes_to');
-        E(change, N('p_anx', 'nursing_problem', familyOnly ? '家族が退院後の生活に不安を持っている' : `${disease ? '病気・' : ''}${surgery ? '手術・' : ''}今後の生活に不安がある`, { cat: 'anx' }), 'results_in');
+        E(change, N('p_anx', 'nursing_problem', familyOnly ? '家族の不安（退院後の生活の変化に関連）' : `不安（${disease ? '診断・' : ''}${surgery ? '手術・' : ''}生活の変化に関連）`, { cat: 'anx', note: familyOnly ? '' : `${disease ? '病気・' : ''}${surgery ? '手術・' : ''}今後の生活に不安がある` }), 'results_in');
       }
       // ⑬-2 知識不足：治療・服薬・食事・退院後の生活について、本人が「わからない」「大丈夫なの？」と言っている
       const knowItem = items.find(i => i.type === 's' && !anxItems.includes(i) && !rmIsFamilySpeech(i.text) && /わからない|分からない|知らなかった|教えて|大丈夫なの|していいの|かけていいの|どうしたら|何に気を付け|気をつければ/.test(i.text));
@@ -1722,7 +1777,7 @@
         const newInfo = nodes.get('life_change') || N('know_change', 'pathophysiology', `${surgery ? '手術・' : ''}治療・退院後の生活について、初めて知ることが多い`, { source: 'knowledge' });
         if (!edges.some(e => e.target === newInfo.id)) E(surgery || disease, newInfo, 'contributes_to');
         E(newInfo, kw, 'causes', { evidence: '説明を受けても、まだわからないことがある' });
-        E(kw, N('p_know', 'nursing_problem', '治療や退院後の生活について、わからないことがある', { cat: 'anx' }), 'results_in');
+        E(kw, N('p_know', 'nursing_problem', '知識不足（治療・退院後の生活）', { cat: 'anx' }), 'results_in');
       }
       // 疾患と、手術が無い場合の症状（主訴・外れた値）
       if (disease && !surgery) {
@@ -1749,7 +1804,14 @@
       userProblems.forEach(up => {
         const cat = rmProblemCategory(up.label).key;
         const match = tplProblems.find(t => !usedTpl.has(t) && (t.cat === cat || (cat === 'resp' && t.cat === 'resp')));
-        if (match) { usedTpl.add(match); match.label = rmShorten(up.label, 60); match.source = 'plan'; ordered.push(match); return; }
+        if (match) {
+          // 補足：計画の問題名に決まった補足があればそれ。ひな形と同じ中身（呼吸の今ある問題 など）なら、ひな形の補足をそのまま使う。
+          // 中身がちがえば（同じ「呼吸」でもリスクと今ある問題など）補足は外す（名前と合わない説明を出さない）
+          const plainNote = rmPlainNote(up.label);
+          if (plainNote) match.note = plainNote;
+          else if (rmProblemSimKey(up.label) !== rmProblemSimKey(match.label)) delete match.note;
+          usedTpl.add(match); match.label = rmShorten(up.label, 60); match.source = 'plan'; ordered.push(match); return;
+        }
         // ひな形に無い看護問題：根拠の道筋は、ひな形の看護問題が全部決まってから引く（下の pendingUser）
         const p = N(`p_user_${ordered.length}`, 'nursing_problem', up.label, { source: 'plan', max: 60 });
         pendingUser.push({ p, cat, up });
@@ -1967,7 +2029,8 @@
         const obs = n.o ?? n.observed_or_predicted ?? n.observed;
         nodes.push({ id, type, label: rmShorten(label, RM_TEXT_MAX), evidence: rmShorten(n.e ?? n.evidence ?? '', 120),
           observed: type === 'future_risk' ? false : !(obs === 0 || obs === false || obs === 'predicted'),
-          source: (n.k ?? n.knowledge ?? n.a ?? n.added) ? 'knowledge' : 'ai', added: !!(n.a ?? n.added), priority: Number(n.p ?? n.priority) || 0, x: 0, y: 0, itemIds: [] });
+          source: (n.k ?? n.knowledge ?? n.a ?? n.added) ? 'knowledge' : 'ai', added: !!(n.a ?? n.added), priority: Number(n.p ?? n.priority) || 0, x: 0, y: 0, itemIds: [],
+          ...(type === 'nursing_problem' ? (() => { const m = typeof (n.m ?? n.note) === 'string' ? (n.m ?? n.note).trim() : ''; const note = m || rmPlainNote(label); return note ? { note: rmShorten(note, RM_NOTE_MAX) } : {}; })() : {}) });
       });
       const rawEdges = obj.e || obj.edges || [];
       const edges = (Array.isArray(rawEdges) ? rawEdges : []).map(e => e && ({
@@ -2019,11 +2082,11 @@ ${typeof AI_ACCURACY_RULES === 'string' ? AI_ACCURACY_RULES : ''}
 2 病態の矢印は原因→結果。治療は「治療→治療の対象」（例：胃全摘出術→胃がん、鎮痛薬・硬膜外PCA→創部痛、酸素投与→酸素化の低下）でrはtreats。治療は1つずつ別の四角。同じ2つの間に両向きの矢印は禁止。
 3 患者に実際に起きた事実はo=1。今後起こりうること・リスクはo=0、その矢印はx=1。記録に無いことを事実にしない。医学知識で補った中間過程はk=1。
 4 検査データはt=labで値を書く（例：WBC 11600/μL、Alb 4.1→3.5g/dL）。値だけでなく、何を示すかの四角へつなぐ。術後のWBC・CRP上昇は手術侵襲による炎症反応との見分けが必要で、感染と断定しない。
-5 看護問題（t=nursing_problem）はpに優先順位（1から）。名前は診断名（NANDA）に合わせず、「転倒・転落の危険性がある」「痰をうまく出せず、気道に分泌物がたまっている」のように患者の状態をそのまま短い文で書く（症状がすでにあれば「〜がある」、まだ無ければ「〜のおそれがある」）。生命→呼吸・循環→術後合併症→疼痛→栄養→活動→心理社会を目安に、この患者で判断。各看護問題へは、左の事実から矢印をたどって根拠に届くこと。複数の原因が1つの問題へ合流する形にする。${plans.length ? '看護問題は下の「看護計画の看護問題」を使う。' : dx.length ? '看護問題は下の「選んだ看護診断」を使う。' : ''}
+5 看護問題（t=nursing_problem）はpに優先順位（1から）。lは短い看護問題名（例：非効果的気道浄化、転倒転落リスク状態。診断名に厳密に合わせなくてよい）。mに補足として患者の状態をそのまま書いた説明を40字以内（例：痰をうまく出せず、気道に分泌物がたまっている。症状がすでにあれば「〜がある」、まだ無ければ「〜のおそれがある」）。生命→呼吸・循環→術後合併症→疼痛→栄養→活動→心理社会を目安に、この患者で判断。各看護問題へは、左の事実から矢印をたどって根拠に届くこと。複数の原因が1つの問題へ合流する形にする。${plans.length ? '看護問題は下の「看護計画の看護問題」を使う。' : dx.length ? '看護問題は下の「選んだ看護診断」を使う。' : ''}
 6 どこにもつながらない四角・同じ内容の重複は作らない。同じ情報は1つの四角から枝分かれさせる。
 7 各矢印のeに「なぜAからBか」を30字以内。各四角のeに記録の根拠を20字以内（知識で補ったものは空でよい）。
 8 矢印を1本ずつ「AからBへ本当に一足飛びか？」と考え、間に病態生理の過程が入るなら必ず四角を補う（例：手術侵襲→［発痛物質の放出］→創部痛、創部痛→［腹部に力を入れると痛む］→深呼吸・咳嗽の抑制、抗凝固薬→［凝固能の低下］→出血の可能性）。補った四角はa=1・k=1。
-【形】JSONだけを返す：{"n":[{"i":"n1","t":"種類","l":"文字(30字以内)","o":1,"k":0,"a":0,"p":0,"e":"根拠"}],"e":[{"s":"n1","d":"n2","r":"関係","x":0,"e":"理由"}]}
+【形】JSONだけを返す：{"n":[{"i":"n1","t":"種類","l":"文字(30字以内)","o":1,"k":0,"a":0,"p":0,"m":"看護問題の補足","e":"根拠"}],"e":[{"s":"n1","d":"n2","r":"関係","x":0,"e":"理由"}]}
 種類t：patient_fact disease pathophysiology symptom lab treatment nursing_problem future_risk
 関係r：causes contributes_to results_in treats predicts supports
 
@@ -2293,7 +2356,7 @@ ${cards}`;
       // 押すと、その看護問題へつながる流れだけを取り出した図にする（全体の図は線が多く、縮めると読みにくいため）
       box.innerHTML = open ? `<span class="rm-problems-title">看護問題ごとに見る（押すとその流れだけの図になります）</span>`
         + `<button type="button" role="menuitem" class="rm-prob-all${rmState.focusProblem ? '' : ' is-on'}" data-rm-action="focus-all">すべての流れ（全体の図）</button>`
-        + probs.map(n => `<button type="button" role="menuitem" class="rm-prob-btn${/リスク|可能性|おそれ|危険/.test(n.label) ? ' is-risk' : ''}${rmState.focusProblem === n.id ? ' is-on' : ''}" data-rm-action="focus-problem" data-node-id="${escapeHtml(n.id)}" title="この看護問題へつながる流れだけを表示します">${escapeHtml(rmDisplayLabel(n))}</button>`).join('') : '';
+        + probs.map(n => `<button type="button" role="menuitem" class="rm-prob-btn${/リスク|可能性|おそれ|危険/.test(n.label) ? ' is-risk' : ''}${rmState.focusProblem === n.id ? ' is-on' : ''}" data-rm-action="focus-problem" data-node-id="${escapeHtml(n.id)}" title="${escapeHtml(n.note ? `${n.note}（この看護問題へつながる流れだけを表示します）` : 'この看護問題へつながる流れだけを表示します')}">${escapeHtml(rmDisplayLabel(n))}${n.note ? `<small class="rm-prob-note">${escapeHtml(n.note)}</small>` : ''}</button>`).join('') : '';
     }
     // 【右クリックのメニュー】利用者からの要望：「右クリックで編集できるように。追加も右クリックで」（2026-10-06.21）。
     // 四角の上：文字の編集・事実／予測・矢印でつなぐ・優先度・削除。矢印（線）の上：向きを逆にする・事実／予測・間に四角・なぜ？・削除。
@@ -2312,6 +2375,7 @@ ${cards}`;
         const prob = n.type === 'nursing_problem';
         html = `<div class="rm-ctx-title">${escapeHtml(rmShorten(rmDisplayLabel(n), 22))}</div>`
           + item('edit-node', '<i class="fa-solid fa-pen"></i> 文字を編集')
+          + (prob ? item('edit-note', '<i class="fa-solid fa-comment-dots"></i> 補足（説明）を編集') : '')
           + item('connect', '<i class="fa-solid fa-arrow-right-long"></i> ここから矢印でつなぐ')
           + item('toggle-observed', n.observed === false ? '<i class="fa-solid fa-check"></i> 事実にする' : '<i class="fa-solid fa-ellipsis"></i> 予測にする（破線）')
           + (prob ? item('priority-up', '<i class="fa-solid fa-arrow-up"></i> 優先度を上げる') + item('priority-down', '<i class="fa-solid fa-arrow-down"></i> 優先度を下げる') : '')
@@ -2444,6 +2508,7 @@ ${cards}`;
         const prob = n.type === 'nursing_problem';
         bar.innerHTML = `<span class="rm-sel-label">選んだ四角</span>
           ${rmBtn('edit-node', '<i class="fa-solid fa-pen"></i> 文字を編集')}
+          ${prob ? rmBtn('edit-note', '<i class="fa-solid fa-comment-dots"></i> 補足（説明）') : ''}
           <label class="rm-kind-select"><span class="sr-only">種類</span><select class="field text-[11px] py-1" data-rm-action="kind">${RM_TYPES.map(t => `<option value="${t.key}"${t.key === n.type ? ' selected' : ''}>${escapeHtml(t.label)}</option>`).join('')}</select></label>
           ${rmBtn('toggle-observed', n.observed === false ? '事実にする' : '予測にする（破線）')}
           ${prob ? `${rmBtn('priority-up', '<i class="fa-solid fa-arrow-up"></i> 優先度を上げる')}${rmBtn('priority-down', '<i class="fa-solid fa-arrow-down"></i> 下げる')}` : ''}
@@ -2499,7 +2564,21 @@ ${cards}`;
       if (v === null || v === undefined) return;
       const t = String(v).trim().replace(/^#\s*\d+\s*/, '');
       if (!t) { showToast('空にはできません。消すときは「削除」を使ってください', 'warn'); return; }
-      rmMutate(m => { const x = rmNodeById(m, id); if (x) { x.label = t.slice(0, RM_TEXT_MAX * 2); if (x.source === 'knowledge' || x.source === 'ai') x.source = 'user'; } });
+      rmMutate(m => { const x = rmNodeById(m, id); if (x) {
+        x.label = t.slice(0, RM_TEXT_MAX * 2); if (x.source === 'knowledge' || x.source === 'ai') x.source = 'user';
+        // 看護問題の名前を、補足のある名前に書きかえたときは、その補足も付ける
+        if (x.type === 'nursing_problem' && rmPlainNote(x.label)) x.note = rmPlainNote(x.label);
+      } });
+    }
+    // 看護問題の補足（名前の下の小さい説明文）を直す。空にすると補足を消す
+    async function rmEditNodeNote(id) {
+      const map = rmMap();
+      const n = map && rmNodeById(map, id);
+      if (!n || n.type !== 'nursing_problem') return;
+      const v = await openDialog({ title: '看護問題の補足（患者の状態をそのまま書いた説明）', inputValue: n.note || '', placeholder: '例：痰をうまく出せず、気道に分泌物がたまっている（空にすると補足を消します）', confirmLabel: '更新する' });
+      if (v === null || v === undefined) return;
+      const t = String(v).trim().slice(0, RM_NOTE_MAX);
+      rmMutate(m => { const x = rmNodeById(m, id); if (x) { if (t) x.note = t; else delete x.note; } });
     }
     async function rmAddNode(type, at = null) {
       const t = RM_TYPE_BY_KEY.get(type) || RM_TYPE_BY_KEY.get('pathophysiology');
@@ -2790,6 +2869,7 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
         else if (act === 'clear') { rmSetMoreOpen(false); rmClearAll(); }
         else if (!sel) return;
         else if (act === 'edit-node') rmEditNodeText(sel.id);
+        else if (act === 'edit-note') rmEditNodeNote(sel.id);
         else if (act === 'connect') { rmState.connectFrom = sel.id; rmApplySelectionClasses(); rmRenderSelectionBar(); }
         else if (act === 'cancel-connect') { rmState.connectFrom = null; rmApplySelectionClasses(); rmRenderSelectionBar(); }
         else if (act === 'delete') rmDeleteSelected();
@@ -3016,5 +3096,5 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
     if (typeof document !== 'undefined' && document.getElementById && document.getElementById('view-relation')) initRelationMapUi();
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel, rmShorten, rmProblemSubmap, rmReduceShortcuts });
+  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel, rmShorten, rmProblemSubmap, rmReduceShortcuts, rmNodeSize, RM_PROBLEM_NOTES, rmPlainNote });
 }
