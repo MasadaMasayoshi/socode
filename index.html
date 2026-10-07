@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-08.2">
+  <meta name="app-version" content="2026-10-08.3">
   <meta name="app-file-versions" content="01:2026-10-06.14,02:2026-10-07.17,03:2026-10-07.21,04:2026-10-07.36,05:2026-10-07.36,06:2026-10-07.25,07:2026-10-08.2,08:2026-10-07.26,09:2026-10-07.23,10:2026-10-07.19,11:2026-10-08.2,12:2026-10-08.2,13:2026-10-06.15,14:2026-10-06.14,15:2026-10-07.40">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
@@ -209,11 +209,7 @@
         <button id="btn-start-classify" class="btn btn-primary w-full py-2.5 text-[13px]">
           <i class="fa-solid fa-bolt"></i> 分類開始
         </button>
-        <!-- 分類方法の切り替え（js/07 の getClassifyMode）：AIなしで分類（ルールだけ）／AIありで分類 -->
-        <div class="classify-mode" role="group" aria-label="分類方法">
-          <button type="button" data-classify-mode="rules" onclick="setClassifyMode('rules')"><i class="fa-solid fa-list-check"></i> AIなしで分類</button>
-          
-        </div>
+        <!-- 分類はいつもサイト内のルール（AIなし）。切り替えは廃止（js/07 の getClassifyMode） -->
         <p id="classify-mode-note" class="text-[10px] text-[var(--ink-muted)] leading-snug -mt-1"></p>
 
         <div class="flex flex-wrap items-center justify-between gap-1 pt-1 border-t border-[var(--line-soft)]">
