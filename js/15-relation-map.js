@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.6'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.8'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -281,6 +281,9 @@
       '消化管運動機能障害リスク状態（術後イレウス）': '術後イレウス（腸閉塞）を起こすおそれがある',
       '栄養摂取量不足（消化吸収の変化に関連した低栄養状態）': '胃の手術後で食べられる量が少なく、栄養が足りていない',
       '栄養摂取量不足': '食事が十分にとれず、栄養が足りていない',
+      '皮膚組織統合性障害（糖尿病性足潰瘍）': '足の傷（潰瘍）があり、痛みを感じにくく治りにくい',
+      '非効果的健康自主管理（食事療法・インスリン・受診の継続）': '食事・インスリン・通院を続けることが難しい',
+      '家族の知識不足（食事の準備・飲酒への対応）': '家族が食事づくりや飲酒への対応をどうすればよいかわからない',
       '栄養摂取量不足（消化吸収の変化に関連）': '胃の手術後で食べられる量が少なく、栄養が足りなくなるおそれがある',
       '静脈血栓塞栓症リスク状態（深部静脈血栓症・肺塞栓症）': '足の静脈に血栓ができ、肺塞栓を起こすおそれがある',
       '急性混乱（術後せん妄）': '術後せん妄があり、混乱している',
@@ -1541,6 +1544,85 @@
         E(hg, gv, 'predicts', { predicted: true, evidence: '手術の侵襲・食事量・インスリンの量の変化で血糖が上下する' });
         E(gv, N('p_glu', 'nursing_problem', '血糖不安定リスク状態', { cat: 'skin' }), 'results_in', { predicted: true });
       }
+      // ⑤-7 糖尿病の療養・合併症（教育入院・足潰瘍・低血糖・家族）：利用者の長文事例のテスト（2026-10-07.8）
+      //  高血糖 → 末梢神経障害（足の感覚の鈍さ）→ 痛みを感じず傷に気づかない → 足潰瘍 → 皮膚組織統合性障害／感染リスク。
+      //  インスリン → 低血糖（実際に起きたこと）→ 血糖の変動。受診・食事・内服が続かない → 自己管理。家族の言葉 → 家族の知識不足
+      if (disease && /糖尿病/.test(dxLabel)) {
+        const hgN = nodes.get('hyperglycemia');
+        const notTx = i => notDxS(i) && !/^治療/.test(String(i.text)) && !(i.fieldLabel && /治療/.test(i.fieldLabel));
+        const ulcer = findItem(/潰瘍|壊疽|足(?:底|趾)[^\n]{0,8}(?:びらん)/, notTx);
+        const neuro = findItem(/モノフィラメント|感覚[^\n]{0,8}(?:鈍|低下)|足趾の感覚|しびれ/, notDxS);
+        if (ulcer) {
+          const un = N('dm_ulcer', 'symptom', short(ulcer, 40, /潰瘍/), { items: [ulcer] });
+          let from = hgN;
+          if (neuro) {
+            const nn = N('dm_neuro', 'symptom', short(neuro, 34, /モノフィラメント|感覚/).replace(/^\d{1,2}[:：]\d{2}\s*/, ''), { items: [neuro] });
+            if (hgN) E(hgN, nn, 'causes', { evidence: '高血糖が続くと末梢の神経・血管が傷む' });
+            from = nn;
+            const painless = findItem(/痛くない|痛みの訴えはなし|NRS\s*0/, i => notDxS(i) && i !== ulcer) || (/痛みの訴えはなし|NRS\s*0/.test(ulcer.text) ? ulcer : null);
+            if (painless && painless !== ulcer) {
+              const pn = N('dm_painless', 'symptom', `S：${short(painless, 32, /痛くない|痛み/)}`, { items: [painless] });
+              E(nn, pn, 'causes', { evidence: '痛みを感じにくく、傷に気づきにくい' });
+              E(pn, un, 'contributes_to', { evidence: '気づかず放置して悪化した' });
+            } else E(nn, un, 'contributes_to', { evidence: '痛みを感じにくく、傷に気づきにくい' });
+            const shoe = findItem(/革靴|靴[^\n]{0,6}(?:合わ|きつ|硬)|素足/);
+            if (shoe) E(N('dm_shoe', 'patient_fact', short(shoe, 30, /靴/), { items: [shoe] }), un, 'contributes_to', { evidence: '足への圧迫・摩擦' });
+          } else if (hgN) E(hgN, un, 'contributes_to', { evidence: '高血糖で傷が治りにくい' });
+          const unload = findItem(/免荷|荷重制限/);
+          if (unload) E(N('dm_unload', 'treatment', '足への荷重制限（免荷）', { items: [unload] }), un, 'treats', { evidence: '潰瘍への圧迫を減らす' });
+          E(un, N('p_skin', 'nursing_problem', '皮膚組織統合性障害（糖尿病性足潰瘍）', { cat: 'skin' }), 'results_in');
+          // 感染：潰瘍は皮膚のバリアが壊れた状態。高血糖は免疫・創傷治癒を下げる。炎症反応は見分けに使うデータ
+          const ir = N('dm_inf_risk', 'future_risk', '潰瘍部からの感染（蜂窩織炎・骨髄炎）の可能性', { source: 'knowledge', observed: false });
+          E(un, ir, 'predicts', { predicted: true, evidence: '皮膚のバリアが壊れ、病原体が入りやすい' });
+          if (hgN) {
+            const imm = N('immune', 'pathophysiology', '免疫機能・創傷治癒の低下', { source: 'knowledge' });
+            E(hgN, imm, 'contributes_to', { evidence: '高血糖による白血球機能の低下' });
+            E(imm, ir, 'predicts', { predicted: true });
+          }
+          const pInf = N('p_inf', 'nursing_problem', '感染リスク状態', { cat: 'inf', note: '足の傷（潰瘍）から感染を起こすおそれがある' });
+          E(ir, pInf, 'results_in', { predicted: true });
+          const wbcL = lab('WBC'), crpL = lab('CRP');
+          if ((wbcL && wbcL.flag === 'high') || (crpL && crpL.flag === 'high')) {
+            const inf = N('inflam', 'pathophysiology', '炎症反応の上昇（潰瘍部の感染との見分けが必要）', { source: 'knowledge' });
+            [wbcL, crpL].filter(l => l && l.flag === 'high').forEach(l => E(labNode(l), inf, 'supports', { evidence: '炎症反応を示す（これだけで感染とは言えない）' }));
+            E(inf, pInf, 'supports', { evidence: '感染の徴候がないかを見るデータ（危険因子ではない）', predicted: true });
+          }
+        }
+        // 低血糖（実際に起きたこと）
+        const hypo = findItem(/ふらふら|手が震え|冷や?汗/, i => notHist(i) && /(?:低血糖|(?<!\d)[3-6]\d\s*mg\/dL)/.test(i.text)) || findItem(/低血糖|血糖[^\n]{0,10}(?<!\d)(?:[3-6]\d)\s*mg\/dL|手が震え|冷や?汗|ふらふら/, notHist);
+        if (hypo && /低血糖|(?<!\d)(?:[3-6]\d)\s*mg\/dL/.test(hypo.text)) {
+          const bgm = hypo.text.match(/(?<!\d)([3-6]\d)\s*mg\/dL/);
+          const hn = N('hypo', 'symptom', `低血糖の症状${bgm ? `（血糖${bgm[1]}mg/dL）` : ''}：${/震え/.test(hypo.text) ? 'ふらふら・手の震え' : short(hypo, 30, /低血糖|ふらふら|mg\/dL/)}`, { items: [hypo] });
+          const ins = items.find(i => /インスリン/.test(i.text) && i.fieldLabel && /治療/.test(i.fieldLabel));
+          if (ins) E(N('insulin', 'treatment', 'インスリン強化療法', { items: [ins] }), hn, 'contributes_to', { evidence: '食事量・活動量とのずれで効きすぎる' });
+          const dex = findItem(/ブドウ糖/, notHist);
+          if (dex && dex !== hypo) E(N('dextrose', 'treatment', short(dex, 24, /ブドウ糖/), { items: [dex] }), hn, 'treats', { evidence: '低血糖への補正' });
+          const gvN = nodes.get('glu_var');
+          if (gvN) E(hn, gvN, 'predicts', { predicted: true, evidence: '退院後も起こる可能性がある' });
+          else E(hn, N('p_glu', 'nursing_problem', '血糖不安定リスク状態', { cat: 'skin' }), 'results_in', { predicted: true });
+        }
+        // 自己管理：受診・内服・食事・飲酒・インスリン手技
+        const stopItem = findItem(/自己中断|通院[^\n]{0,6}(?:中断|やめ)|内服[^\n]{0,6}不規則|飲み忘れ/);
+        const lifeItem = findItem(/外食|菓子パン|21時以降|飲酒|運動習慣はない/, i => i.fieldLabel && /生活歴/.test(i.fieldLabel));
+        const skillItem = findItem(/単位[^\n]{0,8}間違|覚えることが多|頭に入らない|手技[^\n]{0,8}(?:間違|できない)/, notHist);
+        const careless = findItem(/面倒|やめられない|続けられ/, notHist);
+        const mg = [stopItem, lifeItem, skillItem].filter(Boolean);
+        if (mg.length >= 2) {
+          const pc = N('dm_poor', 'pathophysiology', '食事・内服・受診が続かず、血糖のコントロールが悪くなっている', { source: 'knowledge' });
+          if (stopItem) E(N('dm_stop', 'patient_fact', short(stopItem, 30, /中断|不規則|忘れ/), { items: [stopItem] }), pc, 'contributes_to', { evidence: '治療が途切れた' });
+          if (lifeItem) E(N('dm_life', 'patient_fact', short(lifeItem, 34, /外食|菓子パン|飲酒|運動/), { items: [lifeItem] }), pc, 'contributes_to', { evidence: '食事の時間・内容や飲酒が血糖に影響する' });
+          if (skillItem) E(N('dm_skill', 'symptom', short(skillItem, 34, /単位|覚える|頭に入/), { items: [skillItem] }), pc, 'contributes_to', { evidence: 'インスリンや食事の方法がまだ身についていない' });
+          if (hgN) E(pc, hgN, 'contributes_to', { evidence: '血糖が下がらない・合併症が進む' });
+          E(pc, N('p_mgmt', 'nursing_problem', '非効果的健康自主管理（食事療法・インスリン・受診の継続）', { cat: 'mgmt' }), 'results_in');
+        }
+        // 家族（妻）の言葉：食事づくり・飲酒への対応・仕事復帰後の注射
+        const famItems = items.filter(i => i.type === 's' && rmIsFamilySpeech(i.text) && /食事|お酒|飲酒|注射|どうすれば|わからない|自信/.test(i.text));
+        if (famItems.length) {
+          const fw = N('fam_words', 'symptom', `家族の言葉：${short(famItems[0], 30, /食事|お酒|注射/)}`, { items: famItems });
+          const pf = N('p_family', 'nursing_problem', '家族の知識不足（食事の準備・飲酒への対応）', { cat: 'anx' });
+          E(fw, pf, 'results_in');
+        }
+      }
       // ⑥ 利尿薬の今後のリスク
       if (diuretic) {
         const du = N('diuretic', 'treatment', `利尿薬（${diuretic.name}）`);
@@ -1684,7 +1766,9 @@
         E(loss, b12, 'predicts', { predicted: true, evidence: '内因子の分泌がなくなる' });
         nutrSign = once;
       }
-      if (weightItem || (albL && albL.flag === 'low') || intakeItem) {
+      // 食事を全量〜8割食べている（体重も減っていない）ときは、Albが少し低いだけでは栄養摂取量不足にしない（糖尿病の長文事例：2026-10-07.8）
+      const fullIntake = /糖尿病/.test(dxLabel) && !weightItem && !intakeItem && findItem(/全量摂取|[7-9]割(?:を)?摂取|10割/);
+      if (!fullIntake && (weightItem || (albL && albL.flag === 'low') || intakeItem)) {
         // 主な流れは「食事摂取の低下 → 栄養摂取量不足」。Albは横から根拠データとして付ける（関連図の評価：2026-10-07.6）
         const low = (weightItem || intakeItem)
           ? N('undernutrition', 'symptom', [weightItem && short(weightItem, 20), intakeItem && short(intakeItem, 16)].filter(Boolean).join('・'), { items: [weightItem, intakeItem] })
@@ -1802,7 +1886,7 @@
       if (nodes.has('mobility') && nodes.has('anemia')) E(nodes.get('anemia'), nodes.get('mobility'), 'contributes_to', { evidence: '貧血で疲れやすく動きにくい' });
       // ⑩-2 褥瘡（発赤・体位変換の困難・低栄養）
       const skinItem = findItem(/褥瘡|発赤|体位変換[^\n]{0,6}(?:困難|できない|全介助)|骨突出|DESIGN/);
-      if (skinItem) {
+      if (skinItem && !nodes.has('dm_ulcer')) {
         const sk = N('skin_sign', 'symptom', short(skinItem, 34), { items: [skinItem] });
         const press = N('pressure', 'pathophysiology', '同じ部位への長い圧迫・ずれによる皮膚の血流低下', { source: 'knowledge' });
         if (nodes.has('mobility')) E(nodes.get('mobility'), press, 'causes', { evidence: '自分で体の向きを変えにくい' });

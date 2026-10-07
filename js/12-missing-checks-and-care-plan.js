@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-07.7'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-07.8'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -657,7 +657,7 @@
         goal: c => `3日後までに、自分で痰を出すことができ、SpO2 ${c.spo2 && c.spo2 < 95 ? 94 : 95}%以上を保てる（呼吸音の副雑音が減る）` },
       { key: 'pain', re: /疼痛|痛/, words: /痛|NRS|鎮痛/,
         op: [['痛みの強さ（NRSなど）', /NRS|VAS|フェイス|スケール|強さ|程度/], ['痛みの部位', /部位|場所/], ['痛みの性質（ズキズキ・鈍いなど）', /性質|性状|ズキズキ|鈍い|鋭い/], ['持続時間・出現する時間', /持続|時間|いつ|出現/], ['体動・咳・深呼吸との関連', /体動|動く|動作|離床|咳|深呼吸|体位/], ['鎮痛薬の使用と使用後の変化', /鎮痛|PCA|使用後|効果|頓用/], ['表情・睡眠・活動への影響', /表情|睡眠|眠|活動|ADL/]],
-        goal: c => `本日18時までに、安静時の${c.painSite || '痛み'}が${c.nrs != null ? `NRS${c.nrs}から` : ''}NRS${c.nrs != null ? Math.max(0, Math.min(3, c.nrs - 2)) : 3}以下となり、苦痛なく休息できる` },
+        goal: c => `2日後までに、安静時の${c.painSite || '痛み'}が${c.nrs != null ? `NRS${c.nrs}から` : ''}NRS${c.nrs != null ? Math.max(0, Math.min(3, c.nrs - 2)) : 3}以下となり、苦痛なく休息できる` },
       { key: 'fall', re: /転倒|転落/, words: /転倒|転落|ふらつ|ナースコール|履物|ベッド柵/,
         op: [['ふらつき・歩行の状態', /ふらつ|歩行|歩き方/], ['夜間の行動・トイレの回数', /夜間|トイレ|排尿/], ['転倒に関係する薬（睡眠薬・降圧薬・利尿薬）', /睡眠薬|降圧|利尿|薬/], ['認知・せん妄の有無', /認知|せん妄|見当識/], ['ベッド周りの環境・履物', /環境|ベッド|柵|履物|靴/]],
         goal: () => '入院中、転倒・転落が起こらず、トイレに行くときはナースコールで看護師を呼べる' },
@@ -713,6 +713,64 @@
         op: [['表情・言動（不安の言葉）', /表情|言動|発言|言葉/], ['不安の内容（何が心配か）', /内容|何が|心配/], ['睡眠・食欲', /睡眠|眠|食欲/], ['家族の支援', /家族/]],
         goal: () => '3日後までに、心配なことを自分の言葉で看護師に話せ、夜は眠れたと言える' }
     ];
+    // 糖尿病の足潰瘍・家族の知識不足は、褥瘡・知識不足とは観察・目標が違うので、それぞれの前に入れる（2026-10-07.8）
+    CP_DOMAINS.splice(CP_DOMAINS.findIndex(d => d.key === 'skin'), 0, { key: 'dmfoot', re: /足潰瘍|足病変|糖尿病性足|足壊疽/, words: /足|潰瘍|滲出|免荷|発赤|靴/,
+      op: [['潰瘍の大きさ・深さ・滲出液・発赤・熱感・臭い', /大きさ|深さ|滲出|発赤|熱感|臭/], ['足趾・足底の感覚（モノフィラメント）と足背動脈の触知', /感覚|モノフィラメント|足背|触知/], ['足の皮膚（乾燥・亀裂・胼胝・水疱）と靴・靴下', /乾燥|亀裂|胼胝|水疱|靴/], ['血糖値・WBC・CRP', /血糖|WBC|CRP/], ['免荷（荷重制限）が守れているか', /免荷|荷重/]],
+      goal: () => '1週間後までに、潰瘍が直径1.5cm以下となり、滲出液・発赤が見られない' });
+    CP_DOMAINS.splice(CP_DOMAINS.findIndex(d => d.key === 'know'), 0, { key: 'fam', re: /家族/, words: /家族|妻|夫|食事|指導|説明/,
+      op: [['家族の言葉・不安・負担', /言葉|不安|負担/], ['家族が理解していること・できていること', /理解|できて/], ['面会時の様子・協力の状況', /面会|協力/]],
+      goal: () => '退院までに、家族が患者の食事・服薬・症状が出たときの対応を、自分の言葉で説明できる' });
+    // 手本（この患者の記録を使った、実習中に実施・評価できる計画の例）。学生に考えさせすぎず、まず見本を示す
+    const CP_MODELS = {
+      pain: c => ({ goalLong: `退院までに、${c.painSite || '痛み'}がNRS3以下で、痛みを我慢せずに自分から看護師へ伝えながら、トイレまで歩ける`,
+        goalShort: `2日後までに、安静時の${c.painSite || '痛み'}が${c.nrs != null ? `NRS${c.nrs}から` : ''}NRS3以下となり、苦痛なく休息できる`,
+        tp: ['体動・清拭・歩行の前に、医師の指示の範囲で鎮痛薬を使えるよう調整し、効果が出る時間に合わせて動く', '創部を圧迫しないよう、枕を使って膝を軽く曲げた体位に整える', '起き上がるときは創部を手で支えられるよう、ゆっくり一緒に動く'],
+        ep: ['痛みは我慢せず、0〜10の数字（NRS）で伝えてよいことを説明し、今の痛みを数字で答えてもらって確認する', '創部を手で支えて起き上がる方法を実演し、1回やってもらう'] }),
+      inf: c => ({ goalLong: '退院まで、体温37.5℃未満が続き、創部・傷に発赤・腫脹・滲出液が増えない',
+        goalShort: `3日後までに、${c.text && /潰瘍/.test(c.text) ? '傷のまわりの発赤・滲出液が減り、' : ''}体温37.5℃未満で、WBC・CRPが下がる`,
+        tp: ['処置の前後に手指消毒を行い、傷・刺入部は清潔な操作で処置する', '指示に従って洗浄・被覆を行い、清潔に保つ', '発熱（37.5℃以上）や傷の悪化があれば、すぐ医師へ報告する'],
+        ep: ['傷を触らない、食事前・トイレ後に手を洗うことを説明し、自分で手洗いをしてもらって確認する'] }),
+      glu: () => ({ goalLong: '退院までに、低血糖の症状と対処（ブドウ糖を摂る・知らせる）を自分の言葉で説明でき、血糖の目標範囲を言える',
+        goalShort: '3日後までに、低血糖の症状を3つ言え、ふらふら・手の震えが出たときはナースコールで知らせてブドウ糖を摂れる',
+        tp: ['血糖測定とインスリン注射の前に、その食事を食べられるか（摂取量）を確認してから行う', '低血糖の症状があればすぐ血糖を測り、指示のブドウ糖を摂れるよう援助して、15分後にもう一度測る', '食事が半分以下のときは、インスリンを打つ前に医師へ確認する'],
+        ep: ['低血糖の症状（冷や汗・手の震え・動悸・ふらつき）と、そのときはブドウ糖を摂ってすぐ知らせることを説明し、自分の言葉で言ってもらう', 'ブドウ糖は常に手元に置くよう伝え、置き場所を一緒に決める'] }),
+      dmfoot: () => ({ goalLong: '退院までに、足の潰瘍が縮小し、毎日自分で足の裏を観察して、傷・赤みに気づいたらすぐ受診できる',
+        goalShort: '1週間後までに、潰瘍が直径1.5cm以下となり、滲出液・発赤がなく、鏡を使って足の裏を自分で観察できる',
+        tp: ['指示の洗浄・軟膏処置を毎日行い、清潔な操作で潰瘍を保護する', '免荷のため、歩くときは指示の靴・補助具を使えるよう一緒に確認し、病室外の移動は付き添う', '足を毎日洗い、指の間までよく拭いて乾かす方法を一緒に行う'],
+        ep: ['痛くなくても毎日、足の裏・指の間を鏡で見ること（傷・赤み・水疱・靴ずれ）を説明し、実際に鏡で見てもらって確認する', '足に合った靴を選ぶこと、素足・湯たんぽなど熱いものを避けることを説明し、理由を自分の言葉で言ってもらう'] }),
+      mgmt: c => /インスリン|糖尿病/.test(c.text || '') ? ({ goalLong: '退院までに、食事療法・インスリン・受診を続ける具体的な計画（昼食の選び方・注射の時間・受診日）を自分で立てて説明できる',
+        goalShort: '5日後までに、インスリン注射を手順表を見ながら1人で正しく行え（単位合わせ・部位の変更）、1日の食事の組み合わせの例を2つ言える',
+        tp: ['インスリン注射の手技を、手順表を使って毎日一緒に行い、できた点とできなかった点をその場で伝える', '栄養士の指導の日時を確認して同席し、指導の内容を患者さんの生活（外回りの昼食）に当てはめて一緒に整理する', '仕事に戻った後の1日の流れ（昼食・注射・測定）を一緒に書き出し、続けられそうな方法を選んでもらう'],
+        ep: ['インスリンの打ち方（単位・部位をかえること・保管）を実演してもらい、間違いを一緒に確認する', '分割食の目的と進め方を、患者さんと妻にいっしょに説明し、翌日、自分の言葉で言ってもらう', '禁煙・節酒が血糖と足の血流に関係することを説明し、本人が続けられそうな目標を1つ決める'] })
+        : ({ goalLong: '退院までに、1日の塩分の目安・毎日の体重測定の理由・内服を続ける方法を自分の言葉で説明できる',
+        goalShort: '5日後までに、毎朝の体重測定を1人で行って記録でき、塩分の多い食品を3つ挙げられる',
+        tp: ['体重測定の手順（排尿後・同じ時間・同じ服装）を一緒に行い、記録表に書く', '内服の管理方法（お薬カレンダー・1回分ずつの分包）を一緒に選ぶ', '食事の場面で、塩分の少ない選び方を一緒に確認する'],
+        ep: ['体重が増えたとき・息苦しいときは受診することを説明し、自分の言葉で言ってもらう', '漬物・汁物などの塩分の多い食品を示し、減らし方を本人と一緒に決める'] }),
+      fam: () => ({ goalLong: '退院までに、家族が患者の食事・服薬・症状が出たときの対応を、自分の言葉で説明できる',
+        goalShort: '5日後までに、家族が低血糖の症状と対応（ブドウ糖を飲ませる・受診の目安）を自分の言葉で説明できる',
+        tp: ['面会時に10分ほど時間をとり、困っていることを聞く', '栄養士の指導の日時を家族に伝え、同席できるよう調整する'],
+        ep: ['低血糖の症状と対応（ブドウ糖を飲ませる・救急要請の目安）を家族に説明し、同じ内容を自分の言葉で言ってもらう', '献立は栄養士の指導で説明されるので、看護師は「飲酒の相談の仕方（責めずに本人の目標を一緒に決める）」と「仕事復帰後の昼食・注射の工夫」を一緒に考える'] }),
+      anx: c => ({ goalLong: '退院までに、不安を感じたときに自分から看護師に話し、対処の方法を使える',
+        goalShort: `3日後までに、${/低血糖/.test(c.text || '') ? '低血糖への心配' : '心配なこと'}を自分の言葉で看護師に話せ、夜は眠れたと言える`,
+        tp: ['日勤・夜勤の看護師が1日1回、決まった時間に5分以上、気持ちを聞く時間をとる', ...(/低血糖/.test(c.text || '') ? ['低血糖が起きたときの対処の手順を一緒に紙に書き、枕元に置く'] : ['心配なことを一緒に紙に書き出し、答えられるものから説明する'])],
+        ep: [/低血糖/.test(c.text || '') ? '不安なときは我慢せず、いつでも看護師を呼んでよいことを説明し、呼び方を言ってもらって確認する（対処手順の説明は「血糖不安定」の計画で行う）' : '不安なときは我慢せず看護師を呼んでよいことを説明し、呼び方を言ってもらって確認する'] }),
+      resp: () => ({ goalLong: '退院までに、自分で痰を出せ、SpO2 95%以上を保って病棟内を歩ける',
+        goalShort: '3日後までに、深呼吸と咳で痰を自分で出すことができ、SpO2 95%以上を保てる',
+        tp: ['起きる・体位を変えるたびに、深呼吸を3回行ってから咳をするよう声をかけ、一緒に行う', '創部・胸を軽く手で支えて咳ができるよう、枕を渡して援助する', '食事の前後は上体を起こして過ごせるよう体位を整える'],
+        ep: ['痰を出す理由（肺炎を防ぐ）と、咳のしかた（深呼吸→腹から咳）を説明し、実演してもらう'] }),
+      fall: () => ({ goalLong: '入院中、転倒・転落が起こらず、トイレや移動のときは自分から看護師を呼べる',
+        goalShort: '3日後までに、トイレに行くときは毎回ナースコールを押して看護師を呼べる',
+        tp: ['ナースコールを手の届く位置に置き、ベッド周りの床・履物を整える', '夜間のトイレは、就寝前に誘導し、起きるときは見守って付き添う', 'ふらつきのある日は、歩行時に腕を支えて一緒に歩く'],
+        ep: ['なぜ呼んでよいか（ふらつきで転ぶと骨折する）を説明し、ナースコールの押し方を実際に押してもらって確認する'] })
+    };
+    function cpModelFor(plan, ctx) {
+      const d = cpDomainOf(plan);
+      if (!d || !CP_MODELS[d.key]) return null;
+      const m = CP_MODELS[d.key](ctx || {});
+      const op = (d.op || []).slice(0, 5).map(([l]) => `${l}を観察する`);
+      if (d.key === 'inf' && /糖尿病/.test((ctx && ctx.text) || '')) op.push('血糖値の推移（高血糖は傷が治りにくく、感染しやすい）を観察する');
+      return { ...m, op };
+    }
     function cpDomainOf(plan) {
       const head = String((plan && plan.problem) || '').normalize('NFKC');
       return CP_DOMAINS.find(d => d.re.test(head)) || null;
@@ -734,14 +792,17 @@
     const CP_GOAL_MEASURE = /\d|NRS|VAS|SpO2|回|割|％|%|mL|kg|自立|できる|言える|話せる|説明でき|見られない|起こらず|起こらない|ない$|なく|がない|以内|以下|以上|未満/;
     const CP_GOAL_NURSE = /(?:させる|させない|を行う|行う$|を促す|を指導する|指導する|援助する|観察する|を図る|に努める|ケアする)/;
     const CP_GOAL_ABSTRACT = /(?:軽減|改善|安定|緩和|減少|増加|向上|保持|維持|解消|消失|安心|理解)(?:する|される|できる|が図れる|を図る|している)?。?$/;
+    // 実習中（数日〜2週間）に評価できない期限：時刻・本日中・数時間後など
+    const CP_GOAL_UNREALISTIC = /\d{1,2}\s*時(?:まで|に|頃)|本日(?:中|まで)|今日(?:中|まで)|今夜|当日中|\d+\s*時間(?:後|以内)|数時間/;
     const CP_GOAL_VAGUE_DEADLINE = /数日|数週間?|数か月|近日|近いうち|早期|早め|しばらく|なるべく早く|そのうち|入院中のどこか/;
     const CP_GOAL_VAGUE_VERB = /(?:理解|イメージ|意識|認識|把握|知識|関心|自覚)\s*(?:を持つ|を持てる|が持てる|を深める|が深まる|を得る|を高める|する|できる|している|できている)(?=[。\s]|$)|イメージを持/;
     const CP_GOAL_CONCRETE_ACT = /説明(?:でき|する|して)|実演|復唱|言える|話せる|述べ|挙げ|示せ|行える|自分で(?:測定|注射|交換|行)|\d+\s*(?:つ|項目|回|個)/;
     function cpGoalCheck(goal) {
       const g = String(goal || '').normalize('NFKC').trim();
       if (!g) return { empty: true, deadline: false, subject: false, change: false, measure: false, abstract: false, msgs: ['目標がまだ書かれていません。「いつまでに」「患者が」「どうなる」「何をもって達成と判断するか」を入れて書いてみましょう'] };
+      const unrealistic = CP_GOAL_UNREALISTIC.test(g);
       const vagueDeadline = CP_GOAL_VAGUE_DEADLINE.test(g);
-      const deadline = CP_GOAL_DEADLINE.test(g) && !vagueDeadline;
+      const deadline = CP_GOAL_DEADLINE.test(g) && !vagueDeadline && !unrealistic;
       const nurse = CP_GOAL_NURSE.test(g);
       const measure = CP_GOAL_MEASURE.test(g.replace(CP_GOAL_DEADLINE, ''));
       const abstract = CP_GOAL_ABSTRACT.test(g) && !/\d/.test(g.replace(CP_GOAL_DEADLINE, ''));
@@ -749,10 +810,11 @@
       // 「理解する」「イメージを持つ」だけで、何ができればよいかが書かれていない目標
       const vagueVerb = CP_GOAL_VAGUE_VERB.test(g) && !CP_GOAL_CONCRETE_ACT.test(g);
       const msgs = [];
+      if (unrealistic) msgs.push(`「${(g.match(CP_GOAL_UNREALISTIC) || [''])[0]}」は、実習中に評価しにくい期限です。実習の日数で評価できる期限（例：2日後までに、実習最終日までに、退院までに）に直します`);
       if (vagueDeadline) msgs.push(`「${(g.match(CP_GOAL_VAGUE_DEADLINE) || [''])[0]}」では、いつ評価するのかがわかりません。日付・術後〇日目・退院までに、のように期限をはっきり書きます`);
       if (vagueVerb) msgs.push(`「${(g.match(CP_GOAL_VAGUE_VERB) || [''])[0]}」だけでは、できたかどうかを見て判断できません。「自分の言葉で〇〇を説明できる」「看護師の前で〇〇を実演できる」のように、観察できる行動で書きます`);
       if (abstract || (!deadline && !measure)) msgs.push('目標が抽象的です。いつまでに・どの程度まで改善するかを設定してみてください');
-      if (!deadline && !vagueDeadline) msgs.push('「いつまでに」がありません（例：本日18時までに、3日後までに、退院までに）');
+      if (!deadline && !vagueDeadline && !unrealistic) msgs.push('「いつまでに」がありません（例：2日後までに、実習最終日までに、退院までに）');
       if (nurse) msgs.push('看護師がすることの書き方になっています。目標は「患者が」どうなるかで書きます（看護師がすることはTPへ）');
       if ((!measure || abstract) && !vagueVerb) msgs.push('何をもって達成と判断するかがわかりません（例：NRS3以下、SpO2 95%以上、トイレまで歩ける、自分の言葉で説明できる）');
       return { empty: false, deadline, subject: !nurse, change, measure: measure && !abstract && !vagueVerb, abstract: abstract || vagueVerb, msgs };
@@ -793,7 +855,7 @@
       dstack.forEach(id => dz.add(id));
       while (dstack.length) { const id = dstack.pop(); map.edges.forEach(e => { if (e.target === id && !dz.has(e.source)) { dz.add(e.source); dstack.push(e.source); } }); }
       return map.nodes.filter(n => seen.has(n.id) && n.id !== node.id && !dz.has(n.id) && n.observed !== false && n.source !== 'knowledge'
-        && ['symptom', 'lab', 'patient_fact'].includes(n.type)).map(n => { const t = String(n.label); return /^[（(].*[)）]$/.test(t) ? t.slice(1, -1) : t; }).slice(0, 8);
+        && !/^治療[:：]/.test(String(n.label)) && ['symptom', 'lab', 'patient_fact'].includes(n.type)).map(n => { const t = String(n.label); return /^[（(].*[)）]$/.test(t) ? t.slice(1, -1) : t; }).slice(0, 8);
     }
     // 根拠データの値（「NRS 6」「SpO2 92%」「WBC 12800」など）が、計画（目標・OP）の中で見る値になっているか
     function cpEvidenceKeys(evidence) {
@@ -873,7 +935,7 @@
         if (dom && dom.key === 'pain' && ctx.nrs != null && goalNrs != null && goalNrs >= ctx.nrs) evMsgs.push(`目標のNRSが、今の記録（NRS${ctx.nrs}）より下がっていません`);
         push('evidence', evMsgs, { evidence });
       }
-      return { domain: dom ? dom.key : null, items: out, goalExample, evidence };
+      return { domain: dom ? dom.key : null, items: out, goalExample, evidence, model: cpModelFor(p, ctx) };
     }
     function cpReviewCount(review) { return review.items.filter(i => i.level === 'warn').length; }
 
@@ -933,7 +995,7 @@
       if (!p) return;
       const r = reviewCarePlan(cp, p);
       const ex = (r.items.find(i => i.key === 'goal') || {}).example || r.goalExample;
-      const v = await openDialog({ title: '短期目標を書き直す', message: '例は、この患者の記録の値を使った「書き方の見本」です。そのまま使わず、期限・数値・患者の状態をこの患者に合わせて直してください。\n「いつまでに」「患者が」「どうなる」「何をもって達成と判断するか」', inputValue: ex, placeholder: '例：本日18時までに、安静時の創部痛がNRS5からNRS3以下となり、苦痛なく休息できる', confirmLabel: '短期目標にする' });
+      const v = await openDialog({ title: '短期目標を書き直す', message: '例は、この患者の記録の値を使った「書き方の見本」です。そのまま使わず、期限・数値・患者の状態をこの患者に合わせて直してください。\n「いつまでに」「患者が」「どうなる」「何をもって達成と判断するか」', inputValue: ex, placeholder: '例：2日後までに、安静時の創部痛がNRS5からNRS3以下となり、苦痛なく休息できる', confirmLabel: '短期目標にする' });
       if (v === null || v === undefined || !String(v).trim()) return;
       if (String(v).trim() === ex) {
         const ok = await openDialog({ title: '例のままですが、よいですか？', message: '期限や数値が、この患者に合っているか確かめましたか？（例のまま使うときは、理由を書きます）', confirmLabel: '理由を書いて使う', secondaryLabel: '直す' });
@@ -960,6 +1022,22 @@
       commitCarePlanChange(cp);
     };
 
+    // 手本を、空欄のところだけ入れる（書いてある所は変えない）。入れたあとは「この患者に必要な理由」を書いてもらう
+    window.applyCareModelUI = function(id) {
+      const cp = getCurrentPatient();
+      const p = getCarePlan(cp, id);
+      if (!p) return;
+      const m = reviewCarePlan(cp, p).model;
+      if (!m) return;
+      const patch = {};
+      if (!String(p.goalLong || '').trim()) patch.goalLong = m.goalLong;
+      if (!String(p.goalShort || '').trim()) patch.goalShort = m.goalShort;
+      ['op', 'tp', 'ep'].forEach(k => { if (!p[k].length && m[k] && m[k].length) patch[k] = [...m[k]]; });
+      if (!Object.keys(patch).length) return showToast('空欄がないので、手本は入れませんでした（書いてある内容はそのままです）', 'info');
+      updateCarePlan(cp, id, { ...patch, reasonNeeded: true });
+      commitCarePlanChange(cp);
+      showToast('手本を空欄に入れました。この患者に合うか確かめて、直してください', 'success');
+    };
     window.moveTpToOpUI = function(id, idx) {
       const cp = getCurrentPatient();
       const p = getCarePlan(cp, id);
@@ -976,6 +1054,12 @@
       if (carePlanReviewOpen.has(id)) carePlanReviewOpen.delete(id); else carePlanReviewOpen.add(id);
       renderCarePlans();
     };
+    function cpModelBlockHtml(m, title) {
+      if (!m) return '';
+      const list = (label, arr) => arr && arr.length ? `<div><b>${label}</b><ul>${arr.map(t => `<li>${escapeHtml(t)}</li>`).join('')}</ul></div>` : '';
+      const one = (label, t) => t ? `<div><b>${label}</b><p>${escapeHtml(t)}</p></div>` : '';
+      return `<div class="cpr-model"><span><i class="fa-solid fa-book-open"></i> ${title}<small>この患者の記録を使った例です。そのまま写さず、この患者に合わせて直して使います</small></span>${one('長期目標', m.goalLong)}${one('短期目標', m.goalShort)}${list('OP（観察）', m.op)}${list('TP（援助）', m.tp)}${list('EP（教育）', m.ep)}</div>`;
+    }
     function carePlanReviewHtml(cp, p) {
       const pid = safeDomId(p.id);
       const r = reviewCarePlan(cp, p);
@@ -996,8 +1080,10 @@
       const aiHtml = ai ? `<div class="cpr-ai"><div class="cpr-ai-head"><i class="fa-solid fa-wand-magic-sparkles"></i> AIの評価（${escapeHtml(formatMyDateTime(ai.at))}）<span class="my-asm-muted">AIの評価は参考です。採り入れるときは、この患者に必要な理由を確かめてください</span></div>
         <ul class="cpr-list">${ai.items.map(it => `<li class="cpr-item cpr-${it.level === 'ok' ? 'ok' : 'warn'}"><div class="cpr-head">${icon(it.level === 'ok' ? 'ok' : 'warn')} <b>${escapeHtml(it.label)}</b></div>${it.comment ? `<p>${escapeHtml(it.comment)}</p>` : ''}${it.suggestion ? `<p class="cpr-sugg">提案：${escapeHtml(it.suggestion)}</p>` : ''}</li>`).join('')}</ul>
         ${ai.goal ? `<div class="cpr-ex"><span>AIの目標の案</span><p>${escapeHtml(ai.goal)}</p></div>` : ''}
-        ${ai.questions && ai.questions.length ? `<div class="cpr-q"><span><i class="fa-solid fa-graduation-cap"></i> 考えてみよう（この患者に必要な理由）</span><ul>${ai.questions.map(q => `<li>${escapeHtml(q)}</li>`).join('')}</ul><button type="button" class="my-asm-link" onclick="writeCareReasonUI('${pid}')"><i class="fa-solid fa-pen"></i> 理由を書く</button></div>` : ''}</div>` : '';
-      return `<div class="cpr" id="cpr-${pid}"><div class="cpr-title"><i class="fa-solid fa-clipboard-list"></i> 計画のチェック（AIなし）<span class="my-asm-muted">要確認 ${cpReviewCount(r)}件</span></div><ul class="cpr-list">${rows}</ul>${aiHtml}</div>`;
+        ${cpModelBlockHtml(ai.model, 'AIの手本')}
+        ${ai.questions && ai.questions.length ? `<div class="cpr-q"><span><i class="fa-solid fa-graduation-cap"></i> この患者に必要な理由の手本（自分の言葉に直して書く）</span><ul>${ai.questions.map(q => `<li>${escapeHtml(q)}</li>`).join('')}</ul><button type="button" class="my-asm-link" onclick="writeCareReasonUI('${pid}')"><i class="fa-solid fa-pen"></i> 理由を書く</button></div>` : ''}</div>` : '';
+      const modelHtml = r.model ? cpModelBlockHtml(r.model, 'この看護問題の手本') + `<button type="button" class="my-asm-link" onclick="applyCareModelUI('${pid}')"><i class="fa-solid fa-wand-magic-sparkles"></i> 手本を空欄に入れる（書いてある所はそのまま）</button>` : '';
+      return `<div class="cpr" id="cpr-${pid}"><div class="cpr-title"><i class="fa-solid fa-clipboard-list"></i> 計画のチェック（AIなし）<span class="my-asm-muted">要確認 ${cpReviewCount(r)}件</span></div><ul class="cpr-list">${rows}</ul>${modelHtml}${aiHtml}</div>`;
     }
 
     // ---- AIで看護計画を評価 ----
@@ -1017,14 +1103,15 @@
 ${typeof AI_ACCURACY_RULES === 'string' ? AI_ACCURACY_RULES : ''}
 【評価の7項目（keyと見ること）】
 fit 看護問題との整合性：目標・OP・TP・EPがこの看護問題を解決する内容か
-goal 目標の具体性・評価可能性：「いつまでに」「患者が」「どうなる」「何をもって達成と判断するか」が入っているか。抽象的なら（例：疼痛が軽減する）、記録の値を使った評価できる目標の例（例：本日18時までに、安静時の創部痛がNRS5からNRS3以下となり、苦痛なく休息できる）
+goal 目標の具体性・評価可能性：「いつまでに」「患者が」「どうなる」「何をもって達成と判断するか」が入っているか。抽象的なら（例：疼痛が軽減する）、記録の値を使った評価できる目標の例（例：2日後までに、安静時の創部痛がNRS5からNRS3以下となり、苦痛なく休息できる）。期限は実習中（数日〜2週間）に評価できる範囲にし、『○時までに』『本日中に』『数時間後』は使わない
 op OPの不足：この看護問題で観察すべき項目が抜けていないか（例：疼痛ならNRS・部位・性質・持続時間・体動との関連・鎮痛薬使用後の変化）
 tp TPの具体性：いつ・どのように・どのくらい行うかが書かれているか
 ep EPの適切さ：患者・家族に何を伝え、何ができるようになるかが書かれているか
 individual 患者の個別性：この患者の値・言葉・治療・生活に合わせた計画か
 evidence 根拠データとの一致：下の根拠データと目標・OPが合っているか
-【形】JSONだけを返す：{"items":[{"key":"fit","ok":true,"comment":"評価（60字以内）","suggestion":"直す方向（60字以内。良ければ空）"}],"goal":"評価できる短期目標の例（この患者の記録の値を使う。80字以内）","questions":["学生がこの計画を『この患者に必要な理由』で確かめるための問い（3つ。各40字以内）"]}
+【形】JSONだけを返す：{"items":[{"key":"fit","ok":true,"comment":"評価（60字以内）","suggestion":"直す方向（60字以内。良ければ空）"}],"goal":"評価できる短期目標の例（この患者の記録の値を使う。80字以内）","reasons":["この患者にこの計画が必要な理由の手本（3つ。『〜という記録があるので、〜のために〜が必要』の形。各60字以内）"],"model":{"goalLong":"長期目標の手本（期限つき）","goalShort":"短期目標の手本","tp":["看護師が実施する援助の手本（3つ。いつ・どのように）"],"ep":["何を説明し、理解をどう確認するかまで書いた教育の手本（2つ）"]}}
 itemsは7項目すべて、上の順で。
+【手本を示す】学生に問いかけて考えさせるだけで終わらず、suggestion・reasons・modelには、そのまま参考にできる具体的な文を書く。期限は実習中（数日〜2週間）に評価できる範囲にし、『○時までに』『本日中に』『数時間後』は使わない。
 
 【評価するときの約束（誤った指摘をしない）】
 ・計画の種類を区別する。「予定された指導・検査の確認」（例：明日の栄養士の指導を確認する・同席する）は、未来の予定でも正しい計画で、「未来だから不適切」と指摘しない。確認する内容（いつ・誰が・何を）が書かれているかだけを見る。
@@ -1059,7 +1146,8 @@ ${items}`;
         return { key: def.key, label: def.label, level: ok ? 'ok' : 'warn', comment: String(x.comment || '').slice(0, 200), suggestion: ok ? '' : String(x.suggestion || '').slice(0, 200) };
       }).filter(Boolean);
       if (!items.length) return null;
-      return { items, goal: String(obj.goal || '').slice(0, 200), questions: (Array.isArray(obj.questions) ? obj.questions : []).map(q => String(q || '').slice(0, 120)).filter(Boolean).slice(0, 5) };
+      return { items, goal: String(obj.goal || '').slice(0, 200), questions: (Array.isArray(obj.reasons) ? obj.reasons : (Array.isArray(obj.questions) ? obj.questions : [])).map(q => String(q || '').slice(0, 140)).filter(Boolean).slice(0, 5),
+        model: obj.model && typeof obj.model === 'object' ? { goalLong: String(obj.model.goalLong || '').slice(0, 200), goalShort: String(obj.model.goalShort || '').slice(0, 200), tp: (Array.isArray(obj.model.tp) ? obj.model.tp : []).map(t => String(t || '').slice(0, 160)).filter(Boolean).slice(0, 5), ep: (Array.isArray(obj.model.ep) ? obj.model.ep : []).map(t => String(t || '').slice(0, 200)).filter(Boolean).slice(0, 4) } : null };
     }
     // ---- 全計画をまとめて評価（計画どうしの重複・補完・不足） ----
     const CP_SET_TOPICS = [
@@ -1081,10 +1169,14 @@ ${items}`;
       if (plans.length < 2) return out;
       const name = p => `「${p.problem || '無題'}」`;
       const act = p => [p.goalShort, p.goalLong, ...p.tp, ...p.ep].join('\n').normalize('NFKC');
-      // 同じ話題が複数の計画の援助・教育に入っている
-      CP_SET_TOPICS.forEach(([label, re]) => {
-        const hit = plans.filter(p => re.test(act(p)));
-        if (hit.length >= 2) out.dups.push({ title: label, msg: `「${label}」が${hit.map(name).join('と')}の両方に書かれています。同じ説明・理解確認を2回書かず、片方にまとめるか、問題ごとに目的（何を解決するか）と達成条件を分けましょう` });
+      // 同じ説明（EP）が、同じ相手（患者／家族）に向けて複数の計画に入っている。TPは計画ごとの役割があるので見ない。
+      // 家族への説明と患者への説明は、相手が違うので重複としない。ナースコール・手洗いのような共通の説明も見ない
+      const epOf = (p, fam) => p.ep.filter(l => !!/家族|妻|夫|娘|息子/.test(l) === fam).join('\n').normalize('NFKC');
+      CP_SET_TOPICS.filter(([label]) => !/ナースコール|感染予防|服薬|転倒/.test(label)).forEach(([label, re]) => {
+        [false, true].forEach(fam => {
+          const hit = plans.filter(p => re.test(epOf(p, fam)));
+          if (hit.length >= 2) out.dups.push({ title: label, msg: `「${label}」の${fam ? '家族への' : ''}説明が${hit.map(name).join('と')}の教育計画（EP）に書かれています。同じ説明・理解確認を2回書かず、片方にまとめるか、問題ごとに目的（何を解決するか）と達成条件を分けましょう` });
+        });
       });
       // ほとんど同じ文が別の計画にある
       const seen = new Set();
@@ -1256,6 +1348,6 @@ if (typeof module !== 'undefined' && module.exports) {
     formatCardTimestamp, MISSING_CHECK_STATUSES, missingInfoItems, missingCheckStatus, missingCheckCounts, setMissingCheck, missingCheckCardHtml,
     CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
-    CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, buildCarePlanReviewPrompt, parseCarePlanReview, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, buildAllCarePlansReviewPrompt, parseAllCarePlansReview, carePlanSetReviewHtml, carePlanSetState
+    cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, buildCarePlanReviewPrompt, parseCarePlanReview, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, buildAllCarePlansReviewPrompt, parseAllCarePlansReview, carePlanSetReviewHtml, carePlanSetState
   });
 }
