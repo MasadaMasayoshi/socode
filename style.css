@@ -1187,3 +1187,10 @@
   .cp-help-text.is-open { text-align: left; }
 }
 @media (max-width: 767px) { .cp-top-actions > .btn:nth-last-child(2) { grid-column: 1 / -1; } }
+
+/* スマホ：タブは横に隠さず折り返して中央に並べる（選んだ関連図・参考データのタブが画面の外に隠れていた）。関連図の操作ボタンも中央に */
+@media (max-width: 767px) {
+  body > header > div.justify-between > div.overflow-x-auto { overflow-x: visible; flex-wrap: wrap; justify-content: center; gap: .25rem; }
+  .rm-toolbar { justify-content: center; }
+  .rm-toolbar > * { flex: 0 0 auto; }
+}
