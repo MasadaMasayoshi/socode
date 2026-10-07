@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-07.8'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-07.9'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -855,7 +855,7 @@
       dstack.forEach(id => dz.add(id));
       while (dstack.length) { const id = dstack.pop(); map.edges.forEach(e => { if (e.target === id && !dz.has(e.source)) { dz.add(e.source); dstack.push(e.source); } }); }
       return map.nodes.filter(n => seen.has(n.id) && n.id !== node.id && !dz.has(n.id) && n.observed !== false && n.source !== 'knowledge'
-        && !/^治療[:：]/.test(String(n.label)) && ['symptom', 'lab', 'patient_fact'].includes(n.type)).map(n => { const t = String(n.label); return /^[（(].*[)）]$/.test(t) ? t.slice(1, -1) : t; }).slice(0, 8);
+        && !/^治療[:：]/.test(String(n.label)) && !map.nodes.some(d => d.type === 'disease' && String(d.label).slice(0, 10) === String(n.label).slice(0, 10)) && ['symptom', 'lab', 'patient_fact'].includes(n.type)).map(n => { const t = String(n.label); return /^[（(].*[)）]$/.test(t) ? t.slice(1, -1) : t; }).slice(0, 8);
     }
     // 根拠データの値（「NRS 6」「SpO2 92%」「WBC 12800」など）が、計画（目標・OP）の中で見る値になっているか
     function cpEvidenceKeys(evidence) {

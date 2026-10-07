@@ -185,3 +185,31 @@ test('実習向け：「18時までに」「本日中に」は期限として使
   const tpep = key => plans.map(pl => (app.reviewCarePlan(dm, pl).model || {})[key] || []).flat().join('\n');
   assert.equal((tpep('ep').match(/分割食/g) || []).length, 1, '分割食の説明は1つの計画だけ');
 });
+
+test('糖尿病の関連図の評価（2026-10-07.9）：低血糖の時系列・事実だけを根拠に・発言は根拠として添える・妻の発言は全文・理論は補足', () => {
+  const text = fs.readFileSync(path.join(ROOT, 'tests/fixtures/relation-map/diabetes_education_foot_long.txt'), 'utf8');
+  const items = app.classifyTextByRules(text).map((i, k) => ({ ...i, id: `it${k}` }));
+  const cp = { id: 'p3', sourceText: text, items, carePlans: {} };
+  const map = app.buildRelationMapFromRecord(cp);
+  const by = re => map.nodes.find(n => re.test(n.label));
+  const edge = (a, b) => map.edges.find(e => e.source === a.id && e.target === b.id);
+  // 1 治療（ブドウ糖）と再測定は別の四角。症状が消えたとは書かない
+  const dex = by(/^ブドウ糖を摂取$/), re = by(/15分後の再測定 血糖82/), hypo = by(/^低血糖の症状（血糖62/);
+  assert.ok(dex && re && hypo && edge(dex, hypo).relation === 'treats' && edge(dex, re));
+  assert.ok(!map.nodes.some(n => /症状(?:が)?(?:消失|消え)/.test(n.label)));
+  // 2 「食事・内服・受診が続かず」と断定せず、記録の事実（通院中断・内服・手技の間違い）を直接つなぐ
+  assert.ok(!by(/食事・内服・受診が続かず/) && by(/通院を自己中断・内服が不規則/) && by(/単位の合わせ方を2回間違える/));
+  // 3 感覚低下 → 痛みを感じにくく放置 → 潰瘍。患者の発言は「放置」の根拠として添える
+  const neuro = by(/モノフィラメント/), unaware = by(/痛みを感じにくく、傷に気づかず放置/), ulcer = by(/直径2cmの潰瘍/), said = by(/痛くないから放っておいた/);
+  assert.ok(edge(neuro, unaware) && edge(unaware, ulcer) && edge(said, unaware).relation === 'supports' && !edge(said, ulcer));
+  // 4 炎症所見は感染の確定にしない
+  assert.ok(by(/感染かどうかは未確定/) && /最優先|優先度1/.test(by(/^感染リスク状態/).note + by(/^感染リスク状態/).evidence));
+  // 5 妻の発言は全文（省略「…」なし）。飲酒の根拠もある
+  assert.ok(map.nodes.filter(n => /^妻の言葉/.test(n.label)).every(n => !/…/.test(n.label)) && by(/お酒をやめさせられるか自信がない」$/));
+  assert.ok(!map.nodes.some(n => n.type !== 'nursing_problem' && /…$/.test(n.label)));
+  // 6 理論（発達課題）は補足（予測の線）。主な流れは本人の言葉 → 役割を果たせない
+  const role = by(/役割を果たせない/), dev = by(/発達課題/), words = by(/早く退院したい/);
+  assert.ok(edge(words, role) && edge(dev, role).predicted && !map.edges.some(e => e.target === dev.id));
+  // 7 治療の線には「治療」の文字を添える
+  assert.ok(/class="rm-treat-label"[^`]*>治療<\/text>/.test(src));
+});
