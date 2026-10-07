@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.15'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.16'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -113,8 +113,10 @@
     const RM_FONT = 14, RM_LINE_H = 19, RM_PAD = 10, RM_HEAD_H = 0;
     // 看護問題の補足（名前の下の小さい説明文）
     const RM_NOTE_FONT = 11.5, RM_NOTE_LINE_H = 15, RM_NOTE_GAP = 7, RM_NOTE_MAX = 60;
-    const RM_LAYOUT_STYLE = 2; // 四角の大きさを変えたら上げる（前の大きさで並べた図は自動で並べ直す）
-    const RM_COL_GAP = 80, RM_ROW_GAP = 22;
+    const RM_LAYOUT_STYLE = 3; // 四角の大きさを変えたら上げる（前の大きさで並べた図は自動で並べ直す）
+    const RM_COL_GAP = 80, RM_ROW_GAP = 28;
+    // 列のすき間は、通る線（縦の線）の本数に合わせて広げる（少ないと狭く、多いと広く。2026-10-07.16）
+    const RM_COL_GAP_MIN = 72, RM_COL_GAP_MAX = 170, RM_COL_GAP_PER_LINE = 9, RM_COL_GAP_BASE = 56;
     const RM_MAX_NODES = 70, RM_MAX_EDGES = 160, RM_TEXT_MAX = 120, RM_UNDO_MAX = 40;
     const RM_BRIDGE_R = 6;
     // 図の地の色（画面）。白い四角が浮き出て見えるよう、ごく薄い色にする（印刷・画像は白）
@@ -673,11 +675,23 @@
       // x：列ごとに、いちばん幅の広い四角に合わせる
       const colX = [];
       let x = 0;
+      const rankOf = new Map();
+      cols.forEach((c, r) => c.forEach(e => members.get(e.id).forEach(m => rankOf.set(m, r))));
+      const gapAfter = r => {
+        const outs = new Set(), ins = new Set();
+        map.edges.forEach(e => {
+          const a = rankOf.get(e.source), b = rankOf.get(e.target);
+          if (a === undefined || b === undefined || a >= b) return;
+          if (a === r) outs.add(e.source);
+          if (b === r + 1) ins.add(e.target);
+        });
+        return Math.max(RM_COL_GAP_MIN, Math.min(RM_COL_GAP_MAX, RM_COL_GAP_BASE + RM_COL_GAP_PER_LINE * (outs.size + ins.size)));
+      };
       cols.forEach((c, r) => {
         colX[r] = x;
         const w = c.length ? Math.max(...c.map(e => stackW(e.id))) : RM_RECT_W;
         c.forEach(e => members.get(e.id).forEach(m => { const n = byId.get(m); n.x = Math.round(x + (w - rmNodeSize(n).w) / 2); }));
-        x += w + RM_COL_GAP;
+        x += w + gapAfter(r);
       });
       // y：看護問題ごとの「帯」に分けて上から並べる（#1 の流れがいちばん上の帯、#2 がその下…）。
       // それぞれの四角は、つながる看護問題のうち優先度のいちばん高い帯に入る（複数の問題に効く四角は上の帯）。
@@ -693,7 +707,7 @@
           let y = top + (bandH - colH[r]) / 2;
           c.forEach(e => { members.get(e.id).forEach((m, k) => { const n = byId.get(m); if (k) y += RM_STACK_GAP; n.y = Math.round(y); y += blockH(n); }); y += RM_ROW_GAP; });
         });
-        if (bandH > 0) { stripes.push({ y1: top - RM_ROW_GAP * 0.9, y2: top + bandH + RM_ROW_GAP * 0.9, p: bv }); top += bandH + RM_ROW_GAP * 1.3; }
+        if (bandH > 0) { stripes.push({ y1: top - RM_ROW_GAP * 0.9, y2: top + bandH + RM_ROW_GAP * 0.9, p: bv }); top += bandH + RM_ROW_GAP * 2; }
       });
       // 【看護問題の高さ】利用者から「看護問題は上から順に並べなくてよい（#番号があるから）」（2026-10-06.25）。
       // 右端の看護問題は、つながる原因の四角の高さのまん中に置く（線がまっすぐ短くなる）。重なるときは下へずらす
