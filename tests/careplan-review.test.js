@@ -213,3 +213,9 @@ test('糖尿病の関連図の評価（2026-10-07.9）：低血糖の時系列�
   // 7 治療の線には「治療」の文字を添える
   assert.ok(/class="rm-treat-label"[^`]*>治療<\/text>/.test(src));
 });
+
+test('手本のOP：ドレーン・カテーテルの記録が無い患者の感染の手本に、ドレーン排液・尿を出さない', () => {
+  const cp = { id: 'p4', sourceText: '足底に潰瘍あり。発赤と熱感。', items: [], carePlans: {} };
+  const m = app.cpModelFor({ problem: '感染リスク状態' }, app.cpRecordContext(cp));
+  assert.ok(!m.op.some(t => /ドレーン|尿の/.test(t)) && m.op.some(t => /傷の滲出液/.test(t)));
+});
