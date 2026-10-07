@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.9'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.10'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -1625,19 +1625,23 @@
         if (mg.length >= 2) {
           // 記録にある事実だけを、そのまま看護問題への根拠にする（「食事が続かない」のような記録に無い断定はしない）
           const pm = N('p_mgmt', 'nursing_problem', '非効果的健康自主管理（食事療法・インスリン・受診の継続）', { cat: 'mgmt' });
+          // 事実から看護問題へ直接つながず、「今の状態」を表す四角を1つはさむ。ここは記録の事実（通院・内服・手技）だけを述べ、
+          // 記録に無いこと（食事が続かない等）は書かない。食事・飲酒の習慣は、血糖に影響する背景として添える
+          const state = N('dm_selfcare', 'pathophysiology', '通院・内服・インスリン手技を、自分で続ける力がまだ十分でない', { source: 'knowledge' });
           if (stopItem) {
             const sn = N('dm_stop', 'patient_fact', '通院を自己中断・内服が不規則だった', { items: [stopItem], max: 60 });
             if (hgN) E(sn, hgN, 'contributes_to', { evidence: '治療が途切れた' });
-            E(sn, pm, 'results_in', { noBridge: true });
+            E(sn, state, 'causes', { noBridge: true });
           }
-          // 食事・飲酒の習慣は1つの四角にまとめる（背景の事実から看護問題への長い線を減らす）
+          if (skillItem) E(N('dm_skill', 'symptom', short(skillItem, 60, /単位|覚える|頭に入/), { items: [skillItem], max: 60 }), state, 'causes', { noBridge: true });
           const lifeItems = [lifeItem, drinkItem].filter(Boolean);
-          if (lifeItems.length) E(N('dm_life', 'patient_fact', [lifeItem && '外食・菓子パン中心、夕食は21時以降', drinkItem && '飲酒は週3回'].filter(Boolean).join('。'), { items: lifeItems, max: 60 }), pm, 'contributes_to', { noBridge: true, evidence: '食事の時間・内容や飲酒の習慣（記録の生活歴）' });
-          if (skillItem) E(N('dm_skill', 'symptom', short(skillItem, 60, /単位|覚える|頭に入/), { items: [skillItem], max: 60 }), pm, 'results_in', { noBridge: true });
+          if (lifeItems.length) E(N('dm_life', 'patient_fact', [lifeItem && '外食・菓子パン中心、夕食は21時以降', drinkItem && '飲酒は週3回'].filter(Boolean).join('。'), { items: lifeItems, max: 60 }), state, 'contributes_to', { noBridge: true, evidence: '食事の時間・内容や飲酒の習慣（記録の生活歴）も、血糖の管理に影響する' });
+          E(state, pm, 'results_in', { noBridge: true });
         }
         // 家族（妻）の言葉：食事づくり・飲酒への対応・仕事復帰後の注射
         const famItems = items.filter(i => i.type === 's' && rmIsFamilySpeech(i.text) && /食事|お酒|飲酒|注射|どうすれば|わからない|自信/.test(i.text));
         if (famItems.length) {
+          const fstate = N('fam_state', 'pathophysiology', '家族が、食事づくり・飲酒への対応・仕事復帰後の支え方を、具体的にまだ知らない', { source: 'knowledge' });
           const pf = N('p_family', 'nursing_problem', '家族の知識不足（食事の準備・飲酒への対応）', { cat: 'anx' });
           // 家族の発言は、「 」ごとに全文を別の四角にする（途中で切らない。飲酒への対応の根拠は妻の発言）
           const quotes = [];
@@ -1645,8 +1649,9 @@
           (quotes.length ? quotes.slice(0, 3) : [{ q: null, i: famItems[0] }]).forEach((x, k) => {
             const firstOfItem = quotes.findIndex(y => y.i === x.i) === k;
             const fw = N(`fam_words${k}`, 'symptom', `妻の言葉：「${x.q || short(x.i, 50)}」`.replace(/「「/, '「').replace(/」」/, '」'), { items: firstOfItem ? [x.i] : [], max: 64 });
-            E(fw, pf, 'results_in');
+            E(fw, fstate, 'causes', { noBridge: true });
           });
+          E(fstate, pf, 'results_in', { noBridge: true });
         }
       }
       // ⑥ 利尿薬の今後のリスク
