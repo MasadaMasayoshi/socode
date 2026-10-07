@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-07.13'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-07.17'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -2995,6 +2995,20 @@
     }
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSourceTextSave(); });
     document.getElementById('btn-load-sample').addEventListener('click', () => { cancelSourceTextSave(); DOM.sourceText.value = SAMPLE_TEXT; saveDataAndSync(); });
+    // テスト用の事例（SAMPLE_CASES）：選んで「セット」、または「セット＋分類まで」（そのまま分類を実行。関連図・看護計画は分類のあと各ページのボタンで）
+    (function setupSampleCases() {
+      const sel = document.getElementById('sample-case-select');
+      if (!sel || typeof SAMPLE_CASES === 'undefined') return;
+      SAMPLE_CASES.forEach((c, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = c.label; sel.appendChild(o); });
+      const load = () => {
+        const c = SAMPLE_CASES[Number(sel.value)];
+        if (!c) { sel.focus(); return false; }
+        if (DOM.sourceText.value.trim() && DOM.sourceText.value.trim() !== c.text.trim() && !confirm('いまの記録メモを、選んだ事例に入れ替えます。よろしいですか？')) return false;
+        cancelSourceTextSave(); DOM.sourceText.value = c.text; saveDataAndSync(); return true;
+      };
+      document.getElementById('btn-load-sample-case')?.addEventListener('click', load);
+      document.getElementById('btn-load-sample-classify')?.addEventListener('click', () => { if (load()) document.getElementById('btn-start-classify')?.click(); });
+    })();
 
     // 【記録メモを空にする】利用者からの要望：「記録メモのボックスの中身を空にする機能を追加してください」。
     // 記録メモの文章だけを消す（分類ボードのカード・総合アセスメント表・看護計画などはそのまま）。

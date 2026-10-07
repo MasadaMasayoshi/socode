@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-07.13">
-  <meta name="app-file-versions" content="01:2026-10-06.14,02:2026-10-06.14,03:2026-10-06.14,04:2026-10-06.14,05:2026-10-07.13,06:2026-10-06.14,07:2026-10-06.14,08:2026-10-07.8,09:2026-10-06.15,10:2026-10-06.15,11:2026-10-06.15,12:2026-10-07.12,13:2026-10-06.15,14:2026-10-06.14,15:2026-10-07.10">
+  <meta name="app-version" content="2026-10-07.17">
+  <meta name="app-file-versions" content="01:2026-10-06.14,02:2026-10-07.17,03:2026-10-06.14,04:2026-10-06.14,05:2026-10-07.17,06:2026-10-06.14,07:2026-10-06.14,08:2026-10-07.8,09:2026-10-06.15,10:2026-10-06.15,11:2026-10-06.15,12:2026-10-07.12,13:2026-10-06.15,14:2026-10-06.14,15:2026-10-07.16">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
@@ -217,7 +217,12 @@
 
         <div class="flex items-center justify-between pt-1 border-t border-[var(--line-soft)]">
           <span class="text-[11px] text-[var(--ink-muted)]">テスト用:</span>
-          <button id="btn-load-sample" class="text-[11px] text-[var(--accent)] hover:underline">例文をセット</button>
+          <div class="flex flex-wrap items-center gap-1.5 justify-end">
+            <select id="sample-case-select" class="field text-[11px] py-1 max-w-[11rem]" aria-label="テスト用の事例を選ぶ"><option value="">事例を選ぶ…</option></select>
+            <button id="btn-load-sample-case" class="text-[11px] text-[var(--accent)] hover:underline">セット</button>
+            <button id="btn-load-sample-classify" class="text-[11px] text-[var(--accent)] hover:underline">セット＋分類まで</button>
+            <button id="btn-load-sample" class="text-[11px] text-[var(--ink-muted)] hover:underline">例文をセット</button>
+          </div>
         </div>
       </section>
 
@@ -1352,10 +1357,10 @@
   <!-- プログラム本体（以前の app.js を内容ごとに10ファイルに分けたもの）。この順番で読み込むこと。
        順番は tests/app-helpers.js の APP_SCRIPT_FILES と同じにする（tests/app-files-order.test.js で確認）。 -->
   <script src="js/01-henderson-keywords.js?v=2026-10-06.14"></script>
-  <script src="js/02-reference-data.js?v=2026-10-06.14"></script>
+  <script src="js/02-reference-data.js?v=2026-10-07.17"></script>
   <script src="js/03-extraction-helpers.js?v=2026-10-06.14"></script>
   <script src="js/04-server-sync.js?v=2026-10-06.14"></script>
-  <script src="js/05-app-state-and-ui.js?v=2026-10-07.13"></script>
+  <script src="js/05-app-state-and-ui.js?v=2026-10-07.17"></script>
   <script src="js/06-export.js?v=2026-10-06.14"></script>
   <script src="js/07-classification.js?v=2026-10-06.14"></script>
   <script src="js/08-assessment-tools.js?v=2026-10-07.8"></script>
@@ -1365,6 +1370,6 @@
   <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-07.12"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-06.15"></script>
   <script src="js/14-drug-reference.js?v=2026-10-06.14"></script>
-  <script src="js/15-relation-map.js?v=2026-10-07.10"></script>
+  <script src="js/15-relation-map.js?v=2026-10-07.16"></script>
 </body>
 </html>

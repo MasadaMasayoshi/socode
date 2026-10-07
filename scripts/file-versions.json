@@ -4,8 +4,8 @@
     "hash": "42d8c675700ebcdc"
   },
   "js/02-reference-data.js": {
-    "version": "2026-10-06.14",
-    "hash": "0bd981b47daa0a05"
+    "version": "2026-10-07.17",
+    "hash": "9720583c320bd6c9"
   },
   "js/03-extraction-helpers.js": {
     "version": "2026-10-06.14",
@@ -16,8 +16,8 @@
     "hash": "1c36d8cc0b410d33"
   },
   "js/05-app-state-and-ui.js": {
-    "version": "2026-10-07.13",
-    "hash": "5dfa7c8167d56729"
+    "version": "2026-10-07.17",
+    "hash": "d1473d2f6e00910f"
   },
   "js/06-export.js": {
     "version": "2026-10-06.14",
