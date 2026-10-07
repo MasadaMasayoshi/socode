@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-07.21'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-08.2'; // 版（scripts/stamp-version.js が書き込む）
     // 「祖母を胃がん、父を前立腺がんで亡くしている〜」のような家族歴の文は、本人の食事・栄養
     // 状態の所見ではないにもかかわらず、id2(食事)の疾患名キーワード（「胃がん」等）に一致して
     // しまい、食事に無関係な家族歴が「2. 食事」に混入していた（利用者からの報告事例）。
@@ -2900,7 +2900,7 @@
     // 「分類開始」の分類方法（'rules'＝ルールで分類（AIなし）／'ai'＝AIで分類）。このブラウザに覚えておく。
     const CLASSIFY_MODE_STORAGE_KEY = 'nursing_classify_mode';
     function getClassifyMode() {
-      try { return localStorage.getItem(CLASSIFY_MODE_STORAGE_KEY) === 'ai' ? 'ai' : 'rules'; } catch (e) { return 'rules'; }
+      return 'rules'; // 分類はいつも、サイト内のルール（AIなし）で先に出す。AIは「AIで分類を評価」で結果を確かめる
     }
     function renderClassifyModeSwitch() {
       const mode = getClassifyMode();
@@ -2913,7 +2913,7 @@
       if (note) {
         note.textContent = mode === 'ai'
           ? (globalAppData.apiKey ? 'Gemini が基準ノートを根拠に分類します（個人情報は伏せ字にして送ります。失敗したらルールで分類）' : 'APIキーが未設定です。「API設定」でキーを保存してください')
-          : 'AIを使わず、キーワード等のルールだけで分類します';
+          : 'AIは使わず、このサイトのルール（キーワード等）で分類します。結果は「AIで分類を評価」で確かめられます';
         note.classList.toggle('text-[var(--brick)]', mode === 'ai' && !globalAppData.apiKey);
       }
     }

@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.1'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.2'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -894,8 +894,9 @@
         return miss.length ? `${need.id}.${need.name.replace(/^\d+\.\s*/, '')}：${miss.map(i => i.text.replace(/^原因:\s*/, '').slice(0, 80)).join(' / ')}` : '';
       }).filter(Boolean).join('\n');
       const needList = HENDERSON_NEEDS.map(n => `${n.id}.${n.name.replace(/^\d+\.\s*/, '')}`).join(' / ');
-      return `あなたは看護教育に精通した臨床指導者です。ヘンダーソンの14の基本的欲求ごとに、患者の欲求が「充足」か「未充足」かをアセスメントしてください。
-【判断の基準】
+      const ruleSummary = sufficiencyRuleSummaryForPrompt(cp);
+      return `あなたは看護教育に精通した臨床指導者です。ヘンダーソンの14の基本的欲求ごとに、患者の欲求が「充足」か「未充足」かをアセスメントしてください。${ruleSummary ? '\nこのサイトのルール（AIなし）が先に判定した結果が下にあります。その結果が正しいかを評価してください。各欄に "agree"（ルールの判定に賛成なら true、反対なら false）も入れる。' : ''}
+${ruleSummary ? `【ルールが先に出した判定】\n${ruleSummary}\n` : ''}【判断の基準】
 ${sufficiencyReferenceText()}
 【守るルール】
 1. 判断はカードのS（患者の発言）・O（客観的データ）に書かれた事実だけに基づく。カードに無い影響・原因の推測はしない。
@@ -911,7 +912,7 @@ ${cardLines}
 【不足情報（まだ確認できていない情報）】
 ${missLines || '（なし）'}
 【出力】JSONだけを返す（前置き・説明・コードブロックは不要）。各項目について、入院前（pre）・入院後（post）・全体（all）の3つを別々に判定する。
-{"needs":[{"id":1,"pre":{"verdict":"met|unmet|unknown","reason":"","evidence":["C1"],"need":""},"post":{"verdict":"","reason":"","evidence":[],"need":""},"all":{"verdict":"","reason":"","evidence":[],"need":""}}]}
+{"needs":[{"id":1,"pre":{"verdict":"met|unmet|unknown","agree":true,"reason":"","evidence":["C1"],"need":""},"post":{"verdict":"","reason":"","evidence":[],"need":""},"all":{"verdict":"","reason":"","evidence":[],"need":""}}]}
 14項目すべて（id 1〜14）を出力すること。reason は各1〜2文に短くする。`;
     }
     function parseSufficiencyJson(text, ev, cp) {
@@ -931,7 +932,7 @@ ${missLines || '（なし）'}
         const evidence = (Array.isArray(n.evidence) ? n.evidence : []).map(c => (String(c).match(/C\s*\d{1,4}/i) || [''])[0].replace(/\s+/g, '').toUpperCase())
           .map(c => ev.byCode.get(c)).filter(c => c && mineIds.has(c.id)).map(c => c.id);
         if (verdict !== 'unknown' && !evidence.length) verdict = 'unknown'; // 根拠のカードが出せない判断は採用しない
-        return { verdict, reason: String(n.reason || '').trim(), evidence: Array.from(new Set(evidence)), need: String(n.need || '').trim() };
+        return { verdict, reason: String(n.reason || '').trim(), evidence: Array.from(new Set(evidence)), need: String(n.need || '').trim(), agree: typeof n.agree === 'boolean' ? n.agree : null };
       };
       (Array.isArray(obj.needs) ? obj.needs : []).forEach(n => {
         const id = Number(n && n.id);
@@ -949,7 +950,7 @@ ${missLines || '（なし）'}
       return out;
     }
     // 結果を各項目に入れる。利用者が自分で選んだ欄は上書きしない。戻り値は {set, kept, unknown}（欄の数）
-    function applySufficiencyResult(cp, result, now = new Date().toISOString()) {
+    function applySufficiencyResult(cp, result, now = new Date().toISOString(), source = 'ai') {
       let set = 0, kept = 0, unknown = 0;
       HENDERSON_NEEDS.forEach(need => {
         const res = result[need.id];
@@ -959,15 +960,46 @@ ${missLines || '（なし）'}
         SUFFICIENCY_PHASES.forEach(ph => {
           const r = res[ph.key];
           if (!r) return;
-          saved[ph.key] = { verdict: r.verdict, reason: r.reason, evidence: r.evidence, need: r.need, at: now };
-          if (r.verdict === 'unknown') { unknown++; if (e[ph.by] === 'ai') { e[ph.field] = ''; e[ph.by] = ''; } return; }
-          if (e[ph.field] && e[ph.by] !== 'ai') { kept++; return; }
-          e[ph.field] = r.verdict; e[ph.by] = 'ai'; set++;
+          saved[ph.key] = { verdict: r.verdict, reason: r.reason, evidence: r.evidence, need: r.need, at: now, source };
+          if (r.verdict === 'unknown') { unknown++; if (e[ph.by] === 'ai' || e[ph.by] === 'rules') { e[ph.field] = ''; e[ph.by] = ''; } return; }
+          if (e[ph.field] && e[ph.by] !== 'ai' && e[ph.by] !== 'rules') { kept++; return; }
+          e[ph.field] = r.verdict; e[ph.by] = source; set++;
         });
         e.aiSufficiency = { ...(e.aiSufficiency && !e.aiSufficiency.verdict ? e.aiSufficiency : {}), ...saved };
         e.updatedAt = now;
       });
       return { set, kept, unknown };
+    }
+    // AIの評価：ルールの判定は書き換えない。AIが賛成か反対か・AIの判断・理由を、各項目に添える
+    function applySufficiencyReview(cp, result, now = new Date().toISOString()) {
+      let agree = 0, disagree = 0;
+      HENDERSON_NEEDS.forEach(need => {
+        const res = result[need.id];
+        if (!res) return;
+        const e = ensureMyAssessment(cp, need.id);
+        const saved = {};
+        SUFFICIENCY_PHASES.forEach(ph => {
+          const r = res[ph.key];
+          if (!r) return;
+          const ruleV = e.aiSufficiency && e.aiSufficiency[ph.key] && e.aiSufficiency[ph.key].verdict;
+          const same = ruleV ? (r.agree === null ? r.verdict === ruleV : r.agree) : null;
+          if (same === true) agree++; else if (same === false) disagree++;
+          saved[ph.key] = { verdict: r.verdict, reason: r.reason, evidence: r.evidence, need: r.need, agree: same, at: now };
+        });
+        e.aiReview = { ...(e.aiReview || {}), ...saved };
+        e.updatedAt = now;
+      });
+      return { agree, disagree };
+    }
+    function sufficiencyRuleSummaryForPrompt(cp) {
+      return HENDERSON_NEEDS.map(need => {
+        const e = getMyAssessment(cp, need.id);
+        const a = e && e.aiSufficiency;
+        if (!a) return '';
+        const one = ph => a[ph] && a[ph].verdict && a[ph].source === 'rules' ? `${SUFFICIENCY_PHASES.find(p => p.key === ph).label}=${a[ph].verdict === 'met' ? '充足' : a[ph].verdict === 'unmet' ? '未充足' : '判定できない'}${a[ph].reason ? `（${a[ph].reason.slice(0, 80)}）` : ''}` : '';
+        const t = ['pre', 'post', 'all'].map(one).filter(Boolean).join(' / ');
+        return t ? `${need.id}.${need.name.replace(/^\d+\.\s*/, '')}：${t}` : '';
+      }).filter(Boolean).join('\n');
     }
     function sufficiencyReasonHtml(cp, needId) {
       const e = getMyAssessment(cp, needId);
@@ -982,7 +1014,10 @@ ${missLines || '（なし）'}
         const mine = e[ph.field];
         const head = a.verdict === 'unknown' ? `${ph.label}：判定できない` : `${ph.label}：${SUFFICIENCY_LABELS[a.verdict]}${mine && mine !== a.verdict ? '（自分の判断と異なります）' : ''}`;
         const body = a.verdict === 'unknown' ? (a.need ? `足りない情報：${a.need}` : a.reason) : a.reason;
-        return `<div class="suf-reason"><b>AI ${escapeHtml(head)}</b> ${escapeHtml(body || '')}${ev ? `<span class="suf-ev">根拠：${escapeHtml(ev)}</span>` : ''}</div>`;
+        const from = a.source === 'rules' ? 'ルール判定（サイト内・AIなし）' : 'AI判定';
+        const rv = e.aiReview && e.aiReview[ph.key];
+        const rvHtml = rv ? `<span class="suf-ev"><b>AIの評価：${rv.agree === true ? 'ルールの判定に賛成' : rv.agree === false ? `ルールの判定に反対（AIは${SUFFICIENCY_LABELS[rv.verdict] || '判定できない'}と判断）` : SUFFICIENCY_LABELS[rv.verdict] || '判定できない'}</b> ${escapeHtml(rv.reason || rv.need || '')}</span>` : '';
+        return `<div class="suf-reason"><b>${from} ${escapeHtml(head)}</b> ${escapeHtml(body || '')}${ev ? `<span class="suf-ev">根拠：${escapeHtml(ev)}</span>` : ''}${rvHtml}</div>`;
       }).join('');
       return rows;
     }
@@ -994,18 +1029,21 @@ ${missLines || '（なし）'}
       if (sufficiencyAiRunning) return showToast('充足・未充足の判定は実行中です。終わるまでお待ちください', 'info');
       if (!(await requireApiKey('充足・未充足のAI判定'))) return;
       sufficiencyAiRunning = true;
+      // まずサイト内のルールで判定し（まだ無ければ）、AIはその結果を評価する
+      const hasRules = HENDERSON_NEEDS.some(n => { const e = getMyAssessment(cp, n.id); return e && e.aiSufficiency && ['pre', 'post', 'all'].some(k => e.aiSufficiency[k] && e.aiSufficiency[k].source === 'rules'); });
+      if (!hasRules) applySufficiencyResult(cp, judgeSufficiencyByRules(cp), new Date().toISOString(), 'rules');
       const btn = document.getElementById('btn-sufficiency-ai');
       if (btn) { btn.disabled = true; btn.dataset.label = btn.innerHTML; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 判定中…'; }
-      showToast('AIが14項目の充足・未充足を判定しています…（1分ほどかかります）', 'info');
+      showToast('ルールの判定結果を、AIが評価しています…（1分ほどかかります）', 'info');
       try {
         const ev = buildEvidenceIndex(items);
         const text = await callGeminiAI([{ role: 'user', parts: [{ text: buildSufficiencyPrompt(cp, ev, items) }] }], { json: true });
         const result = parseSufficiencyJson(text, ev, cp);
         if (!Object.keys(result).length) throw new Error('AIの答えに判定が入っていませんでした');
-        const r = applySufficiencyResult(cp, result);
+        const r = applySufficiencyReview(cp, result);
         // 画面に出す（この端末に保存）のと、共有先への保存は別。共有先の保存が失敗しても、判定の結果は画面に残る
         try { finishAiResult(cp, () => renderAssessmentTable(), '充足・未充足の判定'); } catch (saveErr) { console.warn('判定の保存に失敗:', saveErr); renderAssessmentTable(); }
-        showToast(`判定しました：${r.set}項目に入れました` + (r.kept ? `／自分で選んだ${r.kept}項目はそのまま` : '') + (r.unknown ? `／${r.unknown}項目は判定できません（理由は各項目に表示）` : '') + '。参考です。最終判断はご自身で', 'success');
+        showToast(`AIが評価しました：ルールの判定に賛成${r.agree}欄・反対${r.disagree}欄。反対の欄は理由を読んで、自分で判断してください`, 'success', 9000);
       } catch (err) {
         console.warn('充足・未充足のAI判定に失敗しました:', err);
         showToast(['充足・未充足を判定できませんでした', { text: `${err.message || '通信エラー'}　時間を置いてもう一度押してください。`, detail: true }], 'error', 12000);
@@ -1076,7 +1114,7 @@ ${missLines || '（なし）'}
     window.runSufficiencyRules = function() {
       const cp = getCurrentPatient();
       if (!(cp.items || []).some(i => i.type !== 'unnecessary')) return showToast('カードがありません。先に「分類開始」で分類してください', 'warn');
-      const r = applySufficiencyResult(cp, judgeSufficiencyByRules(cp));
+      const r = applySufficiencyResult(cp, judgeSufficiencyByRules(cp), new Date().toISOString(), 'rules');
       try { finishAiResult(cp, () => renderAssessmentTable(), '充足・未充足の判定（AIなし）'); } catch (e) { renderAssessmentTable(); }
       showToast(`AIなしで判定しました：${r.set}欄に入れました` + (r.kept ? `／自分で選んだ${r.kept}欄はそのまま` : '') + (r.unknown ? `／${r.unknown}欄は記録が足りず判定できません` : '') + '。根拠の言葉を見て、自分で直してください', 'success', 8000);
     };
@@ -1108,7 +1146,7 @@ if (typeof module !== 'undefined' && module.exports) {
     MY_ASSESSMENT_FIELDS,
     ensureMyAssessment, getMyAssessment, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
     myAssessmentStatus, myAssessmentNeedsReview, confirmMyAssessmentEntry, restoreMyAssessmentFromHistory,
-    buildSufficiencyPrompt, judgeSufficiencyByRules, sufficiencyCardVerdict, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
+    buildSufficiencyPrompt, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyCardVerdict, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
     renderMyAssessmentRowHtml, evidencePickerCandidates, buildMyAssessmentAiPrompt, myAssessmentAlwaysShown
   });
   if (module.exports.__testHooks) Object.assign(module.exports.__testHooks, { flushMyAssessmentSaves, saveMyAssessmentsSoon });
