@@ -506,6 +506,12 @@
     .suf-btn.suf-met.is-on { color: var(--accent-dark); background: var(--accent-soft); border-color: var(--accent); }
     .suf-btn.suf-unmet.is-on { color: var(--brick); background: var(--brick-soft); border-color: var(--brick); }
     .asm-single-head .suf-ctl { margin-left: auto; }
+    .suf-reason { margin-top: .4rem; font-size: 11px; line-height: 1.5; color: var(--ink-muted); }
+    .suf-reason b { color: var(--ink); }
+    .suf-ev { display: block; margin-top: .15rem; font-size: 10px; }
+    .suf-ai { font-size: 9px; font-weight: 700; padding: 0 .35rem; border-radius: 999px; background: var(--slate-soft); color: var(--slate); align-self: center; }
+    .asm-single-head { flex-wrap: wrap; }
+    .asm-single-head + .suf-reason { margin: .25rem 0 .5rem; }
     .suf-sum { display: inline-flex; align-items: center; gap: .6rem; font-size: 11px; color: var(--ink-muted); }
     .suf-sum .suf-met-n { color: var(--accent-dark); }
     .suf-sum .suf-unmet-n { color: var(--brick); }

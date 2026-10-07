@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-07.22'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-07.23'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カード → 元の文章（カルテ・看護記録入力欄）の該当箇所を探す
     // ------------------------------------------------------------------------
@@ -1102,7 +1102,7 @@
                 <span class="text-[12.5px] leading-snug font-semibold text-[var(--ink)] break-words font-sans">${needLabel}</span>
               </div>
             </div>
-            ${ownAsm ? `<div class="suf-row">${sufficiencyControlHtml(cp, need.id)}</div>` : ''}
+            ${ownAsm ? `<div class="suf-row">${sufficiencyControlHtml(cp, need.id)}${typeof sufficiencyReasonHtml === 'function' ? sufficiencyReasonHtml(cp, need.id) : ''}</div>` : ''}
           </td>
           <td class="border border-[var(--line)] p-1.5 align-top min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'unclassified')"><div class="space-y-1.5">${categorize('unclassified')}</div></td>
           <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--slate-soft)]/30 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'preadmission')"><div class="space-y-1.5">${categorize('preadmission')}</div></td>
@@ -1152,7 +1152,7 @@
       const name = need.name.replace(/^\d+\.\s*/, '');
       // 利用者からの要望：「自分のアセスメントは表示か非表示だけでいい」。「表示」のときだけ開いた形で出し、「非表示」のときは出さない（js/11）
       const own = typeof renderMyAssessmentRowHtml === 'function' && myAssessmentAlwaysShown() ? `<div class="asm-own">${renderMyAssessmentRowHtml(cp, need, false)}</div>` : '';
-      return `<div class="asm-single-head"><span class="need-number asm-single-no">${need.id}</span><i class="fa-solid ${need.icon} text-[var(--accent)]"></i><b>${escapeHtml(name)}</b><span class="my-asm-muted">カード ${matching.length}枚</span>${typeof sufficiencyControlHtml === 'function' ? sufficiencyControlHtml(cp, need.id) : ''}</div>
+      return `<div class="asm-single-head"><span class="need-number asm-single-no">${need.id}</span><i class="fa-solid ${need.icon} text-[var(--accent)]"></i><b>${escapeHtml(name)}</b><span class="my-asm-muted">カード ${matching.length}枚</span>${typeof sufficiencyControlHtml === 'function' ? sufficiencyControlHtml(cp, need.id) : ''}</div>${typeof sufficiencyReasonHtml === 'function' ? sufficiencyReasonHtml(cp, need.id) : ''}
         <section class="asm-aux asm-aux-unc${nUnc ? '' : ' is-empty'}" ${drop('unclassified')}>
           <div class="asm-aux-title"><span class="col-dot" style="background:var(--ink-muted)"></span>未分類 <b>${nUnc}</b><span class="my-asm-muted">${nUnc ? '入院前・入院後に振り分けてください（ドラッグ、またはカードの「前」「後」）' : '未分類のカードはありません'}</span></div>
           ${nUnc ? `<div class="asm-aux-body">${categorize('unclassified')}</div>` : ''}

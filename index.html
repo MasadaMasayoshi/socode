@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-07.22">
-  <meta name="app-file-versions" content="01:2026-10-06.14,02:2026-10-07.17,03:2026-10-07.21,04:2026-10-06.14,05:2026-10-07.17,06:2026-10-07.22,07:2026-10-07.21,08:2026-10-07.20,09:2026-10-07.22,10:2026-10-07.19,11:2026-10-07.22,12:2026-10-07.12,13:2026-10-06.15,14:2026-10-06.14,15:2026-10-07.16">
+  <meta name="app-version" content="2026-10-07.23">
+  <meta name="app-file-versions" content="01:2026-10-06.14,02:2026-10-07.17,03:2026-10-07.21,04:2026-10-06.14,05:2026-10-07.17,06:2026-10-07.22,07:2026-10-07.21,08:2026-10-07.20,09:2026-10-07.23,10:2026-10-07.19,11:2026-10-07.23,12:2026-10-07.12,13:2026-10-06.15,14:2026-10-06.14,15:2026-10-07.16">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=2026-10-07.22">
+  <link rel="stylesheet" href="style.css?v=2026-10-07.23">
   <!-- 画面の見た目の部品（Tailwind CSS 3.4）。以前は開くたびにネット（cdn.tailwindcss.com）から読み込み、
        その場で作っていたため、ネットが不安定だったり配信が止まったりすると画面のレイアウトが崩れた。
        使っている部品だけを vendor/tailwind.css に作っておき、それを読み込む（改善提案7。作り直しは
@@ -317,6 +317,7 @@
           </h2>
         </div>
         <div class="flex items-center space-x-2">
+          <button type="button" id="btn-sufficiency-ai" class="btn btn-outline" onclick="runSufficiencyAi()" title="14項目すべてについて、カードのS/Oをもとに充足・未充足をAIが判定します（自分で選んだ項目は変えません）"><i class="fa-solid fa-wand-magic-sparkles"></i> 充足・未充足をAIで判定</button>
           <span id="suf-summary" class="suf-sum-wrap"></span>
           <button type="button" id="btn-my-asm-show" class="btn btn-outline my-asm-show-btn" onclick="toggleMyAssessmentShown()" aria-pressed="false">
             <i class="fa-solid fa-user-pen"></i> 自分のアセスメント：<span class="my-asm-show-state">非表示</span>
@@ -1365,9 +1366,9 @@
   <script src="js/06-export.js?v=2026-10-07.22"></script>
   <script src="js/07-classification.js?v=2026-10-07.21"></script>
   <script src="js/08-assessment-tools.js?v=2026-10-07.20"></script>
-  <script src="js/09-board.js?v=2026-10-07.22"></script>
+  <script src="js/09-board.js?v=2026-10-07.23"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-07.19"></script>
-  <script src="js/11-own-assessment.js?v=2026-10-07.22"></script>
+  <script src="js/11-own-assessment.js?v=2026-10-07.23"></script>
   <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-07.12"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-06.15"></script>
   <script src="js/14-drug-reference.js?v=2026-10-06.14"></script>
