@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.16'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.37'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -113,6 +113,8 @@
     const RM_FONT = 14, RM_LINE_H = 19, RM_PAD = 10, RM_HEAD_H = 0;
     // 看護問題の補足（名前の下の小さい説明文）
     const RM_NOTE_FONT = 11.5, RM_NOTE_LINE_H = 15, RM_NOTE_GAP = 7, RM_NOTE_MAX = 60;
+    // 「記録から作る」の作り方を直したら上げる。古い作り方で保存された図（source が rules のもの）は、開いたときに1度だけ作り直す
+    const RM_BUILD_VERSION = 1;
     const RM_LAYOUT_STYLE = 3; // 四角の大きさを変えたら上げる（前の大きさで並べた図は自動で並べ直す）
     const RM_COL_GAP = 80, RM_ROW_GAP = 28;
     // 列のすき間は、通る線（縦の線）の本数に合わせて広げる（少ないと狭く、多いと広く。2026-10-07.16）
@@ -243,7 +245,7 @@
         edges.push({ id: rmSafeId(e.id) || rmNewId('e'), source, target, relation, predicted: !!e.predicted, evidence: String(e.evidence || '').slice(0, 200) });
       });
       const map = { version: 2, nodes, edges: edges.slice(0, RM_MAX_EDGES), bands: Array.isArray(raw.bands) && !v1 ? raw.bands.filter(b => b && Number.isFinite(b.y1) && Number.isFinite(b.y2)).slice(0, 12).map(b => ({ y1: b.y1, y2: b.y2, p: Number(b.p) || 0 })) : [], headers: Array.isArray(raw.headers) && !v1 ? raw.headers.filter(h => h && Number.isFinite(h.x1) && Number.isFinite(h.x2)).slice(0, 8).map(h => ({ x1: h.x1, x2: h.x2, label: String(h.label || '').slice(0, 30) })) : [],
-        source: String(raw.source || 'manual'), layoutStyle: Number(raw.layoutStyle) || 1,
+        source: String(raw.source || 'manual'), layoutStyle: Number(raw.layoutStyle) || 1, buildVersion: Number(raw.buildVersion) || 0,
         ...(raw.addedStash && Array.isArray(raw.addedStash.nodes) && Array.isArray(raw.addedStash.edges) ? { addedStash: { nodes: raw.addedStash.nodes.slice(0, RM_MAX_NODES), edges: raw.addedStash.edges.slice(0, RM_MAX_EDGES), created: Array.isArray(raw.addedStash.created) ? raw.addedStash.created.slice(0, RM_MAX_EDGES) : [], positions: raw.addedStash.positions && typeof raw.addedStash.positions === 'object' ? raw.addedStash.positions : {}, bands: Array.isArray(raw.addedStash.bands) ? raw.addedStash.bands : [], headers: Array.isArray(raw.addedStash.headers) ? raw.addedStash.headers : [] } } : {}), createdAt: raw.createdAt || null, updatedAt: raw.updatedAt || null };
       rmRenumberProblems(map, { keepOrder: true });
       if (v1 && nodes.length) layoutRelationMap(map); // 版1の段の並びは版2の列の並びに直す
@@ -2295,7 +2297,7 @@
         version: 2,
         nodes: list.slice(0, RM_MAX_NODES).map(({ key, cat, ...n }) => n),
         edges: edges.filter(e => ids.has(e.source) && ids.has(e.target)).slice(0, RM_MAX_EDGES),
-        headers: [], source: 'rules', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+        headers: [], source: 'rules', buildVersion: RM_BUILD_VERSION, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
       };
       rmApplyBridges(map); // 矢印の間の飛躍を医学知識で埋める（＋補足）
       map.edges.forEach(e => { delete e.noBridge; });
@@ -2701,6 +2703,18 @@ ${cards}`;
         if (m.nodes.length && m.layoutStyle !== RM_LAYOUT_STYLE) layoutRelationMap(m); // 文字を大きくする前に並べた図は、重ならないように並べ直す
         Object.defineProperty(m, '__normalized', { value: true, enumerable: false, configurable: true });
         cp.relationMap = m;
+        // 古い作り方で保存された「記録から作る」の図は、1度だけ新しい作り方で作り直す（手で作った図・AIで作った図は触らない）
+        if (m.source === 'rules' && (m.buildVersion || 0) < RM_BUILD_VERSION && (cp.items || []).some(i => i.type !== 'unnecessary')) {
+          try {
+            const fresh = buildRelationMapFromRecord(cp);
+            if (fresh && fresh.nodes.length) {
+              Object.defineProperty(fresh, '__normalized', { value: true, enumerable: false, configurable: true });
+              cp.relationMap = fresh;
+              if (typeof showToast === 'function') showToast('関連図を新しい作り方で作り直しました（手で直していた所は、もう一度直してください）', 'success', 8000);
+              if (typeof persistData === 'function' && cp.id === getCurrentPatient().id) setTimeout(() => persistData(), 0);
+            }
+          } catch (e) { console.warn('関連図の作り直しに失敗しました', e); }
+        }
       }
       return cp.relationMap || null;
     }
