@@ -483,7 +483,9 @@ test('検査データは根拠になる四角のすぐ下にくっつける（�
 // ---- 長文の事例3つ：＋補足なし（前）と＋補足あり（後）で比べる ----
 const jumpEdges = map => {
   const byId = new Map(map.nodes.map(n => [n.id, n]));
-  return map.edges.filter(e => e.relation !== 'treats' && ['treatment', 'disease', 'patient_fact'].includes(byId.get(e.source).type) && ['symptom', 'nursing_problem', 'future_risk'].includes(byId.get(e.target).type));
+  // 薬の効果そのものが記録にある所見（利尿薬 → 尿量の増加：記録）は一足飛びではない（2026-10-07.6）
+  const drugEffect = e => /^利尿薬/.test(byId.get(e.source).label) && /尿量/.test(byId.get(e.target).label) && byId.get(e.target).observed !== false;
+  return map.edges.filter(e => e.relation !== 'treats' && !drugEffect(e) && ['treatment', 'disease', 'patient_fact'].includes(byId.get(e.source).type) && ['symptom', 'nursing_problem', 'future_risk'].includes(byId.get(e.target).type));
 };
 const depthAvg = map => {
   const memo = new Map();
@@ -528,7 +530,8 @@ test('長文事例B（S状結腸がん・腹腔鏡下手術・糖尿病）：術
   assert.ok(find(map, /^術後の安静による静脈血のうっ滞/), '腹部の手術で「下肢の手術」と書かない');
   assert.ok(!map.nodes.some(n => /下肢の手術/.test(n.label)));
   assert.ok(hasEdge(map, find(map, /インスリン作用の不足による高血糖/), find(map, /免疫機能・創傷治癒の低下/)), '高血糖 → 免疫・創傷治癒');
-  assert.ok(!map.nodes.some(n => /腹部・胸部に力/.test(n.label)) === false, '腹部の手術では腹部の痛みの過程を補う');
+  // 呼吸のひな形（麻酔 → 咳嗽反射の低下、疼痛 → 深呼吸・咳嗽の抑制 → 排痰困難で合流）の間には＋補足を入れない（2026-10-07.6）
+  assert.ok(!map.nodes.some(n => /腹部・胸部に力|1回換気量と咳の力|気道の線毛運動・咳による|末梢の気道が痰でふさがり/.test(n.label)), '呼吸の流れに同じ内容の四角を並べない');
   assert.ok(map.nodes.filter(n => n.added).length >= 10 && !before.nodes.some(n => n.added));
 });
 
@@ -574,7 +577,9 @@ test('関連図：最新のガイドラインを根拠にした「＋補足」�
   assert.ok(hf.nodes.some(m => m.added && /横になると心臓に戻る血液が増え/.test(m.label)), '起座呼吸→肺のうっ血が強まる→眠れない');
   const asp = beforeAfter('aspiration_pneumonia').after;
   assert.ok(addedBetween(asp, find(asp, /^88歳/), find(asp, /^嚥下反射・咳反射の低下/), /のどの感覚の低下/), '加齢→のどの感覚の低下→嚥下反射の低下');
-  assert.ok(asp.nodes.some(m => m.added && /炎症で消費エネルギーが増え/.test(m.label)), '肺炎→炎症で消費エネルギーが増える→栄養状態の低下');
+  // （2026-10-07.6：栄養の主な流れは「食事摂取の低下 → 栄養摂取量不足」。誤嚥性肺炎では 嚥下反射の低下 → 絶食 → 栄養摂取量不足）
+  const fast = find(asp, /^絶食中/), nutr = find(asp, /^栄養摂取量不足/);
+  assert.ok(fast && hasEdge(asp, find(asp, /^嚥下反射・咳反射の低下/), fast) && hasEdge(asp, fast, nutr), '嚥下反射の低下 → 絶食 → 栄養摂取量不足');
   const copd = beforeAfter('copd_exacerbation_long').after;
   assert.ok(addedBetween(copd, find(copd, /^気道・肺胞への慢性的な刺激/), find(copd, /COPD/), /肺気腫/), '喫煙の刺激→気道の炎症と肺胞の壊れ→COPD');
   assert.ok(linked(copd, find(copd, /^末梢気道の閉塞/), find(copd, /^CO2の貯留/)), '気道閉塞→CO2の貯留は今までどおり');
@@ -867,7 +872,8 @@ test('関連図の評価（長文事例）：セルフケア不足は介助の�
   assert.ok(probs.some(l => /^消化管運動機能障害（/.test(l)), probs.join('、'));
   assert.ok(probs.includes('術後呼吸器合併症リスク状態'), probs.join('、'));
   // Alb は看護問題（栄養摂取量不足）の根拠として付く（食事量の低下の結果としない）。食事量・体重の記録が無ければ「栄養状態の低下」の根拠
-  assert.match(colon.nodes.find(n => n.id === colon.nodes.find(x => x.type === 'lab' && /Alb/.test(x.label)).attachTo).label, /栄養状態の低下/);
+  // （2026-10-07.6：食事量・体重の記録が無くても、主な流れは「食事摂取量の低下 → 栄養摂取量不足」。Albは看護問題の横に根拠として付く）
+  assert.match(colon.nodes.find(n => n.id === colon.nodes.find(x => x.type === 'lab' && /Alb/.test(x.label)).attachTo).label, /^栄養摂取量不足/);
   [copd, caseMap('heart_failure_long')].forEach(m => {
     const alb = m.nodes.find(n => n.type === 'lab' && /Alb/.test(n.label));
     const nutr = m.nodes.find(n => n.type === 'nursing_problem' && /栄養摂取量不足/.test(n.label));
@@ -1070,4 +1076,50 @@ test('関連図の評価への対応：感染の経路を分けて合流・炎�
   ['全身麻酔', '硬膜外PCA'].forEach(w => assert.ok(st.edges.some(e => e.target === il.id && by(st).get(e.source).label.includes(w)), w));
   const inflam = find(st, /手術侵襲による炎症反応/), p2 = st.nodes.find(n => n.label === '感染リスク状態');
   assert.ok(st.edges.some(e => e.source === inflam.id && e.target === p2.id && e.predicted));
+});
+
+// 2026-10-07.6：関連図の評価（9事例・88点）への対応
+test('関連図の評価への対応（2026-10-07.6）：検査値は根拠・今ある所見とリスクを分ける・治療は対象がわかる・栄養の主経路・重複の統合・看護問題への線を短く', () => {
+  const names = ['hip_fracture', 'aspiration_pneumonia', 'cerebral_infarction', 'gastric_postop', 'colon_cancer_postop_long', 'copd_exacerbation_long', 'heart_failure_long', 'rectal_cancer_stoma', 'cervical_spinal_cord_injury'];
+  const maps = Object.fromEntries(names.map(n => [n, caseMap(n)]));
+  const by = m => new Map(m.nodes.map(n => [n.id, n]));
+  // 検査値（Dダイマー・Alb・CRP・WBC・Hb・体温…）から出る線は、すべて「根拠」
+  names.forEach(n => { const b = by(maps[n]); maps[n].edges.filter(e => b.get(e.source).type === 'lab').forEach(e => assert.equal(e.relation, 'supports', `${n}：${b.get(e.source).label}`)); });
+  // Alb は栄養摂取量不足の横に根拠として付き、主な流れは「食事摂取の低下 → 栄養摂取量不足」
+  names.forEach(n => {
+    const m = maps[n], nut = m.nodes.find(x => /^栄養摂取量不足/.test(x.label)), alb = m.nodes.find(x => x.type === 'lab' && /^Alb/.test(x.label));
+    if (nut && alb && m.edges.some(e => e.source === alb.id && e.target === nut.id)) assert.equal(alb.attachTo, nut.id, n);
+    if (nut) assert.ok(m.edges.some(e => e.target === nut.id && e.relation !== 'supports' && /摂取|食事|絶食|体重|1回に食べられる/.test(by(m).get(e.source).label)), `${n}：食事摂取の流れ`);
+  });
+  // 低Alb は皮膚の血流低下の原因にしない（低栄養の四角から）
+  assert.ok(!maps.hip_fracture.edges.some(e => /^Alb/.test(by(maps.hip_fracture).get(e.source).label) && /皮膚の血流低下/.test(by(maps.hip_fracture).get(e.target).label)));
+  // 今ある所見（尿量 2400mL）は実線、脱水は予測。尿量の増加を予測の＋補足で重ねて描かない
+  const hf = maps.heart_failure_long, hb = by(hf);
+  const urine = hf.nodes.find(n => /^尿量は利尿薬投与後に増加/.test(n.label));
+  assert.ok(urine.observed !== false && hf.edges.some(e => hb.get(e.source).label.startsWith('利尿薬') && e.target === urine.id && !e.predicted));
+  assert.ok(!hf.nodes.some(n => n.added && /^尿量の増加/.test(n.label)));
+  assert.ok(find(hf, /^低カリウム血症/).observed !== false, '低K血症は今ある所見');
+  // 治療は「何に対する治療か」が線でわかる：オピオイド ┤ 創部痛、膀胱留置カテーテル ┤ 神経因性膀胱
+  const colon = maps.colon_cancer_postop_long;
+  assert.ok(colon.edges.some(e => e.relation === 'treats' && /^オピオイド/.test(by(colon).get(e.source).label) && /^創部痛/.test(by(colon).get(e.target).label)));
+  const sci = maps.cervical_spinal_cord_injury;
+  assert.ok(sci.edges.some(e => e.relation === 'treats' && /膀胱留置カテーテル/.test(by(sci).get(e.source).label) && /^神経因性膀胱/.test(by(sci).get(e.target).label)));
+  // 誤嚥性肺炎の絶食に「腸が動き出すまで」の過程を入れない
+  assert.ok(!maps.aspiration_pneumonia.nodes.some(n => /腸が動き出すまで/.test(n.label)));
+  // 重複の統合：活動耐性低下と身体可動性障害が同じ記録だけから出ていたら1つにまとめる（排尿と排便などはまとめない）
+  const toy = { nodes: [
+    { id: 'f', type: 'symptom', label: '麻痺あり', observed: true, source: 'record' }, { id: 'm', type: 'pathophysiology', label: '体動の制限', source: 'knowledge' },
+    { id: 'p1', type: 'nursing_problem', label: '身体可動性障害', priority: 1 }, { id: 'p2', type: 'nursing_problem', label: '活動耐性低下（動くと息切れ・体力の低下）', priority: 2 },
+    { id: 'u', type: 'symptom', label: '3日間排便なし・排尿できず', observed: true, source: 'record' }, { id: 'p3', type: 'nursing_problem', label: '便秘', priority: 3 }, { id: 'p4', type: 'nursing_problem', label: '排尿障害（尿閉）', priority: 4 }],
+    edges: [{ id: 'e1', source: 'f', target: 'm' }, { id: 'e2', source: 'm', target: 'p1' }, { id: 'e3', source: 'm', target: 'p2' }, { id: 'e4', source: 'u', target: 'p3' }, { id: 'e5', source: 'u', target: 'p4' }] };
+  assert.equal(app.rmMergeDuplicateProblems(toy), 1);
+  assert.deepEqual(plain(toy.nodes.filter(n => n.type === 'nursing_problem').map(n => n.label)), ['身体可動性障害', '便秘', '排尿障害（尿閉）']);
+  // 並べ方：看護問題への最後の線を短くしても、線の交差は増やさない（増えるなら整えない並べ方を使う）
+  names.forEach(n => {
+    const m = maps[n];
+    const plainMap = JSON.parse(JSON.stringify(m));
+    app.layoutRelationMapOnce(plainMap, { balance: false });
+    assert.ok(app.rmRouteEdges(m).bridges <= app.rmRouteEdges(plainMap).bridges, `${n}：交差が増えていない`);
+  });
+  assert.match(src, /cross\(plain\) < cross\(map\)/);
 });
