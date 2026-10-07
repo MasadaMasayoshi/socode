@@ -130,12 +130,15 @@ test('関連図：看護問題は右端・#の優先順位の順に上から並�
   const probs = map.nodes.filter(n => n.type === 'nursing_problem').sort((a, b) => a.priority - b.priority);
   assert.deepEqual(plain(probs.map(p => p.priority)), plain(probs.map((p, i) => i + 1)));
   assert.ok(probs.length >= 5, probs.map(p => p.label).join(' / '));
-  assert.deepEqual(plain(probs.map(p => app.rmProblemCategory(p.label).key)), ['resp', 'inf', 'pain', 'nutr', 'act', 'anx']);
+  assert.deepEqual(plain(probs.map(p => app.rmProblemCategory(p.label).key)), ['resp', 'resp', 'inf', 'pain', 'nutr', 'act', 'elim', 'anx']);
   // 2026-10-06.17：利用者から「前のほうがよかった」。看護問題は右端にそろえる（一覧はボタンで開く）
   const maxX = Math.max(...map.nodes.filter(n => n.type !== 'nursing_problem' && !n.attachTo).map(n => n.x));
   probs.forEach(p => assert.ok(p.x > maxX, '看護問題は右端'));
   assert.equal(new Set(probs.map(p => p.x)).size, 1, '看護問題は1つの列にそろえる');
-  for (let i = 1; i < probs.length; i++) assert.ok(probs[i].y > probs[i - 1].y, '重要な問題ほど上');
+  // 2026-10-06.25：利用者「看護問題は上から順に並べなくてよい（#番号があるから）」。右端の看護問題は重ならず、
+  // つながる原因の四角の高さの近くに置く（線がまっすぐ短くなる）
+  const byY = probs.slice().sort((a, b) => a.y - b.y);
+  for (let i = 1; i < byY.length; i++) assert.ok(byY[i].y >= byY[i - 1].y + app.rmRect(byY[i - 1]).h, '看護問題が重ならない');
   const issues = app.validateRelationMap(map);
   assert.deepEqual(plain(issues.filter(i => i.level === 'error')), []);
   map.nodes.forEach(n => assert.ok(map.edges.some(e => e.source === n.id || e.target === n.id), `浮島：${n.label}`));
@@ -170,7 +173,8 @@ test('関連図：既往歴の手術（「70歳 PCI施行」）は今回の手�
   const du = find(map, /^利尿薬/);
   assert.equal(du.type, 'treatment');
   assert.ok(map.edges.some(e => e.source === du.id && e.relation === 'treats'));
-  assert.ok(find(map, /過剰な利尿による脱水の可能性/).observed === false);
+  // 2026-10-06.25：体液量不足リスクは利尿薬だけで決めない（この短い記録には摂取量の低下・発熱・尿量の記録が無い）
+  assert.ok(!map.nodes.some(n => /体液量不足リスク/.test(n.label)), '利尿薬だけでは体液量不足リスクにしない');
 });
 
 test('関連図：自動チェック（浮島・重複・相互矢印・治療の向き・予測・根拠・#番号・交差）と自動で直す', () => {
@@ -272,7 +276,7 @@ function commonChecks(map, label) {
   assert.deepEqual(plain(issues.filter(i => i.level === 'error').map(i => i.msg)), [], `${label}：要修正なし`);
   map.nodes.forEach(n => assert.ok(map.edges.some(e => e.source === n.id || e.target === n.id), `${label}：浮島 ${n.label}`));
   const probs = map.nodes.filter(n => n.type === 'nursing_problem');
-  assert.ok(probs.length >= 4 && probs.length <= 8, `${label}：看護問題 ${probs.length}`);
+  assert.ok(probs.length >= 4 && probs.length <= 10, `${label}：看護問題 ${probs.length}`); // 2026-10-06.25：判定する看護問題を増やしたので上限10
   // 不安の言葉は、同じカードの別の文（「…」）を使うことがあるので重複の確認から外す
   const ids = new Set(); map.nodes.forEach(n => n.itemIds.forEach(id => { if ((n.type === 'symptom' || n.type === 'patient_fact') && !/不安の言動）$/.test(n.label)) { assert.ok(!ids.has(id), `${label}：同じカードが2つの四角に`); ids.add(id); } }));
   map.edges.filter(e => e.relation === 'treats').forEach(e => assert.equal(map.nodes.find(n => n.id === e.source).type, 'treatment'));
@@ -301,7 +305,9 @@ test('事例2（誤嚥性肺炎・88歳・手術なし）：炎症→痰→気�
   const map = caseMap('aspiration_pneumonia');
   commonChecks(map, '事例2');
   const probs = probLabels(map);
-  assert.deepEqual(plain(probs.slice(0, 4)), ['非効果的気道浄化', 'ガス交換障害', '誤嚥リスク状態', '体液量不足（脱水）']);
+  assert.deepEqual(plain(probs.slice(0, 3)), ['非効果的気道浄化', 'ガス交換障害', '体液量不足（脱水）']);
+  // 2026-10-06.25：むせが記録にある → 今ある「嚥下障害」（誤嚥リスク状態にしない）
+  assert.ok(probs.includes('嚥下障害') && !probs.includes('誤嚥リスク状態'), probs.join('、'));
   const dx = map.nodes.find(n => n.type === 'disease');
   const abx = find(map, /^抗菌薬（アンピシリン/), o2 = find(map, /^酸素投与（鼻カニュラ酸素2L\/分）$/), suc = find(map, /^吸引$/);
   assert.ok(abx && map.edges.some(e => e.source === abx.id && e.target === dx.id && e.relation === 'treats'));
@@ -316,7 +322,7 @@ test('事例3（心原性脳塞栓症・72歳）：心房細動→血栓→脳�
   const map = caseMap('cerebral_infarction');
   commonChecks(map, '事例3');
   const probs = probLabels(map);
-  ['誤嚥リスク状態', '出血リスク状態', '血糖不安定リスク状態', '転倒転落リスク状態', '言語的コミュニケーション障害', 'セルフケア不足'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
+  ['嚥下障害', '出血リスク状態', '血糖不安定リスク状態', '転倒転落リスク状態', '言語的コミュニケーション障害', 'セルフケア不足', '身体可動性障害'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
   const clot = find(map, /心房内の血栓/), dx = map.nodes.find(n => n.type === 'disease'), lesion = find(map, /脳の血流の途絶/);
   assert.ok(hasEdge(map, clot, dx) && hasEdge(map, dx, lesion));
   ['麻痺', '失語'].forEach(w => assert.ok(map.edges.some(e => e.source === lesion.id && map.nodes.find(n => n.id === e.target).label.includes(w)), w));
@@ -338,8 +344,8 @@ test('関連図の見やすさ：一体感（帯の色分けなし・疾患は�
     const m = caseMap(name);
     const dis = m.nodes.find(n => n.type === 'disease');
     const probs = m.nodes.filter(n => n.type === 'nursing_problem').sort((a, b) => a.priority - b.priority);
-    const top = probs[0], bottom = probs[probs.length - 1];
-    assert.ok(dis.y > top.y && dis.y < bottom.y, `${name}：疾患は #1 と最後の看護問題の間の高さ`);
+    const ys = probs.map(p => p.y);
+    assert.ok(dis.y > Math.min(...ys) && dis.y < Math.max(...ys), `${name}：疾患は看護問題のいちばん上と下の間の高さ`);
   });
   assert.match(svg, / Q-?\d/, '曲がり角を丸める');
   assert.match(src, /svg\.classList\.toggle\('rm-focus', path\.size > 0\)/);
@@ -515,7 +521,7 @@ test('長文事例A（COPD急性増悪・細菌性肺炎・78歳）：気道閉�
 test('長文事例B（S状結腸がん・腹腔鏡下手術・糖尿病）：術後イレウス・DVT（腹部の手術）・高血糖→感染・オピオイド', () => {
   const { after: map, before } = beforeAfter('colon_cancer_postop_long');
   const probs = probLabels(map);
-  ['術後肺合併症', '深部静脈血栓症', '感染リスク', '血糖不安定', '急性疼痛', '栄養摂取量不足', '活動耐性低下', '消化管運動機能障害'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
+  ['術後呼吸器合併症', '静脈血栓塞栓症', '感染リスク', '血糖不安定', '急性疼痛', '栄養摂取量不足', '活動耐性低下', '消化管運動機能障害', '便秘'].forEach(w => assert.ok(probs.some(p => p.includes(w)), `${w} / ${probs.join('、')}`));
   const il = find(map, /^腸の動き（蠕動運動）の低下/), opi = find(map, /^オピオイド（フェンタニル）/);
   assert.ok(hasEdge(map, opi, il) && hasEdge(map, find(map, /^体動の制限/), il));
   assert.ok(linked(map, il, find(map, /^腹部膨満あり/)) && find(map, /術後イレウス/).observed === false);
@@ -576,8 +582,8 @@ test('関連図：最新のガイドラインを根拠にした「＋補足」�
   const colon = beforeAfter('colon_cancer_postop_long').after;
   assert.ok(colon.nodes.some(m => m.added && /交感神経の緊張と腸の炎症/.test(m.label)), '手術侵襲→交感神経の緊張・腸の炎症→腸の動きの低下');
   assert.ok(colon.nodes.some(m => m.added && /ウィルヒョウ/.test(m.label)), '手術侵襲→ウィルヒョウの3つの要因→静脈血のうっ滞');
-  // 新しい知識で四角が増えすぎない（上限60個を超えない）
-  [hf, asp, copd, colon].forEach(m => assert.ok(m.nodes.length <= 60, String(m.nodes.length)));
+  // 新しい知識で四角が増えすぎない（上限70個を超えない。2026-10-06.25：判定する看護問題を増やしたので60→70）
+  [hf, asp, copd, colon].forEach(m => assert.ok(m.nodes.length <= 70, String(m.nodes.length)));
 });
 
 // 2026-10-06.12：利用者からの要望「関連図は全画面機能の追加、説明書きの削除、補足ありのボタンを記録から作るの横に配置」
@@ -857,8 +863,9 @@ test('関連図の評価（長文事例）：セルフケア不足は介助の�
   const colon = caseMap('colon_cancer_postop_long');
   const probs = colon.nodes.filter(n => n.type === 'nursing_problem').map(n => n.label);
   assert.ok(probs.some(l => /^活動耐性低下/.test(l)) && !probs.some(l => /セルフケア不足/.test(l)), probs.join('、'));
-  assert.ok(probs.some(l => /消化管運動機能障害リスク状態/.test(l)) && !probs.some(l => /便秘/.test(l)), probs.join('、'));
-  assert.ok(probs.includes('術後肺合併症リスク状態'), probs.join('、'));
+  // 腹部膨満などが実際にある → 今ある「消化管運動機能障害」（リスクにしない）。便秘は排便の記録から別に
+  assert.ok(probs.some(l => /^消化管運動機能障害（/.test(l)), probs.join('、'));
+  assert.ok(probs.includes('術後呼吸器合併症リスク状態'), probs.join('、'));
   // Alb は看護問題（栄養摂取量不足）の根拠として付く（食事量の低下の結果としない）。食事量・体重の記録が無ければ「栄養状態の低下」の根拠
   assert.match(colon.nodes.find(n => n.id === colon.nodes.find(x => x.type === 'lab' && /Alb/.test(x.label)).attachTo).label, /栄養状態の低下/);
   [copd, caseMap('heart_failure_long')].forEach(m => {
@@ -876,4 +883,40 @@ test('関連図の評価（長文事例）：セルフケア不足は介助の�
   assert.ok(!hf.edges.some(e => e.source === hk.id && e.target === dh.id), '低K血症を体液量不足リスクに混ぜない');
   // 心不全：清拭は全介助の記録があるので、セルフケア不足のまま
   assert.ok(hf.nodes.some(n => n.type === 'nursing_problem' && /セルフケア不足/.test(n.label)));
+});
+
+// 2026-10-06.25：看護問題の判定基準の見直し（今ある問題／リスク状態を症状の有無で分ける・追加の看護問題）
+test('看護問題の判定：症状があれば今ある問題、無ければリスク状態／炎症反応・Dダイマーは危険因子にしない／追加の看護問題', () => {
+  const by = m => new Map(m.nodes.map(n => [n.id, n]));
+  const labels = m => m.nodes.filter(n => n.type === 'nursing_problem').map(n => n.label);
+  const build = text => app.buildRelationMapFromRecord(patientOf(text));
+  // 腹部の手術：腹部膨満があれば今ある「消化管運動機能障害」、無ければ「消化管運動機能障害リスク状態」
+  const colon = caseMap('colon_cancer_postop_long');
+  assert.ok(labels(colon).some(l => /^消化管運動機能障害（/.test(l)));
+  assert.ok(labels(caseMap('gastric_postop')).some(l => /^消化管運動機能障害リスク状態/.test(l)));
+  // 感染リスク状態の手前（感染の可能性）に炎症反応を置かない。看護問題の根拠のデータとしてつなぐ
+  const infRisk = colon.nodes.find(n => n.type === 'future_risk' && /感染/.test(n.label));
+  colon.edges.filter(e => e.target === infRisk.id).forEach(e => assert.doesNotMatch(by(colon).get(e.source).label, /炎症反応/));
+  // Dダイマーは静脈血栓塞栓症の「可能性」の原因にしない（看護問題の根拠として下に付く）
+  const dd = colon.nodes.find(n => /ダイマー/.test(n.label));
+  assert.match(by(colon).get(dd.attachTo).label, /^静脈血栓塞栓症リスク状態/);
+  // 痰の記録だけ（出せない・多い等が無い）なら非効果的気道浄化にしない
+  const base = '診断名：胃がん\n10/1 胃全摘出術施行（全身麻酔）\n<10/2 術後1日目>\n';
+  assert.ok(labels(build(base + '喀痰あり。創部痛 NRS 4。')).includes('術後呼吸器合併症リスク状態'));
+  assert.ok(labels(build(base + '痰が多く自力で出せない。創部痛 NRS 4。')).includes('非効果的気道浄化'));
+  // 浅い呼吸 → 非効果的呼吸パターン／悪心 → 悪心／排尿できない → 排尿障害（尿閉）／便秘
+  const m2 = build(base + '浅い呼吸。創部痛 NRS 4。「気持ちが悪い」と話す。カテーテル抜去後、排尿できず導尿。3日間排便なし。');
+  ['非効果的呼吸パターン', '悪心', '排尿障害（尿閉）', '便秘'].forEach(w => assert.ok(labels(m2).includes(w), `${w} / ${labels(m2).join('、')}`));
+  // 知識不足：本人が「わからない」「大丈夫なの？」
+  const hip = caseMap('hip_fracture');
+  assert.ok(app.rmProblemCategory('知識不足（治療・退院後の生活）').key === 'anx');
+  // 体液量不足リスク状態は利尿薬だけで決めない（摂取量の低下・尿量などがあるとき）
+  assert.ok(labels(caseMap('heart_failure_long')).some(l => /体液量不足リスク状態/.test(l)));
+  // 急性混乱リスク状態：せん妄の症状は無いが、高齢・手術などがある
+  const old = build('80歳 男性\n診断名：大腸がん\n10/1 結腸切除術施行（全身麻酔）\n<10/2 術後1日目>\n創部痛 NRS 3。');
+  assert.ok(labels(old).some(l => /^急性混乱リスク状態/.test(l)), labels(old).join('、'));
+  // 嚥下：むせがあれば「嚥下障害」
+  assert.ok(labels(caseMap('aspiration_pneumonia')).includes('嚥下障害'));
+  // 身体可動性障害：片麻痺など
+  assert.ok(labels(caseMap('cerebral_infarction')).includes('身体可動性障害'));
 });
