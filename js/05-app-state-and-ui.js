@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-07.33'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-07.34'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -1355,13 +1355,30 @@
     // 欲求ごとの自分のアセスメント（myAssessments）など「キー → { …, updatedAt }」の記録は、キーごとに新しい方を使う
     // （server.js の mergeKeyedRecords と同じ考え方）
     const PATIENT_KEYED_RECORD_FIELDS = ['myAssessments', 'missingChecks', 'carePlans', 'checkpoints'];
+    function fillMissingFieldsClient(primary, secondary) {
+      // 新しい方(primary)を土台にし、そこに無い・空の部分だけ、もう一方(secondary)から取り込む（新しい方が丸ごと勝って他端末の追記が消えるのを防ぐ）
+      const isMap = v => v && typeof v === 'object' && !Array.isArray(v);
+      const isEmpty = v => v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
+      if (!isMap(primary) || !isMap(secondary)) return primary;
+      const out = { ...primary };
+      Object.keys(secondary).forEach(k => {
+        if (k === 'id' || k === 'updatedAt' || k === '_touchedAt' || k === 'deleted') return;
+        if (isEmpty(out[k])) { if (!isEmpty(secondary[k])) out[k] = secondary[k]; }
+        else if (isMap(out[k]) && isMap(secondary[k])) out[k] = fillMissingFieldsClient(out[k], secondary[k]);
+      });
+      return out;
+    }
     function mergeKeyedRecordsClient(a, b) {
       const isMap = v => v && typeof v === 'object' && !Array.isArray(v);
       const time = r => { const t = r && typeof r.updatedAt === 'string' ? new Date(r.updatedAt).getTime() : NaN; return Number.isNaN(t) ? 0 : t; };
       if (!isMap(a)) return isMap(b) ? b : a;
       if (!isMap(b)) return a;
       const out = { ...a };
-      Object.keys(b).forEach(k => { if (!(k in out) || time(b[k]) > time(out[k])) out[k] = b[k]; });
+      Object.keys(b).forEach(k => {
+        if (!(k in out)) out[k] = b[k];
+        else if (time(b[k]) > time(out[k])) out[k] = fillMissingFieldsClient(b[k], out[k]);
+        else out[k] = fillMissingFieldsClient(out[k], b[k]);
+      });
       return out;
     }
     function mergeKeyedPatientFieldsClient(first, second) {
@@ -1382,7 +1399,7 @@
       const serverTime = server.updatedAt ? new Date(server.updatedAt).getTime() : 0;
       // items・deletedItemIds以外の項目（タイトル・カルテ本文・検査値評価結果等）は、
       // 従来通りupdatedAtが新しい方をまるごと採用する（server.js側のisNotStale相当）。
-      const base = localTime >= serverTime ? local : server;
+      const base = localTime >= serverTime ? fillMissingFieldsClient(local, server) : fillMissingFieldsClient(server, local);
 
       const localItems = Array.isArray(local.items) ? local.items : [];
       const serverItems = Array.isArray(server.items) ? server.items : [];
@@ -1427,7 +1444,7 @@
         if (localItem && serverItem) {
           const lt = itemEffectiveTimeClient(localItem, local.updatedAt);
           const st = itemEffectiveTimeClient(serverItem, server.updatedAt);
-          mergedItems.push(lt >= st ? localItem : serverItem);
+          mergedItems.push(lt >= st ? fillMissingFieldsClient(localItem, serverItem) : fillMissingFieldsClient(serverItem, localItem));
         } else {
           mergedItems.push(localItem || serverItem);
         }

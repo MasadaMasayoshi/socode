@@ -1153,12 +1153,29 @@ function recordTime(r) {
   const t = r && typeof r.updatedAt === 'string' ? new Date(r.updatedAt).getTime() : NaN;
   return Number.isNaN(t) ? 0 : t;
 }
+function fillMissingFields(primary, secondary) {
+  // 新しい方(primary)を土台にし、そこに無い・空の部分だけ、もう一方(secondary)から取り込む（新しい方が丸ごと勝って他端末の追記が消えるのを防ぐ）
+  const isMap = v => v && typeof v === 'object' && !Array.isArray(v);
+  const isEmpty = v => v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
+  if (!isMap(primary) || !isMap(secondary)) return primary;
+  const out = { ...primary };
+  Object.keys(secondary).forEach(k => {
+    if (k === 'id' || k === 'updatedAt' || k === '_touchedAt' || k === 'deleted') return;
+    if (isEmpty(out[k])) { if (!isEmpty(secondary[k])) out[k] = secondary[k]; }
+    else if (isMap(out[k]) && isMap(secondary[k])) out[k] = fillMissingFields(out[k], secondary[k]);
+  });
+  return out;
+}
 function mergeKeyedRecords(a, b) {
   const isMap = v => v && typeof v === 'object' && !Array.isArray(v);
   if (!isMap(a)) return isMap(b) ? b : a;
   if (!isMap(b)) return a;
   const out = { ...a };
-  Object.keys(b).forEach(k => { if (!(k in out) || recordTime(b[k]) > recordTime(out[k])) out[k] = b[k]; });
+  Object.keys(b).forEach(k => {
+    if (!(k in out)) out[k] = b[k];
+    else if (recordTime(b[k]) > recordTime(out[k])) out[k] = fillMissingFields(b[k], out[k]);
+    else out[k] = fillMissingFields(out[k], b[k]);
+  });
   return out;
 }
 function mergeKeyedPatientFields(first, second) {
@@ -1174,7 +1191,8 @@ function mergePatientRecord(incoming, existing, now = Date.now()) {
   if (!incoming) return existing;
 
   // items・deletedItemIds以外の項目は、従来通りupdatedAtが新しい方をまるごと採用する
-  const base = isNotStale(incoming, existing) ? incoming : existing;
+  const incomingWins = isNotStale(incoming, existing);
+  const base = incomingWins ? fillMissingFields(incoming, existing) : fillMissingFields(existing, incoming);
 
   const existingItems = Array.isArray(existing.items) ? existing.items : [];
   const incomingItems = Array.isArray(incoming.items) ? incoming.items : [];
@@ -1219,7 +1237,7 @@ function mergePatientRecord(incoming, existing, now = Date.now()) {
     if (existingItem && incomingItem) {
       const incomingTime = itemEffectiveTime(incomingItem, incoming.updatedAt);
       const existingTime = itemEffectiveTime(existingItem, existing.updatedAt);
-      mergedItems.push(existingTime > incomingTime ? existingItem : incomingItem);
+      mergedItems.push(existingTime > incomingTime ? fillMissingFields(existingItem, incomingItem) : fillMissingFields(incomingItem, existingItem));
     } else {
       mergedItems.push(incomingItem || existingItem);
     }
