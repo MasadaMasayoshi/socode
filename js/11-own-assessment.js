@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-07.25'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.1'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -1015,6 +1015,72 @@ ${missLines || '（なし）'}
       }
     };
 
+
+    // ---- 充足・未充足をAIなしで判定する（記録の言葉と、看護で決まっている基準だけを使う） ----
+    // 考え方：カードの文を1文ずつ見て、「基準から外れる・援助が必要」を示す言葉（未充足）と「自力でできている・基準内」を示す言葉（充足）を探す。
+    // 否定（「痛みの訴えなし」「障害なし」）は反対の意味にする。未充足の面が1つでもあれば未充足（援助が必要な面を優先）。どちらも無ければ「判定できない」。
+    const SUF_NEG_AFTER = '(?:[^、。,]{0,6})(?:なし|ない|無|訴えず|みられず|見られず|認めず|なく|ありません)';
+    const SUF_UNMET_CUES = ['痛み|疼痛|創痛|痛い|NRS\\s*[:：]?\\s*[3-9]|ペインスケール\\s*[「:：]?\\s*[3-9]', '眠れ[なず]|不眠|睡眠(?:不足|障害)|寝つけ', '全介助|要介助|介助(?:が必要|を要|にて|で)|見守りが必要|できない|困難|不可|禁止|制限', '不安|怖い|恐怖|心配|戸惑|情けない|申し訳', '食欲(?:低下|不振|がない|ない)|摂取量(?:半分|減)|半分のみ|おなかすかない|嘔気|嘔吐', '排便(?:なし|なく)|便秘|下痢|腹部膨満|お腹が張', 'べたべた|べたつき|気持ちが悪い|汚れ|悪臭|掻痒', '発赤|腫脹|熱感|発熱|排膿|浮腫|褥瘡', '呼吸困難(?:感)?(?:あり|を訴)|息苦しい|息切れ|チアノーゼ|喘鳴|SpO2\\s*[:：]?\\s*(?:[0-8]\\d|9[0-3])\\s*%', '転倒|ふらつき|不安定|せん妄|不穏|混乱|拒否', '体温\\s*[:：]?\\s*3[89]|3[89](?:\\.\\d)?\\s*度', '[↑↓]'];
+    const SUF_MET_CUES = ['自立|自力|自分で|一人で|問題なし|良好|清明|規則的|正常|普通食|常食|整|障害なし|異常なし|理解(?:力)?(?:あり|良好)|前向き|頑張|楽しみ|きれい好き', '睡眠\\s*[:：]?\\s*[6-9]\\s*時間|眠れた|よく眠れ', '食欲(?:良好|あり)|全量摂取|摂取量\\s*(?:良好|十分)', 'SpO2\\s*[:：]?\\s*(?:9[4-9]|100)\\s*%', 'ペインスケール\\s*[「:：]?\\s*[0-2]|NRS\\s*[:：]?\\s*[0-2](?!\\d)|痛みなし|疼痛なし', '体温\\s*[:：]?\\s*3[67](?:\\.\\d)?', '排便\\s*[:：]?\\s*\\d\\s*回/日|排尿\\s*[:：]?\\s*\\d+\\s*回/日', '呼吸困難感(?:の)?訴えなし|肺Air入り(?:が)?良好'];
+    // 言葉の種類ごとに、関係する欲求の番号（null＝どの欲求でも）。痛みは動く・休む・清潔など広く、体温は体温調節だけ、のように限る
+    const SUF_UNMET_SCOPE = [[4, 5, 6, 8, 9, 10, 12, 13, 14], [5], null, [9, 10, 12, 13, 14], [2, 3], [3], [8], [7, 8, 9], [1], [4, 9, 10, 13, 14], [7], null];
+    const SUF_MET_SCOPE = [null, [5], [2], [1], [4, 5, 6, 8, 9, 10, 12, 13, 14], [7], [3], [1]];
+    function sufficiencyClauseVerdict(clause, needId) {
+      const t = String(clause || '').normalize('NFKC');
+      let unmet = '', met = '';
+      for (let k = 0; k < SUF_UNMET_CUES.length; k++) {
+        const src = SUF_UNMET_CUES[k], sc = SUF_UNMET_SCOPE[k];
+        if (needId && sc && !sc.includes(needId)) continue;
+        const m = t.match(new RegExp(`(${src})(${SUF_NEG_AFTER})?`));
+        if (!m) continue;
+        const negated = m[2] && !/^[↑↓]/.test(m[1]);
+        if (negated) { met = met || m[0]; continue; }
+        unmet = m[0]; break;
+      }
+      if (unmet) return { v: 'unmet', hit: unmet };
+      if (met) return { v: 'met', hit: met };
+      for (let k = 0; k < SUF_MET_CUES.length; k++) { const sc = SUF_MET_SCOPE[k]; if (needId && sc && !sc.includes(needId)) continue; const m = t.match(new RegExp(SUF_MET_CUES[k])); if (m) return { v: 'met', hit: m[0] }; }
+      return { v: '', hit: '' };
+    }
+    function sufficiencyCardVerdict(item, needId) {
+      const parts = String(item.text || '').normalize('NFKC').split(/[。\n、,，]|\s{2,}/).map(s => s.trim()).filter(Boolean);
+      let met = null;
+      for (const p of parts) {
+        const r = sufficiencyClauseVerdict(p, needId);
+        if (r.v === 'unmet') return { v: 'unmet', hit: r.hit, clause: p };
+        if (r.v === 'met' && !met) met = { v: 'met', hit: r.hit, clause: p };
+      }
+      return met || { v: '', hit: '', clause: '' };
+    }
+    function judgeSufficiencyByRules(cp) {
+      const items = (cp.items || []).filter(i => i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i));
+      const out = {};
+      HENDERSON_NEEDS.forEach(need => {
+        const mine = items.filter(i => (i.hendersonIds || []).includes(need.id));
+        const colOf = i => (i.assessmentCols && i.assessmentCols[need.id]) || 'unclassified';
+        const judge = (cards, label) => {
+          const rs = cards.map(i => ({ i, r: sufficiencyCardVerdict(i, need.id) }));
+          const um = rs.filter(x => x.r.v === 'unmet'), mt = rs.filter(x => x.r.v === 'met');
+          const short = x => `「${x.r.clause.slice(0, 30)}」`;
+          if (um.length) return { verdict: 'unmet', reason: `未充足：${um.slice(0, 3).map(short).join('')}など、基準から外れる・援助が必要な記録があります（${label}）。${mt.length ? `できている面（${short(mt[0])}）もありますが、援助が必要な面を優先しました。` : ''}`, evidence: um.slice(0, 5).map(x => x.i.id), need: '' };
+          if (mt.length) return { verdict: 'met', reason: `充足：${mt.slice(0, 3).map(short).join('')}など、自力でできている・基準内の記録があり、援助が必要な記録は見当たりません（${label}）。`, evidence: mt.slice(0, 5).map(x => x.i.id), need: '' };
+          return { verdict: 'unknown', reason: '', evidence: [], need: cards.length ? '基準と比べられる具体的な記録（回数・数値・できる／できない）' : `${label}の記録` };
+        };
+        const res = {};
+        const phases = { pre: ['入院前', c => c === 'preadmission'], post: ['入院後', c => c === 'postadmission'], all: ['全体', c => c !== 'missing'] };
+        Object.keys(phases).forEach(k => { res[k] = judge(mine.filter(i => phases[k][1](colOf(i))), phases[k][0]); });
+        out[need.id] = res;
+      });
+      return out;
+    }
+    window.runSufficiencyRules = function() {
+      const cp = getCurrentPatient();
+      if (!(cp.items || []).some(i => i.type !== 'unnecessary')) return showToast('カードがありません。先に「分類開始」で分類してください', 'warn');
+      const r = applySufficiencyResult(cp, judgeSufficiencyByRules(cp));
+      try { finishAiResult(cp, () => renderAssessmentTable(), '充足・未充足の判定（AIなし）'); } catch (e) { renderAssessmentTable(); }
+      showToast(`AIなしで判定しました：${r.set}欄に入れました` + (r.kept ? `／自分で選んだ${r.kept}欄はそのまま` : '') + (r.unknown ? `／${r.unknown}欄は記録が足りず判定できません` : '') + '。根拠の言葉を見て、自分で直してください', 'success', 8000);
+    };
+
     // ---- 印刷・書き出し用（js/06 から呼ぶ） ----
     function buildMyAssessmentsPrintHtml(cp, startNo) {
       const rows = HENDERSON_NEEDS.map(need => {
@@ -1042,7 +1108,7 @@ if (typeof module !== 'undefined' && module.exports) {
     MY_ASSESSMENT_FIELDS,
     ensureMyAssessment, getMyAssessment, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
     myAssessmentStatus, myAssessmentNeedsReview, confirmMyAssessmentEntry, restoreMyAssessmentFromHistory,
-    buildSufficiencyPrompt, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
+    buildSufficiencyPrompt, judgeSufficiencyByRules, sufficiencyCardVerdict, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
     renderMyAssessmentRowHtml, evidencePickerCandidates, buildMyAssessmentAiPrompt, myAssessmentAlwaysShown
   });
   if (module.exports.__testHooks) Object.assign(module.exports.__testHooks, { flushMyAssessmentSaves, saveMyAssessmentsSoon });

@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-07.12'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-08.1'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -952,8 +952,8 @@
     function cpReviewCount(review) { return review.items.filter(i => i.level === 'warn').length; }
 
     // ---- 関連図の看護問題を看護計画へ引き継ぐ ----
-    function importCarePlansFromMap(cp, now = new Date().toISOString()) {
-      const map = typeof normalizeRelationMap === 'function' && cp.relationMap ? normalizeRelationMap(cp.relationMap) : null;
+    function importCarePlansFromMap(cp, now = new Date().toISOString(), mapArg = null) {
+      const map = mapArg || (typeof normalizeRelationMap === 'function' && cp.relationMap ? normalizeRelationMap(cp.relationMap) : null);
       if (!map) return [];
       const existing = new Set(carePlanList(cp).map(p => p.problem.replace(/\s+/g, '')));
       const fresh = [];
@@ -968,6 +968,29 @@
       });
       return fresh;
     }
+    // 記録から看護計画をAIなしで作る：関連図の作り方（記録→看護問題）と、手本（目標・OP/TP/EP）をそのまま使う。
+    // 関連図がまだ無くても、その場で作った図から看護問題を取り込む（図は保存しない）。書き終えたら、必要な理由を書いて使う。
+    window.buildCarePlansByRulesUI = function() {
+      const cp = getCurrentPatient();
+      if (!(cp.items || []).some(i => i.type !== 'unnecessary')) return showToast('カードがありません。先に「分類開始」で分類してください', 'warn');
+      let map = cp.relationMap && typeof normalizeRelationMap === 'function' ? normalizeRelationMap(cp.relationMap) : null;
+      if (!map || !map.nodes.some(n => n.type === 'nursing_problem')) map = typeof buildRelationMapFromRecord === 'function' ? buildRelationMapFromRecord(cp) : null;
+      const fresh = map ? importCarePlansFromMap(cp, new Date().toISOString(), map) : [];
+      if (!fresh.length) return showToast('作れる看護問題が記録から見つからないか、すべて看護計画にあります', 'info');
+      let withModel = 0;
+      fresh.forEach(p => {
+        carePlanOpen.add(p.id);
+        const m = reviewCarePlan(cp, p).model;
+        if (!m) return;
+        const patch = {};
+        if (!String(p.goalLong || '').trim()) patch.goalLong = m.goalLong;
+        if (!String(p.goalShort || '').trim()) patch.goalShort = m.goalShort;
+        ['op', 'tp', 'ep'].forEach(k => { if (!p[k].length && m[k] && m[k].length) patch[k] = [...m[k]]; });
+        if (Object.keys(patch).length) { updateCarePlan(cp, p.id, { ...patch, reasonNeeded: true, source: 'rules' }); withModel++; }
+      });
+      commitCarePlanChange(cp);
+      showToast(`AIなしで看護計画を${fresh.length}件作りました（うち${withModel}件に目標・OP/TP/EPの手本を入れました）。この患者に合うか確かめて、理由を書いて直してください`, 'success', 9000);
+    };
     window.importCarePlansFromMapUI = function() {
       const cp = getCurrentPatient();
       if (!cp.relationMap) return showToast('関連図がまだありません。「関連図」のページで作ってから取り込んでください', 'warn', 6000);
