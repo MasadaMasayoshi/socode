@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-07.27'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-07.33'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -1759,12 +1759,11 @@
       if (tab === 'snapshots') loadAndRenderPatientSnapshots();
     }
     // HTMLファイルを直接開いている（file://）か。サーバーが要る機能の案内に使う
-    // GitHub Pages（*.github.io）はファイルを配るだけでサーバー（server.js）が無く、保存の送信は必ず HTTP 405 で断られる。
-    // file: で開いたときと同じく「このブラウザにだけ保存」として扱い、失敗の表示を出さない（共有・全員保存は Render のページで）
-    const IS_FILE_PROTOCOL = typeof location !== 'undefined' && (location.protocol === 'file:' || /\.github\.io$/i.test(location.hostname || ''));
+    // （GitHub Pages で開いたときは js/04 の API_BASE で Render のサーバーにつなぐので、file: とは別扱い）
+    const IS_FILE_PROTOCOL = typeof location !== 'undefined' && location.protocol === 'file:';
     // サーバーが要るタブ（事例ログ・報告・スナップショット）で読み込めなかったときの案内
     function adminServerNoticeHtml(featureName) {
-      const why = IS_FILE_PROTOCOL ? 'このページ（HTMLファイルの直接表示・GitHub Pages）にはサーバーが無いため' : 'サーバー（server.js）に接続できないため';
+      const why = IS_FILE_PROTOCOL ? 'HTMLファイルを直接開いているため' : 'サーバー（server.js）に接続できないため';
       return `<div class="text-xs text-[var(--ink)] leading-relaxed p-3 rounded-[var(--radius-sm)]" style="background:var(--gold-soft);border:1px solid var(--line);">
         <div class="font-semibold mb-1"><i class="fa-solid fa-plug-circle-xmark mr-1" style="color:var(--gold);"></i>${escapeHtml(featureName)}は、サーバーで開いたときだけ使えます</div>
         <div class="text-[11px] text-[var(--ink-muted)]">全員で共有する記録なので、サーバーに保存されています。今は${why}表示できません。見るには、公開しているページから開くか、アプリのフォルダで「npm start」を実行してブラウザで http://localhost:3000 を開いてください。</div>

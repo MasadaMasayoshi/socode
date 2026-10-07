@@ -710,6 +710,22 @@ function pickTopVote(votes) {
 }
 
 // ---- ミドルウェア ----
+// 【GitHub と Render を1つに統合】GitHub Pages（https://masadamasayoshi.github.io）で開いた画面からも、この
+// サーバーの記録（API）を使えるようにする（別のオリジンからの通信を許す）。許すのは下の送り元だけで、
+// 環境変数 CORS_ORIGINS（カンマ区切り）で足せる。/api 以外には付けない。
+const CORS_ALLOWED_ORIGINS = new Set(['https://masadamasayoshi.github.io', ...String(process.env.CORS_ORIGINS || '').split(',').map(s => s.trim().replace(/\/+$/, '')).filter(Boolean)]);
+app.use('/api', (req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && CORS_ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Max-Age', '600');
+    if (req.method === 'OPTIONS') return res.status(204).end();
+  }
+  next();
+});
 // 患者カルテ本体（カード多数・長い抽出元テキストを含む）を扱うため、上限を少し広めに取る
 // 【レビューで発見】一括同期・スナップショットなど、経路ごとに受け取る大きさの上限（8mb・10kb など）を
 // 決めている経路があるが、画面側は Content-Type: application/json で送るため、先にこの共通の読み取り（5mb）が

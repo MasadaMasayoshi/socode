@@ -12,12 +12,12 @@
     "hash": "77ae60938a3d76fa"
   },
   "js/04-server-sync.js": {
-    "version": "2026-10-06.14",
-    "hash": "1c36d8cc0b410d33"
+    "version": "2026-10-07.33",
+    "hash": "00e5cb4c08f0b378"
   },
   "js/05-app-state-and-ui.js": {
-    "version": "2026-10-07.27",
-    "hash": "611faac1dd37fb3f"
+    "version": "2026-10-07.33",
+    "hash": "63c84291c8f59359"
   },
   "js/06-export.js": {
     "version": "2026-10-07.25",

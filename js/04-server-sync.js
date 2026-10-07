@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = '2026-10-06.14'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = '2026-10-07.33'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 共有学習（全利用者・全カードで共有する学習データ）
     // ------------------------------------------------------------------------
@@ -21,7 +21,11 @@
     // サーバー（server.js）を起動していない場合は学習専用ファイルに触れられないため、
     // 学習内容はその場限り（画面を離れると失われる）になる。
     // ==========================================================================
-    const API_BASE = '/api';
+    // 【GitHub と Render を1つに統合】GitHub Pages（*.github.io）はファイルを配るだけでサーバーが無いため、
+    // そこで開いたときも Render のサーバー（記録を共有・保存する本体）につなぐ。どちらのURLで開いても同じ記録になる。
+    // 送り先は <meta name="api-origin"> で変えられる（Render のURLが変わったとき用）。
+    const RENDER_ORIGIN = (document.querySelector('meta[name="api-origin"]') || {}).content || 'https://socode.onrender.com';
+    const API_BASE = (typeof location !== 'undefined' && /\.github\.io$/i.test(location.hostname || '')) ? `${RENDER_ORIGIN.replace(/\/+$/, '')}/api` : '/api';
     // { [text]: { preferredType, preferredCols, preferredHendersonIds, typeVotes, hendersonVotes, lastEditedFrom, updatedAt } }
     // typeVotes / hendersonVotes は「同じ文章に対して同じ編集が何回行われたか」のカウント（例:｛s:2, o:1｝）。
     // 新規の自動振り分け（'create'）は投票に数えず、ユーザーが実際に選び直した場合だけ加算することで、
