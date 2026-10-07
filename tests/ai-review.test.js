@@ -62,3 +62,30 @@ test('分類ボードと総合アセスメント表のAI分析ツールから開
   assert.match(html, /id="modal-ai-review"/);
   assert.match(html, /onclick="downloadAiReview\(\)"/);
 });
+
+// 改善点ファイル・患者21（2026-10-07.18）：評価AIの誤指摘を防ぐルール
+test('評価の指示に、誤指摘を防ぐルール（事実と推測・判定3種・根拠の引用・要確認・見出しの発言者・S/O分離・時系列の食い違い・一括適用しない）が入る', () => {
+  const items = [{ id: 'a', type: 'o', timestamp: '入院前', text: '本人より', hendersonIds: [] }];
+  const prompt = app.buildAiReviewPrompt({ sourceText: '元' }, app.buildEvidenceIndex(items), items);
+  ['事実と推測を分ける', '明確な誤り', '分類基準次第', '原文確認が必要', 'evidence', 'verdict', '直接の根拠', '要確認', '発言者を引き継ぐ', 'Oのカードに分ける', '食い違っている', '一括適用される前提で書かない']
+    .forEach(s => assert.ok(prompt.includes(s), s));
+});
+
+test('判定（明確な誤り／分類基準次第／原文確認が必要）と原文の根拠を読み取り、まとめて適用は「明確な誤り」だけ・改善点ファイルに判定が出る', async () => {
+  const result = app.parseAiReviewJson(JSON.stringify({
+    tagIssues: { summary: '', items: [
+      { card: 'C1', suggested: [1, 9], reason: 'a', evidence: '「痛い」', verdict: 'error' },
+      { card: 'C1', suggested: [3], reason: 'b', verdict: '分類基準次第' }] },
+    timeline: { summary: '', items: [{ card: 'C1', current: '術後1日目', suggestedTimestamp: '', reason: '表の見出しと本文の日数が食い違う', verdict: 'check' }] },
+    extractionIssues: { summary: '', items: [] }, untagged: { summary: '', items: [{ card: 'C1', suggested: [], reason: '要確認', verdict: 'check' }] }
+  }));
+  assert.deepEqual(Array.from(result.tagIssues.map(x => x.verdict)), ['error', 'criteria']);
+  assert.equal(result.tagIssues[0].evidence, '「痛い」');
+  assert.equal(result.timeline.issues.length, 1, '日時の提案が無くても、原文確認が必要な食い違いは残す');
+  assert.equal(result.timeline.issues[0].verdict, 'check');
+  const cp = { title: 'P', sourceText: '元', items: [{ id: 'a', type: 's', timestamp: '10:00', text: '「痛い」', hendersonIds: [] }], aiReview: { at: '2026-10-07T00:00:00Z', codes: { C1: 'a' }, applied: {}, result } };
+  const md = app.buildAiReviewMarkdown(cp);
+  ['- 判定：明確な誤り', '- 判定：分類基準次第', '- 判定：原文確認が必要', '- 原文の根拠：「痛い」', '一括適用しないでください'].forEach(t => assert.ok(md.includes(t), t));
+  const src = fs.readFileSync(path.join(__dirname, '..', 'js', '08-assessment-tools.js'), 'utf8');
+  assert.match(src, /x\.verdict === 'error' \? `\$\{section\}:\$\{k\}`/, 'まとめて適用は明確な誤りだけ');
+});

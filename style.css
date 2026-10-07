@@ -1114,3 +1114,8 @@
     html.in-app-browser .need-nav { top: 0; }
     html.in-app-browser #view-relation.rm-fullscreen .rm-fs-controls { top: calc(max(10px, env(safe-area-inset-top)) + 56px); }
     html.in-app-browser #view-relation.rm-fullscreen .rm-problems { top: calc(max(10px, env(safe-area-inset-top)) + 102px); }
+    /* AI評価の「判定」（明確な誤り／分類基準次第／原文確認が必要） */
+    .ai-review-verdict { display: inline-block; margin-right: .4rem; padding: .05rem .45rem; border-radius: 999px; font-size: 10.5px; font-weight: 700; border: 1px solid var(--line); background: var(--paper); color: var(--ink-muted); vertical-align: 1px; }
+    .ai-review-verdict.error { background: #FBDDE3; border-color: #B03A55; color: #6B1F33; }
+    .ai-review-verdict.criteria { background: #FFF4D6; border-color: #C28A1A; color: #6B4A00; }
+    .ai-review-verdict.check { background: #E0ECFB; border-color: #3B6EB5; color: #1E3F73; }

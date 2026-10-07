@@ -28,8 +28,8 @@
     "hash": "127de75bea867c6f"
   },
   "js/08-assessment-tools.js": {
-    "version": "2026-10-07.8",
-    "hash": "a71a9e5b02fab60c"
+    "version": "2026-10-07.18",
+    "hash": "e5377d09393f5c32"
   },
   "js/09-board.js": {
     "version": "2026-10-06.15",
@@ -60,8 +60,8 @@
     "hash": "828eabad2f5b6880"
   },
   "style.css": {
-    "version": "2026-10-07.13",
-    "hash": "9eafbd9f1ab4388d"
+    "version": "2026-10-07.18",
+    "hash": "8bb368e61dd135ad"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",

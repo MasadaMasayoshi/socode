@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-07.8'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-07.18'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -1367,6 +1367,8 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
     // 保存でき、そのファイルをClaudeに渡すとプログラム側（自動分類のルール）の修正に使える。
     // APIキーはこのブラウザの中だけで使い、送る文章は他のAI機能と同じく個人情報を伏せ字にしてから送る。
     // ==========================================================================
+    // 【評価の確からしさ】各提案を「明確な誤り／分類基準次第／原文確認が必要」に分ける。まとめて適用するのは「明確な誤り」だけ（改善点ファイル・患者21の指摘：2026-10-07.18）
+    const AI_REVIEW_VERDICTS = { error: '明確な誤り', criteria: '分類基準次第', check: '原文確認が必要' };
     const AI_REVIEW_KINDS = { merge: 'まとめる', split: '分ける', missing: '抜けている', type: 'S/Oの誤り', unnecessary: '不要', other: 'その他' };
     function buildAiReviewPrompt(cp, ev, items) {
       const needList = HENDERSON_NEEDS.map(n => `${n.id}.${n.name.replace(/^\d+\.\s*/, '')}`).join(' / ');
@@ -1390,6 +1392,16 @@ ${(cp.sourceText || '').slice(0, 20000)}
 【分類後の情報カード】（〔C番号〕[S/O][日時] 本文 {タグ:番号}）
 ${cardLines}
 
+【評価のルール（誤った指摘を出さないために、必ず守る）】
+A. 原文の事実と推測を分ける。各指摘の evidence に、根拠にした原文の文（分類前の文章からの引用）を書く。原文に直接の根拠が無い提案は出さない（「〜にも関わる」「波及する」といった一般論や推測だけでタグを足さない。そうした助言は advice に書く）。
+B. 各指摘に verdict を付ける。error＝明確な誤り（原文・基準ノートで確実に言える）／criteria＝分類基準次第（基準ノート・アプリの分類基準でどちらにも言える）／check＝原文確認が必要（原文だけでは決められない・原文どうしが食い違う）。迷ったら criteria か check にする。
+C. タグ：suggested は、そのカードの文に直接の根拠（語句・内容）があるものだけ。今のタグを増やす提案は、追加するタグごとに根拠の語句を reason に引用する。
+D. 未設定のカード：基準ノートやアプリの分類基準で当てはまるか分からない項目（例：生殖・出産歴・閉経、足背動脈の触知など）は、タグを断定しない。suggested を空にし、verdict を check にして reason に「要確認」と書く。
+E. 見出し・ラベルだけの行（「本人より」「担当看護師より」など）を不要にする提案は、その行が発言者を表すとき、後に続く文へ発言者を引き継ぐことを先に述べる（どのカードに引き継ぐかを reason に書く）。題名だけの行（「事例紹介＞」など）は、発言者情報を持たないことを確かめてから不要にする。
+F. S（患者の発言）とO（観察・測定値）が混ざる1枚にまとめない。同じ場面でも、発言はSのカード、観察はOのカードに分ける（kind は split。発言が途中で切れているカードは、発言の続きをS側に戻す）。
+G. 時系列：分類前の文章の中で日時・日数が食い違っている所（例：表の見出しが「術後1日目」なのに本文は「術後2日目」）を見つけたら、「指摘なし」にせず verdict を check にして、どの文が食い違うかを書く。食い違いが無いときだけ「問題ありません」とする。
+H. この評価は患者データへ一括適用される前提で書かない。明確な誤り（error）以外は、人が確かめてから個別に適用する提案として書く。
+
 次の4つを評価し、指定のJSONだけを出力してください（前置き・コードブロックの記号は不要）。看護学生が読んで納得できるよう、やさしく具体的な日本語で書いてください。
 1. tagIssues：ヘンダーソンの分類（タグ）が間違っている、または足りないカード。適切なタグは複数あってよい。suggestedはそのカードに付けるべきタグの番号の全体（今のタグも含めて最終的な形）。
 2. timeline：分類前の文章と照らし合わせて、時系列（カードの日時）が正しく整理できているか。issuesに日時が間違っているカード（suggestedTimestampは「術後1日目 12:00」のように日＋時刻、または「入院前」「入院時」「術前」等）。
@@ -1406,10 +1418,10 @@ ${cardLines}
 問題が無い項目は items を空の配列にしてください。cardsやcardには一覧の〔C番号〕の番号（"C12"の形）だけを使い、一覧に無い番号は作らないでください。
 
 {"overview":"",
- "tagIssues":{"summary":"","items":[{"card":"C1","title":"","current":"","currentTags":[1],"suggested":[1,9],"reason":""}]},
- "timeline":{"summary":"","items":[{"card":"C5","title":"","current":"12:00","suggestedTimestamp":"術後1日目 12:00","reason":""}]},
- "extractionIssues":{"summary":"","items":[{"kind":"split","cards":["C3"],"title":"","current":"","mergedText":"","parts":[{"type":"s","text":""},{"type":"o","text":""}],"text":"","suggestedType":"","reason":""}]},
- "untagged":{"summary":"","items":[{"card":"C9","title":"","suggested":[9],"reason":""}]},
+ "tagIssues":{"summary":"","items":[{"card":"C1","title":"","current":"","currentTags":[1],"suggested":[1,9],"reason":"","evidence":"","verdict":"error"}]},
+ "timeline":{"summary":"","items":[{"card":"C5","title":"","current":"12:00","suggestedTimestamp":"術後1日目 12:00","reason":"","evidence":"","verdict":"error"}]},
+ "extractionIssues":{"summary":"","items":[{"kind":"split","cards":["C3"],"title":"","current":"","mergedText":"","parts":[{"type":"s","text":""},{"type":"o","text":""}],"text":"","suggestedType":"","reason":"","evidence":"","verdict":"criteria"}]},
+ "untagged":{"summary":"","items":[{"card":"C9","title":"","suggested":[9],"reason":"","evidence":"","verdict":"check"}]},
  "advice":[""]}`;
     }
     function parseAiReviewJson(text) {
@@ -1425,17 +1437,18 @@ ${cardLines}
       const tagList = v => (Array.isArray(v) ? v : []).map(Number).filter(n => n >= 1 && n <= 14);
       const code = v => (String(v || '').match(/C\s*\d{1,4}/i) || [''])[0].replace(/\s+/g, '').toUpperCase();
       const str = v => String(v || '').trim();
+      const verdictOf = v => { const t = String(v || '').trim().toLowerCase(); return t === 'error' || /明確/.test(t) ? 'error' : t === 'check' || /原文|確認/.test(t) ? 'check' : t === 'criteria' || /基準/.test(t) ? 'criteria' : ''; };
       // 各項目は {summary, items:[...]} の形（以前の形＝配列だけ、にも対応する）
       const sec = v => (Array.isArray(v) ? { summary: '', items: v } : { summary: str(v && v.summary), items: (v && (v.items || v.issues)) || [] });
       const tagSec = sec(obj.tagIssues), timeSec = sec(obj.timeline), extSec = sec(obj.extractionIssues), untagSec = sec(obj.untagged);
       return {
         overview: str(obj.overview),
         advice: (Array.isArray(obj.advice) ? obj.advice : [obj.advice]).map(str).filter(Boolean),
-        tagIssues: tagSec.items.map(x => ({ card: code(x.card), title: str(x.title), currentText: typeof x.current === 'string' ? str(x.current) : '', current: tagList(x.currentTags || (Array.isArray(x.current) ? x.current : [])), suggested: tagList(x.suggested), reason: str(x.reason) })).filter(x => x.card),
+        tagIssues: tagSec.items.map(x => ({ card: code(x.card), title: str(x.title), currentText: typeof x.current === 'string' ? str(x.current) : '', current: tagList(x.currentTags || (Array.isArray(x.current) ? x.current : [])), suggested: tagList(x.suggested), reason: str(x.reason), evidence: str(x.evidence), verdict: verdictOf(x.verdict) })).filter(x => x.card),
         tagSummary: tagSec.summary,
         timeline: {
           summary: timeSec.summary,
-          issues: timeSec.items.map(x => ({ card: code(x.card), title: str(x.title), current: str(x.current), suggestedTimestamp: str(x.suggestedTimestamp), reason: str(x.reason) })).filter(x => x.card && x.suggestedTimestamp)
+          issues: timeSec.items.map(x => ({ card: code(x.card), title: str(x.title), current: str(x.current), suggestedTimestamp: str(x.suggestedTimestamp), reason: str(x.reason), evidence: str(x.evidence), verdict: verdictOf(x.verdict) })).filter(x => x.card && (x.suggestedTimestamp || x.verdict === 'check'))
         },
         extractionIssues: extSec.items.map(x => ({
           kind: AI_REVIEW_KINDS[x.kind] ? x.kind : 'other',
@@ -1443,10 +1456,10 @@ ${cardLines}
           title: str(x.title), current: str(x.current),
           mergedText: str(x.mergedText),
           parts: (Array.isArray(x.parts) ? x.parts : []).map(p => (typeof p === 'string' ? { type: '', text: str(p) } : { type: p && (p.type === 's' || p.type === 'o') ? p.type : '', text: str(p && p.text) })).filter(p => p.text),
-          text: str(x.text), suggestedType: x.suggestedType === 's' || x.suggestedType === 'o' ? x.suggestedType : '', reason: str(x.reason)
+          text: str(x.text), suggestedType: x.suggestedType === 's' || x.suggestedType === 'o' ? x.suggestedType : '', reason: str(x.reason), evidence: str(x.evidence), verdict: verdictOf(x.verdict)
         })),
         extractionSummary: extSec.summary,
-        untagged: untagSec.items.map(x => ({ card: code(x.card), title: str(x.title), suggested: tagList(x.suggested), reason: str(x.reason) })).filter(x => x.card),
+        untagged: untagSec.items.map(x => ({ card: code(x.card), title: str(x.title), suggested: tagList(x.suggested), reason: str(x.reason), evidence: str(x.evidence), verdict: verdictOf(x.verdict) })).filter(x => x.card),
         untaggedSummary: untagSec.summary
       };
     }
@@ -1611,10 +1624,11 @@ ${cardLines}
       const r = cp.aiReview && cp.aiReview.result;
       if (!r) return;
       const list = section === 'untag' ? r.untagged : section === 'tag' ? r.tagIssues : r.timeline.issues;
-      const keys = list.map((x, k) => `${section}:${k}`).filter(k => !(cp.aiReview.applied || {})[k]);
-      if (!keys.length) return showToast('適用できる提案はもうありません', 'info');
+      // 「明確な誤り」だけをまとめて適用する。「分類基準次第」「原文確認が必要」（と、確からしさの無い古い結果）は1件ずつ確かめて適用する
+      const keys = list.map((x, k) => (x.verdict === 'error' ? `${section}:${k}` : null)).filter(k => k && !(cp.aiReview.applied || {})[k]);
+      if (!keys.length) return showToast('まとめて適用できる提案（明確な誤り）はありません。ほかの提案は1件ずつ確かめて適用してください', 'info');
       const label = section === 'untag' ? '未設定のタグ' : section === 'tag' ? 'タグの修正' : '日時の修正';
-      const okd = await openDialog({ title: `${label}をまとめて適用`, message: `${keys.length}件の提案をまとめて適用します。適用した内容は学習にも反映されます。よろしいですか？`, confirmLabel: 'まとめて適用' });
+      const okd = await openDialog({ title: `${label}をまとめて適用`, message: `「明確な誤り」の提案${keys.length}件だけをまとめて適用します（分類基準次第・原文確認が必要の提案は適用しません）。適用した内容は学習にも反映されます。よろしいですか？`, confirmLabel: 'まとめて適用' });
       if (okd !== true) return;
       let n = 0;
       keys.forEach(k => { if (applyAiReviewItem(k, true)) n++; });
@@ -1651,11 +1665,13 @@ ${cardLines}
         ? '<span class="ai-review-done"><i class="fa-solid fa-check"></i> 適用済み</span>'
         : (enabled ? `<button class="ai-review-apply" onclick="applyAiReviewItem('${key}')"><i class="fa-solid fa-check"></i> この修正案を適用</button>` : '');
       // 1件の指摘：見出し → 現状（カードの本文）→ 修正案 → 理由（Geminiの文章に近い、読み物としての並び）
-      const block = ({ title, current, proposal, reason, key, canApply }) => `<li class="ai-review-item">
-        ${title ? `<div class="ai-review-title">${escapeHtml(title)}</div>` : ''}
+      const verdictChip = v => v && AI_REVIEW_VERDICTS[v] ? `<span class="ai-review-verdict ${v}">${AI_REVIEW_VERDICTS[v]}</span>` : '';
+      const block = ({ title, current, proposal, reason, key, canApply, verdict, evidence }) => `<li class="ai-review-item">
+        ${title || verdict ? `<div class="ai-review-title">${verdictChip(verdict)}${escapeHtml(title || '')}</div>` : ''}
         <div class="ai-review-row"><span class="ai-review-label">現状</span><div>${current}</div></div>
         <div class="ai-review-row"><span class="ai-review-label fix">修正案</span><div>${proposal}</div></div>
         ${reason ? `<div class="ai-review-row"><span class="ai-review-label why">理由</span><div class="ai-review-reason">${escapeHtml(reason)}</div></div>` : ''}
+        ${evidence ? `<div class="ai-review-row"><span class="ai-review-label why">原文の根拠</span><div class="ai-review-reason">${escapeHtml(evidence)}</div></div>` : ''}
         <div class="ai-review-actions">${applyBtn(key, canApply)}</div>
       </li>`;
       const tagDiff = (from, to) => {
@@ -1673,13 +1689,13 @@ ${cardLines}
       const tagHtml = r.tagIssues.map((x, k) => {
         const item = itemOf(x.card);
         const cur = x.current.length ? x.current : ((item && item.hendersonIds) || []);
-        return block({ title: x.title, key: `tag:${k}`, canApply: x.suggested.length > 0, reason: x.reason,
+        return block({ title: x.title, key: `tag:${k}`, canApply: x.suggested.length > 0, reason: x.reason, verdict: x.verdict, evidence: x.evidence,
           current: `${quoteCard(x.card)}${x.currentText ? `<div class="ai-review-note">${escapeHtml(x.currentText)}</div>` : ''}<div class="ai-review-tags">今のタグ：${tagDiff(cur, cur)}</div>`,
           proposal: `<div class="ai-review-tags">${tagDiff(cur, x.suggested)}</div>` });
       }).join('');
-      const timeHtml = r.timeline.issues.map((x, k) => block({ title: x.title, key: `time:${k}`, reason: x.reason,
+      const timeHtml = r.timeline.issues.map((x, k) => block({ title: x.title, key: `time:${k}`, reason: x.reason, verdict: x.verdict, evidence: x.evidence, canApply: !!x.suggestedTimestamp,
         current: `${quoteCard(x.card)}<div class="ai-review-note">日時：${escapeHtml(x.current || '（日時なし）')}</div>`,
-        proposal: `日時を <b>${escapeHtml(x.suggestedTimestamp)}</b> にする` })).join('');
+        proposal: x.suggestedTimestamp ? `日時を <b>${escapeHtml(x.suggestedTimestamp)}</b> にする` : '（原文を確かめてください）' })).join('');
       const extHtml = r.extractionIssues.map((x, k) => {
         const soLabel = t => (t === 's' ? '<span class="so s">Sデータ</span>' : t === 'o' ? '<span class="so o">Oデータ</span>' : '');
         const proposal = x.kind === 'merge' && x.mergedText ? `次の1枚にまとめる：<div class="ai-review-new">${escapeHtml(x.mergedText)}</div>`
@@ -1688,10 +1704,10 @@ ${cardLines}
           : x.kind === 'type' && x.suggestedType ? `${soLabel(x.suggestedType)}にする`
           : x.kind === 'unnecessary' ? '不要な情報にする' : '（下の理由を参考に、手で直してください）';
         const canApply = (x.kind === 'merge' && x.mergedText && x.cards.length >= 2) || (x.kind === 'split' && x.parts.length >= 2) || (x.kind === 'missing' && x.text) || (x.kind === 'type' && x.suggestedType) || x.kind === 'unnecessary';
-        return block({ title: `【${AI_REVIEW_KINDS[x.kind]}】${x.title || ''}`, key: `ext:${k}`, canApply, reason: x.reason,
+        return block({ title: `【${AI_REVIEW_KINDS[x.kind]}】${x.title || ''}`, key: `ext:${k}`, canApply, reason: x.reason, verdict: x.verdict, evidence: x.evidence,
           current: `${x.cards.map(quoteCard).join('')}${x.current ? `<div class="ai-review-note">${escapeHtml(x.current)}</div>` : ''}`, proposal });
       }).join('');
-      const untagHtml = r.untagged.map((x, k) => block({ title: x.title, key: `untag:${k}`, canApply: x.suggested.length > 0, reason: x.reason,
+      const untagHtml = r.untagged.map((x, k) => block({ title: x.title, key: `untag:${k}`, canApply: x.suggested.length > 0, reason: x.reason, verdict: x.verdict, evidence: x.evidence,
         current: `${quoteCard(x.card)}<div class="ai-review-tags">今のタグ：（未設定）</div>`,
         proposal: x.suggested.length ? `<div class="ai-review-tags">${tagDiff([], x.suggested)}</div>` : '14項目に当てはまらない（「追加キーワード」で決める）' })).join('');
       body.innerHTML =
@@ -1714,15 +1730,15 @@ ${cardLines}
         return item ? `${codeStr} [${(item.type || '').toUpperCase()}][${item.timestamp || '日時不明'}] ${item.text} {タグ:${tagNamesOf(item.hendersonIds)}}` : `${codeStr}（評価の後に消えたカード）`;
       };
       const done = key => ((review.applied || {})[key] ? '（アプリで適用済み）' : '');
-      let md = `# 改善点ファイル：${cp.title || ''}\n\n- 評価：Gemini（${new Date(review.at).toLocaleString('ja-JP')}）\n- アプリの版：${(document.querySelector('meta[name="app-version"]') || {}).content || '-'}\n- このファイルをClaudeに渡すと、自動分類のルール（プログラム）の修正に使えます。\n\n`;
+      let md = `# 改善点ファイル：${cp.title || ''}\n\n- 評価：Gemini（${new Date(review.at).toLocaleString('ja-JP')}）\n- アプリの版：${(document.querySelector('meta[name="app-version"]') || {}).content || '-'}\n- このファイルをClaudeに渡すと、自動分類のルール（プログラム）の修正に使えます。\n- 各提案の「判定」（明確な誤り／分類基準次第／原文確認が必要）を確かめてから使ってください。この改善案を患者データへ一括適用しないでください。\n\n`;
       if (r.overview) md += `## 総評\n\n${r.overview}\n\n`;
-      const item = (title, cards, currentNote, proposal, reason, key) => `### ${title || cards.join('・')}${done(key)}\n\n- 現状：\n${cards.map(c => `  - ${line(c)}`).join('\n')}${currentNote ? `\n  - ${currentNote}` : ''}\n- 修正案：${proposal}\n- 理由：${reason}\n`;
-      md += `## 1. ヘンダーソンの分類で間違っているところ\n\n${r.tagSummary ? `${r.tagSummary}\n\n` : ''}${r.tagIssues.map((x, k) => item(x.title, [x.card], x.currentText, `${tagNamesOf(x.current)} → ${tagNamesOf(x.suggested)}`, x.reason, `tag:${k}`)).join('\n') || '指摘なし\n'}\n`;
-      md += `## 2. 時系列の整理\n\n${r.timeline.summary ? `${r.timeline.summary}\n\n` : ''}${r.timeline.issues.map((x, k) => item(x.title, [x.card], `日時：${x.current || '（日時なし）'}`, `日時を「${x.suggestedTimestamp}」にする`, x.reason, `time:${k}`)).join('\n') || '指摘なし\n'}\n`;
+      const item = (title, cards, currentNote, proposal, reason, key, x = {}) => `### ${title || cards.join('・')}${done(key)}\n\n- 判定：${AI_REVIEW_VERDICTS[x.verdict] || '（未判定）'}\n- 現状：\n${cards.map(c => `  - ${line(c)}`).join('\n')}${currentNote ? `\n  - ${currentNote}` : ''}\n- 修正案：${proposal}\n- 理由：${reason}${x.evidence ? `\n- 原文の根拠：${x.evidence}` : ''}\n`;
+      md += `## 1. ヘンダーソンの分類で間違っているところ\n\n${r.tagSummary ? `${r.tagSummary}\n\n` : ''}${r.tagIssues.map((x, k) => item(x.title, [x.card], x.currentText, `${tagNamesOf(x.current)} → ${tagNamesOf(x.suggested)}`, x.reason, `tag:${k}`, x)).join('\n') || '指摘なし\n'}\n`;
+      md += `## 2. 時系列の整理\n\n${r.timeline.summary ? `${r.timeline.summary}\n\n` : ''}${r.timeline.issues.map((x, k) => item(x.title, [x.card], `日時：${x.current || '（日時なし）'}`, (x.suggestedTimestamp ? `日時を「${x.suggestedTimestamp}」にする` : '（原文を確かめる）'), x.reason, `time:${k}`, x)).join('\n') || '指摘なし\n'}\n`;
       md += `## 3. 情報の抜き出し\n\n${r.extractionSummary ? `${r.extractionSummary}\n\n` : ''}${r.extractionIssues.map((x, k) => item(`【${AI_REVIEW_KINDS[x.kind]}】${x.title || ''}`, x.cards, x.current,
         x.mergedText ? `次の1枚にまとめる：${x.mergedText}` : x.parts.length ? `次のように分ける：${x.parts.map(p => `${p.type ? `【${p.type === 's' ? 'Sデータ' : 'Oデータ'}】` : ''}${p.text}`).join(' ／ ')}` : x.text ? `次のカードを追加する：${x.text}` : x.suggestedType ? `${x.suggestedType.toUpperCase()}にする` : x.kind === 'unnecessary' ? '不要な情報にする' : '（理由を参照）',
-        x.reason, `ext:${k}`)).join('\n') || '指摘なし\n'}\n`;
-      md += `## 4. タグ未設定のカード\n\n${r.untaggedSummary ? `${r.untaggedSummary}\n\n` : ''}${r.untagged.map((x, k) => item(x.title, [x.card], '', tagNamesOf(x.suggested), x.reason, `untag:${k}`)).join('\n') || '指摘なし\n'}\n`;
+        x.reason, `ext:${k}`, x)).join('\n') || '指摘なし\n'}\n`;
+      md += `## 4. タグ未設定のカード\n\n${r.untaggedSummary ? `${r.untaggedSummary}\n\n` : ''}${r.untagged.map((x, k) => item(x.title, [x.card], '', tagNamesOf(x.suggested), x.reason, `untag:${k}`, x)).join('\n') || '指摘なし\n'}\n`;
       if ((r.advice || []).length) md += `## 改善のためのアドバイス\n\n${r.advice.map(a => `- ${a}`).join('\n')}\n\n`;
       md += `## 分類前の文章\n\n\`\`\`\n${cp.sourceText || ''}\n\`\`\`\n`;
       return md;
