@@ -645,6 +645,41 @@
     .cr-row ul { padding-left: 1.1em; }
     .cr-items { display: flex; flex-direction: column; gap: .2rem; max-height: 200px; overflow-y: auto; padding: .35rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); }
     .cr-item { display: flex; align-items: baseline; gap: .35rem; font-size: 11.5px; color: var(--ink); }
+    /* 看護計画のチェック・AIの評価・根拠データ・この患者に必要な理由（js/12：2026-10-07.5） */
+    .cp-basis { display: flex; flex-direction: column; gap: .35rem; }
+    .cp-note { margin: 0; font-size: 11.5px; color: var(--ink-muted); }
+    .cp-ev, .cp-reasons { display: flex; flex-direction: column; gap: .2rem; }
+    .cp-reasons ul { margin: 0; padding-left: 1.1em; font-size: 11.5px; color: var(--ink); line-height: 1.6; }
+    .cp-reason-need { font-size: 11.5px; padding: .35rem .55rem; border-radius: var(--radius-sm); border: 1px dashed var(--gold-line); background: var(--gold-soft); color: var(--ink); line-height: 1.6; }
+    .cp-reason-need i, .cp-reasons i { color: var(--gold); }
+    .my-asm-btn.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); }
+    .cpr { border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); padding: .55rem .65rem; display: flex; flex-direction: column; gap: .45rem; }
+    .cpr-title { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; font-size: 12px; font-weight: 700; color: var(--ink); }
+    .cpr-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: .35rem; }
+    .cpr-item { border-left: 3px solid var(--line); padding: .25rem .5rem; background: var(--surface); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-size: 11.5px; line-height: 1.6; }
+    .cpr-item p { margin: .1rem 0 0; color: var(--ink); }
+    .cpr-head { display: flex; align-items: center; gap: .35rem; }
+    .cpr-ok { border-left-color: var(--accent); }
+    .cpr-ok .cpr-head i { color: var(--accent); }
+    .cpr-warn { border-left-color: var(--gold); }
+    .cpr-warn .cpr-head i { color: var(--gold); }
+    .cpr-info { border-left-color: var(--slate-line, var(--line)); }
+    .cpr-info .cpr-head i { color: var(--ink-muted); }
+    .cpr-okt { font-size: 10px; color: var(--ink-muted); font-weight: 400; }
+    .cpr-goal4 { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .2rem; }
+    .cpr-dot { font-size: 10.5px; padding: 0 .4rem; border-radius: 999px; border: 1px solid var(--gold-line); color: var(--gold); background: var(--gold-soft); }
+    .cpr-dot.ok { border-color: var(--accent-line); color: var(--accent-dark); background: var(--accent-soft); }
+    .cpr-ex, .cpr-q { margin-top: .3rem; padding: .35rem .5rem; border: 1px dashed var(--accent-line); border-radius: var(--radius-sm); background: var(--accent-soft); }
+    .cpr-ex > span, .cpr-q > span { font-size: 10.5px; font-weight: 700; color: var(--accent-dark); }
+    .cpr-ex p { margin: .1rem 0 .2rem; font-weight: 600; }
+    .cpr-q ul { margin: .15rem 0 .2rem; padding-left: 1.1em; }
+    .cpr-adds, .cpr-ev { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .25rem; }
+    .cpr-add { font-size: 10.5px; padding: .1rem .45rem; border-radius: var(--radius-sm); border: 1px dashed var(--accent); background: var(--surface); color: var(--accent-dark); }
+    .cpr-ev span { font-size: 10.5px; padding: .05rem .4rem; border-radius: 3px; background: var(--slate-soft, var(--line-soft)); color: var(--ink); border: 1px solid var(--line); }
+    .cpr-sugg { color: var(--accent-dark) !important; }
+    .cpr-ai { display: flex; flex-direction: column; gap: .35rem; border-top: 1px solid var(--line-soft); padding-top: .45rem; }
+    .cpr-ai-head { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; font-size: 12px; font-weight: 700; color: var(--ink); }
+    .cpr-ai-head .my-asm-muted { font-weight: 400; font-size: 10.5px; }
 
     /* ==== 変更点の比較・提出用の書き出し（js/13） ==== */
     .cmp-modal { max-width: 52rem; max-height: 90vh; }
