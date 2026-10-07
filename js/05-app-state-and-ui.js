@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-07.35'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-07.36'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -1388,9 +1388,13 @@
       });
       return out;
     }
-    // GitHub Pages（*.github.io）では、Renderのサーバーの記録を正とする（ブラウザ内の古い記録で上書きしない）。
-    // ブラウザにだけ有る部分は、サーバーに無い・空のときだけ足す。
-    const SERVER_IS_PRIMARY = typeof location !== 'undefined' && /\.github\.io$/i.test(location.hostname || '');
+    // GitHub Pages（*.github.io）では、このブラウザで「最初の1回だけ」Renderのサーバーの記録を正とする
+    // （ブラウザ内に残る古い記録で上書きしないため）。2回目以降は通常どおり、新しい方を土台に足りない部分を取り込む。
+    const PAGES_FIRST_SYNC_KEY = 'pagesFirstSyncDone';
+    const SERVER_IS_PRIMARY = (() => {
+      if (typeof location === 'undefined' || !/\.github\.io$/i.test(location.hostname || '')) return false;
+      try { return !localStorage.getItem(PAGES_FIRST_SYNC_KEY); } catch (e) { return false; }
+    })();
     function mergePatientRecordClient(local, server, now = Date.now()) {
       // 【レビューで発見】共有先から届いた記録のカード・参考データのIDも確かめて直す（repairPatientRecordIds）
       if (server) repairPatientRecordIds(server);

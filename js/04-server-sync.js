@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = '2026-10-07.33'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = '2026-10-07.36'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 共有学習（全利用者・全カードで共有する学習データ）
     // ------------------------------------------------------------------------
@@ -333,6 +333,8 @@
           if (deletedPatientIds.has(id) || !serverPatient || serverPatient.deleted) return;
           merged[id] = mergePatientRecordClient(merged[id], serverPatient);
         });
+        // GitHub Pagesの最初の1回だけ「サーバーを正とする」。済んだら印を付け、次からは通常のマージにする
+        try { if (typeof SERVER_IS_PRIMARY !== 'undefined' && SERVER_IS_PRIMARY) localStorage.setItem(PAGES_FIRST_SYNC_KEY, '1'); } catch (e) { /* 保存できなくても続ける */ }
         const mergedList = Object.values(merged);
         if (mergedList.length > 0) {
           globalAppData.patients = mergedList;
