@@ -1192,5 +1192,8 @@
 @media (max-width: 767px) {
   body > header > div.justify-between > div.overflow-x-auto { overflow-x: visible; flex-wrap: wrap; justify-content: center; gap: .25rem; }
   .rm-toolbar { justify-content: center; }
-  .rm-toolbar > * { flex: 0 0 auto; }
+  .rm-toolbar { max-width: 100%; }
+  .rm-toolbar .rm-group { display: flex; flex-wrap: wrap; justify-content: center; max-width: 100%; gap: .35rem; }
+  .rm-toolbar .rm-group-sep { border-left: 0; padding-left: 0; }
+  .rm-add-kind { max-width: 100%; }
 }
