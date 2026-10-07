@@ -1173,3 +1173,17 @@
       .cp-help-text:not(.is-open)::after { content: ''; }
       .wf-patient { display: none; }
     }
+
+/* スマホ：見出し・ボタン・状態の表示を中央に揃える（タブは、幅を超えたときに左が切れないよう safe center） */
+@media (max-width: 767px) {
+  body > header > div.justify-between { justify-content: center; text-align: center; }
+  body > header > div.justify-between > div { justify-content: center; }
+  body > header > div.justify-between > div.ml-auto { margin-left: 0; justify-content: center; width: 100%; }
+  body > header > div.justify-between > div.overflow-x-auto { justify-content: safe center; }
+  .wf-steps { justify-content: center; text-align: center; }
+  .surface h2 { justify-content: center; text-align: center; }
+  .surface > div:has(> h2), .surface > div:has(> div > h2) { justify-content: center; text-align: center; }
+  .cp-help-text { text-align: center; }
+  .cp-help-text.is-open { text-align: left; }
+}
+@media (max-width: 767px) { .cp-top-actions > .btn:nth-last-child(2) { grid-column: 1 / -1; } }
