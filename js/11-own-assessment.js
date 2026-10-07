@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-06.15'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-07.22'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -12,6 +12,7 @@
     //   interpretation / cause / outlook : 情報の解釈・考えられる原因・今後の見通し（書きかけも含む今の内容）
     //   evidenceIds    : 根拠にしたカードのID（並びは選んだ順）
     //   evidenceCache  : 根拠にしたカードの本文の控え（カードが消されても何を根拠にしていたか分かるように）
+    //   sufficiency    : この欲求が「met（充足）」「unmet（未充足）」か、'' は未判定（総合アセスメント表の見出しで選ぶ）
     //   revisionNote   : 再評価で変えたこと（任意。確定すると履歴に移る）
     //   acknowledged   : 「確認した（根拠にしない）」と押したカード {ID: そのときの本文}
     //   history        : 確定した版 [{version, confirmedAt, interpretation, cause, outlook, revisionNote,
@@ -41,13 +42,14 @@
       MY_ASSESSMENT_FIELDS.forEach(f => { if (typeof e[f.key] !== 'string') e[f.key] = ''; });
       if (!Array.isArray(e.evidenceIds)) e.evidenceIds = [];
       if (!e.evidenceCache || typeof e.evidenceCache !== 'object') e.evidenceCache = {};
+      if (e.sufficiency !== 'met' && e.sufficiency !== 'unmet') e.sufficiency = '';
       if (typeof e.revisionNote !== 'string') e.revisionNote = '';
       if (!e.acknowledged || typeof e.acknowledged !== 'object') e.acknowledged = {};
       if (!Array.isArray(e.history)) e.history = [];
       return e;
     }
     function myAssessmentHasContent(e) {
-      return !!e && (MY_ASSESSMENT_FIELDS.some(f => String(e[f.key] || '').trim()) || (e.evidenceIds || []).length > 0 || (e.history || []).length > 0);
+      return !!e && (e.sufficiency === 'met' || e.sufficiency === 'unmet' || MY_ASSESSMENT_FIELDS.some(f => String(e[f.key] || '').trim()) || (e.evidenceIds || []).length > 0 || (e.history || []).length > 0);
     }
     function lastConfirmedMyAssessment(e) {
       const h = e && Array.isArray(e.history) ? e.history : [];
@@ -283,9 +285,9 @@
     function buildMyAssessmentsText(cp, { withEvidence = true } = {}) {
       return HENDERSON_NEEDS.map(need => {
         const e = getMyAssessment(cp, need.id);
-        if (!e || !MY_ASSESSMENT_FIELDS.some(f => String(e[f.key] || '').trim())) return null;
+        if (!e || !(getSufficiency(cp, need.id) || MY_ASSESSMENT_FIELDS.some(f => String(e[f.key] || '').trim()))) return null;
         const labels = myEvidenceLabels(cp, need.id);
-        const lines = [`${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}`];
+        const lines = [`${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}${getSufficiency(cp, need.id) ? '【' + SUFFICIENCY_LABELS[getSufficiency(cp, need.id)] + '】' : ''}`];
         MY_ASSESSMENT_FIELDS.forEach(f => { if (String(e[f.key] || '').trim()) lines.push(`${f.label}：${e[f.key].trim()}`); });
         if (withEvidence && (e.evidenceIds || []).length) {
           lines.push('根拠：' + e.evidenceIds.map(id => { const d = describeMyEvidence(cp, need.id, id, labels, e); return `${d.label}「${d.text}」${d.removed ? '（消されたカード）' : ''}`; }).join('／'));
@@ -323,6 +325,35 @@
     };
     const myAsmHistoryOpen = new Set();
     const myAsmReviewOpen = new Set();
+
+    // ==========================================================================
+    // 充足・未充足：14項目ごとに「充足／未充足／未判定」を選ぶ（総合アセスメント表の各項目の見出しに出す。
+    // 「自分のアセスメント」を非表示にしていても選べる）。結論を最初に明言する（参考データの「充足・未充足の判断」）ための印。
+    // ==========================================================================
+    const SUFFICIENCY_LABELS = { met: '充足', unmet: '未充足' };
+    function getSufficiency(cp, needId) {
+      const e = getMyAssessment(cp, needId);
+      return e && (e.sufficiency === 'met' || e.sufficiency === 'unmet') ? e.sufficiency : '';
+    }
+    function sufficiencyControlHtml(cp, needId) {
+      const cur = getSufficiency(cp, needId);
+      const btn = (val, label, icon) => `<button type="button" class="suf-btn suf-${val}${cur === val ? ' is-on' : ''}" aria-pressed="${cur === val}" onclick="setSufficiency(${needId}, '${val}')" title="${label}と判断（もう一度押すと未判定に戻ります）"><i class="fa-solid ${icon}"></i> ${label}</button>`;
+      return `<span class="suf-ctl" role="group" aria-label="充足・未充足">${btn('met', '充足', 'fa-circle-check')}${btn('unmet', '未充足', 'fa-triangle-exclamation')}</span>`;
+    }
+    function sufficiencySummaryHtml(cp) {
+      let met = 0, unmet = 0;
+      HENDERSON_NEEDS.forEach(n => { const v = getSufficiency(cp, n.id); if (v === 'met') met++; else if (v === 'unmet') unmet++; });
+      const none = HENDERSON_NEEDS.length - met - unmet;
+      return `<span class="suf-sum"><b class="suf-met-n">充足 ${met}</b><b class="suf-unmet-n">未充足 ${unmet}</b><span>未判定 ${none}</span></span>`;
+    }
+    window.setSufficiency = function(needId, val) {
+      const cp = getCurrentPatient();
+      const e = ensureMyAssessment(cp, needId);
+      e.sufficiency = e.sufficiency === val ? '' : val;
+      e.updatedAt = new Date().toISOString();
+      saveMyAssessmentsSoon(cp.id, 0);
+      rerenderMyAssessment();
+    };
 
     function renderMyAssessmentRowHtml(cp, need, isAllMode) {
       const needId = need.id;
@@ -847,7 +878,7 @@ if (typeof module !== 'undefined' && module.exports) {
     MY_ASSESSMENT_FIELDS,
     ensureMyAssessment, getMyAssessment, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
     myAssessmentStatus, myAssessmentNeedsReview, confirmMyAssessmentEntry, restoreMyAssessmentFromHistory,
-    diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
+    myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
     renderMyAssessmentRowHtml, evidencePickerCandidates, buildMyAssessmentAiPrompt, myAssessmentAlwaysShown
   });
   if (module.exports.__testHooks) Object.assign(module.exports.__testHooks, { flushMyAssessmentSaves, saveMyAssessmentsSoon });
