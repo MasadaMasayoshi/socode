@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.1'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.2'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -260,6 +260,7 @@
     // 看護問題の「補足」：名前（短い看護問題名）だけでは分かりにくいので、患者の状態をそのまま書いた説明を
     // 四角の名前の下に小さく添える（利用者の指摘「看護問題がわかりにくくなった。補足として今の説明を」：2026-10-07.1）
     const RM_PROBLEM_NOTES = {
+      'ボディイメージ混乱': '体の変化を、まだ受け止めきれずにいる',
       '非効果的気道浄化': '痰をうまく出せず、気道に分泌物がたまっている',
       '術後呼吸器合併症リスク状態': '術後に無気肺・肺炎を起こすおそれがある',
       '非効果的呼吸パターン': '呼吸が浅く、十分に換気できていない',
@@ -297,6 +298,33 @@
       '家族の不安（退院後の生活の変化に関連）': '家族が退院後の生活に不安を持っている',
       '知識不足（治療・退院後の生活）': '治療や退院後の生活について、わからないことがある'
     };
+    // ---- 看護理論・ライフサイクル・発達課題・障害受容（利用者の要望：2026-10-07.2） ----
+    // エリクソンの心理社会的発達段階と、ハヴィガーストの発達課題（その時期の主なもの）
+    const RM_LIFE_STAGES = [
+      { max: 1, stage: '乳児期', crisis: '基本的信頼 対 不信', task: '養育者との信頼関係' },
+      { max: 3, stage: '幼児前期', crisis: '自律性 対 恥・疑惑', task: '排泄・食事などの身辺の自立' },
+      { max: 6, stage: '幼児後期', crisis: '自主性 対 罪悪感', task: '遊びを通した自発性・言葉の発達' },
+      { max: 12, stage: '学童期', crisis: '勤勉性 対 劣等感', task: '学校生活・友人関係・学習の習慣' },
+      { max: 22, stage: '青年期', crisis: '同一性 対 同一性の混乱', task: '自分らしさの確立・進路の選択' },
+      { max: 39, stage: '成人前期', crisis: '親密性 対 孤立', task: '仕事に就く・家庭を築く' },
+      { max: 64, stage: '壮年期', crisis: '生殖性 対 停滞', task: '仕事・家庭での責任を果たす・次の世代を育てる' },
+      { max: 200, stage: '老年期', crisis: '統合 対 絶望', task: '体力・健康の衰えや退職・配偶者との死別に適応し、人生を受け入れる' }
+    ];
+    function rmLifeStage(age) { return Number.isFinite(age) && age >= 0 ? RM_LIFE_STAGES.find(s => age <= s.max) : null; }
+    // 障害受容の段階（コーンの5段階。フィンクの危機モデルとの対応）。本人の言葉から、いちばん当てはまる段階を選ぶ。
+    // 段階は行ったり来たりするので「今の言動から見た段階」として示す
+    const RM_ACCEPT_STAGES = [
+      { key: 'adapt', stage: '適応期', fink: '適応', re: /受け入れ|この体で|付き合っていく|付き合っていこう|工夫して|できることを増や|今の自分で/ },
+      { key: 'defense', stage: '防衛期', fink: '承認', re: /できることは自分で|自分でやりたい|リハビリを?頑張|練習したい|少しずつでも/ },
+      { key: 'grief', stage: '悲嘆期', fink: '防御的退行', re: /もうだめ|情けない|役に立たない|こんな体|どうして(?:私|自分|俺)|なぜ(?:私|自分|俺)|生きていても|落ち込|涙|泣い|迷惑ばかり/ },
+      { key: 'hope', stage: '回復への期待期', fink: '防御的退行', re: /元に戻る|元通り|また歩ける|すぐ(?:に)?(?:良く|よく)なる|治ったら|治るはず|戻るはず|前みたいに/ },
+      { key: 'shock', stage: 'ショック期', fink: '衝撃', re: /信じられない|実感がない|夢みたい|何が起き|頭が真っ白/ }
+    ];
+    // 後天的な障害・体の大きな変化（障害受容の過程が始まるもの）
+    const RM_DISABILITY_RE = /片麻痺|対麻痺|四肢麻痺|麻痺|失語|切断|人工肛門|ストーマ|ストマ|脊髄損傷|失明|視力を失|喉頭摘出|透析導入|永久気管孔/;
+    // 本人の役割（ロイ適応モデルの「役割機能」）
+    const RM_ROLE_RE = /仕事|職場|復職|会社|店を|自営|農業|畑|家事|主婦|孫の世話|介護して|世話をして|自治会|役員/;
+
     // 補足の引き当て（看護計画から来た名前は半角かっこ・空白ちがいでも同じ名前として扱う）
     const rmNoteKey = l => String(l || '').normalize('NFKC').replace(/\s+/g, '');
     const RM_PROBLEM_NOTE_BY_KEY = new Map(Object.entries(RM_PROBLEM_NOTES).map(([k, v]) => [rmNoteKey(k), v]));
@@ -1779,6 +1807,60 @@
         E(newInfo, kw, 'causes', { evidence: '説明を受けても、まだわからないことがある' });
         E(kw, N('p_know', 'nursing_problem', '知識不足（治療・退院後の生活）', { cat: 'anx' }), 'results_in');
       }
+      // ⑬-3 看護理論・ライフサイクル・発達課題・障害受容（利用者の要望：2026-10-07.2）
+      //  ・ライフサイクル／発達課題：年齢からエリクソンの発達段階（ハヴィガーストの発達課題）。入院・生活の変化で
+      //    その時期の課題がおびやかされることを、生活の変化（→ 不安）の手前に置く
+      //  ・役割（ロイ適応モデルの役割機能）：仕事・家事・介護など、本人の役割の記録があれば「役割を果たせない」へ
+      //  ・障害受容（コーンの5段階・フィンクの危機モデル）：麻痺・失語・人工肛門などの後天的な障害があれば、本人の
+      //    言葉から段階を示す（言葉が無ければ予測＝破線）。ショック期・回復への期待期・悲嘆期で、ほかに心理の看護問題が
+      //    無ければ「ボディイメージ混乱」を看護問題にする
+      // どこにもつながらない四角は作らない（つなぎ先が無ければ入れない）
+      const psychoTarget = () => nodes.get('life_change') || nodes.get('know_change') || null;
+      // 役割は、本人の言葉（「…」の中）か、職業・生活歴などの欄から（家族の言葉は使わない）
+      // （「仕事もできない」の「ない」を打ち消しと読まないよう、言葉があるかだけを見る）
+      const roleItem = [...items].reverse().find(i => RM_ROLE_RE.test(String(i.text).normalize('NFKC')) && !rmIsFamilySpeech(i.text) && (i.type === 's' || (i.fieldLabel && /職業|生活歴|社会|役割/.test(i.fieldLabel))
+        || /^(?:職業|仕事)/.test(String(i.text).normalize('NFKC')) || [...String(i.text).matchAll(/「([^」]*)」/g)].some(m => RM_ROLE_RE.test(m[1]))));
+      const disItem = findLast(RM_DISABILITY_RE, i => notHist(i));
+      // 障害の四角は、麻痺 → 失語 → 記録のカードの四角 の順（体の変化として大きいもの）
+      const disNode = disItem ? (nodes.get('paralysis') || nodes.get('aphasia')
+        || [...nodes.values()].find(n => (n.itemIds || []).includes(disItem.id) && n.type !== 'nursing_problem')) : null;
+      let accept = null;
+      if (disItem) {
+        const speech = items.filter(i => i.type === 's' && !rmIsFamilySpeech(i.text));
+        let hit = null;
+        for (const st of RM_ACCEPT_STAGES) { const it = speech.find(i => st.re.test(String(i.text).normalize('NFKC'))); if (it) { hit = { st, it }; break; } }
+        const what = (String(disItem.text).normalize('NFKC').match(RM_DISABILITY_RE) || ['障害'])[0];
+        accept = N('accept', 'pathophysiology', hit ? `障害受容：${hit.st.stage}（コーン）` : '障害受容の過程（段階は言動から確認）', {
+          source: 'knowledge', observed: !!hit, items: hit ? [hit.it] : [],
+          evidence: hit ? `本人の言葉「${short(hit.it, 24).replace(/[「」]/g, '')}」から（フィンクの危機モデルでは「${hit.st.fink}」）` : `${what}を受け止める過程（ショック期→回復への期待期→悲嘆期→防衛期→適応期。行きつ戻りつする）`
+        });
+        E(disNode || disease, accept, 'contributes_to', { evidence: `${what}という体の変化を受け止める過程が始まる`, predicted: !hit });
+        const pAnx = nodes.get('p_anx');
+        if (pAnx && psychoTarget()) E(accept, psychoTarget(), 'contributes_to', { evidence: '障害の受け止めが、今後の生活への見通しに影響する', predicted: !hit });
+        else if (hit && ['shock', 'hope', 'grief'].includes(hit.st.key)) {
+          E(accept, N('p_body', 'nursing_problem', 'ボディイメージ混乱', { cat: 'anx', note: `${what}による体の変化を、まだ受け止めきれずにいる` }), 'results_in');
+        } else {
+          const rehab = nodes.get('p_mobility') || nodes.get('p_act');
+          if (rehab) E(accept, rehab, 'contributes_to', { predicted: true, evidence: '受け止め方が、リハビリ・自分で動く意欲に影響する' });
+        }
+      }
+      const target = psychoTarget() || (nodes.get('p_body') ? accept : null);
+      const stage = rmLifeStage(age);
+      if (stage && target) {
+        const dev = N('dev_task', 'pathophysiology', `${stage.stage}の発達課題：${stage.crisis}（エリクソン）`, { source: 'knowledge',
+          evidence: `${age}歳。ハヴィガーストの発達課題：${stage.task}` });
+        const ageSrc = aging || null;
+        if (ageSrc) E(ageSrc, dev, 'results_in', { evidence: '年齢から見たライフサイクルの時期' });
+        else E(disease || surgery, dev, 'contributes_to', { evidence: `${age}歳の${stage.stage}に入院・治療が重なる` });
+        if (roleItem) {
+          const w = (String(roleItem.text).normalize('NFKC').match(RM_ROLE_RE) || ['仕事'])[0];
+          const roleWord = { '畑': '畑仕事', '店を': '店', '介護して': '家族の介護', '世話をして': '家族の世話', '職場': '仕事', '復職': '仕事', '会社': '仕事', '自営': '仕事', '役員': '地域の役員' }[w] || w;
+          const role = N('role', 'pathophysiology', `入院で${roleWord}などの役割を果たせない（ロイ：役割機能）`, { source: 'knowledge', items: [roleItem],
+            evidence: `記録：${short(roleItem, 30)}` });
+          E(dev, role, 'contributes_to', { evidence: 'その時期に担っている役割（仕事・家庭）' });
+          E(role, target, 'contributes_to', { evidence: '入院で仕事・家庭での役割を果たせなくなる' });
+        } else E(dev, target, 'contributes_to', { evidence: `${stage.stage}の課題（${stage.task}）が、入院・生活の変化でおびやかされる` });
+      }
       // 疾患と、手術が無い場合の症状（主訴・外れた値）
       if (disease && !surgery) {
         const chief = items.find(i => i.fieldLabel === '主訴');
@@ -2086,6 +2168,7 @@ ${typeof AI_ACCURACY_RULES === 'string' ? AI_ACCURACY_RULES : ''}
 6 どこにもつながらない四角・同じ内容の重複は作らない。同じ情報は1つの四角から枝分かれさせる。
 7 各矢印のeに「なぜAからBか」を30字以内。各四角のeに記録の根拠を20字以内（知識で補ったものは空でよい）。
 8 矢印を1本ずつ「AからBへ本当に一足飛びか？」と考え、間に病態生理の過程が入るなら必ず四角を補う（例：手術侵襲→［発痛物質の放出］→創部痛、創部痛→［腹部に力を入れると痛む］→深呼吸・咳嗽の抑制、抗凝固薬→［凝固能の低下］→出血の可能性）。補った四角はa=1・k=1。
+9 心理・社会の看護問題（不安など）があれば、その手前に看護理論の見方を四角で入れてよい（k=1）：年齢のライフサイクルと発達課題（例：老年期の発達課題：統合 対 絶望（エリクソン））、本人の役割（例：入院で仕事などの役割を果たせない（ロイ：役割機能））、麻痺・失語・人工肛門などの後天的な障害があれば障害受容の段階（コーン：ショック期・回復への期待期・悲嘆期・防衛期・適応期。本人の言葉が根拠。無ければo=0）。
 【形】JSONだけを返す：{"n":[{"i":"n1","t":"種類","l":"文字(30字以内)","o":1,"k":0,"a":0,"p":0,"m":"看護問題の補足","e":"根拠"}],"e":[{"s":"n1","d":"n2","r":"関係","x":0,"e":"理由"}]}
 種類t：patient_fact disease pathophysiology symptom lab treatment nursing_problem future_risk
 関係r：causes contributes_to results_in treats predicts supports
@@ -2351,7 +2434,7 @@ ${cards}`;
         b.setAttribute('aria-expanded', open ? 'true' : 'false');
         b.disabled = !probs.length;
         const c = b.querySelector('.rm-prob-count');
-        if (c) c.textContent = probs.length ? `（${probs.length}）` : '';
+        if (c) c.textContent = probs.length ? String(probs.length) : ''; // 数は丸い札の中に（ボタンの色づけ：2026-10-07.2）
       });
       // 押すと、その看護問題へつながる流れだけを取り出した図にする（全体の図は線が多く、縮めると読みにくいため）
       box.innerHTML = open ? `<span class="rm-problems-title">看護問題ごとに見る（押すとその流れだけの図になります）</span>`
@@ -3096,5 +3179,5 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
     if (typeof document !== 'undefined' && document.getElementById && document.getElementById('view-relation')) initRelationMapUi();
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel, rmShorten, rmProblemSubmap, rmReduceShortcuts, rmNodeSize, RM_PROBLEM_NOTES, rmPlainNote });
+  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel, rmShorten, rmProblemSubmap, rmReduceShortcuts, rmNodeSize, RM_PROBLEM_NOTES, rmPlainNote, rmLifeStage });
 }

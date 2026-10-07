@@ -917,6 +917,18 @@
     .rm-danger { color: var(--brick) !important; }
     .rm-prob-menu { position: relative; display: inline-flex; }
     .rm-prob-count { margin-left: .2rem; font-variant-numeric: tabular-nums; }
+    /* 「看護問題」の一覧を開くボタンは、看護問題の四角と同じ色（ピンク）にして、どこにあるか一目で分かるように */
+    .rm-prob-toggle { background: #FBDDE3; border-color: #B03A55; color: #8A2440; font-weight: 700; }
+    .rm-prob-toggle:hover { background: #F7CBD5; }
+    .rm-prob-toggle[aria-expanded="true"] { background: #B03A55; border-color: #B03A55; color: #FFFFFF; }
+    .rm-prob-toggle .rm-prob-count { display: inline-block; min-width: 1.3em; padding: 0 .3em; border-radius: 999px; background: #B03A55; color: #FFFFFF; font-size: 10px; line-height: 1.5; text-align: center; }
+    .rm-prob-toggle .rm-prob-count:empty { display: none; }
+    .rm-prob-toggle[aria-expanded="true"] .rm-prob-count { background: #FFFFFF; color: #B03A55; }
+    html[data-theme="dark"] .rm-prob-toggle { background: #3D1F2A; border-color: #F0A3B5; color: #F7D3DC; }
+    html[data-theme="dark"] .rm-prob-toggle:hover { background: #4A2533; }
+    html[data-theme="dark"] .rm-prob-toggle[aria-expanded="true"] { background: #F0A3B5; color: #2A1219; }
+    html[data-theme="dark"] .rm-prob-toggle .rm-prob-count { background: #F0A3B5; color: #2A1219; }
+    html[data-theme="dark"] .rm-prob-toggle[aria-expanded="true"] .rm-prob-count { background: #2A1219; color: #F0A3B5; }
     .rm-problems { position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; display: flex; flex-direction: column; align-items: stretch; gap: .3rem; width: max-content; min-width: 200px; max-width: min(340px, calc(100vw - 32px)); max-height: 60vh; overflow: auto; padding: .5rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 6px 18px rgba(0,0,0,.14); font-size: 11px; }
     .rm-problems-title { font-weight: 700; color: var(--ink); padding: 0 .1rem .1rem; }
     #view-relation.rm-fullscreen .rm-problems { position: fixed; top: calc(max(10px, env(safe-area-inset-top)) + 46px); right: max(10px, env(safe-area-inset-right)); left: auto; z-index: 53; }

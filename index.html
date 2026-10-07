@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-07.1">
-  <meta name="app-file-versions" content="01:2026-10-06.14,02:2026-10-06.14,03:2026-10-06.14,04:2026-10-06.14,05:2026-10-06.14,06:2026-10-06.14,07:2026-10-06.14,08:2026-10-06.22,09:2026-10-06.15,10:2026-10-06.15,11:2026-10-06.15,12:2026-10-06.14,13:2026-10-06.15,14:2026-10-06.14,15:2026-10-07.1">
+  <meta name="app-version" content="2026-10-07.2">
+  <meta name="app-file-versions" content="01:2026-10-06.14,02:2026-10-06.14,03:2026-10-06.14,04:2026-10-06.14,05:2026-10-06.14,06:2026-10-06.14,07:2026-10-06.14,08:2026-10-06.22,09:2026-10-06.15,10:2026-10-06.15,11:2026-10-06.15,12:2026-10-06.14,13:2026-10-06.15,14:2026-10-06.14,15:2026-10-07.2">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=2026-10-07.1">
+  <link rel="stylesheet" href="style.css?v=2026-10-07.2">
   <!-- 画面の見た目の部品（Tailwind CSS 3.4）。以前は開くたびにネット（cdn.tailwindcss.com）から読み込み、
        その場で作っていたため、ネットが不安定だったり配信が止まったりすると画面のレイアウトが崩れた。
        使っている部品だけを vendor/tailwind.css に作っておき、それを読み込む（改善提案7。作り直しは
@@ -454,7 +454,7 @@
         <div class="rm-group rm-group-end" aria-label="見る・出す">
           <!-- 看護問題の一覧：ボタンで開く小さな一覧（図の上に重ねて出し、場所をとらない）。押すとその四角へ移る：js/15 -->
           <div class="rm-prob-menu">
-            <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="toggle-problems" aria-expanded="false" aria-controls="rm-problems" title="看護問題ごとに、その流れだけの図を見られます"><i class="fa-solid fa-list-ol"></i> 看護問題<span class="rm-prob-count"></span></button>
+            <button type="button" class="btn btn-outline rm-prob-toggle text-[11px] py-1.5" data-rm-action="toggle-problems" aria-expanded="false" aria-controls="rm-problems" title="看護問題ごとに、その流れだけの図を見られます"><i class="fa-solid fa-list-ol"></i> 看護問題<span class="rm-prob-count"></span></button>
             <div id="rm-problems" class="rm-problems hidden" role="menu" aria-label="看護問題の一覧"></div>
           </div>
           <div class="rm-prob-menu rm-more-menu">
@@ -491,7 +491,7 @@
         <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="zoom-out" title="小さく表示"><i class="fa-solid fa-magnifying-glass-minus"></i><span class="sr-only">小さく</span></button>
         <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="zoom-fit" title="全体が見える大きさにします">全体</button>
         <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="zoom-in" title="大きく表示"><i class="fa-solid fa-magnifying-glass-plus"></i><span class="sr-only">大きく</span></button>
-        <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="toggle-problems" aria-expanded="false" aria-controls="rm-problems" title="看護問題の一覧を出します"><i class="fa-solid fa-list-ol"></i> 看護問題<span class="rm-prob-count"></span></button>
+        <button type="button" class="btn btn-outline rm-prob-toggle text-[11px] py-1.5" data-rm-action="toggle-problems" aria-expanded="false" aria-controls="rm-problems" title="看護問題の一覧を出します"><i class="fa-solid fa-list-ol"></i> 看護問題<span class="rm-prob-count"></span></button>
         <button type="button" class="btn btn-primary text-[11px] py-1.5" data-rm-action="fullscreen" title="元の大きさに戻します（Escキーでも戻ります）"><i class="fa-solid fa-compress"></i> 元の大きさ</button>
       </div>
       <!-- 右クリックのメニュー（四角・矢印の編集、何もない所に追加）：js/15 rmShowCtx -->
@@ -1357,6 +1357,6 @@
   <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-06.14"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-06.15"></script>
   <script src="js/14-drug-reference.js?v=2026-10-06.14"></script>
-  <script src="js/15-relation-map.js?v=2026-10-07.1"></script>
+  <script src="js/15-relation-map.js?v=2026-10-07.2"></script>
 </body>
 </html>

@@ -984,3 +984,41 @@ test('看護問題の補足：短い名前の下に、患者の状態をその�
   assert.match(src, /mに補足として患者の状態をそのまま書いた説明/);
   assert.match(src, /"m":"看護問題の補足"/);
 });
+
+// 2026-10-07.2：利用者「看護問題の一覧を開くボタンに色づけ。看護理論・ライフサイクル・発達課題・障害受容を図に四角で入れる」
+test('関連図：看護理論・ライフサイクル（発達課題）・役割・障害受容の四角を、心理社会の看護問題の手前に入れる', () => {
+  const by = m => new Map(m.nodes.map(n => [n.id, n]));
+  const outs = (m, n) => m.edges.filter(e => e.source === n.id).map(e => by(m).get(e.target));
+  // 脳梗塞：72歳 → 老年期の発達課題、麻痺 → 障害受容（「涙ぐむ」から悲嘆期）→ 生活の変化 → 不安
+  const cva = caseMap('cerebral_infarction');
+  const dev = find(cva, /^老年期の発達課題：統合 対 絶望（エリクソン）$/);
+  assert.ok(dev && dev.source === 'knowledge' && /ハヴィガースト/.test(dev.evidence));
+  const acc = find(cva, /^障害受容：悲嘆期（コーン）$/);
+  assert.ok(acc && acc.observed !== false && /フィンク/.test(acc.evidence));
+  assert.ok(cva.edges.some(e => e.target === acc.id && by(cva).get(e.source).key === undefined && /麻痺/.test(by(cva).get(e.source).label)), '麻痺から障害受容へ');
+  assert.ok(find(cva, /^入院で仕事などの役割を果たせない（ロイ：役割機能）$/), '本人の言葉「仕事も囲碁もできない」から役割');
+  // 胃がん術後：58歳 → 壮年期の発達課題 → 仕事の役割 → 生活の変化（→ 不安）
+  const gas = caseMap('gastric_postop');
+  const dev2 = find(gas, /^壮年期の発達課題：生殖性 対 停滞（エリクソン）$/), role = find(gas, /役割を果たせない（ロイ：役割機能）$/);
+  assert.ok(dev2 && role && hasEdge(gas, dev2, role));
+  assert.ok(outs(gas, role).some(n => /生活の変化/.test(n.label)));
+  // 心理社会の流れが無い図には入れない（浮島を作らない）
+  const hip = caseMap('hip_fracture');
+  assert.ok(!find(hip, /発達課題|障害受容|役割機能/));
+  ['cerebral_infarction', 'gastric_postop', 'copd_exacerbation_long', 'heart_failure_long'].forEach(name => commonChecks(caseMap(name), name));
+  // 障害受容：本人の言葉が無ければ、段階は決めず予測（破線）。悲嘆期などで心理の看護問題が無ければ「ボディイメージ混乱」
+  const base = '診断名：左中大脳動脈領域の脳梗塞\n70歳 男性\n右片麻痺あり。\n';
+  const m1 = app.buildRelationMapFromRecord(patientOf(base + '「もうだめだ、情けない」と話す。'));
+  assert.ok(find(m1, /^障害受容：悲嘆期（コーン）$/));
+  const body = m1.nodes.find(n => n.type === 'nursing_problem' && n.label === 'ボディイメージ混乱');
+  assert.ok(body && /受け止めきれず/.test(body.note));
+  assert.equal(app.rmLifeStage(8).stage, '学童期');
+  assert.equal(app.rmLifeStage(45).crisis, '生殖性 対 停滞');
+  // AIへの指示にも、理論の見方を四角で入れてよいと書く
+  assert.match(src, /障害受容の段階（コーン：ショック期・回復への期待期・悲嘆期・防衛期・適応期/);
+  // 一覧を開くボタンの色（看護問題と同じピンク・開いているときは濃い色・数は丸い札）
+  assert.equal((html.match(/class="btn btn-outline rm-prob-toggle /g) || []).length, 2);
+  assert.match(css, /\.rm-prob-toggle \{ background: #FBDDE3; border-color: #B03A55;/);
+  assert.match(css, /\.rm-prob-toggle\[aria-expanded="true"\] \{ background: #B03A55;/);
+  assert.match(css, /html\[data-theme="dark"\] \.rm-prob-toggle \{/);
+});
