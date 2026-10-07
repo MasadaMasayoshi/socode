@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-07.20'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-07.26'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -714,7 +714,7 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       const runAll = pipe && pipe.running
         ? `<span class="ai-run-all is-running" role="status"><i class="fa-solid fa-spinner fa-spin"></i> ${escapeHtml(pipe.label || '実行中')}</span>`
         : `<button type="button" class="ai-run-all" onclick="runAiPipelineToCarePlan()" title="①不足情報の推定 → ②看護診断候補（優先度の高い順に選ぶ）→ ③看護計画 → 「看護計画」タブへの取り込み までを、順番に自動で行います"><i class="fa-solid fa-forward"></i> 看護計画までまとめて実行</button>`;
-      el.innerHTML = `<span class="ai-steps-title"><i class="fa-solid fa-wand-magic-sparkles"></i> AI</span>
+      el.innerHTML = `<button type="button" class="ai-title-toggle" onclick="document.getElementById('ai-steps').classList.toggle('is-open')" aria-label="AIの順番ボタンを開く・閉じる（スマホ）"><i class="fa-solid fa-wand-magic-sparkles"></i> AI</button>
         ${runAll}
         <div class="ai-bar-group ai-bar-steps" aria-label="AIで順番に進める">${steps}</div>
         <div class="ai-bar-group ai-bar-tools" aria-label="そのほかのAIの確認">${extras}</div>`;

@@ -500,19 +500,22 @@
     .my-asm-btn { font-size: 11px !important; padding: .25rem .55rem !important; }
     /* 充足・未充足（総合アセスメント表の各項目の見出し） */
     .suf-row { margin-top: .5rem; }
-    .suf-ctl { display: inline-flex; gap: .25rem; }
+    .suf-ctl { display: flex; flex-direction: column; gap: .25rem; }
+    .suf-line { display: flex; align-items: center; gap: .25rem; flex-wrap: wrap; }
+    .suf-phase { font-size: 10px; font-weight: 700; color: var(--ink-muted); min-width: 3.2em; }
     .suf-btn { display: inline-flex; align-items: center; gap: .25rem; font-size: 11px; font-weight: 700; padding: .15rem .55rem; border-radius: 999px; border: 1px solid var(--line); background: var(--paper); color: var(--ink-muted); cursor: pointer; }
     .suf-btn:hover { border-color: var(--ink-muted); }
     .suf-btn.suf-met.is-on { color: var(--accent-dark); background: var(--accent-soft); border-color: var(--accent); }
     .suf-btn.suf-unmet.is-on { color: var(--brick); background: var(--brick-soft); border-color: var(--brick); }
-    .asm-single-head .suf-ctl { margin-left: auto; }
+    .asm-single-head .suf-ctl { margin-left: auto; flex-direction: row; flex-wrap: wrap; gap: .5rem; }
     .suf-reason { margin-top: .4rem; font-size: 11px; line-height: 1.5; color: var(--ink-muted); }
     .suf-reason b { color: var(--ink); }
     .suf-ev { display: block; margin-top: .15rem; font-size: 10px; }
     .suf-ai { font-size: 9px; font-weight: 700; padding: 0 .35rem; border-radius: 999px; background: var(--slate-soft); color: var(--slate); align-self: center; }
     .asm-single-head { flex-wrap: wrap; }
     .asm-single-head + .suf-reason { margin: .25rem 0 .5rem; }
-    .suf-sum { display: inline-flex; align-items: center; gap: .6rem; font-size: 11px; color: var(--ink-muted); }
+    .suf-sum { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .25rem .9rem; font-size: 11px; color: var(--ink-muted); }
+    .suf-sum-grp { display: inline-flex; align-items: center; gap: .4rem; }
     .suf-sum .suf-met-n { color: var(--accent-dark); }
     .suf-sum .suf-unmet-n { color: var(--brick); }
     .my-asm-badge { display: inline-flex; align-items: center; gap: .25rem; font-size: 10px; font-weight: 700; padding: .1rem .45rem; border-radius: 999px; border: 1px solid var(--line); }
@@ -1136,3 +1139,26 @@
     .ai-review-verdict.error { background: #FBDDE3; border-color: #B03A55; color: #6B1F33; }
     .ai-review-verdict.criteria { background: #FFF4D6; border-color: #C28A1A; color: #6B4A00; }
     .ai-review-verdict.check { background: #E0ECFB; border-color: #3B6EB5; color: #1E3F73; }
+
+    /* スマホ（幅767px以下）の見直し：上のヘッダーは画面に貼り付けず（画面の約2割を占めていた）、表の上の操作は折り返す */
+    @media (max-width: 767px) {
+      body > header.sticky { position: static; }
+      .asm-toolbar { width: 100%; }
+      .asm-toolbar > .btn { flex: 1 1 auto; justify-content: center; }
+      .suf-sum-wrap { flex-basis: 100%; order: 3; }
+      .suf-sum { gap: .15rem .7rem; font-size: 10.5px; }
+      .suf-btn { padding: .3rem .7rem; font-size: 12px; min-height: 32px; }
+      .suf-phase { font-size: 11px; }
+      .asm-single-head { gap: .4rem; }
+      .asm-single-head .suf-ctl { margin-left: 0; width: 100%; flex-direction: column; }
+    }
+
+    /* スマホ：AIの「①②③」と確認ボタンは、「AI」を押したときだけ開く（画面の約2割を占めていた）。「まとめて実行」は常に出す */
+    .ai-title-toggle { font-weight: 700; color: var(--accent-dark); display: inline-flex; align-items: center; gap: .3rem; background: none; border: 0; padding: 0; font: inherit; cursor: default; }
+    @media (max-width: 767px) {
+      .ai-title-toggle { cursor: pointer; padding: .2rem .1rem; }
+      .ai-title-toggle::after { content: '▼'; font-size: 8px; margin-left: .25rem; }
+      .ai-steps.is-open .ai-title-toggle::after { content: '▲'; }
+      .ai-steps:not(.is-open) .ai-bar-group { display: none; }
+      .ai-steps .ai-run-all { flex: 1 1 auto; justify-content: center; }
+    }

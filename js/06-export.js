@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-07.22'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-07.25'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 書式付き書き出し（Word / PDF）
     // ------------------------------------------------------------------------
@@ -198,7 +198,7 @@
           if (!list.length) return '<td class="empty">—</td>';
           return `<td>${printAssessmentCellList(col, list, labels)}</td>`;
         }).join('');
-        return `<tr><th scope="row" style="background:#f7f5f0;">${need.id}. ${escapeHtml(need.name.replace(/^\d+\.\s*/, ''))}${(() => { const v = typeof getSufficiency === 'function' ? getSufficiency(cp, need.id) : ''; return v ? `<br><b>【${v === 'met' ? '充足' : '未充足'}】</b>` : ''; })()}</th>${cells}</tr>`;
+        return `<tr><th scope="row" style="background:#f7f5f0;">${need.id}. ${escapeHtml(need.name.replace(/^\d+\.\s*/, ''))}${(() => { const v = typeof sufficiencyTextOf === 'function' ? sufficiencyTextOf(cp, need.id) : ''; return v ? `<br><b>【${escapeHtml(v)}】</b>` : ''; })()}</th>${cells}</tr>`;
       }).join('');
       // 自分のアセスメント（js/11）があれば、表の次のページに載せる
       const own = typeof buildMyAssessmentsPrintHtml === 'function' ? buildMyAssessmentsPrintHtml(cp, 1) : '';
@@ -756,8 +756,8 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         const seqLabels = assessmentSeqLabels(matching, need.id);
         const shown = matching.filter(include);
         if (onlyIds && shown.length === 0) return; // 選択したカードの書き出しでは、該当するカードの無い項目は省く
-        const suf = typeof getSufficiency === 'function' ? getSufficiency(cp, need.id) : '';
-        out += `\n■ ${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}${suf ? '【' + (suf === 'met' ? '充足' : '未充足') + '】' : ''}\n`;
+        const suf = typeof sufficiencyTextOf === 'function' ? sufficiencyTextOf(cp, need.id) : '';
+        out += `\n■ ${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}${suf ? '【' + suf + '】' : ''}\n`;
         if (shown.length === 0) { out += '  （カードなし）\n'; return; }
         ASSESSMENT_COL_ORDER.forEach(([col, label]) => {
           const inCol = shown.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === col);
