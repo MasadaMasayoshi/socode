@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-06.14'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-07.13'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -2761,7 +2761,7 @@
     // 総合アセスメント表の欲求の切り替えボタンは、上のヘッダーのすぐ下に貼り付ける（ヘッダーの高さに合わせる）
     function updateNeedNavTop() {
       const header = document.querySelector('header');
-      if (header) document.documentElement.style.setProperty('--need-nav-top', `${Math.ceil(header.getBoundingClientRect().height) + 6}px`);
+      if (header) document.documentElement.style.setProperty('--need-nav-top', getComputedStyle(header).position === 'sticky' ? `${Math.ceil(header.getBoundingClientRect().height) + 6}px` : '6px');
     }
     window.addEventListener('resize', updateNeedNavTop);
     function switchView(viewName) {

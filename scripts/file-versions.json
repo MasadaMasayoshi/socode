@@ -16,8 +16,8 @@
     "hash": "1c36d8cc0b410d33"
   },
   "js/05-app-state-and-ui.js": {
-    "version": "2026-10-06.14",
-    "hash": "b102ea9beeaa8625"
+    "version": "2026-10-07.13",
+    "hash": "5dfa7c8167d56729"
   },
   "js/06-export.js": {
     "version": "2026-10-06.14",
@@ -60,8 +60,8 @@
     "hash": "9b2421811baedd26"
   },
   "style.css": {
-    "version": "2026-10-07.8",
-    "hash": "2f13c3462289ddbf"
+    "version": "2026-10-07.13",
+    "hash": "9eafbd9f1ab4388d"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",

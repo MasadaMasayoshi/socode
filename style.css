@@ -1107,3 +1107,10 @@
     .rm-prob-all { display: block; width: 100%; padding: .3rem .55rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font-size: 11px; font-weight: 600; text-align: left; }
     .rm-prob-all.is-on, .rm-prob-btn.is-on { outline: 2px solid var(--accent); outline-offset: 1px; }
     #view-relation.rm-focus-view .rm-canvas-wrap { box-shadow: inset 0 0 0 2px var(--accent); }
+
+    /* 【アプリ内ブラウザ（LINE・Discord など）】アプリ自身の上のバーが画面の上に重なり、ヘッダーや全画面の操作が押せないことがあった。
+       ヘッダーは固定せず（ページと一緒に流れる）、関連図の全画面の操作は上のバーの分だけ下げる。 */
+    html.in-app-browser body > header { position: static; }
+    html.in-app-browser .need-nav { top: 0; }
+    html.in-app-browser #view-relation.rm-fullscreen .rm-fs-controls { top: calc(max(10px, env(safe-area-inset-top)) + 56px); }
+    html.in-app-browser #view-relation.rm-fullscreen .rm-problems { top: calc(max(10px, env(safe-area-inset-top)) + 102px); }
