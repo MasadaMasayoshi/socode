@@ -183,7 +183,15 @@ test('実習向け：「18時までに」「本日中に」は期限として使
   const foot = plans.find(pl => /足潰瘍/.test(pl.problem));
   assert.equal(app.cpDomainOf(foot).key, 'dmfoot');
   const tpep = key => plans.map(pl => (app.reviewCarePlan(dm, pl).model || {})[key] || []).flat().join('\n');
-  assert.equal((tpep('ep').match(/分割食/g) || []).length, 1, '分割食の説明は1つの計画だけ');
+  assert.equal((tpep('ep').match(/分割食/g) || []).length, 0, '分割食の指示は記録にあるが、手本には他疾患の定型として入れない（栄養士の指導内容に合わせる）');
+  // 看護計画の修正指示（2026-10-07.12）：低血糖は意識・嚥下で分岐／初回所見を基準に／インスリンは指示・手順／原因の確認
+  const all = plans.map(pl => app.reviewCarePlan(dm, pl).model).map(m => JSON.stringify(m)).join('\n');
+  assert.ok(/意識がはっきりして飲み込めるときだけ/.test(all) && /119番/.test(all) && /15分後も低い/.test(all) && /緊急対応/.test(all));
+  assert.ok(/初回所見/.test(all) && !/直径1\.5cm以下/.test(all) && !/発赤・滲出液が減り/.test(all));
+  assert.ok(/医師の指示・院内の手順/.test(all) && !/半分以下/.test(all));
+  assert.ok(/通院を中断した理由/.test(all) && /視力・手指の操作・理解/.test(all) && /3回続けて/.test(all));
+  assert.ok(!/眠れたと言える/.test(all) && /睡眠の状況/.test(all));
+  plans.forEach(pl => { const g = app.reviewCarePlan(dm, pl).model.goalShort; assert.ok(app.cpGoalCheck(g).deadline, `${pl.problem} の目標に期限`); });
 });
 
 test('糖尿病の関連図の評価（2026-10-07.9）：低血糖の時系列・事実だけを根拠に・発言は根拠として添える・妻の発言は全文・理論は補足', () => {
