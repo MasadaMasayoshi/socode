@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.37'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.38'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -114,7 +114,7 @@
     // 看護問題の補足（名前の下の小さい説明文）
     const RM_NOTE_FONT = 11.5, RM_NOTE_LINE_H = 15, RM_NOTE_GAP = 7, RM_NOTE_MAX = 60;
     // 「記録から作る」の作り方を直したら上げる。古い作り方で保存された図（source が rules のもの）は、開いたときに1度だけ作り直す
-    const RM_BUILD_VERSION = 1;
+    const RM_BUILD_VERSION = 2;
     const RM_LAYOUT_STYLE = 3; // 四角の大きさを変えたら上げる（前の大きさで並べた図は自動で並べ直す）
     const RM_COL_GAP = 80, RM_ROW_GAP = 28;
     // 列のすき間は、通る線（縦の線）の本数に合わせて広げる（少ないと狭く、多いと広く。2026-10-07.16）
@@ -872,6 +872,9 @@
       // 飛び越え：横の線が、ほかの矢印の縦の線と交わる所
       const verticals = [];
       routes.forEach((r, ri) => { for (let k = 0; k < r.pts.length - 1; k++) { const [x1, y1] = r.pts[k], [x2, y2] = r.pts[k + 1]; if (Math.abs(x1 - x2) < 0.5) verticals.push({ ri, x: x1, a: Math.min(y1, y2), b: Math.max(y1, y2) }); } });
+      // ほかの矢印が曲がる点（縦の線に入る・縦の線から出る所）は「つながる所」。そこを飛び越えると線が二重に見えるので飛び越えない
+      const turnPoints = [];
+      routes.forEach((r, ri) => { for (let k = 1; k < r.pts.length - 1; k++) turnPoints.push({ ri, x: r.pts[k][0], y: r.pts[k][1] }); });
       let bridges = 0;
       routes.forEach((r, ri) => {
         r.segs = [];
@@ -882,6 +885,7 @@
             const lo = Math.min(x1, x2) + RM_BRIDGE_R + RM_CORNER_R + 2, hi = Math.max(x1, x2) - RM_BRIDGE_R - RM_CORNER_R - 2; // 曲がり角の丸みと重ならない所だけ
             verticals.forEach(v => {
               if (v.ri === ri || routes[v.ri].edge.target === r.edge.target || routes[v.ri].edge.source === r.edge.source) return; // 同じ所へ合流・同じ所から分岐する線は交差ではない
+              if (turnPoints.some(t => t.ri !== ri && Math.abs(t.x - v.x) < 1.5 && Math.abs(t.y - y1) < 1.5)) return;
               if (v.x > lo && v.x < hi && y1 > v.a + 1 && y1 < v.b - 1) seg.cross.push(v.x);
             });
             seg.cross.sort((p, q) => (x2 > x1 ? p - q : q - p));
@@ -1269,8 +1273,10 @@
       const labNode = (l, key) => l && N(key || `lab_${l.key}`, 'lab', l.text, { items: [l.item] });
 
       // ① 疾患
-      const dxItems = items.filter(i => i.fieldLabel && /^(?:診断名|病名|主病名|疾患名|主診断)$/.test(i.fieldLabel));
-      const dxText = dxItems.length ? dxItems : items.filter(i => /^【?(?:診断名?|病名|疾患名)】?\s*[:：]/.test(String(i.text).normalize('NFKC')));
+      // 「予定術式：…」「術式：…」の記録は手術であって疾患ではない（疾患の四角と治療の楕円に同じ手術が2つ出ていた）
+      const notSurgeryLine = i => !/^【?\s*(?:予定)?(?:術式|手術(?:名|予定)?)\s*】?\s*[:：]/.test(String(i.text || '').normalize('NFKC')) && !/^(?:予定)?術式$/.test(i.fieldLabel || '');
+      const dxItems = items.filter(i => i.fieldLabel && /^(?:診断名|病名|主病名|疾患名|主診断)$/.test(i.fieldLabel) && notSurgeryLine(i));
+      const dxText = dxItems.length ? dxItems : items.filter(i => /^【?(?:診断名?|病名|疾患名)】?\s*[:：]/.test(String(i.text).normalize('NFKC')) && notSurgeryLine(i));
       const disease = dxText[0] ? N('disease', 'disease', String(dxText[0].text).normalize('NFKC').replace(/^【?(?:診断名?|病名|疾患名)】?\s*[:：]\s*/, ''), { items: [dxText[0]] }) : null;
       const dxLabel = disease ? disease.label : '';
       // ② 背景・要因（疾患の成り立ち）
