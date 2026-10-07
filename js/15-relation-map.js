@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.25'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-06.26'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -1835,9 +1835,39 @@
         headers: [], source: 'rules', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
       };
       rmApplyBridges(map); // 矢印の間の飛躍を医学知識で埋める（＋補足）
+      rmReduceShortcuts(map); // 別の道筋で同じ所へ行ける「近道」の矢印を省く（中央の線を減らす）
       layoutRelationMap(map);
       rmAutoFixBuilt(map);
       return map;
+    }
+    // 【近道の矢印を省く】A → B のほかに A → … → B（2本以上の矢印）の道筋があるとき、A → B は同じことを言っている。
+    // 線が多いと図の中央が混み、「この線はどこから来たのか」を探すことになる（利用者の声：2026-10-06.26）。
+    // 省くのは、看護問題・治療（┤）・検査データの根拠の矢印以外で、事実の矢印を予測（点線）の道筋で置き換えない場合だけ
+    function rmReduceShortcuts(map) {
+      const byId = new Map(map.nodes.map(n => [n.id, n]));
+      let removed = 0;
+      const outOf = id => map.edges.filter(e => e.source === id && e.relation !== 'treats');
+      const altPath = (e) => {
+        // e を使わずに source から target へ、2本以上の矢印でたどれるか（事実の矢印なら事実の矢印だけで）
+        const seen = new Set([e.source]);
+        const queue = outOf(e.source).filter(x => x !== e && (e.predicted || !x.predicted)).map(x => ({ id: x.target, len: 1 }));
+        while (queue.length) {
+          const { id, len } = queue.shift();
+          if (id === e.target) { if (len >= 2) return true; continue; }
+          if (seen.has(id)) continue;
+          seen.add(id);
+          const n = byId.get(id);
+          if (!n || n.type === 'nursing_problem') continue;
+          outOf(id).forEach(x => { if (x !== e && (e.predicted || !x.predicted)) queue.push({ id: x.target, len: len + 1 }); });
+        }
+        return false;
+      };
+      [...map.edges].forEach(e => {
+        const a = byId.get(e.source), b = byId.get(e.target);
+        if (!a || !b || e.relation === 'treats' || e.relation === 'supports' || a.type === 'lab' || b.type === 'nursing_problem') return;
+        if (altPath(e)) { map.edges = map.edges.filter(x => x !== e); removed++; }
+      });
+      return removed;
     }
     // 【作った直後に直す】利用者からの要望：「チェックで分かるなら最初からそうして」（2026-10-06.19）。
     // 作った図を「チェック」と同じ決まりで確かめ、自動で直せるもの（浮島・同じ内容の四角・両向きの矢印・治療の向き・
@@ -2154,7 +2184,7 @@ ${cards}`;
     }
 
     // ---- 画面の状態 ----
-    const rmState = { patientId: null, selected: null, connectFrom: null, zoom: 1, undo: [], redo: [], drag: null, lastTap: null, problemsOpen: false, moreOpen: false };
+    const rmState = { patientId: null, selected: null, connectFrom: null, zoom: 1, undo: [], redo: [], drag: null, lastTap: null, problemsOpen: false, moreOpen: false, focusProblem: null };
     function rmMap(cp = getCurrentPatient()) {
       if (!cp) return null;
       if (cp.relationMap && !cp.relationMap.__normalized) {
@@ -2173,6 +2203,8 @@ ${cards}`;
       rmState.redo = [];
     }
     function rmCommit(cp, map, { pushUndo = false, render = true } = {}) {
+      // 図を作り直した・書き換えたときは、全体の図に戻す（看護問題ごとの図は見るだけ）
+      if (cp.id === rmState.patientId) rmState.focusProblem = null;
       // 「元に戻す」の記録は、表示している患者の分だけ（AIの結果が、別の患者に切り替えた後に届いたときは積まない）
       if (pushUndo && cp.id === rmState.patientId && cp.id === getCurrentPatient().id) rmPushUndo(cp);
       if (map) {
@@ -2209,7 +2241,7 @@ ${cards}`;
       const view = document.getElementById('view-relation');
       if (!view) return;
       const cp = getCurrentPatient();
-      if (rmState.patientId !== cp.id) { rmState.patientId = cp.id; rmState.undo = []; rmState.redo = []; rmState.selected = null; rmState.connectFrom = null; rmShowCheck(null); }
+      if (rmState.patientId !== cp.id) { rmState.patientId = cp.id; rmState.undo = []; rmState.redo = []; rmState.selected = null; rmState.connectFrom = null; rmState.focusProblem = null; rmShowCheck(null); }
       const map = rmMap(cp);
       const wrap = document.getElementById('rm-canvas-wrap');
       const empty = document.getElementById('rm-empty');
@@ -2221,7 +2253,11 @@ ${cards}`;
         const fresh = !wrap.querySelector('svg');
         // 図のまわりに余白（.rm-stage の padding）を付け、端まで動かしても少し先までドラッグできるようにする
         // （利用者からの要望：「端に行くとそこで止まるので、もう少し余裕が欲しい」2026-10-06.19）
-        wrap.innerHTML = has ? `<div class="rm-stage">${relationMapSvg(map, { interactive: true, zoom: rmState.zoom, title: `${cp.title || ''}の関連図` })}</div>` : '';
+        // 看護問題ごとに見ているときは、その流れだけを並べ直した図（見るだけ。編集は全体の図で）
+        const focusSub = has && rmState.focusProblem ? rmProblemSubmap(map, rmState.focusProblem) : null;
+        if (has && rmState.focusProblem && !focusSub) rmState.focusProblem = null;
+        view.classList.toggle('rm-focus-view', !!focusSub);
+        wrap.innerHTML = has ? `<div class="rm-stage">${focusSub ? relationMapSvg(focusSub, { interactive: false, zoom: rmState.zoom, title: `${cp.title || ''}の関連図（看護問題ごと）` }).replace('<svg ', '<svg data-focus="1" class="rm-svg rm-svg-focus" ').replace('class="rm-svg" ', '') : relationMapSvg(map, { interactive: true, zoom: rmState.zoom, title: `${cp.title || ''}の関連図` })}</div>` : '';
         if (has && fresh) rmScrollToMapStart(wrap);
         else { wrap.scrollLeft = keep.left; wrap.scrollTop = keep.top; }
         wrap.classList.toggle('is-connecting', !!rmState.connectFrom);
@@ -2251,7 +2287,10 @@ ${cards}`;
         const c = b.querySelector('.rm-prob-count');
         if (c) c.textContent = probs.length ? `（${probs.length}）` : '';
       });
-      box.innerHTML = open ? `<span class="rm-problems-title">看護問題の一覧（押すと図の中へ移ります）</span>` + probs.map(n => `<button type="button" role="menuitem" class="rm-prob-btn${/リスク|可能性|おそれ|危険/.test(n.label) ? ' is-risk' : ''}" data-rm-action="goto-problem" data-node-id="${escapeHtml(n.id)}" title="図の中のこの看護問題へ移ります">${escapeHtml(rmDisplayLabel(n))}</button>`).join('') : '';
+      // 押すと、その看護問題へつながる流れだけを取り出した図にする（全体の図は線が多く、縮めると読みにくいため）
+      box.innerHTML = open ? `<span class="rm-problems-title">看護問題ごとに見る（押すとその流れだけの図になります）</span>`
+        + `<button type="button" role="menuitem" class="rm-prob-all${rmState.focusProblem ? '' : ' is-on'}" data-rm-action="focus-all">すべての流れ（全体の図）</button>`
+        + probs.map(n => `<button type="button" role="menuitem" class="rm-prob-btn${/リスク|可能性|おそれ|危険/.test(n.label) ? ' is-risk' : ''}${rmState.focusProblem === n.id ? ' is-on' : ''}" data-rm-action="focus-problem" data-node-id="${escapeHtml(n.id)}" title="この看護問題へつながる流れだけを表示します">${escapeHtml(rmDisplayLabel(n))}</button>`).join('') : '';
     }
     // 【右クリックのメニュー】利用者からの要望：「右クリックで編集できるように。追加も右クリックで」（2026-10-06.21）。
     // 四角の上：文字の編集・事実／予測・矢印でつなぐ・優先度・削除。矢印（線）の上：向きを逆にする・事実／予測・間に四角・なぜ？・削除。
@@ -2385,6 +2424,11 @@ ${cards}`;
       if (!bar) return;
       const map = rmMap();
       const sel = rmState.selected;
+      if (rmState.focusProblem && map) {
+        const p = rmNodeById(map, rmState.focusProblem);
+        bar.innerHTML = `<span class="rm-sel-label"><i class="fa-solid fa-filter"></i> 「${escapeHtml(p ? rmDisplayLabel(p) : '')}」へつながる流れだけを表示しています（見るだけ。直すときは全体の図で）</span>${rmBtn('focus-all', '<i class="fa-solid fa-diagram-project"></i> 全体の図に戻す', 'btn-primary')}`;
+        return;
+      }
       if (rmState.connectFrom) {
         bar.innerHTML = `<span class="rm-sel-label"><i class="fa-solid fa-arrow-right-long"></i> 矢印の行き先の四角を押してください（治療からなら「治療 → 対象」になります）</span>${rmBtn('cancel-connect', 'やめる（Esc）')}`;
         return;
@@ -2523,7 +2567,7 @@ ${cards}`;
         const wrap = document.getElementById('rm-canvas-wrap');
         const map = rmMap();
         // 「全体」は図全体が入る大きさ。作った直後（fit-readable）は、文字が読める大きさ（85%）より小さくしない（はみ出す分は横にスクロール）
-        if (wrap && map && map.nodes.length) { const b = rmBounds(map); rmState.zoom = Math.max(factor === 'fit' ? 0.25 : wrap.clientWidth < 600 ? 0.55 : 0.85, Math.min(1.2, Math.min((wrap.clientWidth - 8) / b.w, (wrap.clientHeight - 8) / b.h))); }
+        if (wrap && map && map.nodes.length) { const b = rmBounds((rmState.focusProblem && rmProblemSubmap(map, rmState.focusProblem)) || map); rmState.zoom = Math.max(factor === 'fit' ? 0.25 : wrap.clientWidth < 600 ? 0.55 : 0.85, Math.min(1.2, Math.min((wrap.clientWidth - 8) / b.w, (wrap.clientHeight - 8) / b.h))); }
         else rmState.zoom = 1;
       } else rmState.zoom = Math.max(0.25, Math.min(2, Math.round(rmState.zoom * factor * 100) / 100));
       renderRelationMap();
@@ -2576,7 +2620,7 @@ ${cards}`;
     }
 
     // ---- 印刷・画像 ----
-    function relationMapPrintHtml(cp, map) {
+    function relationMapPrintHtml(cp, map, { perProblem = false } = {}) {
       const now = new Date().toLocaleString('ja-JP');
       const probs = map.nodes.filter(n => n.type === 'nursing_problem').sort((a, b) => a.priority - b.priority);
       return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${escapeHtml(`${cp.title || '患者'}_関連図`)}</title><style>
@@ -2593,18 +2637,39 @@ ${cards}`;
   .rm-legend-swatch { display: inline-block; width: 12pt; height: 8pt; border: 1pt solid; border-radius: 2pt; }
   .rm-legend-swatch.is-ellipse { border-radius: 50%; }
   .probs { font-size: 8pt; margin-top: 2pt; }
+  /* 看護問題ごとの図は1問題1ページ（A4に大きく出せる） */
+  .page { break-before: page; page-break-before: always; }
 </style></head><body>
 <div class="head"><h1>関連図</h1><div class="meta">患者：${escapeHtml(cp.title || '')}<br>出力日時：${escapeHtml(now)}</div></div>
 <div class="fig">${relationMapSvg(map, { interactive: false, title: `${cp.title || ''}の関連図` })}</div>
 <div class="legend">${rmLegendHtml()}</div>
 ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(rmDisplayLabel(p))).join('　')}</div>` : ''}
+${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return sub ? `<section class="page"><div class="head"><h1>${escapeHtml(rmDisplayLabel(p))} の関連図</h1><div class="meta">患者：${escapeHtml(cp.title || '')}</div></div><div class="fig">${relationMapSvg(sub, { interactive: false, title: `${rmDisplayLabel(p)}の関連図` })}</div></section>` : ''; }).join('') : ''}
 </body></html>`;
     }
-    function rmPrint() {
+    // 【看護問題ごとの図】その看護問題へたどれる四角（原因・症状・病態・背景）と、それらへの治療・検査データだけを
+    // 取り出して並べ直した図。全体の図は中央に線が集まり、スマホやA4に縮めると読みにくい（利用者の声：2026-10-06.26）
+    function rmProblemSubmap(map, problemId) {
+      const p = map && map.nodes.find(n => n.id === problemId && n.type === 'nursing_problem');
+      if (!p) return null;
+      const keep = new Set([p.id]);
+      const stack = [p.id];
+      while (stack.length) {
+        const id = stack.pop();
+        map.edges.forEach(e => { if (e.target === id && e.relation !== 'treats' && !keep.has(e.source)) { const s = map.nodes.find(n => n.id === e.source); if (s && s.type !== 'nursing_problem') { keep.add(s.id); stack.push(s.id); } } });
+      }
+      // 取り出した四角への治療（┤）と、その四角にくっつく検査データも入れる
+      map.edges.forEach(e => { if (keep.has(e.target) && !keep.has(e.source)) { const s = map.nodes.find(n => n.id === e.source); if (s && (e.relation === 'treats' || s.type === 'lab')) keep.add(s.id); } });
+      const sub = JSON.parse(JSON.stringify({ ...map, nodes: map.nodes.filter(n => keep.has(n.id)), edges: map.edges.filter(e => keep.has(e.source) && keep.has(e.target)) }));
+      delete sub.addedStash;
+      layoutRelationMap(sub);
+      return sub;
+    }
+    function rmPrint(perProblem = false) {
       const cp = getCurrentPatient();
       const map = rmMap(cp);
       if (!map || !map.nodes.length) { showToast('印刷する関連図がありません', 'warn'); return; }
-      printHtmlDocument(relationMapPrintHtml(cp, map), { keepSvg: true });
+      printHtmlDocument(relationMapPrintHtml(cp, map, { perProblem }), { keepSvg: true });
       showToast(isMobilePrintTarget() ? '印刷用の見本を開きました。上の「印刷・PDFに保存」を押してください' : '印刷画面を開きます。「送信先」で「PDFに保存」を選ぶとPDFになります（A4横）', 'info');
     }
     function rmSavePng() {
@@ -2715,6 +2780,9 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
         else if (act === 'toggle-more') { rmSetProblemsOpen(false); rmSetMoreOpen(!rmState.moreOpen); }
         else if (act === 'goto-problem') { const id = btn.dataset.nodeId; rmSetProblemsOpen(false); if (rmNodeById(rmMap(), id)) { rmSelect({ type: 'node', id }); rmScrollToNode(id); } }
         else if (act === 'print') { rmSetMoreOpen(false); rmPrint(); }
+        else if (act === 'print-per-problem') { rmSetMoreOpen(false); rmPrint(true); }
+        else if (act === 'focus-problem') { rmSetProblemsOpen(false); rmState.focusProblem = btn.dataset.nodeId || null; rmState.selected = null; rmState.connectFrom = null; renderRelationMap(); rmZoom('fit'); }
+        else if (act === 'focus-all') { rmSetProblemsOpen(false); rmState.focusProblem = null; renderRelationMap(); rmZoom('fit'); }
         else if (act === 'png') { rmSetMoreOpen(false); rmSavePng(); }
         else if (act === 'clear') { rmSetMoreOpen(false); rmClearAll(); }
         else if (!sel) return;
@@ -2777,9 +2845,10 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
         try { wrap.setPointerCapture(e.pointerId); } catch (err) { /* 無視 */ }
         if (pointers.size === 2) { startPinch(); e.preventDefault(); return; }
         if (pointers.size > 2) return;
-        const g = e.target.closest('.rm-node');
-        const lg = e.target.closest('.rm-link');
         const touch = e.pointerType === 'touch' || e.pointerType === 'pen';
+        // 看護問題ごとの図（見るだけ）では、どこを触っても図を動かすだけ
+        const g = rmState.focusProblem ? null : e.target.closest('.rm-node');
+        const lg = rmState.focusProblem ? null : e.target.closest('.rm-link');
         // 【長押しでメニュー】スマホ・タブレットは右クリックの代わりに、動かさずに長押し（0.55秒）で同じメニューを出す
         clearTimeout(longPress.timer);
         longPress.fired = false;
@@ -2787,6 +2856,7 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
           const tgt = e.target, cx = e.clientX, cy = e.clientY, pid = e.pointerId;
           longPress.sx = cx; longPress.sy = cy;
           longPress.timer = setTimeout(() => {
+            if (rmState.focusProblem) return;
             if (pointers.size !== 1 || (pan && pan.moved) || (rmState.drag && rmState.drag.moved)) return;
             if (pan && pan.pointerId === pid) { pan = null; wrap.classList.remove('is-panning'); }
             if (rmState.drag && rmState.drag.pointerId === pid) rmState.drag = null;
@@ -2885,7 +2955,7 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
         rmZoomAt(rmState.zoom * Math.exp(-e.deltaY * 0.0025), e.clientX, e.clientY);
         if (pan) { pan.sx = e.clientX; pan.sy = e.clientY; pan.sl = wrap.scrollLeft; pan.st = wrap.scrollTop; pan.moved = true; }
       }, { passive: false });
-      wrap.addEventListener('contextmenu', e => { if (!rmMap()) return; e.preventDefault(); rmShowCtx(e); });
+      wrap.addEventListener('contextmenu', e => { if (!rmMap()) return; e.preventDefault(); if (!rmState.focusProblem) rmShowCtx(e); });
       document.addEventListener('pointerdown', e => { if (!(e.target.closest && e.target.closest('#rm-ctx'))) rmHideCtx(); }, true);
       wrap.addEventListener('scroll', rmHideCtx, { passive: true });
       // 看護問題の一覧は、一覧とボタンの外を押すと閉じる
@@ -2943,5 +3013,5 @@ ${probs.length ? `<div class="probs">看護問題：${probs.map(p => escapeHtml(
     if (typeof document !== 'undefined' && document.getElementById && document.getElementById('view-relation')) initRelationMapUi();
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel, rmShorten });
+  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapFromAiJson, rmParseAiJsonObject, buildRelationMapPrompt, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSelectCardsForAi, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel, rmShorten, rmProblemSubmap, rmReduceShortcuts });
 }

@@ -264,7 +264,7 @@ test('関連図：画面の操作（やり直す・チェック・事実／予�
   const doc = app.relationMapPrintHtml({ title: '<b>患者</b>' }, norm);
   assert.match(doc, /@page \{ size: A4 landscape;/);
   assert.match(doc, /&lt;b&gt;患者&lt;\/b&gt;/);
-  assert.match(src, /printHtmlDocument\(relationMapPrintHtml\(cp, map\), \{ keepSvg: true \}\)/);
+  assert.match(src, /printHtmlDocument\(relationMapPrintHtml\(cp, map, \{ perProblem \}\), \{ keepSvg: true \}\)/);
   assert.deepEqual(plain(app.rmWrapText('あいうえおかきくけこさしすせそたちつてと', 13)), ['あいうえおかきくけこさしす', 'せそたちつてと']);
 });
 
@@ -639,7 +639,7 @@ test('関連図：術後・入院2日目以降の記録の四角は治療より�
   assert.match(css, /\.rm-problems \{ position: absolute;/, '図の上に重ねて出し、場所をとらない');
   assert.match(src, /else if \(act === 'toggle-problems'\) \{ rmSetMoreOpen\(false\); rmSetProblemsOpen\(!rmState\.problemsOpen\); \}/);
   assert.match(src, /else if \(act === 'goto-problem'\)/);
-  assert.match(src, /data-rm-action="goto-problem" data-node-id=/);
+  assert.match(src, /data-rm-action="focus-problem" data-node-id=/, '2026-10-06.26：一覧から看護問題ごとの図にする');
 });
 
 // 2026-10-06.18：利用者からの指摘「矢印が左に伸びていると、さかのぼれない」「基本情報からいきなり看護問題（同じ情報が2つ）」
@@ -725,7 +725,7 @@ test('関連図：矢印の向きを逆にする（並べ直して左向きを�
   assert.match(src, /stroke="transparent" stroke-width="20"/, '線を押しやすく');
   const svg = app.relationMapSvg(caseMap('gastric_postop'), {});
   assert.ok(!/<text class="rm-text"(?![^>]*text-anchor="middle")/.test(svg), '文字はまん中ぞろえ');
-  assert.match(src, /<div class="rm-stage">\$\{relationMapSvg\(/);
+  assert.match(src, /<div class="rm-stage">\$\{focusSub \? relationMapSvg\(focusSub/);
   assert.match(css, /\.rm-stage \{ display: inline-block; padding: min\(28vh, 220px\) min\(28vw, 320px\);/);
   assert.ok(html.indexOf('id="tab-careplan"') < html.indexOf('id="tab-labs"'), '看護計画のタブが先');
   assert.ok(html.indexOf('id="tab-labs"') < html.indexOf('id="tab-relation"'));
@@ -794,7 +794,7 @@ test('関連図の評価への対応：治療の線の先は「┤」・線が�
 
 test('関連図：右クリックで編集（四角・矢印）と追加（何もない所）／全画面のボタンは図の中／色合い（患者情報は薄い緑）・ダークモード', () => {
   assert.match(html, /<div id="rm-ctx" class="rm-ctx hidden" role="menu"/);
-  assert.match(src, /wrap\.addEventListener\('contextmenu', e => \{ if \(!rmMap\(\)\) return; e\.preventDefault\(\); rmShowCtx\(e\); \}\);/);
+  assert.match(src, /wrap\.addEventListener\('contextmenu', e => \{ if \(!rmMap\(\)\) return; e\.preventDefault\(\); if \(!rmState\.focusProblem\) rmShowCtx\(e\); \}\);/);
   assert.match(src, /if \(act === 'ctx-add'\) rmAddNode\(btn\.dataset\.kind \|\| 'pathophysiology', rmState\.ctxPoint\);/);
   ['edit-node', 'connect', 'toggle-observed', 'reverse', 'toggle-predicted', 'mid-add', 'why', 'delete'].forEach(a => assert.match(src.slice(src.indexOf('function rmShowCtx'), src.indexOf('function rmHideCtx')), new RegExp(`item\\('${a}'`), a));
   const view = html.slice(html.indexOf('<div id="view-relation"'), html.indexOf('<div id="view-reference"'));
@@ -919,4 +919,29 @@ test('看護問題の判定：症状があれば今ある問題、無ければ�
   assert.ok(labels(caseMap('aspiration_pneumonia')).includes('嚥下障害'));
   // 身体可動性障害：片麻痺など
   assert.ok(labels(caseMap('cerebral_infarction')).includes('身体可動性障害'));
+});
+
+// 2026-10-06.26：利用者の声「中央の線と箱が集中」「横に長く、スマホ・A4で小さくなる」
+test('関連図：近道の矢印を省く・看護問題ごとの図（その流れだけ）を画面と印刷で見られる', () => {
+  // 近道：A → B と A → C → B があれば A → B を省く（看護問題・治療・検査の根拠の矢印は残す）
+  const m = app.normalizeRelationMap({ version: 2, nodes: [{ id: 'a', type: 'pathophysiology', label: 'A', x: 0, y: 0 }, { id: 'c', type: 'pathophysiology', label: 'C', x: 0, y: 0 }, { id: 'b', type: 'symptom', label: 'B', x: 0, y: 0 }, { id: 'p', type: 'nursing_problem', label: '急性疼痛', priority: 1, x: 0, y: 0 }],
+    edges: [{ id: 'ab', source: 'a', target: 'b', relation: 'causes' }, { id: 'ac', source: 'a', target: 'c', relation: 'causes' }, { id: 'cb', source: 'c', target: 'b', relation: 'causes' }, { id: 'bp', source: 'b', target: 'p', relation: 'results_in' }, { id: 'ap', source: 'a', target: 'p', relation: 'results_in' }] });
+  assert.equal(app.rmReduceShortcuts(m), 1);
+  assert.ok(!m.edges.some(e => e.id === 'ab') && m.edges.some(e => e.id === 'ap'), '看護問題への矢印は残す');
+  // 看護問題ごとの図：その看護問題へたどれる四角＋治療＋検査データだけ
+  const colon = caseMap('colon_cancer_postop_long');
+  const pain = colon.nodes.find(n => n.type === 'nursing_problem' && /急性疼痛/.test(n.label));
+  const sub = app.rmProblemSubmap(colon, pain.id);
+  assert.ok(sub.nodes.length < colon.nodes.length / 2, `${sub.nodes.length} / ${colon.nodes.length}`);
+  assert.equal(sub.nodes.filter(n => n.type === 'nursing_problem').length, 1);
+  assert.ok(sub.nodes.some(n => /創部痛/.test(n.label)) && sub.nodes.some(n => n.type === 'treatment' && /鎮痛/.test(n.label)));
+  const W = Math.max(...sub.nodes.map(n => app.rmRect(n).x2));
+  assert.ok(W < 1400, '小さな図になる：' + W);
+  // 画面：一覧から選ぶと、その流れだけの図（見るだけ）。全体の図に戻すボタン
+  assert.match(src, /else if \(act === 'focus-problem'\)/);
+  assert.match(src, /rmBtn\('focus-all', '<i class="fa-solid fa-diagram-project"><\/i> 全体の図に戻す', 'btn-primary'\)/);
+  // 印刷：全体の図の後に、看護問題ごとに1ページずつ
+  assert.match(html, /data-rm-action="print-per-problem"/);
+  const doc = app.relationMapPrintHtml({ title: 'A氏' }, colon, { perProblem: true });
+  assert.equal((doc.match(/<section class="page">/g) || []).length, colon.nodes.filter(n => n.type === 'nursing_problem').length);
 });
