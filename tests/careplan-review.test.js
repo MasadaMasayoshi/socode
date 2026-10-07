@@ -45,10 +45,10 @@ test('計画をチェック：「痛みが軽減する」「バイタルサイ�
 
 test('計画をチェック：期限・数値・患者の状態を含む目標と、具体的なOP/TP/EPなら指摘しない。目標の4つの要素', () => {
   const cp = stomaPatient();
-  const p = app.createCarePlan(cp, { problem: '急性疼痛（手術創部の侵襲）', goalShort: '本日18時までに、安静時の創部痛がNRS5からNRS3以下となり、苦痛なく休息できる',
+  const p = app.createCarePlan(cp, { problem: '急性疼痛（手術創部の侵襲）', goalLong: '退院までに、創部痛がNRS3以下で、痛みを自分の言葉で看護師に伝えながら日常動作を行える', goalShort: '本日18時までに、安静時の創部痛がNRS5からNRS3以下となり、苦痛なく休息できる',
     op: ['疼痛の程度（NRS）・部位・性質', '痛みの持続時間と出現する時間', '体動・咳嗽時の痛みの変化', '鎮痛薬（硬膜外PCA）使用前後のNRSの変化', '表情・睡眠の状況'],
     tp: ['体動の30分前にPCAのボタンを押すよう声をかける', '創部を圧迫しないよう、枕を使って膝を軽く曲げた側臥位にする'],
-    ep: ['痛みを我慢せずにナースコールで伝えてよいことを説明する'] });
+    ep: ['痛みを我慢せずにナースコールで伝えてよいことを説明し、自分の言葉で伝え方を言ってもらって確認する'] });
   const r = app.reviewCarePlan(cp, p);
   assert.deepEqual(clone(r.items.filter(i => i.level !== 'ok').map(i => [i.key, i.msgs])), []);
   const g = app.cpGoalCheck('本日18時までに、安静時の創部痛がNRS5からNRS3以下となり、苦痛なく休息できる');
@@ -122,4 +122,39 @@ test('看護計画の画面：チェック・AIで評価・関連図から取り
   assert.match(src, /forEach\(f => add\(\{ \.\.\.f, source: 'ai', reasonNeeded: true \}\)\)/);
   assert.match(css, /\.cpr-item \{/);
   assert.match(css, /\.cp-reason-need \{/);
+});
+
+test('実機評価の反映：曖昧な期限・「理解する」目標、観察のTP、中身のないEP、長期目標の空欄を指摘する', () => {
+  const cp = stomaPatient();
+  const v = app.cpGoalCheck('数日後に食事療法を理解する');
+  assert.ok(!v.deadline && v.msgs.some(m => /「数日」では、いつ評価するのか/.test(m)) && v.msgs.some(m => /「理解する」だけでは/.test(m)) && v.abstract);
+  assert.ok(app.cpGoalCheck('退院までに、低血糖の症状と対処を3つ、自分の言葉で説明できる').msgs.length === 0);
+  assert.ok(app.cpGoalCheck('入院中に退院後の生活のイメージを持つ').msgs.some(m => /イメージを持/.test(m)));
+  const p = app.createCarePlan(cp, { problem: '自己管理体制不全', goalShort: '3日後までにインスリン手技を看護師の前で実演できる',
+    op: ['血糖値'], tp: ['血糖測定やインスリン補正の状況を把握する', '手技を一緒に行い、できた点をその場で伝える'], ep: ['症状が現れた際の対応方法を伝える'] });
+  const r = app.reviewCarePlan(cp, p);
+  assert.ok(item(r, 'tp').msgs.some(m => /観察・把握なので.*OP/.test(m)) && item(r, 'tp').moveToOp.length === 1);
+  assert.ok(item(r, 'ep').msgs.some(m => /何を説明するのか/.test(m)) && item(r, 'ep').msgs.some(m => /理解をどう確認するか/.test(m)));
+  assert.ok(item(r, 'goal').msgs.some(m => /長期目標が空欄/.test(m)));
+  // AIの文章を取り込むときは、観察のTPはOPへ移す
+  const plans = app.parseCarePlanText('■自己管理体制不全\n長期目標\n1. 退院までに自分で血糖測定ができる\n短期目標\n1. 3日後までに手技を実演できる\nOP（観察計画）\n1. 血糖値\nTP（援助計画）\n1. 血糖測定の状況を把握する\n2. 手技を一緒に行う');
+  assert.deepEqual(clone(plans[0].tp), ['手技を一緒に行う']);
+  assert.ok(plans[0].op.includes('血糖測定の状況を把握する') && plans[0].goalLong);
+});
+
+test('全計画の評価：重複（分割食）・別の計画に書かれた家族への指導・仕事への配慮を「全体では入っている」とする。AIの答えの読み取り', () => {
+  const cp = stomaPatient();
+  cp.sourceText = (cp.sourceText || '') + '\n妻がキーパーソン。仕事は営業職で外回りが多い。';
+  app.createCarePlan(cp, { problem: '栄養摂取行動非効率', goalShort: '退院までに分割食の方法を自分の言葉で説明できる', tp: ['分割食の進め方を一緒に確認する'], ep: ['分割食の方法を妻にも説明し、理解を確認する'] });
+  app.createCarePlan(cp, { problem: '自己管理体制不全', goalShort: '3日後までにインスリン手技を実演できる', tp: ['手技を一緒に行う'], ep: ['分割食の方法を説明し、自分の言葉で言ってもらう', '外回りの仕事の合間の血糖測定の方法を相談する'] });
+  const r = app.reviewCarePlanSet(cp);
+  assert.ok(r.dups.some(d => d.title === '分割食' && /栄養摂取行動非効率.*自己管理体制不全/.test(d.msg)));
+  assert.ok(r.covered.some(c => c.title === '家族への指導・支援') && r.covered.some(c => c.title === '仕事・生活への配慮'));
+  assert.ok(!r.gaps.length);
+  assert.ok(/他の看護計画/.test(app.buildCarePlanReviewPrompt(cp, app.carePlanList(cp)[0])) && /未来だから不適切/.test(app.buildCarePlanReviewPrompt(cp, app.carePlanList(cp)[0])));
+  assert.ok(/全ての看護計画/.test(app.buildAllCarePlansReviewPrompt(cp)));
+  const res = app.parseAllCarePlansReview(JSON.stringify({ summary: '全体は概ね良い', duplicates: [{ title: '分割食', comment: '2つに重複', suggestion: '栄養の問題に統合' }], complements: [{ title: '家族', comment: '栄養の計画で妻に指導' }], gaps: [], priority: '' }));
+  assert.equal(res.duplicates.length, 1);
+  app.carePlanSetState.open = true; app.carePlanSetState.ai[cp.id] = res;
+  assert.ok(/AIの評価（全計画）/.test(app.carePlanSetReviewHtml(cp)));
 });

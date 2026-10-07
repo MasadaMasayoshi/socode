@@ -109,6 +109,6 @@ test('AIの指示：記録に無い事実を前提にしない・誇張しない
   assert.match(src, /const AI_ACCURACY_RULES = '【正確さの決まり】記録に書かれていない事実/);
   assert.match(src, /' \+ AI_ACCURACY_RULES;/);
   assert.match(src, /NANDA-I看護診断（日本語版）の正式な名称/);
-  assert.match(src, /いつまでに（例：3日後までに）・何が・どうなるかが測れる形/);
+  assert.match(src, /「いつまでに（日付・退院時など。『数日後』『近いうちに』『早期に』は不可。例：術後3日目までに、退院までに）」「何が・どうなる」「何をもって達成と判断するか/);
   assert.match(src, /本当に食い違っているもの/);
 });
