@@ -35,3 +35,10 @@ test('ガーゼ汚染の観察は創部の語が無くても9.環境。感染の
   assert.ok(g.length >= 1);
   g.forEach(x => assert.ok((x.hendersonIds || []).includes(9), x.text));
 });
+
+test('「事例紹介＞」の見出しは不要、「動くと痛い」の主訴は4も付く、保険は9のまま', () => {
+  const c = app.classifyTextByRules('事例紹介＞\n氏名: A氏\n保険: 国民健康保険\n主訴: じっとしていると痛くないが、動くと右足が痛い');
+  assert.ok(c.find(x => /^事例紹介/.test(x.text)).type === 'unnecessary');
+  assert.equal(JSON.stringify(c.find(x => /動くと右足/.test(x.text)).hendersonIds), "[4,9]");
+  assert.ok(c.find(x => /国民健康保険/.test(x.text)).hendersonIds.includes(9));
+});
