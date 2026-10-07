@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-07.34'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-07.35'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -1376,7 +1376,7 @@
       const out = { ...a };
       Object.keys(b).forEach(k => {
         if (!(k in out)) out[k] = b[k];
-        else if (time(b[k]) > time(out[k])) out[k] = fillMissingFieldsClient(b[k], out[k]);
+        else if (SERVER_IS_PRIMARY || time(b[k]) > time(out[k])) out[k] = fillMissingFieldsClient(b[k], out[k]);
         else out[k] = fillMissingFieldsClient(out[k], b[k]);
       });
       return out;
@@ -1388,6 +1388,9 @@
       });
       return out;
     }
+    // GitHub Pages（*.github.io）では、Renderのサーバーの記録を正とする（ブラウザ内の古い記録で上書きしない）。
+    // ブラウザにだけ有る部分は、サーバーに無い・空のときだけ足す。
+    const SERVER_IS_PRIMARY = typeof location !== 'undefined' && /\.github\.io$/i.test(location.hostname || '');
     function mergePatientRecordClient(local, server, now = Date.now()) {
       // 【レビューで発見】共有先から届いた記録のカード・参考データのIDも確かめて直す（repairPatientRecordIds）
       if (server) repairPatientRecordIds(server);
@@ -1399,7 +1402,8 @@
       const serverTime = server.updatedAt ? new Date(server.updatedAt).getTime() : 0;
       // items・deletedItemIds以外の項目（タイトル・カルテ本文・検査値評価結果等）は、
       // 従来通りupdatedAtが新しい方をまるごと採用する（server.js側のisNotStale相当）。
-      const base = localTime >= serverTime ? fillMissingFieldsClient(local, server) : fillMissingFieldsClient(server, local);
+      const localWins = !SERVER_IS_PRIMARY && localTime >= serverTime;
+      const base = localWins ? fillMissingFieldsClient(local, server) : fillMissingFieldsClient(server, local);
 
       const localItems = Array.isArray(local.items) ? local.items : [];
       const serverItems = Array.isArray(server.items) ? server.items : [];
@@ -1444,7 +1448,7 @@
         if (localItem && serverItem) {
           const lt = itemEffectiveTimeClient(localItem, local.updatedAt);
           const st = itemEffectiveTimeClient(serverItem, server.updatedAt);
-          mergedItems.push(lt >= st ? fillMissingFieldsClient(localItem, serverItem) : fillMissingFieldsClient(serverItem, localItem));
+          mergedItems.push(!SERVER_IS_PRIMARY && lt >= st ? fillMissingFieldsClient(localItem, serverItem) : fillMissingFieldsClient(serverItem, localItem));
         } else {
           mergedItems.push(localItem || serverItem);
         }
@@ -1457,7 +1461,7 @@
         ...mergeKeyedPatientFieldsClient(local, server),
         items: mergedItems,
         deletedItemIds: mergedTombstones,
-        updatedAt: (localTime >= serverTime ? local.updatedAt : server.updatedAt) || new Date(now).toISOString()
+        updatedAt: (localWins ? local.updatedAt : server.updatedAt) || new Date(now).toISOString()
       };
     }
 
