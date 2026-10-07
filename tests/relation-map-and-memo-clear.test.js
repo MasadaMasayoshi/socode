@@ -120,7 +120,7 @@ test('関連図：術後のWBC・CRPは感染と断定せず、手術侵襲に�
   const inflam = find(map, /手術侵襲による炎症反応（感染との見分けが必要）/);
   const wbc = find(map, /^WBC/);
   assert.ok(hasEdge(map, wbc, inflam));
-  const inf = find(map, /感染などの可能性/);
+  const inf = find(map, /感染(?:など)?の可能性/);
   assert.equal(inf.observed, false);
   assert.ok(!map.nodes.some(n => n.observed !== false && /^(?:創部感染|感染症)$/.test(n.label)));
 });
@@ -1021,4 +1021,53 @@ test('関連図：看護理論・ライフサイクル（発達課題）・役�
   assert.match(css, /\.rm-prob-toggle \{ background: #FBDDE3; border-color: #B03A55;/);
   assert.match(css, /\.rm-prob-toggle\[aria-expanded="true"\] \{ background: #B03A55;/);
   assert.match(css, /html\[data-theme="dark"\] \.rm-prob-toggle \{/);
+});
+
+// 2026-10-07.3：ほかの事例（直腸がん・ストーマ造設 46歳、頸髄損傷 19歳）でのテストで分かったことの修正
+test('事例：直腸がん・ストーマ造設（46歳）と頸髄損傷（19歳）：障害受容・ボディイメージ・発達課題・役割、脊髄損傷の病態', () => {
+  const by = m => new Map(m.nodes.map(n => [n.id, n]));
+  const stoma = caseMap('rectal_cancer_stoma');
+  commonChecks(stoma, 'ストーマ');
+  // 「直腸切断術」「ストーマ造設術」も手術として読む
+  assert.ok(stoma.nodes.some(n => n.type === 'treatment' && /直腸切断術/.test(n.label)));
+  assert.ok(stoma.nodes.some(n => n.type === 'nursing_problem' && /^急性疼痛/.test(n.label)));
+  // 手術 → ストーマ（体の変化）→ 障害受容：悲嘆期（本人の言葉が根拠）→ ボディイメージ混乱
+  const st = find(stoma, /^ストーマ（人工肛門）の造設$/), acc = find(stoma, /^障害受容：悲嘆期（コーン）$/);
+  assert.ok(st && acc && hasEdge(stoma, st, acc));
+  assert.ok(stoma.edges.some(e => e.target === acc.id && e.relation === 'supports' && /人前に出られない|こんな体/.test(by(stoma).get(e.source).label)));
+  const body = stoma.nodes.find(n => n.type === 'nursing_problem' && n.label === 'ボディイメージ混乱');
+  assert.ok(body && hasEdge(stoma, acc, body) && body.note === 'ストーマによる体の変化を、まだ受け止めきれずにいる');
+  assert.equal(app.rmProblemCategory('ボディイメージ混乱').key, 'anx', '「混乱」でせん妄・転倒の種類にしない');
+  assert.ok(find(stoma, /^壮年期の発達課題：生殖性 対 停滞（エリクソン）$/) && find(stoma, /^入院で仕事などの役割を果たせない/));
+  // 頸髄損傷：麻痺の四角・呼吸筋の麻痺 → 排痰困難・神経因性膀胱 → 膀胱留置カテーテル。息切れの記録が無いので活動耐性低下にしない
+  const sci = caseMap('cervical_spinal_cord_injury');
+  commonChecks(sci, '頸髄損傷');
+  const dis = sci.nodes.find(n => n.type === 'disease');
+  assert.ok(sci.edges.some(e => e.source === dis.id && /麻痺/.test(by(sci).get(e.target).label)));
+  assert.ok(find(sci, /^呼吸筋（肋間筋・腹筋）の麻痺で咳が弱い$/) && find(sci, /^神経因性膀胱/));
+  assert.ok(!sci.nodes.some(n => n.type === 'nursing_problem' && /活動耐性低下/.test(n.label)));
+  assert.ok(sci.nodes.some(n => n.type === 'nursing_problem' && n.label === '身体可動性障害'));
+  assert.ok(find(sci, /^障害受容：回復への期待期（コーン）$/) && find(sci, /^青年期の発達課題：同一性 対 同一性の混乱（エリクソン）$/));
+  assert.ok(find(sci, /^入院で学業などの役割を果たせない/));
+});
+
+// 2026-10-07.3：関連図の評価（直腸がん術後・頸髄損傷）への対応
+test('関連図の評価への対応：感染の経路を分けて合流・炎症反応は破線の観察データ・イレウスは麻酔/鎮痛薬からも・麻痺から可動性障害へ一本道', () => {
+  const by = m => new Map(m.nodes.map(n => [n.id, n]));
+  const sci = caseMap('cervical_spinal_cord_injury');
+  const pInf = sci.nodes.find(n => n.type === 'nursing_problem' && n.label === '感染リスク状態');
+  const into = sci.edges.filter(e => e.target === pInf.id).map(e => by(sci).get(e.source).label);
+  assert.ok(into.includes('尿路感染の可能性') && into.some(l => /^創部感染/.test(l)), into.join('、'));
+  const cath = find(sci, /膀胱留置カテーテル/), uti = find(sci, /^管を伝って尿道から細菌が膀胱へ入りやすい$/);
+  assert.ok(hasEdge(sci, cath, uti) && hasEdge(sci, uti, find(sci, /^尿路感染の可能性$/)));
+  assert.ok(!sci.edges.some(e => e.source === cath.id && /バリア機能/.test(by(sci).get(e.target).label)), '尿道カテーテルは創部の流れに入れない');
+  // 麻痺 → 寝返り・起き上がりの介助 → 身体可動性障害
+  const para = sci.nodes.find(n => /麻痺/.test(n.label) && n.type === 'symptom'), mob = find(sci, /寝返り/);
+  assert.ok(hasEdge(sci, para, mob));
+  // ストーマ：腸の動きの低下へ、手術侵襲のほか麻酔・硬膜外PCAからも。炎症反応 → 感染リスク は破線
+  const st = caseMap('rectal_cancer_stoma');
+  const il = find(st, /^腸の動き（蠕動運動）の低下$/);
+  ['全身麻酔', '硬膜外PCA'].forEach(w => assert.ok(st.edges.some(e => e.target === il.id && by(st).get(e.source).label.includes(w)), w));
+  const inflam = find(st, /手術侵襲による炎症反応/), p2 = st.nodes.find(n => n.label === '感染リスク状態');
+  assert.ok(st.edges.some(e => e.source === inflam.id && e.target === p2.id && e.predicted));
 });

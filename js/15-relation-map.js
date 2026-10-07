@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.2'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.4'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -316,14 +316,14 @@
     const RM_ACCEPT_STAGES = [
       { key: 'adapt', stage: '適応期', fink: '適応', re: /受け入れ|この体で|付き合っていく|付き合っていこう|工夫して|できることを増や|今の自分で/ },
       { key: 'defense', stage: '防衛期', fink: '承認', re: /できることは自分で|自分でやりたい|リハビリを?頑張|練習したい|少しずつでも/ },
-      { key: 'grief', stage: '悲嘆期', fink: '防御的退行', re: /もうだめ|情けない|役に立たない|こんな体|どうして(?:私|自分|俺)|なぜ(?:私|自分|俺)|生きていても|落ち込|涙|泣い|迷惑ばかり/ },
+      { key: 'grief', stage: '悲嘆期', fink: '防御的退行', re: /もうだめ|情けない|役に立たない|こんな体|見ようとし(?:ない|ません)|見ようとせず|触ろうとし(?:ない|ません)|人前に出られない|どうして(?:私|自分|俺)|なぜ(?:私|自分|俺)|生きていても|落ち込|涙|泣い|迷惑ばかり/ },
       { key: 'hope', stage: '回復への期待期', fink: '防御的退行', re: /元に戻る|元通り|また歩ける|すぐ(?:に)?(?:良く|よく)なる|治ったら|治るはず|戻るはず|前みたいに/ },
       { key: 'shock', stage: 'ショック期', fink: '衝撃', re: /信じられない|実感がない|夢みたい|何が起き|頭が真っ白/ }
     ];
     // 後天的な障害・体の大きな変化（障害受容の過程が始まるもの）
     const RM_DISABILITY_RE = /片麻痺|対麻痺|四肢麻痺|麻痺|失語|切断|人工肛門|ストーマ|ストマ|脊髄損傷|失明|視力を失|喉頭摘出|透析導入|永久気管孔/;
     // 本人の役割（ロイ適応モデルの「役割機能」）
-    const RM_ROLE_RE = /仕事|職場|復職|会社|店を|自営|農業|畑|家事|主婦|孫の世話|介護して|世話をして|自治会|役員/;
+    const RM_ROLE_RE = /仕事|職場|復職|会社|店を|自営|農業|畑|家事|主婦|孫の世話|介護して|世話をして|自治会|役員|大学|高校|中学|学校|学業|部活/;
 
     // 補足の引き当て（看護計画から来た名前は半角かっこ・空白ちがいでも同じ名前として扱う）
     const rmNoteKey = l => String(l || '').normalize('NFKC').replace(/\s+/g, '');
@@ -336,7 +336,7 @@
       { key: 'skin', rank: 3.5, re: /皮膚|褥瘡|床ずれ|血糖/ },
       { key: 'pain', rank: 4, re: /疼痛|痛/ },
       { key: 'disloc', rank: 4.6, re: /脱臼/ },
-      { key: 'fall', rank: 4.5, re: /転倒|転落|せん妄|混乱|身体損傷/ }, // 安全（せん妄・転倒）は疼痛の次、栄養より前
+      { key: 'fall', rank: 4.5, re: /転倒|転落|せん妄|急性混乱|身体損傷/ }, // 安全（せん妄・転倒）は疼痛の次、栄養より前
       { key: 'nutr', rank: 5, re: /栄養|摂取|嚥下|飲み込|悪心|嘔気|吐き気|食事が/ },
       { key: 'act', rank: 7, re: /セルフケア|活動|可動性|ADL|移動|入浴|身の回り|体を動かす|歩く|歩行/ },
       { key: 'elim', rank: 7.5, re: /排泄|排便|排尿|便秘|消化管|腸|お腹|イレウス|尿/ },
@@ -1225,7 +1225,7 @@
       const aging = elderly ? N('aging', 'patient_fact', `${age}歳（高齢）`) : null;
 
       // ③ 治療
-      const surgeryRe = /([^\s、。,:：「」()（）]{0,16}(?:全摘出?術|部分切除術?|切除術|摘出術|摘除術|郭清|再建術?|置換術|形成術|吻合術|PCI|CABG|開頭術|バイパス術|ステント留置))/;
+      const surgeryRe = /([^\s、。,:：「」()（）]{0,16}(?:全摘出?術|部分切除術?|切除術|切断術|摘出術|摘除術|郭清|再建術?|置換術|形成術|吻合術|固定術|造設術|開腹術|PCI|CABG|開頭術|バイパス術|ステント留置))/;
       // 既往歴の手術（「70歳 PCI施行」など）は今回の治療にしない
       const surgeryItem = findItem(surgeryRe, i => !/既往/.test(i.fieldLabel || '') && !/^既往|\d+\s*歳|年前/.test(String(i.text).normalize('NFKC')));
       const surgeryDone = !!surgeryItem && has(/術後|手術|術式|術日|施行/);
@@ -1525,18 +1525,35 @@
       const dmItem = findItem(/糖尿病|DM\b/);
       const wbc = lab('WBC'), crp = lab('CRP');
       if ((surgery && surgeryDone) || lineItem) {
-        const barrier = N('barrier', 'pathophysiology', '皮膚・粘膜のバリア機能の低下（侵襲的な処置）', { source: 'knowledge' });
-        if (invasion) E(invasion, barrier, 'causes', { evidence: '創部ができる' });
-        if (lineItem) { const ln = N('lines', 'treatment', short(lineItem, 30), { items: [lineItem] }); E(ln, barrier, 'causes', { evidence: '体の中へ管が入っている' }); if (surgery && !edges.some(e => e.target === ln.id)) E(surgery, ln, 'results_in'); }
+        // 【感染の経路を分ける】手術創 → 創部感染、膀胱留置カテーテル → 尿路感染 は途中まで別の流れにして、最後に
+        // 感染リスク状態へ合流させる（何がどの感染を起こすかが分かるように。関連図の評価：2026-10-07.3）
         const abdominal = surgery && /胃|腸|腹腔|肝|胆|膵|脾|虫垂|ヘルニア/.test(surgery.label + dxLabel);
         const urinary = !!lineItem && /膀胱|尿道|バルーン/.test(lineItem.text);
-        const infRisk = N('inf_risk', 'future_risk', surgery ? `創部感染${abdominal ? '・腹腔内感染' : ''}${urinary ? '・尿路感染' : ''}などの可能性` : 'カテーテル関連感染の可能性', { source: 'knowledge', observed: false });
-        E(barrier, infRisk, 'predicts', { predicted: true, evidence: '病原体が入りやすい' });
+        const ln = lineItem ? N('lines', 'treatment', short(lineItem, 30), { items: [lineItem] }) : null;
+        if (ln && surgery && !edges.some(e => e.target === ln.id)) E(surgery, ln, 'results_in');
+        const risks = [];
+        let barrier = null;
+        if ((surgery && surgeryDone) || (ln && !urinary)) {
+          barrier = N('barrier', 'pathophysiology', surgery && surgeryDone ? '創部：皮膚・粘膜のバリア機能の低下' : '皮膚・粘膜のバリア機能の低下（侵襲的な処置）', { source: 'knowledge' });
+          if (invasion) E(invasion, barrier, 'causes', { evidence: '創部ができる' });
+          if (ln && !urinary) E(ln, barrier, 'causes', { evidence: '体の中へ管が入っている' });
+          const r = N('inf_risk', 'future_risk', surgery && surgeryDone ? `創部感染${abdominal ? '・腹腔内感染' : ''}の可能性` : 'カテーテル関連感染の可能性', { source: 'knowledge', observed: false });
+          E(barrier, r, 'predicts', { predicted: true, evidence: '病原体が入りやすい' });
+          risks.push(r);
+        }
+        if (ln && urinary) {
+          const up = N('uti_path', 'pathophysiology', '管を伝って尿道から細菌が膀胱へ入りやすい', { source: 'knowledge' });
+          E(ln, up, 'causes', { evidence: '膀胱留置カテーテルは尿路感染のいちばん多い原因' });
+          const r = N('inf_uti', 'future_risk', '尿路感染の可能性', { source: 'knowledge', observed: false });
+          E(up, r, 'predicts', { predicted: true });
+          risks.push(r);
+        }
+        const infRisk = risks[0];
         if (dmItem) {
           const dm = N('dm', 'patient_fact', short(dmItem, 30), { items: [dmItem] });
           const imm = N('immune', 'pathophysiology', '免疫機能・創傷治癒の低下', { source: 'knowledge' });
           E(nodes.get('hyperglycemia') || dm, imm, 'contributes_to', { evidence: '高血糖による白血球機能の低下' });
-          E(imm, infRisk, 'predicts', { predicted: true });
+          risks.forEach(r => E(imm, r, 'predicts', { predicted: true }));
         }
         if ((wbc && wbc.flag === 'high') || (crp && crp.flag === 'high')) {
           const inf = N('inflam', 'pathophysiology', surgery ? '手術侵襲による炎症反応（感染との見分けが必要）' : '炎症反応の上昇（原因の確認が必要）', { source: 'knowledge' });
@@ -1544,10 +1561,34 @@
           [wbc, crp, lab('体温')].filter(l => l && l.flag === 'high').forEach(l => E(labNode(l), inf, 'supports', { evidence: '炎症反応を示す（これだけで感染とは言えない）' }));
         }
         const pInf = N('p_inf', 'nursing_problem', '感染リスク状態', { cat: 'inf' });
-        E(infRisk, pInf, 'results_in', { predicted: true });
+        risks.forEach(r => E(r, pInf, 'results_in', { predicted: true }));
         // 炎症反応は「感染しやすい理由（危険因子）」ではない。感染の徴候が出ていないかを見るためのデータとして
         // 看護問題へ「根拠」の線でつなぐ（「感染の可能性」の手前には置かない。看護問題の判定基準の見直し：2026-10-06.25）
-        if (nodes.has('inflam')) E(nodes.get('inflam'), pInf, 'supports', { evidence: '感染の徴候がないかを見るデータ（危険因子ではない）' });
+        // （主な流れは「創部・管 → 感染の経路 → 感染リスク」。炎症反応は見分けに使う観察データなので、破線の細い線にして目立たせない：2026-10-07.3）
+        if (nodes.has('inflam')) E(nodes.get('inflam'), pInf, 'supports', { evidence: '感染の徴候がないかを見るデータ（危険因子ではない）', predicted: true });
+      }
+
+      // ⑦-2 脊髄損傷：頸髄・胸髄の損傷 → 呼吸筋の麻痺で咳が弱い（→ 排痰困難）、膀胱の神経の障害 → 尿を自分で出せない（→ 留置カテーテル）
+      // （手術・カテーテルの「治療」だけから看護問題へつながり、患者の事実からたどれなかった：頸髄損傷の事例 2026-10-07.3）
+      if (disease && /脊髄損傷|頸髄損傷|胸髄損傷|脊損|頸損/.test(dxLabel)) {
+        const cervical = /頸髄|頸損|C[1-8]/.test(dxLabel);
+        // 麻痺（損傷した高さより下の運動・感覚の麻痺）。身体可動性障害・褥瘡・障害受容のもとになる
+        const sciPara = findLast(/麻痺|MMT|筋力低下|感覚(?:障害|低下|脱失)/, notDxS);
+        if (sciPara && !nodes.has('paralysis')) {
+          const pn = N('paralysis', 'symptom', short(sciPara, 34, /麻痺|MMT|筋力|感覚/).replace(/^\d{1,2}\/\d{1,2}\s*/, ''), { items: [sciPara] });
+          E(disease, pn, 'causes', { evidence: '損傷した高さより下の神経の命令が届かない' });
+        }
+        if (cervical && nodes.has('sputum')) {
+          const rm = N('sci_resp', 'pathophysiology', '呼吸筋（肋間筋・腹筋）の麻痺で咳が弱い', { source: 'knowledge' });
+          E(disease, rm, 'causes', { evidence: '頸髄の損傷で、呼吸を助ける筋肉が動かない' });
+          E(rm, nodes.get('sputum'), 'causes', { evidence: '強い咳ができず、痰を出しにくい', predicted: !sputumActual });
+        }
+        const ln = nodes.get('lines');
+        if (ln && /膀胱|尿道|バルーン/.test(ln.label)) {
+          const nb = N('sci_bladder', 'pathophysiology', '神経因性膀胱（自分で尿を出せない）', { source: 'knowledge' });
+          E(disease, nb, 'causes', { evidence: '脊髄の損傷で、排尿の神経の命令が届かない' });
+          E(nb, ln, 'results_in', { evidence: '尿を出すために管を入れている' });
+        }
       }
 
       // ⑧ 疼痛
@@ -1560,6 +1601,10 @@
       if (abdOp) {
         const il = N('ileus_path', 'pathophysiology', '腸の動き（蠕動運動）の低下', { source: 'knowledge', observed: !!ileusItem });
         E(invasion || surgery, il, 'causes', { evidence: '手術で腸を触ったり麻酔を使ったりすると腸の動きが止まる', predicted: !ileusItem });
+        // 腸の動きの低下は、手術操作だけでなく、麻酔・鎮痛薬からも（関連図の評価：2026-10-07.3）
+        if (nodes.has('anes')) E(nodes.get('anes'), il, 'contributes_to', { evidence: '麻酔薬で腸の動きが一時的に止まる', predicted: !ileusItem });
+        const anaN = nodes.get('analgesia');
+        if (!opiItem && anaN && /PCA|硬膜外|オピオイド|麻薬/.test(anaN.label)) E(anaN, il, 'contributes_to', { evidence: '鎮痛薬にオピオイドを含むと腸の動きを抑える', predicted: true });
         if (opiItem) E(N('opioid', 'treatment', `オピオイド（${(String(opiItem.text).match(/フェンタニル|モルヒネ|オキシコドン/) || ['鎮痛薬'])[0]}）`, { items: [opiItem] }), il, 'contributes_to', { evidence: '副作用で腸の動きを抑える' });
         const ileusRisk = N('ileus_risk', 'future_risk', '術後イレウス（腸閉塞）の可能性', { source: 'knowledge', observed: false });
         // 【今ある／リスク】腹部膨満・排ガスなし・腸蠕動の低下・悪心・嘔吐が実際にある → 今ある「消化管運動機能障害」。
@@ -1671,7 +1716,13 @@
         // 清拭・更衣・排泄などに実際に介助が要る記録があれば「セルフケア不足」。無ければ、根拠があるのは「活動耐性低下」
         // （「歩くとSpO2が下がる」だけでセルフケア不足にしていた。関連図の評価への対応：2026-10-06.24）
         const adlItem = findLast(/(?:清拭|更衣|入浴|排泄|整容|洗面|トイレ|身の回り)[^\n]{0,10}(?:全?介助|一部介助|できない|手伝|見守り)|ADL[^\n]{0,6}(?:介助|一部)/, i => notHist(i));
-        const pAct = N('p_act', 'nursing_problem', adlItem ? 'セルフケア不足（活動制限・体力の低下）' : '活動耐性低下（動くと息切れ・体力の低下）', { cat: 'act' });
+        // 「活動耐性低下（動くと息切れ・体力の低下）」は、息切れ・SpO2の低下・疲れやすさなどの記録があるときだけ。
+        // 麻痺・骨折などで「動かせない」だけなら身体可動性障害にまかせる（頸髄損傷の事例で、息切れが無いのに
+        // 活動耐性低下になっていた：2026-10-07.3）
+        const tolItem = findLast(/息切れ|息が切れ|SpO2[^\n]{0,12}(?:低下|↓|下が)|疲れやす|すぐ疲れ|疲労感|倦怠感/, i => notHist(i));
+        const mobOnly = !adlItem && !tolItem && !(nodes.get('lung_hyp') || nodes.get('hypoxia'))
+          && items.some(i => notHist(i) && /(?:寝返り|起き上が|立ち上が|起立|端坐位|歩行|移乗)[^\n]{0,10}(?:困難|できない|全?介助)|免荷|荷重(?:制限|不可)|麻痺/.test(i.text));
+        const pAct = mobOnly ? null : N('p_act', 'nursing_problem', adlItem ? 'セルフケア不足（活動制限・体力の低下）' : '活動耐性低下（動くと息切れ・体力の低下）', { cat: 'act' });
         // 介助が要る記録は、図の中に根拠として見せる（「清拭・更衣に介助が必要」が「トイレまで歩くと…」と同じカードにあり、
         // 図に出ていなかった）。活動の制限 → 介助が要る → セルフケア不足
         const adlRe = /清拭|更衣|入浴|排泄|整容|洗面|身の回り|ADL|介助/;
@@ -1681,13 +1732,17 @@
           const adl = N('adl', 'symptom', adlText, { items: adlItem === bedItem ? [] : [adlItem] });
           E(mob, adl, 'causes', { evidence: '動ける範囲が限られる' });
           E(adl, pAct, 'results_in');
-        } else E(mob, pAct, 'results_in');
+        } else if (pAct) E(mob, pAct, 'results_in');
         if (nodes.has('ileus_path')) E(mob, nodes.get('ileus_path'), 'contributes_to', { evidence: '動かないと腸の動きも戻りにくい' });
         // 寝返り・起き上がり・立ち上がり・歩行が実際に難しい記録（麻痺・痛み・術後の制限など）→「身体可動性障害」
         const mobItem = findLast(/(?:寝返り|起き上が|立ち上が|起立|端坐位|歩行|移乗)[^\n]{0,10}(?:困難|できない|介助|不安定|ふらつ|痛)|免荷|荷重(?:制限|不可)|片麻痺|麻痺[^\n]{0,6}(?:あり|で動かない)|ベッド上安静/, i => notHist(i) && !/食事|摂取/.test(i.text));
         if (mobItem) {
           const mi = [...nodes.values()].find(n => (n.itemIds || []).includes(mobItem.id)) || N('mob_sign', 'symptom', short(mobItem, 30, /寝返り|起き上が|立ち上が|起立|端坐位|歩行|移乗|免荷|荷重|麻痺|安静/), { items: [mobItem] });
-          if (mi !== nodes.get('bed')) E(mob, mi, 'causes', { evidence: '体を動かす力・範囲が限られる' });
+          // 麻痺があれば「疾患 → 麻痺 → 寝返り・起き上がりの介助 → 身体可動性障害」の一本道にする（体動の制限の四角を
+          // 経由すると、カテーテルなどの線と近くなり視線が迷う。関連図の評価：2026-10-07.3）
+          const paraN = nodes.get('paralysis');
+          if (paraN && paraN !== mi) E(paraN, mi, 'causes', { evidence: '麻痺で自分では体を動かせない' });
+          else if (mi !== nodes.get('bed')) E(mob, mi, 'causes', { evidence: '体を動かす力・範囲が限られる' });
           E(mi, N('p_mobility', 'nursing_problem', '身体可動性障害', { cat: 'act' }), 'results_in');
         }
         const hypN = nodes.get('lung_hyp') || nodes.get('hypoxia');
@@ -1820,7 +1875,8 @@
       // （「仕事もできない」の「ない」を打ち消しと読まないよう、言葉があるかだけを見る）
       const roleItem = [...items].reverse().find(i => RM_ROLE_RE.test(String(i.text).normalize('NFKC')) && !rmIsFamilySpeech(i.text) && (i.type === 's' || (i.fieldLabel && /職業|生活歴|社会|役割/.test(i.fieldLabel))
         || /^(?:職業|仕事)/.test(String(i.text).normalize('NFKC')) || [...String(i.text).matchAll(/「([^」]*)」/g)].some(m => RM_ROLE_RE.test(m[1]))));
-      const disItem = findLast(RM_DISABILITY_RE, i => notHist(i));
+      // 障害の記録は、観察・治療のカードを先に（本人の言葉のカードは障害受容の段階の根拠に使う）
+      const disItem = findLast(RM_DISABILITY_RE, i => notHist(i) && i.type !== 's') || findLast(RM_DISABILITY_RE, i => notHist(i));
       // 障害の四角は、麻痺 → 失語 → 記録のカードの四角 の順（体の変化として大きいもの）
       const disNode = disItem ? (nodes.get('paralysis') || nodes.get('aphasia')
         || [...nodes.values()].find(n => (n.itemIds || []).includes(disItem.id) && n.type !== 'nursing_problem')) : null;
@@ -1830,16 +1886,30 @@
         let hit = null;
         for (const st of RM_ACCEPT_STAGES) { const it = speech.find(i => st.re.test(String(i.text).normalize('NFKC'))); if (it) { hit = { st, it }; break; } }
         const what = (String(disItem.text).normalize('NFKC').match(RM_DISABILITY_RE) || ['障害'])[0];
+        // 障害の四角が図に無ければ作る（人工肛門は手術の結果としての体の変化。ストーマの事例で図に出ていなかった）
+        let src = disNode;
+        if (!src) {
+          const body = /ストーマ|ストマ|人工肛門/.test(what) ? 'ストーマ（人工肛門）の造設' : /永久気管孔|喉頭摘出/.test(what) ? '永久気管孔（声を失う）' : /切断/.test(what) ? '四肢の切断' : '';
+          src = body ? N('dis_body', 'patient_fact', body, { items: [disItem] }) : N('dis_body', 'symptom', short(disItem, 30, RM_DISABILITY_RE), { items: [disItem] });
+          if (body && surgery) E(surgery, src, 'results_in', { evidence: '手術で体のつくり・見た目が変わる' });
+          else if (disease) E(disease, src, 'causes');
+        }
         accept = N('accept', 'pathophysiology', hit ? `障害受容：${hit.st.stage}（コーン）` : '障害受容の過程（段階は言動から確認）', {
           source: 'knowledge', observed: !!hit, items: hit ? [hit.it] : [],
           evidence: hit ? `本人の言葉「${short(hit.it, 24).replace(/[「」]/g, '')}」から（フィンクの危機モデルでは「${hit.st.fink}」）` : `${what}を受け止める過程（ショック期→回復への期待期→悲嘆期→防衛期→適応期。行きつ戻りつする）`
         });
-        E(disNode || disease, accept, 'contributes_to', { evidence: `${what}という体の変化を受け止める過程が始まる`, predicted: !hit });
+        E(src || disease, accept, 'contributes_to', { evidence: `${what}という体の変化を受け止める過程が始まる`, predicted: !hit });
+        // 段階の根拠になった本人の言葉・様子も四角で見せる（同じカードの四角があればそれを使う）
+        // 不安の言動の四角に同じカードがあれば、それを使う（同じ言葉を2か所に出さない）
+        const anxW = hit && nodes.get('anx_words') && (nodes.get('anx_words').itemIds || []).includes(hit.it.id) ? nodes.get('anx_words') : null;
+        if (anxW) E(anxW, accept, 'supports', { evidence: '段階を判断した本人の言葉・様子' });
+        else if (hit) E(N('accept_words', 'patient_fact', (() => { const q = String(hit.it.text).match(/「([^」]{1,40})」/); return q ? `「${q[1]}」` : short(hit.it, 34); })(), { items: [hit.it] }), accept, 'supports', { evidence: '段階を判断した本人の言葉・様子' });
         const pAnx = nodes.get('p_anx');
-        if (pAnx && psychoTarget()) E(accept, psychoTarget(), 'contributes_to', { evidence: '障害の受け止めが、今後の生活への見通しに影響する', predicted: !hit });
-        else if (hit && ['shock', 'hope', 'grief'].includes(hit.st.key)) {
-          E(accept, N('p_body', 'nursing_problem', 'ボディイメージ混乱', { cat: 'anx', note: `${what}による体の変化を、まだ受け止めきれずにいる` }), 'results_in');
-        } else {
+        // ショック期・回復への期待期・悲嘆期は、体の変化をまだ受け止めきれていない →「ボディイメージ混乱」を看護問題にする
+        if (hit && ['shock', 'hope', 'grief'].includes(hit.st.key)) {
+          E(accept, N('p_body', 'nursing_problem', 'ボディイメージ混乱', { cat: 'anx', note: `${/ストーマ|ストマ|人工肛門/.test(what) ? 'ストーマ' : what}による体の変化を、まだ受け止めきれずにいる` }), 'results_in');
+        } else if (pAnx && psychoTarget()) E(accept, psychoTarget(), 'contributes_to', { evidence: '障害の受け止めが、今後の生活への見通しに影響する', predicted: !hit });
+        else {
           const rehab = nodes.get('p_mobility') || nodes.get('p_act');
           if (rehab) E(accept, rehab, 'contributes_to', { predicted: true, evidence: '受け止め方が、リハビリ・自分で動く意欲に影響する' });
         }
@@ -1854,7 +1924,7 @@
         else E(disease || surgery, dev, 'contributes_to', { evidence: `${age}歳の${stage.stage}に入院・治療が重なる` });
         if (roleItem) {
           const w = (String(roleItem.text).normalize('NFKC').match(RM_ROLE_RE) || ['仕事'])[0];
-          const roleWord = { '畑': '畑仕事', '店を': '店', '介護して': '家族の介護', '世話をして': '家族の世話', '職場': '仕事', '復職': '仕事', '会社': '仕事', '自営': '仕事', '役員': '地域の役員' }[w] || w;
+          const roleWord = { '畑': '畑仕事', '店を': '店', '介護して': '家族の介護', '世話をして': '家族の世話', '職場': '仕事', '復職': '仕事', '会社': '仕事', '自営': '仕事', '役員': '地域の役員', '大学': '学業', '高校': '学業', '中学': '学業', '学校': '学業', '部活': '部活動' }[w] || w;
           const role = N('role', 'pathophysiology', `入院で${roleWord}などの役割を果たせない（ロイ：役割機能）`, { source: 'knowledge', items: [roleItem],
             evidence: `記録：${short(roleItem, 30)}` });
           E(dev, role, 'contributes_to', { evidence: 'その時期に担っている役割（仕事・家庭）' });
