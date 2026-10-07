@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-07.19'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-07.20'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -1400,7 +1400,10 @@ D. 未設定のカード：基準ノートやアプリの分類基準で当て�
 E. 見出し・ラベルだけの行（「本人より」「担当看護師より」など）を不要にする提案は、その行が発言者を表すとき、後に続く文へ発言者を引き継ぐことを先に述べる（どのカードに引き継ぐかを reason に書く）。題名だけの行（「事例紹介＞」など）は、発言者情報を持たないことを確かめてから不要にする。
 F. S（患者の発言）とO（観察・測定値）が混ざる1枚にまとめない。同じ場面でも、発言はSのカード、観察はOのカードに分ける（kind は split。発言が途中で切れているカードは、発言の続きをS側に戻す）。
 G. 時系列：分類前の文章の中で日時・日数が食い違っている所（例：表の見出しが「術後1日目」なのに本文は「術後2日目」）を見つけたら、「指摘なし」にせず verdict を check にして、どの文が食い違うかを書く。食い違いが無いときだけ「問題ありません」とする。
-H. この評価は患者データへ一括適用される前提で書かない。明確な誤り（error）以外は、人が確かめてから個別に適用する提案として書く。
+H. 原文にない影響の推測（「疼痛が呼吸に影響する」「生活様式が退院後の役割に影響する」など）は、タグの提案にしない。分類ではなくアセスメントの考察として、assessmentNotes に分けて書く（card と note と、根拠にした事実 evidence）。
+I. 「ガーゼ汚染なし」などの観察は、安全管理（9）の分類にはなるが、その有無だけで感染の有無を判定する文章は書かない。
+J. 発言と観察に分けるときは、同じ日時・場面のカードとして関連づける（日時を同じにし、どの発言のどの場面かを title や reason に書く）。
+K. この評価は患者データへ一括適用される前提で書かない。明確な誤り（error）以外は、人が確かめてから個別に適用する提案として書く。
 
 次の4つを評価し、指定のJSONだけを出力してください（前置き・コードブロックの記号は不要）。看護学生が読んで納得できるよう、やさしく具体的な日本語で書いてください。
 1. tagIssues：ヘンダーソンの分類（タグ）が間違っている、または足りないカード。適切なタグは複数あってよい。suggestedはそのカードに付けるべきタグの番号の全体（今のタグも含めて最終的な形）。
@@ -1422,6 +1425,7 @@ H. この評価は患者データへ一括適用される前提で書かない�
  "timeline":{"summary":"","items":[{"card":"C5","title":"","current":"12:00","suggestedTimestamp":"術後1日目 12:00","reason":"","evidence":"","verdict":"error"}]},
  "extractionIssues":{"summary":"","items":[{"kind":"split","cards":["C3"],"title":"","current":"","mergedText":"","parts":[{"type":"s","text":""},{"type":"o","text":""}],"text":"","suggestedType":"","reason":"","evidence":"","verdict":"criteria"}]},
  "untagged":{"summary":"","items":[{"card":"C9","title":"","suggested":[9],"reason":"","evidence":"","verdict":"check"}]},
+ "assessmentNotes":[{"card":"C1","note":"","evidence":""}],
  "advice":[""]}`;
     }
     function parseAiReviewJson(text) {
@@ -1459,6 +1463,7 @@ H. この評価は患者データへ一括適用される前提で書かない�
           text: str(x.text), suggestedType: x.suggestedType === 's' || x.suggestedType === 'o' ? x.suggestedType : '', reason: str(x.reason), evidence: str(x.evidence), verdict: verdictOf(x.verdict)
         })),
         extractionSummary: extSec.summary,
+        assessmentNotes: (Array.isArray(obj.assessmentNotes) ? obj.assessmentNotes : []).map(x => (typeof x === 'string' ? { card: '', note: str(x), evidence: '' } : { card: code(x && x.card), note: str(x && (x.note || x.text)), evidence: str(x && x.evidence) })).filter(x => x.note),
         untagged: untagSec.items.map(x => ({ card: code(x.card), title: str(x.title), suggested: tagList(x.suggested), reason: str(x.reason), evidence: str(x.evidence), verdict: verdictOf(x.verdict) })).filter(x => x.card),
         untaggedSummary: untagSec.summary
       };
@@ -1744,6 +1749,7 @@ H. この評価は患者データへ一括適用される前提で書かない�
         section(2, '時系列の整理', r.timeline.issues.length, r.timeline.summary, timeHtml, bulkBtn('time', r.timeline.issues)) +
         section(3, '情報の抜き出し（分けたほうがいい・まとめたほうがいいところ）', r.extractionIssues.length, r.extractionSummary, extHtml) +
         section(4, 'タグ未設定のカード', r.untagged.length, r.untaggedSummary, untagHtml, bulkBtn('untag', r.untagged)) +
+        ((r.assessmentNotes || []).length ? `<section class="ai-review-sec"><h3><span class="no"><i class="fa-solid fa-notes-medical"></i></span>アセスメントに回す内容（分類には使いません）</h3><ul class="ai-review-advice">${r.assessmentNotes.map(a => `<li>${a.card ? `${escapeHtml(a.card)}：` : ''}${escapeHtml(a.note)}${a.evidence ? `（根拠：${escapeHtml(a.evidence)}）` : ''}</li>`).join('')}</ul></section>` : '') +
         ((r.advice || []).length ? `<section class="ai-review-sec"><h3><span class="no"><i class="fa-solid fa-lightbulb"></i></span>改善のためのアドバイス</h3><ul class="ai-review-advice">${r.advice.map(a => `<li>${escapeHtml(a)}</li>`).join('')}</ul></section>` : '');
     }
 
@@ -1767,6 +1773,7 @@ H. この評価は患者データへ一括適用される前提で書かない�
         x.mergedText ? `次の1枚にまとめる：${x.mergedText}` : x.parts.length ? `次のように分ける：${x.parts.map(p => `${p.type ? `【${p.type === 's' ? 'Sデータ' : 'Oデータ'}】` : ''}${p.text}`).join(' ／ ')}` : x.text ? `次のカードを追加する：${x.text}` : x.suggestedType ? `${x.suggestedType.toUpperCase()}にする` : x.kind === 'unnecessary' ? '不要な情報にする' : '（理由を参照）',
         x.reason, `ext:${k}`, x)).join('\n') || '指摘なし\n'}\n`;
       md += `## 4. タグ未設定のカード\n\n${r.untaggedSummary ? `${r.untaggedSummary}\n\n` : ''}${r.untagged.map((x, k) => item(x.title, [x.card], '', tagNamesOf(x.suggested), x.reason, `untag:${k}`, x)).join('\n') || '指摘なし\n'}\n`;
+      if ((r.assessmentNotes || []).length) md += `## アセスメントに回す内容（分類には使わない）\n\n${r.assessmentNotes.map(a => `- ${a.card ? `${a.card}：` : ''}${a.note}${a.evidence ? `（根拠：${a.evidence}）` : ''}`).join('\n')}\n\n`;
       if ((r.advice || []).length) md += `## 改善のためのアドバイス\n\n${r.advice.map(a => `- ${a}`).join('\n')}\n\n`;
       md += `## 分類前の文章\n\n\`\`\`\n${cp.sourceText || ''}\n\`\`\`\n`;
       return md;

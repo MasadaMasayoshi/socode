@@ -109,3 +109,18 @@ test('不必要なタグ追加の提案は出さない：根拠が原文に無�
   assert.equal(result.untagged[0].verdict, 'check');
   assert.deepEqual(Array.from(result.untagged[1].suggested), [9], '根拠が原文にあれば残す');
 });
+
+test('原文にない影響の推測はタグにせず assessmentNotes（アセスメントに回す内容）に分ける・評価の指示にガーゼと場面のルールが入る', () => {
+  const result = app.parseAiReviewJson(JSON.stringify({
+    tagIssues: { summary: '', items: [] }, timeline: { summary: '', items: [] }, extractionIssues: { summary: '', items: [] }, untagged: { summary: '', items: [] },
+    assessmentNotes: [{ card: 'C99', note: '疼痛が呼吸の深さに影響している可能性', evidence: '「こんなに痛くちゃ動けないし」' }, '住居の階段は退院後の生活の調整に関わる']
+  }));
+  assert.equal(result.assessmentNotes.length, 2);
+  assert.equal(result.assessmentNotes[0].card, 'C99');
+  const cp = { title: 'P', sourceText: '元', items: [{ id: 'a', type: 's', timestamp: '10:00', text: '「痛い」', hendersonIds: [] }], aiReview: { at: '2026-10-07T00:00:00Z', codes: { C99: 'a' }, applied: {}, result } };
+  const md = app.buildAiReviewMarkdown(cp);
+  ['## アセスメントに回す内容（分類には使わない）', 'C99：疼痛が呼吸の深さに影響している可能性'].forEach(t => assert.ok(md.includes(t), t));
+  const items = [{ id: 'a', type: 'o', timestamp: '入院前', text: 'x', hendersonIds: [] }];
+  const prompt = app.buildAiReviewPrompt({ sourceText: '元' }, app.buildEvidenceIndex(items), items);
+  ['assessmentNotes', '感染の有無を判定する文章は書かない', '同じ日時・場面のカードとして関連づける'].forEach(t => assert.ok(prompt.includes(t), t));
+});

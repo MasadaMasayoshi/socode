@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-06.14'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-07.20'; // 版（scripts/stamp-version.js が書き込む）
     // 「祖母を胃がん、父を前立腺がんで亡くしている〜」のような家族歴の文は、本人の食事・栄養
     // 状態の所見ではないにもかかわらず、id2(食事)の疾患名キーワード（「胃がん」等）に一致して
     // しまい、食事に無関係な家族歴が「2. 食事」に混入していた（利用者からの報告事例）。
@@ -231,6 +231,9 @@
       // 【改善点ファイル・患者36】骨折・牽引・人工骨頭・術後肢位（脱臼予防）・患肢の循環は、4.姿勢と9.安全（合併症・
       // 脱臼の予防、牽引中の安全管理・足背動脈など患肢の循環）が表裏一体なので、4に加えて9も付ける。
       if ((tags.has(4) && /骨折|人工骨頭|置換術|(?<![A-Za-z])(?:BHA|THA)(?![A-Za-z])|牽引|けん引|キルシュナー|外転枕|脱臼|内旋|屈曲禁止/.test(text))) tags.add(9);
+      // 【改善点ファイル・患者21】「創部ガーゼ上層まで汚染なし」は9（創部の安全管理）なのに、同じ内容の「ガーゼ汚染なし」だけがタグ未設定だった。
+      // ガーゼの汚染の観察は、「創部」の語が無くても9.環境（安全管理）にする。ガーゼ汚染の有無だけで感染の有無は判定しない（タグを付けるだけ）。
+      if (/ガーゼ[^。、]{0,6}汚染/.test(text)) tags.add(9);
       // 薬を忘れる（「長期管理薬について、最近は使用を忘れる日がある」）は、発言でなくても14.学び（服薬の自己管理）
       if (/薬/.test(text) && /忘れ/.test(text)) tags.add(14);
       // 手術・治療の説明を受けて入院した経緯は、病識・治療の理解（14.学び）にかかわる
@@ -1106,7 +1109,7 @@
         const cur = list[ci];
         const prev = list[ci - 1];
         const isOrphan = !cur.isUnnecessaryBoilerplate && !cur.fieldLabel && !cur.isLabOrVital &&
-          cur.text.length <= 15 && !/[「」]/.test(cur.text) && detectMultipleHendersonTags(cur.text).length === 0;
+          cur.text.length <= 15 && !/[「」]/.test(cur.text) && (detectMultipleHendersonTags(cur.text).length === 0 || /^ガーゼ[^。、]{0,6}汚染[^。、]{0,4}$/.test(cur.text.trim()));
         const isAdjacentLine = cur._line === undefined || prev._line === undefined || cur._line - prev._line <= 1;
         const prevCanContinue = !prev.isUnnecessaryBoilerplate && !prev.fieldLabel && !prev.isLabOrVital &&
           prev.timestamp === cur.timestamp && isAdjacentLine && !/^「[^」]*」$/.test(prev.text.trim()) &&
@@ -1211,7 +1214,50 @@
     }
     // 1行目・2行目の「成人看護学実習Ⅱ 実習記録（3日目）」「情報収集・アセスメント用紙」のような題名
     const STUDENT_TITLE_WORD_REGEX = /実習|記録|用紙|アセスメント|情報収集|看護過程|ケーススタディ|事例|症例/;
+    // 【発言の途中で行が分かれたとき・見出しの発言者を後ろへ引き継ぐ】改善点ファイル（患者21）の指摘：
+    //  ①「「体がべたべたして気持ちが悪い。髪も気持ち悪くなってきた。」と「早く動けるようになってお風呂には入れるといいんだけど・・・」」は
+    //    原文では1つの発言なのに、空行で2枚に分かれ、発言の続きが観察と混ざっていた → 閉じていない「」は、次の行で閉じるなら1行にする。
+    //  ②「担当看護師より」「本人より」だけの見出し行は、発言者の情報を持つ。単独のカード（タグなし）にせず、続く発言の
+    //    先頭に「担当看護師より」「本人より」を付け（先に引き継ぎ）、見出しの行は除く。
+    const SPEAKER_HEADING_REGEX = /^(本人|患者|担当看護師|受け持ち看護師|受持ち看護師|看護師|主治医|医師|担当医|理学療法士|PT|作業療法士|OT|家族|妻|夫|長男|次男|長女|次女|息子|娘|嫁)\s*(?:より|から)\s*[:：]?$/;
+    function carrySpeakerAndJoinQuotes(raw) {
+      const count = (t, c) => (t.match(new RegExp(c, 'g')) || []).length;
+      const lines = Array.from(raw);
+      // ①閉じていない「」を、次の（空行をはさんでもよい）行で閉じるなら1行にする
+      const joined = [];
+      for (let i = 0; i < lines.length; i++) {
+        const t = String(lines[i]).trim();
+        if (t && count(t, '「') > count(t, '」')) {
+          let j = i + 1;
+          while (j < lines.length && j <= i + 3 && String(lines[j]).trim() === '') j++;
+          const next = j < lines.length ? String(lines[j]).trim() : '';
+          if (next && count(next, '」') > count(next, '「') && count(t + next, '「') === count(t + next, '」')) { joined.push(t + next); i = j; continue; }
+        }
+        joined.push(lines[i]);
+      }
+      // ②「〇〇より」だけの行：続く「で始まる行との間の空行を除いて、ひとまとまりにする（空行が無い書き方なら、あとの処理が
+      //   発言者を引き継いで1枚にする。空行があると見出しだけの単独カードになり、続く発言が患者の発言（S）になっていた）
+      const out = [];
+      for (let i = 0; i < joined.length; i++) {
+        const t = String(joined[i]).trim();
+        out.push(joined[i]);
+        if (!SPEAKER_HEADING_REGEX.test(t)) continue;
+        let j = i + 1;
+        const run = [];
+        for (; j < joined.length; j++) {
+          const u = String(joined[j]).trim();
+          if (u === '') { if (run.length && !/^「/.test(String(joined[j + 1] || '').trim())) break; continue; }
+          if (!/^「/.test(u)) break;
+          run.push(joined[j]);
+        }
+        if (!run.length) continue;
+        run.forEach(b => out.push(b));
+        i = j - 1;
+      }
+      return out;
+    }
     function preprocessFreeFormLines(raw) {
+      raw = carrySpeakerAndJoinQuotes(raw);
       const step1 = [];
       const firstIdx = raw.findIndex(l => String(l).trim() !== '');
       let soapPart = null;
