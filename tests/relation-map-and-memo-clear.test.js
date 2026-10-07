@@ -106,7 +106,8 @@ test('関連図：治療は楕円で「治療 → 治療の対象」、治療ご
   const surg = find(map, /^胃全摘出術/), ca = map.nodes.find(n => n.type === 'disease'), pca = find(map, /硬膜外PCA/), pain = find(map, /^創部痛/);
   assert.equal(surg.type, 'treatment');
   assert.doesNotMatch(surg.label, /全身麻酔下で|施行/);
-  assert.ok(map.edges.some(e => e.source === surg.id && e.target === ca.id && e.relation === 'treats'));
+  // がんの手術の対象は「手術の対象と目的」の四角（病期 → 手術の対象と目的 ← 手術）。胃がんから直接の線は引かない
+  assert.ok(map.edges.some(e => e.source === surg.id && e.relation === 'treats' && /手術の対象と目的/.test(map.nodes.find(n => n.id === e.target).label)));
   assert.ok(map.edges.some(e => e.source === pca.id && e.target === pain.id && e.relation === 'treats'));
   assert.ok(!map.edges.some(e => map.edges.some(o => o.source === e.target && o.target === e.source)), '両向きの矢印は無い');
   const svg = app.relationMapSvg(map, {});
@@ -1122,4 +1123,16 @@ test('関連図の評価への対応（2026-10-07.6）：検査値は根拠・�
     assert.ok(app.rmRouteEdges(m).bridges <= app.rmRouteEdges(plainMap).bridges, `${n}：交差が増えていない`);
   });
   assert.match(src, /cross\(plain\) < cross\(map\)/);
+});
+
+test('関連図：がんの手術は「精査・診断 → 病期の意味 → 手術の対象と目的」でなぜ手術をするかが分かる（胃がん）', () => {
+  const text = fs.readFileSync(path.join(ROOT, 'tests/fixtures/relation-map/gastric_postop.txt'), 'utf8');
+  const items = app.classifyTextByRules(text).map((i, k) => ({ ...i, id: 'it' + k }));
+  const cp = { id: 'p1', title: 'A', sourceText: text, items, carePlans: {}, selectedDiagnosisIds: [], diagnosisCandidates: [] };
+  const map = app.buildRelationMapFromRecord(cp);
+  const by = re => map.nodes.find(n => re.test(n.label));
+  const exam = by(/貧血を指摘.*精査/), disease = by(/^胃がん/), stage = by(/胃底部の腫瘍.*T2.*固有筋層.*N0.*M0/), aim = by(/手術の対象と目的/), surg = by(/胃全摘/);
+  [exam, disease, stage, aim, surg].forEach(n => assert.ok(n));
+  const has = (a, b) => map.edges.some(e => e.source === a.id && e.target === b.id);
+  assert.ok(has(exam, disease) && has(disease, stage) && has(stage, aim) && map.edges.some(e => e.source === surg.id && e.target === aim.id && e.relation === 'treats'));
 });

@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.10'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.14'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -1282,7 +1282,38 @@
         const m = String(surgeryItem.text).normalize('NFKC').match(new RegExp(`${surgeryRe.source}[^、。]{0,24}`));
         const sLabel = (m ? m[0] : short(surgeryItem, 30)).replace(/^[^、。]*?(?:下で|下に|にて)/, '').replace(/(?:を)?(?:施行|実施|予定)[。.]?$/, '').replace(/を$/, '');
         surgery = N('surgery', 'treatment', sLabel, { items: [surgeryItem] });
-        if (disease) E(surgery, disease, 'treats', { evidence: '疾患に対する手術' });
+        // がんの手術は、このあと「手術の理由」の流れ（病期 → 手術の目的 → 手術）も足す
+        if (disease && !/がん|癌/.test(dxLabel)) E(surgery, disease, 'treats', { evidence: '疾患に対する手術' });
+      }
+      // 【がんの手術の理由】手術だけが「胃がん」につながっていて、なぜ手術をするのかが読み取れなかった（関連図の評価：2026-10-07.14）。
+      // 精査・診断 → 病期（T・N・M）の意味 → 手術の理由 の順に、記録にある言葉を使ってつなぐ（手術は「治療 → 胃がん」で真下に置く）。
+      if (disease && surgery && /がん|癌/.test(dxLabel)) {
+        const tnm = dxLabel.normalize('NFKC').match(/T\s*(\d)[a-c]?\s*N\s*(\d)[a-c]?\s*M\s*(\d)/i);
+        const examItem = findItem(/精査|健診|検診|内視鏡|生検|造影|CT|MRI/, i => !/既往/.test(i.fieldLabel || '') && i !== dxText[0] && !/FEV|SpO2|WBC|CRP/.test(String(i.text)));
+        const where = (dxLabel.match(/(胃底部|噴門部?|胃体部|幽門部?|前庭部|上行結腸|下行結腸|S状結腸|直腸[^\s、,]{0,3}|[^\s、,（(]{1,4}部)/) || [])[1] || '';
+        const size = (dxLabel.normalize('NFKC').match(/(\d+(?:\.\d+)?)\s*(?:mm|cm)/) || [])[0] || '';
+        let exam = null;
+        if (examItem) {
+          const et = String(examItem.text).normalize('NFKC');
+          const parts = [];
+          if (/貧血/.test(et)) parts.push('貧血を指摘');
+          if (/健診|検診/.test(et)) parts.unshift('健診で');
+          const lead = parts.length ? parts.join('') + 'され、' : '';
+          exam = N('dx_exam', 'patient_fact', `${lead}精査を受けて診断された（検査の内容は記録なし）`, { items: [examItem], max: 60 });
+          E(exam, disease, 'results_in', { evidence: '精査の結果、診断された' });
+        }
+        const tName = { 1: '粘膜〜粘膜下層まで', 2: '固有筋層まで', 3: '漿膜下層まで', 4: '漿膜・他の臓器まで' };
+        let stage = null;
+        if (tnm) {
+          const [, t, nn, mm] = tnm;
+          const parts = [`T${t}：${tName[t] || '壁に'}浸潤`, nn === '0' ? 'N0：リンパ節転移なし' : `N${nn}：リンパ節転移あり`, mm === '0' ? 'M0：遠隔転移なし' : `M${mm}：遠隔転移あり`];
+          stage = N('dx_stage', 'pathophysiology', `${where ? where + 'の' : ''}腫瘍${size ? '（' + size + '）' : ''}の広がり（${parts.join('、')}）`, { source: 'knowledge', max: 80 });
+          E(disease, stage, 'results_in', { evidence: '病期分類（TNM）の読み方' });
+        }
+        const gast = /胃/.test(dxLabel + surgery.label);
+        const aim = N('dx_aim', 'pathophysiology', '手術の対象と目的：腫瘍と周囲のリンパ節を切除し、根治をめざす', { source: 'knowledge', max: 60, evidence: gast && /全摘/.test(surgery.label) ? '切除範囲は腫瘍の位置・広がりで決まる。全摘を選んだ理由は医師の説明で確認する' : '' });
+        E(stage || exam || disease, aim, 'results_in', { evidence: tnm ? '遠隔転移がなく、切除で根治をめざせる進行度' : 'がんの根治をめざす治療方針' });
+        E(surgery, aim, 'treats', { evidence: '手術の対象・目的' });
       }
       const gastric = surgery && /胃/.test(surgery.label + dxLabel) && /全摘|切除/.test(surgery.label);
       // 薬（分類ごと。何に対する治療かが分かる薬だけ）
