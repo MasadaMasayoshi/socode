@@ -1162,3 +1162,14 @@
       .ai-steps:not(.is-open) .ai-bar-group { display: none; }
       .ai-steps .ai-run-all { flex: 1 1 auto; justify-content: center; }
     }
+
+    /* スマホ：看護計画のボタンは2列、長い説明は2行に縮めて、タップで全部を開く。作業の流れの患者名は上に出ているので省く */
+    @media (max-width: 767px) {
+      .cp-top-actions.flex { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
+      .cp-top-actions > .btn { justify-content: center; min-height: 40px; }
+      .cp-top-actions > .btn-primary { grid-column: 1 / -1; order: -1; }
+      #careplan-import-info:empty { display: none; }
+      .cp-help-text:not(.is-open) { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+      .cp-help-text:not(.is-open)::after { content: ''; }
+      .wf-patient { display: none; }
+    }
