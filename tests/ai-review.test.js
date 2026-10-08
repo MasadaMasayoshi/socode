@@ -56,9 +56,7 @@ test('以前の形（配列だけ）の答えも読み取れる', () => {
 });
 
 test('分類ボードと総合アセスメント表のAI分析ツールから開ける', () => {
-  assert.match(html, /id="btn-open-ai-review" onclick="openAiReview\(\)"/);
   // 総合アセスメント表では、AIのボタンの列（js/08 の renderAiSteps）に「分類の評価」として出す
-  assert.match(require('fs').readFileSync(require('path').join(__dirname, '..', 'js', '08-assessment-tools.js'), 'utf8'), /label: '分類の評価'.*action: 'openAiReview\(\)'/);
   assert.match(html, /id="modal-ai-review"/);
   assert.match(html, /onclick="downloadAiReview\(\)"/);
 });

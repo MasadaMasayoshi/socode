@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-08.26">
-  <meta name="app-file-versions" content="01:2026-10-08.12,02:2026-10-08.8,03:2026-10-08.14,04:2026-10-07.36,05:2026-10-08.18,06:2026-10-08.21,07:2026-10-08.14,08:2026-10-08.25,09:2026-10-08.21,10:2026-10-08.14,11:2026-10-08.23,12:2026-10-08.26,13:2026-10-08.18,14:2026-10-06.14,15:2026-10-08.26">
+  <meta name="app-version" content="2026-10-08.27">
+  <meta name="app-file-versions" content="01:2026-10-08.12,02:2026-10-08.8,03:2026-10-08.14,04:2026-10-07.36,05:2026-10-08.18,06:2026-10-08.21,07:2026-10-08.14,08:2026-10-08.27,09:2026-10-08.21,10:2026-10-08.14,11:2026-10-08.23,12:2026-10-08.27,13:2026-10-08.18,14:2026-10-06.14,15:2026-10-08.26">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
@@ -243,7 +243,6 @@
             <i class="fa-solid fa-code-compare"></i> 変更点の比較
           </button>
           <!-- 分類の結果をGeminiに評価してもらう（js/08 の openAiReview） -->
-          <button id="btn-open-ai-review" onclick="openAiReview()" class="btn btn-outline text-[11px] py-1.5 whitespace-nowrap" title="分類（タグ・時系列・抜き出し・未設定のタグ）をGeminiに評価してもらい、提案をそのまま適用できます">
             <i class="fa-solid fa-wand-magic-sparkles" style="color:var(--accent);"></i> AIで分類を評価
           </button>
           <span class="text-[10px] text-[var(--ink-muted)] leading-snug flex items-center gap-2">
@@ -314,7 +313,6 @@
           </h2>
         </div>
         <div class="asm-toolbar flex flex-wrap items-center gap-2">
-          <button type="button" id="btn-sufficiency-ai" class="btn btn-outline" onclick="runSufficiencyAi()" title="サイトが出した充足・未充足を、AIが評価します（判定は書き換えず、賛成・反対と理由を添えます）"><i class="fa-solid fa-wand-magic-sparkles"></i> 充足・未充足をAIで評価</button>
           <span id="suf-summary" class="suf-sum-wrap"></span>
           <button type="button" id="btn-my-asm-show" class="btn btn-outline my-asm-show-btn" onclick="toggleMyAssessmentShown()" aria-pressed="false">
             <i class="fa-solid fa-user-pen"></i> 自分のアセスメント：<span class="my-asm-show-state">非表示</span>
@@ -330,8 +328,8 @@
       <div id="ai-steps" class="ai-steps"></div>
       <div id="ai-results" class="ai-results hidden">
         <div class="ai-results-bar">
-          <span class="ai-results-title"><i class="fa-solid fa-comment-medical"></i> AIの結果</span>
-          <div id="ai-results-tabs" class="ai-results-tabs" role="tablist" aria-label="AIの結果の種類"></div>
+          <span class="ai-results-title"><i class="fa-solid fa-comment-medical"></i> 結果</span>
+          <div id="ai-results-tabs" class="ai-results-tabs" role="tablist" aria-label="結果の種類"></div>
           <button type="button" id="ai-results-close" class="ai-results-close hidden" onclick="showAiResult(null)"><i class="fa-solid fa-chevron-up"></i> たたむ</button>
         </div>
 
@@ -1362,11 +1360,11 @@
   <script src="js/05-app-state-and-ui.js?v=2026-10-08.18"></script>
   <script src="js/06-export.js?v=2026-10-08.21"></script>
   <script src="js/07-classification.js?v=2026-10-08.14"></script>
-  <script src="js/08-assessment-tools.js?v=2026-10-08.25"></script>
+  <script src="js/08-assessment-tools.js?v=2026-10-08.27"></script>
   <script src="js/09-board.js?v=2026-10-08.21"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-08.14"></script>
   <script src="js/11-own-assessment.js?v=2026-10-08.23"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-08.26"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-08.27"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-08.18"></script>
   <script src="js/14-drug-reference.js?v=2026-10-06.14"></script>
   <script src="js/15-relation-map.js?v=2026-10-08.26"></script>

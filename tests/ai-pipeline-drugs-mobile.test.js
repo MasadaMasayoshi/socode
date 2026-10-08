@@ -51,16 +51,14 @@ test('ボタン1つで看護計画まで：①→②→優先度の高い2件を
   assert.match(src, /window\.runAiPipelineToCarePlan = async function/);
   assert.match(src, /await window\.evaluateMissingInfoAI\(\);[\s\S]*await window\.suggestNursingDiagnosesAI\(\);[\s\S]*cands\.slice\(0, AI_PIPELINE_SELECT_COUNT\)[\s\S]*autoBuildCarePlans\(cp[\s\S]*await window\.reviewAllCarePlansAiUI\(\)/);
   assert.match(src, /患者を切り替えたため、まとめて実行を止めました/);
-  assert.match(src, /onclick="runAiPipelineToCarePlan\(\)"/);
 });
 
 test('APIキーが無いときは、取得のページ（Google AI Studio）と設定へ案内する。AIなしで続けられる機能は選べる', () => {
   assert.match(html, /id="modal-api-required"/);
   assert.match(html, /href="https:\/\/aistudio\.google\.com\/app\/apikey"/);
   assert.match(html, /href="https:\/\/ai\.google\.dev\/gemini-api\/docs\/api-key\?hl=ja"/);
-  ['検査値の評価', '不足情報の推定', 'S/O矛盾チェック', '看護診断候補', '経時変化サマリー', '看護計画の叩き台', '写真の文字起こし', '自分のアセスメントへのAIの助言', 'AIありで分類'].forEach(f =>
+  ['不足情報の推定', 'S/O矛盾チェック', '看護診断候補', '経時変化サマリー', '看護計画の叩き台', '写真の文字起こし', '自分のアセスメントへのAIの助言', 'AIありで分類'].forEach(f =>
     assert.match(src, new RegExp(`requireApiKey\\('${f.replace(/[/()]/g, m => '\\' + m)}'`), f));
-  assert.match(src, /requireApiKey\('検査値の評価', \{ fallbackLabel: 'AIなしで簡易チェック' \}\)/);
   // 「AIあり」でキーが無いときは、今のカードを置き換える前に案内する
   assert.ok(src.indexOf("requireApiKey('AIありで分類'") < src.indexOf("title: '今あるカードをどうしますか？'") || !src.includes("title: '今あるカードをどうしますか？'"));
 });

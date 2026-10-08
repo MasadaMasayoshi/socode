@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-08.25'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-08.27'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -208,7 +208,7 @@
     }
 
     window.evaluateLabValuesAI = guardAiStep('lab', async function() {
-      if (!(await requireApiKey('検査値の評価', { fallbackLabel: 'AIなしで簡易チェック' }))) return;
+      // AIは使わない（v.27）：検査値の評価は、いつもサイト内のルール（登録された基準との比較）で出す
       const cp = getCurrentPatient();
       const prevResult = cp.labEvaluationResult;
       const addedMetrics = calculateAndAddDerivedMetricCards();
@@ -220,7 +220,7 @@
       document.getElementById('lab-evaluation-panel')?.classList.remove('hidden');
       DOM.labEvalContent.innerHTML = `<div class="flex items-center text-[var(--accent-dark)]"><i class="fa-solid fa-spinner fa-spin mr-2"></i> 登録された基準で検査値を確認しています...</div>`;
 
-      if (!globalAppData.apiKey) {
+      if (true) { // AIは使わない（v.27）
         // AIなしでは、原文を残したまま、OCRの疑い・基準値・推移・考察を出す（buildLabAssessment）。読み取れる検査値が無いときだけ従来の簡易チェック
         const rule = buildLabAssessment(cp);
         if (rule.has) {
@@ -704,29 +704,13 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       return !!(body && body.querySelector && body.querySelector('.fa-spinner'));
     }
     function renderAiSteps(cp) {
+      // AIは使わない（v.27）：ここには、サイト内のルールだけで出せる「検査値の評価」だけを置く
       const el = document.getElementById('ai-steps');
       if (!el) return;
-      // 【レビューで発見】「まとめて実行」の途中でも①②③を押せ、同じ機能が重なって走っていた。実行中は押せなくする
-      const pipeRunning = !!(window.aiPipelineStatus && window.aiPipelineStatus.running);
-      const steps = computeAiStepStatus(cp).map((s, k) => {
-        const running = aiPanelRunning(AI_STEP_PANELS[s.key]) || isAiStepRunning(cp, s.key);
-        const status = running ? '<i class="fa-solid fa-spinner fa-spin"></i> 実行中' : escapeHtml(s.detail);
-        return `${k ? '<i class="fa-solid fa-chevron-right ai-steps-arrow" aria-hidden="true"></i>' : ''}<button type="button" class="ai-step${s.done ? ' done' : ''}${s.next ? ' next' : ''}" onclick="${AI_STEP_ACTIONS[s.key]}" title="${pipeRunning ? '「看護計画までまとめて実行」の途中です' : s.done ? 'もう一度実行します' : '押すとAIが実行します'}"${pipeRunning || running ? ' disabled' : ''}>${s.done ? '<i class="fa-solid fa-check"></i>' : ''}<span class="ai-step-label">${s.label}</span><span class="ai-step-status">${status}</span></button>`;
-      }).join('');
-      const extras = AI_EXTRA_TOOLS.map(t => {
-        const running = aiPanelRunning(t.panel) || isAiStepRunning(cp, t.key);
-        const done = t.key === 'lab' ? !!cp.labEvaluationResult : t.key === 'contradiction' ? !!cp.contradictionResult : t.key === 'timeline' ? !!cp.timelineResult : false;
-        return `<button type="button" class="ai-tool${done ? ' done' : ''}" onclick="${t.action}" title="${escapeHtml(t.title)}"><i class="fa-solid ${running ? 'fa-spinner fa-spin' : done ? 'fa-check' : t.icon}"></i>${t.label}</button>`;
-      }).join('');
-      // 「看護計画までまとめて実行」（js/13 の runAiPipelineToCarePlan）。実行中は今どこまで進んだかを出す
-      const pipe = window.aiPipelineStatus;
-      const runAll = pipe && pipe.running
-        ? `<span class="ai-run-all is-running" role="status"><i class="fa-solid fa-spinner fa-spin"></i> ${escapeHtml(pipe.label || '実行中')}</span>`
-        : `<button type="button" class="ai-run-all" onclick="runAiPipelineToCarePlan()" title="①不足情報の推定 → ②看護診断候補（優先度の高い順に選ぶ）→ 看護計画の自動作成 → ③看護計画のAI評価 までを、順番に自動で行います"><i class="fa-solid fa-forward"></i> 看護計画までまとめて実行</button>`;
-      el.innerHTML = `<button type="button" class="ai-title-toggle" onclick="document.getElementById('ai-steps').classList.toggle('is-open')" aria-label="AIの順番ボタンを開く・閉じる（スマホ）"><i class="fa-solid fa-wand-magic-sparkles"></i> AI</button>
-        ${runAll}
-        <div class="ai-bar-group ai-bar-steps" aria-label="AIで順番に進める">${steps}</div>
-        <div class="ai-bar-group ai-bar-tools" aria-label="そのほかのAIの確認">${extras}</div>`;
+      const t = AI_EXTRA_TOOLS.find(x => x.key === 'lab');
+      const running = aiPanelRunning(t.panel) || isAiStepRunning(cp, t.key);
+      const done = !!cp.labEvaluationResult;
+      el.innerHTML = `<div class="ai-bar-group ai-bar-tools" aria-label="確認"><button type="button" class="ai-tool${done ? ' done' : ''}" onclick="${t.action}" title="${escapeHtml(t.title)}"><i class="fa-solid ${running ? 'fa-spinner fa-spin' : done ? 'fa-check' : t.icon}"></i>${t.label}</button></div>`;
     }
     function renderDiagnosisPanel(cp) {
       const panel = document.getElementById('diagnosis-panel');

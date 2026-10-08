@@ -218,10 +218,6 @@ test('AIのボタンを続けて押しても、同じ患者・同じ機能の依
   await Promise.all([a, b]);
   assert.equal(calls.length, 1);
   assert.equal(run("isAiStepRunning(getCurrentPatient(), 'diagnosis')"), false, '終わったら実行中の印を外す');
-  run("window.aiPipelineStatus = { running: true, label: '実行中' }; renderAiSteps(getCurrentPatient());");
-  const stepButtons = els['ai-steps'].innerHTML.match(/<button type="button" class="ai-step[^>]*>/g);
-  assert.equal(stepButtons.length, 3);
-  assert.ok(stepButtons.every(b => / disabled/.test(b)), stepButtons.join('\n'));
 });
 
 test('AIの失敗：結果の欄にエラーを出しつつ、前の結果も残す（保存してある結果は書き換えない）', async () => {

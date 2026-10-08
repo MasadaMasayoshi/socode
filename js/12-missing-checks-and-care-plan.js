@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-08.26'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-08.27'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -444,7 +444,6 @@
           <div class="cp-actions">
             <label class="cp-status-select"><span class="my-asm-label">状態</span><select class="field" onchange="setCarePlanStatus('${pid}', this.value)">${CARE_PLAN_STATUSES.map(s => `<option value="${s.key}"${p.status === s.key ? ' selected' : ''}>${s.label}</option>`).join('')}</select></label>
             <button type="button" class="btn btn-outline my-asm-btn${carePlanReviewOpen.has(p.id) ? ' active' : ''}" onclick="toggleCarePlanReview('${pid}')" aria-expanded="${carePlanReviewOpen.has(p.id)}" title="目標・OP/TP/EPを7つの項目で確かめます（AIなし）"><i class="fa-solid fa-clipboard-list"></i> 計画をチェック</button>
-            <button type="button" class="btn btn-outline my-asm-btn" onclick="reviewCarePlanAiUI('${pid}')" ${carePlanAiRunning.has(p.id) ? 'disabled' : ''}>${carePlanAiRunning.has(p.id) ? '<i class="fa-solid fa-spinner fa-spin"></i> AIで評価中…' : '<i class="fa-solid fa-wand-magic-sparkles"></i> AIで看護計画を評価'}</button>
             <button type="button" class="btn btn-primary my-asm-btn" onclick="openCareRecord('${pid}')"><i class="fa-solid fa-plus"></i> 実施・評価を記録</button>
             <button type="button" class="btn btn-outline my-asm-btn cp-delete" onclick="deleteCarePlanUI('${pid}')"><i class="fa-solid fa-trash-can"></i> この計画を消す</button>
           </div>
@@ -1338,7 +1337,7 @@
         return 0;
       }
       commitCarePlanChange(cp, false);
-      if (notify) showToast(`記録から看護計画を${r.fresh.length}件、自動で作りました。この患者に合うか確かめて、理由を書いて直してください。内容はAIで評価できます`, 'success', 7000);
+      if (notify) showToast(`記録から看護計画を${r.fresh.length}件、自動で作りました。この患者に合うか確かめて、理由を書いて直してください。内容は「計画をチェック」で確かめられます`, 'success', 7000);
       return r.fresh.length;
     }
     window.buildCarePlansByRulesUI = function() {
@@ -1643,7 +1642,7 @@ ${items}`;
       }
       const ai = carePlanSetState.ai[cp.id];
       if (ai) h += `<div class="cpr-ai"><div class="cpr-ai-head"><i class="fa-solid fa-wand-magic-sparkles"></i> AIの評価（全計画）<span class="my-asm-muted">AIの評価は参考です。採り入れる前に、この患者に必要な理由を確かめてください</span></div>${ai.summary ? `<p>${escapeHtml(ai.summary)}</p>` : ''}${group('重複', 'fa-clone', 'warn', ai.duplicates)}${group('補完されている', 'fa-circle-check', 'ok', ai.complements)}${group('不足', 'fa-triangle-exclamation', 'warn', ai.gaps)}${ai.priority ? `<p class="cpr-sugg">優先順位：${escapeHtml(ai.priority)}</p>` : ''}</div>`;
-      h += `<div class="cps-actions"><button type="button" class="btn btn-outline text-[11px] py-1" onclick="reviewAllCarePlansAiUI()" ${carePlanSetState.running || n < 1 ? 'disabled' : ''}><i class="fa-solid fa-wand-magic-sparkles"></i> ${carePlanSetState.running ? 'AIが評価中…' : 'AIで全計画を評価'}</button></div></div>`;
+      h += '</div>';
       return h;
     }
     function renderCarePlanSetReview() {
