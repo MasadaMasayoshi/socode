@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.2'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.4'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -970,6 +970,9 @@ ${missLines || '（なし）'}
       });
       return { set, kept, unknown };
     }
+    function hasRuleSufficiency(cp) {
+      return HENDERSON_NEEDS.some(n => { const e = getMyAssessment(cp, n.id); return !!(e && e.aiSufficiency && ['pre', 'post', 'all'].some(k => e.aiSufficiency[k] && e.aiSufficiency[k].source === 'rules')); });
+    }
     // AIの評価：ルールの判定は書き換えない。AIが賛成か反対か・AIの判断・理由を、各項目に添える
     function applySufficiencyReview(cp, result, now = new Date().toISOString()) {
       let agree = 0, disagree = 0;
@@ -1030,8 +1033,7 @@ ${missLines || '（なし）'}
       if (!(await requireApiKey('充足・未充足のAI判定'))) return;
       sufficiencyAiRunning = true;
       // まずサイト内のルールで判定し（まだ無ければ）、AIはその結果を評価する
-      const hasRules = HENDERSON_NEEDS.some(n => { const e = getMyAssessment(cp, n.id); return e && e.aiSufficiency && ['pre', 'post', 'all'].some(k => e.aiSufficiency[k] && e.aiSufficiency[k].source === 'rules'); });
-      if (!hasRules) applySufficiencyResult(cp, judgeSufficiencyByRules(cp), new Date().toISOString(), 'rules');
+      if (!hasRuleSufficiency(cp)) applySufficiencyResult(cp, judgeSufficiencyByRules(cp), new Date().toISOString(), 'rules');
       const btn = document.getElementById('btn-sufficiency-ai');
       if (btn) { btn.disabled = true; btn.dataset.label = btn.innerHTML; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 判定中…'; }
       showToast('ルールの判定結果を、AIが評価しています…（1分ほどかかります）', 'info');
@@ -1146,7 +1148,7 @@ if (typeof module !== 'undefined' && module.exports) {
     MY_ASSESSMENT_FIELDS,
     ensureMyAssessment, getMyAssessment, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
     myAssessmentStatus, myAssessmentNeedsReview, confirmMyAssessmentEntry, restoreMyAssessmentFromHistory,
-    buildSufficiencyPrompt, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyCardVerdict, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
+    buildSufficiencyPrompt, hasRuleSufficiency, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyCardVerdict, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
     renderMyAssessmentRowHtml, evidencePickerCandidates, buildMyAssessmentAiPrompt, myAssessmentAlwaysShown
   });
   if (module.exports.__testHooks) Object.assign(module.exports.__testHooks, { flushMyAssessmentSaves, saveMyAssessmentsSoon });

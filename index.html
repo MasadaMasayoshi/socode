@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-08.3">
-  <meta name="app-file-versions" content="01:2026-10-06.14,02:2026-10-07.17,03:2026-10-07.21,04:2026-10-07.36,05:2026-10-07.36,06:2026-10-07.25,07:2026-10-08.2,08:2026-10-07.26,09:2026-10-07.23,10:2026-10-07.19,11:2026-10-08.2,12:2026-10-08.2,13:2026-10-06.15,14:2026-10-06.14,15:2026-10-07.40">
+  <meta name="app-version" content="2026-10-08.4">
+  <meta name="app-file-versions" content="01:2026-10-06.14,02:2026-10-07.17,03:2026-10-07.21,04:2026-10-07.36,05:2026-10-07.36,06:2026-10-07.25,07:2026-10-08.2,08:2026-10-07.26,09:2026-10-08.4,10:2026-10-07.19,11:2026-10-08.4,12:2026-10-08.2,13:2026-10-06.15,14:2026-10-06.14,15:2026-10-07.40">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
@@ -314,8 +314,8 @@
           </h2>
         </div>
         <div class="asm-toolbar flex flex-wrap items-center gap-2">
-          <button type="button" id="btn-sufficiency-rules" class="btn btn-outline" onclick="runSufficiencyRules()" title="記録の言葉と看護の基準だけで、14項目の充足・未充足を判定します（AIなし・すぐ出ます。自分で選んだ項目は変えません）"><i class="fa-solid fa-scale-balanced"></i> 充足・未充足を判定（AIなし）</button>
-          <button type="button" id="btn-sufficiency-ai" class="btn btn-outline" onclick="runSufficiencyAi()" title="サイト内のルール（AIなし）が出した充足・未充足の判定を、AIが評価します（ルールの判定は書き換えず、賛成・反対と理由を添えます）。ルールの判定がまだなら、先に出します"><i class="fa-solid fa-wand-magic-sparkles"></i> ルールの判定をAIで評価</button>
+          <button type="button" id="btn-sufficiency-rules" class="btn btn-outline" onclick="runSufficiencyRules()" title="記録の言葉と看護の基準だけで、14項目の充足・未充足を判定します（AIなし・すぐ出ます。自分で選んだ項目は変えません）"><i class="fa-solid fa-scale-balanced"></i> 充足・未充足を判定</button>
+          <button type="button" id="btn-sufficiency-ai" class="btn btn-outline hidden" onclick="runSufficiencyAi()" title="サイト内のルール（AIなし）が出した充足・未充足の判定を、AIが評価します（ルールの判定は書き換えず、賛成・反対と理由を添えます）。ルールの判定がまだなら、先に出します"><i class="fa-solid fa-wand-magic-sparkles"></i> ルールの判定をAIで評価</button>
           <span id="suf-summary" class="suf-sum-wrap"></span>
           <button type="button" id="btn-my-asm-show" class="btn btn-outline my-asm-show-btn" onclick="toggleMyAssessmentShown()" aria-pressed="false">
             <i class="fa-solid fa-user-pen"></i> 自分のアセスメント：<span class="my-asm-show-state">非表示</span>
@@ -1365,9 +1365,9 @@
   <script src="js/06-export.js?v=2026-10-07.25"></script>
   <script src="js/07-classification.js?v=2026-10-08.2"></script>
   <script src="js/08-assessment-tools.js?v=2026-10-07.26"></script>
-  <script src="js/09-board.js?v=2026-10-07.23"></script>
+  <script src="js/09-board.js?v=2026-10-08.4"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-07.19"></script>
-  <script src="js/11-own-assessment.js?v=2026-10-08.2"></script>
+  <script src="js/11-own-assessment.js?v=2026-10-08.4"></script>
   <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-08.2"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-06.15"></script>
   <script src="js/14-drug-reference.js?v=2026-10-06.14"></script>

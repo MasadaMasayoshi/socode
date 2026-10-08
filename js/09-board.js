@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-07.23'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-08.4'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カード → 元の文章（カルテ・看護記録入力欄）の該当箇所を探す
     // ------------------------------------------------------------------------
@@ -1129,6 +1129,9 @@
       document.getElementById('assessment-tbody').replaceChildren(frag);
       const sufSum = document.getElementById('suf-summary');
       if (sufSum && typeof sufficiencySummaryHtml === 'function') sufSum.innerHTML = sufficiencySummaryHtml(cp);
+      // 「ルールの判定をAIで評価」は、ルールの判定が出たあとだけ見せる（評価する結果が無いうちは出さない）
+      const aiSufBtn = document.getElementById('btn-sufficiency-ai');
+      if (aiSufBtn && typeof hasRuleSufficiency === 'function') aiSufBtn.classList.toggle('hidden', !hasRuleSufficiency(cp));
       const single = document.getElementById('assessment-single');
       const tableWrap = document.getElementById('assessment-table-wrap');
       if (single && single.classList) {
