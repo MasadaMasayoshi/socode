@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.4'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.5'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -341,6 +341,8 @@
       { key: 'post', label: '入院後', field: 'sufficiencyPost', by: 'sufficiencyPostBy' },
       { key: 'all', label: '全体', field: 'sufficiency', by: 'sufficiencyBy' }
     ];
+    // 画面・書き出しに出すのは「全体」の1つだけ（入院前・入院後に分けない。利用者の希望）。中のデータの形は変えない
+    const SUFFICIENCY_UI_PHASES = SUFFICIENCY_PHASES.filter(p => p.key === 'all');
     function sufficiencyPhase(key) { return SUFFICIENCY_PHASES.find(p => p.key === key) || SUFFICIENCY_PHASES[2]; }
     function getSufficiency(cp, needId, phase = 'all') {
       const e = getMyAssessment(cp, needId);
@@ -349,22 +351,22 @@
     }
     // 書き出し・印刷用の短い文：「入院前：充足／入院後：未充足／全体：未充足」（選んである所だけ）
     function sufficiencyTextOf(cp, needId) {
-      return SUFFICIENCY_PHASES.map(ph => { const v = getSufficiency(cp, needId, ph.key); return v ? `${ph.label}：${SUFFICIENCY_LABELS[v]}` : ''; }).filter(Boolean).join('／');
+      return SUFFICIENCY_UI_PHASES.map(ph => { const v = getSufficiency(cp, needId, ph.key); return v ? SUFFICIENCY_LABELS[v] : ''; }).filter(Boolean).join('／');
     }
     function sufficiencyControlHtml(cp, needId) {
       const e = getMyAssessment(cp, needId);
-      return `<div class="suf-ctl" role="group" aria-label="充足・未充足">${SUFFICIENCY_PHASES.map(ph => {
+      return `<div class="suf-ctl" role="group" aria-label="充足・未充足">${SUFFICIENCY_UI_PHASES.map(ph => {
         const cur = getSufficiency(cp, needId, ph.key);
         const btn = (val, label, icon) => `<button type="button" class="suf-btn suf-${val}${cur === val ? ' is-on' : ''}" aria-pressed="${cur === val}" onclick="setSufficiency(${needId}, '${val}', '${ph.key}')" title="${ph.label}：${label}と判断（もう一度押すと未判定に戻ります）"><i class="fa-solid ${icon}"></i> ${label}</button>`;
-        const aiMark = cur && e && e[ph.by] === 'ai' ? '<span class="suf-ai" title="AIが判定して入れました。押し直すと自分の判断になります">AI</span>' : '';
-        return `<span class="suf-line"><span class="suf-phase">${ph.label}</span>${btn('met', '充足', 'fa-circle-check')}${btn('unmet', '未充足', 'fa-triangle-exclamation')}${aiMark}</span>`;
+        const aiMark = cur && e && (e[ph.by] === 'ai' || e[ph.by] === 'rules') ? `<span class="suf-ai" title="${e[ph.by] === 'rules' ? 'サイト内のルール（AIなし）が判定して入れました' : 'AIが判定して入れました'}。押し直すと自分の判断になります">${e[ph.by] === 'rules' ? 'ルール' : 'AI'}</span>` : '';
+        return `<span class="suf-line">${btn('met', '充足', 'fa-circle-check')}${btn('unmet', '未充足', 'fa-triangle-exclamation')}${aiMark}</span>`;
       }).join('')}</div>`;
     }
     function sufficiencySummaryHtml(cp) {
-      return `<span class="suf-sum">${SUFFICIENCY_PHASES.map(ph => {
+      return `<span class="suf-sum">${SUFFICIENCY_UI_PHASES.map(ph => {
         let met = 0, unmet = 0;
         HENDERSON_NEEDS.forEach(n => { const v = getSufficiency(cp, n.id, ph.key); if (v === 'met') met++; else if (v === 'unmet') unmet++; });
-        return `<span class="suf-sum-grp"><span>${ph.label}</span><b class="suf-met-n">充足 ${met}</b><b class="suf-unmet-n">未充足 ${unmet}</b><span>未判定 ${HENDERSON_NEEDS.length - met - unmet}</span></span>`;
+        return `<span class="suf-sum-grp"><b class="suf-met-n">充足 ${met}</b><b class="suf-unmet-n">未充足 ${unmet}</b><span>未判定 ${HENDERSON_NEEDS.length - met - unmet}</span></span>`;
       }).join('')}</span>`;
     }
     window.setSufficiency = function(needId, val, phase = 'all') {
@@ -1010,12 +1012,12 @@ ${missLines || '（なし）'}
       if (!ai) return '';
       if (ai.verdict) ai = { all: ai }; // 以前の形
       const labels = myEvidenceLabels(cp, needId);
-      const rows = SUFFICIENCY_PHASES.map(ph => {
+      const rows = SUFFICIENCY_UI_PHASES.map(ph => {
         const a = ai[ph.key];
         if (!a || !a.verdict) return '';
         const ev = (a.evidence || []).map(id => labels[id]).filter(Boolean).join('・');
         const mine = e[ph.field];
-        const head = a.verdict === 'unknown' ? `${ph.label}：判定できない` : `${ph.label}：${SUFFICIENCY_LABELS[a.verdict]}${mine && mine !== a.verdict ? '（自分の判断と異なります）' : ''}`;
+        const head = a.verdict === 'unknown' ? '判定できない' : `${SUFFICIENCY_LABELS[a.verdict]}${mine && mine !== a.verdict ? '（自分の判断と異なります）' : ''}`;
         const body = a.verdict === 'unknown' ? (a.need ? `足りない情報：${a.need}` : a.reason) : a.reason;
         const from = a.source === 'rules' ? 'ルール判定（サイト内・AIなし）' : 'AI判定';
         const rv = e.aiReview && e.aiReview[ph.key];
