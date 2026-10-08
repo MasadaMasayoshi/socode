@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-08.8'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-08.14'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 書式付き書き出し（Word / PDF）
     // ------------------------------------------------------------------------
@@ -170,6 +170,7 @@
       // sec に渡すHTMLは、保存された部分を storedAiHtml で安全にしたもの
       const sec = (title, html) => { out += `<h2>${n++}. ${escapeHtml(title)}</h2><div class="ai">${html}</div>`; };
       if (cp.labEvaluationResult) sec('検査データ臨床評価（AI・参考）', storedAiHtml(cp.labEvaluationResult));
+      else if (typeof labAssessmentHtmlFor === 'function' && labAssessmentHtmlFor(cp)) sec('検査データ臨床評価（AIなし）', labAssessmentHtmlFor(cp));
       if (cp.contradictionResult) sec('S/O矛盾チェック（AI・参考）', storedAiHtml(cp.contradictionResult));
       const cands = cp.diagnosisCandidates || [];
       if (cands.length) {
@@ -463,7 +464,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       out += `出力日時: ${new Date().toLocaleString('ja-JP')}\n`;
 
       out += plainSectionTitle('1. 検査データ臨床評価・アセスメントノート');
-      out += htmlToPlainText(cp.labEvaluationResult || '（検査値の評価はまだ行っていません）') + '\n';
+      out += htmlToPlainText(cp.labEvaluationResult || (typeof labAssessmentTextFor === 'function' && labAssessmentTextFor(cp)) || '（評価できる検査値がありません）') + '\n';
 
       const isMissingOnly = i => typeof isMissingInfoOnlyItem === 'function' && isMissingInfoOnlyItem(i);
       out += plainSectionTitle('2. 主観的情報（Sデータ）');

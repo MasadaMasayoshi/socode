@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-07.26'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-08.14'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -221,6 +221,14 @@
       DOM.labEvalContent.innerHTML = `<div class="flex items-center text-[var(--accent-dark)]"><i class="fa-solid fa-spinner fa-spin mr-2"></i> 登録された基準で検査値を確認しています...</div>`;
 
       if (!globalAppData.apiKey) {
+        // AIなしでは、原文を残したまま、OCRの疑い・基準値・推移・考察を出す（buildLabAssessment）。読み取れる検査値が無いときだけ従来の簡易チェック
+        const rule = buildLabAssessment(cp);
+        if (rule.has) {
+          DOM.labEvalContent.innerHTML = rule.html;
+          if (typeof refreshAiResults === 'function') refreshAiResults(true);
+          showToast('検査値の評価を表示しました（AIなし）。要確認の値は原本で確かめてください', 'success');
+          return;
+        }
         setTimeout(() => {
           let evaluation = `【検査値の簡易チェック（AIなし・登録された基準値との比較）】\n`;
           const { findings, undetermined, checked } = evaluateLabFindings(oItems);
@@ -990,6 +998,7 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
     const OUTSIDE_14_NEEDS_REGEX = /生殖|出産歴|閉経|月経|妊娠|性生活|性機能/;
     function untaggedReasonOf(item) {
       const text = (item && item.text) || '';
+      if (typeof isLabTextUnreliable === 'function' && isLabTextUnreliable(text)) return '検査値の項目名・数値・単位がOCRで崩れている可能性があるため、原本を確認するまで分類していません（原文はそのまま残しています。検査値の評価の欄に「要確認」「原文不明瞭」として出しています）。';
       if (OUTSIDE_14_NEEDS_REGEX.test(text)) {
         const word = text.match(OUTSIDE_14_NEEDS_REGEX)[0];
         return `「${word}」はヘンダーソンの14項目に直接の項目が無いため、自動ではタグを付けていません。学習データ管理の「追加キーワード」で「${word}」を入れる項目を決めると、次から自動で付きます（このカードは下の「＋タグ追加」で選べます）。`;
@@ -1302,6 +1311,7 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       if (el && typeof el.focus === 'function' && document.activeElement !== el) el.focus({ preventScroll: false });
     }
     function renderSoBoard() {
+      try { if (typeof window.refreshLabAssessmentPanel === 'function') window.refreshLabAssessmentPanel(); } catch (e) { /* 検査値の評価の更新に失敗しても、ボードは描く */ }
       resetCardLabFlags();
       const focusBefore = captureBoardFocus();
       const cp = getCurrentPatient();
@@ -2350,3 +2360,299 @@ K. この評価は患者データへ一括適用される前提で書かない�
         <p class="ci-caution">記録の文章から自動で読み取って計算しています。読み取りが正しいか、計算に使った値（各欄の下）を確かめてから使ってください。</p>`;
     }
     window.renderClinicalIndices = renderClinicalIndices;
+
+    // ==========================================================================
+    // 検査値の確認（原文を残す → OCRの疑いを調べる → 基準値と比べる → 推移 → 考察・予測）
+    // 【利用者の要望】
+    //  ・原文は絶対に書き換えない。崩れていそうな値は「要確認」とし、別に「〜ではないかと予想されます」と予想を出す
+    //    （原文・正規化した値・予想・確度・理由を分けて持つ。予想は事実のように書かない。確度が中以上のときだけ具体的な値を出す）
+    //  ・基準値は「原文にあった基準値」と「アプリ内蔵の一般的な基準値」を混ぜない（内蔵のものは一般的な目安と明記）
+    //  ・呼吸機能・バイタルサインも基準で見る。考察は、直接の所見＋もっともらしい関係＋反対の証拠が無いときだけ「〜ではないかと考えられる」と書く
+    //  ・読み取れない値（原文不明瞭）はヘンダーソンの分類に入れない（isLabTextUnreliable）
+    // 内部の状態：valid（確認済み）／suspicious（要確認）／corrupted（原文不明瞭）／insufficient_context（判定不可）
+    // ==========================================================================
+    const LAB_VAL_KEY_REGEX_SOURCE = LAB_FIND_KEYS.map(escapeRegExp).join('|');
+    const LAB_VAL_START_REGEX = new RegExp(`^(?:【[^】]{0,12}】\\s*)?(${LAB_VAL_KEY_REGEX_SOURCE})(?![A-Za-z])\\s*(?:[(（{][^)）}]{0,16}[)）}])?\\s*[:：=]?\\s*([-+]?\\d[\\d,]*(?:\\.\\d+)?)\\s*([^\\s(（↑↓]*)\\s*([↑↓])?(.*)$`);
+    const LAB_VAL_CHANGE_EXEMPT = ['CRP', 'BNP', 'Dダイマー'];
+    const LAB_VAL_RELATED_NEEDS = { Hb: '1.呼吸（酸素の運搬）・4.姿勢（活動時のふらつき）', Ht: '1.呼吸（酸素の運搬）・4.姿勢', RBC: '1.呼吸（酸素の運搬）・4.姿勢', Alb: '2.食事（栄養状態）', TP: '2.食事（栄養状態）',
+      WBC: '7.体温・8.清潔（創部の感染予防）', CRP: '7.体温・8.清潔（創部の感染予防）', BUN: '3.排泄・2.食事（水分）', Cre: '3.排泄', Cr: '3.排泄', Na: '2.食事（水分・電解質）', K: '2.食事（水分・電解質）', Cl: '2.食事（水分・電解質）' };
+    function labValNum(v) { return Number(String(v).replace(/,/g, '')); }
+    function labValFmt(v) {
+      if (!Number.isFinite(v)) return '';
+      const a = Math.abs(v);
+      return a >= 1000 ? Math.round(v).toLocaleString('en-US') : a >= 100 ? String(Math.round(v * 10) / 10) : a >= 10 ? String(Math.round(v * 10) / 10) : String(Math.round(v * 100) / 100);
+    }
+    // 単位の崩れ（OCR）を、似た文字に直した場合の単位（予想にだけ使う。原文は書き換えない）
+    function labValRepairUnit(u, stdUnit) {
+      const s = String(u || '').replace(/\s+/g, '');
+      if (!s || !stdUnit) return '';
+      const cands = [s.replace(/\/21$/, '/dL').replace(/\/2l$/i, '/dL').replace(/\/d1$/i, '/dL').replace(/\/dl$/i, '/dL'), s.replace(/\/1$/, '/L').replace(/\/l$/, '/L'), s.replace(/\/ML$/, '/μL').replace(/\/uL$/i, '/μL')];
+      return cands.map(normalizeLabUnit).find(c => c === normalizeLabUnit(stdUnit)) || '';
+    }
+    // 1つのカードの文章から、検査値1件を読んで確認する。previous＝同じ項目のそれまでの確認済みの値（変化の確認に使う）
+    function analyzeLabCard(text, previous) {
+      const src = String(text || '').trim();
+      const t = src.normalize('NFKC');
+      const m = LAB_VAL_START_REGEX.exec(t);
+      if (!m) {
+        // 項目名か数値が崩れた検査値らしい文字列は、検査値として扱わない（原文不明瞭）
+        const looksLab = /\d\s*(?:U\/L|mg\/dL|g\/dL|mEq\/L|\/[μu]L|×\s*10)/i.test(t);
+        const hasKnownKey = new RegExp(`(?<![A-Za-z])(?:${LAB_VAL_KEY_REGEX_SOURCE})(?![A-Za-z])`).test(t);
+        if (looksLab && !hasKnownKey) return { kind: 'broken', source: src, quality: 'corrupted', reasons: ['検査項目名または数値がOCRで崩れている可能性があります'], reasonKinds: ['broken'] };
+        return null;
+      }
+      const written = m[1];
+      const key = LAB_STANDARDS[written] ? written : (LAB_JAPANESE_ALIASES[written] || Object.keys(LAB_STANDARDS).find(k => k.toLowerCase() === written.toLowerCase()));
+      const std = key && LAB_STANDARDS[key];
+      if (!std) return null;
+      const rest = m[5] || '';
+      const refM = rest.match(/[(（]基準値[:：]?\s*([^)）]*)[)）]/);
+      const unitNote = rest.match(/単位[「『]([^」』]*)[」』]を([^と]*)と読み替え/);
+      const rec = { kind: 'lab', key, written, source: src, valueRaw: m[2], unitRaw: m[3] || '', arrow: m[4] || '', quality: 'valid', reasons: [], reasonKinds: [], notes: [], prediction: null, ref: null, status: 'unknown', value: labValNum(m[2]), unit: '' };
+      if (unitNote) rec.notes.push(`単位は原文「${unitNote[1]}」を${unitNote[2]}と読み替えて比べています`);
+      const stdUnit = normalizeLabUnit(std.unit);
+      const u = normalizeLabUnit(m[3] || '');
+      // 単位と値の確認
+      let valueStd = null, unitOk = true;
+      if (!u) { valueStd = rec.value; rec.unit = ''; }
+      else {
+        const resolved = resolveLabUnit(key, m[2], m[3] || '');
+        if (resolved) { valueStd = labValNum(resolved.value); rec.unit = resolved.unit || std.unit; }
+        else {
+          const ratio = labUnitRatio(u, std.unit);
+          if (ratio) { valueStd = rec.value * ratio; rec.unit = u; rec.convertNote = `単位が${std.unit}と違うため換算して比べています`; }
+          else { unitOk = false; }
+        }
+      }
+      if (!unitOk) { rec.quality = 'suspicious'; rec.reasons.push(`単位「${m[3]}」が読み取れません`); rec.reasonKinds.push('unit'); }
+      const range = parseLabReferenceRange(std.ref);
+      if (valueStd !== null && range) {
+        const lowB = range.low !== null && range.low !== undefined ? range.low * 0.3 : 0;
+        const highB = range.high !== null && range.high !== undefined ? (range.low === null || range.low === undefined ? range.high * 100 : range.high * 10) : Infinity;
+        if (valueStd < lowB || valueStd > highB) {
+          const off = valueStd < lowB ? (range.low || 1) / Math.max(valueStd, 1e-9) : valueStd / (range.high || 1);
+          rec.quality = 'suspicious';
+          rec.reasons.push(valueStd < lowB ? '一般的な範囲に比べて極端に小さい値です' : '一般的な範囲に比べて極端に大きい値です');
+          rec.reasonKinds.push(off >= 50 ? 'digits' : 'magnitude');
+        }
+      }
+      // 基準値：原文にあるものを優先。内蔵の一般的な基準値と同じ文字なら「一般的な基準値」と区別する
+      if (refM) {
+        const given = refM[1].trim();
+        const generic = `${std.ref}${std.unit}`.replace(/\s+/g, '') === given.replace(/\s+/g, '') || std.ref.replace(/\s+/g, '') === given.replace(/\s+/g, '');
+        rec.ref = { text: given, origin: generic ? 'general' : 'source', range: parseLabReferenceRange(given), unit: refUnitOf(given) };
+      } else if (range) rec.ref = { text: `${std.ref} ${std.unit}`.trim(), origin: 'general', range, unit: std.unit };
+      // 変化の確認（同じ項目の前の確認済みの値と比べる）
+      if (previous && Number.isFinite(previous.valueStd) && valueStd !== null && previous.valueStd > 0 && valueStd >= 0 && !LAB_VAL_CHANGE_EXEMPT.includes(key)) {
+        const ratio = valueStd / previous.valueStd;
+        if (ratio >= 8 || ratio <= 1 / 8) {
+          rec.quality = 'suspicious'; rec.reasons.push(`${previous.phase ? previous.phase + 'の' : '前の'}値（${labValFmt(previous.valueStd)}）との変化が大きく、実際の変化かOCRの誤読かを原本で確認する必要があります`);
+          rec.reasonKinds.push('change'); rec.changeRatio = ratio;
+        }
+      }
+      rec.valueStd = valueStd; rec.stdUnit = std.unit;
+      if (rec.quality === 'valid' && rec.convertNote) rec.notes.push(rec.convertNote);
+      // 判定：要確認でなければ、基準値と比べる
+      if (rec.quality === 'valid') {
+        const r = rec.ref && rec.ref.range;
+        if (valueStd === null || !r) rec.status = 'unknown';
+        else {
+          let cmp = valueStd;
+          if (rec.ref.origin === 'source' && rec.ref.unit && u && !sameLabUnit(rec.ref.unit, u)) { const ratio2 = labUnitRatio(u, rec.ref.unit); cmp = ratio2 ? rec.value * ratio2 : null; }
+          const d = cmp === null ? null : labDirection(cmp, r, rec.arrow);
+          rec.status = d === null ? 'unknown' : d === 'high' ? 'high' : d === 'low' ? 'low' : 'normal';
+        }
+      } else rec.status = 'review';
+      // 予想（単位・桁が崩れた疑いのときだけ。確度が中以上のときだけ具体的な値を出す）
+      if (rec.quality === 'suspicious' && (rec.reasonKinds.includes('digits') || rec.reasonKinds.includes('unit')) && !rec.valueRaw.includes('.') && range) {
+        const digits = rec.valueRaw.replace(/[,\-+]/g, '');
+        const lowW = range.low !== null && range.low !== undefined ? range.low * 0.6 : 0, highW = range.high !== null && range.high !== undefined ? range.high * 1.6 : Infinity;
+        const cands = [], places = [];
+        for (let j = 0; j <= 4; j++) { const v = Number(digits) / Math.pow(10, j); if (v >= lowW && v <= highW) { cands.push(v); places.push(j); } }
+        const unitFixed = labValRepairUnit(m[3] || '', std.unit);
+        if (cands.length === 1) {
+          const cand = cands[0];
+          const prevOk = previous && Number.isFinite(previous.valueStd) && Math.abs(cand / previous.valueStd - 1) <= 0.3;
+          const conf = prevOk ? 'high' : (rec.reasonKinds.includes('unit') && !unitFixed ? 'low' : 'medium');
+          const why = [];
+          if (rec.reasonKinds.includes('unit')) why.push(unitFixed ? `単位「${m[3]}」が「${std.unit}」の読み間違いではないか` : `単位「${m[3]}」が崩れている`);
+          if (rec.reasonKinds.includes('digits')) why.push('単位または小数点が崩れた可能性');
+          if (prevOk) why.push(`${previous.phase ? previous.phase + 'の' : '前の'}値 ${labValFmt(previous.valueStd)} ${std.unit} との表記・桁の整合性`); else why.push(`${std.unit}で一般的な範囲に収まる読み方が1つだけ`);
+          rec.prediction = { confidence: conf, value: conf === 'low' ? null : cand, text: conf === 'low' ? '' : `${key} ${cand.toFixed(places[0])} ${std.unit}`, reason: why.join('、') };
+        } else rec.prediction = { confidence: 'low', value: null, text: '', reason: cands.length ? '読み方の候補が複数あり、1つに絞れません' : '一般的な範囲に収まる読み方が見つかりません' };
+      }
+      return rec;
+    }
+    // 呼吸機能（%肺活量・1秒率）。目安は一般的なもの（年齢・性別・施設・判定法で異なる）
+    const LAB_RESP_DEFS = [
+      { key: '%肺活量', regex: /(%\s*肺活量|%\s*VC|％\s*VC)\D{0,4}(\d+(?:\.\d+)?)\s*%/i, low: 80, ref: '80%以上' },
+      { key: '1秒率', regex: /((?:一|1)秒率|FEV\s*1(?:\.0)?\s*%?)\D{0,4}(\d+(?:\.\d+)?)\s*%/i, low: 70, ref: '70%以上' }
+    ];
+    const LAB_VITAL_DEFS = [
+      { key: '体温', regex: /体温\D{0,3}(\d{2}(?:\.\d)?)\s*(?:°C|℃|度)?/, unit: '℃', judge: v => v >= 37.5 ? 'high' : v < 35.5 ? 'low' : 'normal', ref: '35.5〜37.4℃' },
+      { key: '脈拍', regex: /(?:脈拍|脈)\D{0,3}(\d{2,3})\s*回/, unit: '回/分', judge: v => v > 100 ? 'high' : v < 60 ? 'low' : 'normal', ref: '60〜100回/分' },
+      { key: '呼吸数', regex: /呼吸数\D{0,3}(\d{1,2})\s*回/, unit: '回/分', judge: v => v > 20 ? 'high' : v < 12 ? 'low' : 'normal', ref: '12〜20回/分' },
+      { key: 'SpO2', regex: /(?:SpO2|SPO2|Spo2|SpO₂)\D{0,3}(\d{2,3})\s*%/i, unit: '%', judge: v => v < 95 ? 'low' : 'normal', ref: '95%以上' }
+    ];
+    const LAB_STATUS_LABEL = { high: '高値', low: '低値', normal: '基準範囲内', review: '要確認', unknown: '判定不可' };
+    // 取り出した全部：検査値・呼吸機能・バイタルサイン・読み取れない文字列
+    function analyzeLabData(cp) {
+      const items = expandCombinedLabItems((cp.items || []).filter(i => i.type !== 'unnecessary'));
+      const labs = [], broken = [], resp = [], vitals = [];
+      const lastValid = {};
+      items.forEach(item => {
+        const text = String(item.text || '');
+        const t = text.normalize('NFKC');
+        const phase = String(item.timestamp || '').replace(/\s*\d{1,2}[:：]\d{2}.*$/, '').trim();
+        LAB_RESP_DEFS.forEach(d => { const mm = t.match(d.regex); if (mm) { const v = Number(mm[2]); resp.push({ key: d.key, source: text.trim(), value: v, raw: mm[2], ref: d.ref, status: v >= d.low ? 'normal' : 'low', phase, def: d }); } });
+        LAB_VITAL_DEFS.forEach(d => { const mm = t.match(d.regex); if (mm) { const v = Number(mm[1]); vitals.push({ key: d.key, source: text.trim(), value: v, raw: mm[1], unit: d.unit, ref: d.ref, status: d.judge(v), phase, oxygen: d.key === 'SpO2' && /酸素|O2\s*\d/.test(t) }); } });
+        const bp = t.match(/血圧\D{0,3}(\d{2,3})\s*[/／]\s*(\d{2,3})/);
+        if (bp) { const s = Number(bp[1]), dd = Number(bp[2]); vitals.push({ key: '血圧', source: text.trim(), value: `${s}/${dd}`, unit: 'mmHg', ref: '収縮期100〜139・拡張期60〜89mmHg', status: (s >= 140 || dd >= 90) ? 'high' : (s < 90 || dd < 50) ? 'low' : 'normal', phase }); }
+        const r = analyzeLabCard(text, null);
+        if (!r) return;
+        if (r.kind === 'broken') { r.phase = phase; r.itemId = item.id; broken.push(r); return; }
+        // 変化の確認は、前の確認済みの値と比べる（もう一度解析して previous を渡す）
+        const withPrev = analyzeLabCard(text, lastValid[r.key] || null);
+        withPrev.phase = phase; withPrev.itemId = item.id;
+        labs.push(withPrev);
+        if (withPrev.quality === 'valid') lastValid[r.key] = { valueStd: withPrev.valueStd, phase };
+      });
+      // 壊れた文字列の項目名の予想：同じ単位の検査で、その時点にまだ無い項目のうち、前の値に近いもの（低い確度）
+      broken.forEach(b => {
+        const mm = b.source.normalize('NFKC').match(/(\d+(?:\.\d+)?)\s*(U\/L|mg\/dL|g\/dL)/i);
+        if (!mm) return;
+        const v = Number(mm[1]), unit = normalizeLabUnit(mm[2]);
+        const seenHere = new Set(labs.filter(l => l.phase === b.phase).map(l => l.key));
+        const cands = Object.keys(LAB_STANDARDS).filter(k => normalizeLabUnit(LAB_STANDARDS[k].unit) === unit && !seenHere.has(k)).map(k => ({ k, prev: lastValid[k] })).filter(x => x.prev && x.prev.valueStd > 0 && Math.abs(v / x.prev.valueStd - 1) <= 0.35);
+        if (cands.length === 1) b.prediction = { confidence: 'low', key: cands[0].k, text: `${cands[0].k} ${mm[1]} ${LAB_STANDARDS[cands[0].k].unit}`, reason: `同じ単位で、この時点にまだ記録が無く、前の値（${labValFmt(cands[0].prev.valueStd)}）に近い項目は${cands[0].k}だけです` };
+      });
+      // AST・ALTの両方が大きく変化したときの注意（数値の欠落・入れ替わりの疑い）
+      const ast = labs.find(l => l.key === 'AST' && l.reasonKinds.includes('change')), alt = labs.find(l => l.key === 'ALT' && l.reasonKinds.includes('change'));
+      if (ast && alt) { const note = '数値の欠落・入れ替わりではないかと予想されますが、原文だけでは確定できません（確度：低）'; ast.notes.push(note); alt.notes.push(note); }
+      return { labs, broken, resp, vitals };
+    }
+    // 検査値の文字が読めないか（ヘンダーソンの分類に入れない）。単位・桁の崩れ（TP 60g/21、RBC4587/uL）も含む。変化が大きいだけの値は含めない
+    function isLabTextUnreliable(text) {
+      let r = null;
+      try { r = analyzeLabCard(text, null); } catch (e) { return false; }
+      if (!r) return false;
+      return r.kind === 'broken' || (r.quality === 'suspicious' && (r.reasonKinds.includes('unit') || r.reasonKinds.includes('digits')));
+    }
+    // 事実と、考察・予測を分けて文章にする
+    function buildLabAssessment(cp) {
+      const { labs, broken, resp, vitals } = analyzeLabData(cp);
+      const allText = (cp.items || []).filter(i => i.type !== 'unnecessary').map(i => String(i.text || '')).join('\n').normalize('NFKC');
+      const ctx = {
+        surgery: /術後|手術|術式|全摘|切除|開腹|腹腔鏡|オペ/.test(allText), fasting: /絶飲食|絶食|禁食|NPO/.test(allText),
+        bleeding: /出血|血性|ドレーン/.test(allText), infection: /発熱|膿|発赤|腫脹|熱感|排膿|悪寒|感染徴候/.test(allText), smoking: /喫煙|煙草|タバコ|ブリンクマン/.test(allText),
+        fever: vitals.some(v => v.key === '体温' && v.status === 'high')
+      };
+      const facts = [], reviews = [], thoughts = [];
+      const byKey = {};
+      labs.forEach(l => { (byKey[l.key] = byKey[l.key] || []).push(l); });
+      const phaseText = l => l.phase ? `（${l.phase}）` : '';
+      Object.keys(byKey).forEach(key => {
+        const list = byKey[key];
+        const std = LAB_STANDARDS[key];
+        const valid = list.filter(l => l.quality === 'valid');
+        const seq = valid.map(l => labValFmt(l.value)).join(' → ');
+        const lines = [];
+        if (valid.length) {
+          const last = valid[valid.length - 1];
+          lines.push(`${key}：${seq} ${last.unit || (std ? std.unit : '')}`.trim());
+          if (last.ref) lines.push(`　判定：${LAB_STATUS_LABEL[last.status]}${last.ref.text ? `（基準値 ${last.ref.text}・${last.ref.origin === 'source' ? '原文の基準値' : 'アプリ内蔵の一般的な基準値（性別・年齢・施設で異なります）'}）` : ''}`);
+          else lines.push(`　判定：${LAB_STATUS_LABEL[last.status]}`);
+          // 推移（基準値の判定とは分けて書く）
+          if (valid.length >= 2) {
+            const first = valid[0], pct = (last.valueStd - first.valueStd) / (first.valueStd || 1);
+            const dir = pct <= -0.05 ? '低下' : pct >= 0.05 ? '上昇' : '';
+            if (dir) lines.push(`　推移：${first.phase ? first.phase + 'より' : '以前より'}${dir}しています${last.status === 'normal' ? '（基準範囲内の変化）' : ''}。`);
+            else lines.push('　推移：大きな変化はありません。');
+            last.trend = dir ? (dir === '低下' ? 'down' : 'up') : 'flat'; last.trendPct = pct;
+          }
+          last.notes.forEach(n => lines.push(`　注：${n}`));
+        }
+        list.filter(l => l.quality !== 'valid').forEach(l => {
+          lines.push(`${key}：原文「${l.source}」${phaseText(l)}`);
+          lines.push('　判定：要確認');
+          if (l.prediction && l.prediction.value !== null && l.prediction.value !== undefined && ['medium', 'high'].includes(l.prediction.confidence)) {
+            lines.push(`　推定：${l.prediction.text} 前後ではないかと予想されます（推定確度：${l.prediction.confidence === 'high' ? '高' : '中'}）。原文の値は書き換えていません。`);
+            lines.push(`　理由：${l.prediction.reason}。OCRで単位または小数点が崩れた可能性があります。原本確認が必要です。`);
+          } else {
+            lines.push(`　${l.reasons.join('。')}。OCR誤読の可能性があります。原本確認が必要です。`);
+          }
+          l.notes.forEach(n => lines.push(`　注：${n}`));
+          if (l.reasonKinds.includes('change')) lines.push('　（要確認の値は、基準値の判定と推移には使っていません）');
+          reviews.push(`${key}${phaseText(l)}`);
+        });
+        facts.push(lines.join('\n'));
+        // 考察・予測（直接の所見＋もっともらしい関係＋反対の証拠が無いときだけ）
+        if (valid.length) {
+          const last = valid[valid.length - 1];
+          const abnormal = last.status === 'high' || last.status === 'low';
+          const down = last.trend === 'down', up = last.trend === 'up';
+          let th = '';
+          if (['Hb', 'Ht', 'RBC'].includes(key) && (down || last.status === 'low')) th = ctx.surgery ? `${key}が${down ? '術前より低下している' : '低値である'}ため、手術に伴う出血や周術期の影響ではないかと考えられる。ふらつき・顔色・活動時の息切れなどの確認が必要。` : `${key}が${down ? '低下' : '低値'}しているが、原因は現時点の情報だけでは判断できません。追加情報が必要です。`;
+          else if (['Alb', 'TP'].includes(key) && (down || last.status === 'low')) th = (ctx.surgery || ctx.fasting) ? `${key}が${down ? '低下している' : '低値である'}ため、手術侵襲や摂取制限（絶飲食など）の影響がある可能性が考えられる。栄養状態や創傷治癒への影響を経過で確認する必要がある。` : `${key}が${down ? '低下' : '低値'}しているが、原因は現時点の情報だけでは判断できません。追加情報が必要です。`;
+          else if (['WBC', 'CRP'].includes(key) && last.status === 'high') th = ctx.surgery ? `${key}の上昇は術後の炎症反応によるものではないかと考えられるが、${ctx.infection || ctx.fever ? '発熱や創部などの感染徴候の記載があるため、感染の可能性も含めて' : '感染徴候（発熱・創部・ドレーン排液など）との区別のため'}経過観察が必要である。` : `${key}が高値だが、原因は現時点の情報だけでは判断できません。感染徴候などの追加情報が必要です。`;
+          else if (['AST', 'ALT', 'ALP', 'γGTP', 'T-Bil'].includes(key) && last.status === 'high') th = `${key}が高値のため、肝胆道系への影響の可能性が考えられるが、手術・薬剤などの影響も含め、現時点の情報だけでは判断できません。経過の確認が必要です。`;
+          else if (['BUN', 'Cre', 'Cr'].includes(key) && last.status === 'high') th = `${key}が高値のため、脱水や腎機能の変化の可能性が考えられる。尿量・水分出納と合わせて確認が必要である。`;
+          else if (['Na', 'K', 'Cl'].includes(key) && abnormal) th = `${key}が${last.status === 'high' ? '高値' : '低値'}のため、摂取状況・輸液・症状（嘔気・倦怠感・不整脈など）と合わせて確認が必要である。`;
+          else if (abnormal) th = `${key}が${last.status === 'high' ? '高値' : '低値'}ですが、現時点の情報だけでは判断できません。追加情報が必要です。`;
+          if (th) thoughts.push({ key, text: th, needs: LAB_VAL_RELATED_NEEDS[key] || '' });
+        }
+      });
+      broken.forEach(b => {
+        const lines = [`原文「${b.source}」${phaseText(b)}`, '　判定：原文不明瞭', '　検査項目名または数値がOCRで崩れている可能性があります。原本確認が必要です。（検査値としては扱わず、ヘンダーソンの分類にも入れていません）'];
+        if (b.prediction) lines.push(`　推定：${b.prediction.text} の検査値ではないかと予想されます（推定確度：低）。理由：${b.prediction.reason}。`);
+        facts.push(lines.join('\n'));
+        reviews.push('読み取れない文字列');
+      });
+      // 呼吸機能
+      const respLines = [];
+      resp.forEach(r => {
+        respLines.push(`${r.key}：${r.raw}%${r.phase ? `（${r.phase}）` : ''}\n　判定：${r.status === 'normal' ? '基準範囲内' : '低値'}（一般的な目安 ${r.ref}。年齢・性別・施設・判定法で基準が異なるため、参考として見てください）`);
+        if (r.key === '1秒率' && r.status === 'low') thoughts.push({ key: '1秒率', text: `1秒率が一般的な目安（70%）を下回っているため、閉塞性の換気パターンの可能性が考えられるが、年齢・基準の違いもあり、診断は医師の判断です。${ctx.smoking ? '喫煙歴の影響の可能性も考えられるが、現時点では推測に留まります。' : ''}術後の呼吸器合併症のリスク評価として、呼吸状態の観察が必要です。`, needs: '1.呼吸' });
+        if (r.key === '%肺活量' && r.status === 'low') thoughts.push({ key: '%肺活量', text: '%肺活量が一般的な目安（80%）を下回っているため、拡張しにくい（拘束性の）換気パターンの可能性が考えられるが、診断は医師の判断です。', needs: '1.呼吸' });
+      });
+      if (resp.some(r => r.status === 'normal') && !resp.some(r => r.status === 'low')) thoughts.push({ key: '呼吸機能', text: '術前の呼吸機能は、一般的な目安では保たれていると考えられる。', needs: '1.呼吸' });
+      // バイタルサイン
+      const vitalLines = [];
+      vitals.forEach(v => {
+        vitalLines.push(`${v.key}：${v.raw || v.value}${v.unit}${v.phase ? `（${v.phase}）` : ''}　判定：${LAB_STATUS_LABEL[v.status]}（一般的な目安 ${v.ref}）${v.oxygen ? '　※酸素投与下の値のため、室内気の状態とは評価できません' : ''}`);
+      });
+      const hasAny = labs.length || broken.length || resp.length || vitals.length;
+      if (!hasAny) return { has: false, text: '', html: '', labs, broken, resp, vitals, checks: [] };
+      // 最終確認（表示の前に、原文を残したか・予想を事実にしていないか・読めない文字列を検査値にしていないかを確かめる）
+      const checks = [];
+      labs.forEach(l => { if (!l.source) checks.push('原文が残っていません'); if (l.quality !== 'valid' && l.status !== 'review') checks.push(`${l.key}：要確認の値に判定が付いています`); if (l.prediction && l.prediction.value != null && !['medium', 'high'].includes(l.prediction.confidence)) checks.push(`${l.key}：確度が低い予想に値が付いています`); });
+      broken.forEach(b => { if (labs.some(l => l.source === b.source)) checks.push('読めない文字列が検査値になっています'); });
+      let out = '【検査データ臨床評価・アセスメントノート】\n（AIなし：記録と、登録された基準との比較です。「事実」と「考察・予測」を分けています。予想は原文の値を書き換えるものではありません）\n';
+      if (facts.length) out += `\n■ 検査値（事実：原文・基準との比較）\n${facts.join('\n')}\n`;
+      if (respLines.length) out += `\n■ 呼吸機能（事実）\n${respLines.join('\n')}\n`;
+      if (vitalLines.length) out += `\n■ バイタルサイン（事実：検査値とは別に評価）\n${vitalLines.join('\n')}\n`;
+      if (thoughts.length) out += `\n■ 考察・予測（根拠のある所見だけ。事実ではなく、看護師の推論です）\n${thoughts.map(x => `・${x.text}${x.needs ? `（関連しうる基本的欲求：${x.needs}）` : ''}`).join('\n')}\n`;
+      else out += '\n■ 考察・予測\n・基準を外れた値や、大きな変化の記録が無いため、現時点で追加の考察はありません。\n';
+      if (reviews.length) out += `\n■ 原本の確認が必要な値\n・${Array.from(new Set(reviews)).join('、')}（原文をそのまま残しています。確認できるまで、判定や分類には使わないでください）\n`;
+      const html = escapeHtml(out).replace(/\n/g, '<br>');
+      return { has: true, text: out, html, labs, broken, resp, vitals, thoughts, checks };
+    }
+    // 画面と書き出しで使う：保存されたAIの結果があればそれを、無ければ今の記録から作った評価を出す
+    function labAssessmentHtmlFor(cp) {
+      if (cp.labEvaluationResult) return cp.labEvaluationResult;
+      try { return buildLabAssessment(cp).html || ''; } catch (e) { console.warn('検査値の評価を作れませんでした:', e); return ''; }
+    }
+    function labAssessmentTextFor(cp) {
+      try { return buildLabAssessment(cp).text || ''; } catch (e) { return ''; }
+    }
+    // 画面の「検査値の評価」の欄：保存されたAIの結果が無いときは、今の記録から作った評価を出す（記録が変わるたびに更新）
+    window.refreshLabAssessmentPanel = function() {
+      const panel = document.getElementById('lab-evaluation-panel');
+      if (!panel || !DOM.labEvalContent) return;
+      const cp = getCurrentPatient();
+      if (cp.labEvaluationResult) return;
+      const html = labAssessmentHtmlFor(cp);
+      if (DOM.labEvalContent.innerHTML !== html) DOM.labEvalContent.innerHTML = html;
+      const hide = !html;
+      if (panel.classList.contains('hidden') !== hide) { panel.classList.toggle('hidden', hide); if (typeof refreshAiResults === 'function') refreshAiResults(true); }
+    };

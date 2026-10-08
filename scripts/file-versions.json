@@ -8,36 +8,36 @@
     "hash": "8e9bf407ad024be7"
   },
   "js/03-extraction-helpers.js": {
-    "version": "2026-10-08.12",
-    "hash": "12005080974a049d"
+    "version": "2026-10-08.14",
+    "hash": "2ad22bff6197dcf1"
   },
   "js/04-server-sync.js": {
     "version": "2026-10-07.36",
     "hash": "9defcf16b9085fc4"
   },
   "js/05-app-state-and-ui.js": {
-    "version": "2026-10-08.7",
-    "hash": "4a5cb070d7c7a84f"
+    "version": "2026-10-08.14",
+    "hash": "630e54ae073c70d1"
   },
   "js/06-export.js": {
-    "version": "2026-10-08.8",
-    "hash": "5e0f634a9d2e9cc2"
+    "version": "2026-10-08.14",
+    "hash": "14cbf41746a703de"
   },
   "js/07-classification.js": {
-    "version": "2026-10-08.12",
-    "hash": "e901724fe3add268"
+    "version": "2026-10-08.14",
+    "hash": "4893fc7faf07caed"
   },
   "js/08-assessment-tools.js": {
-    "version": "2026-10-07.26",
-    "hash": "6d8fe95ad87e5a01"
+    "version": "2026-10-08.14",
+    "hash": "4516732aa0feecd5"
   },
   "js/09-board.js": {
     "version": "2026-10-08.13",
     "hash": "332e400e4f547ab9"
   },
   "js/10-reference-page-and-startup.js": {
-    "version": "2026-10-07.19",
-    "hash": "88799de1f9fafe72"
+    "version": "2026-10-08.14",
+    "hash": "3839e38b656ac41b"
   },
   "js/11-own-assessment.js": {
     "version": "2026-10-08.13",

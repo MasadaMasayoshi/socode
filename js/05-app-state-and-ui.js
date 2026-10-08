@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-08.7'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-08.14'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -1496,6 +1496,8 @@
       DOM.labEvalContent.innerHTML = sanitizeStoredHtml(cp.labEvaluationResult);
       // 結果の無い欄は出さない（「AIの結果」の欄に、結果のあるものだけをタブで並べる。refreshAiResults）
       document.getElementById('lab-evaluation-panel')?.classList.toggle('hidden', !cp.labEvaluationResult);
+      // 保存されたAIの結果が無いときは、今の記録から作った検査値の評価（AIなし）を出す（js/08）
+      if (!cp.labEvaluationResult && typeof window.refreshLabAssessmentPanel === 'function') window.refreshLabAssessmentPanel();
       DOM.currentPatientTitle.textContent = cp.title;
 
       // 前回のAI分析結果（矛盾チェック・看護診断候補・経時変化サマリー）があれば患者切り替え時にも復元する

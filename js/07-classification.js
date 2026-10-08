@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-08.12'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-08.14'; // 版（scripts/stamp-version.js が書き込む）
     // 「祖母を胃がん、父を前立腺がんで亡くしている〜」のような家族歴の文は、本人の食事・栄養
     // 状態の所見ではないにもかかわらず、id2(食事)の疾患名キーワード（「胃がん」等）に一致して
     // しまい、食事に無関係な家族歴が「2. 食事」に混入していた（利用者からの報告事例）。
@@ -147,6 +147,7 @@
     function detectMultipleHendersonTags(text) {
       // 会話形式で答えに添えた看護師の問い（「（問い：薬は毎日飲めていましたか）」）は、タグの判定に使わない
       text = String(text || '').replace(/（問い：[^）]*）/g, '');
+      if (typeof isLabTextUnreliable === 'function' && isLabTextUnreliable(text)) return []; // 項目名や数値が崩れた検査値は、分類しない（原本確認が先）
       const tags = new Set();
       const skipOwnDiagnosisKeywords = FAMILY_HISTORY_DISEASE_CONTEXT_REGEX.test(text);
       // 利用者が「学習データ管理」→「追加キーワード」で登録したルール（customTagRuleSets参照）

@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = '2026-10-08.12'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = '2026-10-08.14'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 検査値カードの抽出：値のすぐ後（スペースの有無を問わず）に単位まで書かれている場合、
     // 値と単位が別々のカードに分かれてしまう不具合の対策。
@@ -185,6 +185,7 @@
       { tags: [2], regex: /(APTT|PT-INR|PT%|\bPT(?=\s*[\d%(（])|プロトロンビン|Dダイマー|D-ダイマー|\bFDP\b|フィブリノ|\bPLT\b|血小板)/i }
     ];
     function labCategoryTags(text) {
+      if (typeof isLabTextUnreliable === 'function' && isLabTextUnreliable(text)) return []; // 読み取れない検査値は、原本確認までヘンダーソンに入れない
       const tags = [];
       LAB_CATEGORY_TAG_RULES.forEach(rule => { if (rule.regex.test(text)) rule.tags.forEach(t => { if (!tags.includes(t)) tags.push(t); }); });
       return tags.length ? tags : [2];
@@ -740,6 +741,7 @@
     function suggestHendersonTagsForText(text, fieldLabel, userLearned) {
       const ruleHIds = detectMultipleHendersonTags(text);
       const ids = Array.from(new Set([...ruleHIds, ...(userLearned?.preferredHendersonIds || [])]));
+      if (typeof isLabTextUnreliable === 'function' && isLabTextUnreliable(text)) return []; // 読み取れない検査値は、原本確認までヘンダーソンに入れない
       if (mentionsLabItemName(text) && !hasLearnedSignal(userLearned)) labCategoryTags(text).forEach(h => { if (!ids.includes(h)) ids.push(h); });
       if (fieldLabel && !hasLearnedSignal(userLearned)) {
         fieldLabelHintTags(fieldLabel, text).forEach(hid => { if (!ids.includes(hid)) ids.push(hid); });
