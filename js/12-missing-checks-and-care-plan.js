@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-08.2053'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-08.2103'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -391,6 +391,8 @@
         <button type="button" class="mc-filter mc-unchecked${untaggedListOpen ? ' active' : ''}" onclick="toggleUntaggedList()">未確認 <b>${c.open}</b></button>
         <button type="button" class="mc-filter mc-checked" onclick="toggleUntaggedList()">確認済み <b>${c.done}</b></button>
         <button type="button" class="mc-filter" onclick="selectAllUntagged()" title="タグ未設定のカードをすべて選択します（選択後、下の帯の「＋タグ追加」などでまとめて操作できます）"><i class="fa-regular fa-square-check"></i> 未設定を全選択 <b>${c.total - untaggedCountNotNeeded(cp)}</b></button>
+        <button type="button" class="mc-filter" onclick="selectAllReviewTargets()" title="手で編集したカード（統合・分割を含む）とタグ未設定のカードをすべて選択します"><i class="fa-regular fa-square-check"></i> 編集済み＋未設定を選択</button>
+        <button type="button" class="mc-filter" onclick="exportReviewRequestText()" title="問題の説明と直し方つきでテキストに書き出します"><i class="fa-solid fa-file-export"></i> 修正依頼を書き出す</button>
         ${untaggedContextCandidateCount(cp) ? `<button type="button" class="mc-filter" onclick="untaggedApplyAllCandidates()" title="前後の記録から影響先が読み取れたカードに、候補のタグをまとめて付けます">前後の記録から候補をまとめて付ける <b>${untaggedContextCandidateCount(cp)}</b></button>` : ''}
         ${untaggedListOpen ? '<button type="button" class="my-asm-link" onclick="toggleUntaggedList()">一覧を閉じる</button>' : ''}</div>${list}`;
     }

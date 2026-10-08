@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-08.2053'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-08.2103'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カード → 元の文章（カルテ・看護記録入力欄）の該当箇所を探す
     // ------------------------------------------------------------------------
@@ -396,6 +396,17 @@
       renderSoBoard();
       if (typeof refreshCardOverview === 'function' && document.getElementById('modal-card-overview') && !document.getElementById('modal-card-overview').classList.contains('hidden')) refreshCardOverview();
       showToast(`タグ未設定の${ids.length}枚をすべて選択しました`, 'success');
+    };
+
+    // 「編集済み＋タグ未設定」のカード（修正依頼の書き出し対象と同じ）をまとめて選択する
+    window.selectAllReviewTargets = function() {
+      const cp = getCurrentPatient();
+      const ids = reviewRequestTargets(cp).map(i => i.id);
+      if (!ids.length) return showToast('対象のカード（手で編集したカード・タグ未設定のカード）はありません', 'success');
+      ids.forEach(id => selectedCardIds.add(id));
+      renderSoBoard();
+      if (typeof refreshCardOverview === 'function' && document.getElementById('modal-card-overview') && !document.getElementById('modal-card-overview').classList.contains('hidden')) refreshCardOverview();
+      showToast(`編集済み・タグ未設定の${ids.length}枚を選択しました（下の帯の「選択したカードを書き出し」でも書き出せます）`, 'success');
     };
 
     function renderBulkActionBar() {

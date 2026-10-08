@@ -64,3 +64,16 @@ test('pain card: affected item is read from surrounding records; select-all help
   const alone = app.inferUntaggedReason({ id: 'z', text: '創痛がある。', type: 'o', hendersonIds: [] }, { items: [] });
   assert.equal(alone.kind, 'insufficient');
 });
+test('review-request export lists edited (incl. merge/split) and untagged cards with explanation', () => {
+  const app = loadApp();
+  const cp = { title: 'T', items: [
+    { id: 'm', text: '統合後の文', type: 'o', hendersonIds: [4], editLog: [{ at: 'x', kind: 'merge', from: ['前半', '後半'] }] },
+    { id: 's', text: '分割後の前半', type: 'o', hendersonIds: [4], editLog: [{ at: 'x', kind: 'text', from: '分割後の前半。分割後の後半。', to: '分割後の前半' }] },
+    { id: 'u', text: '創痛がある。', type: 'o', hendersonIds: [] },
+    { id: 'ok', text: '食事は全量摂取', type: 'o', hendersonIds: [2] }
+  ] };
+  assert.equal(app.reviewRequestTargets(cp).length, 3);
+  const t = app.buildReviewRequestText(cp, '', false);
+  assert.match(t, /統合：/); assert.match(t, /分割または短縮/); assert.match(t, /直し方の案/); assert.match(t, /タグ未設定/);
+  assert.match(t, /書き出し 3枚/); assert.ok(!t.includes('カードの内容: 食事は全量摂取'));
+});

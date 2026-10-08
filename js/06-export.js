@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-08.33'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-08.2103'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 書式付き書き出し（Word / PDF）
     // ------------------------------------------------------------------------
@@ -872,6 +872,91 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
       // 書き出した後も選択はそのまま残す（続けて選択を追加・解除して書き出し直せるようにするため）。
       showToast(`選択した${selectedCardIds.size}件をテキストファイル（.txt）に書き出しました`, 'success');
+    };
+
+
+    // ==========================================================================
+    // 「修正依頼の書き出し」：手で編集したカード（統合・分割の履歴を含む）と、タグ未設定のカードを、
+    // 何が問題で・どう直せばよいかの説明つきで1つのテキストにする（Claudeに貼り付けて修正を頼む用）
+    // ==========================================================================
+    function isEditedCard(i) {
+      return Array.isArray(i.editLog) && i.editLog.some(e => e && e.kind !== 'create');
+    }
+    function reviewRequestTargets(cp) {
+      const items = cp.items || [];
+      return items.filter(i => i.type !== 'unnecessary' && (isEditedCard(i) || (typeof isUntaggedItem === 'function' && isUntaggedItem(i))));
+    }
+    function describeEditHistoryForRequest(i) {
+      const log = Array.isArray(i.editLog) ? i.editLog.filter(e => e && e.kind !== 'create') : [];
+      const lines = [];
+      const merges = log.filter(e => e.kind === 'merge');
+      const textEdits = log.filter(e => e.kind === 'text');
+      const tagEdits = log.filter(e => e.kind === 'tagAdd' || e.kind === 'tagRemove');
+      merges.forEach(e => lines.push(`統合：${(Array.isArray(e.from) ? e.from : [e.from]).filter(Boolean).map(t => `「${String(t).slice(0, 60)}」`).join(' ＋ ')} を1枚にした`));
+      // 分割：本文の編集前後が「前の文章の一部」になっている場合は、分けられた（または分けた）記録とみなす
+      textEdits.forEach(e => {
+        if (typeof e.from === 'string' && typeof e.to === 'string' && e.from.length > e.to.length && e.from.includes(e.to.slice(0, Math.min(8, e.to.length)))) lines.push(`分割または短縮：「${e.from.slice(0, 80)}」→「${e.to.slice(0, 80)}」`);
+        else lines.push(`本文の編集：「${String(e.from).slice(0, 80)}」→「${String(e.to).slice(0, 80)}」`);
+      });
+      if (tagEdits.length) lines.push(`タグの手直し：${tagEdits.map(e => formatEditLogEntry(e)).join('、')}`);
+      const others = log.filter(e => !['merge', 'text', 'tagAdd', 'tagRemove'].includes(e.kind));
+      if (others.length) lines.push(`その他の編集：${others.map(e => formatEditLogEntry(e)).join('、')}`);
+      return lines;
+    }
+    function buildReviewRequestText(cp, sourceText, includeSourceText = true) {
+      const items = reviewRequestTargets(cp);
+      const untaggedN = items.filter(i => typeof isUntaggedItem === 'function' && isUntaggedItem(i)).length;
+      const editedN = items.filter(isEditedCard).length;
+      let out = `修正依頼：${cp.title}（手で編集したカード ${editedN}件・タグ未設定のカード ${untaggedN}件／書き出し ${items.length}枚）\n`;
+      out += `出力日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
+      out += `【この書き出しについて】\n`;
+      out += `・「手で編集した」カード：利用者が画面で文章・タグ・分類を直したり、カードを統合・分割したものです。アプリの自動処理が最初に出した結果と違っているため、自動処理の側に直すべき点がある可能性があります。\n`;
+      out += `・「タグ未設定」カード：どのヘンダーソン14項目のキーワードにも当たらず、タグが付かなかったものです。キーワード不足、文脈（前後の記録）を読めていない、または意図的にタグを付けない決まり（疼痛の影響先が不明、アレルギー、病期など）のどれかです。\n\n`;
+      out += `【直し方の目安（開発者・Claude向け）】\n`;
+      out += `1. 各カードの「問題の種類」と「状況」を読み、自動処理のどこが原因かを特定する（キーワード辞書 js/01、タグの絞り込み・文脈判定 js/07、カードの分け方・統合 js/03・js/07）。\n`;
+      out += `2. 「修正してほしい内容」に利用者の希望があれば、それを優先する。空欄のものは、下の「直し方の案」に沿って、同じ種類の他の文章にも効く形（特定の患者の語句だけに合わせない）で直す。\n`;
+      out += `3. 直したら、テストと保存済みの正しい分類結果（golden）で、他のカードに悪影響が出ていないか確認する。\n`;
+      out += `4. 利用者が「タグ不要」「理由を了承」と確定したカードは、その判断を変えない。\n`;
+      items.forEach((i, idx) => {
+        const edited = isEditedCard(i), untagged = typeof isUntaggedItem === 'function' && isUntaggedItem(i);
+        const kinds = [edited ? '手で編集済み' : null, untagged ? 'タグ未設定' : null].filter(Boolean).join('＋');
+        out += `\n────────────────────────\n■ ${idx + 1}件目　問題の種類: ${kinds}\n`;
+        if (untagged) {
+          const inf = typeof inferUntaggedReason === 'function' ? inferUntaggedReason(i, cp) : null;
+          if (inf) {
+            out += `状況（タグ未設定）: ${inf.kindLabel}／推定理由：${inf.reason}／推定の確からしさ：${inf.confidence}／分類候補：${inf.candidates.length ? inf.candidates.map(h => hendersonNameOf(h)).join('・') : 'なし'}\n`;
+            out += `直し方の案: ${inf.checks.join('／') || '原文と前後の記録を確認し、付けるべき項目があれば付ける'}。` +
+              (inf.kind === 'none' ? '自動では付けない方針のため、アプリ側の変更は不要な可能性が高い。' : (inf.kind === 'source' ? '原本を確認するまで分類しない。' : '同じ種類の語句が他の患者でも出るなら、キーワードまたは文脈判定を追加する。')) + '\n';
+          }
+        }
+        if (edited) {
+          const hist = describeEditHistoryForRequest(i);
+          out += `状況（手で編集済み）:\n${hist.map(h => `  ・${h}`).join('\n')}\n`;
+          out += `直し方の案: 利用者の手直しの内容（上の履歴）が、自動処理の結果と違っていた点を特定し、同じ種類の記録が最初から正しく処理されるよう分け方・統合・タグ付けの規則を直す。\n`;
+        }
+        const block = buildCardsReportText(cp, [i], sourceText, '', false);
+        const at = block.indexOf('\n■ ');
+        out += (at >= 0 ? block.slice(at).replace(/^\n■ [^\n]*\n/, '') : '');
+      });
+      if (includeSourceText) {
+        out += `\n【分類前の文章（カルテ・看護記録入力欄）】\n`;
+        out += (sourceText && sourceText.trim()) ? `${sourceText.trim()}\n` : '（入力欄に文章がありません）\n';
+      }
+      return out;
+    }
+    window.exportReviewRequestText = function() {
+      const cp = getCurrentPatient();
+      const targets = reviewRequestTargets(cp);
+      if (!targets.length) return showToast('書き出す対象（手で編集したカード・タグ未設定のカード）はありません', 'success');
+      const text = buildReviewRequestText(cp, DOM.sourceText.value || cp.sourceText || '', true);
+      const safeTitle = (cp.title || 'カルテ').replace(/[\\/:*?"<>|]/g, '_');
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${safeTitle}_修正依頼_編集済み・未設定_${targets.length}枚.txt`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      showToast(`編集済み・タグ未設定の${targets.length}枚を、問題の説明つきで書き出しました`, 'success');
     };
 
     // Word・PDFのどちらでも使う、文書全体（<html>〜</html>）を組み立てる。
