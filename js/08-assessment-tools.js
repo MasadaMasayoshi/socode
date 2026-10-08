@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-08.18'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-08.25'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -2464,6 +2464,12 @@ K. この評価は患者データへ一括適用される前提で書かない�
           rec.status = d === null ? 'unknown' : d === 'high' ? 'high' : d === 'low' ? 'low' : 'normal';
         }
       } else rec.status = 'review';
+      // 要確認の値でも、仮に原文どおりだった場合の臨床的な意味を、条件つきで残す（OCRの注意で、本物の異常値の重要性を消さない）
+      // この値は「確定した根拠」としては使わない（status は review のまま）
+      if (rec.quality === 'suspicious' && range && valueStd !== null && valueStd !== undefined) {
+        const dw = labDirection(valueStd, range, rec.arrow);
+        rec.asWritten = dw === 'high' ? '高値' : dw === 'low' ? '低値' : dw === 'normal' ? '基準範囲内' : '';
+      }
       // 予想（単位・桁が崩れた疑いのときだけ。確度が中以上のときだけ具体的な値を出す）
       if (rec.quality === 'suspicious' && (rec.reasonKinds.includes('digits') || rec.reasonKinds.includes('unit')) && !rec.valueRaw.includes('.') && range) {
         const digits = rec.valueRaw.replace(/[,\-+]/g, '');
@@ -2575,7 +2581,9 @@ K. この評価は患者データへ一括適用される前提で書かない�
         }
         list.filter(l => l.quality !== 'valid').forEach(l => {
           lines.push(`${key}：原文「${l.source}」${phaseText(l)}`);
+          lines.push('　データ確認：原本確認が必要');
           lines.push('　判定：要確認');
+          if (l.asWritten && l.asWritten !== '基準範囲内') lines.push(`　仮に原文どおりなら：${l.asWritten}（原本で確認できるまで、看護問題・看護計画の根拠には使いません）`);
           if (l.prediction && l.prediction.value !== null && l.prediction.value !== undefined && ['medium', 'high'].includes(l.prediction.confidence)) {
             lines.push(`　推定：${l.prediction.text} 前後ではないかと予想されます（推定確度：${l.prediction.confidence === 'high' ? '高' : '中'}）。原文の値は書き換えていません。`);
             lines.push(`　理由：${l.prediction.reason}。OCRで単位または小数点が崩れた可能性があります。原本確認が必要です。`);

@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-08.18'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-08.25'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -203,10 +203,11 @@
       { key: 'ep', label: 'EP（教育計画）', short: 'EP', placeholder: '1行に1つずつ書きます\n例：痛みを我慢せずに伝えるよう説明する' }
     ];
     const CARE_PLAN_STATUSES = [
-      { key: 'active', label: '実施中' }, { key: 'resolved', label: '解決' }, { key: 'paused', label: '中止・保留' }
+      { key: 'planned', label: '計画作成済み' }, { key: 'scheduled', label: '実施予定' }, { key: 'active', label: '実施中' }, { key: 'evaluating', label: '評価待ち' },
+      { key: 'continue', label: '継続' }, { key: 'revise', label: '修正' }, { key: 'ended', label: '終了' }, { key: 'resolved', label: '解決' }, { key: 'paused', label: '中止・保留' }
     ];
     const CARE_ACHIEVEMENTS = [
-      { key: 'achieved', label: '達成' }, { key: 'partial', label: '一部達成' }, { key: 'not', label: '未達成' }, { key: '', label: '評価しない' }
+      { key: 'achieved', label: '達成' }, { key: 'partial', label: '一部達成' }, { key: 'not', label: '未達成' }, { key: 'unevaluable', label: '評価不能' }, { key: '', label: '評価しない' }
     ];
     function carePlanList(cp) {
       const all = cp && cp.carePlans && typeof cp.carePlans === 'object' ? Object.values(cp.carePlans) : [];
@@ -221,7 +222,8 @@
       // 関連図から引き継いだ根拠データ・「この患者に必要な理由」（2026-10-07.5）
       if (!Array.isArray(p.evidence)) p.evidence = [];
       if (!Array.isArray(p.reasons)) p.reasons = [];
-      if (!CARE_PLAN_STATUSES.some(s => s.key === p.status)) p.status = 'active';
+      if (!Array.isArray(p.refs)) p.refs = [];
+      if (!CARE_PLAN_STATUSES.some(s => s.key === p.status)) p.status = 'planned'; // 作っただけの計画を「実施中」にしない
       return p;
     }
     function createCarePlan(cp, fields = {}, now = new Date().toISOString()) {
@@ -245,7 +247,7 @@
     function deleteCarePlan(cp, id, now = new Date().toISOString()) {
       if (!getCarePlan(cp, id)) return false;
       // 自動作成で同じ看護問題が戻ってこないよう、消した計画の看護問題を覚えておく
-      cp.carePlans[id] = { id, deleted: true, updatedAt: now, problemKey: carePlanProblemKey(cp.carePlans[id].problem) };
+      cp.carePlans[id] = { id, deleted: true, updatedAt: now, problemKey: carePlanProblemKey(cp.carePlans[id].problem), canonKey: cpPlanKey(cp.carePlans[id]) };
       return true;
     }
     function moveCarePlan(cp, id, dir, now = new Date().toISOString()) {
@@ -254,6 +256,7 @@
       const j = k + (dir === 'up' ? -1 : 1);
       if (k < 0 || j < 0 || j >= list.length) return false;
       list.forEach((p, n) => { p.order = n + 1; });
+      list[k].orderLocked = true; list[j].orderLocked = true; // 自分で動かした順番は、自動の並べ替えで戻さない
       [list[k].order, list[j].order] = [list[j].order, list[k].order];
       list[k].updatedAt = now; list[j].updatedAt = now;
       return true;
@@ -272,6 +275,7 @@
         achievement: CARE_ACHIEVEMENTS.some(a => a.key === rec.achievement) ? rec.achievement : '',
         evaluation: String(rec.evaluation || '').trim(), revision: String(rec.revision || '').trim(), createdAt: now };
       p.records = [...p.records, r].sort((a, b) => String(a.at).localeCompare(String(b.at)));
+      if (p.status === 'planned' || p.status === 'scheduled') p.status = 'active'; // 実施の記録ができたときだけ「実施中」にする
       p.updatedAt = now;
       return r;
     }
@@ -391,7 +395,7 @@
       renderCarePlanSetReview();
     }
     // 看護問題の下に小さく：関連図の補足・根拠データ・「この患者に必要な理由」（AIの案・関連図から取り込んだ計画は、理由を書くまで案内を出す）
-    function carePlanBasisHtml(p) {
+    function carePlanBasisHtml(p, cp) {
       const pid = safeDomId(p.id);
       const parts = [];
       const fromLabel = { rules: 'このサイトのルール（AIなし）：記録→関連図の看護問題＋目標・OP/TP/EPの手本', map: '関連図の看護問題', ai: 'AIの案', import: '取り込んだ計画' }[p.source] || '自分で書いた';
@@ -401,6 +405,15 @@
       const reasons = Array.isArray(p.reasons) ? p.reasons : [];
       if (p.reasonNeeded && !reasons.length) parts.push(`<div class="cp-reason-need"><i class="fa-solid fa-graduation-cap"></i> ${p.source === 'map' ? '関連図から取り込んだ' : p.source === 'rules' ? 'このサイトのルールで作った' : 'AIの案から取り込んだ'}看護問題です。そのまま使わず、この患者に必要な理由を記録のデータで確かめましょう <button type="button" class="my-asm-link" onclick="writeCareReasonUI('${pid}')">理由を書く</button></div>`);
       if (reasons.length) parts.push(`<div class="cp-reasons"><span class="my-asm-label"><i class="fa-solid fa-graduation-cap"></i> この患者に必要な理由</span><ul>${reasons.slice(-5).map(r => `<li>${r.about ? `<b>${escapeHtml(r.about)}</b>：` : ''}${escapeHtml(r.text)}</li>`).join('')}</ul><button type="button" class="my-asm-link" onclick="writeCareReasonUI('${pid}')">理由を足す</button></div>`);
+      // 優先順位の理由・別の問題として残した理由・根拠の検証・計画どうしの参照・自動チェックの結果
+      if (p.priorityReason) parts.push(`<p class="cp-note"><b>優先順位：</b>${escapeHtml(p.priorityReason)}</p>`);
+      if (p.distinct) parts.push(`<p class="cp-note">${escapeHtml(p.distinct)}</p>`);
+      const vmsg = (p.validation && p.validation.msgs || []).filter(Boolean);
+      if (vmsg.length) parts.push(`<div class="cp-qa cp-qa-warn"><i class="fa-solid fa-magnifying-glass-chart"></i> <b>根拠の確認</b><ul>${vmsg.map(m => `<li>${escapeHtml(m)}</li>`).join('')}</ul></div>`);
+      const refs = cp ? (p.refs || []).map(r => { const id = cpResolvePlanId(cp, r.id); const q = id && getCarePlan(cp, id); const n = q ? carePlanList(cp).findIndex(x => x.id === q.id) + 1 : 0; return q ? `<li>#${n} ${escapeHtml(q.problem)}：${escapeHtml(r.why)}</li>` : ''; }).join('') : '';
+      if (refs) parts.push(`<div class="cp-note"><b>関連する計画：</b><ul>${refs}</ul></div>`);
+      const qa = p.qa || [];
+      if (qa.length) parts.push(`<div class="cp-qa ${qa.some(q => q.level === 'error') ? 'cp-qa-err' : 'cp-qa-warn'}"><i class="fa-solid fa-clipboard-check"></i> <b>表示前の自動チェック</b><ul>${qa.map(q => `<li>${escapeHtml(q.msg)}</li>`).join('')}</ul></div>`);
       return parts.length ? `<div class="cp-basis">${parts.join('')}</div>` : '';
     }
     function carePlanCardHtml(cp, p, k, n) {
@@ -426,7 +439,7 @@
       return `<section class="cp-card open">${head}
         <div class="cp-body">
           <label class="cp-field"><span class="my-asm-label"><i class="fa-solid fa-triangle-exclamation"></i> 看護問題（看護診断）</span><input type="text" class="field my-asm-text" data-cp-plan="${pid}" data-cp-field="problem" value="${escapeHtml(p.problem)}" placeholder="例：術後の創部痛に関連した急性疼痛" oninput="onCarePlanInput('${pid}','problem',this)"></label>
-          ${carePlanBasisHtml(p)}
+          ${carePlanBasisHtml(p, cp)}
           <div class="cp-row"><span class="my-asm-label"><i class="fa-solid fa-table-cells"></i> 関係する項目</span><div class="cp-need-btns">${needBtns}</div></div>
           <div class="cp-grid2">${field('goalLong', '<i class="fa-solid fa-flag-checkered"></i> 長期目標', 2, '例：退院までに歩行器で病棟内を自立して移動できる')}${field('goalShort', '<i class="fa-solid fa-flag"></i> 短期目標', 2, '例：3日後までに、痛みがNRS3以下でリハビリに参加できる')}</div>
           <div class="cp-grid3">${CARE_PLAN_SECTIONS.map(s => field(s.key, `<i class="fa-solid fa-list-ol"></i> ${s.label}`, 5, s.placeholder)).join('')}</div>
@@ -450,7 +463,7 @@
         <div class="cr-head"><span class="cr-when"><i class="fa-regular fa-calendar"></i> ${escapeHtml(formatMyDateTime(r.at))}</span>${ach && ach.key ? `<span class="cp-ach cp-ach-${ach.key}">${ach.label}</span>` : ''}
           <span class="cr-tools"><button type="button" class="my-asm-link" onclick="openCareRecord('${pid}','${safeDomId(r.id)}')">編集</button><button type="button" class="my-asm-link muted" onclick="deleteCareRecordUI('${pid}','${safeDomId(r.id)}')">削除</button></span></div>
         ${r.doneItems.length ? `<div class="cr-row"><b>実施した計画</b><ul>${r.doneItems.map(d => `<li>${escapeHtml(d)}</li>`).join('')}</ul></div>` : ''}
-        ${row('実施内容', r.doneText)}${row('患者の反応', r.response)}${row('評価', r.evaluation)}${row('計画の修正', r.revision)}
+        ${row('実施内容', r.doneText)}${row('患者の反応', r.response)}${row('評価', r.evaluation)}${row('今後の方針・計画の修正', r.revision)}
       </div>`;
     }
     function captureCarePlanFocus() {
@@ -643,7 +656,7 @@
     const CP_DOMAINS = [
       { key: 'inf', re: /感染/, words: /感染|発熱|体温|創部|刺入部|発赤|WBC|CRP/,
         op: [['体温・熱型', /体温|発熱|熱型|℃/], ['創部・刺入部の発赤・腫脹・熱感・痛み', /発赤|腫脹|熱感|創部|刺入部/], ['滲出液・ドレーン排液・尿の性状', /滲出|排液|ドレーン|尿の(?:性状|色|混濁)|性状/], ['WBC・CRPなどの検査値', /WBC|CRP|白血球|検査/]],
-        goal: c => `退院まで、体温37.5℃未満が続き、${c.urinary ? '尿の混濁がなく、' : ''}創部に発赤・腫脹・滲出液が見られない` },
+        goal: c => `退院まで、発熱が続かず、${c.urinary ? '尿の混濁がなく、' : ''}創部に発赤・腫脹・滲出液が見られない` },
       { key: 'vte', re: /血栓|塞栓|DVT/, words: /下肢|腫脹|ホーマンズ|ダイマー|弾性|フットポンプ|足関節/,
         op: [['下肢の腫脹・痛み・色・左右差', /下肢|腫脹|左右差|ふくらはぎ|下腿/], ['ホーマンズ徴候', /ホーマンズ/], ['Dダイマー', /ダイマー|D-?dimer/i], ['胸痛・呼吸困難・SpO2の急な低下（肺塞栓）', /胸痛|呼吸困難|SpO2|肺塞栓/]],
         goal: () => '離床するまで、下肢の腫脹・痛み・左右差がなく、胸痛・呼吸困難などの肺塞栓の徴候が見られない' },
@@ -717,6 +730,8 @@
         op: [['表情・言動（不安の言葉）', /表情|言動|発言|言葉/], ['不安の内容（何が心配か）', /内容|何が|心配/], ['睡眠・食欲', /睡眠|眠|食欲/], ['家族の支援', /家族/]],
         goal: () => '3日後までに、心配なことを自分の言葉で看護師に話せ、夜は眠れたと言える' }
     ];
+    // 「睡眠パターン混乱」がせん妄（混乱）の型に読まれないよう、睡眠をせん妄より前に置く
+    { const sd = CP_DOMAINS.splice(CP_DOMAINS.findIndex(d => d.key === 'sleep'), 1)[0]; CP_DOMAINS.splice(CP_DOMAINS.findIndex(d => d.key === 'delirium'), 0, sd); }
     // 糖尿病の足潰瘍・家族の知識不足は、褥瘡・知識不足とは観察・目標が違うので、それぞれの前に入れる（2026-10-07.8）
     CP_DOMAINS.splice(CP_DOMAINS.findIndex(d => d.key === 'skin'), 0, { key: 'dmfoot', re: /足潰瘍|足病変|糖尿病性足|足壊疽/, words: /足|潰瘍|滲出|免荷|発赤|靴/,
       op: [['潰瘍の大きさ・深さ・滲出液・発赤・熱感・臭い', /大きさ|深さ|滲出|発赤|熱感|臭/], ['足趾・足底の感覚（モノフィラメント）と足背動脈の触知', /感覚|モノフィラメント|足背|触知/], ['足の皮膚（乾燥・亀裂・胼胝・水疱）と靴・靴下', /乾燥|亀裂|胼胝|水疱|靴/], ['血糖値・WBC・CRP', /血糖|WBC|CRP/], ['免荷（荷重制限）が守れているか', /免荷|荷重/]],
@@ -727,15 +742,18 @@
     // 手本（この患者の記録を使った、実習中に実施・評価できる計画の例）。学生に考えさせすぎず、まず見本を示す
     const CP_MODELS = {
       pain: c => ({ goalLong: `退院までに、${c.painSite || '痛み'}がNRS3以下で、痛みを我慢せずに自分から看護師へ伝えながら、トイレまで歩ける`,
-        goalShort: `2日後までに、安静時の${c.painSite || '痛み'}が${c.nrs != null ? `NRS${c.nrs}から` : ''}NRS3以下となり、苦痛なく休息できる`,
+        // すでにNRS3以下なら、数値の目標は達成済みなので、体動時の機能の目標にする（記録にない基準値は作らない）
+        goalShort: c.nrs != null && c.nrs <= 3 ? '2日後までに、体動時の疼痛が患者と相談した許容範囲に収まり、必要な深呼吸や体位変換を実施できる'
+          : `2日後までに、安静時の${c.painSite || '痛み'}が${c.nrs != null ? `NRS${c.nrs}から` : ''}NRS3以下となり、苦痛なく休息できる`,
         tp: ['体動・清拭・歩行の前に、医師の指示の範囲で鎮痛薬を使えるよう調整し、効果が出る時間に合わせて動く', '創部を圧迫しないよう、枕を使って膝を軽く曲げた体位に整える', '起き上がるときは創部を手で支えられるよう、ゆっくり一緒に動く'],
         ep: ['痛みは我慢せず、0〜10の数字（NRS）で伝えてよいことを説明し、今の痛みを数字で答えてもらって確認する', '創部を手で支えて起き上がる方法を実演し、1回やってもらう'] }),
       inf: c => {
         const line = /ドレーン|カテーテル|バルーン|膀胱留置/.test((c && c.text) || '');
-        return { goalLong: '退院まで、体温37.5℃未満が続き、傷に感染の徴候（発赤・腫脹・熱感・滲出液・においの増加）が出ない',
-        goalShort: '3日後までに、傷のまわりの発赤・腫脹・熱感・滲出液が、初回の記録（初回所見）より増えず、体温37.5℃未満が続く',
-        tp: [`処置の前後に手指消毒を行い、傷${line ? '・刺入部' : ''}は清潔な操作で処置する`, '医師の指示（洗浄の方法・使う軟膏や被覆材・回数）を確認し、指示どおりに処置する', '発熱（37.5℃以上）や、初回所見より傷の悪化があれば、すぐ医師へ報告する'],
+        return { goalLong: '退院まで、発熱が続かず、傷に感染の徴候（発赤・腫脹・熱感・滲出液・においの増加）が出ない',
+        goalShort: '3日後までに、傷のまわりの発赤・腫脹・熱感・滲出液が、初回の記録（初回所見）より増えず、発熱が続かない',
+        tp: [`処置の前後に手指消毒を行い、傷${line ? '・刺入部' : ''}は清潔な操作で処置する`, '医師の指示（洗浄の方法・使う軟膏や被覆材・回数）を確認し、指示どおりに処置する', '体温の上昇や、初回所見より傷の悪化があれば、院内の報告基準・医師の指示に従って報告する'],
         ep: ['傷を触らない、食事前・トイレ後に手を洗うことを説明し、自分で手洗いをしてもらって確認する'],
+        opExtra: ['WBC・CRPの推移（術後の炎症反応との区別のため、体温・創部所見・排液と合わせて評価する）'],
         opFirst: '初回所見（傷の大きさ・発赤・腫脹・熱感・滲出液・におい）を記録して、経過を比べる基準にする' }; },
       glu: () => ({ goalLong: '退院までに、低血糖の症状と安全な対処を自分の言葉で説明・実演でき、症状が出たときは自分から知らせられる',
         goalShort: '3日後までに、①低血糖の症状に気づいたらナースコールで知らせられる ②ブドウ糖の摂り方を看護師の前で実演できる ③注射の前に食事がとれるかを確認する理由を自分の言葉で言える',
@@ -765,12 +783,28 @@
       anx: c => ({ goalLong: '退院までに、不安を感じたときに自分から看護師に話し、対処の方法を使える',
         goalShort: `3日後までに、${/低血糖/.test(c.text || '') ? '低血糖への心配' : '心配なこと'}を自分の言葉で看護師に話せ、${/低血糖/.test(c.text || '') ? '心配への対処（ブドウ糖を手元に置く・症状が出たら知らせる）を言える' : '心配への対処を1つ言える'}`,
         tp: ['日勤・夜勤の看護師が1日1回、決まった時間に5分以上、気持ちを聞く時間をとる', ...(/低血糖/.test(c.text || '') ? ['低血糖が起きたときの対処の手順を一緒に紙に書き、枕元に置く'] : ['心配なことを一緒に紙に書き出し、答えられるものから説明する'])],
-        ep: ['不安なときは我慢せず、いつでも看護師を呼んでよいことを説明し、呼び方を言ってもらって確認する（対処手順の説明は「血糖不安定」の計画で行う）'],
+        ep: ['不安なときは我慢せず、いつでも看護師を呼んでよいことを説明し、呼び方を言ってもらって確認する'],
         opFirst: '睡眠の状況（眠れているか・途中で目が覚めるか）を、まず確認する' }),
-      resp: () => ({ goalLong: '退院までに、自分で痰を出せ、SpO2 95%以上を保って病棟内を歩ける',
+      resp: c => ({ goalLong: '退院までに、自分で痰を出せ、SpO2 95%以上を保って病棟内を歩ける',
         goalShort: '3日後までに、深呼吸と咳で痰を自分で出すことができ、SpO2 95%以上を保てる',
-        tp: ['起きる・体位を変えるたびに、深呼吸を3回行ってから咳をするよう声をかけ、一緒に行う', '創部・胸を軽く手で支えて咳ができるよう、枕を渡して援助する', '食事の前後は上体を起こして過ごせるよう体位を整える'],
-        ep: ['痰を出す理由（肺炎を防ぐ）と、咳のしかた（深呼吸→腹から咳）を説明し、実演してもらう'] }),
+        op: ['SpO2・呼吸数・呼吸の深さ（低下・増加は無気肺や肺炎の早期のサイン）', '呼吸音（副雑音・左右差・減弱）', '痰の量・性状と、自分で喀出できているか', '咳嗽の強さ（創部痛で咳を我慢していないか）と、体温・熱型', '疼痛の程度（NRS）と、深呼吸・咳嗽・体位変換への影響'],
+        tp: ['鎮痛薬は医師の指示の範囲で、深呼吸・咳嗽・離床の30分前に使えるよう調整する', '咳嗽のときは枕・バスタオルで創部を保護し、深呼吸3回のあとに咳をしてもらう（創部痛・循環動態が許す範囲で）', '許可された安静度の範囲で、体位調整・離床（ベッド上座位→端座位→立位）を進め、実施の前後でSpO2・呼吸状態を確認する', '呼吸訓練器具を使うときは、医師の指示と使用方法に従い回数・頻度を決めて一緒に行う。SpO2低下・呼吸困難が出たら中止し、医師へ報告する'],
+        ep: ['呼吸訓練の目的（無気肺・肺炎の予防）と正しい方法（深呼吸→咳嗽）を説明し、患者自身に実施してもらい、手技と理解を確認する（「分かりました」の返事だけで習得したとはみなさない）', '痛みを我慢せず、咳や深呼吸の前に鎮痛薬を使ってよいことを伝え、痛みの伝え方（NRS）を確認する'] }),
+      ileus: c => ({ goalLong: '退院までに、排ガス・排便があり、腹部症状なく食事を摂れる', goalShort: '術後3日目までに排ガスがあり、腹部膨満・嘔吐が見られない',
+        op: ['腹部膨満・腹痛の有無と程度（腸管運動の回復の遅れの早期のサイン）', '悪心・嘔吐の有無・回数・性状', '排ガス・排便の有無と時期', '腸蠕動音', ...(/胃管|NGチューブ|ドレーン/.test(c.text || '') ? ['胃管・ドレーンの排液の量・性状'] : []), ...(/点滴|出納|絶飲食|飲水|水分/.test(c.text || '') ? ['水分出納（IN/OUT）と、飲水・食事の摂取状況'] : []), '術後経過（離床の進み具合・鎮痛薬やオピオイドの使用）'],
+        tp: ['医師の許可の範囲で早期離床（端座位・歩行）を進め、実施の前後に腹部症状（膨満・腹痛・悪心）を確認する', '指示された食事開始・食上げの段階を確認し、腹部症状がなければ、一口量・食べる速さを調整して介助する', '腹部膨満・反復する嘔吐・排ガス停止などが出たら、経口摂取を中止して医師へ報告し、指示を確認する', '痛みで体動が制限されているときは、指示の範囲の鎮痛薬を離床前に使えるよう調整し、効果を再評価する'],
+        ep: ['歩くことが腸の動きの回復に役立つことを説明し、離床のしかたを一緒に確認する', '腹部の張り・吐き気・痛みが出たら我慢せずすぐ知らせること、食事は看護師と確認しながら進めることを説明し、自分の言葉で言ってもらう'] }),
+      nutr: c => ({ goalLong: '退院までに、必要な摂取量を維持し、体重が減らない', goalShort: '1週間後までに、食事を毎食7割以上食べられ、体重が今より減らない',
+        op: ['食事・水分の摂取量（割・mL）と、摂取できない理由（悪心・疼痛・嚥下・食欲）', '体重の推移（同じ条件で測る）', 'Alb・TPなどの検査値（絶飲食・手術の影響を考えて、経過で評価する）', '絶飲食・食事開始の指示と、輸液など栄養補給の内容', '口腔内の状態・義歯・食形態が合っているか'],
+        tp: ['食事開始・食上げの指示を確認し、段階に合わせた食形態・一口量で介助する', '食事の前に口腔ケアと座位の体位調整を行い、痛みや吐き気があれば、指示の範囲で鎮痛・制吐を調整してから摂取を促す', '摂取量が少ないときは医師・栄養士へ報告し、補助食品などの導入を相談する'],
+        ep: ['手術後の食事の進め方（量・速さ・よく噛む）と、むかつき・膨満が出たときの知らせ方を説明し、自分の言葉で言ってもらう'] }),
+      act: c => c.risk ? ({ goalLong: '', goalShort: '',
+        op: ['安静度の指示（ベッド上安静・離床許可の範囲）と、実際の活動状況', '離床・体位変換の前後の脈拍・血圧・SpO2と、自覚症状（息切れ・めまい・疲労）', '筋力・関節の動く範囲・ADL（できる所・介助が要る所）', '下肢の腫脹・痛み（廃用・血栓の早期発見）'],
+        tp: ['医師が指示した安静度の範囲で、体位変換・関節運動・離床（ベッド上座位→端座位→立位）を段階的に進める', '離床の前に、指示の範囲で鎮痛薬を使い、脈拍・血圧・SpO2を確認してから始める。ふらつき・息切れ・SpO2低下があれば中止し、医師へ報告する', 'ADLは、できる部分は自分で行ってもらい、介助が必要な動作を見きわめて介助する'],
+        ep: ['体を動かす目的（筋力低下・肺炎・血栓の予防）と、動く前に鎮痛薬を使ってよいこと、無理せず休むことを説明し、自分の言葉で言ってもらう'] })
+        : ({ goalLong: '退院までに、休憩を入れながら病棟内を歩け、活動後のSpO2・脈拍が安定している', goalShort: '1週間後までに、休憩を入れながら病棟のトイレまで歩け、歩行後もSpO2 90%以上を保てる',
+        tp: ['活動（歩行・清拭）は短い距離・短い時間から始め、休憩を入れながら進め、活動の前後で脈拍・SpO2・息切れを確認する', '活動中に息切れ・SpO2低下・脈拍の急な上昇があれば、中止して休息をとり、医師へ報告する', '活動と休息の時間配分を、患者と一緒に決める'],
+        ep: ['息切れを感じたら休むこと、無理せずに伝えることを説明し、自分の言葉で言ってもらう'] }),
       fall: () => ({ goalLong: '入院中、転倒・転落が起こらず、トイレや移動のときは自分から看護師を呼べる',
         goalShort: '3日後までに、トイレに行くときは毎回ナースコールを押して看護師を呼べる',
         tp: ['ナースコールを手の届く位置に置き、ベッド周りの床・履物を整える', '夜間のトイレは、就寝前に誘導し、起きるときは見守って付き添う', 'ふらつきのある日は、歩行時に腕を支えて一緒に歩く'],
@@ -779,13 +813,21 @@
     function cpModelFor(plan, ctx) {
       const d = cpDomainOf(plan);
       if (!d || !CP_MODELS[d.key]) return null;
-      const m = CP_MODELS[d.key](ctx || {});
+      const risk = cpIsRisk(plan);
+      const m = CP_MODELS[d.key]({ ...(ctx || {}), risk });
       const op = m.op ? [...m.op] : (d.op || []).slice(0, 5).map(([l]) => `${l}を観察する`);
       if (m.opFirst) op.unshift(m.opFirst);
+      if (m.opExtra) op.push(...m.opExtra);
       // ドレーン・カテーテルの記録が無い患者に、ドレーン排液・尿の観察を出さない（傷の滲出液にする）
       if (d.key === 'inf' && !/ドレーン|カテーテル|バルーン|膀胱留置/.test((ctx && ctx.text) || '')) { const k = op.findIndex(t => /ドレーン/.test(t)); if (k >= 0) op[k] = '傷の滲出液の量・色・においを観察する'; }
       if (d.key === 'inf' && /糖尿病/.test((ctx && ctx.text) || '')) op.push('血糖値の推移（高血糖は傷が治りにくく、感染しやすい）を観察する');
-      return { ...m, op };
+      const out = { ...m, op };
+      // リスクの問題は、起きていない合併症の「予防・早期発見」の目標にする（回復の目標と同じ型にしない）
+      if (risk) { const g = cpRiskGoalFor(plan, ctx || {}); out.goalLong = g.long; out.goalShort = g.short; }
+      // 患者が実際に質問・心配した内容を、教育計画の先頭に入れる
+      const edu = cpEducationLines((ctx && ctx.text) || '').filter(e => e.dom === d.key).map(e => e.line);
+      if (edu.length) out.ep = cpUnionLines(edu, out.ep || []);
+      return out;
     }
     function cpDomainOf(plan) {
       const head = String((plan && plan.problem) || '').normalize('NFKC');
@@ -955,18 +997,298 @@
     }
     function cpReviewCount(review) { return review.items.filter(i => i.level === 'warn').length; }
 
+    // ==========================================================================
+    // 看護計画の品質管理（2026-10-08.24）
+    //   記録 → 看護問題 → 根拠の検証 → 重複の統合 → 優先順位 → 目標・OP/TP/EP → 実施 → 評価 → 修正
+    //   ・同じ意味の看護問題は1つにまとめる（言い回しが違っても。リスクと現在の問題は別）
+    //  ・現在の問題として言い切れる根拠がなければ、リスク状態にする／判断するための情報が不足していると示す
+    //  ・計画どうしの参照は、計画のID（番号は表示だけ）で持ち、消した・まとめた計画は自動で外す
+    //   ・表示する前の自動チェック（cpQualityGate）で、問題のある計画に印をつける
+    //   ・実施や評価の記録は、利用者が書いたものだけ（自動では作らない）
+    // ==========================================================================
+    const CP_RISK_RE = /リスク|可能性|おそれ|危険/;
+    function cpNorm(t) { return String(t || '').normalize('NFKC'); }
+    function cpIsRisk(plan) { return CP_RISK_RE.test(cpNorm(plan && plan.problem)); }
+    // 看護問題の「意味の鍵」：種類（domain）＋細かい種類＋リスクかどうか。名前の言い回しが違っても同じ鍵になる
+    const CP_SUBTYPES = {
+      resp: [[/気道浄化|排痰|喀痰/, 'clear'], [/ガス交換|換気/, 'gas'], [/合併症|無気肺|肺炎|呼吸器/, 'comp']],
+      pain: [[/慢性/, 'chronic']], nutr: [[/過剰/, 'over']], inf: [[/創|手術部位|SSI/, 'wound'], [/尿路|カテーテル/, 'uti']], anx: [[/死/, 'death']]
+    };
+    function cpPlanKey(plan) {
+      const head = cpNorm(plan && plan.problem);
+      const dom = cpDomainOf(plan);
+      const risk = cpIsRisk(plan) ? 'R' : 'A';
+      if (dom) {
+        const sub = ((CP_SUBTYPES[dom.key] || []).find(([re]) => re.test(head)) || [null, ''])[1];
+        return `${dom.key}${sub ? '.' + sub : ''}:${risk}`;
+      }
+      return 'x:' + risk + ':' + head.replace(/[\s（）()]/g, '').replace(/に関連した|による|に伴う|リスク状態|（候補）/g, '');
+    }
+    // 重複の統合：同じ鍵の計画を1つにまとめ、それぞれにしかない観察・援助・教育・根拠・記録を残す。まとめた計画は印（mergedInto）だけ残す
+    function cpUnionLines(a, b) {
+      const out = [...(a || [])];
+      (b || []).forEach(l => { if (!out.some(x => cpNorm(x).replace(/\s/g, '') === cpNorm(l).replace(/\s/g, '') || cpSimilar(x, l))) out.push(l); });
+      return out;
+    }
+    function mergeDuplicateCarePlans(cp, now = new Date().toISOString()) {
+      const groups = new Map();
+      carePlanList(cp).forEach(p => { const k = cpPlanKey(p); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
+      let merged = 0;
+      groups.forEach(g => {
+        if (g.length < 2) return;
+        g.sort((a, b) => (b.records.length - a.records.length) || ((Number(a.order) || 0) - (Number(b.order) || 0)));
+        const keep = g[0];
+        g.slice(1).forEach(d => {
+          ['op', 'tp', 'ep', 'evidence'].forEach(f => { keep[f] = cpUnionLines(keep[f], d[f]); });
+          keep.relatedNeeds = [...new Set([...(keep.relatedNeeds || []), ...(d.relatedNeeds || [])])];
+          keep.reasons = [...(keep.reasons || []), ...(d.reasons || [])];
+          keep.records = [...keep.records, ...d.records].sort((a, b) => String(a.at).localeCompare(String(b.at)));
+          ['goalLong', 'goalShort', 'note'].forEach(f => { if (!String(keep[f] || '').trim() && String(d[f] || '').trim()) keep[f] = d[f]; });
+          keep.mergedFrom = [...(keep.mergedFrom || []), d.id];
+          cp.carePlans[d.id] = { id: d.id, deleted: true, updatedAt: now, problemKey: carePlanProblemKey(d.problem), canonKey: cpPlanKey(d), mergedInto: keep.id };
+          merged++;
+        });
+        keep.updatedAt = now;
+      });
+      return merged;
+    }
+    // 同じ種類・同じ意味でも、別の問題として残す場合（現在の問題とリスクなど）は、違いを計画に書く
+    function cpExplainDistinct(cp) {
+      const list = carePlanList(cp);
+      list.forEach(p => {
+        const k = cpPlanKey(p).split(':')[0];
+        const other = list.find(q => q.id !== p.id && cpPlanKey(q).split(':')[0] === k);
+        if (other) p.distinct = `「${other.problem}」とは別の問題です：${cpIsRisk(p) ? 'こちらはまだ起きていない合併症の予防（リスク）' : 'こちらはすでに現れている問題への援助'}として分けています`;
+        else delete p.distinct;
+      });
+    }
+    // ---- 根拠の検証：その看護問題を「いま起きている問題」と言える所見があるか ----
+    // actual＝現在の問題を直接示す所見／riskRe＝リスクの要因／contra＝反対の所見／riskName＝言い切れないときの名前
+    const CP_EVID_RULES = [
+      { key: 'resp', sub: 'clear', actual: /排痰困難|喀出(?:困難|不良|できな)|痰(?:が)?(?:貯留|絡|多量|粘稠|出せな)|副雑音(?!なし|は聴取されず|なく|を認めず|なし)|ラ音(?!なし)|咳(?:嗽)?(?:が)?弱|咳(?:が)?出せ|SpO2\s*(?:[0-8]\d|9[0-3])\s*%/, riskRe: /術後|全身麻酔|開腹|喫煙|COPD|創部痛|疼痛|臥床|安静|咳嗽|痰/, contra: /(?:自己)?喀出(?:良好|可能|できて|できている)|副雑音(?:なし|は聴取されず|なく)/, riskName: '術後呼吸器合併症リスク状態', why: '湿性咳嗽・痰の記載だけでは、気道浄化が非効果的とは言えません（咳の強さ・痰の貯留・呼吸音・酸素化の確認が必要）' },
+      { key: 'resp', sub: 'gas', actual: /SpO2\s*(?:[0-8]\d|9[0-3])\s*%|酸素(?:投与|吸入)|PaO2|チアノーゼ|呼吸困難|頻呼吸|努力呼吸/, riskRe: /術後|全身麻酔|COPD|喫煙|肺/, contra: /SpO2\s*9[5-9]\s*%|SpO2\s*100\s*%/, riskName: '術後呼吸器合併症リスク状態', why: '酸素化の低下や呼吸困難などの所見がないため、ガス交換障害とは言えません' },
+      { key: 'act', actual: /息切れ|動悸|労作時|易疲労|疲労感|倦怠感|(?:歩行|活動|離床|労作)(?:後|時|中)(?:に)?[^。\n]{0,10}(?:SpO2|脈拍|息切れ|めまい|ふらつ)|脈拍(?:が)?上昇/, riskRe: /安静|臥床|離床|術後|活動制限/, riskName: '廃用症候群リスク状態', why: '術後の床上安静（医学的な指示）だけでは、活動耐性の低下とは言えません（労作時の症状・バイタルの変化など、実際の耐性低下の所見が必要）。安静度の指示による制限と、身体の活動耐性の低下は分けて考えます' },
+      { key: 'nutr', actual: /摂取量(?:が)?(?:低下|減少|少な|[0-4]\s*割)|(?:食事|食べ)(?:が)?(?:とれ|摂れ|食べられ)(?:ない|ず)|食欲(?:不振|低下)|体重(?:が)?(?:減少|減った)|BMI\s*(?:1[0-7]|18\.[0-4])|摂取不足|[0-4]\s*割(?:摂取|程度)/, riskRe: /絶飲食|絶食|禁食|NPO|術後|摂取制限/, riskName: '栄養摂取量不足リスク状態', why: '絶飲食（医学的な指示）やAlb低下だけでは、栄養摂取量不足や低栄養状態とは言えません（実際の摂取量・体重の変化などの確認が必要）' },
+      { key: 'ileus', actual: /腹部膨満(?:が|あり|著明|強)|嘔吐(?:あり|を認|\d+\s*回)|排ガス(?:なし|停止|無し|なく)|腸蠕動(?:音)?(?:低下|減弱|消失)|イレウス(?:と診断|を発症)/, riskRe: /術後|開腹|腹部手術|麻薬|オピオイド|絶飲食|消化管/, riskName: '消化管運動機能障害リスク状態', why: '腹部膨満・嘔吐・排ガス停止などの所見がないため、消化管運動機能障害（イレウス）が起きているとは言えません' },
+      { key: 'inf', actual: /発熱|熱発|3[7-9](?:\.\d)?\s*℃|創部(?:の)?(?:発赤|腫脹|熱感|滲出|膿|排膿)|排膿|膿性|尿(?:の)?混濁|感染徴候(?:あり|を認|が見られ)/, riskRe: /創|ドレーン|カテーテル|バルーン|膀胱留置|点滴|ルート|刺入|術後|糖尿病/, riskName: '感染リスク状態', why: 'WBC・CRPの上昇だけでは感染とは言えません（術後の炎症反応との区別のため、発熱・創部所見・排液・検査値の推移を合わせて評価します）' },
+      { key: 'pain', actual: /痛|NRS|疼痛|苦痛表情|顔をしかめ/, riskRe: /術後|創/, riskName: '', why: '痛みの訴え・NRSなどの記録が見当たりません' },
+      { key: 'anx', actual: /不安|心配|緊張|恐怖|眠れ|落ち着かな/, riskRe: /術後|手術|入院/, riskName: '', why: '不安を示す言動・訴えの記録が見当たりません' }
+    ];
+    // 時期：入院前の所見だけで「いまの問題」と決めないよう、現在の問題の判定には入院後（または時期不明）の記録を使う
+    function cpEvidenceTexts(cp) {
+      const items = ((cp && cp.items) || []).filter(i => i && i.text && i.type !== 'unnecessary');
+      const all = [String((cp && cp.sourceText) || ''), ...items.map(i => i.text)].join('\n');
+      const now = items.length ? items.filter(i => i.admissionPhase !== 'preadmission' && i.assessmentColumn !== 'preadmission').map(i => i.text).join('\n') : all;
+      return { all: cpNorm(all), now: cpNorm(now || all) };
+    }
+    function validateCarePlanEvidence(cp, plan) {
+      const dom = cpDomainOf(plan);
+      const head = cpNorm(plan.problem);
+      const t = cpEvidenceTexts(cp);
+      const ev = cpNorm((plan.evidence || []).join('\n'));
+      const sub = dom ? ((CP_SUBTYPES[dom.key] || []).find(([re]) => re.test(head)) || [null, ''])[1] : '';
+      const rule = dom && (CP_EVID_RULES.find(r => r.key === dom.key && r.sub === sub) || CP_EVID_RULES.find(r => r.key === dom.key && !r.sub));
+      if (!rule) return { kind: 'unchecked', msgs: [] };
+      const actual = rule.actual.test(t.now + '\n' + ev);
+      const risk = rule.riskRe.test(t.all + '\n' + ev);
+      const contra = rule.contra && rule.contra.test(t.now);
+      const asRisk = cpIsRisk(plan);
+      if (asRisk) return risk ? { kind: 'risk', msgs: [] } : { kind: 'insufficient', msgs: ['リスクの要因（手術・処置・既往など）が記録から読み取れません。現時点では判断するための情報が不足しています'] };
+      if (actual && contra) return { kind: 'conflict', msgs: ['この問題を示す所見と、打ち消す所見の両方があります。判定を保留し、最新の所見で確かめてください'] };
+      if (actual) return { kind: 'existing', msgs: [] };
+      if (risk && rule.riskName) return { kind: 'risk', msgs: [`${rule.why}。いま起きている問題としてではなく、「${rule.riskName}」として扱うのが妥当と考えられます`], riskName: rule.riskName };
+      return { kind: 'insufficient', msgs: [`${rule.why}。現時点では判断するための情報が不足しています`] };
+    }
+    // 自動で作った計画は、言い切れないとき（リスクと判断できるとき）にリスク状態へ直す。自分で書いた計画の名前は変えず、印だけつける
+    function applyCarePlanValidation(cp, plan) {
+      const v = validateCarePlanEvidence(cp, plan);
+      plan.validation = { kind: v.kind, msgs: v.msgs };
+      if (v.kind === 'risk' && v.riskName && !cpIsRisk(plan) && ['rules', 'map', 'import', 'ai'].includes(plan.source)) {
+        plan.problemOriginal = plan.problem;
+        plan.problem = v.riskName;
+        plan.validation = { kind: 'risk', msgs: [`「${plan.problemOriginal}」は、いま起きている問題と言える所見がないため、「${v.riskName}」にしました。${v.msgs[0] || ''}`] };
+        plan.goalLong = ''; plan.goalShort = ''; plan.op = []; plan.tp = []; plan.ep = [];
+      }
+      return plan.validation;
+    }
+    // ---- 優先順位：決まった順番ではなく、生命・ABC・緊急度・合併症の重大さ・痛みと機能・患者の訴え・時期で決める ----
+    const CP_PRIORITY_BASE = { resp: 90, bleed: 88, vte: 80, swallow: 76, glu: 78, delirium: 70, pain: 72, fluidLow: 68, fluidEx: 68, ileus: 66, inf: 64, fall: 60, nausea: 55, nutr: 50, urine: 50, act: 48, mobility: 46, skin: 46, const: 45, anx: 40, sleep: 35, dmfoot: 62, mgmt: 38, know: 36, fam: 34, comm: 42, body: 40 };
+    function cpPriorityOf(cp, plan) {
+      const dom = cpDomainOf(plan);
+      const ctx = cpRecordContext(cp);
+      const k = dom ? dom.key : '';
+      const why = [];
+      let s = CP_PRIORITY_BASE[k] || 30;
+      if (['resp', 'bleed', 'vte', 'swallow'].includes(k)) why.push('気道・呼吸・循環に関わる');
+      const risk = cpIsRisk(plan);
+      if (!risk) { s += 8; why.push('すでに現れている問題である'); } else if (s >= 60) why.push('起きると重大な合併症のリスク');
+      if (k === 'resp' && ctx.spo2 != null && ctx.spo2 < 94) { s += 15; why.push(`SpO2 ${ctx.spo2}%の記録`); }
+      if (k === 'pain' && ctx.nrs != null) { if (ctx.nrs >= 7) { s += 10; why.push(`NRS${ctx.nrs}の強い痛み`); } else if (ctx.nrs <= 3) { s -= 10; why.push(`NRS${ctx.nrs}で現在は落ち着いている`); } else why.push(`NRS${ctx.nrs}`); }
+      if (/術後/.test(ctx.text) && ['resp', 'ileus', 'vte', 'inf'].includes(k)) { s += 5; why.push('術後の時期に起こりやすい'); }
+      if (k === 'pain' && /痛(?:い|み)(?:が)?(?:強|つらい|辛い)|我慢できない/.test(ctx.text)) { s += 6; why.push('患者の痛みの訴え'); }
+      if (k === 'anx' && /不安|心配/.test(ctx.text)) { s += 6; why.push('患者の不安の訴え'); }
+      if (['act', 'mobility'].includes(k) && /安静|ベッド上|床上/.test(ctx.text)) { s -= 5; why.push('現在は安静度の指示がある'); }
+      return { score: s, reason: why.length ? why.join('・') + 'ため' + '、この順番にしました' : '記録上の緊急度から、この順番にしました' };
+    }
+    function prioritizeCarePlans(cp) {
+      const list = carePlanList(cp);
+      if (!list.length) return;
+      const scored = list.map(p => ({ p, ...cpPriorityOf(cp, p) }));
+      scored.forEach(x => { x.p.priorityReason = x.reason; });
+      if (list.some(p => p.orderLocked)) return; // 利用者が順番を動かした計画があるときは、並べ替えない（理由だけ更新）
+      scored.sort((a, b) => b.score - a.score || (Number(a.p.order) || 0) - (Number(b.p.order) || 0));
+      scored.forEach((x, n) => { x.p.order = n + 1; });
+    }
+    // ---- 目標：問題の種類（現在の問題／リスク）と記録の値に合わせる ----
+    const CP_RISK_GOALS = {
+      resp: c => ({ long: '退院までに、呼吸器合併症（肺炎・無気肺）の徴候（発熱・SpO2低下・呼吸音の変化・痰の増加）を認めず、自分で深呼吸と咳嗽を行える', short: `${c.post ? '術後3日目まで' : '3日後までの観察期間中'}、発熱・SpO2低下（${c.spo2 && c.spo2 < 95 ? '現在の値から低下しない' : '95%未満になる'}ことなく）・呼吸音の変化を認めず、創部を保護しながら深呼吸と咳嗽を自分で実施できる` }),
+      ileus: () => ({ long: '退院までに、消化管運動の回復が順調に経過し、食事が進められる', short: '3日後までの観察期間中、腹部膨満・反復する嘔吐・排ガス停止などの異常を認めず、異常が起きたときにすぐに対応できる' }),
+      inf: () => ({ long: '退院まで、創部・刺入部に感染の徴候（発赤・腫脹・熱感・滲出液・においの増加）を認めない', short: '3日後までの観察期間中、創部・刺入部の所見が初回の記録より悪化せず、発熱が持続せず、異常があればすぐに報告・対応できる' }),
+      vte: () => ({ long: '離床が進むまで、下肢の腫脹・痛み・左右差や肺塞栓の徴候（胸痛・呼吸困難）を認めない', short: '3日後までの観察期間中、下肢の腫脹・痛みがなく、許可された範囲で足関節運動・離床を行える' }),
+      bleed: () => ({ long: '入院中、出血の徴候を認めない', short: '3日後までの観察期間中、出血の徴候（創部・ドレーン排液・皮下出血・血便など）を認めず、気づいたときに看護師へ伝えられる' }),
+      nutr: () => ({ long: '退院までに、必要な摂取量を維持し、体重の減少を認めない', short: '食事再開後3日以内に、指示された食事の5割以上を摂取でき、摂取量低下につながる症状（悪心・膨満）が続かない' }),
+      act: () => ({ long: '退院までに、廃用による筋力・歩行能力の低下を認めず、ADLを自立（または術前の水準）まで戻す', short: '3日後までに、許可された安静度の範囲で離床が進み、離床時にふらつき・息切れ・SpO2低下を認めない' }),
+      glu: () => ({ long: '入院中、血糖値が大きく変動せず、低血糖の症状に自分で気づいて知らせられる', short: '3日後までの観察期間中、低血糖（70mg/dL未満）を認めず、症状が出たときはすぐ看護師に知らせられる' }),
+      fall: () => ({ long: '入院中、転倒・転落を起こさない', short: '3日後までの観察期間中、転倒・転落がなく、移動時は看護師を呼べる' })
+    };
+    function cpRiskGoalFor(plan, ctx) {
+      const dom = cpDomainOf(plan);
+      const c = { ...ctx, post: /術後/.test((ctx && ctx.text) || '') };
+      if (dom && CP_RISK_GOALS[dom.key]) return CP_RISK_GOALS[dom.key](c);
+      const label = (dom && dom.op && dom.op[0] && dom.op[0][0]) || '関連する観察項目';
+      const prob = String(plan.problem || '').replace(/リスク状態$/, '').replace(/^.*に関連した/, '');
+      return { long: `入院中、${prob}の徴候を認めず、安全に経過する`, short: `3日後までの観察期間中、${label}などの異常を認めず、異常があればすぐに報告・対応できる` };
+    }
+    // 患者の質問・心配から、教育計画に入れる内容（記録にあるときだけ。「分かりました」だけで習得とはしない）
+    function cpEducationLines(text) {
+      const t = cpNorm(text);
+      const out = [];
+      if (/呼吸(?:訓練|練習|リハ)|スパイロ|インセンティブ/.test(t) && /目的|なぜ|何のため|やり方|方法|合って|どう(?:すれ|やっ)|質問|わから|分から/.test(t)) out.push({ dom: 'resp', line: '呼吸訓練の目的（無気肺・肺炎の予防）と正しい方法を説明し、患者自身に実施してもらい、手技と理解を確認する（「分かりました」の返事だけで習得したとはみなさず、実施する様子を見て確認する）' });
+      if (/食事|食べ|食べて|飲水|飲んで/.test(t) && /いつから|いつ(?:から)?食べ|食べてい?い|大丈夫|質問|どのくらい/.test(t)) out.push({ dom: 'ileus', line: '術後の食事の開始時期・進め方・食べるときの注意（少量ずつ・ゆっくり・腹部症状が出たら知らせる）を説明し、患者の疑問に答えたうえで、自分の言葉で言ってもらい理解を確認する' });
+      if (/合併症|イレウス|感染|縫合不全/.test(t) && /心配|不安|怖|大丈夫か/.test(t)) out.push({ dom: 'anx', line: '患者が心配している術後合併症について、予防の方法と、早期に知らせてほしい症状を説明し、質問を聞いて理解を確認する' });
+      return out;
+    }
+    // 記録にない手術・処置・薬の言葉が、計画に出ていないか（別の患者の計画の流用を防ぐ）
+    const CP_CASE_TERMS = [[/ストーマ|パウチ/, 'ストーマ'], [/股関節|脱臼肢位|人工骨頭/, '股関節'], [/インスリン/, 'インスリン'], [/胃管|NGチューブ|経鼻胃管/, '胃管'], [/膀胱留置|バルーン|尿道カテーテル/, '尿道カテーテル'], [/ドレーン/, 'ドレーン'], [/酸素(?:投与|吸入|カニュ)/, '酸素投与'], [/CV|中心静脈/, '中心静脈カテーテル'], [/弾性ストッキング|フットポンプ/, '弾性ストッキング']];
+    function cpForeignTerms(cp, plan) {
+      const text = cpEvidenceTexts(cp).all;
+      const body = cpNorm([plan.problem, plan.goalLong, plan.goalShort, ...plan.op, ...plan.tp, ...plan.ep].join('\n'));
+      return CP_CASE_TERMS.filter(([re]) => re.test(body) && !re.test(text)).map(([, name]) => name);
+    }
+    // ---- 計画どうしの参照（計画のIDで持つ）----
+    function cpResolvePlanId(cp, id) {
+      let cur = id, n = 0;
+      while (cp.carePlans && cp.carePlans[cur] && cp.carePlans[cur].deleted && cp.carePlans[cur].mergedInto && n++ < 5) cur = cp.carePlans[cur].mergedInto;
+      return getCarePlan(cp, cur) ? cur : null;
+    }
+    function cpSanitizeRefs(cp) {
+      const list = carePlanList(cp);
+      let removed = 0;
+      list.forEach(p => {
+        const refs = [];
+        (p.refs || []).forEach(r => {
+          const id = r && cpResolvePlanId(cp, r.id);
+          if (!id || id === p.id || !String(r.why || '').trim()) { removed++; return; }
+          if (!refs.some(x => x.id === id)) refs.push({ id, why: r.why });
+        });
+        p.refs = refs;
+        // 文章の中の「「〇〇」の計画」のうち、この患者の計画にないものは取り除く
+        ['op', 'tp', 'ep'].forEach(f => {
+          p[f] = p[f].map(line => line.replace(/[（(][^（）()]*「([^」]+)」の計画[^（）()]*[）)]/g, (m, name) => {
+            const key = cpNorm(name).replace(/\s/g, '');
+            const ok = list.some(q => q.id !== p.id && (cpNorm(q.problem).replace(/\s/g, '').includes(key) || key.includes(cpNorm(q.problem).replace(/\s/g, '').replace(/リスク状態$/, ''))));
+            if (!ok) removed++;
+            return ok ? m : '';
+          }).trim());
+        });
+      });
+      return removed;
+    }
+    // 計画の関連づけ：低血糖への不安など、関係する計画があるときだけ、IDで参照を持つ
+    function cpLinkRelatedPlans(cp) {
+      const list = carePlanList(cp);
+      const gluPlan = list.find(p => (cpDomainOf(p) || {}).key === 'glu');
+      const anx = list.find(p => (cpDomainOf(p) || {}).key === 'anx');
+      if (gluPlan && anx && /低血糖/.test(cpEvidenceTexts(cp).all) && !(anx.refs || []).some(r => r.id === gluPlan.id)) anx.refs = [...(anx.refs || []), { id: gluPlan.id, why: '低血糖が起きたときの対処手順の説明は、この計画で行う' }];
+    }
+    // ---- 表示前の自動チェック ----
+    const CP_PLACEHOLDER = /患者の状態に合わせて|を和らげる援助|(?:状態|様子)を観察する。?$|経過を(?:見る|みる)。?$|検査値を確認する。?$|(?:状態|経過)を確認する。?$|数日以内に/;
+    function cpQualityGate(cp) {
+      const list = carePlanList(cp);
+      const all = [];
+      const seen = new Map();
+      list.forEach((p, k) => {
+        const qa = [];
+        const add = (code, level, msg) => qa.push({ code, level, msg });
+        const key = cpPlanKey(p);
+        if (seen.has(key)) add('duplicate', 'warn', `「${seen.get(key)}」と同じ意味の看護問題です。1つにまとめてください`); else seen.set(key, p.problem);
+        if (p.caseId && cp.id && p.caseId !== cp.id) add('foreign', 'error', '別の患者の計画が混ざっています。この患者の記録で確かめてください');
+        cpForeignTerms(cp, p).forEach(t => add('foreign-term', 'warn', `この患者の記録にない「${t}」が計画に出ています。別の患者の計画の流用ではないか確認してください`));
+        const v = p.validation || validateCarePlanEvidence(cp, p);
+        if (v.kind === 'insufficient') add('unsupported', 'warn', (v.msgs[0] || '現時点では判断するための情報が不足しています'));
+        if (v.kind === 'conflict') add('conflict', 'warn', v.msgs[0]);
+        if (v.kind === 'risk' && v.msgs[0] && !cpIsRisk(p)) add('should-be-risk', 'warn', v.msgs[0]);
+        if (!(p.evidence && p.evidence.length) && p.source !== 'manual' && p.source) add('no-evidence', 'info', '根拠データ（記録の事実）が紐づいていません');
+        else {
+          const text = cpEvidenceTexts(cp).all.replace(/\s/g, '');
+          (p.evidence || []).forEach(e => { const s = cpNorm(e).replace(/\s/g, ''); if (s.length >= 4 && !text.includes(s.slice(0, Math.min(s.length, 12)))) add('evidence-missing', 'warn', `根拠「${e}」がこの患者の記録に見当たりません`); });
+        }
+        const goals = [p.goalLong, p.goalShort].join('\n');
+        if (cpIsRisk(p) && /(?:リスク(?:状態)?|おそれ)が?(?:改善|軽減|解消|低下)|(?:イレウス|肺炎|感染|血栓)が?(?:改善|軽快|治癒)/.test(cpNorm(goals))) add('risk-as-treatment', 'warn', 'リスクの計画なのに、すでに起きた合併症の回復のような目標になっています（予防・早期発見・安全の維持で書きます）');
+        const ctx = cpRecordContext(cp);
+        const gNrs = [...cpNorm(p.goalShort || p.goalLong).matchAll(/NRS\s*(\d+)/g)].map(m => Number(m[1])).pop();
+        if ((cpDomainOf(p) || {}).key === 'pain' && ctx.nrs != null && gNrs != null && gNrs >= ctx.nrs) add('goal-achieved', 'warn', `目標のNRS${gNrs}以下は、記録の値（NRS${ctx.nrs}）ですでに達成されています。機能・生活に関わる目標にします`);
+        const body = [p.goalLong, p.goalShort, ...p.op, ...p.tp, ...p.ep];
+        const ph = body.filter(l => CP_PLACEHOLDER.test(cpNorm(l)));
+        if (ph.length) add('placeholder', 'warn', `定型文のままの項目があります：「${String(ph[0]).slice(0, 24)}…」`);
+        if (!p.goalShort && !p.goalLong && p.source) add('no-goal', 'info', '目標が未記入です');
+        // 医師の指示・安静度に反する援助
+        if (/ベッド上安静|床上安静|安静度[:：]?\s*ベッド上|離床(?:不可|禁止)/.test(cpEvidenceTexts(cp).now) && p.tp.some(l => /歩行|端座位|立位|離床を進め/.test(cpNorm(l)) && !/許可|指示|範囲/.test(l))) add('order-conflict', 'warn', '安静度の指示がある記録です。離床・歩行の援助には「医師の指示・許可の範囲で」と書き、指示を確認してください');
+        // 実施・評価の記録は、日時と内容がそろっているものだけ（自動作成はしない）
+        p.records.forEach(r => { if (!r.at || !(r.doneText || r.doneItems.length || r.evaluation)) add('record-empty', 'info', '日時または内容が足りない実施・評価の記録があります'); });
+        if (p.status === 'active' && !p.records.length) add('active-without-record', 'info', '「実施中」ですが、実施の記録がまだありません');
+        if ((Number(p.order) || 0) !== k + 1) add('order', 'info', '優先順位の番号がずれています');
+        all.push({ id: p.id, qa });
+        p.qa = qa;
+      });
+      return all;
+    }
+    // ---- 計画の仕上げ：重複の統合 → 根拠の検証 → 参照の整理 → 優先順位 → 表示前のチェック ----
+    function refineCarePlans(cp) {
+      const now = new Date().toISOString();
+      const merged = mergeDuplicateCarePlans(cp, now);
+      carePlanList(cp).forEach(p => { if (!p.caseId && cp.id) p.caseId = cp.id; });
+      carePlanList(cp).forEach(p => applyCarePlanValidation(cp, p));
+      cpLinkRelatedPlans(cp);
+      const refsRemoved = cpSanitizeRefs(cp);
+      cpExplainDistinct(cp);
+      prioritizeCarePlans(cp);
+      carePlanList(cp).forEach((p, n) => { p.order = n + 1; });
+      const gate = cpQualityGate(cp);
+      return { merged, refsRemoved, gate };
+    }
+    // 評価：記録した目標・実施・反応と比べる。記録がなければ「評価不能」（実施・反応は作らない）
+    function evaluateCarePlanFromRecords(plan) {
+      const last = latestCareRecord(plan);
+      if (!last) return { result: 'unevaluable', basis: '実施・評価の記録がないため、評価できません' };
+      if (last.achievement) return { result: last.achievement, basis: `${formatMyDateTime(last.at)}の記録（${(CARE_ACHIEVEMENTS.find(a => a.key === last.achievement) || {}).label}）` };
+      return { result: 'unevaluable', basis: '最新の記録に、目標の達成状況の評価がありません' };
+    }
+
     // ---- 関連図の看護問題を看護計画へ引き継ぐ ----
     function importCarePlansFromMap(cp, now = new Date().toISOString(), mapArg = null) {
       const map = mapArg || (typeof normalizeRelationMap === 'function' && cp.relationMap ? normalizeRelationMap(cp.relationMap) : null);
       if (!map) return [];
       const existing = new Set(carePlanList(cp).map(p => p.problem.replace(/\s+/g, '')));
+      // 言い回しが違っても同じ意味の看護問題（消した・まとめた計画を含む）は、作り直さない
+      const existingCanon = new Set([...carePlanList(cp).map(p => cpPlanKey(p)), ...Object.values(cp.carePlans || {}).filter(p => p && p.deleted && p.canonKey).map(p => p.canonKey)]);
       const fresh = [];
       map.nodes.filter(n => n.type === 'nursing_problem').sort((a, b) => (a.priority || 99) - (b.priority || 99)).forEach(n => {
         const problem = String(n.label).replace(/（候補）$/, '').trim();
         const key = problem.replace(/\s+/g, '');
-        if (!key || existing.has(key)) return;
+        if (!key || existing.has(key) || existingCanon.has(cpPlanKey({ problem }))) return;
         existing.add(key);
-        const plan = createCarePlan(cp, { problem, evidence: cpMapEvidence(map, n), note: n.note || '', source: 'map', reasonNeeded: true }, now);
+        const plan = createCarePlan(cp, { caseId: cp.id || '', problem, evidence: cpMapEvidence(map, n), note: n.note || '', source: 'map', reasonNeeded: true }, now);
         plan.relatedNeeds = guessPlanNeeds(plan);
         fresh.push(plan);
       });
@@ -981,21 +1303,21 @@
       if (!map || !map.nodes.some(n => n.type === 'nursing_problem')) map = typeof buildRelationMapFromRecord === 'function' ? buildRelationMapFromRecord(cp) : null;
       const deletedKeys = new Set(Object.values(cp.carePlans || {}).filter(p => p && p.deleted && p.problemKey).map(p => p.problemKey));
       if (map && skipDeleted && deletedKeys.size) map = { ...map, nodes: map.nodes.filter(n => n.type !== 'nursing_problem' || !deletedKeys.has(carePlanProblemKey(String(n.label).replace(/（候補）$/, '').trim()))) };
-      const fresh = map ? importCarePlansFromMap(cp, new Date().toISOString(), map) : [];
+      const fresh0 = map ? importCarePlansFromMap(cp, new Date().toISOString(), map) : [];
+      // 言い切れる根拠のない問題はリスク状態に直し、同じ意味の問題は1つにまとめてから、目標・OP/TP/EPを作る
+      fresh0.forEach(p => applyCarePlanValidation(cp, p));
+      mergeDuplicateCarePlans(cp);
+      const fresh = fresh0.filter(p => getCarePlan(cp, p.id));
       let withModel = 0;
       fresh.forEach(p => {
         carePlanOpen.add(p.id);
         // 手本の無い看護問題は、関係するヘンダーソン項目から、形だけそろった叩き台にする（数値・期間はこの患者に合わせて直す）
         let m = reviewCarePlan(cp, p).model;
-        if (!m && p.relatedNeeds.length) {
-          const nm = hendersonNameOf(p.relatedNeeds[0]).replace(/^\d+\.\s*/, '');
-          const prob = p.problem || nm;
-          m = { goalLong: `退院までに、${prob}が改善し、${nm}の欲求が自分で満たせる`,
-            goalShort: `数日以内に、${prob}に関する訴えや観察の値（記録の指標）が、改善に向かう`,
-            op: [`${prob}の程度・経過（訴え・観察・検査値）を観察する`, `${nm}に関する日常生活への影響を観察する`],
-            tp: [`${prob}を和らげる援助を、患者の状態に合わせて行い、悪化したときは医師に報告する`],
-            ep: [`${prob}の状態と、自分でできる対処・知らせるタイミングを説明し、理解を確認する`] };
-        }
+        // 手本のない看護問題は、定型文を入れない。リスクなら予防の目標だけ作り、残りは記入を促す（品質チェックが未記入を示す）
+        // 看護問題の種類（観察の項目と目標の型）が分かるときは、それを使う。援助・教育は定型文にせず、記入を促す
+        const dm = !m && cpDomainOf(p);
+        if (dm && dm.op) { const c0 = cpRecordContext(cp); m = { goalLong: '', goalShort: dm.goal ? dm.goal(c0) : '', op: dm.op.slice(0, 5).map(([l]) => `${l}を観察する`), tp: [], ep: [] }; }
+        if (cpIsRisk(p)) { const g = cpRiskGoalFor(p, cpRecordContext(cp)); m = { goalLong: g.long, goalShort: g.short, op: (m && m.op) || [], tp: [], ep: [] }; }
         if (!m) return;
         const patch = {};
         if (!String(p.goalLong || '').trim()) patch.goalLong = m.goalLong;
@@ -1003,6 +1325,7 @@
         ['op', 'tp', 'ep'].forEach(k => { if (!p[k].length && m[k] && m[k].length) patch[k] = [...m[k]]; });
         if (Object.keys(patch).length) { updateCarePlan(cp, p.id, { ...patch, reasonNeeded: true, source: 'rules' }); withModel++; }
       });
+      refineCarePlans(cp);
       return { fresh, withModel };
     }
     // 看護計画は、記録から自動で作る（「看護計画」のページを開いたとき・分類のあと）。AIは作るためではなく、できた計画を評価するために使う。
@@ -1011,7 +1334,11 @@
       if (!cp) return 0;
       let r;
       try { r = buildCarePlansByRules(cp, { skipDeleted: true }); } catch (err) { console.warn('看護計画の自動作成に失敗:', err); return 0; }
-      if (!r.fresh.length) return 0;
+      if (!r.fresh.length) {
+        // 新しく作る計画がなくても、すでにある計画の重複・無効な参照は整理する（何度作っても重複しない）
+        try { const ref = refineCarePlans(cp); if (ref.merged || ref.refsRemoved) commitCarePlanChange(cp, false); } catch (err) { console.warn('看護計画の整理に失敗:', err); }
+        return 0;
+      }
       commitCarePlanChange(cp, false);
       if (notify) showToast(`記録から看護計画を${r.fresh.length}件、自動で作りました。この患者に合うか確かめて、理由を書いて直してください。内容はAIで評価できます`, 'success', 7000);
       return r.fresh.length;
@@ -1462,6 +1789,8 @@ if (typeof module !== 'undefined' && module.exports) {
     formatCardTimestamp, MISSING_CHECK_STATUSES, missingInfoItems, missingCheckStatus, missingCheckCounts, setMissingCheck, missingCheckCardHtml,
     CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
-    cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, buildCarePlanReviewPrompt, parseCarePlanReview, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, buildAllCarePlansReviewPrompt, parseAllCarePlansReview, carePlanSetReviewHtml, carePlanSetState
+    cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf,
+    CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
+    cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, cpQualityGate, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, buildCarePlanReviewPrompt, parseCarePlanReview, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, buildAllCarePlansReviewPrompt, parseAllCarePlansReview, carePlanSetReviewHtml, carePlanSetState
   });
 }

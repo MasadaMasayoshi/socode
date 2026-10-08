@@ -183,7 +183,7 @@ test('⑤実習記録の様式：患者の概要・14項目・不足情報・看
   assert.match(txt, /■ 患者の概要\n患者：患者P\n診断名：右大腿骨頸部骨折/);
   assert.match(txt, /■ ヘンダーソン14項目の情報とアセスメント\n3\.排泄：\n　S-1 \[術後1日目\] 「お腹が張る感じがする」\n　O-1 \[術後1日目\] 術後より排便なし/);
   assert.match(txt, /■ 不足情報と確認結果\n\[確認済み [^\]]+\] 3\.排泄：普段の排便の間隔 → 毎日（カルテ）\n\[未確認\] 9\.環境：自宅の段差の有無/);
-  assert.match(txt, /■ 看護問題（優先順位）\n#1 <b>急性疼痛<\/b>（実施中）/);
+  assert.match(txt, /■ 看護問題（優先順位）\n#1 <b>急性疼痛<\/b>（計画作成済み）/);
   const html = app.reportToHtml(cp, r);
   assert.doesNotMatch(html, /<b>急性疼痛/);
   assert.match(html, /&lt;b&gt;急性疼痛/);
