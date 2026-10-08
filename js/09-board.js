@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-08.35'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-08.2053'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カード → 元の文章（カルテ・看護記録入力欄）の該当箇所を探す
     // ------------------------------------------------------------------------
@@ -385,6 +385,17 @@
     window.setCardSelected = function(id, selected) {
       if (selected) selectedCardIds.add(id); else selectedCardIds.delete(id);
       renderSoBoard();
+    };
+
+    // タグ未設定のカードをすべて選択する（選択後は下の一括操作の帯の「＋タグ追加」「不要にする」などでまとめて操作できる）
+    window.selectAllUntagged = function() {
+      const cp = getCurrentPatient();
+      const ids = (cp.items || []).filter(isUntaggedItem).map(i => i.id);
+      if (!ids.length) return showToast('タグ未設定のカードはありません', 'success');
+      ids.forEach(id => selectedCardIds.add(id));
+      renderSoBoard();
+      if (typeof refreshCardOverview === 'function' && document.getElementById('modal-card-overview') && !document.getElementById('modal-card-overview').classList.contains('hidden')) refreshCardOverview();
+      showToast(`タグ未設定の${ids.length}枚をすべて選択しました`, 'success');
     };
 
     function renderBulkActionBar() {

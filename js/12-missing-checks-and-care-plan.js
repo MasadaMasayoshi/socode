@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-08.2045'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-08.2053'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -237,8 +237,29 @@
       if (segs.length < 2 || typeof detectMultipleHendersonTags !== 'function') return [];
       return segs.map(s => ({ text: s, tagIds: Array.from(detectMultipleHendersonTags(s)) })).filter(p => p.tagIds.length);
     }
+    // 痛みの記載が「何に影響しているか」を、前後の記録（同じ日時のカード、前後2枚）を読んで推定する（患者36）
+    const UNTAGGED_EFFECT_RULES = [
+      { id: 5, re: /眠れ|眠れず|睡眠|不眠|夜間覚醒|寝つ|寝れ/, label: '睡眠' },
+      { id: 4, re: /動く|動かす|動け|動き|体位|体動|荷重|移乗|リハ|離床|歩行|歩く|起立|起き|端坐|車椅子|車いす|立位|訓練|可動域|ROM|SLR|運動|ベッド上|床上/, label: '動作・姿勢' },
+      { id: 2, re: /食欲|食事|摂取|昼食|夕食|朝食|嘔気|嘔吐/, label: '食事' },
+      { id: 3, re: /トイレ|排尿|排便|尿|便/, label: '排泄' },
+      { id: 8, re: /清拭|入浴|洗髪|清潔ケア|陰部洗浄/, label: '清潔' },
+      { id: 6, re: /更衣|着替/, label: '更衣' }
+    ];
+    function untaggedContextEffects(cp, item) {
+      const items = (cp && cp.items) || [];
+      const idx = items.findIndex(i => i.id === item.id);
+      if (idx < 0) return [];
+      const near = items.filter((i, k) => i.id !== item.id && i.type !== 'unnecessary' && (Math.abs(k - idx) <= 2 || (item.timestamp && item.timestamp !== '日時不明' && i.timestamp === item.timestamp && Math.abs(k - idx) <= 8)));
+      const found = [];
+      UNTAGGED_EFFECT_RULES.forEach(rule => {
+        const hit = near.find(i => rule.re.test(String(i.text || '')));
+        if (hit) found.push({ id: rule.id, label: rule.label, evidence: String(hit.text).slice(0, 40) });
+      });
+      return found;
+    }
     // 未設定のカード1枚について、理由を推定する（確からしさは根拠の強さを表す語で、数値の確率ではない）
-    function inferUntaggedReason(item) {
+    function inferUntaggedReason(item, cp) {
       const text = String((item && item.text) || '');
       const out = { text, kind: 'unset', kindLabel: UNTAGGED_KINDS.unset, reason: '理由を特定できないため確認が必要', confidence: '低', candidates: [], parts: [], checks: ['この情報がどの基本的欲求の根拠になるか、原文と前後の記録から確認してください'] };
       const set = (kind, reason, confidence, candidates, checks) => Object.assign(out, { kind, kindLabel: UNTAGGED_KINDS[kind], reason, confidence, candidates: candidates || [], checks: checks || [] });
@@ -270,6 +291,11 @@
         return set('none', '生殖・月経など、14項目に直接の項目が無い基本情報です。', '中', [], ['必要なら学習データ管理の「追加キーワード」でどの項目に入れるか決めてください']);
       }
       if (typeof PAIN_TEXT_REGEX !== 'undefined' && PAIN_TEXT_REGEX.test(text)) {
+        const eff = cp ? untaggedContextEffects(cp, item) : [];
+        if (eff.length) {
+          out.fromContext = true;
+          return set('classify', `痛みの記載そのものには影響先が書かれていませんが、前後の記録から${eff.map(e => `「${e.evidence}」→${e.label}（${e.id}）`).join('、')}に関係すると読み取れます。`, '中', eff.map(e => e.id), ['前後の記録を読み、痛みが本当にその項目に影響しているか確認してから付けてください']);
+        }
         return set('insufficient', '痛み・鎮痛薬の記載で、何に影響しているか（睡眠・動作・食事・排泄など）が書かれていないため、基準（痛みは影響している項目へ）に従い、どの項目にも付けていません。9.環境にも付けません。', '高', [], ['痛みで眠れない→5、動くと痛い→4、食事・排泄・清潔への影響→2・3・8のように、影響を確認して別のカードに記録するか、「タグを付ける」で項目を選んでください']);
       }
       if (UNTAGGED_NOINFO_RE.test(text)) {
@@ -304,7 +330,7 @@
       const item = (cp.items || []).find(i => i.id === itemId);
       if (!item || !UNTAGGED_DECISIONS.some(d => d.key === decision)) return null;
       if (!cp.untaggedReviews || typeof cp.untaggedReviews !== 'object' || Array.isArray(cp.untaggedReviews)) cp.untaggedReviews = {};
-      const inf = inferUntaggedReason(item);
+      const inf = inferUntaggedReason(item, cp);
       const ids = Array.from(new Set((tagIds || []).map(Number).filter(n => n >= 1 && n <= 14)));
       cp.untaggedReviews[untaggedTextKey(item.text)] = { decision, tagIds: decision === 'assign' ? ids : [], kind: decision === 'none' ? 'none' : (decision === 'source' ? 'source' : inf.kind), note: String(note || '').trim(), text: item.text.slice(0, 200), updatedAt: now };
       if (decision === 'assign') {
@@ -327,7 +353,7 @@
       return { accept: '理由を了承済み', assign: 'タグ付け済み', none: 'タグ不要（確認済み）', source: '原本確認待ち' }[r.decision] || '確認済み';
     }
     function untaggedReviewRowHtml(cp, item) {
-      const inf = inferUntaggedReason(item), r = untaggedReviewOf(cp, item);
+      const inf = inferUntaggedReason(item, cp), r = untaggedReviewOf(cp, item);
       const cand = inf.candidates.length ? inf.candidates.map(h => `${h}.${hendersonNameOf(h).replace(/^\d+\.\s*/, '')}`).join('・') : 'なし';
       const id = jsArg(item.id);
       const opts = HENDERSON_NEEDS.map(n => `<option value="${n.id}">${n.id}. ${escapeHtml(n.name)}</option>`).join('');
@@ -344,6 +370,18 @@
           <button type="button" class="mc-filter" onclick="untaggedAction(${id},'source')">原本確認を依頼</button>
         </div></li>`;
     }
+    function untaggedCountNotNeeded(cp) { return untaggedReviewItems(cp).filter(i => i.tagNotNeeded).length; }
+    function untaggedContextCandidates(cp) {
+      return untaggedReviewItems(cp).filter(i => !untaggedReviewOf(cp, i)).map(i => ({ item: i, inf: inferUntaggedReason(i, cp) })).filter(x => x.inf.fromContext && x.inf.candidates.length);
+    }
+    function untaggedContextCandidateCount(cp) { return untaggedContextCandidates(cp).length; }
+    window.untaggedApplyAllCandidates = function() {
+      const cp = getCurrentPatient();
+      const list = untaggedContextCandidates(cp);
+      list.forEach(x => setUntaggedReview(cp, x.item.id, { decision: 'assign', tagIds: x.inf.candidates }));
+      saveDataAndSync(); renderMissingCheckSummary(cp);
+      showToast(`${list.length}枚に、前後の記録から読み取れたタグを付けました（取り消しは各カードのタグの×）`, 'success');
+    };
     let untaggedListOpen = false;
     function untaggedSectionHtml(cp) {
       const c = untaggedReviewCounts(cp);
@@ -352,13 +390,15 @@
       return `<div class="mc-summary-head"><span class="mc-summary-title"><i class="fa-solid fa-tag"></i> ヘンダーソンタグ未設定の理由</span>
         <button type="button" class="mc-filter mc-unchecked${untaggedListOpen ? ' active' : ''}" onclick="toggleUntaggedList()">未確認 <b>${c.open}</b></button>
         <button type="button" class="mc-filter mc-checked" onclick="toggleUntaggedList()">確認済み <b>${c.done}</b></button>
+        <button type="button" class="mc-filter" onclick="selectAllUntagged()" title="タグ未設定のカードをすべて選択します（選択後、下の帯の「＋タグ追加」などでまとめて操作できます）"><i class="fa-regular fa-square-check"></i> 未設定を全選択 <b>${c.total - untaggedCountNotNeeded(cp)}</b></button>
+        ${untaggedContextCandidateCount(cp) ? `<button type="button" class="mc-filter" onclick="untaggedApplyAllCandidates()" title="前後の記録から影響先が読み取れたカードに、候補のタグをまとめて付けます">前後の記録から候補をまとめて付ける <b>${untaggedContextCandidateCount(cp)}</b></button>` : ''}
         ${untaggedListOpen ? '<button type="button" class="my-asm-link" onclick="toggleUntaggedList()">一覧を閉じる</button>' : ''}</div>${list}`;
     }
     window.toggleUntaggedList = function() { untaggedListOpen = !untaggedListOpen; renderMissingCheckSummary(getCurrentPatient()); };
     window.untaggedAction = function(itemId, decision) {
       const cp = getCurrentPatient(), item = cp.items.find(i => i.id === itemId);
       if (!item) return;
-      const inf = inferUntaggedReason(item);
+      const inf = inferUntaggedReason(item, cp);
       setUntaggedReview(cp, itemId, { decision, tagIds: decision === 'assign' ? inf.candidates : [] });
       saveDataAndSync(); renderMissingCheckSummary(cp);
       showToast(decision === 'source' ? '原本確認が必要として記録しました（原文はそのままです）' : '記録しました', 'success');
@@ -2027,7 +2067,7 @@ ${body}
 
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {
-    inferUntaggedReason, untaggedTextKey, untaggedReviewOf, setUntaggedReview, applyUntaggedReviews, untaggedReviewItems, untaggedReviewCounts, untaggedSectionHtml,
+    inferUntaggedReason, untaggedContextEffects, untaggedTextKey, untaggedReviewOf, setUntaggedReview, applyUntaggedReviews, untaggedReviewItems, untaggedReviewCounts, untaggedSectionHtml,
     buildCarePlansPrintHtml, buildCarePlansText, buildCarePlansByRules, autoBuildCarePlans, carePlanList, deleteCarePlan,
     formatCardTimestamp, MISSING_CHECK_STATUSES, missingInfoItems, missingCheckStatus, missingCheckCounts, setMissingCheck, missingCheckCardHtml,
     CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,

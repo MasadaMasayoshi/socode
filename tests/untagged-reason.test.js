@@ -52,3 +52,15 @@ test('Patient 36 cards: real gaps are tagged; pain without stated effect is expl
   const r = app.inferUntaggedReason({ id: 'p', text: '創痛がある。', type: 'o', hendersonIds: [] });
   assert.equal(r.kind, 'insufficient'); assert.equal(r.confidence, '高');
 });
+test('pain card: affected item is read from surrounding records; select-all helper exists', () => {
+  const app = loadApp();
+  const mk2 = (id, text, ts) => ({ id, text, type: 'o', hendersonIds: [], assessmentCols: {}, timestamp: ts });
+  const cp = { items: [
+    mk2('a', '立位保持・歩行訓練、関節可動域訓練やマッサージ行う', '術後2日目 14:00'),
+    mk2('b', 'ペインスケール「5」まで上昇したが、帰室後「2」となっているため追加の薬剤希望なし', '術後2日目 14:00')
+  ] };
+  const r = app.inferUntaggedReason(cp.items[1], cp);
+  assert.equal(r.kind, 'classify'); assert.ok(r.candidates.includes(4)); assert.ok(r.fromContext);
+  const alone = app.inferUntaggedReason({ id: 'z', text: '創痛がある。', type: 'o', hendersonIds: [] }, { items: [] });
+  assert.equal(alone.kind, 'insufficient');
+});

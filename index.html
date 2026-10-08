@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-08.2045">
-  <meta name="app-file-versions" content="01:2026-10-08.2045,02:2026-10-08.8,03:2026-10-08.14,04:2026-10-07.36,05:2026-10-08.2023,06:2026-10-08.33,07:2026-10-08.2045,08:2026-10-08.2023,09:2026-10-08.35,10:2026-10-08.28,11:2026-10-08.35,12:2026-10-08.2045,13:2026-10-08.28,14:2026-10-06.14,15:2026-10-08.35">
+  <meta name="app-version" content="2026-10-08.2053">
+  <meta name="app-file-versions" content="01:2026-10-08.2045,02:2026-10-08.8,03:2026-10-08.14,04:2026-10-07.36,05:2026-10-08.2023,06:2026-10-08.33,07:2026-10-08.2045,08:2026-10-08.2023,09:2026-10-08.2053,10:2026-10-08.28,11:2026-10-08.35,12:2026-10-08.2053,13:2026-10-08.28,14:2026-10-06.14,15:2026-10-08.35">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
@@ -1214,6 +1214,7 @@
         <!-- 並べ方の切り替え（日時ごと／S・Oごと。app.jsのtoggleCardOverviewMode参照） -->
         <button id="btn-overview-mode" onclick="toggleCardOverviewMode()" class="ov-mode-toggle" title="一覧の並べ方を切り替えます"></button>
         <button id="btn-overview-untagged" onclick="toggleCardOverviewUntaggedOnly()" class="ov-untagged-filter" title="タグ未設定のカードだけを表示します"></button>
+        <button id="btn-overview-selectall-untagged" onclick="selectAllUntagged()" class="ov-untagged-filter" title="タグ未設定のカードをすべて選択します"><i class="fa-regular fa-square-check"></i> 未設定を全選択</button>
         <span class="ov-help text-[10px] text-[var(--ink-muted)]">カードか□をクリックで選択→一覧を閉じて元の文章の該当箇所を表示（選択は保持。「一覧に戻る」で戻れます）／□を外すと選択解除（Escで閉じる）</span>
       </div>
       <div class="flex items-center gap-2 flex-wrap ml-auto">
@@ -1339,10 +1340,10 @@
   <script src="js/06-export.js?v=2026-10-08.33"></script>
   <script src="js/07-classification.js?v=2026-10-08.2045"></script>
   <script src="js/08-assessment-tools.js?v=2026-10-08.2023"></script>
-  <script src="js/09-board.js?v=2026-10-08.35"></script>
+  <script src="js/09-board.js?v=2026-10-08.2053"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-08.28"></script>
   <script src="js/11-own-assessment.js?v=2026-10-08.35"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-08.2045"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-08.2053"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-08.28"></script>
   <script src="js/14-drug-reference.js?v=2026-10-06.14"></script>
   <script src="js/15-relation-map.js?v=2026-10-08.35"></script>
