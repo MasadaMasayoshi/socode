@@ -510,6 +510,10 @@
     .suf-b-unmet { border-left-color: var(--brick); }
     .suf-b-conflict { border-left-color: var(--gold); }
     .suf-b-unknown { border-left-color: var(--ink-muted); border-style: dashed; border-left-style: solid; }
+    /* 見出しの判定（入院前・入院後を縦に並べ、「O-1により、…のため充足」の根拠を添える） */
+    .suf-header { display: flex; flex-direction: column; gap: .35rem; }
+    .suf-hline { padding-left: .45rem; border-left: 3px solid var(--line); }
+    .suf-hwhy { display: block; margin-top: .1rem; font-size: 11px; line-height: 1.5; color: var(--ink-muted); }
     .suf-badge.suf-conflict { color: var(--gold); background: var(--gold-soft); border-color: var(--gold-line); }
     .suf-ctl { display: flex; flex-direction: column; gap: .25rem; }
     .suf-line { display: flex; align-items: center; gap: .25rem; flex-wrap: wrap; }

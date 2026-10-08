@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.20'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.21'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -372,13 +372,17 @@
       9: '転倒・転落・感染・事故', 10: '不安の増強・ニーズの把握の遅れ', 11: '精神的な苦痛の増強', 12: '役割の喪失・自己効力感の低下', 13: '気分転換の不足・活動意欲の低下',
       14: '自己管理の不足・退院後の合併症（脱臼・再発など）'
     };
-    function sufficiencySentence(cp, needId, phase) {
+    function sufficiencySentence(cp, needId, phase, labelMap) {
+      labelMap = labelMap || myEvidenceLabels(cp, needId);
       const r = ruleSufficiencyFor(cp)[needId];
       const a = r && r[phase];
       if (!a || !a.verdict) return '';
       const need = HENDERSON_NEEDS.find(n => n.id === needId);
       const name = need ? need.name.replace(/^\d+\.\s*/, '') : '';
-      if (a.verdict === 'met') return `${a.reason}より、${name}は満たされているため、充足。`;
+      // 根拠は「O-1により」のように、総合アセスメント表の通し番号（S-1・O-1）で示す（番号が引けないときは記録の言葉）
+      const labs = (a.evidence || []).map(id => (labelMap || {})[id]).filter(Boolean);
+      const by = labs.length ? `${labs.join('・')}により` : `${a.reason}より`;
+      if (a.verdict === 'met') return `${by}、${name}は満たされているため、充足。`;
       if (a.verdict === 'unmet') {
         // 9.環境は、直接の根拠がある危険だけを書く（不安や痛みだけから、転倒と感染の両方を推測しない）
         let risk = SUFFICIENCY_RISKS[needId] || '合併症';
@@ -388,9 +392,9 @@
           if (/ドレーン|チューブ|創部|ガーゼ|刺入部|挿入部|発赤|発熱|排膿|感染/.test(a.reason)) rs.push('感染');
           risk = rs.join('・');
         }
-        return risk ? `${a.reason}より、${risk}のリスクが考えられるため、未充足。` : `${a.reason}より、環境面の問題があるため、未充足。`;
+        return risk ? `${by}、${risk}のリスクが考えられるため、未充足。` : `${by}、環境面の問題があるため、未充足。`;
       }
-      if (a.verdict === 'conflict') return `${a.reason}が並んでおり、どちらとも決められないため、判定保留。`;
+      if (a.verdict === 'conflict') return `${labs.length ? `${labs.join('・')}により、充足を示す記録と未充足を示す記録が並んでおり` : `${a.reason}が並んでおり`}、どちらとも決められないため、判定保留。`;
       return a.need ? `${a.need}ため、情報不足。` : '記録が少なく判断できないため、情報不足。';
     }
     // 期間ごとの判定の表示用：met / unmet / conflict / unknown
@@ -427,6 +431,17 @@
         return `<span class="suf-line"><span class="suf-phase">${ph.key === 'pre' ? '入院前' : '入院後'}</span><span class="suf-badge suf-${cur || 'unknown'}"><i class="fa-solid ${cur === 'met' ? 'fa-circle-check' : cur === 'unmet' ? 'fa-triangle-exclamation' : 'fa-circle-question'}"></i> ${label}</span></span>`;
       }).join('');
       return `<div class="suf-ctl" role="group" aria-label="充足・未充足">${rows}</div>`;
+    }
+    // 見出し（各項目の上）に、入院前・入院後それぞれの判定と、「O-1により、…のため充足」の形の根拠を出す
+    function sufficiencyHeaderHtml(cp, needId) {
+      if (!sufficiencyHasVerdict(cp, needId)) return '';
+      const labels = myEvidenceLabels(cp, needId);
+      const rows = SUFFICIENCY_UI_PHASES.map(ph => {
+        const v = phaseVerdictOf(cp, needId, ph.key);
+        const icon = v === 'met' ? 'fa-circle-check' : v === 'unmet' ? 'fa-triangle-exclamation' : v === 'conflict' ? 'fa-scale-unbalanced' : 'fa-circle-question';
+        return `<div class="suf-hline suf-b-${v}"><span class="suf-line"><span class="suf-phase">${ph.label}</span><span class="suf-badge suf-${v}"><i class="fa-solid ${icon}"></i> ${SUFFICIENCY_LABELS[v]}</span></span><span class="suf-hwhy">${escapeHtml(sufficiencySentence(cp, needId, ph.key, labels))}</span></div>`;
+      }).join('');
+      return `<div class="suf-header" role="group" aria-label="充足・未充足">${rows}</div>`;
     }
     function sufficiencySummaryHtml(cp) {
       return `<span class="suf-sum">${SUFFICIENCY_UI_PHASES.map(ph => {
@@ -1303,7 +1318,7 @@ if (typeof module !== 'undefined' && module.exports) {
     MY_ASSESSMENT_FIELDS,
     ensureMyAssessment, getMyAssessment, ruleSufficiencyFor, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
     myAssessmentStatus, myAssessmentNeedsReview, confirmMyAssessmentEntry, restoreMyAssessmentFromHistory,
-    buildSufficiencyPrompt, hasRuleSufficiency, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
+    buildSufficiencyPrompt, hasRuleSufficiency, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
     renderMyAssessmentRowHtml, evidencePickerCandidates, buildMyAssessmentAiPrompt, myAssessmentAlwaysShown
   });
   if (module.exports.__testHooks) Object.assign(module.exports.__testHooks, { flushMyAssessmentSaves, saveMyAssessmentsSoon });

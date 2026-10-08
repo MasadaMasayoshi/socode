@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-08.20'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-08.21'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 書式付き書き出し（Word / PDF）
     // ------------------------------------------------------------------------
@@ -196,14 +196,10 @@
         const labels = assessmentSeqLabels(matching, need.id);
         const cells = cols.map(col => {
           const list = matching.filter(i => colOf(i, need.id) === col);
-          // 充足・未充足の判定は、入院前・入院後それぞれの欄の中（カードの下）に判定根拠つきで載せる
-          const pk = col === 'preadmission' ? 'pre' : col === 'postadmission' ? 'post' : '';
-          const judge = pk && typeof sufficiencyPhaseText === 'function' ? sufficiencyPhaseText(cp, need.id, pk) : '';
-          const jHtml = judge ? `<div style="margin-top:4px;padding:3px 5px;border:1px solid #888;border-left:3px solid #333;font-size:9px;"><b>${escapeHtml(judge.replace('／判定根拠：', '</b><br>判定根拠：'))}</div>` : '';
-          if (!list.length) return judge ? `<td class="empty">記録なし${jHtml}</td>` : '<td class="empty">—</td>';
-          return `<td>${printAssessmentCellList(col, list, labels)}${jHtml}</td>`;
+          if (!list.length) return '<td class="empty">—</td>';
+          return `<td>${printAssessmentCellList(col, list, labels)}</td>`;
         }).join('');
-        return `<tr><th scope="row" style="background:#f7f5f0;">${need.id}. ${escapeHtml(need.name.replace(/^\d+\.\s*/, ''))}</th>${cells}</tr>`;
+        return `<tr><th scope="row" style="background:#f7f5f0;">${need.id}. ${escapeHtml(need.name.replace(/^\d+\.\s*/, ''))}${(() => { const t = typeof sufficiencyPhaseText === 'function' ? SUFFICIENCY_UI_PHASES.map(ph => { const x = sufficiencyPhaseText(cp, need.id, ph.key); return x ? `<div style="font-weight:400;font-size:7.8pt;margin-top:2px;"><b>${ph.label}：${escapeHtml(x.replace(/^判定：/, '').replace('／判定根拠：', '</b>　'))}</div>` : ''; }).join('') : ''; return t; })()}</th>${cells}</tr>`;
       }).join('');
       // 自分のアセスメント（js/11）があれば、表の次のページに載せる
       const own = typeof buildMyAssessmentsPrintHtml === 'function' ? buildMyAssessmentsPrintHtml(cp, 1) : '';
@@ -762,15 +758,13 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         const shown = matching.filter(include);
         if (onlyIds && shown.length === 0) return; // 選択したカードの書き出しでは、該当するカードの無い項目は省く
         out += `\n■ ${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}\n`;
-        if (shown.length === 0) { out += '  （カードなし）\n'; if (onlyIds) return; }
+        // 判定は項目の見出しの下に、入院前・入院後を分けて、「O-1により、…のため充足」の形で書く（選択したカードの書き出しでは付けない）
+        if (!onlyIds && typeof sufficiencyPhaseText === 'function') SUFFICIENCY_UI_PHASES.forEach(ph => { const x = sufficiencyPhaseText(cp, need.id, ph.key); if (x) out += `  ・${ph.label}：${x.replace(/^判定：/, '').replace('／判定根拠：', '　')}\n`; });
+        if (shown.length === 0) { out += '  （カードなし）\n'; return; }
         ASSESSMENT_COL_ORDER.forEach(([col, label]) => {
           const inCol = shown.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === col);
-          // 入院前・入院後は、記録が無くても区画を出し、その中に判定と判定根拠を書く（選択したカードの書き出しでは判定は付けない）
-          const pk = col === 'preadmission' ? 'pre' : col === 'postadmission' ? 'post' : '';
-          const judge = !onlyIds && pk && typeof sufficiencyPhaseText === 'function' ? sufficiencyPhaseText(cp, need.id, pk) : '';
-          if (inCol.length === 0 && !judge) return;
+          if (inCol.length === 0) return;
           out += `  [${label}]\n`;
-          if (inCol.length === 0) out += '    （記録なし）\n';
           const dayGroups = assessmentDayGroups(col, inCol);
           dayGroups.forEach(g => { if (g.day) out += `   〈${g.day}〉\n`; g.items.forEach(i => {
             const seq = seqLabels[i.id] ? `${seqLabels[i.id]} ` : '';
@@ -778,7 +772,6 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
             const label = (i.fieldLabel ? `[${i.fieldLabel}] ` : '') + (isFamilySpeech(i.text) ? '[家族] ' : '');
             out += `    ・${seq}${time}${label}${i.text}${i.aiSuggested ? '（AI推定）' : ''}\n`;
           }); });
-          if (judge) out += `    → ${judge}\n`;
         });
       });
       return out;
