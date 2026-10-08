@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-08.14'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-08.28'; // 版（scripts/stamp-version.js が書き込む）
     // 「祖母を胃がん、父を前立腺がんで亡くしている〜」のような家族歴の文は、本人の食事・栄養
     // 状態の所見ではないにもかかわらず、id2(食事)の疾患名キーワード（「胃がん」等）に一致して
     // しまい、食事に無関係な家族歴が「2. 食事」に混入していた（利用者からの報告事例）。
@@ -144,7 +144,34 @@
     const COMM_ABILITY_REGEX = /聞こえ|聞き取|言葉(?:が|を)|話せ|伝え(?:られ|たい|にく)|意思疎通|難聴|筆談|声が出|会話/;
     const NOT_ENV_REGEX = /PCA|点滴|輸液|疼痛|痛み|痛い|鎮痛|ペインスケール|NRS|\bPLT\b|Plt|血小板|(?<![A-Za-z])PT(?![A-Za-z])|プロトロンビン|アミラーゼ|HBV|HCV|梅毒|HIV|病理|Stage|病期|T[0-9]\s*N[0-9O]|術式|手術時間|出血量|inout|バランス|怖い|不安|心配|フィブリノ|APTT|Dダイマー|感染症|血液型|麻酔科/;
     const ENV_EVIDENCE_REGEX = /保険|家族|妻|夫|長男|長女|次男|次女|娘|息子|同居|独居|一人暮らし|キーパーソン|サポート|支援者|経済|生活(?:の)?場|自宅|家屋|階段|段差|転倒|転落|転ぶ|ふらつき|歩行不安定|安全|危険|事故|感染予防|感染対策|手洗い|環境|ベッド柵|ナースコール|居室|病室|個室|退院先|施設|介護|ドレーン|チューブ|ガーゼ|創部|刺入部|挿入部|抜去|せん妄|不穏|ADL|見守り|ストッキング|フットポンプ|ホーマンズ|DVT|血栓|外転枕|脱臼|牽引|けん引|骨折|人工骨頭|人工関節|麻酔|知覚|しびれ|痺れ|足背動脈|患肢|聴力|聴覚|視力|視覚|平衡感覚|触覚|感覚|傷|悪露|子宮底|褥瘡|Homans|入院歴|手術歴|既往|手術室|退院|家に帰|圧迫装置|空気圧迫|弾性|住居|住まい|アパート|マンション|一戸建|自宅|医療費|職場/;
+    // ---- 意味の関連の確認（2026-10-08.28）：キーワードが一致しただけでは、その項目の情報とはしない ----
+    // 欲求ごとに、その項目の根拠として意味のつながりがある言葉（anchor）を決め、1つも無いのに付いたタグは外す。
+    // 外した結果、タグが1つも残らないときは、カードを迷子にしないため元のタグを残す（情報そのものは消さない）。
+    // 関係のうすい例（その欲求の言葉が1つも無いとき）：呼吸←血液型・鎮痛薬・内視鏡の結果／食事←血算・凝固などの検査値／排泄←呼吸訓練・腹腔ドレーン
+    const HENDERSON_IRRELEVANT = {
+      1: { when: /血液型|鎮痛薬?|オピオイド|内視鏡|胃カメラ|ガストロ|GIF|上部消化管/, anchor: /呼吸|SpO2|酸素|痰|咳|喘|ラ音|肺|気道|吸入|FEV|胸部|喫煙|たばこ|タバコ|息|換気/ },
+      2: { when: /RBC|赤血球|Hb|ヘモグロビン|Ht|ヘマトクリット|PLT|血小板|WBC|白血球|CRP|PT|APTT|INR|フィブリノゲン|Dダイマー|D-?dimer|血液型|凝固/, anchor: /食|摂取|栄養|体重|BMI|Alb|アルブミン|TP|総蛋白|水分|嚥下|口腔|義歯|胃管|経管|輸液|絶飲|血糖|HbA1c|コレステロール|中性脂肪|悪心|嘔|カロリー|塩分/ },
+      3: { when: /呼吸(?:訓練|練習)|スパイロ|ドレーン|ドレナージ/, anchor: /排尿|排便|尿|便|排ガス|腸|下痢|便秘|おむつ|オムツ|トイレ|膀胱|カテーテル|バルーン|ストーマ|腹部膨満|残尿/ }
+    };
+    const HENDERSON_NOT_COMMUNICATED = /病理|組織診|診断書|検査結果|結果は/;
+    const HENDERSON_COMMUNICATION_WORDS = /説明|理解|質問|知りたい|伝え|聞|指導|パンフ|同意|不安|心配|納得|希望/;
+    function hendersonRelevanceFilter(text, ids) {
+      const t = String(text || '').normalize('NFKC');
+      if (!ids || ids.length < 2) return ids;
+      const keep = ids.filter(h => {
+        const r = HENDERSON_IRRELEVANT[h];
+        if (r && r.when.test(t) && !r.anchor.test(t)) return false;
+        if (h === 14 && HENDERSON_NOT_COMMUNICATED.test(t) && !HENDERSON_COMMUNICATION_WORDS.test(t)) return false; // 結果が患者に伝わった・理解された記載が無い
+        if (h === 9 && /^[^。\n]*(?:血液型|年齢|性別|生年月日)/.test(t) && !/環境|転倒|安全|自宅|住/.test(t)) return false;
+        return true;
+      });
+      return keep.length ? keep : ids;
+    }
     function detectMultipleHendersonTags(text) {
+      const raw = detectMultipleHendersonTagsRaw(text);
+      return hendersonRelevanceFilter(String(text || '').replace(/（問い：[^）]*）/g, ''), raw);
+    }
+    function detectMultipleHendersonTagsRaw(text) {
       // 会話形式で答えに添えた看護師の問い（「（問い：薬は毎日飲めていましたか）」）は、タグの判定に使わない
       text = String(text || '').replace(/（問い：[^）]*）/g, '');
       if (typeof isLabTextUnreliable === 'function' && isLabTextUnreliable(text)) return []; // 項目名や数値が崩れた検査値は、分類しない（原本確認が先）

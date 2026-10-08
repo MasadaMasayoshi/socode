@@ -171,3 +171,63 @@ test('別の手術の流用なし：大腿骨頸部骨折（人工骨頭置換�
   assert.equal(app.carePlanList(hip).filter(p => app.cpForeignTerms(hip, p).length).length, 0);
   assert.ok(app.carePlanList(hip).every(p => p.status === 'planned'));
 });
+
+test('診断が変わったら、目標・OP・TP・EPも作り直す：古い問題（活動耐性・毎食7割・回復の目標）の記述を残さない', () => {
+  const cp = surgery();
+  const act = app.createCarePlan(cp, mk('活動耐性低下'));
+  app.regenerateCarePlanSections(cp, act);
+  assert.match(act.goalShort, /歩け/);
+  act.problem = '廃用症候群リスク状態';
+  assert.ok(app.cpPlanIncoherent(act), '診断の型が変わったのに記述が古い');
+  app.regenerateCarePlanSections(cp, act);
+  assert.ok(!/活動耐性|病棟のトイレまで歩け|休憩を入れながら/.test(JSON.stringify([act.goalLong, act.goalShort, act.op, act.tp, act.ep])));
+  assert.match(act.goalShort, /ふらつき・息切れ・SpO2低下を認めない/);
+  assert.equal(act.genKey, app.cpPlanKey(act));
+  // 古い版が作った不整合な計画（栄養のリスクなのに、回復の目標）は、自動チェックのときに作り直される
+  const nut = app.createCarePlan(cp, mk('栄養摂取量不足リスク状態', { goalShort: '1週間後までに、食事を毎食7割以上食べられ、体重が今より減らない', op: ['摂取量を観察する'] }));
+  app.refineCarePlans(cp);
+  assert.ok(!/毎食7割以上/.test(nut.goalShort) && /食事再開後3日以内/.test(nut.goalShort));
+  // 自分で書き直した計画は上書きしない
+  const mine = app.createCarePlan(cp, mk('栄養摂取量不足リスク状態', { goalShort: '食事を毎食7割以上食べられる', userEdited: true }));
+  app.refineCarePlans(cp);
+  assert.equal(mine.goalShort, '食事を毎食7割以上食べられる');
+});
+test('状態：自動作成の計画が記録なしで「実施中」になっていたら「計画作成済み」に戻す。実施済みの状態もある', () => {
+  const cp = surgery();
+  const p = app.createCarePlan(cp, mk('急性疼痛', { status: 'active' }));
+  app.refineCarePlans(cp);
+  assert.equal(p.status, 'planned');
+  assert.ok(app.CARE_PLAN_STATUSES.some(s => s.key === 'done' && s.label === '実施済み'));
+});
+test('自動チェック：曖昧な目標・具体的でないOP/TP・理解の確かめがないEP・問題の変更を検出する', () => {
+  const cp = surgery();
+  const p = app.createCarePlan(cp, mk('急性疼痛', { goalShort: '数日以内に、観察の値が改善に向かう', op: ['状態を観察する'], tp: ['援助する'], ep: ['痛みについて説明する'] }));
+  const codes = app.cpQualityGate(cp).find(g => g.id === p.id).qa.map(q => q.code);
+  ['vague-goal', 'op-vague', 'tp-vague', 'ep-no-check'].forEach(c => assert.ok(codes.includes(c), c));
+});
+test('周術期に見落としやすい問題（出血・血栓塞栓）は、計画にないとき検討の候補として示す（自動では作らない）', () => {
+  const cp = surgery([card('d', '腹腔ドレーン排液 淡血性')]);
+  app.createCarePlan(cp, mk('急性疼痛'));
+  const r = app.refineCarePlans(cp);
+  assert.ok(r.candidates.some(c => /出血リスク/.test(c)) && r.candidates.some(c => /静脈血栓塞栓症/.test(c)));
+  assert.ok(!app.carePlanList(cp).some(p => /出血|血栓/.test(p.problem)));
+});
+test('ヘンダーソンの分類：血算・凝固の検査値は食事に、血液型・鎮痛薬は呼吸に、呼吸訓練・腹腔ドレーンは排泄に入れない（他の項目に付くときだけ外す）', () => {
+  const tags = t => Array.from(app.detectMultipleHendersonTags(t));
+  assert.ok(!tags('創部痛あり。鎮痛薬を使用。血液型A型').includes(1));
+  assert.ok(!tags('トライボールによる呼吸訓練を実施。腹部ドレーン淡血性5ml').includes(3));
+  assert.ok(tags('食事摂取量5割。Alb 3.2').includes(2), '栄養に関係する検査値は残る');
+});
+test('検査値：単位・桁が崩れた値は判定不可（推定候補は確定にしない）。男性のHb・ALPの測定法・1秒率・SpO2の室内気と酸素投与を分ける', () => {
+  const c = (id, text, ts) => ({ id, type: 'o', text, timestamp: ts, hendersonIds: [1] });
+  const cp = { id: 'x', carePlans: {}, sourceText: '58歳 男性', items: [c('1', 'Hb(ヘモグロビン) 13.5 g/dL (基準値: 11.5〜16.5 g/dL)', '術前'), c('2', 'Hb(ヘモグロビン) 12.2 g/dL (基準値: 11.5〜16.5 g/dL)', '術後'), c('3', 'RBC4587/uL', '術後'), c('4', 'ALP 85 U/L', '術前'), c('6', '1秒率: 69.33%', '術前'), c('7', 'SpO2 99% (酸素5L/分)', '手術当日'), c('8', 'SpO2 95%(室内気)', '術前')] };
+  const t = app.buildLabAssessment(cp).text;
+  assert.match(t, /RBC：[\s\S]*判定：要確認（判定不可：単位・桁の確認が必要[\s\S]*推定候補：RBC 458\.7/);
+  assert.doesNotMatch(t, /RBC[\s\S]{0,80}仮に原文どおりなら：低値/);
+  assert.match(t, /男性の一般的な目安（13\.5〜17\.5 g\/dL）より低め/);
+  assert.match(t, /ALPの基準値は測定法（JSS法・IFCC法）で大きく異なります/);
+  assert.match(t, /1秒率だけで慢性閉塞性肺疾患（COPD）とは診断できません/);
+  assert.match(t, /SpO2：99%（手術当日）[^\n]*酸素投与下の値/);
+  assert.match(t, /SpO2：95%（術前）[^\n]*室内気の値/);
+  assert.doesNotMatch(t, /SpO2：95%（術前）[^\n]*酸素投与下/);
+});

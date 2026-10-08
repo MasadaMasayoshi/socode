@@ -59,13 +59,6 @@ test('看護計画の叩き台の新しい形（見出し・番号付き）も�
   assert.deepEqual(JSON.parse(JSON.stringify(plans[0].ep)), ['息苦しいときは知らせるよう説明する']);
 });
 
-test('AIへの指示文：最初に要点・前置きなし・短い箇条書き。NotebookLM に問い合わせているような言い方をしない', () => {
-  assert.match(src, /const AI_STYLE_INSTRUCTION = '【書き方】前置き・あいさつ/);
-  assert.equal((src.match(/\$\{AI_STYLE_INSTRUCTION\}/g) || []).length, 3, '検査値・矛盾チェック・経時変化');
-  assert.match(src, /最初に「### 要点」として看護問題の優先順位/);
-  assert.match(src, /最初に「### 要点」として、いちばん大事な助言/);
-  assert.doesNotMatch(src, /「NotebookLM 基準ノート」の検査値評価規則|【NotebookLM 基準ノート】/);
-});
 
 test('不足情報のAI推定：推定し直すと、前回のAI推定のうち未確認・未編集のものは置き換える（増え続けない）', () => {
   assert.match(src, /function isUntouchedAiMissing\(cp, i\)/);

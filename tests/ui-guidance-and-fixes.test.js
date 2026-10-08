@@ -95,11 +95,6 @@ test('手直し：カードを分ける（1行目は元のカード・日時と�
   assert.equal(app.undoLast(cp), null);
 });
 
-test('AIの結果：結果が返る前に別の患者に切り替えていたら、頼んだ患者に保存し、今の患者の画面には出さない', () => {
-  assert.match(src, /function finishAiResult\(cp, applyToScreen, label\)/);
-  ['S/O矛盾チェック', '看護診断候補', '経時変化サマリー', '看護計画の叩き台', '検査値の評価', '不足情報の推定'].forEach(l => assert.match(src, new RegExp(`finishAiResult\\(cp, [\\s\\S]{0,120}'${l.replace('/', '\\/')}'\\)`), l));
-  assert.match(src, /pushMissingInfoCard\(hId, text, cp\)/);
-});
 
 test('作業の流れ：次に進む所に印（情報収集 → アセスメント → 看護計画 → 書き出し。記録を貼る・分類・手直しは「情報収集」に1つ）', () => {
   const app = loadApp();

@@ -79,15 +79,6 @@ test('総合アセスメント表：自分のアセスメントは「表示／�
   assert.match(src, /localStorage\.setItem\('nursing_my_asm_show'/);
 });
 
-test('総合アセスメント表：AIのボタンは1列にまとめて見せ、結果はタブで1つだけ表示する（表の上に積み重ねない）', () => {
-  assert.doesNotMatch(html, /id="ai-tools-menu"/);
-  assert.match(html, /<div id="ai-results" class="ai-results hidden">[\s\S]*id="ai-results-tabs"[\s\S]*id="lab-evaluation-panel" class="ai-panel hidden[\s\S]*id="careplan-panel"[\s\S]*<\/div>\s*<\/div><!-- \/ai-results -->/);
-  ['evaluateMissingInfoAI()', 'suggestNursingDiagnosesAI()', 'reviewAllCarePlansAiUI()', 'evaluateLabValuesAI()', 'checkContradictionsAI()', 'generateTimelineSummaryAI()', 'openAiReview()'].forEach(a => assert.ok(src.includes(a), a));
-  assert.match(src, /function refreshAiResults\(keepActive = true\)/);
-  assert.match(src, /window\.showAiResult = function/);
-  // AIの失敗は結果の欄に出すので、通知は消えるもの（注意）にする
-  assert.match(src, /S\/O矛盾チェックができませんでした[^\n]*'warn'\);/);
-});
 
 test('AIの処理の途中でページを閉じたら、次に開いたときに知らせる（ほかのタブで実行中の新しい記録には触れない）', () => {
   const store = new Map();

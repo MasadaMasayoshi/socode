@@ -120,39 +120,8 @@ test('看護診断候補の読み取り：「### ■ 診断名」「1. ■ 診�
   assert.equal(app.parseDiagnosisCandidates('形式が違う答え').length, 0);
 });
 
-test('不足情報のAIの答え（JSON）：前後の説明・```json・{"items":[…]} があっても読める。読めなければ null', () => {
-  const p = t => plain(app.parseAiJsonArray(t, ['items']));
-  assert.deepEqual(p('[{"hendersonId":1,"text":"原因: a"}]\n\n※[参考] 優先度順です'), [{ hendersonId: 1, text: '原因: a' }]);
-  assert.deepEqual(p('以下の通りです [JSON形式]:\n[{"hendersonId":2,"text":"原因: b"}]'), [{ hendersonId: 2, text: '原因: b' }]);
-  assert.deepEqual(p('```json\n{"items":[{"hendersonId":3,"text":"原因: c [注]"}]}\n```'), [{ hendersonId: 3, text: '原因: c [注]' }]);
-  assert.equal(app.parseAiJsonArray('JSONではありません'), null);
-  assert.match(src, /callGeminiAI\(\[\{ role: "user", parts: \[\{ text: prompt \}\] \}\], \{ json: true \}\)/);
-});
 
-test('不足情報のAI推定：null や文字列だけの要素は飛ばし、JSONの答えを指定して頼む', async () => {
-  const { run, calls } = loadSandbox(['[null,"x",{"hendersonId":1,"text":"原因: SpO2の推移がない → 安静時と労作時のSpO2を確かめる"},{"hendersonId":99,"text":"原因: z"}]\n※[補足]']);
-  setPatient(run);
-  await run('evaluateMissingInfoAI()');
-  assert.equal(calls[0].generationConfig.responseMimeType, 'application/json');
-  assert.deepEqual(plain(run("getCurrentPatient().items.filter(i => i.timestamp === 'AI推定').map(i => i.hendersonIds[0])")), [1]);
-  assert.ok(run("getCurrentPatient().aiRunAt.missing"));
-});
 
-test('不足情報の簡易チェック（APIキーなし）：押すたびに同じカードが増えない', async () => {
-  const { run } = loadSandbox();
-  run(`requireApiKey = async () => 'fallback'; globalAppData.apiKey='';
-    globalAppData.patients=[{id:'p1',title:'A',referenceNotes:[],items:[
-      {id:'i1',type:'o',text:'胃がん 幽門側胃切除術後',timestamp:'術後1日目',hendersonIds:[1],assessmentCols:{1:'postadmission'}},
-      {id:'i3',type:'o',text:'自宅で独歩',timestamp:'入院前',hendersonIds:[4],assessmentCols:{4:'preadmission'}}]}];
-    globalAppData.currentPatientId='p1';`);
-  const count = () => run("getCurrentPatient().items.filter(i => i.timestamp === 'AI推定').length");
-  await run('evaluateMissingInfoAI()');
-  const first = count();
-  assert.ok(first >= 5, `胃がんの術後の観察項目などを提案する: ${first}`);
-  await run('evaluateMissingInfoAI()');
-  await run('evaluateMissingInfoAI()');
-  assert.equal(count(), first);
-});
 
 test('検査値の推移：「P 3.5 mg/dL」はリンの行にし、脈拍をリンの基準値で判定しない', () => {
   const t = app.buildLabTrendTable([
@@ -189,45 +158,9 @@ test('検査値の推移：値ごとに、そのカードの基準値→行の�
   assert.deepEqual(odd['CRP@入院3日目'], ['5'], '換算できない単位は判定しない');
 });
 
-test('看護計画までまとめて実行：看護計画はAIなしで記録から自動で作り、AIは評価だけに使う（診断候補の答えが空なら途中で止まる）', async () => {
-  const { run, calls } = loadSandbox(['[]', '', '']);
-  setPatient(run);
-  await run('runAiPipelineToCarePlan()');
-  assert.equal(run('window.aiPipelineStatus.running'), false);
-  assert.deepEqual(plain(run('carePlanList(getCurrentPatient())')), [], '診断候補が作れなかったので、計画の自動作成まで進まない');
-  assert.ok(plain(run('__toasts')).some(([t, m]) => t === 'warn' && /看護診断候補を作れなかった/.test(m)));
-  assert.ok(calls.length <= 2, 'AIで看護計画を作る依頼は出さない');
-});
 
-test('看護計画まとめて実行：診断候補のあと、計画を自動作成し、AIには評価を依頼する（作る依頼は出さない）', async () => {
-  const { run, calls } = loadSandbox(['```json\n[]\n```', '### ■ ガス交換障害\n根拠：SpO2低下〔C1〕\n\n### ■ 活動耐性低下\n根拠：x', '{"plans":[]}']);
-  setPatient(run);
-  await run('runAiPipelineToCarePlan()');
-  assert.deepEqual(plain(run('getCurrentPatient().diagnosisCandidates.map(c => c.name)')), ['ガス交換障害', '活動耐性低下']);
-  assert.ok(run('carePlanList(getCurrentPatient()).length') > 0, '記録から看護計画が自動で作られる');
-  assert.ok(run('carePlanList(getCurrentPatient()).every(p => p.source === "rules" || p.source === "map")'));
-  assert.equal(calls.length, 3, '①不足情報・②診断候補・③計画の評価の3回だけ');
-  assert.equal(run('getCurrentPatient().carePlanResult'), undefined);
-});
 
-test('AIのボタンを続けて押しても、同じ患者・同じ機能の依頼は1つだけ走る。まとめて実行の途中は①②③を押せない', async () => {
-  const { run, calls, els } = loadSandbox(['■ ガス交換障害\n根拠：x', '■ ガス交換障害\n根拠：x']);
-  setPatient(run);
-  const a = run('suggestNursingDiagnosesAI()');
-  const b = run('suggestNursingDiagnosesAI()');
-  await Promise.all([a, b]);
-  assert.equal(calls.length, 1);
-  assert.equal(run("isAiStepRunning(getCurrentPatient(), 'diagnosis')"), false, '終わったら実行中の印を外す');
-});
 
-test('AIの失敗：結果の欄にエラーを出しつつ、前の結果も残す（保存してある結果は書き換えない）', async () => {
-  const { run, els } = loadSandbox([{ candidates: [] }]);
-  await settle();
-  setPatient(run, `, timelineResult: '<div class="ai-text"><p>前のサマリー</p></div>'`);
-  await run('generateTimelineSummaryAI()');
-  assert.equal(run('getCurrentPatient().timelineResult'), '<div class="ai-text"><p>前のサマリー</p></div>');
-  assert.match(els['timeline-content'].innerHTML, /エラーが発生しました[\s\S]*前の結果(?:を|は)そのまま残しています[\s\S]*前のサマリー/);
-});
 
 test('書き出し（テキスト・PDF）に、自分で立てた看護計画と実施・評価の記録を載せる', () => {
   const cp = { id: 'p1', title: 'A', items: [], referenceNotes: [] };
@@ -261,11 +194,3 @@ test('手で編集した履歴：AIの分類の評価で適用した編集を、
   assert.doesNotMatch(app.formatEditLogEntry({ kind: 'aiReview', from: ['a', 'b'] }), /^aiReview$/);
 });
 
-test('テキストの保存は、リンクをページに追加してから押す（書き出し・提出用の書き出し）。分類の評価は頼んだ患者に保存する', () => {
-  const exp = fs.readFileSync(path.join(ROOT, 'js/06-export.js'), 'utf8');
-  const rep = fs.readFileSync(path.join(ROOT, 'js/13-compare-and-report.js'), 'utf8');
-  assert.match(exp, /function downloadTextBlob\(blob, filename\) \{[\s\S]*document\.body\.appendChild\(a\);[\s\S]*a\.remove\(\);[\s\S]*revokeObjectURL/);
-  assert.match(exp, /downloadTextBlob\(blob, `\$\{safeTitle\}_看護アセスメント\.txt`\)/);
-  assert.match(rep, /downloadTextBlob\(blob, `/);
-  assert.match(src, /finishAiResult\(cp, \(\) => renderAiReview\(\), '分類の評価'\)/);
-});

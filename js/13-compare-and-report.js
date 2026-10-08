@@ -5,7 +5,7 @@
     //   （コピー・テキストファイル・印刷／PDF）。
     // （js/10 の起動の処理より後に読み込む。最後に総合アセスメント表などを描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-08.18'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-08.28'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // ④ 記録した時点（cp.checkpoints[ID] = { id, label, kind, at, updatedAt, items:[カードの写し] }。
@@ -714,42 +714,6 @@
       window.aiPipelineStatus = { running, label };
       if (typeof renderAiSteps === 'function') renderAiSteps(getCurrentPatient());
     }
-    window.runAiPipelineToCarePlan = async function() {
-      if (window.aiPipelineStatus.running) return;
-      if (!(await requireApiKey('看護計画までまとめて実行'))) return;
-      const cp = getCurrentPatient();
-      if (!(cp.items || []).some(i => i.type !== 'unnecessary')) return showToast('カードがありません。先に分類ボードで「分類開始」を押してください', 'warn');
-      const same = () => getCurrentPatient().id === cp.id;
-      const stop = msg => { setAiPipelineStatus(false); if (msg) showToast(msg, 'warn', 6000); };
-      try {
-        setAiPipelineStatus(true, '① 不足情報を推定しています…（1/3）');
-        const before1 = (cp.aiRunAt || {}).missing;
-        await window.evaluateMissingInfoAI();
-        if (!same()) return stop('患者を切り替えたため、まとめて実行を止めました');
-        if ((cp.aiRunAt || {}).missing === before1) return stop('不足情報の推定ができなかったため、ここで止めました（理由は通知・結果の欄をご覧ください）');
-        setAiPipelineStatus(true, '② 看護診断候補を考えています…（2/3）');
-        const before2 = (cp.aiRunAt || {}).diagnosis;
-        await window.suggestNursingDiagnosesAI();
-        if (!same()) return stop('患者を切り替えたため、まとめて実行を止めました');
-        const cands = cp.diagnosisCandidates || [];
-        if ((cp.aiRunAt || {}).diagnosis === before2 || !cands.length) return stop('看護診断候補を作れなかったため、ここで止めました');
-        cp.selectedDiagnosisIds = cands.slice(0, AI_PIPELINE_SELECT_COUNT).map(c => c.id);
-        persistData();
-        if (typeof renderDiagnosisPanel === 'function') renderDiagnosisPanel(cp);
-        // 看護計画は記録から自動で作る（AIなし）。AIは、できた計画を評価するために使う
-        setAiPipelineStatus(true, '③ 看護計画を自動作成し、AIで評価しています…（3/3）');
-        if (typeof autoBuildCarePlans === 'function') autoBuildCarePlans(cp, { notify: false });
-        if (typeof carePlanList !== 'function' || !carePlanList(cp).length) return stop('記録から作れる看護計画が見つからなかったため、ここで止めました');
-        if (typeof renderCarePlans === 'function') renderCarePlans();
-        await window.reviewAllCarePlansAiUI();
-        if (!same()) return stop('患者を切り替えたため、まとめて実行を止めました');
-        setAiPipelineStatus(false);
-        showToast([`看護計画を自動で作り、AIで評価しました（看護診断 ${cp.selectedDiagnosisIds.length}件・看護計画 ${carePlanList(cp).length}件）`, { text: '「看護計画」タブで、自動で作った計画とAIの評価を確かめてください', detail: true }], 'success', 9000);
-      } catch (err) {
-        console.warn('AI pipeline error:', err);
-        stop(`まとめて実行の途中で止まりました（${err && err.message ? err.message : 'エラー'}）`);
-      }
-    };
 
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {

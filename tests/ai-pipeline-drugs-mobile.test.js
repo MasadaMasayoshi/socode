@@ -47,21 +47,7 @@ test('薬の情報：AIへの指示に記録の薬を添え、カードに「薬
   assert.match(html, /id="modal-drug-info"/);
 });
 
-test('ボタン1つで看護計画まで：①→②→優先度の高い2件を選ぶ→③→看護計画タブへ取り込む。途中で止まる条件', () => {
-  assert.match(src, /window\.runAiPipelineToCarePlan = async function/);
-  assert.match(src, /await window\.evaluateMissingInfoAI\(\);[\s\S]*await window\.suggestNursingDiagnosesAI\(\);[\s\S]*cands\.slice\(0, AI_PIPELINE_SELECT_COUNT\)[\s\S]*autoBuildCarePlans\(cp[\s\S]*await window\.reviewAllCarePlansAiUI\(\)/);
-  assert.match(src, /患者を切り替えたため、まとめて実行を止めました/);
-});
 
-test('APIキーが無いときは、取得のページ（Google AI Studio）と設定へ案内する。AIなしで続けられる機能は選べる', () => {
-  assert.match(html, /id="modal-api-required"/);
-  assert.match(html, /href="https:\/\/aistudio\.google\.com\/app\/apikey"/);
-  assert.match(html, /href="https:\/\/ai\.google\.dev\/gemini-api\/docs\/api-key\?hl=ja"/);
-  ['不足情報の推定', 'S/O矛盾チェック', '看護診断候補', '経時変化サマリー', '看護計画の叩き台', '写真の文字起こし', '自分のアセスメントへのAIの助言', 'AIありで分類'].forEach(f =>
-    assert.match(src, new RegExp(`requireApiKey\\('${f.replace(/[/()]/g, m => '\\' + m)}'`), f));
-  // 「AIあり」でキーが無いときは、今のカードを置き換える前に案内する
-  assert.ok(src.indexOf("requireApiKey('AIありで分類'") < src.indexOf("title: '今あるカードをどうしますか？'") || !src.includes("title: '今あるカードをどうしますか？'"));
-});
 
 test('スマホでは印刷用の文書を同じ画面の上に重ねて開き、「印刷・PDFに保存」のボタンと保存のしかたを出す', () => {
   assert.match(src, /function isMobilePrintTarget\(\)/);
@@ -74,11 +60,6 @@ test('スマホでは印刷用の文書を同じ画面の上に重ねて開き�
   assert.match(src, /PDFとして保存/);
 });
 
-test('カードの︙は枠と色で目立たせる。「経時変化サマリー」の名前で出す', () => {
-  assert.match(css, /\.card-menu-btn \{[^}]*background: var\(--accent-soft\);[^}]*border: 1px solid var\(--accent-line\)/);
-  assert.match(src, /label: '経時変化サマリー', icon: 'fa-clock-rotate-left'/);
-  assert.doesNotMatch(src, /'経過のまとめ'/);
-});
 
 test('子どもの記録：年齢の区分を見分け（家族の年齢は読まない）、脈拍・呼吸数は子どもの目安で判定し、大人の基準値を書き足さない', () => {
   assert.equal(app.detectAgeGroupFromText('患児：Jくん 生後5か月 男児\n家族：父・母・兄（3歳）'), 'infant');
@@ -103,10 +84,3 @@ test('子どもの記録：年齢の区分を見分け（家族の年齢は読�
   assert.ok(kid.some(t => /^CRP 4\.8 mg\/dL \(基準値:/.test(t)), 'CRP は年齢で変わらないので書き足す');
 });
 
-test('AIの指示：記録に無い事実を前提にしない・誇張しない・正確な用語、NANDA-Iの名称と診断指標、期限つきの目標', () => {
-  assert.match(src, /const AI_ACCURACY_RULES = '【正確さの決まり】記録に書かれていない事実/);
-  assert.match(src, /' \+ AI_ACCURACY_RULES;/);
-  assert.match(src, /NANDA-I看護診断（日本語版）の正式な名称/);
-  assert.match(src, /「いつまでに（日付・退院時など。『数日後』『近いうちに』『早期に』は不可。例：術後3日目までに、退院までに）」「何が・どうなる」「何をもって達成と判断するか/);
-  assert.match(src, /本当に食い違っているもの/);
-});

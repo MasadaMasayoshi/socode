@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-08.18'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-08.28'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -1880,7 +1880,6 @@
     document.getElementById('admin-caselog-action-filter').addEventListener('change', renderCaseLogList);
     document.getElementById('admin-trends-search').addEventListener('input', renderLearningTrendsList);
     document.getElementById('admin-reports-search').addEventListener('input', renderCardReportsList);
-    document.getElementById('btn-summarize-reports').addEventListener('click', summarizeCardReportsAI);
 
     // 【見直し】以前は1行ごとに票の＋−ボタンと14項目の選択欄を全部作っていたため、件数が増えると重く、
     // 見た目もごちゃごちゃしていた。ふだんは「どう学習したか」だけを表示し、「編集」を押した行だけ票を直せる。
@@ -2735,31 +2734,6 @@
     // 行ごとに「基準に追加」ボタンを添えることで、報告→要約→ワンクリックでの基準反映まで
     // その場で完結できるようにする（extraction-criteria.jsonへの追加はaddExtraCriteria()を再利用）。
     let cachedReportSummaryLines = [];
-    async function summarizeCardReportsAI() {
-      if (!Array.isArray(cachedCardReports) || cachedCardReports.length === 0) return showToast('要約できる報告がありません', 'warn');
-      if (!(await requireApiKey('報告のAI要約'))) return;
-
-      const summaryEl = document.getElementById('admin-reports-summary');
-      summaryEl.classList.remove('hidden');
-      summaryEl.innerHTML = `<div class="flex items-center text-[var(--brick)]"><i class="fa-solid fa-spinner fa-spin mr-2"></i> 寄せられた報告をAIで要約中...</div>`;
-
-      const reportTexts = cachedCardReports.flatMap(g => (g.items || []).map(it =>
-        `カード内容: ${it.cardText}${it.comment ? ` ／ 報告コメント: ${it.comment}` : ''}`
-      )).join('\n');
-
-      try {
-        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたはこの看護アセスメント支援システムの開発者です。以下は現場の利用者から寄せられた、情報カードの抽出・分類（S/O判定、ヘンダーソンタグ、検査値と単位の切り分けなど）に関する不具合報告の一覧です。よくある不具合のパターンごとに、「どう直すべきか」の指示文を1パターンにつき1行で書いてください。それぞれの行は、抽出・分類AIへの指示文としてその1行だけを渡しても意味が通るように、具体的かつ自己完結した文にしてください。出力は1行1パターンの指示文のみとし、見出し・番号・記号・前置きや説明文は付けないでください。\n【報告一覧】\n${reportTexts}` }] }]);
-        // 番号・記号・空行を取り除き、1行=1件の指示文として扱う
-        cachedReportSummaryLines = text.split('\n')
-          .map(line => line.replace(/^[\s・\-*0-9.、）)]+/, '').trim())
-          .filter(line => line.length > 0);
-        renderReportSummaryLines();
-      } catch (err) {
-        console.warn('報告の要約エラー:', err);
-        cachedReportSummaryLines = [];
-        summaryEl.innerHTML = `<span class="text-[var(--brick)]">要約中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。APIキーや通信状況をご確認ください。</span>`;
-      }
-    }
 
     function renderReportSummaryLines() {
       const summaryEl = document.getElementById('admin-reports-summary');

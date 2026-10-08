@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-08.27'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-08.28'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -357,147 +357,6 @@
       return PNEUMONIA_EXPECTED_CHECKS.filter(check => !check.keywords.some(kw => allText.includes(kw)));
     }
 
-    window.evaluateMissingInfoAI = guardAiStep('missing', async function() {
-      if (!(await requireApiKey('不足情報の推定', { fallbackLabel: 'AIなしで簡易チェック' }))) return;
-      const cp = getCurrentPatient();
-      const activeItems = cp.items.filter(i => i.type !== 'unnecessary');
-      if (activeItems.length === 0) return showToast('カードがありません。先にカルテを分類してください', 'warn');
-
-      const oItems = activeItems.filter(i => i.type === 'o');
-      const labTexts = oItems.map(i => `[${i.timestamp}] ${i.text}`).join('\n');
-      const referenceText = (cp.referenceNotes || []).map(r => `【${r.title}】\n${r.text}`).join('\n\n');
-
-      // ヘンダーソン各項目について、入院前／入院後にどんな記録があるかをまとめる
-      const perNeedSummary = HENDERSON_NEEDS.map(need => {
-        const matching = activeItems.filter(i => i.hendersonIds?.includes(need.id));
-        if (matching.length === 0) return null;
-        const pre = matching.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === 'preadmission').map(i => i.text);
-        const post = matching.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === 'postadmission').map(i => i.text);
-        return { id: need.id, name: need.name, pre, post };
-      }).filter(Boolean);
-
-      if (perNeedSummary.length === 0) return showToast('ヘンダーソンタグが付いたカードがありません。先にタグ付けしてください', 'warn');
-
-      showToast('入院前後の記録・医学的所見から不足情報を推定中...', 'info');
-
-      if (!globalAppData.apiKey) {
-        // ローカル簡易ルール：①入院前後どちらかの記録が欠けている項目 ②異常検査値があるのに関連項目の入院後記録がない場合
-        // 【レビューで発見】以前はAIの経路と違って前回の結果を置き換えず、押すたびに同じ不足情報のカードが増えていた
-        // （3回押すと 7→9→11件）。AIの経路と同じく、前回推定したまま手を付けていないカードは今回の結果に置き換え、
-        // 確認済み・該当なし・手で直したカードと同じ内容のものは足さない。また、診断名別のチェックは、不足情報のカード
-        // （「ドレーン排液…の記録が見当たらない」）を「記録がある」と数えないよう、実際の記録だけで調べる。
-        const replacedLocal = cp.items.filter(i => isUntouchedAiMissing(cp, i));
-        replacedLocal.forEach(i => markItemDeleted(cp, i.id));
-        cp.items = cp.items.filter(i => !isUntouchedAiMissing(cp, i));
-        const keptLocal = new Set(cp.items.filter(i => isMissingInfoOnlyItem(i)).map(i => missingInfoKey((i.hendersonIds || []).join(','), i.text)));
-        const recordItems = activeItems.filter(i => !isMissingInfoOnlyItem(i));
-        let added = 0;
-        const addLocal = (hId, text) => {
-          const key = missingInfoKey(hId, text);
-          if (keptLocal.has(key)) return;
-          keptLocal.add(key);
-          pushMissingInfoCard(hId, text, cp);
-          added++;
-        };
-        perNeedSummary.forEach(n => {
-          if (n.pre.length > 0 && n.post.length === 0) {
-            addLocal(n.id, `原因: 入院前の記録はあるが入院後「${n.name.replace(/^\d+\.\s*/, '')}」に関する再評価の記録が見当たらない → 入院後の状態を再アセスメントして追記する必要があると考えられる`);
-          } else if (n.post.length > 0 && n.pre.length === 0) {
-            addLocal(n.id, `原因: 入院後の記録はあるが入院前のベースラインが確認できない → 入院前の状態を家族・本人へ確認し追記する必要があると考えられる`);
-          }
-        });
-        // 白血球・CRP等の炎症所見は日本語表記でも検出できるよう、WBC/CRPの決め打ち英語表記だけでなく
-        // extractAbnormalLabFindings（項目名の完全一致に頼らない汎用検出）の結果を利用する。
-        const hasInflammationFinding = extractAbnormalLabFindings(oItems).some(f => /WBC|白血球|CRP/i.test(f.label));
-        if (hasInflammationFinding) {
-          const need1 = perNeedSummary.find(n => n.id === 1);
-          if (need1 && need1.post.length === 0) {
-            addLocal(1, `原因: WBC・CRP等の炎症所見があるが呼吸状態の入院後の記録が不足している → 呼吸数・SpO2・喘鳴の有無等の観察記録が必要と考えられる`);
-          }
-        }
-        // 胃がん（胃切除術）患者の場合、以前アップロードいただいた周術期看護の判断基準に基づく
-        // 代表的な術後観察項目（ドレーン管理・尿道カテーテル管理・下肢血栓予防・術後せん妄・疼痛管理）
-        // を確認し、記録に一切現れないものがあれば提案する。入院後の記録が全く無い（まだ手術前の
-        // 段階）と思われる場合は、術後観察が未記載でも自然なため対象外とする。
-        const hasAnyPostRecord = perNeedSummary.some(n => n.post.length > 0);
-        if (hasAnyPostRecord) {
-          detectGastricPostopMissingChecks(recordItems).forEach(check => addLocal(check.hendersonId, `原因: ${check.reason}`));
-          // 大腿骨近位部骨折（人工骨頭置換術・骨接合術）患者の場合も、同様に代表的な
-          // 術後観察項目（ドレーン管理・尿道カテーテル管理・DVT予防・疼痛管理・脱臼予防・
-          // 術後せん妄）を確認し、記録に一切現れないものがあれば提案する。
-          detectHipFracturePostopMissingChecks(recordItems).forEach(check => addLocal(check.hendersonId, `原因: ${check.reason}`));
-          // 肺炎（CAP/HAP/NHCAP・誤嚥性肺炎）患者の場合も、同様に代表的な観察項目
-          // （酸素療法・排痰援助・誤嚥/嚥下機能評価・口腔ケア・体温・ワクチン接種）を確認し、
-          // 記録に一切現れないものがあれば提案する。
-          detectPneumoniaMissingChecks(recordItems).forEach(check => addLocal(check.hendersonId, `原因: ${check.reason}`));
-        }
-        markAiRun(cp, 'missing');
-        saveDataAndSync();
-        renderAiSteps(cp);
-        showToast(added > 0 ? `${added}件の不足情報を推定しました（簡易ルール）${replacedLocal.length ? `（前回の推定のうち未確認の${replacedLocal.length}件は置き換えました）` : ''}` : '簡易チェックでは不足情報を検出できませんでした。すべての項目を判定できるわけではありません', added > 0 ? 'success' : 'info');
-        return;
-      }
-
-      try {
-        const prompt = `あなたは熟練した看護師長・指導者です。以下の患者情報をもとに、ヘンダーソン14の基本的欲求ごとに「不足している可能性が高い情報」を推定してください。
-判断材料は次の3点です。
-①入院前後の記録を比較し、どちらかにしか記録がない項目（記録の欠落）
-②Oデータに含まれる医学的所見・検査値と、それに対応する記録の有無
-③参考データ（看護基準・プロトコル等）に照らして通常確認すべきだが記録がない項目
-
-【基準ノート】
-${buildAssessmentNotebookContent()}
-
-【参考データ】
-${referenceText || '(登録なし)'}
-
-【ヘンダーソン項目ごとの入院前後の記録】
-${perNeedSummary.map(n => `${n.name}\n入院前: ${n.pre.join(' / ') || '(記録なし)'}\n入院後: ${n.post.join(' / ') || '(記録なし)'}`).join('\n\n')}
-
-【Oデータ（検査値・バイタル等）一覧】
-${labTexts || '(なし)'}
-
-${typeof drugPromptSection === 'function' ? drugPromptSection(cp) : ''}
-挙げる順番は優先度の高い順にし、アセスメントや安全に直結するもの（例：肺炎なら呼吸数・酸素投与の量・喀痰・意識・水分出納、糖尿病なら血糖）を先にしてください。信仰・余暇のようにどの患者にも当てはまる一般的な項目は、この患者で確かめる理由が記録から読み取れるときだけ挙げてください。記録に無い治療（例：利尿薬）があるものとして書かないでください。
-各不足情報は必ず "原因: <不足に至った理由> → <補足すべき内容>と考えられる" という文言そのものを text とし、対応するヘンダーソン番号(1〜14の整数)を hendersonId とするJSON配列のみを出力してください。該当がなければ空配列 [] を返してください。余計な説明やMarkdown記号は出力しないでください。
-例: [{"hendersonId":1,"text":"原因: 入院後のSpO2測定記録がない → 呼吸状態の再アセスメントが必要と考えられる"}]
-text は読みやすさのため全体で70字程度までにし、「→」の後ろは「何を確かめるか」を具体的に書いてください（「〜の把握が必要」のような言い方の繰り返しは避ける）。1つの項目につき、本当に大事なものを1〜2件までにしてください。すでに「不足情報」欄にある内容と同じものは出さないでください。
-【すでにある不足情報（残すもの）】
-${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !isUntouchedAiMissing(cp, i)).map(i => `- ${(i.hendersonIds || []).join('・')}：${i.text.replace(/^原因:\s*/, '')}`).join('\n') || '(なし)'}`;
-
-        // 【レビューで発見】以前は JSON の指定をせずに頼み、答えの最初の「[」から最後の「]」までを JSON.parse していたため、
-        // 後ろに「※[参考]…」のような説明が付く・前に「[JSON形式]」と書かれる・null が混ざるだけで失敗していた
-        // （まとめて実行も①で止まる）。JSONの答えを指定し、読み取りは parseAiJsonArray で崩れに強くする。
-        const aiText = await callGeminiAI([{ role: "user", parts: [{ text: prompt }] }], { json: true });
-        const suggestions = parseAiJsonArray(aiText, ['suggestions', 'items', 'missing', 'results']);
-        if (!suggestions) throw new Error('AI応答からJSONを取得できませんでした');
-        // 【重複を防ぐ】以前は推定するたびに同じような不足情報が足され、3回押すと42件になっていた（利用者の記録）。
-        // 前回AIが推定した不足情報のうち、まだ手を付けていないもの（未確認・編集していない）は今回の結果に置き換え、
-        // 今回の結果の中でも、同じ項目で同じ内容のものは1つにする。確認済み・該当なし・手で直したものは残す。
-        const untouchedAi = i => isUntouchedAiMissing(cp, i);
-        const replaced = cp.items.filter(untouchedAi);
-        replaced.forEach(i => markItemDeleted(cp, i.id));
-        cp.items = cp.items.filter(i => !untouchedAi(i));
-        const keptKeys = new Set(cp.items.filter(i => isMissingInfoOnlyItem(i)).map(i => missingInfoKey((i.hendersonIds || []).join(','), i.text)));
-        let added = 0;
-        suggestions.forEach(s => {
-          // 項目の形でないもの（null・文字列だけ等）や、text が文字でないものは飛ばす
-          if (!s || typeof s !== 'object' || Array.isArray(s)) return;
-          const text = typeof s.text === 'string' ? s.text.trim() : '';
-          const hId = parseInt(s.hendersonId, 10);
-          if (!text || !HENDERSON_NEEDS.some(n => n.id === hId)) return;
-          const key = missingInfoKey(hId, text);
-          if (keptKeys.has(key)) return;
-          keptKeys.add(key);
-          pushMissingInfoCard(hId, text, cp);
-          added++;
-        });
-        markAiRun(cp, 'missing');
-        if (finishAiResult(cp, () => renderAiSteps(cp), '不足情報の推定')) showToast(added > 0 ? `${added}件の不足情報をAIが推定しました${replaced.length ? `（前回のAI推定のうち未確認の${replaced.length}件は置き換えました）` : ''}` : 'AIは不足情報を挙げませんでした。すべての項目を判定できるわけではありません', added > 0 ? 'success' : 'info');
-      } catch (err) {
-        showAiErrorToast('不足情報の推定に失敗しました。', err);
-      }
-    });
     // 不足情報のカードを同じものとみなす目印（項目の番号と、空白を除いた本文の先頭24字）
     function missingInfoKey(hIds, text) {
       return `${hIds}|${String(text || '').replace(/\s+/g, '').slice(0, 24)}`;
@@ -685,7 +544,6 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       if (next) next.next = true;
       return steps;
     }
-    const AI_STEP_ACTIONS = { missing: 'evaluateMissingInfoAI()', diagnosis: 'suggestNursingDiagnosesAI()', careplan: 'reviewAllCarePlansAiUI()' };
     // 【AIのボタンを使いやすく】利用者からの要望：「AIのボタンをもう少し使いやすく」「AIを実行すると総合アセスメント表の
     // ページがごちゃごちゃする」。以前は、右上の「AI分析ツール」の中に7つのボタンが隠れ、その下に「AIで進める順番」の
     // 案内が別にあり、AIを実行するたびに結果の欄が表の上へ1つずつ積み重なっていた。
@@ -694,9 +552,6 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
     //  ・結果は「AIの結果」の欄に種類ごとのタブで1つだけ表示し、表の上に積み重ねない（refreshAiResults）。
     const AI_EXTRA_TOOLS = [
       { key: 'lab', label: '検査値の評価', icon: 'fa-flask-vial', action: 'evaluateLabValuesAI()', panel: 'lab-evaluation-panel', title: '検査値を登録された基準で確認し、臨床的な意味をまとめます' },
-      { key: 'contradiction', label: 'S/O矛盾', icon: 'fa-triangle-exclamation', action: 'checkContradictionsAI()', panel: 'contradiction-panel', title: 'S（発言）とO（観察）の食い違いを探します' },
-      { key: 'timeline', label: '経時変化サマリー', icon: 'fa-clock-rotate-left', action: 'generateTimelineSummaryAI()', panel: 'timeline-panel', title: '日ごとの変化をまとめます' },
-      { key: 'review', label: '分類の評価', icon: 'fa-list-check', action: 'openAiReview()', panel: null, title: 'S/O・タグの分類をAIに見てもらい、改善点を一覧にします（別の画面で開きます）' }
     ];
     const AI_STEP_PANELS = { missing: null, diagnosis: 'diagnosis-panel', careplan: null };
     function aiPanelRunning(panelId) {
@@ -773,166 +628,9 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       return blocks.filter(b => b.name).map(b => ({ name: b.name, body: b.lines.join('\n').trim() }));
     }
 
-    // 「S/O矛盾チェック」：SデータとOデータの間で内容が食い違っていないかをAIに確認してもらう
-    window.checkContradictionsAI = guardAiStep('contradiction', async function() {
-      if (!(await requireApiKey('S/O矛盾チェック'))) return;
-      const cp = getCurrentPatient();
-      const prevResult = cp.contradictionResult;
-      const activeItems = cp.items.filter(i => (i.type === 's' || i.type === 'o') && !isMissingInfoOnlyItem(i));
-      const panel = document.getElementById('contradiction-panel');
-      const content = document.getElementById('contradiction-content');
-      if (activeItems.length < 2) return showToast('S/Oのカードが少ないためチェックできません', 'warn');
-      panel.classList.remove('hidden');
-      content.innerHTML = `<div class="flex items-center text-[var(--ink-muted)]"><i class="fa-solid fa-spinner fa-spin mr-2"></i> S/Oデータの矛盾を確認中...</div>`;
-      if (!globalAppData.apiKey) {
-        content.innerHTML = `<span class="text-[var(--ink-muted)]">この機能はAPIキー設定時のみ利用できます（「API設定」からGemini APIキーを登録してください）。</span>`;
-        return;
-      }
-      const ev = buildEvidenceIndex(activeItems);
-      const list = activeItems.map(i => evidenceLine(ev, i)).join('\n');
-      try {
-        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長です。以下は患者のSデータ（主観的情報＝患者の発言）とOデータ（客観的情報＝観察所見・検査値）の一覧です。SデータとOデータの間で内容が食い違っている、あるいは併せて考えると注意が必要な組み合わせがあれば指摘してください。本当に食い違っているもの（同じ時点の訴えと観察が合わない等）だけを挙げ、別々の事柄を並べただけのものは挙げないでください。訴えを確かめるための同じ時点の客観データ（SpO2・呼吸数など）が記録に無いときは、そのことを書いてください。矛盾が見当たらない場合はその旨を一言述べてください。\n\n【S/Oデータ一覧】\n${list}\n\n指摘ごとに根拠となった発言・所見のカードを示してください。${EVIDENCE_INSTRUCTION}${AI_STYLE_INSTRUCTION}要点には、食い違いの有無と一番確かめるべきことを書いてください。` }] }]);
-        const resultText = formatAiResultHtml(text, undefined, ev);
-        cp.contradictionResult = resultText;
-        if (finishAiResult(cp, () => { content.innerHTML = resultText; }, 'S/O矛盾チェック')) showToast('矛盾チェックが完了しました', 'success');
-      } catch (err) {
-        console.warn('Contradiction check error:', err);
-        showAiErrorKeepingPrevious(content, cp, `チェック中にエラーが発生しました（${err.message || '通信エラー'}）。`, prevResult);
-        showToast(['S/O矛盾チェックができませんでした', { text: '理由は結果の欄に出しています。時間を置いてもう一度押してください。ほかの作業はそのまま続けられます。', detail: true }], 'warn');
-      }
-    });
 
-    // 「看護診断候補を提案」：ヘンダーソン項目別のアセスメント内容から看護診断の候補をAIに挙げてもらう
-    // （改善案D：候補を1件ずつ選べる形にし、①の不足情報も判断材料として渡す）
-    window.suggestNursingDiagnosesAI = guardAiStep('diagnosis', async function() {
-      if (!(await requireApiKey('看護診断候補'))) return;
-      const cp = getCurrentPatient();
-      const activeItems = cp.items.filter(i => i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i));
-      const panel = document.getElementById('diagnosis-panel');
-      const content = document.getElementById('diagnosis-content');
-      if (activeItems.length === 0) return showToast('カードがありません。先にカルテを分類してください', 'warn');
-      panel.classList.remove('hidden');
-      content.innerHTML = `<div class="flex items-center text-[var(--ink-muted)]"><i class="fa-solid fa-spinner fa-spin mr-2"></i> アセスメント内容から看護診断候補を検討中...</div>`;
-      if (!globalAppData.apiKey) {
-        content.innerHTML = `<span class="text-[var(--ink-muted)]">この機能はAPIキー設定時のみ利用できます（「API設定」からGemini APIキーを登録してください）。</span>`;
-        return;
-      }
-      const ev = buildEvidenceIndex(activeItems);
-      const perNeedText = buildPerNeedEvidenceText(activeItems, ev);
-      if (!perNeedText) { content.innerHTML = `<span class="text-[var(--ink-muted)]">ヘンダーソンタグが付いたカードがありません。先にタグ付けしてください。</span>`; return; }
-      const missingText = buildMissingInfoText(cp);
-      try {
-        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長・指導者です。以下はヘンダーソン14の基本的欲求ごとに整理された患者のアセスメント情報です。この内容から、想定される看護診断の候補を優先度が高いと思われる順に2〜4個程度提案してください。看護診断名はNANDA-I看護診断（日本語版）の正式な名称を使い、その診断の定義と、記録にある診断指標（症状・所見）が合うものを選んでください（例：SpO2の低下などの低酸素ならガス交換障害、咳・痰・喘鳴なら非効果的気道浄化。呼吸数や呼吸のリズムの記録が無いのに非効果的呼吸パターンを選ばない）。ほかの問題の結果として起こる問題（例：息苦しさによる不眠）は、原因の問題の計画で扱えるなら別の候補にしないでください。既往・治療から起こりうるリスク型の診断（例：糖尿病と感染があれば血糖不安定リスク、発熱と摂取不足があれば体液量不足リスク）も検討してください。${AI_ACCURACY_RULES}\n\n【ヘンダーソン項目別アセスメント情報】\n${perNeedText}\n\n【不足している情報（まだ記録が無く、確認が必要なもの）】\n${missingText || '(なし)'}\n\n${ownAssessmentPromptSection(cp)}${typeof drugPromptSection === 'function' ? drugPromptSection(cp) : ''}出力は次の形式を必ず守ってください（候補ごとに「■」で始め、候補の間は空行で区切る）。\n■ 看護診断名\n根拠：アセスメント根拠の要約（${EVIDENCE_INSTRUCTION}）\n理由：この診断を挙げた理由\n不足情報：この診断を確かめるために追加で確認したい情報（あれば）\n\n前置き・あいさつは書かず、最初の行から「■」で始めてください。根拠・理由・不足情報は、それぞれ1〜2文で簡潔に書いてください。太字(**語**)以外の記号は使わないでください。` }] }]);
-        const cands = parseDiagnosisCandidates(text).map((c, k) => ({ id: `dx_${Date.now().toString(36)}_${k}`, name: c.name, bodyHtml: formatAiResultHtml(c.body, '', ev) }));
-        // 【AI機能の評価で発見】答えから候補を1つも読み取れなかったとき、以前は前の候補と選んだチェックを消して
-        // 「完了しました」と出していた。前の候補があるときは消さずに残し、失敗として知らせる。
-        if (!cands.length && (cp.diagnosisCandidates || []).length) throw new Error('AIの答えから看護診断の候補を読み取れませんでした（前の候補と選んだチェックはそのまま残しています）');
-        cp.diagnosisCandidates = cands;
-        cp.selectedDiagnosisIds = [];
-        cp.diagnosisResult = formatAiResultHtml(text, undefined, ev); // 書き出し・形式が崩れた場合の表示用
-        markAiRun(cp, 'diagnosis');
-        if (finishAiResult(cp, () => { renderDiagnosisPanel(cp); renderAiSteps(cp); }, '看護診断候補')) showToast(cands.length ? `看護診断候補を${cands.length}件提案しました。計画を立てたい診断を選んでください` : '看護診断候補の提案が完了しました', 'success');
-      } catch (err) {
-        console.warn('Diagnosis suggestion error:', err);
-        // 前の候補（と選んだチェック）は消さずに表示し直し、その上にエラーを出す
-        if (getCurrentPatient().id === cp.id) {
-          renderDiagnosisPanel(cp);
-          const had = (cp.diagnosisCandidates || []).length || cp.diagnosisResult;
-          if (had) content.insertAdjacentHTML('afterbegin', `<span class="text-[var(--brick)]">${escapeHtml(`生成中にエラーが発生しました（${err.message || '通信エラー'}）。`)}${/前の結果/.test(err.message || '') ? '' : '（前の結果をそのまま残しています）'}</span>`);
-          else { document.getElementById('diagnosis-panel')?.classList.remove('hidden'); content.innerHTML = `<span class="text-[var(--brick)]">生成中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。</span>`; }
-        }
-        showToast(['看護診断候補を作れませんでした', { text: '理由は結果の欄に出しています。時間を置いてもう一度押してください。自分のアセスメント・看護計画はAIなしでも書けます。', detail: true }], 'warn');
-      }
-    });
 
-    // 「経時変化サマリー」：入院前後で記録がどう変化したかをヘンダーソン項目ごとにAIが要約する
-    window.generateTimelineSummaryAI = guardAiStep('timeline', async function() {
-      if (!(await requireApiKey('経時変化サマリー'))) return;
-      const cp = getCurrentPatient();
-      const prevResult = cp.timelineResult;
-      const activeItems = cp.items.filter(i => i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i));
-      const panel = document.getElementById('timeline-panel');
-      const content = document.getElementById('timeline-content');
-      panel.classList.remove('hidden');
-      content.innerHTML = `<div class="flex items-center text-[var(--ink-muted)]"><i class="fa-solid fa-spinner fa-spin mr-2"></i> 入院前後の変化を要約中...</div>`;
-      if (!globalAppData.apiKey) {
-        content.innerHTML = `<span class="text-[var(--ink-muted)]">この機能はAPIキー設定時のみ利用できます（「API設定」からGemini APIキーを登録してください）。</span>`;
-        return;
-      }
-      const ev = buildEvidenceIndex(activeItems);
-      const perNeedText = HENDERSON_NEEDS.map(need => {
-        const matching = activeItems.filter(i => i.hendersonIds?.includes(need.id));
-        const pre = matching.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === 'preadmission').map(i => evidenceLine(ev, i));
-        const post = matching.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === 'postadmission').map(i => evidenceLine(ev, i));
-        if (pre.length === 0 && post.length === 0) return null;
-        return `${need.id}. ${need.name}\n入院前:\n${pre.map(l => `- ${l}`).join('\n') || '(記録なし)'}\n入院後:\n${post.map(l => `- ${l}`).join('\n') || '(記録なし)'}`;
-      }).filter(Boolean).join('\n\n');
-      if (!perNeedText) { content.innerHTML = `<span class="text-[var(--ink-muted)]">入院前・入院後に振り分けられたカードがありません。総合アセスメント表で「前」「後」に分類してください。</span>`; return; }
-      try {
-        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師です。以下はヘンダーソン14の基本的欲求ごとの、入院前と入院後の記録の比較です。項目ごとに入院前後でどのように変化したかを簡潔にまとめてください。変化が読み取れない項目は省略して構いません。入院前の記録が無い項目は、入院後の日ごと・時刻ごとの変化を中心に書いてください。記録に無い解釈（例：内服していることを「学び」とみなす）はしないでください。\n\n${perNeedText}\n\n詳細は項目ごとに「### 1. 呼吸」のような見出しを付け、変化を「- 」の箇条書き（1〜2文）で書いてください。要点には、入院前後で大きく変わった項目を書いてください。${EVIDENCE_INSTRUCTION}${AI_STYLE_INSTRUCTION}` }] }]);
-        const resultText = formatAiResultHtml(text, undefined, ev);
-        cp.timelineResult = resultText;
-        if (finishAiResult(cp, () => { content.innerHTML = resultText; }, '経時変化サマリー')) showToast('経時変化サマリーを生成しました', 'success');
-      } catch (err) {
-        console.warn('Timeline summary error:', err);
-        showAiErrorKeepingPrevious(content, cp, `生成中にエラーが発生しました（${err.message || '通信エラー'}）。`, prevResult);
-        showToast(['経時変化サマリーを作れませんでした', { text: '理由は結果の欄に出しています。時間を置いてもう一度押してください。', detail: true }], 'warn');
-      }
-    });
 
-    // 「看護計画を自動生成」：ヘンダーソン項目別のアセスメント内容から、観察計画(OP)・援助計画(TP)・
-    // 教育計画(EP)の形で看護計画の叩き台をAIに作成してもらう。
-    // 【改善案D】看護診断候補でチェックした診断があれば、その診断ごとに計画を作る。①の不足情報は
-    // OPで確認する項目に含めてもらう。診断を選んでいない場合は、先に選ぶか・このまま作るかを尋ねる。
-    window.generateCarePlanAI = guardAiStep('careplan', async function() {
-      if (!(await requireApiKey('看護計画の叩き台'))) return;
-      const cp = getCurrentPatient();
-      const prevResult = cp.carePlanResult;
-      const activeItems = cp.items.filter(i => i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i));
-      if (activeItems.length === 0) return showToast('カードがありません。先にカルテを分類してください', 'warn');
-      const cands = cp.diagnosisCandidates || [];
-      const selected = cands.filter(c => (cp.selectedDiagnosisIds || []).includes(c.id));
-      if (selected.length === 0) {
-        if (cands.length > 0) {
-          const answer = await openDialog({ title: '看護診断が選ばれていません', message: '看護診断候補の中から、計画を立てたい診断にチェックを入れると、その診断に合わせた看護計画を作れます。\n選ばずに作ると、AIが看護問題を選んで作ります。', confirmLabel: 'このまま作る', secondaryLabel: '診断を選ぶ' });
-          if (answer === null) return;
-          if (answer === 'secondary') { document.getElementById('diagnosis-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
-        } else {
-          const answer = await openDialog({ title: '先に看護診断候補を出しますか？', message: '「① 不足情報の推定 → ② 看護診断候補 → ③ 看護計画」の順に進めると、自分で選んだ診断に合わせた看護計画を作れます。', confirmLabel: 'このまま看護計画を作る', secondaryLabel: '看護診断候補を先に出す' });
-          if (answer === null) return;
-          if (answer === 'secondary') return window.suggestNursingDiagnosesAI();
-        }
-      }
-      const panel = document.getElementById('careplan-panel');
-      const content = document.getElementById('careplan-content');
-      panel.classList.remove('hidden');
-      content.innerHTML = `<div class="flex items-center text-[var(--ink-muted)]"><i class="fa-solid fa-spinner fa-spin mr-2"></i> アセスメント内容から看護計画を作成中...</div>`;
-      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      if (!globalAppData.apiKey) {
-        content.innerHTML = `<span class="text-[var(--ink-muted)]">この機能はAPIキー設定時のみ利用できます（「API設定」からGemini APIキーを登録してください）。</span>`;
-        return;
-      }
-      const ev = buildEvidenceIndex(activeItems);
-      const perNeedText = buildPerNeedEvidenceText(activeItems, ev);
-      if (!perNeedText) { content.innerHTML = `<span class="text-[var(--ink-muted)]">ヘンダーソンタグが付いたカードがありません。先にタグ付けしてください。</span>`; return; }
-      const missingText = buildMissingInfoText(cp);
-      const plain = html => (html || '').replace(/<br\s*\/?>/g, '\n').replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
-      const target = selected.length
-        ? `次の看護診断（学生が選んだもの）それぞれについて、看護計画を作成してください。これ以外の看護問題は追加しないでください。\n${selected.map((c, k) => `${k + 1}. ${c.name}\n${plain(c.bodyHtml)}`).join('\n\n')}`
-        : 'この内容から、優先度の高い看護問題を1〜3個選び、それぞれについて看護計画を作成してください。';
-      try {
-        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師・看護計画の指導者です。以下はヘンダーソン14の基本的欲求ごとに整理された患者のアセスメント情報です。${target}\n\n【ヘンダーソン項目別アセスメント情報】\n${perNeedText}\n\n【不足している情報（まだ記録が無く、確認が必要なもの）】\n${missingText || '(なし)'}\n\n${ownAssessmentPromptSection(cp)}${typeof drugPromptSection === 'function' ? drugPromptSection(cp) : ''}各看護問題について、長期目標・短期目標と、観察計画OP・援助計画TP・教育計画EPの3区分（各3〜5項目程度）を具体的に作成してください。\n【目標の書き方】長期目標・短期目標のどちらも必ず書き、空欄にしないでください。患者を主語にし、「いつまでに（日付・退院時など。『数日後』『近いうちに』『早期に』は不可。例：術後3日目までに、退院までに）」「何が・どうなる」「何をもって達成と判断するか（数値、できる行動、患者が言える内容）」の3つを入れます。期限は、学生が実習中に評価できる範囲（2日後・1週間後・実習最終日・退院まで）にし、『18時までに』『本日中に』『数時間後』のような時刻・当日の期限は使わないでください。『理解する』『イメージを持つ』『意識する』だけで終わらせず、『自分の言葉で説明できる』『看護師の前で実演できる』のように観察できる行動にしてください（検査値の改善のような医師の治療の成果だけを目標にしない）。\n【OPとTPの区別】OPは観察・測定・確認・状況の把握（見るもの）だけを書きます。TPは看護師が実施する援助（体位を整える、介助する、一緒に行う、環境を調整する、薬を準備するなど）だけを書きます。『〜の状況を把握する』『〜を観察する』『〜を確認する』はTPに書かず、OPに書いてください。\n【EPの書き方】『症状が現れた際の対応方法を伝える』のように一言で終わらせず、①何を説明するか（具体的な内容。例：低血糖の症状は冷や汗・手の震え・動悸で、その時はブドウ糖10gを摂り、ナースコールで知らせる）、②誰に（患者・家族）、③理解をどう確認するか（自分の言葉で説明してもらう、実演してもらう、パンフレットを見ながら一緒に確認する）までを1項目に書いてください。\n【看護問題の重複】複数の看護問題で同じ内容（例：分割食の説明と理解確認）を重ねないでください。似た問題が並ぶときは、問題ごとに目的（何を解決したいか）と達成条件を分けます（例：栄養摂取の問題は『食事量・摂取内容』、自己管理の問題は『血糖測定・インスリン調整を自分で行う力』）。同じ内容は片方の計画に書き、もう片方には書かないか『（○○の問題の計画で実施）』と書いてください。\n【予定・予防・発症済みの区別】すでに予定されている指導（栄養士の指導など）は『予定の確認・同席・補足』の計画にします。まだ起きていない合併症の予防のための計画は、発症を前提にせず『予防』の計画として書きます。すでに起きている問題は『実際の問題』として書きます。発熱時のクーリングは悪寒のあるときは避けて保温する、転倒・誤嚥を防ぐなどの安全上の注意も必要に応じて含めてください。${AI_ACCURACY_RULES}「不足している情報」のうちその問題に関係するものは、OPで確認する項目に必ず含めてください。個別性のある具体的な内容にし、一般論だけで終わらせないでください。${EVIDENCE_INSTRUCTION}\n\n出力形式：前置きは書かず、最初に「### 要点」として看護問題の優先順位と一番大事なケアを2〜3個の短い箇条書きで示してください。そのあと看護問題ごとに「### ■看護問題名」の見出しを付け、その下に「#### 長期目標」「#### 短期目標」「#### OP（観察計画）」「#### TP（援助計画）」「#### EP（教育計画）」の見出しと、番号付きの箇条書き（1項目1文）を続けてください。根拠のカードの番号は文の終わりの句点の後ろに付けてください。` }] }]);
-        const resultText = formatAiResultHtml(text, undefined, ev);
-        cp.carePlanResult = resultText;
-        cp.carePlanDiagnoses = selected.map(c => c.name);
-        markAiRun(cp, 'careplan');
-        if (finishAiResult(cp, () => { content.innerHTML = resultText; renderAiSteps(cp); }, '看護計画の叩き台')) showToast(selected.length ? `選んだ${selected.length}件の看護診断で看護計画を作りました` : '看護計画を生成しました', 'success');
-      } catch (err) {
-        console.warn('Care plan generation error:', err);
-        showAiErrorKeepingPrevious(content, cp, `生成中にエラーが発生しました（${err.message || '通信エラー'}）。`, prevResult);
-        showToast(['看護計画の叩き台を作れませんでした', { text: '理由は結果の欄に出しています。時間を置いてもう一度押すか、「看護計画」タブで直接書いてください。', detail: true }], 'warn');
-      }
-    });
 
     // 【患者の取り違えを防ぐ】AIの結果が返ってくる前に別の患者に切り替えていたら、結果は頼んだ患者に保存し、
     // 今表示している患者の画面には出さない（以前は、切り替え先の患者の画面に前の患者の結果が表示されていた）。
@@ -1350,443 +1048,6 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       restoreBoardFocus(focusBefore);
     }
 
-    // ==========================================================================
-    // 【AIで分類を評価（Gemini）】利用者からの要望：これまで「テキスト書き出し」をGeminiに貼って評価してもらい、
-    // その結果をClaudeに伝えてプログラムを直していた。これをページの中でできるようにする。
-    // 次の4つをまとめてGeminiに尋ね、決まった形（JSON）で答えを受け取る：
-    //   1. ヘンダーソンの分類で間違っているところ（適切なタグは複数あってよい）
-    //   2. 分類前の文章と照らし合わせて、時系列（日時）が正しく整理できているか
-    //   3. 情報の抜き出しでおかしいところ（まとめたほうがいい・分けたほうがいい・抜けている）
-    //   4. タグ未設定のカードに付けるべきタグ
-    // 結果は1件ずつ「適用」でき、未設定のタグはまとめて適用できる。また「改善点ファイル」（Markdown）として
-    // 保存でき、そのファイルをClaudeに渡すとプログラム側（自動分類のルール）の修正に使える。
-    // APIキーはこのブラウザの中だけで使い、送る文章は他のAI機能と同じく個人情報を伏せ字にしてから送る。
-    // ==========================================================================
-    // 【評価の確からしさ】各提案を「明確な誤り／分類基準次第／原文確認が必要」に分ける。まとめて適用するのは「明確な誤り」だけ（改善点ファイル・患者21の指摘：2026-10-07.18）
-    const AI_REVIEW_VERDICTS = { error: '明確な誤り', criteria: '分類基準次第', check: '原文確認が必要' };
-    const AI_REVIEW_KINDS = { merge: 'まとめる', split: '分ける', missing: '抜けている', type: 'S/Oの誤り', unnecessary: '不要', other: 'その他' };
-    function buildAiReviewPrompt(cp, ev, items) {
-      const needList = HENDERSON_NEEDS.map(n => `${n.id}.${n.name.replace(/^\d+\.\s*/, '')}`).join(' / ');
-      const cardLines = items.map(i => {
-        const tags = (i.hendersonIds || []).slice().sort((a, b) => a - b);
-        const tagText = tags.length ? tags.join(',') : 'タグ未設定';
-        return `${evidenceLine(ev, i)} {タグ:${tagText}}`;
-      }).join('\n');
-      let notebook = '';
-      try { notebook = buildEffectiveNotebookContent(); } catch (e) { notebook = ''; }
-      return `あなたは看護教育に精通した看護師です。看護学生が患者の記録（分類前の文章）を、アプリで情報カードに分けて、S（患者の発言）／O（観察・測定値・記録）とヘンダーソンの14の基本的欲求のタグに分類しました。この分類を評価してください。
-
-【ヘンダーソンの14項目】${needList}
-
-【この授業での分類の基準（基準ノート）】
-${notebook.slice(0, 12000)}
-
-【分類前の文章】
-${(cp.sourceText || '').slice(0, 20000)}
-
-【分類後の情報カード】（〔C番号〕[S/O][日時] 本文 {タグ:番号}）
-${cardLines}
-
-【評価のルール（誤った指摘を出さないために、必ず守る）】
-A. 原文の事実と推測を分ける。タグを増やす提案には evidence（原文の引用）が必須で、引用が分類前の文章に無い提案は、アプリが表示しない。各指摘の evidence に、根拠にした原文の文（分類前の文章からの引用）を書く。原文に直接の根拠が無い提案は出さない（「〜にも関わる」「波及する」といった一般論や推測だけでタグを足さない。そうした助言は advice に書く）。
-B. 各指摘に verdict を付ける。error＝明確な誤り（原文・基準ノートで確実に言える）／criteria＝分類基準次第（基準ノート・アプリの分類基準でどちらにも言える）／check＝原文確認が必要（原文だけでは決められない・原文どうしが食い違う）。迷ったら criteria か check にする。
-C. タグ：suggested は、そのカードの文に直接の根拠（語句・内容）があるものだけ。今のタグを増やす提案は、追加するタグごとに根拠の語句を reason に引用する。
-D. 未設定のカード：基準ノートやアプリの分類基準で当てはまるか分からない項目（例：生殖・出産歴・閉経、足背動脈の触知など）は、タグを断定しない。suggested を空にし、verdict を check にして reason に「要確認」と書く。
-E. 見出し・ラベルだけの行（「本人より」「担当看護師より」など）を不要にする提案は、その行が発言者を表すとき、後に続く文へ発言者を引き継ぐことを先に述べる（どのカードに引き継ぐかを reason に書く）。題名だけの行（「事例紹介＞」など）は、発言者情報を持たないことを確かめてから不要にする。
-F. S（患者の発言）とO（観察・測定値）が混ざる1枚にまとめない。同じ場面でも、発言はSのカード、観察はOのカードに分ける（kind は split。発言が途中で切れているカードは、発言の続きをS側に戻す）。
-G. 時系列：分類前の文章の中で日時・日数が食い違っている所（例：表の見出しが「術後1日目」なのに本文は「術後2日目」）を見つけたら、「指摘なし」にせず verdict を check にして、どの文が食い違うかを書く。食い違いが無いときだけ「問題ありません」とする。
-H. 原文にない影響の推測（「疼痛が呼吸に影響する」「生活様式が退院後の役割に影響する」など）は、タグの提案にしない。分類ではなくアセスメントの考察として、assessmentNotes に分けて書く（card と note と、根拠にした事実 evidence）。
-I. 「ガーゼ汚染なし」などの観察は、安全管理（9）の分類にはなるが、その有無だけで感染の有無を判定する文章は書かない。
-J. 発言と観察に分けるときは、同じ日時・場面のカードとして関連づける（日時を同じにし、どの発言のどの場面かを title や reason に書く）。
-K. この評価は患者データへ一括適用される前提で書かない。明確な誤り（error）以外は、人が確かめてから個別に適用する提案として書く。
-
-次の4つを評価し、指定のJSONだけを出力してください（前置き・コードブロックの記号は不要）。看護学生が読んで納得できるよう、やさしく具体的な日本語で書いてください。
-1. tagIssues：ヘンダーソンの分類（タグ）が間違っている、または足りないカード。適切なタグは複数あってよい。suggestedはそのカードに付けるべきタグの番号の全体（今のタグも含めて最終的な形）。
-2. timeline：分類前の文章と照らし合わせて、時系列（カードの日時）が正しく整理できているか。issuesに日時が間違っているカード（suggestedTimestampは「術後1日目 12:00」のように日＋時刻、または「入院前」「入院時」「術前」等）。
-3. extractionIssues：情報の抜き出しの問題。kindは merge（複数のカードを1つにまとめるべき。mergedTextにまとめた文）／split（1つのカードを分けるべき。partsに分けた後の文を{"type":"s"か"o","text":"…"}の配列で）／missing（分類前の文章にあるのにカードに無い情報。textに抜けている文）／type（SとOの誤り。suggestedTypeに"s"か"o"）／unnecessary（不要な情報なのにカードになっている）／other。SとOに分けるときは、発言だけでは何の場面か分からなくならないよう、Sの文に（場面：…）を添えてください。
-4. untagged：{タグ:タグ未設定}のカードすべてについて、付けるべきタグ。14項目にどうしても当てはまらない場合はsuggestedを空にしてreasonに理由を書く。
-
-各項目には次の文章も付けてください。
-・overview：全体の総評（2〜4文。よくできている点と、主な課題）。
-・各項目の summary：その項目の評価のまとめ（1〜3文。問題が無ければ「問題ありません」とその理由）。
-・各指摘の title：何についての指摘か分かる短い見出し（例：「術後1日目の昼食」「入院時の様子」）。
-・各指摘の current：今どうなっているか（現状）を1文で。
-・各指摘の reason：なぜそう直すと良いのか（アセスメントの観点から）を1〜2文で。
-・advice：時系列の整理・S/Oの分け方・情報のまとめ方などについての、改善のためのアドバイス（箇条書き3つ程度）。
-問題が無い項目は items を空の配列にしてください。cardsやcardには一覧の〔C番号〕の番号（"C12"の形）だけを使い、一覧に無い番号は作らないでください。
-
-{"overview":"",
- "tagIssues":{"summary":"","items":[{"card":"C1","title":"","current":"","currentTags":[1],"suggested":[1,9],"reason":"","evidence":"","verdict":"error"}]},
- "timeline":{"summary":"","items":[{"card":"C5","title":"","current":"12:00","suggestedTimestamp":"術後1日目 12:00","reason":"","evidence":"","verdict":"error"}]},
- "extractionIssues":{"summary":"","items":[{"kind":"split","cards":["C3"],"title":"","current":"","mergedText":"","parts":[{"type":"s","text":""},{"type":"o","text":""}],"text":"","suggestedType":"","reason":"","evidence":"","verdict":"criteria"}]},
- "untagged":{"summary":"","items":[{"card":"C9","title":"","suggested":[9],"reason":"","evidence":"","verdict":"check"}]},
- "assessmentNotes":[{"card":"C1","note":"","evidence":""}],
- "advice":[""]}`;
-    }
-    function parseAiReviewJson(text) {
-      const raw = (text || '').replace(/^\s*```(?:json)?/i, '').replace(/```\s*$/, '').trim();
-      const start = raw.indexOf('{');
-      const end = raw.lastIndexOf('}');
-      if (start === -1 || end <= start) throw new Error('AIの答えを読み取れませんでした（JSONではありません）');
-      let obj;
-      try { obj = JSON.parse(raw.slice(start, end + 1)); } catch (e) {
-        obj = typeof parseAiJsonLoose === 'function' ? parseAiJsonLoose(raw) : undefined;
-        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('AIの答えを読み取れませんでした（JSONの形が崩れています）');
-      }
-      const tagList = v => (Array.isArray(v) ? v : []).map(Number).filter(n => n >= 1 && n <= 14);
-      const code = v => (String(v || '').match(/C\s*\d{1,4}/i) || [''])[0].replace(/\s+/g, '').toUpperCase();
-      const str = v => String(v || '').trim();
-      const verdictOf = v => { const t = String(v || '').trim().toLowerCase(); return t === 'error' || /明確/.test(t) ? 'error' : t === 'check' || /原文|確認/.test(t) ? 'check' : t === 'criteria' || /基準/.test(t) ? 'criteria' : ''; };
-      // 各項目は {summary, items:[...]} の形（以前の形＝配列だけ、にも対応する）
-      const sec = v => (Array.isArray(v) ? { summary: '', items: v } : { summary: str(v && v.summary), items: (v && (v.items || v.issues)) || [] });
-      const tagSec = sec(obj.tagIssues), timeSec = sec(obj.timeline), extSec = sec(obj.extractionIssues), untagSec = sec(obj.untagged);
-      return {
-        overview: str(obj.overview),
-        advice: (Array.isArray(obj.advice) ? obj.advice : [obj.advice]).map(str).filter(Boolean),
-        tagIssues: tagSec.items.map(x => ({ card: code(x.card), title: str(x.title), currentText: typeof x.current === 'string' ? str(x.current) : '', current: tagList(x.currentTags || (Array.isArray(x.current) ? x.current : [])), suggested: tagList(x.suggested), reason: str(x.reason), evidence: str(x.evidence), verdict: verdictOf(x.verdict) })).filter(x => x.card),
-        tagSummary: tagSec.summary,
-        timeline: {
-          summary: timeSec.summary,
-          issues: timeSec.items.map(x => ({ card: code(x.card), title: str(x.title), current: str(x.current), suggestedTimestamp: str(x.suggestedTimestamp), reason: str(x.reason), evidence: str(x.evidence), verdict: verdictOf(x.verdict) })).filter(x => x.card && (x.suggestedTimestamp || x.verdict === 'check'))
-        },
-        extractionIssues: extSec.items.map(x => ({
-          kind: AI_REVIEW_KINDS[x.kind] ? x.kind : 'other',
-          cards: (Array.isArray(x.cards) ? x.cards : [x.card]).map(code).filter(Boolean),
-          title: str(x.title), current: str(x.current),
-          mergedText: str(x.mergedText),
-          parts: (Array.isArray(x.parts) ? x.parts : []).map(p => (typeof p === 'string' ? { type: '', text: str(p) } : { type: p && (p.type === 's' || p.type === 'o') ? p.type : '', text: str(p && p.text) })).filter(p => p.text),
-          text: str(x.text), suggestedType: x.suggestedType === 's' || x.suggestedType === 'o' ? x.suggestedType : '', reason: str(x.reason), evidence: str(x.evidence), verdict: verdictOf(x.verdict)
-        })),
-        extractionSummary: extSec.summary,
-        assessmentNotes: (Array.isArray(obj.assessmentNotes) ? obj.assessmentNotes : []).map(x => (typeof x === 'string' ? { card: '', note: str(x), evidence: '' } : { card: code(x && x.card), note: str(x && (x.note || x.text)), evidence: str(x && x.evidence) })).filter(x => x.note),
-        untagged: untagSec.items.map(x => ({ card: code(x.card), title: str(x.title), suggested: tagList(x.suggested), reason: str(x.reason), evidence: str(x.evidence), verdict: verdictOf(x.verdict) })).filter(x => x.card),
-        untaggedSummary: untagSec.summary
-      };
-    }
-    // 【不必要なタグ追加の提案を出さない】利用者の指摘：「不必要に分類したタグ付けするように修正案が出る」。
-    // タグを増やす提案は、根拠にした原文の文（evidence）が分類前の文章に実在するときだけ残す。根拠が無い・原文に無い提案は
-    // 表示しない（件数だけ総評に書く）。未設定カードのタグ提案は、根拠が無ければ「要確認」にしてタグを付けない。
-    function aiReviewEvidenceFound(evidence, sourceText) {
-      const norm = t => String(t || '').normalize('NFKC').replace(/[\s「」『』（）()"'“”]/g, '');
-      const src = norm(sourceText);
-      const pieces = String(evidence || '').normalize('NFKC').split(/[／\/…・、。，,;；\n]/).map(norm).filter(x => x.length >= 3);
-      return pieces.some(x => src.includes(x));
-    }
-    function filterAiReviewResult(result, sourceText, cardTags) {
-      let dropped = 0, demoted = 0;
-      result.tagIssues = result.tagIssues.filter(x => {
-        const cur = (x.current && x.current.length) ? x.current : ((cardTags && cardTags[x.card]) || []);
-        const added = x.suggested.filter(h => !cur.includes(h));
-        if (!added.length) return true; // タグを外す・変えない提案は残す
-        if (aiReviewEvidenceFound(x.evidence, sourceText)) return true;
-        dropped++; return false;
-      });
-      result.untagged.forEach(x => {
-        if (x.suggested.length && !aiReviewEvidenceFound(x.evidence, sourceText)) { x.suggested = []; x.verdict = 'check'; x.reason = `${x.reason ? x.reason + '（' : ''}原文に根拠が確かめられないため、タグは提案しません。要確認${x.reason ? '）' : ''}`; demoted++; }
-      });
-      if (dropped) result.tagSummary = `${result.tagSummary ? result.tagSummary + ' ' : ''}（原文に根拠が確かめられない、タグを増やす提案${dropped}件は表示しません）`;
-      if (demoted) result.untaggedSummary = `${result.untaggedSummary ? result.untaggedSummary + ' ' : ''}（根拠が確かめられないタグ提案${demoted}件は「要確認」にしました）`;
-      return result;
-    }
-    // 評価したときのカードの一覧（〔C番号〕→カードのid）。カードが後で消えた・変わった場合は「適用」できない
-    function aiReviewItemOf(cp, review, codeStr) {
-      const id = review && review.codes ? review.codes[codeStr] : null;
-      return id ? (cp.items || []).find(i => i.id === id) : null;
-    }
-    const tagNamesOf = ids => (ids || []).length ? ids.slice().sort((a, b) => a - b).map(h => `${h}.${hendersonNameOf(h).replace(/^\d+\.\s*/, '')}`).join('・') : '（なし）';
-
-    window.openAiReview = function() {
-      document.getElementById('modal-ai-review').classList.remove('hidden');
-      renderAiReview();
-    };
-    window.closeAiReview = function() {
-      document.getElementById('modal-ai-review').classList.add('hidden');
-      renderSoBoard();
-      if (!document.getElementById('view-assessment').classList.contains('hidden')) renderAssessmentTable();
-    };
-    window.runAiReview = guardAiStep('review', async function() {
-      const cp = getCurrentPatient();
-      const items = (cp.items || []).filter(i => i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i));
-      if (!items.length) return showToast('カードがありません。先に「分類開始」で分類してください', 'warn');
-      if (!(cp.sourceText || '').trim()) return showToast('分類前の文章がありません（入力欄の文章と照らし合わせて評価します）', 'warn');
-      if (!globalAppData.apiKey) { requireApiKey('分類をAIで評価'); return; }
-      const body = document.getElementById('ai-review-body');
-      body.innerHTML = `<div class="flex items-center gap-2 text-[var(--ink-muted)] text-xs p-4"><i class="fa-solid fa-spinner fa-spin"></i> Geminiが分類を評価しています（1〜2分かかることがあります）…</div>`;
-      const ev = buildEvidenceIndex(items);
-      try {
-        const text = await callGeminiAI([{ role: 'user', parts: [{ text: buildAiReviewPrompt(cp, ev, items) }] }], { json: true });
-        const result = parseAiReviewJson(text);
-        const codes = {};
-        ev.byCode.forEach((c, k) => { codes[k] = c.id; });
-        const cardTags = {};
-        ev.byCode.forEach((c, k) => { const it = items.find(i => i.id === c.id); cardTags[k] = (it && it.hendersonIds) || []; });
-        filterAiReviewResult(result, cp.sourceText, cardTags);
-        cp.aiReview = { at: new Date().toISOString(), result, codes, applied: {} };
-        // 【レビューで発見】以前は評価の途中で患者を切り替えると、結果は元の患者に入るのに、保存・共有先への送信は
-        // 切り替え先の患者の分だけ行われていた。ほかのAIと同じく finishAiResult で、頼んだ患者に保存する。
-        if (finishAiResult(cp, () => renderAiReview(), '分類の評価')) showToast('評価が完了しました', 'success');
-      } catch (err) {
-        console.warn('AI review error:', err);
-        if (getCurrentPatient().id === cp.id) body.innerHTML = `<div class="text-[var(--brick)] text-xs p-4">評価中にエラーが発生しました（${escapeHtml(err.message || '通信エラー')}）。もう一度お試しください。</div>`;
-        else showToast(`「${cp.title || ''}」の分類の評価ができませんでした（${err.message || '通信エラー'}）`, 'warn');
-      }
-    });
-    // 1件ずつの「適用」。key は結果の中の位置（'tag:3' 'time:0' 'ext:2' 'untag:5'）
-    function markAiReviewApplied(cp, key) {
-      if (!cp.aiReview) return;
-      cp.aiReview.applied = { ...(cp.aiReview.applied || {}), [key]: true };
-    }
-    // タグを提案どおりにする（学習にも「この文章にはこのタグ」として反映する。手で付け外ししたときと同じ）
-    function setItemTagsFromAi(item, tags) {
-      const before = (item.hendersonIds || []).slice();
-      const next = Array.from(new Set(tags)).sort((a, b) => a - b);
-      const learned = globalAppData.learningUserDict[item.text] = { ...globalAppData.learningUserDict[item.text] };
-      learned.hendersonVotes = { ...(learned.hendersonVotes || {}) };
-      item.assessmentCols = item.assessmentCols || {};
-      const col = inferAssessmentColumn(item.fieldLabel, item.timestamp, item.admissionPhase) || 'unclassified';
-      next.filter(h => !before.includes(h)).forEach(h => {
-        item.assessmentCols[h] = col;
-        learned.hendersonVotes[h] = (learned.hendersonVotes[h] || 0) + 1;
-        reportLearningEvent(item.text, 'tagAdd', { hendersonId: h, voteCount: learned.hendersonVotes[h], source: 'aiReview' });
-      });
-      before.filter(h => !next.includes(h)).forEach(h => {
-        delete item.assessmentCols[h];
-        learned.hendersonVotes[h] = Math.max(0, (learned.hendersonVotes[h] || 0) - 1);
-        reportLearningEvent(item.text, 'tagRemove', { hendersonId: h, voteCount: learned.hendersonVotes[h], source: 'aiReview' });
-      });
-      learned.preferredHendersonIds = Object.entries(learned.hendersonVotes).filter(([, c]) => c > 0).map(([k]) => Number(k));
-      item.hendersonIds = next;
-      item.patientBackground = null;
-      item.predictionSource = 'confirmed';
-      logItemEdit(item, { kind: 'aiReviewTags', from: before, to: next });
-      touchItem(item);
-    }
-    window.applyAiReviewItem = function(key, silent) {
-      const cp = getCurrentPatient();
-      const review = cp.aiReview;
-      if (!review) return false;
-      const [kind, idxStr] = key.split(':');
-      const idx = Number(idxStr);
-      const r = review.result;
-      let ok = false;
-      if (kind === 'tag' || kind === 'untag') {
-        const s = (kind === 'tag' ? r.tagIssues : r.untagged)[idx];
-        const item = s && aiReviewItemOf(cp, review, s.card);
-        if (item && s.suggested.length) { setItemTagsFromAi(item, s.suggested); ok = true; }
-      } else if (kind === 'time') {
-        const s = r.timeline.issues[idx];
-        const item = s && aiReviewItemOf(cp, review, s.card);
-        if (item) {
-          logItemEdit(item, { kind: 'aiReviewTimestamp', from: item.timestamp, to: s.suggestedTimestamp });
-          item.timestamp = s.suggestedTimestamp;
-          touchItem(item);
-          ok = true;
-        }
-      } else if (kind === 'ext') {
-        ok = applyAiExtractionIssue(cp, review, r.extractionIssues[idx]);
-      }
-      if (ok) {
-        markAiReviewApplied(cp, key);
-        saveDataAndSync();
-        if (!silent) { renderAiReview(); showToast('提案を適用しました（元に戻すときは、カードを直接編集してください）', 'success'); }
-      } else if (!silent) {
-        showToast('このカードは評価の後に消えたか変わったため、適用できません', 'warn');
-      }
-      return ok;
-    };
-    function applyAiExtractionIssue(cp, review, s) {
-      if (!s) return false;
-      const targets = s.cards.map(c => aiReviewItemOf(cp, review, c)).filter(Boolean);
-      const newCard = (text, base) => {
-        const chunk = { text, timestamp: base.timestamp, fieldLabel: base.fieldLabel, admissionPhase: base.admissionPhase };
-        const { detectedHIds, predictedType } = computeLocalTagsAndType(chunk, text, null);
-        const col = inferAssessmentColumn(base.fieldLabel, base.timestamp, base.admissionPhase) || 'unclassified';
-        const cols = {};
-        detectedHIds.forEach(h => { cols[h] = col; });
-        return { id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text, timestamp: base.timestamp || '日時不明', type: predictedType === 'unnecessary' ? (base.type || 'o') : predictedType,
-          hendersonIds: detectedHIds, assessmentCols: cols, fieldLabel: base.fieldLabel || null, admissionPhase: base.admissionPhase, predictionSource: 'confirmed',
-          editLog: [{ at: new Date().toISOString(), kind: 'aiReview', from: targets.map(t => t.text) }], _touchedAt: new Date().toISOString() };
-      };
-      if (s.kind === 'merge' && targets.length >= 2 && s.mergedText) {
-        const first = targets[0];
-        const merged = newCard(s.mergedText, first);
-        merged.type = targets.some(t => t.type === 's') && targets.every(t => t.type === 's') ? 's' : merged.type;
-        merged.hendersonIds = Array.from(new Set([...merged.hendersonIds, ...targets.flatMap(t => t.hendersonIds || [])])).sort((a, b) => a - b);
-        targets.forEach(t => Object.entries(t.assessmentCols || {}).forEach(([h, c]) => { if (merged.hendersonIds.includes(Number(h))) merged.assessmentCols[h] = c; }));
-        const at = cp.items.indexOf(first);
-        cp.items = cp.items.filter(i => !targets.includes(i));
-        targets.forEach(t => markItemDeleted(cp, t.id));
-        cp.items.splice(Math.min(at, cp.items.length), 0, merged);
-        reportLearningEvent(merged.text, 'merge', { sourceTexts: targets.map(t => t.text), source: 'aiReview' });
-        return true;
-      }
-      if (s.kind === 'split' && targets.length === 1 && s.parts.length >= 2) {
-        const base = targets[0];
-        const parts = s.parts.map(p => { const c = newCard(p.text, base); if (p.type) c.type = p.type; return c; });
-        const at = cp.items.indexOf(base);
-        cp.items.splice(at, 1, ...parts);
-        markItemDeleted(cp, base.id);
-        reportLearningEvent(base.text, 'edit', { splitInto: s.parts.map(p => p.text), source: 'aiReview' });
-        return true;
-      }
-      if (s.kind === 'missing' && s.text) {
-        const base = targets[0] || { timestamp: '日時不明', type: 'o' };
-        const card = newCard(s.text, base);
-        const at = targets[0] ? cp.items.indexOf(targets[0]) + 1 : cp.items.length;
-        cp.items.splice(at, 0, card);
-        return true;
-      }
-      if (s.kind === 'type' && targets.length && s.suggestedType) {
-        targets.forEach(t => { logItemEdit(t, { kind: 'aiReviewType', from: t.type, to: s.suggestedType }); t.type = s.suggestedType; t.predictionSource = 'confirmed'; touchItem(t); reportLearningEvent(t.text, 'type', { type: s.suggestedType, source: 'aiReview' }); });
-        return true;
-      }
-      if (s.kind === 'unnecessary' && targets.length) {
-        targets.forEach(t => { logItemEdit(t, { kind: 'aiReviewType', from: t.type, to: 'unnecessary' }); t.type = 'unnecessary'; touchItem(t); reportLearningEvent(t.text, 'type', { type: 'unnecessary', source: 'aiReview' }); });
-        return true;
-      }
-      return false;
-    }
-    // 「まとめて適用」（section: 'untag'＝未設定のタグ／'tag'＝タグの誤り／'time'＝日時）
-    window.applyAiReviewSection = async function(section) {
-      const cp = getCurrentPatient();
-      const r = cp.aiReview && cp.aiReview.result;
-      if (!r) return;
-      const list = section === 'untag' ? r.untagged : section === 'tag' ? r.tagIssues : r.timeline.issues;
-      // 「明確な誤り」だけをまとめて適用する。「分類基準次第」「原文確認が必要」（と、確からしさの無い古い結果）は1件ずつ確かめて適用する
-      const keys = list.map((x, k) => (x.verdict === 'error' ? `${section}:${k}` : null)).filter(k => k && !(cp.aiReview.applied || {})[k]);
-      if (!keys.length) return showToast('まとめて適用できる提案（明確な誤り）はありません。ほかの提案は1件ずつ確かめて適用してください', 'info');
-      const label = section === 'untag' ? '未設定のタグ' : section === 'tag' ? 'タグの修正' : '日時の修正';
-      const okd = await openDialog({ title: `${label}をまとめて適用`, message: `「明確な誤り」の提案${keys.length}件だけをまとめて適用します（分類基準次第・原文確認が必要の提案は適用しません）。適用した内容は学習にも反映されます。よろしいですか？`, confirmLabel: 'まとめて適用' });
-      if (okd !== true) return;
-      let n = 0;
-      keys.forEach(k => { if (applyAiReviewItem(k, true)) n++; });
-      saveDataAndSync();
-      renderAiReview();
-      showToast(`${n}件の提案を適用しました`, 'success');
-    };
-
-    function renderAiReview() {
-      const body = document.getElementById('ai-review-body');
-      const cp = getCurrentPatient();
-      const review = cp.aiReview;
-      const meta = document.getElementById('ai-review-meta');
-      if (meta) meta.textContent = review ? `前回の評価：${new Date(review.at).toLocaleString('ja-JP')}` : '';
-      document.getElementById('btn-ai-review-download').disabled = !review;
-      if (!review) {
-        body.innerHTML = `<div class="ai-review-empty">
-          <p><b>「評価する」</b>を押すと、Geminiに次の4つをまとめて尋ねます。</p>
-          <ol><li>ヘンダーソンの分類（タグ）で間違っているところ</li><li>分類前の文章と照らし合わせた時系列（日時）の整理</li><li>情報の抜き出しでおかしいところ（まとめる・分ける・抜け）</li><li>タグ未設定のカードに付けるタグ</li></ol>
-          <p class="note">結果は1件ずつ、またはまとめて適用できます。「改善点ファイルを保存」で保存したファイルをClaudeに渡すと、自動分類のルールそのものを直せます。送る文章は個人情報を伏せ字にしてから送ります。</p></div>`;
-        return;
-      }
-      const r = review.result;
-      const applied = review.applied || {};
-      const itemOf = c => aiReviewItemOf(cp, review, c);
-      const chip = codeStr => {
-        const item = itemOf(codeStr);
-        if (!item) return `<span class="ai-review-chip gone" title="評価の後に消えたか変わったカード">${escapeHtml(codeStr)}</span>`;
-        const label = item.type === 's' ? 'S' : (item.type === 'o' ? 'O' : '・');
-        return `<button class="ai-review-chip" onclick="closeAiReview(); jumpToBoardCard('${safeDomId(item.id)}')" title="分類ボードのこのカードへ移動">${label} ${escapeHtml(codeStr)}</button>`;
-      };
-      const quoteCard = codeStr => { const item = itemOf(codeStr); return item ? `<div class="ai-review-quote">${chip(codeStr)}${item.timestamp && item.timestamp !== '日時不明' ? `<span class="ai-review-time">[${escapeHtml(item.timestamp)}]</span>` : ''}${escapeHtml(item.text)}</div>` : `<div class="ai-review-quote">${chip(codeStr)}</div>`; };
-      const applyBtn = (key, enabled = true) => applied[key]
-        ? '<span class="ai-review-done"><i class="fa-solid fa-check"></i> 適用済み</span>'
-        : (enabled ? `<button class="ai-review-apply" onclick="applyAiReviewItem('${key}')"><i class="fa-solid fa-check"></i> この修正案を適用</button>` : '');
-      // 1件の指摘：見出し → 現状（カードの本文）→ 修正案 → 理由（Geminiの文章に近い、読み物としての並び）
-      const verdictChip = v => v && AI_REVIEW_VERDICTS[v] ? `<span class="ai-review-verdict ${v}">${AI_REVIEW_VERDICTS[v]}</span>` : '';
-      const block = ({ title, current, proposal, reason, key, canApply, verdict, evidence }) => `<li class="ai-review-item">
-        ${title || verdict ? `<div class="ai-review-title">${verdictChip(verdict)}${escapeHtml(title || '')}</div>` : ''}
-        <div class="ai-review-row"><span class="ai-review-label">現状</span><div>${current}</div></div>
-        <div class="ai-review-row"><span class="ai-review-label fix">修正案</span><div>${proposal}</div></div>
-        ${reason ? `<div class="ai-review-row"><span class="ai-review-label why">理由</span><div class="ai-review-reason">${escapeHtml(reason)}</div></div>` : ''}
-        ${evidence ? `<div class="ai-review-row"><span class="ai-review-label why">原文の根拠</span><div class="ai-review-reason">${escapeHtml(evidence)}</div></div>` : ''}
-        <div class="ai-review-actions">${applyBtn(key, canApply)}</div>
-      </li>`;
-      const tagDiff = (from, to) => {
-        const added = to.filter(h => !from.includes(h)), removed = from.filter(h => !to.includes(h));
-        const keep = to.filter(h => from.includes(h));
-        const nm = h => `${h}.${escapeHtml(hendersonNameOf(h).replace(/^\d+\.\s*/, ''))}`;
-        return [...keep.map(h => `<span class="tg">${nm(h)}</span>`), ...added.map(h => `<span class="tg add">＋${nm(h)}</span>`), ...removed.map(h => `<span class="tg del">－${nm(h)}</span>`)].join(' ') || '（なし）';
-      };
-      const section = (no, title, count, summary, inner, bulk) => `<section class="ai-review-sec">
-        <h3><span class="no">${no}</span>${title}<span class="count">指摘 ${count}件</span>${bulk || ''}</h3>
-        ${summary ? `<p class="ai-review-summary">${escapeHtml(summary)}</p>` : ''}
-        ${inner ? `<ul>${inner}</ul>` : (summary ? '' : '<p class="ai-review-none">指摘はありません。</p>')}
-      </section>`;
-      const bulkBtn = (sec, list) => list.length ? `<button class="ai-review-bulk" onclick="applyAiReviewSection('${sec}')"><i class="fa-solid fa-check-double"></i> まとめて適用</button>` : '';
-      const tagHtml = r.tagIssues.map((x, k) => {
-        const item = itemOf(x.card);
-        const cur = x.current.length ? x.current : ((item && item.hendersonIds) || []);
-        return block({ title: x.title, key: `tag:${k}`, canApply: x.suggested.length > 0, reason: x.reason, verdict: x.verdict, evidence: x.evidence,
-          current: `${quoteCard(x.card)}${x.currentText ? `<div class="ai-review-note">${escapeHtml(x.currentText)}</div>` : ''}<div class="ai-review-tags">今のタグ：${tagDiff(cur, cur)}</div>`,
-          proposal: `<div class="ai-review-tags">${tagDiff(cur, x.suggested)}</div>` });
-      }).join('');
-      const timeHtml = r.timeline.issues.map((x, k) => block({ title: x.title, key: `time:${k}`, reason: x.reason, verdict: x.verdict, evidence: x.evidence, canApply: !!x.suggestedTimestamp,
-        current: `${quoteCard(x.card)}<div class="ai-review-note">日時：${escapeHtml(x.current || '（日時なし）')}</div>`,
-        proposal: x.suggestedTimestamp ? `日時を <b>${escapeHtml(x.suggestedTimestamp)}</b> にする` : '（原文を確かめてください）' })).join('');
-      const extHtml = r.extractionIssues.map((x, k) => {
-        const soLabel = t => (t === 's' ? '<span class="so s">Sデータ</span>' : t === 'o' ? '<span class="so o">Oデータ</span>' : '');
-        const proposal = x.kind === 'merge' && x.mergedText ? `次の1枚にまとめる：<div class="ai-review-new">${escapeHtml(x.mergedText)}</div>`
-          : x.kind === 'split' && x.parts.length ? `次のように分ける：${x.parts.map(p => `<div class="ai-review-new">${soLabel(p.type)}${escapeHtml(p.text)}</div>`).join('')}`
-          : x.kind === 'missing' && x.text ? `次のカードを追加する：<div class="ai-review-new">${escapeHtml(x.text)}</div>`
-          : x.kind === 'type' && x.suggestedType ? `${soLabel(x.suggestedType)}にする`
-          : x.kind === 'unnecessary' ? '不要な情報にする' : '（下の理由を参考に、手で直してください）';
-        const canApply = (x.kind === 'merge' && x.mergedText && x.cards.length >= 2) || (x.kind === 'split' && x.parts.length >= 2) || (x.kind === 'missing' && x.text) || (x.kind === 'type' && x.suggestedType) || x.kind === 'unnecessary';
-        return block({ title: `【${AI_REVIEW_KINDS[x.kind]}】${x.title || ''}`, key: `ext:${k}`, canApply, reason: x.reason, verdict: x.verdict, evidence: x.evidence,
-          current: `${x.cards.map(quoteCard).join('')}${x.current ? `<div class="ai-review-note">${escapeHtml(x.current)}</div>` : ''}`, proposal });
-      }).join('');
-      const untagHtml = r.untagged.map((x, k) => block({ title: x.title, key: `untag:${k}`, canApply: x.suggested.length > 0, reason: x.reason, verdict: x.verdict, evidence: x.evidence,
-        current: `${quoteCard(x.card)}<div class="ai-review-tags">今のタグ：（未設定）</div>`,
-        proposal: x.suggested.length ? `<div class="ai-review-tags">${tagDiff([], x.suggested)}</div>` : '14項目に当てはまらない（「追加キーワード」で決める）' })).join('');
-      body.innerHTML =
-        (r.overview ? `<div class="ai-review-overview"><div class="ai-review-overview-title"><i class="fa-solid fa-comment-medical"></i> 総評</div>${escapeHtml(r.overview)}</div>` : '') +
-        section(1, 'ヘンダーソンの分類で間違っているところ', r.tagIssues.length, r.tagSummary, tagHtml, bulkBtn('tag', r.tagIssues)) +
-        section(2, '時系列の整理', r.timeline.issues.length, r.timeline.summary, timeHtml, bulkBtn('time', r.timeline.issues)) +
-        section(3, '情報の抜き出し（分けたほうがいい・まとめたほうがいいところ）', r.extractionIssues.length, r.extractionSummary, extHtml) +
-        section(4, 'タグ未設定のカード', r.untagged.length, r.untaggedSummary, untagHtml, bulkBtn('untag', r.untagged)) +
-        ((r.assessmentNotes || []).length ? `<section class="ai-review-sec"><h3><span class="no"><i class="fa-solid fa-notes-medical"></i></span>アセスメントに回す内容（分類には使いません）</h3><ul class="ai-review-advice">${r.assessmentNotes.map(a => `<li>${a.card ? `${escapeHtml(a.card)}：` : ''}${escapeHtml(a.note)}${a.evidence ? `（根拠：${escapeHtml(a.evidence)}）` : ''}</li>`).join('')}</ul></section>` : '') +
-        ((r.advice || []).length ? `<section class="ai-review-sec"><h3><span class="no"><i class="fa-solid fa-lightbulb"></i></span>改善のためのアドバイス</h3><ul class="ai-review-advice">${r.advice.map(a => `<li>${escapeHtml(a)}</li>`).join('')}</ul></section>` : '');
-    }
-
-    // 「改善点ファイル」：Geminiの評価をClaudeに渡すためのMarkdown。カードの本文・今の分類・提案・理由をまとめ、
-    // 分類前の文章も付ける（Claudeはこれを読んで、自動分類のルールそのもの＝プログラムを直す）
-    function buildAiReviewMarkdown(cp) {
-      const review = cp.aiReview;
-      if (!review) return '';
-      const r = review.result;
-      const line = codeStr => {
-        const item = aiReviewItemOf(cp, review, codeStr);
-        return item ? `${codeStr} [${(item.type || '').toUpperCase()}][${item.timestamp || '日時不明'}] ${item.text} {タグ:${tagNamesOf(item.hendersonIds)}}` : `${codeStr}（評価の後に消えたカード）`;
-      };
-      const done = key => ((review.applied || {})[key] ? '（アプリで適用済み）' : '');
-      let md = `# 改善点ファイル：${cp.title || ''}\n\n- 評価：Gemini（${new Date(review.at).toLocaleString('ja-JP')}）\n- アプリの版：${(document.querySelector('meta[name="app-version"]') || {}).content || '-'}\n- このファイルをClaudeに渡すと、自動分類のルール（プログラム）の修正に使えます。\n- 各提案の「判定」（明確な誤り／分類基準次第／原文確認が必要）を確かめてから使ってください。この改善案を患者データへ一括適用しないでください。\n\n`;
-      if (r.overview) md += `## 総評\n\n${r.overview}\n\n`;
-      const item = (title, cards, currentNote, proposal, reason, key, x = {}) => `### ${title || cards.join('・')}${done(key)}\n\n- 判定：${AI_REVIEW_VERDICTS[x.verdict] || '（未判定）'}\n- 現状：\n${cards.map(c => `  - ${line(c)}`).join('\n')}${currentNote ? `\n  - ${currentNote}` : ''}\n- 修正案：${proposal}\n- 理由：${reason}${x.evidence ? `\n- 原文の根拠：${x.evidence}` : ''}\n`;
-      md += `## 1. ヘンダーソンの分類で間違っているところ\n\n${r.tagSummary ? `${r.tagSummary}\n\n` : ''}${r.tagIssues.map((x, k) => item(x.title, [x.card], x.currentText, `${tagNamesOf(x.current)} → ${tagNamesOf(x.suggested)}`, x.reason, `tag:${k}`, x)).join('\n') || '指摘なし\n'}\n`;
-      md += `## 2. 時系列の整理\n\n${r.timeline.summary ? `${r.timeline.summary}\n\n` : ''}${r.timeline.issues.map((x, k) => item(x.title, [x.card], `日時：${x.current || '（日時なし）'}`, (x.suggestedTimestamp ? `日時を「${x.suggestedTimestamp}」にする` : '（原文を確かめる）'), x.reason, `time:${k}`, x)).join('\n') || '指摘なし\n'}\n`;
-      md += `## 3. 情報の抜き出し\n\n${r.extractionSummary ? `${r.extractionSummary}\n\n` : ''}${r.extractionIssues.map((x, k) => item(`【${AI_REVIEW_KINDS[x.kind]}】${x.title || ''}`, x.cards, x.current,
-        x.mergedText ? `次の1枚にまとめる：${x.mergedText}` : x.parts.length ? `次のように分ける：${x.parts.map(p => `${p.type ? `【${p.type === 's' ? 'Sデータ' : 'Oデータ'}】` : ''}${p.text}`).join(' ／ ')}` : x.text ? `次のカードを追加する：${x.text}` : x.suggestedType ? `${x.suggestedType.toUpperCase()}にする` : x.kind === 'unnecessary' ? '不要な情報にする' : '（理由を参照）',
-        x.reason, `ext:${k}`, x)).join('\n') || '指摘なし\n'}\n`;
-      md += `## 4. タグ未設定のカード\n\n${r.untaggedSummary ? `${r.untaggedSummary}\n\n` : ''}${r.untagged.map((x, k) => item(x.title, [x.card], '', tagNamesOf(x.suggested), x.reason, `untag:${k}`, x)).join('\n') || '指摘なし\n'}\n`;
-      if ((r.assessmentNotes || []).length) md += `## アセスメントに回す内容（分類には使わない）\n\n${r.assessmentNotes.map(a => `- ${a.card ? `${a.card}：` : ''}${a.note}${a.evidence ? `（根拠：${a.evidence}）` : ''}`).join('\n')}\n\n`;
-      if ((r.advice || []).length) md += `## 改善のためのアドバイス\n\n${r.advice.map(a => `- ${a}`).join('\n')}\n\n`;
-      md += `## 分類前の文章\n\n\`\`\`\n${cp.sourceText || ''}\n\`\`\`\n`;
-      return md;
-    }
-    window.downloadAiReview = function() {
-      const cp = getCurrentPatient();
-      const md = buildAiReviewMarkdown(cp);
-      if (!md) return showToast('先に「評価する」を押してください', 'warn');
-      const d = new Date();
-      const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([md], { type: 'text/markdown' }));
-      a.download = `改善点_${(cp.title || 'カルテ').replace(/[\\/:*?"<>|]/g, '_')}_${stamp}.md`;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-      showToast('改善点ファイルを保存しました。このファイルをClaudeに渡すとプログラムを直せます', 'success');
-    };
 
     // ==========================================================================
     // 【検査値の推移】検査値・バイタルサインを「項目 × 日時」の表にするページ（利用者からの要望：
@@ -2450,7 +1711,7 @@ K. この評価は患者データへ一括適用される前提で書かない�
       } else rec.status = 'review';
       // 要確認の値でも、仮に原文どおりだった場合の臨床的な意味を、条件つきで残す（OCRの注意で、本物の異常値の重要性を消さない）
       // この値は「確定した根拠」としては使わない（status は review のまま）
-      if (rec.quality === 'suspicious' && range && valueStd !== null && valueStd !== undefined) {
+      if (rec.quality === 'suspicious' && range && valueStd !== null && valueStd !== undefined && !rec.reasonKinds.includes('unit') && !rec.reasonKinds.includes('digits')) {
         const dw = labDirection(valueStd, range, rec.arrow);
         rec.asWritten = dw === 'high' ? '高値' : dw === 'low' ? '低値' : dw === 'normal' ? '基準範囲内' : '';
       }
@@ -2496,7 +1757,7 @@ K. この評価は患者データへ一括適用される前提で書かない�
         const t = text.normalize('NFKC');
         const phase = String(item.timestamp || '').replace(/\s*\d{1,2}[:：]\d{2}.*$/, '').trim();
         LAB_RESP_DEFS.forEach(d => { const mm = t.match(d.regex); if (mm) { const v = Number(mm[2]); resp.push({ key: d.key, source: text.trim(), value: v, raw: mm[2], ref: d.ref, status: v >= d.low ? 'normal' : 'low', phase, def: d }); } });
-        LAB_VITAL_DEFS.forEach(d => { const mm = t.match(d.regex); if (mm) { const v = Number(mm[1]); vitals.push({ key: d.key, source: text.trim(), value: v, raw: mm[1], unit: d.unit, ref: d.ref, status: d.judge(v), phase, oxygen: d.key === 'SpO2' && /酸素|O2\s*\d/.test(t) }); } });
+        LAB_VITAL_DEFS.forEach(d => { const mm = t.match(d.regex); if (mm) { const v = Number(mm[1]); vitals.push({ key: d.key, source: text.trim(), value: v, raw: mm[1], unit: d.unit, ref: d.ref, status: d.judge(v), phase, oxygen: d.key === 'SpO2' && /酸素|(?:^|[^Sp])O2\s*\d|\d\s*L\s*\/?\s*分|カニュ|マスク|ネーザル/i.test(t.replace(/Sp[O0]2|SPO2|SpO₂/gi, '')) && !/室内気|room air|\bRA\b/i.test(t), roomAir: d.key === 'SpO2' && /室内気|room air|\bRA\b/i.test(t) }); } });
         const bp = t.match(/血圧\D{0,3}(\d{2,3})\s*[/／]\s*(\d{2,3})/);
         if (bp) { const s = Number(bp[1]), dd = Number(bp[2]); vitals.push({ key: '血圧', source: text.trim(), value: `${s}/${dd}`, unit: 'mmHg', ref: '収縮期100〜139・拡張期60〜89mmHg', status: (s >= 140 || dd >= 90) ? 'high' : (s < 90 || dd < 50) ? 'low' : 'normal', phase }); }
         const r = analyzeLabCard(text, null);
@@ -2538,6 +1799,7 @@ K. この評価は患者データへ一括適用される前提で書かない�
         bleeding: /出血|血性|ドレーン/.test(allText), infection: /発熱|膿|発赤|腫脹|熱感|排膿|悪寒|感染徴候/.test(allText), smoking: /喫煙|煙草|タバコ|ブリンクマン/.test(allText),
         fever: vitals.some(v => v.key === '体温' && v.status === 'high')
       };
+      const basics = extractClinicalBasics(String(cp.sourceText || '') + '\n' + allText);
       const facts = [], reviews = [], thoughts = [];
       const byKey = {};
       labs.forEach(l => { (byKey[l.key] = byKey[l.key] || []).push(l); });
@@ -2562,14 +1824,16 @@ K. この評価は患者データへ一括適用される前提で書かない�
             last.trend = dir ? (dir === '低下' ? 'down' : 'up') : 'flat'; last.trendPct = pct;
           }
           last.notes.forEach(n => lines.push(`　注：${n}`));
+          if (basics.sex === 'male' && (key === 'Hb' || key === 'Ht') && last.status === 'normal' && Number.isFinite(last.valueStd) && last.valueStd < (key === 'Hb' ? 13.5 : 40)) lines.push(`　注：男性の一般的な目安（${key === 'Hb' ? '13.5〜17.5 g/dL' : '40〜52%'}）より低めです。男女共通の広い基準範囲の中でも、男性としては低めの可能性があります。施設の男性用の基準値があれば、それで確認してください。`);
+          if (key === 'ALP' && !(last.ref && last.ref.origin === 'source')) lines.push('　注：ALPの基準値は測定法（JSS法・IFCC法）で大きく異なります（目安：JSS法 約100〜340 U/L、IFCC法 約38〜113 U/L）。原文の基準値・測定法を確認し、内蔵の基準との比較は参考にとどめてください。');
         }
         list.filter(l => l.quality !== 'valid').forEach(l => {
           lines.push(`${key}：原文「${l.source}」${phaseText(l)}`);
           lines.push('　データ確認：原本確認が必要');
-          lines.push('　判定：要確認');
+          lines.push(l.reasonKinds.includes('unit') || l.reasonKinds.includes('digits') ? '　判定：要確認（判定不可：単位・桁の確認が必要。この値では低値・高値を判断しません）' : '　判定：要確認');
           if (l.asWritten && l.asWritten !== '基準範囲内') lines.push(`　仮に原文どおりなら：${l.asWritten}（原本で確認できるまで、看護問題・看護計画の根拠には使いません）`);
           if (l.prediction && l.prediction.value !== null && l.prediction.value !== undefined && ['medium', 'high'].includes(l.prediction.confidence)) {
-            lines.push(`　推定：${l.prediction.text} 前後ではないかと予想されます（推定確度：${l.prediction.confidence === 'high' ? '高' : '中'}）。原文の値は書き換えていません。`);
+            lines.push(`　推定候補：${l.prediction.text} 前後ではないかと予想されます（推定確度：${l.prediction.confidence === 'high' ? '高' : '中'}）。原文の値は書き換えていません。`);
             lines.push(`　理由：${l.prediction.reason}。OCRで単位または小数点が崩れた可能性があります。原本確認が必要です。`);
           } else {
             lines.push(`　${l.reasons.join('。')}。OCR誤読の可能性があります。原本確認が必要です。`);
@@ -2597,14 +1861,14 @@ K. この評価は患者データへ一括適用される前提で書かない�
       });
       broken.forEach(b => {
         const lines = [`原文「${b.source}」${phaseText(b)}`, '　判定：原文不明瞭', '　検査項目名または数値がOCRで崩れている可能性があります。原本確認が必要です。（検査値としては扱わず、ヘンダーソンの分類にも入れていません）'];
-        if (b.prediction) lines.push(`　推定：${b.prediction.text} の検査値ではないかと予想されます（推定確度：低）。理由：${b.prediction.reason}。`);
+        if (b.prediction) lines.push(`　推定候補：${b.prediction.text} の検査値ではないかと予想されます（推定確度：低）。理由：${b.prediction.reason}。`);
         facts.push(lines.join('\n'));
         reviews.push('読み取れない文字列');
       });
       // 呼吸機能
       const respLines = [];
       resp.forEach(r => {
-        respLines.push(`${r.key}：${r.raw}%${r.phase ? `（${r.phase}）` : ''}\n　判定：${r.status === 'normal' ? '基準範囲内' : '低値'}（一般的な目安 ${r.ref}。年齢・性別・施設・判定法で基準が異なるため、参考として見てください）`);
+        respLines.push(`${r.key}：${r.raw}%${r.phase ? `（${r.phase}）` : ''}\n　判定：${r.status === 'normal' ? '基準範囲内' : '低値'}（一般的な目安 ${r.ref}。年齢・性別・施設・判定法で基準が異なるため、参考として見てください）${r.key === '1秒率' ? '\n　注：1秒率だけで慢性閉塞性肺疾患（COPD）とは診断できません（気管支拡張薬後の測定・症状・画像などを合わせた医師の判断です）。年齢とともに低下しやすく、固定の70%では評価が難しい場合があります。' : ''}`);
         if (r.key === '1秒率' && r.status === 'low') thoughts.push({ key: '1秒率', text: `1秒率が一般的な目安（70%）を下回っているため、閉塞性の換気パターンの可能性が考えられるが、年齢・基準の違いもあり、診断は医師の判断です。${ctx.smoking ? '喫煙歴の影響の可能性も考えられるが、現時点では推測に留まります。' : ''}術後の呼吸器合併症のリスク評価として、呼吸状態の観察が必要です。`, needs: '1.呼吸' });
         if (r.key === '%肺活量' && r.status === 'low') thoughts.push({ key: '%肺活量', text: '%肺活量が一般的な目安（80%）を下回っているため、拡張しにくい（拘束性の）換気パターンの可能性が考えられるが、診断は医師の判断です。', needs: '1.呼吸' });
       });
@@ -2612,7 +1876,7 @@ K. この評価は患者データへ一括適用される前提で書かない�
       // バイタルサイン
       const vitalLines = [];
       vitals.forEach(v => {
-        vitalLines.push(`${v.key}：${v.raw || v.value}${v.unit}${v.phase ? `（${v.phase}）` : ''}　判定：${LAB_STATUS_LABEL[v.status]}（一般的な目安 ${v.ref}）${v.oxygen ? '　※酸素投与下の値のため、室内気の状態とは評価できません' : ''}`);
+        vitalLines.push(`${v.key}：${v.raw || v.value}${v.unit}${v.phase ? `（${v.phase}）` : ''}　判定：${LAB_STATUS_LABEL[v.status]}（一般的な目安 ${v.ref}）${v.roomAir ? '　（室内気の値）' : ''}${v.oxygen ? '　※酸素投与下の値のため、室内気の状態とは評価できません' : ''}`);
       });
       const hasAny = labs.length || broken.length || resp.length || vitals.length;
       if (!hasAny) return { has: false, text: '', html: '', labs, broken, resp, vitals, checks: [] };

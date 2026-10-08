@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-08.27">
-  <meta name="app-file-versions" content="01:2026-10-08.12,02:2026-10-08.8,03:2026-10-08.14,04:2026-10-07.36,05:2026-10-08.18,06:2026-10-08.21,07:2026-10-08.14,08:2026-10-08.27,09:2026-10-08.21,10:2026-10-08.14,11:2026-10-08.23,12:2026-10-08.27,13:2026-10-08.18,14:2026-10-06.14,15:2026-10-08.26">
+  <meta name="app-version" content="2026-10-08.28">
+  <meta name="app-file-versions" content="01:2026-10-08.12,02:2026-10-08.8,03:2026-10-08.14,04:2026-10-07.36,05:2026-10-08.28,06:2026-10-08.21,07:2026-10-08.28,08:2026-10-08.28,09:2026-10-08.21,10:2026-10-08.28,11:2026-10-08.28,12:2026-10-08.28,13:2026-10-08.28,14:2026-10-06.14,15:2026-10-08.28">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
@@ -241,9 +241,6 @@
           <!-- 記録した時点と今のカードを比べる（js/13 の openCompare） -->
           <button id="btn-open-compare" onclick="openCompare()" class="btn btn-outline text-[11px] py-1.5 whitespace-nowrap" title="記録した時点（分類し直す前・画面を開いたとき・手で記録したとき）と今のカードを比べ、追加・変更・削除したカードを表示します">
             <i class="fa-solid fa-code-compare"></i> 変更点の比較
-          </button>
-          <!-- 分類の結果をGeminiに評価してもらう（js/08 の openAiReview） -->
-            <i class="fa-solid fa-wand-magic-sparkles" style="color:var(--accent);"></i> AIで分類を評価
           </button>
           <span class="text-[10px] text-[var(--ink-muted)] leading-snug flex items-center gap-2">
             <span><i class="fa-solid fa-circle-info mr-0.5"></i>カードを選ぶと、分類やタグを変更できます</span>
@@ -734,7 +731,6 @@
           <i class="fa-solid fa-circle-info"></i> 情報カードの「報告」ボタンから送られた内容の一覧です（閲覧のみで削除機能はありません）。同じ人がページを閉じるまでに送った複数件は1つの投稿としてまとめて表示されます。
         </p>
         <div class="flex items-center gap-2 shrink-0 flex-wrap">
-          <button id="btn-summarize-reports" class="btn btn-outline" style="color:var(--brick);background:var(--surface);"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>AIで要約（分類ロジック修正のヒント）</button>
         </div>
         <div id="admin-reports-summary" class="hidden text-xs text-[var(--ink)] leading-relaxed bg-[var(--brick-soft)]/40 border border-[var(--brick-line)] rounded-[var(--radius)] p-3 shrink-0" style="max-height:220px; overflow-y:auto;"></div>
         <div id="admin-reports-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
@@ -1233,24 +1229,6 @@
     <div id="card-overview-body" class="card-overview-body flex-1 min-h-0 p-2"></div>
   </div>
 
-  <!-- 分類をAIで評価（js/08 の openAiReview・runAiReview・renderAiReview） -->
-  <div id="modal-ai-review" class="hidden fixed inset-0 z-[67] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-3">
-    <div class="ai-review-dialog">
-      <div class="ai-review-head">
-        <div class="min-w-0">
-          <div class="font-display font-semibold text-sm text-[var(--ink)]"><i class="fa-solid fa-wand-magic-sparkles text-[var(--accent)] mr-1.5"></i>分類をAIで評価（Gemini）</div>
-          <div id="ai-review-meta" class="text-[10px] text-[var(--ink-muted)]"></div>
-        </div>
-        <div class="flex items-center gap-1.5 flex-wrap justify-end">
-          <button onclick="runAiReview()" class="btn btn-primary text-[11px] py-1.5"><i class="fa-solid fa-play"></i> 評価する</button>
-          <button id="btn-ai-review-download" onclick="downloadAiReview()" class="btn btn-outline text-[11px] py-1.5" title="評価の結果をMarkdownファイルに保存します。Claudeに渡すと自動分類のルール（プログラム）を直せます"><i class="fa-solid fa-file-arrow-down"></i> 改善点ファイルを保存</button>
-          <button onclick="closeAiReview()" class="btn btn-outline text-[11px] py-1.5"><i class="fa-solid fa-xmark"></i> 閉じる</button>
-        </div>
-      </div>
-      <div id="ai-review-body" class="ai-review-body"></div>
-    </div>
-  </div>
-
   <!-- テキスト書き出しの内容を選ぶモーダル（app.jsのaskExportOptions参照）。
        「テキスト書き出し」「選択をテキスト書き出し」の両方で使う。前回選んだ内容を覚えておく。 -->
   <div id="modal-export-options" class="hidden fixed inset-0 z-[70] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
@@ -1357,16 +1335,16 @@
   <script src="js/02-reference-data.js?v=2026-10-08.8"></script>
   <script src="js/03-extraction-helpers.js?v=2026-10-08.14"></script>
   <script src="js/04-server-sync.js?v=2026-10-07.36"></script>
-  <script src="js/05-app-state-and-ui.js?v=2026-10-08.18"></script>
+  <script src="js/05-app-state-and-ui.js?v=2026-10-08.28"></script>
   <script src="js/06-export.js?v=2026-10-08.21"></script>
-  <script src="js/07-classification.js?v=2026-10-08.14"></script>
-  <script src="js/08-assessment-tools.js?v=2026-10-08.27"></script>
+  <script src="js/07-classification.js?v=2026-10-08.28"></script>
+  <script src="js/08-assessment-tools.js?v=2026-10-08.28"></script>
   <script src="js/09-board.js?v=2026-10-08.21"></script>
-  <script src="js/10-reference-page-and-startup.js?v=2026-10-08.14"></script>
-  <script src="js/11-own-assessment.js?v=2026-10-08.23"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-08.27"></script>
-  <script src="js/13-compare-and-report.js?v=2026-10-08.18"></script>
+  <script src="js/10-reference-page-and-startup.js?v=2026-10-08.28"></script>
+  <script src="js/11-own-assessment.js?v=2026-10-08.28"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-08.28"></script>
+  <script src="js/13-compare-and-report.js?v=2026-10-08.28"></script>
   <script src="js/14-drug-reference.js?v=2026-10-06.14"></script>
-  <script src="js/15-relation-map.js?v=2026-10-08.26"></script>
+  <script src="js/15-relation-map.js?v=2026-10-08.28"></script>
 </body>
 </html>

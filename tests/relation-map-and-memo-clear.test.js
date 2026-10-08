@@ -221,22 +221,6 @@ test('関連図：交差する線は飛び越え（∩）で描く', () => {
   });
 });
 
-test('関連図：AIの答え（短い名前のJSON）を読み取り、確かめて安全に直してから並べる', () => {
-  const text = '```json\n{"n":[{"i":"n1","t":"disease","l":"胃がん","o":1},{"i":"n2","t":"treatment","l":"胃全摘出術","o":1},{"i":"n3","t":"pathophysiology","l":"手術侵襲","o":1,"k":1},{"i":"n4","t":"future_risk","l":"無気肺・肺炎","o":1},{"i":"n5","t":"nursing_problem","l":"非効果的気道浄化","p":1},{"i":"n6","t":"symptom","l":"ぽつん"},{"i":"n7","t":"weird","l":"謎"}],"e":[{"s":"n2","d":"n1","r":"treats","e":"胃がんへの手術"},{"s":"n2","d":"n3","r":"causes"},{"s":"n3","d":"n4","r":"predicts","x":0},{"s":"n4","d":"n5","r":"results_in","x":1},{"s":"n3","d":"n7"},{"s":"n7","d":"n3"}]}\n```';
-  const map = app.relationMapFromAiJson(app.rmParseAiJsonObject(text));
-  assert.ok(!map.nodes.some(n => n.label === 'ぽつん'), '浮島は消す');
-  const risk = map.nodes.find(n => n.label === '無気肺・肺炎');
-  assert.equal(risk.observed, false);
-  assert.ok(map.edges.filter(e => e.target === risk.id).every(e => e.predicted));
-  assert.equal(map.edges.find(e => e.relation === 'treats').evidence, '胃がんへの手術');
-  assert.equal(map.nodes.find(n => n.label === '手術侵襲').source, 'knowledge');
-  assert.ok(!map.edges.some(e => map.edges.some(o => o.source === e.target && o.target === e.source)));
-  assert.throws(() => app.rmParseAiJsonObject('作れません'), /読み取れません/);
-  // 指示文：ルールの要点と、入力をしぼること
-  const prompt = app.buildRelationMapPrompt(patientOf(GASTRIC));
-  ['事実を並べた図ではなく', '治療は「治療→治療の対象」', 'o=0、その矢印はx=1', '感染と断定しない', '複数の原因が1つの問題へ合流', 'どこにもつながらない四角', '"n":[{"i":"n1"'].forEach(s => assert.ok(prompt.includes(s), s));
-  assert.ok(app.rmSelectCardsForAi(Array.from({ length: 200 }, (_, k) => ({ type: 'o', text: `記録${k}` }))).length <= 100) // 長い記録で大事な検査・所見が漏れないよう、2026-10-06.10 で70枚→100枚に;
-});
 
 test('関連図：版1の図は開いたときに版2へ直す（治療の向き・看護問題の#・検査データ）', () => {
   const v1 = { nodes: [
@@ -254,20 +238,6 @@ test('関連図：版1の図は開いたときに版2へ直す（治療の向き
   assert.equal(app.rmDisplayLabel(m.nodes.find(n => n.id === 'c')), '（BNP 680↑）');
 });
 
-test('関連図：画面の操作（やり直す・チェック・事実／予測・優先順位・なぜ？）と、文字の安全な表示', () => {
-  ['data-rm-action="redo"', 'data-rm-action="check"', 'id="rm-check"', '<option value="future_risk">'].forEach(s => assert.ok(html.includes(s), s));
-  ['toggle-observed', 'toggle-predicted', 'priority-up', 'priority-down', "'why'", 'autofix', 'relation'].forEach(s => assert.ok(src.includes(s), s));
-  assert.match(src, /requireApiKey\('関連図をAIで作る', \{ fallbackLabel: '記録から作る（AIなし）' \}\)/);
-  const norm = app.normalizeRelationMap({ version: 2, nodes: [{ id: "x');alert(1);('", type: 'disease', label: '<img src=x onerror=alert(1)>' }], edges: [] });
-  assert.match(norm.nodes[0].id, /^n_/);
-  const svg = app.relationMapSvg(norm, {});
-  assert.doesNotMatch(svg, /<img/);
-  const doc = app.relationMapPrintHtml({ title: '<b>患者</b>' }, norm);
-  assert.match(doc, /@page \{ size: A4 landscape;/);
-  assert.match(doc, /&lt;b&gt;患者&lt;\/b&gt;/);
-  assert.match(src, /printHtmlDocument\(relationMapPrintHtml\(cp, map, \{ perProblem \}\), \{ keepSvg: true \}\)/);
-  assert.deepEqual(plain(app.rmWrapText('あいうえおかきくけこさしすせそたちつてと', 13)), ['あいうえおかきくけこさしす', 'せそたちつてと']);
-});
 
 // ---- 3つの事例で作って確かめる（1回目：大腿骨頸部骨折の術後／2回目：誤嚥性肺炎／3回目：心原性脳塞栓症） ----
 const caseMap = name => app.buildRelationMapFromRecord(patientOf(fs.readFileSync(path.join(ROOT, `tests/fixtures/relation-map/${name}.txt`), 'utf8')));
@@ -398,40 +368,6 @@ test('関連図の読みやすさ：文字14pxのゴシック体・作った直�
   assert.equal(old.layoutStyle, 1, '保存してあった図は版を持たない → 並べ直しの対象');
 });
 
-test('矢印の間を補う：決まった知識で中間過程を入れ、紫の「＋補足」で一目で分かる・手で/AIで入れる操作もある', () => {
-  const map = caseMap('gastric_postop');
-  const added = map.nodes.filter(n => n.added);
-  assert.ok(added.length >= 8, `補足 ${added.length}`);
-  // 手術侵襲 →［発痛物質の放出］→ 創部痛
-  const inv = find(map, /^手術侵襲（組織の損傷）/), pain = find(map, /^創部痛（NRS 2）/), mid = find(map, /発痛物質/);
-  assert.ok(mid.added && hasEdge(map, inv, mid) && hasEdge(map, mid, pain));
-  // 補足は前後どちらにもつながる（浮島にならない）、同じ過程は重ならない
-  added.forEach(n => assert.ok(map.edges.some(e => e.target === n.id) && map.edges.some(e => e.source === n.id), n.label));
-  assert.equal(new Set(added.map(n => n.label)).size, added.length);
-  assert.ok(!app.validateRelationMap(map).some(i => i.level === 'error'), '補ってもエラーにならない');
-  // 股関節の手術では「腹部」の過程は入れない
-  assert.ok(!caseMap('hip_fracture').nodes.some(n => /腹部・胸部に力/.test(n.label)));
-  // 予測の矢印の間の補足は予測（破線）のまま
-  const m2 = { version: 2, nodes: [{ id: 'a', type: 'pathophysiology', label: '皮膚・粘膜のバリア機能の低下', observed: true, source: 'knowledge', x: 0, y: 0 }, { id: 'b', type: 'future_risk', label: '感染の可能性', observed: false, source: 'knowledge', x: 0, y: 0 }], edges: [{ id: 'e', source: 'a', target: 'b', relation: 'predicts', predicted: true }] };
-  assert.equal(app.rmApplyBridges(m2), 1);
-  const x = m2.nodes.find(n => n.added);
-  assert.equal(x.observed, false);
-  assert.ok(m2.edges.every(e => e.predicted));
-  assert.equal(app.rmApplyBridges(m2), 0, '2回目は増えない');
-  // 見た目：紫の枠・「＋補足」の札・凡例
-  const svg = app.relationMapSvg(map, {});
-  assert.match(svg, /class="rm-node is-added/);
-  assert.match(svg, /stroke="#7C3AED"/);
-  assert.match(svg, />＋補足/);
-  // 保存しても added は残る
-  assert.ok(app.normalizeRelationMap(JSON.parse(JSON.stringify(map))).nodes.some(n => n.added));
-  // 操作：図全体を補うボタン・選んだ矢印の間に入れる（手で/AIで）・AIの形に a
-  assert.match(html, /data-rm-action="toggle-added"/);
-  assert.match(src, /rmBtn\('mid-ai'/); assert.match(src, /rmBtn\('mid-add'/);
-  assert.match(src, /"a":0/);
-  const ai = app.relationMapFromAiJson({ n: [{ i: 'n1', t: 'pathophysiology', l: '手術侵襲', o: 1 }, { i: 'n2', t: 'pathophysiology', l: '発痛物質の放出', o: 1, k: 1, a: 1 }, { i: 'n3', t: 'nursing_problem', l: '急性疼痛', p: 1 }], e: [{ s: 'n1', d: 'n2', r: 'causes' }, { s: 'n2', d: 'n3', r: 'results_in' }] });
-  assert.ok(ai.nodes.find(n => n.label === '発痛物質の放出').added);
-});
 
 test('＋補足のあり・なしをボタン1つで入れ替える（隠すと前後を直接つなぎ、戻すと同じ位置に戻る）', () => {
   const map = caseMap('gastric_postop');
@@ -798,20 +734,6 @@ test('関連図の評価への対応：治療の線の先は「┤」・線が�
   assert.doesNotMatch(src, /非効果的気道浄化（無気肺・肺炎のリスク状態）/);
 });
 
-test('関連図：右クリックで編集（四角・矢印）と追加（何もない所）／全画面のボタンは図の中／色合い（患者情報は薄い緑）・ダークモード', () => {
-  assert.match(html, /<div id="rm-ctx" class="rm-ctx hidden" role="menu"/);
-  assert.match(src, /wrap\.addEventListener\('contextmenu', e => \{ if \(!rmMap\(\)\) return; e\.preventDefault\(\); if \(!rmState\.focusProblem\) rmShowCtx\(e\); \}\);/);
-  assert.match(src, /if \(act === 'ctx-add'\) rmAddNode\(btn\.dataset\.kind \|\| 'pathophysiology', rmState\.ctxPoint\);/);
-  ['edit-node', 'connect', 'toggle-observed', 'reverse', 'toggle-predicted', 'mid-add', 'why', 'delete'].forEach(a => assert.match(src.slice(src.indexOf('function rmShowCtx'), src.indexOf('function rmHideCtx')), new RegExp(`item\\('${a}'`), a));
-  const view = html.slice(html.indexOf('<div id="view-relation"'), html.indexOf('<div id="view-reference"'));
-  const bar = view.slice(view.indexOf('class="rm-toolbar"'), view.indexOf('id="rm-selection-bar"'));
-  assert.doesNotMatch(bar, /data-rm-action="fullscreen"/, '全画面はツールバーでなく図の中');
-  assert.match(view, /class="rm-zoom-pad"[^>]*>\s*<button type="button" data-rm-action="fullscreen"/);
-  assert.match(src, /document\.querySelector\('\.rm-zoom-pad \[data-rm-action="fullscreen"\]'\)/);
-  assert.match(src, /key: 'patient_fact', label: '患者情報・背景', shape: 'rect', fill: '#EEF4EC'/);
-  assert.match(css, /html\[data-theme="dark"\] \.rm-canvas-wrap \.rm-node\[data-kind="patient_fact"\] \.rm-box \{ fill: #1F2A1F;/);
-  assert.match(css, /html\[data-theme="dark"\] \.rm-canvas-wrap \.rm-link-line\[stroke-dasharray\] \{ stroke: #7A7366; \}/);
-});
 
 // 2026-10-06.22：利用者「スマホ版が見づらい」
 test('スマホ：見出しのボタンを小さく・保存の状態は折り返す（横にはみ出さない）／関連図は長押しでメニュー・最初は疾患を上下のまん中に・チェックは直すことがあるときだけ', () => {
@@ -955,80 +877,8 @@ test('関連図：近道の矢印を省く・看護問題ごとの図（その�
 
 // 2026-10-07.1：利用者「看護問題がわかりにくくなった。補足として今の説明をするように」。
 // 名前は短い看護問題名に戻し、患者の状態をそのまま書いた説明を「補足」として名前の下に小さく添える
-test('看護問題の補足：短い名前の下に、患者の状態をそのまま書いた説明を添える（図・一覧・編集・保存・AI）', () => {
-  ['gastric_postop', 'hip_fracture', 'aspiration_pneumonia', 'cerebral_infarction', 'colon_cancer_postop_long', 'copd_exacerbation_long', 'heart_failure_long'].forEach(name => {
-    caseMap(name).nodes.filter(n => n.type === 'nursing_problem' && !/（候補）$/.test(n.label)).forEach(p => {
-      assert.ok(p.note && p.note.length >= 4, `${name}：「${p.label}」に補足がない`);
-      assert.match(p.note, /(?:ある|いる|ない|難しい|おそれがある|（尿閉）|伝えにくい)$/, `${name}：${p.note}`);
-    });
-  });
-  const colon = caseMap('colon_cancer_postop_long');
-  const pain = colon.nodes.find(n => n.type === 'nursing_problem' && /^急性疼痛/.test(n.label));
-  assert.equal(pain.note, '手術の傷の痛みがある');
-  // 図：補足のぶん四角が高くなり、名前の下に小さい字で描く
-  const plainSize = app.rmNodeSize({ ...pain, note: '' }), withNote = app.rmNodeSize(pain);
-  assert.ok(withNote.h > plainSize.h && withNote.noteLines.length >= 1);
-  const svg = app.relationMapSvg(colon, {});
-  assert.match(svg, /<text class="rm-note"[^>]*>.*手術の傷の痛みがある/);
-  // 保存しても残る（看護問題だけ）
-  const norm = app.normalizeRelationMap(JSON.parse(JSON.stringify(colon)));
-  assert.equal(norm.nodes.find(n => n.id === pain.id).note, '手術の傷の痛みがある');
-  assert.ok(!norm.nodes.some(n => n.type !== 'nursing_problem' && n.note));
-  // 看護計画の問題名：決まった補足があればそれ、中身がちがう名前なら補足は外す
-  const plan = problem => app.buildRelationMapFromRecord(patientOf(GASTRIC, { carePlans: { a: { id: 'a', order: 1, problem, relatedNeeds: [], records: [] } } }));
-  const m1 = plan('急性疼痛（手術創部の侵襲）');
-  assert.equal(m1.nodes.find(n => n.type === 'nursing_problem' && /^急性疼痛/.test(n.label)).note, '手術の傷の痛みがある');
-  assert.equal(app.rmPlainNote('急性疼痛(手術創部の侵襲)'), '手術の傷の痛みがある');
-  // 行の終わりに開きかっこだけが残らない
-  app.rmWrapText('#9 消化管運動機能障害（術後の腸蠕動の低下）', 12.5).forEach(l => assert.doesNotMatch(l, /[（(]$/, l));
-  // 編集：右クリック・選んだときのボタンから補足を直せる。一覧にも補足を出す
-  assert.match(src, /item\('edit-note', '<i class="fa-solid fa-comment-dots"><\/i> 補足（説明）を編集'\)/);
-  assert.match(src, /else if \(act === 'edit-note'\) rmEditNodeNote\(sel\.id\);/);
-  assert.match(src, /<small class="rm-prob-note">/);
-  assert.match(css, /\.rm-prob-note \{/);
-  assert.match(css, /html\[data-theme="dark"\] \.rm-canvas-wrap \.rm-note \{/);
-  // AI：l は短い看護問題名、m に補足
-  assert.match(src, /mに補足として患者の状態をそのまま書いた説明/);
-  assert.match(src, /"m":"看護問題の補足"/);
-});
 
 // 2026-10-07.2：利用者「看護問題の一覧を開くボタンに色づけ。看護理論・ライフサイクル・発達課題・障害受容を図に四角で入れる」
-test('関連図：看護理論・ライフサイクル（発達課題）・役割・障害受容の四角を、心理社会の看護問題の手前に入れる', () => {
-  const by = m => new Map(m.nodes.map(n => [n.id, n]));
-  const outs = (m, n) => m.edges.filter(e => e.source === n.id).map(e => by(m).get(e.target));
-  // 脳梗塞：72歳 → 老年期の発達課題、麻痺 → 障害受容（「涙ぐむ」から悲嘆期）→ 生活の変化 → 不安
-  const cva = caseMap('cerebral_infarction');
-  const dev = find(cva, /^老年期の発達課題：統合 対 絶望（エリクソン）$/);
-  assert.ok(dev && dev.source === 'knowledge' && /ハヴィガースト/.test(dev.evidence));
-  const acc = find(cva, /^障害受容：悲嘆期（コーン）$/);
-  assert.ok(acc && acc.observed !== false && /フィンク/.test(acc.evidence));
-  assert.ok(cva.edges.some(e => e.target === acc.id && by(cva).get(e.source).key === undefined && /麻痺/.test(by(cva).get(e.source).label)), '麻痺から障害受容へ');
-  assert.ok(find(cva, /^入院で仕事などの役割を果たせない（ロイ：役割機能）$/), '本人の言葉「仕事も囲碁もできない」から役割');
-  // 胃がん術後：58歳 → 壮年期の発達課題 → 仕事の役割 → 生活の変化（→ 不安）
-  const gas = caseMap('gastric_postop');
-  const dev2 = find(gas, /^壮年期の発達課題：生殖性 対 停滞（エリクソン）$/), role = find(gas, /役割を果たせない（ロイ：役割機能）$/);
-  assert.ok(dev2 && role && hasEdge(gas, dev2, role));
-  assert.ok(outs(gas, role).some(n => /生活の変化/.test(n.label)));
-  // 心理社会の流れが無い図には入れない（浮島を作らない）
-  const hip = caseMap('hip_fracture');
-  assert.ok(!find(hip, /発達課題|障害受容|役割機能/));
-  ['cerebral_infarction', 'gastric_postop', 'copd_exacerbation_long', 'heart_failure_long'].forEach(name => commonChecks(caseMap(name), name));
-  // 障害受容：本人の言葉が無ければ、段階は決めず予測（破線）。悲嘆期などで心理の看護問題が無ければ「ボディイメージ混乱」
-  const base = '診断名：左中大脳動脈領域の脳梗塞\n70歳 男性\n右片麻痺あり。\n';
-  const m1 = app.buildRelationMapFromRecord(patientOf(base + '「もうだめだ、情けない」と話す。'));
-  assert.ok(find(m1, /^障害受容：悲嘆期（コーン）$/));
-  const body = m1.nodes.find(n => n.type === 'nursing_problem' && n.label === 'ボディイメージ混乱');
-  assert.ok(body && /受け止めきれず/.test(body.note));
-  assert.equal(app.rmLifeStage(8).stage, '学童期');
-  assert.equal(app.rmLifeStage(45).crisis, '生殖性 対 停滞');
-  // AIへの指示にも、理論の見方を四角で入れてよいと書く
-  assert.match(src, /障害受容の段階（コーン：ショック期・回復への期待期・悲嘆期・防衛期・適応期/);
-  // 一覧を開くボタンの色（看護問題と同じピンク・開いているときは濃い色・数は丸い札）
-  assert.equal((html.match(/class="btn btn-outline rm-prob-toggle /g) || []).length, 2);
-  assert.match(css, /\.rm-prob-toggle \{ background: #FBDDE3; border-color: #B03A55;/);
-  assert.match(css, /\.rm-prob-toggle\[aria-expanded="true"\] \{ background: #B03A55;/);
-  assert.match(css, /html\[data-theme="dark"\] \.rm-prob-toggle \{/);
-});
 
 // 2026-10-07.3：ほかの事例（直腸がん・ストーマ造設 46歳、頸髄損傷 19歳）でのテストで分かったことの修正
 test('事例：直腸がん・ストーマ造設（46歳）と頸髄損傷（19歳）：障害受容・ボディイメージ・発達課題・役割、脊髄損傷の病態', () => {

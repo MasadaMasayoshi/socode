@@ -159,26 +159,6 @@ test('根拠のカードを選ぶ画面：この項目のカードは表の番�
   assert.deepEqual(clone(app.evidencePickerCandidates(cp, 3, { query: 'crp' }).map(c => c.item.id)), ['o3']);
 });
 
-test('書き出し・印刷・AIへの指示文に自分のアセスメントが入る', () => {
-  const app = loadApp();
-  const cp = patientWithCards();
-  const e = app.ensureMyAssessment(cp, 3);
-  e.interpretation = '便秘の状態にある';
-  e.outlook = '食欲低下のおそれ';
-  app.linkMyEvidenceIds(cp, 3, ['s1', 'o1']);
-  const text = app.buildMyAssessmentsText(cp);
-  assert.match(text, /^3\. 排泄/m);
-  assert.match(text, /情報の解釈：便秘の状態にある/);
-  assert.doesNotMatch(text, /考えられる原因/, '空の欄は書かない');
-  assert.match(text, /根拠：S-1「「お腹が張る感じがする」」／O-1「術後より排便なし」/);
-  const html = app.buildMyAssessmentsPrintHtml(cp, 2);
-  assert.match(html, /<h2>2\. 自分のアセスメント<\/h2>/);
-  assert.match(html, /未確定/);
-  const prompt = app.buildMyAssessmentAiPrompt(cp, 3);
-  assert.match(prompt, /【学生が根拠に選んだカード】\n〔C1〕\[S\]/);
-  assert.match(prompt, /【この項目のほかのカード（学生は根拠にしていない）】\n〔C3〕\[O\]/);
-  assert.match(prompt, /【この項目の不足情報】\n- 普段の排便の間隔/);
-});
 
 test('複数の端末：別々の欲求のアセスメントを書いても消えない（サーバー・起動時の読み込み・保存の応答）', async () => {
   const app = loadApp();
