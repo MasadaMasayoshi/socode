@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-08.15'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-08.19'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 書式付き書き出し（Word / PDF）
     // ------------------------------------------------------------------------
@@ -199,7 +199,7 @@
           // 充足・未充足の判定は、入院前・入院後それぞれの欄の中（カードの下）に判定根拠つきで載せる
           const pk = col === 'preadmission' ? 'pre' : col === 'postadmission' ? 'post' : '';
           const judge = pk && typeof sufficiencyPhaseText === 'function' ? sufficiencyPhaseText(cp, need.id, pk) : '';
-          const jHtml = judge ? `<div style="margin-top:4px;padding:3px 5px;border:1px solid #888;border-left:3px solid #333;font-size:9px;"><b>${escapeHtml(judge.replace('／判定根拠：', '</b><br>判定根拠：'))}</div>` : '';
+          const jHtml = judge ? `<div style="margin-top:5px;padding-top:3px;border-top:1px dashed #888;font-size:8.6pt;"><b>説明</b>　${escapeHtml(judge.replace('判定：', '【').replace('／判定根拠：', '】'))}</div>` : '';
           if (!list.length) return judge ? `<td class="empty">記録なし${jHtml}</td>` : '<td class="empty">—</td>';
           return `<td>${printAssessmentCellList(col, list, labels)}${jHtml}</td>`;
         }).join('');

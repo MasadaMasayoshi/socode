@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.16'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.19'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -407,9 +407,15 @@
       const v = phaseVerdictOf(cp, needId, phaseKey);
       const a = ruleSufficiencyFor(cp)[needId][phaseKey] || {};
       const labels = myEvidenceLabels(cp, needId);
-      const ev = (a.evidence || []).map(id => labels[id]).filter(Boolean).join('・');
-      const icon = v === 'met' ? 'fa-circle-check' : v === 'unmet' ? 'fa-triangle-exclamation' : v === 'conflict' ? 'fa-scale-unbalanced' : 'fa-circle-question';
-      return `<div class="suf-phase-block suf-b-${v}" data-suf-phase="${phaseKey}"><div class="suf-phase-head"><span class="suf-phase-name">${ph.label}の判定</span><span class="suf-badge suf-${v}"><i class="fa-solid ${icon}"></i> ${SUFFICIENCY_LABELS[v]}</span></div><div class="suf-phase-why"><b>判定根拠</b>${escapeHtml(sufficiencySentence(cp, needId, phaseKey))}${ev ? `<span class="suf-ev">根拠カード：${escapeHtml(ev)}</span>` : ''}</div></div>`;
+      // 判定は「カード」にせず、記録カードを引用して説明する文章として、区画の下に書く（情報カードと見分けがつくよう、枠・背景は付けない）
+      const byId = new Map((cp.items || []).map(i => [i.id, i]));
+      const refs = (a.evidence || []).map(id => {
+        const it = byId.get(id); if (!it || !labels[id]) return '';
+        const t = String(it.text || '').replace(/\s+/g, ' ').trim();
+        const when = it.timestamp && it.timestamp !== '日時不明' ? `（${it.timestamp}）` : '';
+        return `<span class="suf-ref"><b>${escapeHtml(labels[id])}</b>${escapeHtml(when)}「${escapeHtml(t.length > 36 ? t.slice(0, 36) + '…' : t)}」</span>`;
+      }).filter(Boolean).join('');
+      return `<div class="suf-explain suf-b-${v}" data-suf-phase="${phaseKey}"><div class="suf-explain-head">${ph.label}の説明：<span class="suf-word suf-${v}">${SUFFICIENCY_LABELS[v]}</span></div><p class="suf-explain-body">${escapeHtml(sufficiencySentence(cp, needId, phaseKey))}</p>${refs ? `<div class="suf-explain-refs"><span class="suf-explain-label">使ったカード</span>${refs}</div>` : ''}</div>`;
     }
     // 書き出し用：期間ごとの判定と根拠を1つの文にする
     function sufficiencyPhaseText(cp, needId, phaseKey) {

@@ -20,8 +20,8 @@
     "hash": "4eab03ae929ff909"
   },
   "js/06-export.js": {
-    "version": "2026-10-08.15",
-    "hash": "aac86615bb5a8171"
+    "version": "2026-10-08.19",
+    "hash": "25627dbb9ade840d"
   },
   "js/07-classification.js": {
     "version": "2026-10-08.14",
@@ -40,8 +40,8 @@
     "hash": "3839e38b656ac41b"
   },
   "js/11-own-assessment.js": {
-    "version": "2026-10-08.16",
-    "hash": "f45ec57f4f1b126e"
+    "version": "2026-10-08.19",
+    "hash": "e56aa6f7cc3557fb"
   },
   "js/12-missing-checks-and-care-plan.js": {
     "version": "2026-10-08.18",
@@ -60,8 +60,8 @@
     "hash": "ea5efc569222f6ba"
   },
   "style.css": {
-    "version": "2026-10-08.15",
-    "hash": "6c95a8a293f5e501"
+    "version": "2026-10-08.19",
+    "hash": "b6169950b8cc4e1e"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",
