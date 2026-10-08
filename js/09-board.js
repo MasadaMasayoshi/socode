@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-08.13'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-08.15'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カード → 元の文章（カルテ・看護記録入力欄）の該当箇所を探す
     // ------------------------------------------------------------------------
@@ -1093,6 +1093,8 @@
           return;
         }
         const needLabel = need.name.replace(/^\d+\.\s*/, '');
+        // 充足・未充足の判定は、見出しにまとめず、入院前・入院後それぞれの区画の中（カードの下）に出す
+        const phaseJudge = key => ownAsm && typeof sufficiencyPhaseHtml === 'function' ? sufficiencyPhaseHtml(cp, need.id, key) : '';
         const tr = document.createElement('tr');
         tr.className = "border-b border-[var(--line)] hover:bg-[var(--paper)]/60";
         tr.innerHTML = `
@@ -1104,11 +1106,11 @@
                 <span class="text-[12.5px] leading-snug font-semibold text-[var(--ink)] break-words font-sans">${needLabel}</span>
               </div>
             </div>
-            ${ownAsm ? `<div class="suf-row">${sufficiencyControlHtml(cp, need.id)}${typeof sufficiencyReasonHtml === 'function' ? sufficiencyReasonHtml(cp, need.id) : ''}</div>` : ''}
+            ${ownAsm && typeof sufficiencyReasonHtml === 'function' ? `<div class="suf-row">${sufficiencyReasonHtml(cp, need.id)}</div>` : ''}
           </td>
           <td class="border border-[var(--line)] p-1.5 align-top min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'unclassified')"><div class="space-y-1.5">${categorize('unclassified')}</div></td>
-          <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--slate-soft)]/30 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'preadmission')"><div class="space-y-1.5">${categorize('preadmission')}</div></td>
-          <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--accent-soft)]/40 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'postadmission')"><div class="space-y-1.5">${categorize('postadmission')}</div></td>
+          <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--slate-soft)]/30 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'preadmission')"><div class="space-y-1.5">${categorize('preadmission')}</div>${phaseJudge('pre')}</td>
+          <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--accent-soft)]/40 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'postadmission')"><div class="space-y-1.5">${categorize('postadmission')}</div>${phaseJudge('post')}</td>
           <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--brick-soft)]/40 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'missing')">
             <div class="space-y-1.5">${categorize('missing')}</div>
             <button onclick="openMissingModal(${need.id})" class="mt-1.5 text-[10px] text-[var(--brick)] hover:text-[var(--ink)] font-medium flex items-center w-full justify-center p-1 border border-dashed border-[var(--brick-line)] rounded-[var(--radius-sm)]"><i class="fa-solid fa-plus mr-1"></i> 追加</button>
@@ -1155,16 +1157,17 @@
       const unchecked = typeof missingCheckStatus === 'function' ? missItems.filter(i => missingCheckStatus(cp, i.id) === 'unchecked').length : nMiss;
       const drop = col => `ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, '${col}')"`;
       const name = need.name.replace(/^\d+\.\s*/, '');
+      const phaseJ = key => typeof sufficiencyPhaseHtml === 'function' ? sufficiencyPhaseHtml(cp, need.id, key) : '';
       // 利用者からの要望：「自分のアセスメントは表示か非表示だけでいい」。「表示」のときだけ開いた形で出し、「非表示」のときは出さない（js/11）
       const own = typeof renderMyAssessmentRowHtml === 'function' && myAssessmentAlwaysShown() ? `<div class="asm-own">${renderMyAssessmentRowHtml(cp, need, false)}</div>` : '';
-      return `<div class="asm-single-head"><span class="need-number asm-single-no">${need.id}</span><i class="fa-solid ${need.icon} text-[var(--accent)]"></i><b>${escapeHtml(name)}</b><span class="my-asm-muted">カード ${matching.length}枚</span>${typeof sufficiencyControlHtml === 'function' ? sufficiencyControlHtml(cp, need.id) : ''}</div>${typeof sufficiencyReasonHtml === 'function' ? sufficiencyReasonHtml(cp, need.id) : ''}
+      return `<div class="asm-single-head"><span class="need-number asm-single-no">${need.id}</span><i class="fa-solid ${need.icon} text-[var(--accent)]"></i><b>${escapeHtml(name)}</b><span class="my-asm-muted">カード ${matching.length}枚</span></div>${typeof sufficiencyReasonHtml === 'function' ? sufficiencyReasonHtml(cp, need.id) : ''}
         <section class="asm-aux asm-aux-unc${nUnc ? '' : ' is-empty'}" ${drop('unclassified')}>
           <div class="asm-aux-title"><span class="col-dot" style="background:var(--ink-muted)"></span>未分類 <b>${nUnc}</b><span class="my-asm-muted">${nUnc ? '入院前・入院後に振り分けてください（ドラッグ、またはカードの「前」「後」）' : '未分類のカードはありません'}</span></div>
           ${nUnc ? `<div class="asm-aux-body">${categorize('unclassified')}</div>` : ''}
         </section>
         <div class="asm-center">
-          <section class="asm-col asm-col-pre" ${drop('preadmission')}><div class="asm-col-title">入院前 <b>${nPre}</b></div><div class="space-y-1.5">${categorize('preadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div></section>
-          <section class="asm-col asm-col-post" ${drop('postadmission')}><div class="asm-col-title">入院後 <b>${nPost}</b></div><div class="space-y-1.5">${categorize('postadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div></section>
+          <section class="asm-col asm-col-pre" ${drop('preadmission')}><div class="asm-col-title">入院前 <b>${nPre}</b></div><div class="space-y-1.5">${categorize('preadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div>${phaseJ('pre')}</section>
+          <section class="asm-col asm-col-post" ${drop('postadmission')}><div class="asm-col-title">入院後 <b>${nPost}</b></div><div class="space-y-1.5">${categorize('postadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div>${phaseJ('post')}</section>
         </div>
         <section class="asm-aux asm-aux-miss" ${drop('missing')}>
           <div class="asm-aux-title"><i class="fa-solid fa-clipboard-question" style="color:var(--brick)"></i>不足情報 <b>${nMiss}</b>${nMiss ? `<span class="my-asm-muted">未確認 ${unchecked}</span>` : '<span class="my-asm-muted">まだありません</span>'}

@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.13'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.15'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -334,7 +334,7 @@
     // 充足・未充足：14項目ごとに「充足／未充足／未判定」を選ぶ（総合アセスメント表の各項目の見出しに出す。
     // 「自分のアセスメント」を非表示にしていても選べる）。結論を最初に明言する（参考データの「充足・未充足の判断」）ための印。
     // ==========================================================================
-    const SUFFICIENCY_LABELS = { met: '充足', unmet: '未充足', unknown: '情報不足' };
+    const SUFFICIENCY_LABELS = { met: '充足', unmet: '未充足', conflict: '判定保留', unknown: '情報不足' };
     // 入院前・入院後・全体（総合）の3つについて、それぞれ充足／未充足を持つ。
     //   pre ：入院前（発症・入院の前の状態）／post：入院後（入院・手術・治療のあとの状態）／all：全体
     const SUFFICIENCY_PHASES = [
@@ -390,11 +390,35 @@
         }
         return risk ? `${a.reason}より、${risk}のリスクが考えられるため、未充足。` : `${a.reason}より、環境面の問題があるため、未充足。`;
       }
+      if (a.verdict === 'conflict') return `${a.reason}が並んでおり、どちらとも決められないため、判定保留。`;
       return a.need ? `${a.need}ため、情報不足。` : '記録が少なく判断できないため、情報不足。';
+    }
+    // 期間ごとの判定の表示用：met / unmet / conflict / unknown
+    function phaseVerdictOf(cp, needId, phaseKey) {
+      const r = ruleSufficiencyFor(cp)[needId];
+      const v = r && r[phaseKey] && r[phaseKey].verdict;
+      return v === 'met' || v === 'unmet' || v === 'conflict' ? v : 'unknown';
+    }
+    // 入院前・入院後それぞれの区画の中に出す判定（バッジ＋判定根拠＋根拠カードの番号）。カードが1枚も無い患者には出さない
+    function sufficiencyPhaseHtml(cp, needId, phaseKey) {
+      if (!sufficiencyHasVerdict(cp, needId)) return '';
+      const ph = SUFFICIENCY_UI_PHASES.find(p => p.key === phaseKey);
+      if (!ph) return '';
+      const v = phaseVerdictOf(cp, needId, phaseKey);
+      const a = ruleSufficiencyFor(cp)[needId][phaseKey] || {};
+      const labels = myEvidenceLabels(cp, needId);
+      const ev = (a.evidence || []).map(id => labels[id]).filter(Boolean).join('・');
+      const icon = v === 'met' ? 'fa-circle-check' : v === 'unmet' ? 'fa-triangle-exclamation' : v === 'conflict' ? 'fa-scale-unbalanced' : 'fa-circle-question';
+      return `<div class="suf-phase-block suf-b-${v}" data-suf-phase="${phaseKey}"><div class="suf-phase-head"><span class="suf-phase-name">${ph.label}の判定</span><span class="suf-badge suf-${v}"><i class="fa-solid ${icon}"></i> ${SUFFICIENCY_LABELS[v]}</span></div><div class="suf-phase-why"><b>判定根拠</b>${escapeHtml(sufficiencySentence(cp, needId, phaseKey))}${ev ? `<span class="suf-ev">根拠カード：${escapeHtml(ev)}</span>` : ''}</div></div>`;
+    }
+    // 書き出し用：期間ごとの判定と根拠を1つの文にする
+    function sufficiencyPhaseText(cp, needId, phaseKey) {
+      if (!sufficiencyHasVerdict(cp, needId)) return '';
+      return `判定：${SUFFICIENCY_LABELS[phaseVerdictOf(cp, needId, phaseKey)]}／判定根拠：${sufficiencySentence(cp, needId, phaseKey)}`;
     }
     function sufficiencyTextOf(cp, needId) {
       if (!sufficiencyHasVerdict(cp, needId)) return '';
-      return SUFFICIENCY_UI_PHASES.map(ph => `${ph.label}：${SUFFICIENCY_LABELS[getSufficiency(cp, needId, ph.key) || 'unknown']}`).join('／');
+      return SUFFICIENCY_UI_PHASES.map(ph => `${ph.label}：${SUFFICIENCY_LABELS[phaseVerdictOf(cp, needId, ph.key)]}`).join('／');
     }
     function sufficiencyControlHtml(cp, needId) {
       const rows = SUFFICIENCY_UI_PHASES.map(ph => {
@@ -1050,15 +1074,7 @@ ${missLines || '（なし）'}
       const e = getMyAssessment(cp, needId);
       const r = ruleSufficiencyFor(cp)[needId];
       if (!r) return '';
-      const labels = myEvidenceLabels(cp, needId);
-      const lines = SUFFICIENCY_UI_PHASES.map(ph => {
-        const a = r[ph.key];
-        if (!a || !a.verdict) return '';
-        const ev = (a.evidence || []).map(id => labels[id]).filter(Boolean).join('・');
-        const body = sufficiencySentence(cp, needId, ph.key);
-        if (!body && !ev) return '';
-        return `<div><b>${ph.label}</b> ${escapeHtml(body || '')}${ev ? `<span class="suf-ev">根拠：${escapeHtml(ev)}</span>` : ''}</div>`;
-      }).join('');
+      const lines = '';
       const rv = e && e.aiReview && e.aiReview.all;
       const rvHtml = rv ? `<span class="suf-ev"><b>AIの評価：${rv.agree === true ? '賛成' : rv.agree === false ? `反対（AIは${SUFFICIENCY_LABELS[rv.verdict] || '情報不足'}と判断）` : SUFFICIENCY_LABELS[rv.verdict] || '情報不足'}</b> ${escapeHtml(rv.reason || rv.need || '')}</span>` : '';
       if (!lines && !rvHtml) return '';
@@ -1223,7 +1239,9 @@ ${missLines || '（なし）'}
             return { i, r };
           });
           const um = rs.filter(x => x.r.v === 'unmet'), mt = rs.filter(x => x.r.v === 'met');
-          const short = x => `「${x.r.clause.slice(0, 30)}」`;
+          const short = x => { const c = x.r.clause.slice(0, 30); return /^「.*」$/.test(c) ? c : `「${c}」`; };
+          // 充足を示す記録と未充足を示す記録が同じ数だけあり、重い問題も無いときは、どちらとも決めずに「判定保留」にする
+          if (um.length && mt.length && um.length === mt.length && !um.some(x => x.r.severe)) return { verdict: 'conflict', reason: `充足を示す${mt.slice(0, 2).map(short).join('')}と、未充足を示す${um.slice(0, 2).map(short).join('')}`, evidence: [...mt.slice(0, 3), ...um.slice(0, 3)].map(x => x.i.id), need: '' };
           if (um.length && (um.some(x => x.r.severe) || um.length * 2 >= mt.length)) return { verdict: 'unmet', reason: `${um.slice(0, 3).map(short).join('')}`, evidence: um.slice(0, 5).map(x => x.i.id), need: '' };
           if (mt.length) return { verdict: 'met', reason: `${mt.slice(0, 3).map(short).join('')}`, evidence: mt.slice(0, 5).map(x => x.i.id), need: '' };
           if (need.id === 11 && cards.length) return { verdict: 'met', reason: '信仰による問題の記載なし', evidence: cards.slice(0, 3).map(i => i.id), need: '' };
@@ -1274,7 +1292,7 @@ if (typeof module !== 'undefined' && module.exports) {
     MY_ASSESSMENT_FIELDS,
     ensureMyAssessment, getMyAssessment, ruleSufficiencyFor, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
     myAssessmentStatus, myAssessmentNeedsReview, confirmMyAssessmentEntry, restoreMyAssessmentFromHistory,
-    buildSufficiencyPrompt, hasRuleSufficiency, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
+    buildSufficiencyPrompt, hasRuleSufficiency, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
     renderMyAssessmentRowHtml, evidencePickerCandidates, buildMyAssessmentAiPrompt, myAssessmentAlwaysShown
   });
   if (module.exports.__testHooks) Object.assign(module.exports.__testHooks, { flushMyAssessmentSaves, saveMyAssessmentsSoon });

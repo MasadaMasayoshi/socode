@@ -13,11 +13,11 @@ test('充足・未充足はサイトが決める：選ぶ欄は無く、記録�
   assert.equal(app.getSufficiency(cp, 3), 'unmet');
   assert.equal(app.getSufficiency(cp, 1), 'met');
   assert.equal(app.getSufficiency(cp, 6), '');
-  const ctl = app.sufficiencyControlHtml(cp, 3);
-  assert.doesNotMatch(ctl, /<button|ルール判定/);
-  assert.match(ctl, /入院前.*情報不足.*入院後.*未充足/);
-  assert.match(app.sufficiencyReasonHtml(cp, 3), /根拠：/);
-  assert.doesNotMatch(app.sufficiencyReasonHtml(cp, 3), /ルール判定|サイト内|AIなし/);
+  const pre = app.sufficiencyPhaseHtml(cp, 3, 'pre'), post = app.sufficiencyPhaseHtml(cp, 3, 'post');
+  assert.doesNotMatch(pre + post, /<button|ルール判定|サイト内|AIなし/);
+  assert.match(pre, /入院前の判定.*情報不足.*判定根拠/);
+  assert.match(post, /入院後の判定.*未充足.*判定根拠.*根拠カード：/);
+  assert.equal(app.sufficiencyReasonHtml(cp, 3), '', '見出しには判定をまとめて出さない');
   app.ensureMyAssessment(cp, 3).interpretation = '排便がない';
   assert.match(app.buildMyAssessmentsText(cp), /3\. 排泄\n・入院前：情報不足.*\n・入院後：未充足.*リスクが考えられるため、未充足。/);
   assert.match(app.sufficiencySummaryHtml(cp), /未充足 1/);
