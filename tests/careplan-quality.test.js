@@ -243,3 +243,17 @@ test('関連図：「診断名」の欄が無くても、本人のがんの病�
   assert.equal(dis.length, 1);
   assert.match(dis[0].label, /胃がん/);
 });
+
+test('関連図：病名が「胃底部に25mm大のがんを指摘され」と書かれ、診断欄が術式だけの記録でも、疾患の四角（胃がん）が出る', () => {
+  const fs2 = require('fs'), path2 = require('path');
+  const { loadApp } = require('./app-helpers');
+  const app2 = loadApp();
+  const text = fs2.readFileSync(path2.join(__dirname, 'golden/cases/胃がん_A氏58歳.txt'), 'utf8');
+  const items = app2.classifyTextByRules(text).map((i, k) => ({ ...i, id: `it${k}` }));
+  const cp = { id: 'p1', title: 'A氏', sourceText: text, items, carePlans: {}, selectedDiagnosisIds: [], diagnosisCandidates: [] };
+  const map = app2.buildRelationMapFromRecord(cp);
+  const dis = map.nodes.filter(n => n.type === 'disease');
+  assert.equal(dis.length, 1);
+  assert.match(dis[0].label, /^胃がん/);
+  assert.ok(map.edges.some(e => e.target === dis[0].id || e.source === dis[0].id));
+});

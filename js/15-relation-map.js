@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-08.29'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-08.30'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -1301,6 +1301,24 @@
             }
           }
           if (hit) break;
+        }
+        // 「胃底部に25mm大のがんを指摘され」のように、病名が「臓器＋に…がん」の形で書かれている記録
+        if (!hit) {
+          const ORG = '(?:胃|大腸|結腸|直腸|肝|膵|肺|乳腺|食道|前立腺|子宮|卵巣|胆嚢|胆管|腎|膀胱|甲状腺|咽頭|喉頭)';
+          const reSite = new RegExp('(' + ORG + '[^。\\n、]{0,8})に[^。\\n、]{0,14}?(?:がん|癌)');
+          for (const i of items) {
+            if (hit || /既往|家族/.test(i.fieldLabel || '') || !notSurgeryLine(i)) continue;
+            for (const st of String(i.text).normalize('NFKC').split(/(?<=[。\n])/)) {
+              if (famRe.test(st)) continue;
+              const m = st.match(reSite);
+              if (!m) continue;
+              const organ = (m[1].match(new RegExp('^' + ORG)) || [''])[0];
+              const size = (st.match(/(\d+(?:\.\d+)?)\s*(mm|cm)/) || []);
+              const detail = [m[1] !== organ ? m[1] : '', size[0] ? size[1] + size[2] : ''].filter(Boolean).join(' ');
+              hit = { item: i, label: organ + 'がん' + (detail ? '（' + detail + '）' : '') };
+              break;
+            }
+          }
         }
         if (hit) { dxHost = hit.item; dxLabel0 = hit.label.replace(/(?:のため|のために|のことで|により|となり|で|に対して?|と診断.*)$/, '').trim(); }
       }
