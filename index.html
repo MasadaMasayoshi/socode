@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-08.25">
-  <meta name="app-file-versions" content="01:2026-10-08.12,02:2026-10-08.8,03:2026-10-08.14,04:2026-10-07.36,05:2026-10-08.18,06:2026-10-08.21,07:2026-10-08.14,08:2026-10-08.25,09:2026-10-08.21,10:2026-10-08.14,11:2026-10-08.23,12:2026-10-08.25,13:2026-10-08.18,14:2026-10-06.14,15:2026-10-07.40">
+  <meta name="app-version" content="2026-10-08.26">
+  <meta name="app-file-versions" content="01:2026-10-08.12,02:2026-10-08.8,03:2026-10-08.14,04:2026-10-07.36,05:2026-10-08.18,06:2026-10-08.21,07:2026-10-08.14,08:2026-10-08.25,09:2026-10-08.21,10:2026-10-08.14,11:2026-10-08.23,12:2026-10-08.26,13:2026-10-08.18,14:2026-10-06.14,15:2026-10-08.26">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
@@ -420,9 +420,8 @@
         <h2 class="font-display font-semibold text-[var(--ink)] text-[15px] flex items-center"><i class="fa-solid fa-notes-medical text-[var(--accent)] mr-2"></i>看護計画・実施・評価</h2>
         <div class="cp-top-actions flex flex-wrap items-center gap-2">
           <span id="careplan-import-info" class="text-[11px] text-[var(--ink-muted)]"></span>
-          <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="buildCarePlansByRulesUI()" title="記録から看護問題を見つけ、目標・OP/TP/EPの手本つきで看護計画を作ります（AIなし・すぐ出ます）"><i class="fa-solid fa-list-check"></i> 記録から計画を作る（AIなし）</button>
+          <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="buildCarePlansByRulesUI()" title="記録から看護問題を見つけ、目標・OP/TP/EPの手本つきで看護計画を作ります"><i class="fa-solid fa-list-check"></i> 記録から計画を作る</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="importCarePlansFromMapUI()" title="関連図の看護問題を、根拠データ（関連図でその問題へたどれる記録の事実）つきで取り込みます"><i class="fa-solid fa-diagram-project"></i> 関連図から取り込む</button>
-          <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="importCarePlansUI()" title="総合アセスメント表の「AI分析ツール」で作った看護計画・選んだ看護診断候補を取り込みます"><i class="fa-solid fa-file-import"></i> AIの結果から取り込む</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="openCarePlanSetReview()" title="全ての計画を横断して、重複・補完・不足を確かめます（AIなし。AIで評価するボタンもあります）"><i class="fa-solid fa-layer-group"></i> 全計画をまとめて評価</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="printCarePlans()" title="看護計画と実施・評価の記録を、A4縦の印刷用の形で印刷・PDF保存します"><i class="fa-solid fa-file-pdf"></i> 印刷 / PDF</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="exportCarePlansText()" title="看護計画と実施・評価の記録をテキストファイルで保存します"><i class="fa-solid fa-file-lines"></i> テキスト</button>
@@ -446,7 +445,6 @@
         <div class="rm-group" aria-label="作る">
           <button type="button" class="btn btn-primary text-[11px] py-1.5" data-rm-action="build-rules" title="分類したカード・検査値の推移・看護計画（または選んだ看護診断）から、AIを使わずに関連図のたたき台を作ります"><i class="fa-solid fa-diagram-project"></i> 記録から作る</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5 rm-bridge-btn" data-rm-action="toggle-added" data-rm-needs-map aria-pressed="false" title="矢印の間に補った過程（紫の「＋補足」）のあり・なしを切り替えます。補足が無いときは、医学知識で補います"><i class="fa-solid fa-eye-slash"></i> ＋補足：なし</button>
-          <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="build-ai" title="記録の内容だけを使って、病態のつながりを含む関連図の案をAIに作ってもらいます（APIキーが必要）"><i class="fa-solid fa-wand-magic-sparkles"></i> AIで作る</button>
         </div>
         <div class="rm-group rm-group-sep" aria-label="編集">
           <label class="sr-only" for="rm-add-kind">追加する四角の種類</label>
@@ -512,7 +510,6 @@
       <!-- 右クリックのメニュー（四角・矢印の編集、何もない所に追加）：js/15 rmShowCtx -->
       <div id="rm-ctx" class="rm-ctx hidden" role="menu" aria-label="関連図の右クリックメニュー"></div>
       <div id="rm-legend" class="rm-legend" aria-label="四角の種類"></div>
-      <p class="text-[10.5px] text-[var(--ink-muted)] leading-relaxed"><i class="fa-solid fa-circle-info"></i> 自動で作った図はたたき台です。病態のつながり（矢印の向き・抜けている機序）は教科書や指導者と確かめて直してください。点線は「起こるおそれがある（潜在的な）」つながりです。</p>
     </div>
 
     <div id="view-reference" class="hidden surface p-4 flex flex-col gap-4">
@@ -1369,9 +1366,9 @@
   <script src="js/09-board.js?v=2026-10-08.21"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-08.14"></script>
   <script src="js/11-own-assessment.js?v=2026-10-08.23"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-08.25"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-08.26"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-08.18"></script>
   <script src="js/14-drug-reference.js?v=2026-10-06.14"></script>
-  <script src="js/15-relation-map.js?v=2026-10-07.40"></script>
+  <script src="js/15-relation-map.js?v=2026-10-08.26"></script>
 </body>
 </html>

@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-07.40'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-08.26'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -1020,13 +1020,10 @@
         `<span class="rm-legend-item">${sw('lab')}（ ）検査データ</span>`,
         `<span class="rm-legend-item">${sw('disease')}疾患</span>`,
         `<span class="rm-legend-item">${sw('nursing_problem')}看護問題（#＝優先順位）</span>`,
-        `<span class="rm-legend-item"><span class="rm-legend-swatch" style="background:${RM_ADDED.fill};border-color:${RM_ADDED.stroke};border-width:2px"></span><b style="color:${RM_ADDED.stroke}">＋補足</b>：矢印の間に補った過程</span>`,
         `<span class="rm-legend-item">${line('#3F3B35')}原因 → 結果</span>`,
         // 治療の線の先は「┤」（抑える・和らげる）。矢印（→）だと「鎮痛薬 → 創部痛」が「鎮痛薬で痛くなる」に見えるため（2026-10-06.21）
         `<span class="rm-legend-item"><svg width="34" height="10" aria-hidden="true"><line x1="0" y1="5" x2="31" y2="5" stroke="#2563EB" stroke-width="1.6"/><line x1="32" y1="0" x2="32" y2="10" stroke="#2563EB" stroke-width="2.4"/></svg>治療 ┤ 治療の対象（抑える・和らげる）</span>`,
-        `<span class="rm-legend-item">${line('#3F3B35', true)}予測・可能性（破線）</span>`,
-        '<span class="rm-legend-item"><svg width="34" height="12" aria-hidden="true"><path d="M0,8 L12,8 A5,5 0 0 1 22,8 L34,8" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="17" y1="0" x2="17" y2="12" stroke="currentColor" stroke-width="1.5"/></svg>線の飛び越え（つながっていない）</span>',
-        '<span class="rm-legend-item"><b>※知識</b>＝医学知識で補った過程</span>'
+        `<span class="rm-legend-item">${line('#3F3B35', true)}予測・可能性（破線）</span>`
       ].join('');
     }
 

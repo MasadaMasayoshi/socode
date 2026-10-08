@@ -59,7 +59,7 @@ test('関連図：別のページ（タブ）として切り替えられ、js/15
   // 操作はインラインの onclick ではなく data-rm-action（IDを属性のJavaScriptに入れない）
   const view = html.slice(html.indexOf('<div id="view-relation"'), html.indexOf('<div id="view-reference"'));
   assert.doesNotMatch(view, /onclick=/);
-  ['build-rules', 'build-ai', 'add', 'relayout', 'undo', 'zoom-fit', 'print', 'png', 'clear'].forEach(a => assert.match(view, new RegExp(`data-rm-action="${a}"`), a));
+  ['build-rules', 'add', 'relayout', 'undo', 'zoom-fit', 'print', 'png', 'clear'].forEach(a => assert.match(view, new RegExp(`data-rm-action="${a}"`), a));
 });
 
 
@@ -597,7 +597,7 @@ test('関連図：全画面ボタンがあり、Esc・ほかのページへの�
   const view = html.slice(html.indexOf('<div id="view-relation"'), html.indexOf('<div id="view-reference"'));
   assert.match(view, /data-rm-action="fullscreen"/);
   assert.doesNotMatch(view, /事実を並べた図ではなく/);
-  assert.match(view, /自動で作った図はたたき台です/, '消すのは上の説明だけ（下の注意書きは残す）');
+  assert.doesNotMatch(view, /自動で作った図はたたき台です/, '下の注意書きも消した（v.26）');
   assert.match(src, /const leftHeld = \(\(e\.buttons & 1\) === 1 \|\| mouseLeftDown\) && !rmState\.drag;/, 'パソコンは左クリック＋ホイールで拡大・縮小');
   const order = [...view.matchAll(/data-rm-action="([\w-]+)"/g)].map(m => m[1]);
   assert.equal(order.indexOf('toggle-added'), order.indexOf('build-rules') + 1, order.join(','));

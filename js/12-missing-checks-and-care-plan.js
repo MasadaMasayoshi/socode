@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-08.25'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-08.26'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -398,8 +398,6 @@
     function carePlanBasisHtml(p, cp) {
       const pid = safeDomId(p.id);
       const parts = [];
-      const fromLabel = { rules: 'このサイトのルール（AIなし）：記録→関連図の看護問題＋目標・OP/TP/EPの手本', map: '関連図の看護問題', ai: 'AIの案', import: '取り込んだ計画' }[p.source] || '自分で書いた';
-      parts.push(`<p class="cp-from"><span class="my-asm-label"><i class="fa-solid fa-location-dot"></i> 情報の出どころ</span> ${escapeHtml(fromLabel)}</p>`);
       if (p.note) parts.push(`<p class="cp-note">${escapeHtml(p.note)}</p>`);
       if (p.evidence && p.evidence.length) parts.push(`<div class="cp-ev"><span class="my-asm-label"><i class="fa-solid fa-diagram-project"></i> 根拠データ（関連図から）</span><div class="cpr-ev">${p.evidence.map(e => `<span>${escapeHtml(e)}</span>`).join('')}</div></div>`);
       const reasons = Array.isArray(p.reasons) ? p.reasons : [];
