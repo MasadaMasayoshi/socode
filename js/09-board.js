@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-08.33'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-08.35'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カード → 元の文章（カルテ・看護記録入力欄）の該当箇所を探す
     // ------------------------------------------------------------------------
@@ -1108,6 +1108,7 @@
                 <span class="text-[12.5px] leading-snug font-semibold text-[var(--ink)] break-words font-sans">${needLabel}</span>
               </div>
             </div>
+            ${ownAsm && typeof sufficiencyMiniHtml === 'function' ? sufficiencyMiniHtml(cp, need.id) : ''}
           </td>
           <td class="border border-[var(--line)] p-1.5 align-top min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'unclassified')"><div class="space-y-1.5">${categorize('unclassified')}</div></td>
           <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--slate-soft)]/30 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'preadmission')"><div class="space-y-1.5">${categorize('preadmission')}</div>${phaseJudge('pre')}</td>
@@ -1133,7 +1134,7 @@
       });
       document.getElementById('assessment-tbody').replaceChildren(frag);
       const sufSum = document.getElementById('suf-summary');
-      if (sufSum && typeof sufficiencySummaryHtml === 'function') sufSum.innerHTML = sufficiencySummaryHtml(cp);
+      if (sufSum && typeof sufficiencyMiniHtml === 'function') sufSum.innerHTML = sufficiencySummaryHtml(cp);
       // 「ルールの判定をAIで評価」は、ルールの判定が出たあとだけ見せる（評価する結果が無いうちは出さない）
       const aiSufBtn = document.getElementById('btn-sufficiency-ai');
       if (aiSufBtn && typeof hasRuleSufficiency === 'function') aiSufBtn.classList.toggle('hidden', !hasRuleSufficiency(cp));

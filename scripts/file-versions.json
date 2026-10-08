@@ -32,16 +32,16 @@
     "hash": "67a3b052a3c542ff"
   },
   "js/09-board.js": {
-    "version": "2026-10-08.33",
-    "hash": "5fd08fa7ab5ffda0"
+    "version": "2026-10-08.35",
+    "hash": "8363ccd862a6b16f"
   },
   "js/10-reference-page-and-startup.js": {
     "version": "2026-10-08.28",
     "hash": "0ffe5ad55d795156"
   },
   "js/11-own-assessment.js": {
-    "version": "2026-10-08.33",
-    "hash": "a88641c691bf1e9a"
+    "version": "2026-10-08.35",
+    "hash": "c06ec335aeeb2961"
   },
   "js/12-missing-checks-and-care-plan.js": {
     "version": "2026-10-08.33",
@@ -56,12 +56,12 @@
     "hash": "b90c3185deaf3a8c"
   },
   "js/15-relation-map.js": {
-    "version": "2026-10-08.33",
-    "hash": "c89063be3a40d699"
+    "version": "2026-10-08.35",
+    "hash": "f98d5a929db6571b"
   },
   "style.css": {
-    "version": "2026-10-08.34",
-    "hash": "2b070a3a035e62b9"
+    "version": "2026-10-08.35",
+    "hash": "97000f52e6bc9566"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",

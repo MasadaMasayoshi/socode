@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-08.33'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-08.35'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -950,18 +950,22 @@
     }
     function rmEdgesSvg(map, { interactive }) {
       const { routes } = rmRouteEdges(map);
+      const nodeById = new Map(map.nodes.map(n => [n.id, n]));
+      // 医学知識で補った四角・補足の四角につながる矢印は、記録から読み取れた流れと区別するため、うすい点線にする
+      const isKnow = id => { const n = nodeById.get(id); return !!n && (n.added || (n.source === 'knowledge' && n.type !== 'nursing_problem')); };
       // 飛び越え（∩）の下の線は消さない（2026-10-06.20 で地の色の丸で隠したが、交差している線まで消えて見えたのでやめた。
       // 代わりに、重なった横の線がそろって飛び越えるようにした：rmRouteEdges）
       return routes.map(r => {
         const e = r.edge;
         const d = rmRoutePath(r);
         const treat = e.relation === 'treats';
+        const know = !treat && !e.predicted && (isKnow(e.source) || isKnow(e.target));
         const sel = interactive && rmState.selected && rmState.selected.type === 'edge' && rmState.selected.id === e.id;
         // 治療の線は、始まり（治療）の近くに「治療」と書いて、T字の先が治療の対象だと分かるようにする
         const tl = treat && r.pts && r.pts.length > 1 ? `<text class="rm-treat-label" x="${Math.round((r.pts[0][0] + r.pts[1][0]) / 2) + 6}" y="${Math.round((r.pts[0][1] + r.pts[1][1]) / 2) + 3}" font-size="10" fill="#2563EB" font-weight="700">治療</text>` : '';
         return `<g class="rm-link${treat ? ' is-treat' : ''}${sel ? ' is-selected' : ''}" data-link-id="${escapeHtml(e.id)}">
           ${interactive ? `<path class="rm-link-hit" d="${d}" fill="none" stroke="transparent" stroke-width="20"/>` : ''}
-          <path class="rm-link-line" d="${d}" fill="none" stroke="${treat ? '#2563EB' : e.predicted ? RM_PRED_LINE : '#57534E'}" stroke-width="1.4"${e.predicted ? ' stroke-dasharray="6 4"' : ''} marker-end="url(#rm-${treat ? 'tee-blue' : e.predicted ? 'arrow-pred' : 'arrow'})"/>${tl}
+          <path class="rm-link-line" d="${d}" fill="none" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#57534E'}" stroke-width="${know ? 1.1 : 1.4}"${e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} marker-end="url(#rm-${treat ? 'tee-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"/>${tl}
         </g>`;
       }).join('');
     }

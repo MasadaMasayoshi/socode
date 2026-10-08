@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.33'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.35'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -462,7 +462,18 @@
       const labels = myEvidenceLabels(cp, needId);
       const ev = (a.evidence || []).map(id => labels[id]).filter(Boolean).join('・');
       const icon = v === 'met' ? 'fa-circle-check' : v === 'unmet' ? 'fa-triangle-exclamation' : v === 'conflict' ? 'fa-scale-unbalanced' : 'fa-circle-question';
-      return `<div class="suf-phase-block suf-b-${v}" data-suf-phase="${phaseKey}"><div class="suf-phase-head"><span class="suf-phase-name">${ph.label}の判定</span><span class="suf-badge suf-${v}"><i class="fa-solid ${icon}"></i> ${SUFFICIENCY_LABELS[v]}</span></div><div class="suf-phase-why"><b>判定根拠</b>${escapeHtml(sufficiencySentence(cp, needId, phaseKey))}${ev ? `<span class="suf-ev">根拠カード：${escapeHtml(ev)}</span>` : ''}</div></div>`;
+      // 見出し行（期間名＋大きな判定バッジ）は常に見せ、判定根拠は押して開く（未充足・判定保留は最初から開く）
+      const open = v === 'unmet' || v === 'conflict' ? ' open' : '';
+      return `<details class="suf-phase-block suf-b-${v}" data-suf-phase="${phaseKey}"${open}><summary class="suf-phase-head"><span class="suf-phase-name">${ph.label}</span><span class="suf-badge suf-${v}"><i class="fa-solid ${icon}"></i> ${SUFFICIENCY_LABELS[v]}</span><span class="suf-more">根拠</span></summary><div class="suf-phase-why">${escapeHtml(sufficiencySentence(cp, needId, phaseKey))}${ev ? `<span class="suf-ev">根拠カード：${escapeHtml(ev)}</span>` : ''}</div></details>`;
+    }
+    // 項目名の下に出す一覧（期間ごとの判定だけを小さく並べる。表を見渡すとき用）
+    function sufficiencyMiniHtml(cp, needId) {
+      if (!sufficiencyHasVerdict(cp, needId)) return '';
+      const rows = sufficiencyUiPhases(cp).map(ph => {
+        const v = phaseVerdictOf(cp, needId, ph.key);
+        return `<span class="suf-mini suf-mini-${v}"><span class="suf-mini-ph">${ph.label}</span><span class="suf-mini-v">${SUFFICIENCY_LABELS[v]}</span></span>`;
+      }).join('');
+      return `<div class="suf-mini-wrap" aria-label="充足状況の一覧">${rows}</div>`;
     }
     // 書き出し用：期間ごとの判定と根拠を1つの文にする
     function sufficiencyPhaseText(cp, needId, phaseKey) {
@@ -1277,7 +1288,7 @@ if (typeof module !== 'undefined' && module.exports) {
     MY_ASSESSMENT_FIELDS,
     ensureMyAssessment, getMyAssessment, ruleSufficiencyFor, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
     myAssessmentStatus, myAssessmentNeedsReview, confirmMyAssessmentEntry, restoreMyAssessmentFromHistory,
-    hasRuleSufficiency, sufficiencyDimensions, sufficiencyDimensionLines, phaseVerdictOf, sufficiencyUiPhases, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
+    hasRuleSufficiency, sufficiencyDimensions, sufficiencyDimensionLines, phaseVerdictOf, sufficiencyUiPhases, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, sufficiencyMiniHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
     renderMyAssessmentRowHtml, evidencePickerCandidates, myAssessmentAlwaysShown
   });
   if (module.exports.__testHooks) Object.assign(module.exports.__testHooks, { flushMyAssessmentSaves, saveMyAssessmentsSoon });
