@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.32'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.33'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -350,6 +350,7 @@
       const ts = String(i.timestamp || '').normalize('NFKC');
       const head = String(i.text || '').normalize('NFKC').slice(0, 30);
       if (/術後|POD\s*\d|手術(?:翌日|後)|術直後|帰室/.test(ts) || /^[【\[]?術後/.test(head)) return 'post';
+      if (/手術当日|術中|手術日|入室|OP当日/.test(ts) && !/術後|帰室/.test(ts)) return 'op';
       if (/術前|手術前|入院時|入院日|入院当日/.test(ts) || /^[【\[]?術前/.test(head)) return 'pre';
       return '';
     }
@@ -386,6 +387,30 @@
       9: '転倒・転落・感染・事故', 10: '不安の増強・ニーズの把握の遅れ', 11: '精神的な苦痛の増強', 12: '役割の喪失・自己効力感の低下', 13: '気分転換の不足・活動意欲の低下',
       14: '自己管理の不足・退院後の合併症（脱臼・再発など）'
     };
+    // 【判定を5つの面に分けて示す】充足・未充足の1語だけにせず、①現在の状況 ②自立度・介助 ③症状・制限 ④起こりうる合併症（確定ではない）
+    // ⑤根拠の確かさ、を別々に書く（リスクや処置だけで判定が決まらないように）
+    function sufficiencyDimensions(cp, needId, phase) {
+      const r = ruleSufficiencyFor(cp)[needId];
+      const a = r && r[phase];
+      if (!a || !a.verdict) return null;
+      const byId = new Map((cp.items || []).map(i => [i.id, i]));
+      const evItems = (a.evidence || []).map(id => byId.get(id)).filter(Boolean);
+      const nz = x => String(x || '').normalize('NFKC').replace(/\s+/g, ' ');
+      const txt = evItems.map(i => nz(i.text)).join(' ');
+      const assist = (txt.match(/全介助|一部介助|軽介助|介助(?:が)?(?:必要|要)|見守り|自立|自分で[^\s。、]{1,8}/) || [])[0] || '';
+      const sym = evItems.filter(i => /痛|苦|困難|不能|できない|悪心|嘔|膨満|浅|湿性|発熱|不眠|不安|ふらつ|息苦|絶飲食|絶食|カテーテル|床上安静|酸素/.test(nz(i.text))).slice(0, 2).map(i => { const t = nz(i.text).replace(/^「|」$/g, ''); return t.length > 22 ? t.slice(0, 22) + '…' : t; });
+      const status = SUFFICIENCY_LABELS[a.verdict] || '';
+      const n = evItems.length;
+      let conf = '低（記録が少ない、または決め手がない）';
+      if ((a.verdict === 'met' || a.verdict === 'unmet') && !a.restriction) conf = n >= 2 ? '高（複数の記録が同じ方向）' : n === 1 ? '中（根拠の記録が1つ）' : '低（根拠の記録が見当たらない）';
+      else if (a.restriction) conf = '低（治療上の制限だけで、自立度・症状の記録が必要）';
+      const risk = SUFFICIENCY_RISKS[needId] || '';
+      return { status, independence: assist || '記録なし', symptoms: sym.join('、') || '記録なし', complications: risk ? `${risk}（確定ではなく、予防のための観察対象）` : '記録なし', confidence: conf };
+    }
+    function sufficiencyDimensionLines(cp, needId, phase) {
+      const d = sufficiencyDimensions(cp, needId, phase);
+      return d ? [`現在の充足状況：${d.status}`, `自立度・介助：${d.independence}`, `現在の症状・制限：${d.symptoms}`, `起こりうる合併症：${d.complications}`, `根拠の確かさ：${d.confidence}`] : [];
+    }
     function sufficiencySentence(cp, needId, phase, labelMap) {
       labelMap = labelMap || myEvidenceLabels(cp, needId);
       const r = ruleSufficiencyFor(cp)[needId];
@@ -414,8 +439,10 @@
           if (/ドレーン|チューブ|創部|ガーゼ|刺入部|挿入部|発赤|発熱|排膿|感染/.test(a.reason)) rs.push('感染');
           risk = rs.join('・');
         }
-        return risk ? `${by}、${risk}のリスクが考えられるため、未充足。` : `${by}、環境面の問題があるため、未充足。`;
+        // 判定は「いま満たされているか」で決める。起こりうる合併症は、判定の理由ではなく、予防のために観察する別の項目として書く
+        return risk ? `${by}、${name}が現在は十分に満たされていない状態と判断し、未充足。（起こりうる合併症：${risk}。確定ではなく、予防のための観察対象）` : `${by}、環境面の問題があるため、未充足。`;
       }
+      if (a.verdict === 'conflict' && a.restriction) return `${labs.length ? labs.join('・') + 'により、' : ''}治療上の制限（${String(a.reason).replace(/（.*$/, '')}）が確認できるが、制限や処置そのものは充足・未充足を決めないため、実際の自立度・介助の必要・症状を確認する必要があり、判定保留。`;
       if (a.verdict === 'conflict') return `${labs.length ? `${labs.join('・')}により、充足を示す記録と未充足を示す記録が並んでおり` : `${a.reason}が並んでおり`}、どちらとも決められないため、判定保留。`;
       return a.need ? `${a.need}ため、情報不足。` : '記録が少なく判断できないため、情報不足。';
     }
@@ -1136,9 +1163,20 @@
       const post = items.filter(i => !isPre(i) && !/[「」]/.test(String(i.text || '')));
       const nz = x => String(x || '').normalize('NFKC');
       const idx = new Map(items.map((i, n) => [i, n]));
-      const set = (needId, reason, ev) => {
+      // 【治療上の制限は、それだけでは未充足にしない】絶飲食・留置カテーテル・床上安静などは医師の指示・治療であり、その欲求が満たされていないとは限らない
+      // （補液で栄養・水分は補われている、カテーテルで排尿は管理されている、など）。実際の自立度・介助の必要・症状の記録で判断するため、
+      // 他に実際の問題を示す記録があるときはその判定を残し、無いときは「判定保留」にして確認を促す
+      const set = (needId, reason, ev, direct) => {
         const r = res[needId]; if (!r) return;
-        const v = { verdict: 'unmet', reason, evidence: ev.slice(0, 5).map(i => i.id), need: '' };
+        const evIds = ev.slice(0, 5).map(i => i.id);
+        if (!direct) {
+          const cur = r.post;
+          if (cur && cur.verdict === 'unmet' && !cur.restriction) return;
+          const v0 = { verdict: 'conflict', reason, evidence: evIds, need: '', restriction: true };
+          r.post = v0; if (r.postop) r.postop = v0; if (!r.all || r.all.verdict !== 'unmet') r.all = v0;
+          return;
+        }
+        const v = { verdict: 'unmet', reason, evidence: evIds, need: '' };
         r.post = v; if (r.postop) r.postop = v; if (!r.all || r.all.verdict !== 'unmet') r.all = v;
       };
       SUF_STATE_RULES.forEach(rule => {
@@ -1157,7 +1195,7 @@
       const stable = /呼吸困難(?:感)?(?:の訴え)?(?:は)?(?:なし|ない|無)|訴えなし/.test(allPost) && /SpO2\s*[:：]?\s*(?:9[4-9]|100)/.test(allPost);
       const OXY_ONLY = /^(?:酸素|O2)/;
       post.forEach(i => { const m = nz(i.text).match(SUF_RESP_DIRECT); if (m) { const mm = stable ? m.filter(x => !OXY_ONLY.test(x)) : m; if (!mm.length) return; mm.forEach(x => { if (!found.includes(x)) found.push(x); }); evs.push(i); } });
-      if (found.length) set(1, `術後の直接の所見（${found.slice(0, 5).join('・')}）`, evs);
+      if (found.length) set(1, `術後の直接の所見（${found.slice(0, 5).join('・')}）`, evs, true);
     }
     function judgeSufficiencyByRules(cp) {
       // 現病歴・診断名・既往歴などは、受傷の経緯や病名の記載で、その欲求が満たされているかを示す記録ではないので判定に使わない
@@ -1196,7 +1234,7 @@
         const phases = { pre: ['入院前', (c, i) => c === 'preadmission' || (c === 'postadmission' && isPreop(i))], post: ['入院後', c => c === 'postadmission'], all: ['全体', c => c !== 'missing'] };
         if (surgical) {
           phases.preop = ['術前', (c, i) => c === 'postadmission' && surgPhaseOf(i) === 'pre'];
-          phases.postop = ['術後', (c, i) => c === 'postadmission' && surgPhaseOf(i) === 'post'];
+          phases.postop = ['術後', (c, i) => c === 'postadmission' && (surgPhaseOf(i) === 'post' || surgPhaseOf(i) === 'op')];
         }
         Object.keys(phases).forEach(k => { res[k] = judge(mine.filter(i => phases[k][1](effCol(i), i)), phases[k][0], k === 'preop' ? 'pre' : k === 'postop' ? 'post' : k); });
         out[need.id] = res;
@@ -1239,7 +1277,7 @@ if (typeof module !== 'undefined' && module.exports) {
     MY_ASSESSMENT_FIELDS,
     ensureMyAssessment, getMyAssessment, ruleSufficiencyFor, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
     myAssessmentStatus, myAssessmentNeedsReview, confirmMyAssessmentEntry, restoreMyAssessmentFromHistory,
-    hasRuleSufficiency, sufficiencyUiPhases, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
+    hasRuleSufficiency, sufficiencyDimensions, sufficiencyDimensionLines, phaseVerdictOf, sufficiencyUiPhases, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
     renderMyAssessmentRowHtml, evidencePickerCandidates, myAssessmentAlwaysShown
   });
   if (module.exports.__testHooks) Object.assign(module.exports.__testHooks, { flushMyAssessmentSaves, saveMyAssessmentsSoon });

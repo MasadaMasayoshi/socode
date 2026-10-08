@@ -20,7 +20,7 @@ test('充足・未充足はサイトが決める：選ぶ欄は無く、記録�
   const head = app.sufficiencyHeaderHtml(cp, 3);
   assert.match(head, /入院前.*情報不足.*術後.*未充足.*suf-cref-O.*O-1<\/b>（術後1日目：術後排便なし/, '見出しに、O-1によりの形で根拠を出す');
   app.ensureMyAssessment(cp, 3).interpretation = '排便がない';
-  assert.match(app.buildMyAssessmentsText(cp), /3\. 排泄\n・入院前：情報不足.*\n・術前：.*\n・術後：未充足.*リスクが考えられるため、未充足。/);
+  assert.match(app.buildMyAssessmentsText(cp), /3\. 排泄\n・入院前：情報不足.*\n・術前：.*\n・術後：未充足.*現在は十分に満たされていない状態と判断し、未充足。/);
   assert.match(app.sufficiencySummaryHtml(cp), /未充足 1/);
 });
 
@@ -70,7 +70,7 @@ test('書き出した整理シートを貼り直しても、「O-1 [入院前]�
 test('教員の指導：結論を言い切る理由文と、未充足のときは考えられるリスクまで書く', () => {
   const cp = { id: 'p', myAssessments: {}, items: [{ id: 'a', type: 'o', text: '術後排便なし 腹部膨満あり', timestamp: '術後1日目', hendersonIds: [3], assessmentCols: { 3: 'postadmission' } }] };
   const s = app.sufficiencySentence(cp, 3, 'post');
-  assert.match(s, /より、.*リスクが考えられるため、未充足。$/);
+  assert.match(s, /より、.*未充足。（起こりうる合併症：.*予防のための観察対象）$/);
   assert.match(app.sufficiencySentence(cp, 3, 'pre'), /情報不足。$/);
 });
 
@@ -90,7 +90,7 @@ test('共通ルール：入院前・入院後それぞれで自立して満た�
   assert.equal(app.getSufficiency(cp, 5, 'pre'), 'met');
 });
 
-test('今の状態を優先し、言葉だけでは充足にしない：絶飲食・留置カテーテル・床上安静・術後の呼吸所見は入院後を未充足、発言や挿入部の所見は根拠にしない', () => {
+test('今の状態を優先し、言葉だけでは充足にしない：絶飲食・留置カテーテル・床上安静は判定保留（制限だけでは未充足にしない）、術後の呼吸所見は入院後を未充足、発言や挿入部の所見は根拠にしない', () => {
   const mk = (id, text, ts, h, col) => ({ id, type: 'o', text, timestamp: ts, hendersonIds: h, assessmentCols: Object.fromEntries(h.map(x => [x, col])) });
   const cp = { id: 'p', myAssessments: {}, items: [
     mk('a', '昼食は常食 朝食全量摂取', '手術前日 12:00', [2], 'postadmission'),
@@ -106,11 +106,13 @@ test('今の状態を優先し、言葉だけでは充足にしない：絶飲�
     mk('k', 'ADL:全て自立', '入院前', [4], 'preadmission')
   ] };
   assert.equal(app.getSufficiency(cp, 2, 'pre'), 'unmet');
-  assert.equal(app.getSufficiency(cp, 2, 'post'), 'unmet');
+  // 治療上の制限（絶飲食・留置カテーテル・床上安静）は、それだけでは未充足にしない（判定保留にして、自立度・症状の確認を促す）
+  assert.equal(app.phaseVerdictOf(cp, 2, 'post'), 'conflict');
+  assert.equal(app.getSufficiency(cp, 2, 'post'), '');
   assert.equal(app.getSufficiency(cp, 3, 'pre'), 'met');
-  assert.equal(app.getSufficiency(cp, 3, 'post'), 'unmet');
+  assert.equal(app.phaseVerdictOf(cp, 3, 'post'), 'conflict');
   assert.equal(app.getSufficiency(cp, 4, 'pre'), 'met');
-  assert.equal(app.getSufficiency(cp, 4, 'post'), 'unmet');
+  assert.equal(app.phaseVerdictOf(cp, 4, 'post'), 'conflict');
   assert.equal(app.getSufficiency(cp, 1, 'post'), 'unmet');
   assert.match(app.judgeSufficiencyByRules(cp)[1].post.reason, /酸素|湿性咳嗽/);
   assert.doesNotMatch(app.judgeSufficiencyByRules(cp)[1].post.reason, /ボール/);

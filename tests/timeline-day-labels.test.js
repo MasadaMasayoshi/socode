@@ -90,5 +90,5 @@ test('入院時・術後1日目の値が交互に並ぶ検査データも日ご�
   const groups = app.assessmentDayGroups('postadmission', items);
   assert.equal(groups.map(g => `${g.day}:${g.items.map(i => i.id).join(',')}`).join(' / '), '入院時:w1,c1 / 手術当日:t0 / 術後1日目:w2,c2');
   const out = app.buildAssessmentTableText({ title: 'Z', items });
-  assert.match(out, /〈入院時〉\n    ・O-1 \[入院時\] WBC 8100\n    ・O-2 \[入院時\] CRP 0.8\n   〈手術当日〉\n    ・O-3 \[手術当日 12:00\] 体温37.6度\n   〈術後1日目〉\n    ・O-4/);
+  assert.match(out, /〈入院時〉\n    ・O-1 \[入院時\] WBC 8100\n    ・O-2 \[入院時\] CRP 0.8\n(?:    ▶[^\n]*\n|      ・[^\n]*\n)+   ―手術当日―\n   〈手術当日〉\n    ・O-3 \[手術当日 12:00\] 体温37.6度\n   ―術後―\n   〈術後1日目〉\n    ・O-4/);
 });

@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-08.31'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-08.33'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -1398,10 +1398,13 @@
       // 【今ある／リスクの判定】「痰がある」だけでは非効果的気道浄化にしない。痰を出せない・多い・咳が弱い・湿性咳嗽・
       // ラ音・喘鳴など、実際の症状があるときだけ（看護問題の判定基準の見直し：2026-10-06.25）
       // （「出せない」の「ない」で打ち消しと読まれないよう、「ない」まで含めて探す）
-      const sputumActual = findItem(/痰[^\n]{0,8}(?:出せない|出せず|出し(?:にく|づら)い|多い|多く|貯留|絡む|絡ん|からみ|からむ)|喀出困難|湿性咳嗽|咳[^\n]{0,4}(?:弱い|弱く|できない)|ラ音|副雑音|喘鳴/);
+      // 【言い切れる根拠】痰を出せない・出しにくい・咳が弱い・ラ音など、気道浄化の障害を示す所見だけを「排痰困難」の根拠にする。
+      // 湿性咳嗽が「時々ある」だけでは、排痰できていないとは言えない（観察すべき所見として別に扱う）
+      const sputumActual = findItem(/痰[^\n]{0,8}(?:出せない|出せず|出し(?:にく|づら)い|貯留|絡んで(?:出せ|取れ)ない)|喀出困難|咳[^\n]{0,4}(?:弱い|弱く|できない)|ラ音|副雑音|喘鳴/);
+      const sputumWet = sputumActual ? null : findItem(/湿性咳嗽|痰[^\n]{0,8}(?:多い|多く|絡む|絡ん|からみ|からむ)|咳嗽[^\n]{0,6}あり/);
       const patternItem = findItem(/浅い呼吸|呼吸が浅|努力呼吸|呼吸補助筋|肩呼吸|頻呼吸|鼻翼呼吸|陥没呼吸/, i => notHist(i));
       const secretionObs = has(/副雑音|ラ音|痰貯留|分泌物の?貯留/);
-      const atelObs = /(?:無気肺|肺炎)(?![^\n]{0,6}(?:リスク|予防|の可能性|の恐れ|のおそれ))/.test(all) && has(/無気肺|肺炎/);
+      const atelObs = items.some(i => i.type !== 'unnecessary' && !/[「」]/.test(String(i.text)) && /(?:無気肺|肺炎)(?:と診断|を発症|を併発|を認め|あり|の所見|疑い)|(?:胸部[XＸ]-?[PＰ]|CT|レントゲン)[^\n。]{0,24}(?:無気肺|肺炎|浸潤影)/.test(String(i.text).normalize('NFKC')) && !/リスク|予防|の可能性|の恐れ|のおそれ|なし|認めず/.test(String(i.text)));
       const spo2 = lab('SpO2');
       const wbcEarly = lab('WBC'), crpEarly = lab('CRP');
       const o2Item = findItem(/酸素\s*\d|(?<!Sp)O2\s*\d|カニュ[ラー]|酸素マスク|リザーバー|酸素投与/);
@@ -1423,7 +1426,7 @@
         const reflex = N('reflex', 'pathophysiology', '咳嗽反射の低下・気道クリアランスの低下', { source: 'knowledge' });
         E(anes, reflex, 'causes', { evidence: '麻酔薬・挿管による気道の線毛運動・咳嗽反射の低下', noBridge: true });
         E(surgery, anes, 'results_in', { evidence: '手術のための麻酔' });
-        const sputum = N('sputum', 'symptom', sputumActual ? `排痰困難（${short(sputumActual, 24)}）` : '排痰困難', { items: [sputumActual], observed: !!sputumActual });
+        const sputum = N('sputum', 'symptom', sputumActual ? `排痰困難（${short(sputumActual, 24)}）` : sputumWet ? `湿性咳嗽・痰の絡み（${short(sputumWet, 24)}）` : '排痰困難', { items: [sputumActual || sputumWet], observed: !!(sputumActual || sputumWet) });
         E(suppress, sputum, 'causes', { evidence: '咳が弱く痰を出しにくい', predicted: !sputumActual, noBridge: true });
         E(reflex, sputum, 'contributes_to', { evidence: '気道の分泌物を出す力が下がる', predicted: !sputumActual, noBridge: true });
         let reserve = null;

@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-08.32'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-08.33'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 書式付き書き出し（Word / PDF）
     // ------------------------------------------------------------------------
@@ -194,12 +194,19 @@
       const rows = HENDERSON_NEEDS.map(need => {
         const matching = active.filter(i => i.hendersonIds?.includes(need.id));
         const labels = assessmentSeqLabels(matching, need.id);
+        const judgeHtml = (key, label) => {
+          const x = typeof sufficiencyPhaseText === 'function' ? sufficiencyPhaseText(cp, need.id, key) : '';
+          if (!x) return '';
+          const m = x.match(/^判定：(.*?)／判定根拠：([\s\S]*)$/);
+          return `<div class="pj"><b>▶${label}の判定：${escapeHtml(m ? m[1] : x)}</b>${m ? `<br>説明：${escapeHtml(m[2])}` : ''}${typeof sufficiencyDimensionLines === 'function' ? sufficiencyDimensionLines(cp, need.id, key).map(l => `<br>・${escapeHtml(l)}`).join('') : ''}</div>`;
+        };
         const cells = cols.map(col => {
           const list = matching.filter(i => colOf(i, need.id) === col);
           if (!list.length) return '<td class="empty">—</td>';
-          return `<td>${printAssessmentCellList(col, list, labels)}</td>`;
+          // 時期の順に「カード → 判定 → 説明」（判定は、評価する情報のすぐ後ろ）
+          return `<td>${assessmentPeriodGroups(cp, col, list).map(pg => (pg.label ? `<div class="pg"><b>${escapeHtml(pg.label)}</b></div>` : '') + (pg.items.length ? printAssessmentCellList(col, pg.items, labels) : '<div class="pjn">（記録なし）</div>') + pg.judge.map(([k, l]) => judgeHtml(k, l)).join('')).join('')}</td>`;
         }).join('');
-        return `<tr><th scope="row" style="background:#f7f5f0;">${need.id}. ${escapeHtml(need.name.replace(/^\d+\.\s*/, ''))}${(() => { const t = typeof sufficiencyPhaseText === 'function' ? sufficiencyUiPhases(cp).map(ph => { const x = sufficiencyPhaseText(cp, need.id, ph.key); return x ? `<div style="font-weight:400;font-size:7.8pt;margin-top:2px;"><b>${ph.label}：${escapeHtml(x.replace(/^判定：/, '').replace('／判定根拠：', '</b>　'))}</div>` : ''; }).join('') : ''; return t; })()}</th>${cells}</tr>`;
+        return `<tr><th scope="row" style="background:#f7f5f0;">${need.id}. ${escapeHtml(need.name.replace(/^\d+\.\s*/, ''))}</th>${cells}</tr>`;
       }).join('');
       // 自分のアセスメント（js/11）があれば、表の次のページに載せる
       const own = typeof buildMyAssessmentsPrintHtml === 'function' ? buildMyAssessmentsPrintHtml(cp, 1) : '';
@@ -211,6 +218,9 @@
   table.asm tr { break-inside: auto; page-break-inside: auto; }
   table.asm th[scope="row"] { font-size: 8.6pt; }
   table.asm td { font-size: 8.4pt; }
+  table.asm .pj { margin:3px 0 4px; padding:2px 4px; border-left:2px solid #8a9a8e; font-size:7.8pt; }
+  table.asm .pg { margin:4px 0 1px; font-size:8pt; color:#555; }
+  table.asm .pjn { font-size:7.8pt; color:#888; }
 </style></head><body>
 ${printDocHead('総合アセスメント表（ヘンダーソン14項目）', cp)}
 <p class="legend"><span class="lb lb-s">S</span>主観的情報（患者の発言）　<span class="lb lb-o">O</span>客観的情報（観察・検査）　<span class="lb lb-x">AI推定</span>不足している可能性のある情報　／　番号（S-1・O-1）は画面の総合アセスメント表と同じです。</p>
@@ -747,6 +757,30 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     // 14項目ごとに「未分類／入院前／入院後／不足情報」の欄に分け、S-1・O-1のような通し番号を付ける。
     // 通し番号は常にその項目のすべてのカードで数える（画面と同じ番号にするため）。onlyIds を渡した場合は、
     // そのカードだけを書き出す（選択したカードの書き出し用）。
+    // 【判定の置き場所】充足・未充足の判定は、評価する情報（カード）のすぐ後ろに置く。時期の順（入院前 → 入院後〔術前 → 手術当日 → 術後〕）に、
+    // 「カード → 判定 → 説明」の並びにする。画面・テキスト書き出し・印刷が同じ並びを使う（この関数が共通の並び）
+    function assessmentPeriodGroups(cp, col, list) {
+      const surg = typeof isSurgicalPatient === 'function' && isSurgicalPatient(cp);
+      if (col === 'preadmission') return [{ label: '', items: list, judge: [['pre', '入院前']] }];
+      if (col !== 'postadmission') return [{ label: '', items: list, judge: [] }];
+      if (!surg) return [{ label: '', items: list, judge: [['post', '入院後']] }];
+      const by = k => list.filter(i => surgPhaseOf(i) === k);
+      const groups = [];
+      const rest = list.filter(i => !surgPhaseOf(i));
+      if (rest.length) groups.push({ label: '時期の読み取れない記録', items: rest, judge: [] });
+      groups.push({ label: '術前', items: by('pre'), judge: [['preop', '術前']] });
+      if (by('op').length) groups.push({ label: '手術当日', items: by('op'), judge: [] });
+      groups.push({ label: '術後', items: by('post'), judge: [['postop', '術後']] });
+      return groups;
+    }
+    function periodJudgeText(cp, needId, key, label) {
+      if (typeof sufficiencyPhaseText !== 'function') return '';
+      const x = sufficiencyPhaseText(cp, needId, key);
+      if (!x) return '';
+      const m = x.match(/^判定：(.*?)／判定根拠：([\s\S]*)$/);
+      const dims = typeof sufficiencyDimensionLines === 'function' ? sufficiencyDimensionLines(cp, needId, key).map(l => `      ・${l}\n`).join('') : '';
+      return (m ? `    ▶${label}の判定：${m[1]}\n    ▶説明：${m[2]}\n` : `    ▶${label}の判定：${x}\n`) + dims;
+    }
     const ASSESSMENT_COL_ORDER = [['unclassified', '未分類'], ['preadmission', '入院前'], ['postadmission', '入院後'], ['missing', '不足情報']];
     function buildAssessmentTableText(cp, onlyIds = null) {
       const activeItems = (cp.items || []).filter(i => i.type !== 'unnecessary');
@@ -758,20 +792,23 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         const shown = matching.filter(include);
         if (onlyIds && shown.length === 0) return; // 選択したカードの書き出しでは、該当するカードの無い項目は省く
         out += `\n■ ${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}\n`;
-        // 判定は項目の見出しの下に、入院前・入院後を分けて、「O-1により、…のため充足」の形で書く（選択したカードの書き出しでは付けない）
-        if (!onlyIds && typeof sufficiencyPhaseText === 'function') sufficiencyUiPhases(cp).forEach(ph => { const x = sufficiencyPhaseText(cp, need.id, ph.key); if (x) out += `  ・${ph.label}：${x.replace(/^判定：/, '').replace('／判定根拠：', '　')}\n`; });
+        // 判定は、評価する情報（カード）のすぐ後ろに置く（assessmentPeriodGroups）。時期の順に「カード → 判定 → 説明」
         if (shown.length === 0) { out += '  （カードなし）\n'; return; }
         ASSESSMENT_COL_ORDER.forEach(([col, label]) => {
           const inCol = shown.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === col);
           if (inCol.length === 0) return;
           out += `  [${label}]\n`;
-          const dayGroups = assessmentDayGroups(col, inCol);
-          dayGroups.forEach(g => { if (g.day) out += `   〈${g.day}〉\n`; g.items.forEach(i => {
-            const seq = seqLabels[i.id] ? `${seqLabels[i.id]} ` : '';
-            const time = i.timestamp && i.timestamp !== '日時不明' ? `[${i.timestamp}] ` : '';
-            const label = (i.fieldLabel ? `[${i.fieldLabel}] ` : '') + (isFamilySpeech(i.text) ? '[家族] ' : '');
-            out += `    ・${seq}${time}${label}${i.text}${i.aiSuggested ? '（AI推定）' : ''}\n`;
-          }); });
+          assessmentPeriodGroups(cp, col, inCol).forEach(pg => {
+            if (pg.label) out += `   ―${pg.label}―\n`;
+            if (!pg.items.length) out += '    （記録なし）\n';
+            assessmentDayGroups(col, pg.items).forEach(g => { if (g.day) out += `   〈${g.day}〉\n`; g.items.forEach(i => {
+              const seq = seqLabels[i.id] ? `${seqLabels[i.id]} ` : '';
+              const time = i.timestamp && i.timestamp !== '日時不明' ? `[${i.timestamp}] ` : '';
+              const label = (i.fieldLabel ? `[${i.fieldLabel}] ` : '') + (isFamilySpeech(i.text) ? '[家族] ' : '');
+              out += `    ・${seq}${time}${label}${i.text}${i.aiSuggested ? '（AI推定）' : ''}\n`;
+            }); });
+            if (!onlyIds) pg.judge.forEach(([k, l]) => { out += periodJudgeText(cp, need.id, k, l); });
+          });
         });
       });
       return out;

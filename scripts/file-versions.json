@@ -20,32 +20,32 @@
     "hash": "24599a1a618fcdd2"
   },
   "js/06-export.js": {
-    "version": "2026-10-08.32",
-    "hash": "faeb48fd3f074260"
+    "version": "2026-10-08.33",
+    "hash": "560e0afc31de984b"
   },
   "js/07-classification.js": {
-    "version": "2026-10-08.28",
-    "hash": "aa6179e97e7e72c3"
+    "version": "2026-10-08.33",
+    "hash": "3d44e6d23ee464d5"
   },
   "js/08-assessment-tools.js": {
     "version": "2026-10-08.28",
     "hash": "67a3b052a3c542ff"
   },
   "js/09-board.js": {
-    "version": "2026-10-08.21",
-    "hash": "e2ebeb4b00f37be8"
+    "version": "2026-10-08.33",
+    "hash": "5fd08fa7ab5ffda0"
   },
   "js/10-reference-page-and-startup.js": {
     "version": "2026-10-08.28",
     "hash": "0ffe5ad55d795156"
   },
   "js/11-own-assessment.js": {
-    "version": "2026-10-08.32",
-    "hash": "b7eeee3e52dccc4b"
+    "version": "2026-10-08.33",
+    "hash": "a88641c691bf1e9a"
   },
   "js/12-missing-checks-and-care-plan.js": {
-    "version": "2026-10-08.28",
-    "hash": "ceb7b1a99cbaffde"
+    "version": "2026-10-08.33",
+    "hash": "1821b0caa9b25654"
   },
   "js/13-compare-and-report.js": {
     "version": "2026-10-08.28",
@@ -56,8 +56,8 @@
     "hash": "b90c3185deaf3a8c"
   },
   "js/15-relation-map.js": {
-    "version": "2026-10-08.31",
-    "hash": "6480ec82b28d2380"
+    "version": "2026-10-08.33",
+    "hash": "c89063be3a40d699"
   },
   "style.css": {
     "version": "2026-10-08.25",

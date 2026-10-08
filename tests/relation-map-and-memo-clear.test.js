@@ -84,11 +84,11 @@ const linked = (map, a, b) => hasEdge(map, a, b) || map.nodes.some(m => m.added 
 test('関連図：事実図ではなく、病態の中間過程を補い、複数の原因が #1 呼吸の問題へ合流する（胃全摘・術後）', () => {
   const map = app.buildRelationMapFromRecord(patientOf(GASTRIC));
   const p1 = map.nodes.find(n => n.type === 'nursing_problem' && n.priority === 1);
-  assert.match(p1.label, /非効果的気道浄化/);
+  assert.match(p1.label, /術後呼吸器合併症リスク状態/, '湿性咳嗽が時々あるだけでは、排痰困難とは言い切らずリスク状態にする');
   const smoke = find(map, /^喫煙/), anes = find(map, /全身麻酔・気管内挿管/), pain = find(map, /^創部痛（NRS 2）/), fev = find(map, /FEV1% 69\.33%/);
   [smoke, anes, pain, fev].forEach(n => assert.ok(n && reaches(map, n, p1), `${n && n.label} → #1`));
   // 中間過程（深呼吸・咳嗽の抑制 → 排痰困難）と、予測（破線）の無気肺・肺炎
-  const suppress = find(map, /深呼吸・咳嗽の抑制/), sputum = find(map, /^排痰困難/);
+  const suppress = find(map, /深呼吸・咳嗽の抑制/), sputum = find(map, /^(?:排痰困難|湿性咳嗽)/);
   assert.ok(linked(map, pain, suppress) && linked(map, suppress, sputum));
   const atel = find(map, /無気肺・肺炎の可能性/);
   assert.equal(atel.type, 'future_risk'); assert.equal(atel.observed, false);
