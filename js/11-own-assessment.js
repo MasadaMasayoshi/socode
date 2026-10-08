@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.28'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.32'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -291,7 +291,7 @@
         if (!e || !(sufficiencyHasVerdict(cp, need.id) || MY_ASSESSMENT_FIELDS.some(f => String(e[f.key] || '').trim()))) return null;
         const labels = myEvidenceLabels(cp, need.id);
         const lines = [`${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}`];
-        if (sufficiencyHasVerdict(cp, need.id)) SUFFICIENCY_UI_PHASES.forEach(ph => lines.push(`・${ph.label}：${SUFFICIENCY_LABELS[getSufficiency(cp, need.id, ph.key) || 'unknown']}　${sufficiencySentence(cp, need.id, ph.key)}`));
+        if (sufficiencyHasVerdict(cp, need.id)) sufficiencyUiPhases(cp).forEach(ph => lines.push(`・${ph.label}：${SUFFICIENCY_LABELS[getSufficiency(cp, need.id, ph.key) || 'unknown']}　${sufficiencySentence(cp, need.id, ph.key)}`));
         MY_ASSESSMENT_FIELDS.forEach(f => { if (String(e[f.key] || '').trim()) lines.push(`${f.label}：${e[f.key].trim()}`); });
         if (withEvidence && (e.evidenceIds || []).length) {
           lines.push('根拠：' + e.evidenceIds.map(id => { const d = describeMyEvidence(cp, need.id, id, labels, e); return `${d.label}「${d.text}」${d.removed ? '（消されたカード）' : ''}`; }).join('／'));
@@ -344,6 +344,20 @@
     ];
     // 画面・書き出しには「入院前」「入院後」を分けて出す（利用者の要望。全体は内部の集計とAIの評価だけに使う）
     const SUFFICIENCY_UI_PHASES = SUFFICIENCY_PHASES.filter(p => p.key !== 'all');
+    // 手術の記録がある患者では「入院後」を「術前」「術後」に分けて出す（総合アセスメント表の充足・未充足）
+    const SUFFICIENCY_SURG_PHASES = [{ key: 'preop', label: '術前' }, { key: 'postop', label: '術後' }];
+    function surgPhaseOf(i) {
+      const ts = String(i.timestamp || '').normalize('NFKC');
+      const head = String(i.text || '').normalize('NFKC').slice(0, 30);
+      if (/術後|POD\s*\d|手術(?:翌日|後)|術直後|帰室/.test(ts) || /^[【\[]?術後/.test(head)) return 'post';
+      if (/術前|手術前|入院時|入院日|入院当日/.test(ts) || /^[【\[]?術前/.test(head)) return 'pre';
+      return '';
+    }
+    function isSurgicalPatient(cp) { return (cp.items || []).some(i => i.type !== 'unnecessary' && surgPhaseOf(i) === 'post'); }
+    function sufficiencyUiPhases(cp) {
+      const base = SUFFICIENCY_UI_PHASES;
+      return cp && isSurgicalPatient(cp) ? [base[0], ...SUFFICIENCY_SURG_PHASES] : base;
+    }
     function sufficiencyPhase(key) { return SUFFICIENCY_PHASES.find(p => p.key === key) || SUFFICIENCY_PHASES[2]; }
     // 充足・未充足はサイトが決める（記録の言葉と看護の基準だけ。AIなし）。利用者が選ぶ欄は無い
     const sufficiencyCache = { sig: '', res: null, cp: null };
@@ -414,7 +428,7 @@
     // 入院前・入院後それぞれの区画の中に出す判定（バッジ＋判定根拠＋根拠カードの番号）。カードが1枚も無い患者には出さない
     function sufficiencyPhaseHtml(cp, needId, phaseKey) {
       if (!sufficiencyHasVerdict(cp, needId)) return '';
-      const ph = SUFFICIENCY_UI_PHASES.find(p => p.key === phaseKey);
+      const ph = sufficiencyUiPhases(cp).find(p => p.key === phaseKey);
       if (!ph) return '';
       const v = phaseVerdictOf(cp, needId, phaseKey);
       const a = ruleSufficiencyFor(cp)[needId][phaseKey] || {};
@@ -430,13 +444,13 @@
     }
     function sufficiencyTextOf(cp, needId) {
       if (!sufficiencyHasVerdict(cp, needId)) return '';
-      return SUFFICIENCY_UI_PHASES.map(ph => `${ph.label}：${SUFFICIENCY_LABELS[phaseVerdictOf(cp, needId, ph.key)]}`).join('／');
+      return sufficiencyUiPhases(cp).map(ph => `${ph.label}：${SUFFICIENCY_LABELS[phaseVerdictOf(cp, needId, ph.key)]}`).join('／');
     }
     function sufficiencyControlHtml(cp, needId) {
-      const rows = SUFFICIENCY_UI_PHASES.map(ph => {
+      const rows = sufficiencyUiPhases(cp).map(ph => {
         const cur = getSufficiency(cp, needId, ph.key);
         const label = SUFFICIENCY_LABELS[cur || 'unknown'];
-        return `<span class="suf-line"><span class="suf-phase">${ph.key === 'pre' ? '入院前' : '入院後'}</span><span class="suf-badge suf-${cur || 'unknown'}"><i class="fa-solid ${cur === 'met' ? 'fa-circle-check' : cur === 'unmet' ? 'fa-triangle-exclamation' : 'fa-circle-question'}"></i> ${label}</span></span>`;
+        return `<span class="suf-line"><span class="suf-phase">${ph.label}</span><span class="suf-badge suf-${cur || 'unknown'}"><i class="fa-solid ${cur === 'met' ? 'fa-circle-check' : cur === 'unmet' ? 'fa-triangle-exclamation' : 'fa-circle-question'}"></i> ${label}</span></span>`;
       }).join('');
       return `<div class="suf-ctl" role="group" aria-label="充足・未充足">${rows}</div>`;
     }
@@ -444,7 +458,7 @@
     function sufficiencyHeaderHtml(cp, needId) {
       if (!sufficiencyHasVerdict(cp, needId)) return '';
       const labels = myEvidenceLabels(cp, needId);
-      const rows = SUFFICIENCY_UI_PHASES.map(ph => {
+      const rows = sufficiencyUiPhases(cp).map(ph => {
         const v = phaseVerdictOf(cp, needId, ph.key);
         const icon = v === 'met' ? 'fa-circle-check' : v === 'unmet' ? 'fa-triangle-exclamation' : v === 'conflict' ? 'fa-scale-unbalanced' : 'fa-circle-question';
         return `<div class="suf-hline suf-b-${v}"><span class="suf-line"><span class="suf-phase">${ph.label}</span><span class="suf-badge suf-${v}"><i class="fa-solid ${icon}"></i> ${SUFFICIENCY_LABELS[v]}</span></span><span class="suf-hwhy">${escapeHtml(sufficiencySentence(cp, needId, ph.key, labels)).replace(/([SO])-(\d+)（([^）]*)）/g, (m, t, n, rest) => `<span class="suf-cref suf-cref-${t}"><b>${t}-${n}</b>（${rest}）</span>`).replace(/(未充足|充足|情報不足|判定保留)。$/, '<b class="suf-end suf-end-$1">$1</b>。')}</span></div>`;
@@ -452,7 +466,7 @@
       return `<div class="suf-header" role="group" aria-label="充足・未充足">${rows}</div>`;
     }
     function sufficiencySummaryHtml(cp) {
-      return `<span class="suf-sum">${SUFFICIENCY_UI_PHASES.map(ph => {
+      return `<span class="suf-sum">${sufficiencyUiPhases(cp).map(ph => {
         let met = 0, unmet = 0;
         HENDERSON_NEEDS.forEach(n => { const v = getSufficiency(cp, n.id, ph.key); if (v === 'met') met++; else if (v === 'unmet') unmet++; });
         return `<span class="suf-sum-grp"><span>${ph.label}</span><b class="suf-met-n">充足 ${met}</b><b class="suf-unmet-n">未充足 ${unmet}</b><span>情報不足 ${HENDERSON_NEEDS.length - met - unmet}</span></span>`;
@@ -1125,7 +1139,7 @@
       const set = (needId, reason, ev) => {
         const r = res[needId]; if (!r) return;
         const v = { verdict: 'unmet', reason, evidence: ev.slice(0, 5).map(i => i.id), need: '' };
-        r.post = v; if (!r.all || r.all.verdict !== 'unmet') r.all = v;
+        r.post = v; if (r.postop) r.postop = v; if (!r.all || r.all.verdict !== 'unmet') r.all = v;
       };
       SUF_STATE_RULES.forEach(rule => {
         const hit = post.filter(i => rule.re.test(nz(i.text)));
@@ -1150,6 +1164,7 @@
       const HISTORY_LABELS = ['現病歴', '診断名', '既往歴', '手術術式', '氏名', '年齢', '性別', '感染症'];
       const items = (cp.items || []).filter(i => i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i) && !HISTORY_LABELS.includes(i.fieldLabel));
       const out = {};
+      const surgical = isSurgicalPatient(cp);
       HENDERSON_NEEDS.forEach(need => {
         const mine = items.filter(i => (i.hendersonIds || []).includes(need.id));
         const colOf = i => (i.assessmentCols && i.assessmentCols[need.id]) || 'unclassified';
@@ -1179,7 +1194,11 @@
         // 術前（手術前の基準になる状態）の記録は、充足の判定では入院前の側で見る（表の欄は入院後のまま）
         const isPreop = () => false; // 術前・手術前日などは入院後（入院前／入院後の2つに分ける）
         const phases = { pre: ['入院前', (c, i) => c === 'preadmission' || (c === 'postadmission' && isPreop(i))], post: ['入院後', c => c === 'postadmission'], all: ['全体', c => c !== 'missing'] };
-        Object.keys(phases).forEach(k => { res[k] = judge(mine.filter(i => phases[k][1](effCol(i), i)), phases[k][0], k); });
+        if (surgical) {
+          phases.preop = ['術前', (c, i) => c === 'postadmission' && surgPhaseOf(i) === 'pre'];
+          phases.postop = ['術後', (c, i) => c === 'postadmission' && surgPhaseOf(i) === 'post'];
+        }
+        Object.keys(phases).forEach(k => { res[k] = judge(mine.filter(i => phases[k][1](effCol(i), i)), phases[k][0], k === 'preop' ? 'pre' : k === 'postop' ? 'post' : k); });
         out[need.id] = res;
       });
       try { sufficiencyStateOverrides(items, out, i => /^入院前/.test(String(i.timestamp || '')) || (Object.values(i.assessmentCols || {}).length > 0 && Object.values(i.assessmentCols).every(c => c === 'preadmission'))); } catch (e) { console.warn('制限の確認に失敗:', e); }
@@ -1220,7 +1239,7 @@ if (typeof module !== 'undefined' && module.exports) {
     MY_ASSESSMENT_FIELDS,
     ensureMyAssessment, getMyAssessment, ruleSufficiencyFor, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
     myAssessmentStatus, myAssessmentNeedsReview, confirmMyAssessmentEntry, restoreMyAssessmentFromHistory,
-    hasRuleSufficiency, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
+    hasRuleSufficiency, sufficiencyUiPhases, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
     renderMyAssessmentRowHtml, evidencePickerCandidates, myAssessmentAlwaysShown
   });
   if (module.exports.__testHooks) Object.assign(module.exports.__testHooks, { flushMyAssessmentSaves, saveMyAssessmentsSoon });

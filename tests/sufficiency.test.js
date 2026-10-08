@@ -13,14 +13,14 @@ test('充足・未充足はサイトが決める：選ぶ欄は無く、記録�
   assert.equal(app.getSufficiency(cp, 3), 'unmet');
   assert.equal(app.getSufficiency(cp, 1), 'met');
   assert.equal(app.getSufficiency(cp, 6), '');
-  const pre = app.sufficiencyPhaseHtml(cp, 3, 'pre'), post = app.sufficiencyPhaseHtml(cp, 3, 'post');
+  const pre = app.sufficiencyPhaseHtml(cp, 3, 'pre'), post = app.sufficiencyPhaseHtml(cp, 3, 'postop');
   assert.doesNotMatch(pre + post, /<button|ルール判定|サイト内|AIなし/);
   assert.match(pre, /入院前の判定.*情報不足.*判定根拠/);
-  assert.match(post, /入院後の判定.*未充足.*判定根拠.*根拠カード：/);
+  assert.match(post, /術後の判定.*未充足.*判定根拠.*根拠カード：/);
   const head = app.sufficiencyHeaderHtml(cp, 3);
-  assert.match(head, /入院前.*情報不足.*入院後.*未充足.*suf-cref-O.*O-1<\/b>（術後1日目：術後排便なし/, '見出しに、O-1によりの形で根拠を出す');
+  assert.match(head, /入院前.*情報不足.*術後.*未充足.*suf-cref-O.*O-1<\/b>（術後1日目：術後排便なし/, '見出しに、O-1によりの形で根拠を出す');
   app.ensureMyAssessment(cp, 3).interpretation = '排便がない';
-  assert.match(app.buildMyAssessmentsText(cp), /3\. 排泄\n・入院前：情報不足.*\n・入院後：未充足.*リスクが考えられるため、未充足。/);
+  assert.match(app.buildMyAssessmentsText(cp), /3\. 排泄\n・入院前：情報不足.*\n・術前：.*\n・術後：未充足.*リスクが考えられるため、未充足。/);
   assert.match(app.sufficiencySummaryHtml(cp), /未充足 1/);
 });
 
@@ -55,7 +55,7 @@ test('入院前／入院後を分けて判定し、正常所見が十分ある�
   assert.equal(app.getSufficiency(cp, 13, 'post'), 'unmet');
   assert.equal(app.getSufficiency(cp, 11, 'pre'), 'met');
   assert.equal(app.getSufficiency(cp, 12, 'post'), ''); // 情報不足は情報不足
-  assert.match(app.sufficiencyTextOf(cp, 13), /入院前：充足／入院後：未充足/);
+  assert.match(app.sufficiencyTextOf(cp, 13), /入院前：充足／術前：情報不足／術後：未充足/);
 });
 
 test('書き出した整理シートを貼り直しても、「O-1 [入院前]」「[未分類] [O]」の行の入院前が入院後にならない', () => {
@@ -122,7 +122,7 @@ test('今の状態を優先し、言葉だけでは充足にしない：絶飲�
   assert.equal(app.sufficiencyCardVerdict({ text: '挿入部を数えると「分かりました」と話す' }, 3).v, '');
   assert.equal(app.sufficiencyCardVerdict({ text: '挿入部異常なし' }, 3).v, '');
   // 記録が無い欲求は「情報不足」と明示して出す
-  assert.equal(app.sufficiencyTextOf(cp, 6), '入院前：情報不足／入院後：情報不足');
+  assert.equal(app.sufficiencyTextOf(cp, 6), '入院前：情報不足／術前：情報不足／術後：情報不足');
 });
 
 test('分類：治療・やり方への理解や疑問の発言は14.学び（10にしない）、環境はPCA・検査値・病期・痛みや不安だけでは付けない', () => {
@@ -133,4 +133,18 @@ test('分類：治療・やり方への理解や疑問の発言は14.学び（10
   assert.equal(t('「これで肺炎になりにくくなるんだったよね?このやり方で大丈夫?」と話す。')[0], 14);
   ['【疼痛時指示】1PCA', 'Plt 23.6 ×10^4/μL', 'アミラーゼ 106 U/L', 'Stage 1B', '「手術って合併症があるんだね。怖いね」'].forEach(x => assert.ok(!t(x).includes(9), x));
   assert.ok(t('転倒の危険があり、見守りが必要').includes(9));
+});
+
+test('手術の記録がある患者は、入院前／術前／術後を別々に判定して見せる。手術の記録が無い患者は入院前／入院後のまま', () => {
+  const mk = (id, text, ts, need, col) => ({ id, type: 'o', text, timestamp: ts, hendersonIds: [need], assessmentCols: { [need]: col } });
+  const surg = { id: 's', title: 'S', sourceText: '', items: [
+    mk('a', '朝食は全量摂取している', '術前', 2, 'postadmission'),
+    mk('b', '食事摂取量は半分以下で嘔気あり', '術後1日目', 2, 'postadmission')
+  ], carePlans: {} };
+  assert.equal(JSON.stringify(app.sufficiencyUiPhases(surg).map(p => p.label)), JSON.stringify(['入院前', '術前', '術後']));
+  assert.equal(app.getSufficiency(surg, 2, 'preop'), 'met');
+  assert.equal(app.getSufficiency(surg, 2, 'postop'), 'unmet');
+  assert.match(app.sufficiencyTextOf(surg, 2), /術前：充足／術後：未充足/);
+  const plain = { id: 'n', title: 'N', sourceText: '', items: [mk('c', '食事は全量摂取している', '入院3日目', 2, 'postadmission')], carePlans: {} };
+  assert.equal(JSON.stringify(app.sufficiencyUiPhases(plain).map(p => p.label)), JSON.stringify(['入院前', '入院後']));
 });
