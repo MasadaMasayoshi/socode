@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.21'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.22'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -380,7 +380,15 @@
       const need = HENDERSON_NEEDS.find(n => n.id === needId);
       const name = need ? need.name.replace(/^\d+\.\s*/, '') : '';
       // 根拠は「O-1により」のように、総合アセスメント表の通し番号（S-1・O-1）で示す（番号が引けないときは記録の言葉）
-      const labs = (a.evidence || []).map(id => (labelMap || {})[id]).filter(Boolean);
+      // 番号だけでは何のカードか分からないので、「O-3（術後1日目：SpO2 95%）」のように、時期と内容の一部を添える
+      const byId = new Map((cp.items || []).map(i => [i.id, i]));
+      const labs = (a.evidence || []).slice(0, 3).map(id => {
+        const lb = (labelMap || {})[id]; if (!lb) return '';
+        const it = byId.get(id); if (!it) return lb;
+        const t = String(it.text || '').replace(/\s+/g, ' ').replace(/^「|」$/g, '').trim();
+        const when = it.timestamp && it.timestamp !== '日時不明' ? `${it.timestamp}：` : '';
+        return `${lb}（${when}${t.length > 20 ? t.slice(0, 20) + '…' : t}）`;
+      }).filter(Boolean);
       const by = labs.length ? `${labs.join('・')}により` : `${a.reason}より`;
       if (a.verdict === 'met') return `${by}、${name}は満たされているため、充足。`;
       if (a.verdict === 'unmet') {
