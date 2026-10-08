@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-08.16">
-  <meta name="app-file-versions" content="01:2026-10-08.12,02:2026-10-08.8,03:2026-10-08.14,04:2026-10-07.36,05:2026-10-08.14,06:2026-10-08.15,07:2026-10-08.14,08:2026-10-08.14,09:2026-10-08.15,10:2026-10-08.14,11:2026-10-08.16,12:2026-10-08.2,13:2026-10-06.15,14:2026-10-06.14,15:2026-10-07.40">
+  <meta name="app-version" content="2026-10-08.17">
+  <meta name="app-file-versions" content="01:2026-10-08.12,02:2026-10-08.8,03:2026-10-08.14,04:2026-10-07.36,05:2026-10-08.14,06:2026-10-08.15,07:2026-10-08.14,08:2026-10-08.14,09:2026-10-08.15,10:2026-10-08.14,11:2026-10-08.16,12:2026-10-08.17,13:2026-10-06.15,14:2026-10-06.14,15:2026-10-07.40">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
@@ -424,6 +424,8 @@
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="importCarePlansFromMapUI()" title="関連図の看護問題を、根拠データ（関連図でその問題へたどれる記録の事実）つきで取り込みます"><i class="fa-solid fa-diagram-project"></i> 関連図から取り込む</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="importCarePlansUI()" title="総合アセスメント表の「AI分析ツール」で作った看護計画・選んだ看護診断候補を取り込みます"><i class="fa-solid fa-file-import"></i> AIの結果から取り込む</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="openCarePlanSetReview()" title="全ての計画を横断して、重複・補完・不足を確かめます（AIなし。AIで評価するボタンもあります）"><i class="fa-solid fa-layer-group"></i> 全計画をまとめて評価</button>
+          <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="printCarePlans()" title="看護計画と実施・評価の記録を、A4縦の印刷用の形で印刷・PDF保存します"><i class="fa-solid fa-file-pdf"></i> 印刷 / PDF</button>
+          <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="exportCarePlansText()" title="看護計画と実施・評価の記録をテキストファイルで保存します"><i class="fa-solid fa-file-lines"></i> テキスト</button>
           <button type="button" class="btn btn-primary text-[11px] py-1.5" onclick="addCarePlanUI()"><i class="fa-solid fa-plus"></i> 看護計画を追加</button>
         </div>
       </div>
@@ -1367,7 +1369,7 @@
   <script src="js/09-board.js?v=2026-10-08.15"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-08.14"></script>
   <script src="js/11-own-assessment.js?v=2026-10-08.16"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-08.2"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-08.17"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-06.15"></script>
   <script src="js/14-drug-reference.js?v=2026-10-06.14"></script>
   <script src="js/15-relation-map.js?v=2026-10-07.40"></script>

@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-08.2'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-08.17'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -1377,11 +1377,57 @@ ${items}`;
       return out;
     }
 
+    // 看護計画の印刷・PDF／テキストの書き出し（「看護計画」タブのボタンから。実施・評価の記録も含める）
+    function buildCarePlansPrintHtml(cp, { withRecords = true } = {}) {
+      const plans = carePlanList(cp);
+      const esc = t => escapeHtml(String(t == null ? '' : t));
+      const row = (label, html) => html ? `<tr><th scope="row" style="width:17%;background:#f7f5f0;">${label}</th><td>${html}</td></tr>` : '';
+      const list = arr => arr.length ? `<ol style="margin:0;padding-left:1.4em;">${arr.map(t => `<li>${esc(t)}</li>`).join('')}</ol>` : '';
+      const body = plans.map((p, k) => {
+        const st = CARE_PLAN_STATUSES.find(x => x.key === p.status);
+        const needs = p.relatedNeeds.map(h => `${h}.${hendersonNameOf(h).replace(/^\d+\.\s*/, '')}`).join('・');
+        const recs = withRecords ? p.records : [];
+        const recTable = recs.length ? `<table style="margin-top:4pt;"><thead><tr><th style="width:15%">日時</th><th>実施内容</th><th style="width:20%">患者の反応</th><th style="width:22%">評価</th><th style="width:16%">計画の修正</th></tr></thead><tbody>${recs.map(r => {
+          const ach = CARE_ACHIEVEMENTS.find(a => a.key === r.achievement);
+          const done = [r.doneItems.length ? `【実施した計画】${r.doneItems.map(esc).join('／')}` : '', esc(r.doneText)].filter(Boolean).join('<br>');
+          return `<tr><td>${esc(formatMyDateTime(r.at))}${ach && ach.key ? `<br><b>${ach.label}</b>` : ''}</td><td>${done || '—'}</td><td>${esc(r.response) || '—'}</td><td>${esc(r.evaluation) || '—'}</td><td>${esc(r.revision) || '—'}</td></tr>`;
+        }).join('')}</tbody></table>` : '';
+        return `<h2>#${k + 1} ${esc(p.problem || '（無題）')}　<span style="font-weight:400;font-size:9pt;">［${esc(st ? st.label : '')}］</span></h2>
+<table style="break-inside:auto;"><tbody>${row('関係する項目', esc(needs))}${row('根拠データ', esc((p.evidence || []).join('／')))}${row('この患者に必要な理由', (p.reasons || []).map(r => `${r.about ? `（${esc(r.about)}）` : ''}${esc(r.text)}`).join('<br>'))}${row('長期目標', esc(p.goalLong))}${row('短期目標', esc(p.goalShort))}${CARE_PLAN_SECTIONS.map(s => row(esc(s.label), list(p[s.key]))).join('')}</tbody></table>
+${recs.length ? `<div style="font-weight:700;margin:6pt 0 0;">実施・評価の記録</div>${recTable}` : ''}`;
+      }).join('');
+      const title = `${cp.title || ''}_看護計画`;
+      return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${PRINT_BASE_CSS}
+  @page { size: A4 portrait; }
+  table { width: 100%; border-collapse: collapse; } th, td { border: .6pt solid #8a8375; padding: 2.5pt 4pt; vertical-align: top; text-align: left; font-size: 8.8pt; }
+  tr { break-inside: avoid; page-break-inside: avoid; }
+</style></head><body>
+${printDocHead('看護計画・実施・評価', cp, `看護計画 ${plans.length}件`)}
+${body}
+<p class="note">利用者が作成・編集した看護計画です。最終的な判断は医療従事者が行ってください。</p>
+</body></html>`;
+    }
+    window.printCarePlans = function() {
+      const cp = getCurrentPatient();
+      if (!carePlanList(cp).length) return showToast('書き出す看護計画がありません。先に看護計画を作成してください', 'warn');
+      printHtmlDocument(buildCarePlansPrintHtml(cp));
+      showToast(isMobilePrintTarget() ? '印刷用の見本を開きました。上の「印刷・PDFに保存」を押してください' : '印刷画面を開きます。「送信先」で「PDFに保存」を選ぶとPDFになります', 'info');
+    };
+    window.exportCarePlansText = function() {
+      const cp = getCurrentPatient();
+      if (!carePlanList(cp).length) return showToast('書き出す看護計画がありません。先に看護計画を作成してください', 'warn');
+      const safeTitle = String(cp.title || '患者').replace(/[\\/:*?"<>|]/g, '_');
+      const text = `看護計画・実施・評価：${cp.title || ''}\n出力日時: ${new Date().toLocaleString('ja-JP')}\n\n${buildCarePlansText(cp)}\n`;
+      downloadTextBlob(new Blob([text], { type: 'text/plain;charset=utf-8' }), `${safeTitle}_看護計画.txt`);
+      showToast('看護計画をテキストで書き出しました', 'success');
+    };
+
     // 「看護計画」のページへ切り替えたとき・患者を切り替えたとき（js/05 の switchView・loadLocalState から呼ぶ）
     function onCarePlanViewShown() { renderCarePlans(); }
 
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {
+    buildCarePlansPrintHtml, buildCarePlansText,
     formatCardTimestamp, MISSING_CHECK_STATUSES, missingInfoItems, missingCheckStatus, missingCheckCounts, setMissingCheck, missingCheckCardHtml,
     CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
