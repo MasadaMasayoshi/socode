@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-08.11'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-08.12'; // 版（scripts/stamp-version.js が書き込む）
     // 「祖母を胃がん、父を前立腺がんで亡くしている〜」のような家族歴の文は、本人の食事・栄養
     // 状態の所見ではないにもかかわらず、id2(食事)の疾患名キーワード（「胃がん」等）に一致して
     // しまい、食事に無関係な家族歴が「2. 食事」に混入していた（利用者からの報告事例）。
@@ -138,6 +138,12 @@
     const PAIN_TEXT_REGEX = /疼痛|痛み|痛い|痛く|痛かった|創痛|ペインスケール|NRS|VAS|鎮痛|ロキソ|レスキュー/;
     const PAIN_SCORE_REGEX = /ペインスケール|NRS|VAS|フェイススケール/;
     const POSTURE_ACTIVITY_REGEX = /荷重|移乗|歩行|歩く|歩け|リハビリ|離床|端坐位|立位|移動|ROM|SLR|可動域|起立/;
+    const LEARN_CONTENT_IN_QUOTE_REGEX = /んですね|んだよね|んだったよね|だったよね|なきゃ|なくちゃ|やらなくちゃ|やらなきゃ|大丈夫[?？]|でいいの|いいの[?？]|できるかな|やり方|方法|なりにくく|合併症|良くない|いけないの|教えて/;
+    const LEARN_KNOWLEDGE_FIRST_REGEX = /なりにくく|やり方|方法|合併症|良くない|予防|教えて/;
+    const QUOTE_EMOTION_WORD_REGEX = /怖|恐|不安|心配|嫌|つら|辛|悲し|寂し|情けな|びっくり|嬉し|うれし|かしら/;
+    const COMM_ABILITY_REGEX = /聞こえ|聞き取|言葉(?:が|を)|話せ|伝え(?:られ|たい|にく)|意思疎通|難聴|筆談|声が出|会話/;
+    const NOT_ENV_REGEX = /PCA|点滴|輸液|疼痛|痛み|痛い|鎮痛|ペインスケール|NRS|\bPLT\b|Plt|血小板|(?<![A-Za-z])PT(?![A-Za-z])|プロトロンビン|アミラーゼ|HBV|HCV|梅毒|HIV|病理|Stage|病期|T[0-9]\s*N[0-9O]|術式|手術時間|出血量|inout|バランス|怖い|不安|心配|フィブリノ|APTT|Dダイマー|感染症|血液型|麻酔科/;
+    const ENV_EVIDENCE_REGEX = /保険|家族|妻|夫|長男|長女|次男|次女|娘|息子|同居|独居|一人暮らし|キーパーソン|サポート|支援者|経済|生活(?:の)?場|自宅|家屋|階段|段差|転倒|転落|転ぶ|ふらつき|歩行不安定|安全|危険|事故|感染予防|感染対策|手洗い|環境|ベッド柵|ナースコール|居室|病室|個室|退院先|施設|介護|ドレーン|チューブ|ガーゼ|創部|刺入部|挿入部|抜去|せん妄|不穏|ADL|見守り|ストッキング|フットポンプ|ホーマンズ|DVT|血栓|外転枕|脱臼|牽引|けん引|骨折|人工骨頭|人工関節|麻酔|知覚|しびれ|痺れ|足背動脈|患肢|聴力|聴覚|視力|視覚|平衡感覚|触覚|感覚|傷|悪露|子宮底|褥瘡|Homans|入院歴|手術歴|既往|手術室|退院|家に帰|圧迫装置|空気圧迫|弾性|住居|住まい|アパート|マンション|一戸建|自宅|医療費|職場/;
     function detectMultipleHendersonTags(text) {
       // 会話形式で答えに添えた看護師の問い（「（問い：薬は毎日飲めていましたか）」）は、タグの判定に使わない
       text = String(text || '').replace(/（問い：[^）]*）/g, '');
@@ -268,8 +274,30 @@
       // 家族の発言（「次女「仕事があるので日中はどうしたらいいか」」）の仕事は家族の仕事で、本人の12.仕事ではない
       if (tags.has(12) && new RegExp(`^${FAMILY_SPEAKER_WORD}(?:さん)?(?:[:：]|より|から|は|が)?\\s*「`).test(text.trim()) &&
         !/(?:本人|患者|[母父]|祖[母父])(?:さん)?(?:は|の|が|も)?[^。」]{0,8}(?:仕事|勤務|退職|会社|職場)/.test(text)) tags.delete(12);
+      // 【利用者の指摘】患者の発言は、ただ話したからではなく、内容で分ける。治療・予防・やり方についての理解や疑問（「安静にしていると良くないんですね」
+      // 「ゆっくり食べなきゃいけないんだよね」「肺炎になりにくくなるんだったよね？」「このやり方で大丈夫？」）は14.学び。
+      // 10.コミュニケーションは、聞く・話す・伝えるなどの力そのものや、気持ちの表出（怖い・不安など）がある発言だけにする。
+      let learnFirst = false, learnAdded = false;
+      if (patientQuotes && LEARN_CONTENT_IN_QUOTE_REGEX.test(patientQuotes)) {
+        tags.add(14);
+        if (!QUOTE_EMOTION_WORD_REGEX.test(patientQuotes) && !COMM_ABILITY_REGEX.test(patientQuotes)) tags.delete(10);
+        learnFirst = LEARN_KNOWLEDGE_FIRST_REGEX.test(patientQuotes);
+        learnAdded = true;
+        // 何についての理解・疑問かで、その欲求にも付ける（食べ方→2、肺炎・呼吸訓練→1）
+        if (/食べ|たべ|食事|飲み|飲む/.test(patientQuotes)) tags.add(2);
+        if (/肺炎|痰|咳|深呼吸|呼吸/.test(patientQuotes)) tags.add(1);
+        // 「痛かったら、これ、自分でできるかな？」のように動作の不安を言った発言は、4.姿勢（動くこと）も関係する
+        if (/安静|動|自分でできる|歩|起き/.test(patientQuotes) && !tags.has(4) && /安静|動|歩|起き/.test(patientQuotes)) tags.add(4);
+      }
+      // 9.環境は、保険・家族・生活の場・退院先・安全（転倒・事故）・ドレーンや創部など感染の直接の原因になるものだけ。
+      // PCA・点滴・検査値（Plt・PT・アミラーゼ）・病理・病期・手術の一般情報・痛み・不安だけの発言では付けない（残り物の受け皿にしない）
+      if (tags.has(9) && NOT_ENV_REGEX.test(text) && !ENV_EVIDENCE_REGEX.test(text)) tags.delete(9);
       custom.add.forEach(r => { if (text.includes(r.keyword)) r.hendersonIds.forEach(h => tags.add(h)); });
-      return Array.from(tags);
+      const out = Array.from(tags);
+      if (learnFirst && out.includes(14)) return [14, ...out.filter(h => h !== 14)];
+      // 内容が主で、学びは副（「ゆっくり食べなきゃいけないんだよね」→ 主：2.食事、副：14.学び）
+      if (learnAdded && out.length > 1 && out.includes(14)) return [...out.filter(h => h !== 14), 14];
+      return out;
     }
 
     // ==========================================================================

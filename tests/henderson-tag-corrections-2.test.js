@@ -39,10 +39,10 @@ test('検査値・バイタルのタグは何の指標かで決まる（一律�
   assert.deepEqual(labTags('eGFR 73.6'), [3]);
   assert.deepEqual(labTags('WBC (白血球) 8100/μL'), [7]);
   assert.deepEqual(labTags('CRP (C反応性蛋白) 1.5mg/dl'), [7]);
-  assert.deepEqual(labTags('PT% 96%'), [9]);
-  assert.deepEqual(labTags('APTT 26.5秒'), [9]);
-  assert.deepEqual(labTags('Dダイマー 2.3 μg/mL'), [9]);
-  assert.deepEqual(labTags('PLT (血小板) 23.5×10^4/μL'), [9]);
+  assert.deepEqual(labTags('PT% 96%'), [2]);
+  assert.deepEqual(labTags('APTT 26.5秒'), [2]);
+  assert.deepEqual(labTags('Dダイマー 2.3 μg/mL'), [2]);
+  assert.deepEqual(labTags('PLT (血小板) 23.5×10^4/μL'), [2]);
 });
 
 test('栄養・代謝の指標は引き続き2(食事)（回帰確認）', () => {

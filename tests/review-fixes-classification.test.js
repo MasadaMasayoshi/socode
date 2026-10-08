@@ -176,7 +176,7 @@ test('日の順番：入院前日・年またぎ・2月29日', () => {
 
 test('「Pt」（患者）を検査のPTと読まない・×10³ を ×103 にしない', () => {
   assert.ok(!classify('Ptは午前中ずっと臥床していた')[0].hendersonIds.includes(2));
-  assert.ok(classify('PT 12.5秒')[0].hendersonIds.includes(9));
+  assert.ok(classify('PT 12.5秒')[0].hendersonIds.includes(2));
   const wbc = classify('WBC 11.2×10³/μL')[0].text;
   assert.ok(!/×103/.test(wbc), wbc);
   assert.match(wbc, /11,200 \/μL/);

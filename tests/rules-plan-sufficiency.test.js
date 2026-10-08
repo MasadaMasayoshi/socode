@@ -17,6 +17,6 @@ test('AIなしの充足・未充足：援助が必要な記録は未充足、否
   assert.ok(Object.values(r).some(v => v.all.verdict === 'unmet' && v.all.evidence.length));
   Object.values(r).forEach(v => { if (v.all.verdict !== 'unknown') assert.ok(v.all.evidence.length, '根拠のカードが入る'); });
   assert.equal(app.sufficiencyCardVerdict({ text: '呼吸困難感訴えなし' }, 1).v, 'met');
-  assert.equal(app.sufficiencyCardVerdict({ text: '創部痛あり ペインスケール5' }, 9).v, 'unmet');
-  assert.equal(app.sufficiencyCardVerdict({ text: '疼痛の訴えなし' }, 9).v, 'met');
+  assert.equal(app.sufficiencyCardVerdict({ text: '創部痛あり ペインスケール5' }, 5).v, 'unmet');
+  assert.equal(app.sufficiencyCardVerdict({ text: '疼痛の訴えなし' }, 5).v, 'met');
 });

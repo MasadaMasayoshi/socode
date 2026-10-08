@@ -587,7 +587,7 @@ test('患者本人の直接の発言（「〜」）を含むカードは、他�
   const items = classifyLocally('朝のあいさつで訪室すると「やっぱりやらなくちゃいけないの?」と聞いてくる。');
   const card = findByIncludes(items, 'やっぱりやらなくちゃいけないの');
   assert.ok(card, '患者の発言を含むカードが抽出される');
-  assert.ok(card.hendersonIds.includes(10), '患者の直接の発言から10(コミュニケーション)タグが付与される');
+  assert.ok(card.hendersonIds.length > 0 && card.hendersonIds.includes(14) && !card.hendersonIds.includes(10), '患者の発言は内容で分け、治療・やり方への疑問は14.学び（10にはしない）');
 });
 
 test('「【検温】帰室時、15分、30分、1時間…」のようなバイタル再検間隔の列挙は、断片化せず1枚のカードにまとまる', () => {

@@ -23,22 +23,22 @@ test('14項目ごとに「未分類／入院前／入院後／不足情報」の
   const out = buildAssessmentTableText(cp);
   // 入院後の欄は日ごとの小見出し（〈入院時〉）で区切る。日の分からない「10:00」は直前の日の続きに入れる
   // 番号は画面に並ぶ順（未分類→入院前→入院後）に付ける（利用者の指摘「O-1、O-2の順番が整理されていない」）
-  assert.match(out, /■ 1\. 呼吸\n  ・入院前：判定保留\n  ・入院後：未充足\n  \[入院前\]\n    ・O-1 喫煙歴なし\n  \[入院後\]\n   〈入院時〉\n    ・S-1 \[入院時\] 「息苦しい」\n    ・O-2 \[10:00\] SpO2 95%\n/);
-  assert.match(out, /■ 2\. 食事\n  \[不足情報\]\n    ・体重測定が必要\n/, '不足情報の欄はS/Oの番号を付けない');
-  assert.match(out, /■ 5\. 睡眠\n  （カードなし）/, 'カードの無い項目も「カードなし」として並べる');
+  assert.match(out, /■ 1\. 呼吸\n  ・入院前：情報不足\n  ・入院後：未充足\n  \[入院前\]\n    ・O-1 喫煙歴なし\n  \[入院後\]\n   〈入院時〉\n    ・S-1 \[入院時\] 「息苦しい」\n    ・O-2 \[10:00\] SpO2 95%\n/);
+  assert.match(out, /■ 2\. 食事\n  ・入院前：情報不足\n  ・入院後：情報不足\n  \[不足情報\]\n    ・体重測定が必要\n/, '不足情報の欄はS/Oの番号を付けない');
+  assert.match(out, /■ 5\. 睡眠\n  ・入院前：情報不足\n  ・入院後：情報不足\n  （カードなし）/, 'カードの無い項目も「カードなし」として並べる');
   assert.ok(!out.includes('学籍番号'), '不要な情報のカードは含めない');
 });
 
 test('選択したカードだけの場合は、そのカードだけを書き出し（番号は画面と同じ）、カードの無い項目は省く', () => {
   const out = buildAssessmentTableText(cp, new Set(['b']));
-  assert.match(out, /■ 1\. 呼吸\n  ・入院前：判定保留\n  ・入院後：未充足\n  \[入院後\]\n    ・O-2 \[10:00\] SpO2 95%\n/);
+  assert.match(out, /■ 1\. 呼吸\n  ・入院前：情報不足\n  ・入院後：未充足\n  \[入院後\]\n    ・O-2 \[10:00\] SpO2 95%\n/);
   assert.ok(!out.includes('息苦しい'));
   assert.ok(!out.includes('■ 2.'));
 });
 
 test('選択したカードの書き出しで、総合アセスメント表を含めると選んだ場合だけ、その欄が付く', () => {
   const withTable = buildSelectedCardsExportText(cp, ['a'], '', false, true);
-  assert.match(withTable, /【総合アセスメント表（選択したカードのみ）】\n\n■ 1\. 呼吸\n  ・入院前：判定保留\n  ・入院後：未充足\n  \[入院後\]\n   〈入院時〉\n    ・S-1/);
+  assert.match(withTable, /【総合アセスメント表（選択したカードのみ）】\n\n■ 1\. 呼吸\n  ・入院前：情報不足\n  ・入院後：未充足\n  \[入院後\]\n   〈入院時〉\n    ・S-1/);
   const without = buildSelectedCardsExportText(cp, ['a'], '', false, false);
   assert.ok(!without.includes('総合アセスメント表'));
 });

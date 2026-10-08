@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = '2026-10-08.11'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = '2026-10-08.12'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 検査値カードの抽出：値のすぐ後（スペースの有無を問わず）に単位まで書かれている場合、
     // 値と単位が別々のカードに分かれてしまう不具合の対策。
@@ -182,7 +182,7 @@
       { tags: [3], regex: /(\bCre\b|クレアチニン|\bBUN\b|尿素窒素|eGFR|尿酸|尿蛋白|尿糖|尿比重)/i },
       { tags: [7], regex: /(\bWBC\b|白血球|\bCRP\b|C反応性|体温|(?<![A-Za-z])B?T\s*\d{2})/i },
       // 「PT」は凝固検査のほか理学療法士（PT）の略でも使われるため、数値・%・括弧が続く場合だけを検査とみなす
-      { tags: [9], regex: /(APTT|PT-INR|PT%|\bPT(?=\s*[\d%(（])|プロトロンビン|Dダイマー|D-ダイマー|\bFDP\b|フィブリノ|\bPLT\b|血小板)/i }
+      { tags: [2], regex: /(APTT|PT-INR|PT%|\bPT(?=\s*[\d%(（])|プロトロンビン|Dダイマー|D-ダイマー|\bFDP\b|フィブリノ|\bPLT\b|血小板)/i }
     ];
     function labCategoryTags(text) {
       const tags = [];

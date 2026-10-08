@@ -75,6 +75,6 @@ test('血液型はヘンダーソンタグが提案されず、病期・病理�
   // Arrayとテスト側のArrayが別レルムになり、空配列同士でも参照が異なるとdeepStrictEqualが
   // 失敗することがある。他のテストファイルの既存の書き方に合わせる）。
   assert.deepEqual(Array.from(suggestHendersonTagsForText('【血液型】 A型', null, undefined)), []);
-  assert.deepEqual(Array.from(suggestHendersonTagsForText('Stage 1B', null, undefined)).sort(), [14, 9]);
-  assert.deepEqual(Array.from(suggestHendersonTagsForText('【病理結果】T2 NO PO HO MO', null, undefined)).sort(), [14, 9]);
+  assert.deepEqual(Array.from(suggestHendersonTagsForText('Stage 1B', null, undefined)).sort(), [14]);
+  assert.deepEqual(Array.from(suggestHendersonTagsForText('【病理結果】T2 NO PO HO MO', null, undefined)).sort(), [14]);
 });

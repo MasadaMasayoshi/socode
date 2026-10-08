@@ -72,7 +72,7 @@ test('「セファゾリンNa 1g」は検査値（Na）にならない。「血�
 test('「PTとともに訓練」（理学療法士）は凝固検査のPTにならない。「PT 12.0秒」は検査', () => {
   assert.ok(!tags('本日、PTとともにベッド上でSLR・足関節ROMの訓練実施。').includes(9));
   assert.ok(tags('本日、PTとともにベッド上でSLR・足関節ROMの訓練実施。').includes(4));
-  assert.deepEqual(Array.from(labCategoryTags('PT 12.0秒')), [9]);
+  assert.deepEqual(Array.from(labCategoryTags('PT 12.0秒')), [2]);
 });
 
 test('「、」で続く文の最後の「嘔気・嘔吐なし」「発赤・出血・排膿なし」は分割しない（「嘔気」「出血」だけが残ると意味が逆になる）', () => {

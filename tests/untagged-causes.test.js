@@ -48,6 +48,6 @@ test('前の行が離れている・日時が違う・検査値の場合は、�
 
 test('キルシュナー牽引は4、輸液量・住居は9（患者34でタグ未設定だったもの）', () => {
   assert.ok(detectMultipleHendersonTags('入院後、キルシュナー牽引4kg実施。').includes(4));
-  assert.ok(detectMultipleHendersonTags('輸液量:2,320ml、').includes(9));
+  assert.ok(!detectMultipleHendersonTags('輸液量:2,320ml、').includes(9), '輸液は9.環境にしない');
   assert.ok(detectMultipleHendersonTags('住居: 2階建て(階段あり)').includes(9));
 });

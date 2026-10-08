@@ -89,7 +89,8 @@ test('③AIの看護計画の文章を、看護問題・目標・OP/TP/EPに読�
   assert.equal(app.importCarePlans(cp, 'ai').length, 1);
   assert.equal(app.importCarePlans(cp, 'ai').length, 0, '同じ看護問題は取り込まない');
   const p = app.carePlanList(cp)[0];
-  assert.ok(p.relatedNeeds.includes(9), `疼痛→9.環境（安楽） ${JSON.stringify(p.relatedNeeds)}`);
+  assert.ok(Array.isArray(p.relatedNeeds), '疼痛だけでは9.環境にしない');
+  assert.ok(!p.relatedNeeds.includes(9), `疼痛→9.環境にしない ${JSON.stringify(p.relatedNeeds)}`);
   cp.diagnosisCandidates = [{ id: 'd1', name: '便秘' }, { id: 'd2', name: '転倒転落リスク状態' }];
   cp.selectedDiagnosisIds = ['d2'];
   assert.deepEqual(clone(app.importCarePlans(cp, 'dx').map(x => x.problem)), ['転倒転落リスク状態']);

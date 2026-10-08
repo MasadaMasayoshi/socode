@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.11'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.13'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -334,7 +334,7 @@
     // 充足・未充足：14項目ごとに「充足／未充足／未判定」を選ぶ（総合アセスメント表の各項目の見出しに出す。
     // 「自分のアセスメント」を非表示にしていても選べる）。結論を最初に明言する（参考データの「充足・未充足の判断」）ための印。
     // ==========================================================================
-    const SUFFICIENCY_LABELS = { met: '充足', unmet: '未充足', unknown: '判定保留' };
+    const SUFFICIENCY_LABELS = { met: '充足', unmet: '未充足', unknown: '情報不足' };
     // 入院前・入院後・全体（総合）の3つについて、それぞれ充足／未充足を持つ。
     //   pre ：入院前（発症・入院の前の状態）／post：入院後（入院・手術・治療のあとの状態）／all：全体
     const SUFFICIENCY_PHASES = [
@@ -360,8 +360,9 @@
       const v = r && r[phase] && r[phase].verdict;
       return v === 'met' || v === 'unmet' ? v : '';
     }
+    // 記録が足りない欄も「情報不足」と明示して出す（空欄にしない）ので、カードが1枚でもあれば、どの欲求にも結果がある
     function sufficiencyHasVerdict(cp, needId) {
-      return SUFFICIENCY_UI_PHASES.some(ph => getSufficiency(cp, needId, ph.key));
+      return (cp.items || []).some(i => i.type !== 'unnecessary') && !!ruleSufficiencyFor(cp)[needId];
     }
     // 書き出し・印刷用の短い文：「入院前：充足／入院後：未充足／全体：未充足」（選んである所だけ）
     // 教員の指導：「充足or未充足と言い切る」「何のリスクが考えられるかまで書く」。欲求ごとの、満たされないときに考えられる主なリスク
@@ -378,8 +379,18 @@
       const need = HENDERSON_NEEDS.find(n => n.id === needId);
       const name = need ? need.name.replace(/^\d+\.\s*/, '') : '';
       if (a.verdict === 'met') return `${a.reason}より、${name}は満たされているため、充足。`;
-      if (a.verdict === 'unmet') return `${a.reason}より、${SUFFICIENCY_RISKS[needId] || '合併症'}のリスクが考えられるため、未充足。`;
-      return a.need ? `情報不足（${a.need}）のため、判定保留。` : '情報不足のため、判定保留。';
+      if (a.verdict === 'unmet') {
+        // 9.環境は、直接の根拠がある危険だけを書く（不安や痛みだけから、転倒と感染の両方を推測しない）
+        let risk = SUFFICIENCY_RISKS[needId] || '合併症';
+        if (needId === 9) {
+          const rs = [];
+          if (/転倒|転落|ふらつき|不安定|せん妄|不穏|めまい|介助|見守り|安静/.test(a.reason)) rs.push('転倒・転落');
+          if (/ドレーン|チューブ|創部|ガーゼ|刺入部|挿入部|発赤|発熱|排膿|感染/.test(a.reason)) rs.push('感染');
+          risk = rs.join('・');
+        }
+        return risk ? `${a.reason}より、${risk}のリスクが考えられるため、未充足。` : `${a.reason}より、環境面の問題があるため、未充足。`;
+      }
+      return a.need ? `${a.need}ため、情報不足。` : '記録が少なく判断できないため、情報不足。';
     }
     function sufficiencyTextOf(cp, needId) {
       if (!sufficiencyHasVerdict(cp, needId)) return '';
@@ -389,7 +400,7 @@
       const rows = SUFFICIENCY_UI_PHASES.map(ph => {
         const cur = getSufficiency(cp, needId, ph.key);
         const label = SUFFICIENCY_LABELS[cur || 'unknown'];
-        return `<span class="suf-line"><span class="suf-phase">${ph.key === 'pre' ? '術前の充足状態' : '術後の充足状態'}</span><span class="suf-badge suf-${cur || 'unknown'}"><i class="fa-solid ${cur === 'met' ? 'fa-circle-check' : cur === 'unmet' ? 'fa-triangle-exclamation' : 'fa-circle-question'}"></i> ${label}</span></span>`;
+        return `<span class="suf-line"><span class="suf-phase">${ph.key === 'pre' ? '入院前' : '入院後'}</span><span class="suf-badge suf-${cur || 'unknown'}"><i class="fa-solid ${cur === 'met' ? 'fa-circle-check' : cur === 'unmet' ? 'fa-triangle-exclamation' : 'fa-circle-question'}"></i> ${label}</span></span>`;
       }).join('');
       return `<div class="suf-ctl" role="group" aria-label="充足・未充足">${rows}</div>`;
     }
@@ -397,7 +408,7 @@
       return `<span class="suf-sum">${SUFFICIENCY_UI_PHASES.map(ph => {
         let met = 0, unmet = 0;
         HENDERSON_NEEDS.forEach(n => { const v = getSufficiency(cp, n.id, ph.key); if (v === 'met') met++; else if (v === 'unmet') unmet++; });
-        return `<span class="suf-sum-grp"><span>${ph.label}</span><b class="suf-met-n">充足 ${met}</b><b class="suf-unmet-n">未充足 ${unmet}</b><span>保留 ${HENDERSON_NEEDS.length - met - unmet}</span></span>`;
+        return `<span class="suf-sum-grp"><span>${ph.label}</span><b class="suf-met-n">充足 ${met}</b><b class="suf-unmet-n">未充足 ${unmet}</b><span>情報不足 ${HENDERSON_NEEDS.length - met - unmet}</span></span>`;
       }).join('')}</span>`;
     }
     window.setSufficiency = function(needId, val, phase = 'all') {
@@ -1032,7 +1043,7 @@ ${missLines || '（なし）'}
       return HENDERSON_NEEDS.map(need => {
         const a = all[need.id] && all[need.id].all;
         if (!a) return '';
-        return `${need.id}.${need.name.replace(/^\d+\.\s*/, '')}：${a.verdict === 'met' ? '充足' : a.verdict === 'unmet' ? '未充足' : '判定保留'}${a.reason ? `（${a.reason.slice(0, 80)}）` : ''}`;
+        return `${need.id}.${need.name.replace(/^\d+\.\s*/, '')}：${a.verdict === 'met' ? '充足' : a.verdict === 'unmet' ? '未充足' : '情報不足'}${a.reason ? `（${a.reason.slice(0, 80)}）` : ''}`;
       }).filter(Boolean).join('\n');
     }
     function sufficiencyReasonHtml(cp, needId) {
@@ -1049,7 +1060,7 @@ ${missLines || '（なし）'}
         return `<div><b>${ph.label}</b> ${escapeHtml(body || '')}${ev ? `<span class="suf-ev">根拠：${escapeHtml(ev)}</span>` : ''}</div>`;
       }).join('');
       const rv = e && e.aiReview && e.aiReview.all;
-      const rvHtml = rv ? `<span class="suf-ev"><b>AIの評価：${rv.agree === true ? '賛成' : rv.agree === false ? `反対（AIは${SUFFICIENCY_LABELS[rv.verdict] || '判定保留'}と判断）` : SUFFICIENCY_LABELS[rv.verdict] || '判定保留'}</b> ${escapeHtml(rv.reason || rv.need || '')}</span>` : '';
+      const rvHtml = rv ? `<span class="suf-ev"><b>AIの評価：${rv.agree === true ? '賛成' : rv.agree === false ? `反対（AIは${SUFFICIENCY_LABELS[rv.verdict] || '情報不足'}と判断）` : SUFFICIENCY_LABELS[rv.verdict] || '情報不足'}</b> ${escapeHtml(rv.reason || rv.need || '')}</span>` : '';
       if (!lines && !rvHtml) return '';
       return `<div class="suf-reason">${lines}${rvHtml}</div>`;
     }
@@ -1088,15 +1099,31 @@ ${missLines || '（なし）'}
     // 考え方：カードの文を1文ずつ見て、「基準から外れる・援助が必要」を示す言葉（未充足）と「自力でできている・基準内」を示す言葉（充足）を探す。
     // 否定（「痛みの訴えなし」「障害なし」）は反対の意味にする。未充足の面が1つでもあれば未充足（援助が必要な面を優先）。どちらも無ければ「判定できない」。
     const SUF_NEG_AFTER = '(?:[^、。,]{0,6})(?:なし|ない|無|訴えず|みられず|見られず|認めず|なく|ありません)';
-    const SUF_UNMET_CUES = ['痛み|疼痛|創痛|痛い|NRS\\s*[:：]?\\s*[3-9]|ペインスケール\\s*[「:：]?\\s*[3-9]', '眠れ[なず]|不眠|睡眠(?:不足|障害)|寝つけ', '全介助|要介助|介助(?:が必要|を要|にて|で)|見守りが必要|できない|困難|不可|禁止|制限', '不安|怖い|恐怖|心配|戸惑|情けない|申し訳', '食欲(?:低下|不振|がない|ない)|摂取量(?:半分|減)|半分のみ|おなかすかない|嘔気|嘔吐', '排便(?:なし|なく)|便秘|下痢|腹部膨満|お腹が張', 'べたべた|べたつき|気持ちが悪い|汚れ|悪臭|掻痒', '発赤|腫脹|熱感|発熱|排膿|浮腫|褥瘡', '呼吸困難(?:感)?(?:あり|を訴)|息苦しい|息切れ|チアノーゼ|喘鳴|SpO2\\s*[:：]?\\s*(?:[0-8]\\d|9[0-3])\\s*%', '転倒|ふらつき|不安定|せん妄|不穏|混乱|拒否', '体温\\s*[:：]?\\s*3[89]|3[89](?:\\.\\d)?\\s*度', '[↑↓]', '(?:旅行|趣味|外出|散歩|余暇)[^。]{0,20}(?:したい|できず|できない|行けない|行きたい)|早く治して', '(?:わから|分から)ない|教えて(?:ほしい|欲しい|ください)|大丈夫(?:か|なの|でしょうか)|ずれ(?:たり)?しないか|気を付け(?:れば|ること)', '仕事[^。]{0,10}(?:できない|できず|休)|復職[^。]{0,10}(?:不安|心配|難)|働けな'];
-    const SUF_MET_CUES = ['自立|自力|自分で|一人で|問題なし|良好|清明|規則的|正常|普通食|常食|整|障害なし|異常なし|理解(?:力)?(?:あり|良好)|前向き|頑張|楽しみ|きれい好き', '睡眠\\s*[:：]?\\s*[6-9]\\s*時間|眠れた|よく眠れ', '食欲(?:良好|あり)|全量摂取|摂取量\\s*(?:良好|十分)', 'SpO2\\s*[:：]?\\s*(?:9[4-9]|100)\\s*%', 'ペインスケール\\s*[「:：]?\\s*[0-2]|NRS\\s*[:：]?\\s*[0-2](?!\\d)|痛みなし|疼痛なし', '体温\\s*[:：]?\\s*3[67](?:\\.\\d)?', '排便\\s*[:：]?\\s*\\d\\s*回/日|排尿\\s*[:：]?\\s*\\d+\\s*回/日', '呼吸困難感(?:の)?訴えなし|肺Air入り(?:が)?良好', '意思疎通(?:は)?(?:良好|可能|図れ)|言葉にで|希望を(?:伝え|話)|質問(?:が)?でき|ナースコール[^。]{0,6}(?:使用|押|できる)|コミュニケーション[^。]{0,6}(?:良好|障害なし)', '理解(?:力)?(?:が)?良好|現状認識(?:が)?良好|理解できて|理解している', '(?:旅行|趣味|友人|外出)[^。]{0,12}(?:楽しむ|楽しん|行って|している)', '信仰[^。]{0,8}なし|宗教[^。]{0,8}なし|特別な宗教'];
+    const SUF_UNMET_CUES = ['痛み|疼痛|創痛|痛い|NRS\\s*[:：]?\\s*[3-9]|ペインスケール\\s*[「:：]?\\s*[3-9]', '眠れ[なず]|不眠|睡眠(?:不足|障害)|寝つけ', '全介助|要介助|介助(?:が必要|を要|にて|で)|見守りが必要|できない|困難|不可|禁止|制限', '不安|怖い|恐怖|心配|戸惑|情けない|申し訳', '食欲(?:低下|不振|がない|ない)|摂取量(?:半分|減)|半分のみ|おなかすかない|嘔気|嘔吐', '排便(?:なし|なく)|便秘|下痢|腹部膨満|お腹が張', 'べたべた|べたつき|気持ちが悪い|汚れ|悪臭|掻痒', '発赤|腫脹|熱感|発熱|排膿|浮腫|褥瘡', '呼吸困難(?:感)?(?:あり|を訴)|息苦しい|息切れ|チアノーゼ|喘鳴|SpO2\\s*[:：]?\\s*(?:[0-8]\\d|9[0-3])\\s*%', '転倒|ふらつき|不安定|せん妄|不穏|混乱|拒否', '体温[^\\d。、]{0,3}3[89]|3[89](?:\\.\\d)?\\s*度', '[↑↓]', '(?:旅行|趣味|外出|散歩|余暇)[^。]{0,20}(?:したい|できず|できない|行けない|行きたい)|早く治して', '(?:わから|分から)ない|教えて(?:ほしい|欲しい|ください)|大丈夫(?:か|なの|でしょうか)|ずれ(?:たり)?しないか|気を付け(?:れば|ること)', '仕事[^。]{0,10}(?:できない|できず|休)|復職[^。]{0,10}(?:不安|心配|難)|働けな', '体重[^。、]{0,8}(?:減|低下)|[0-9.]+\\s*kg\\s*(?:減|低下)|やせ|朝食[^。、]{0,6}(?:抜|食べない|とらない|欠食|ほとんど食べ)|欠食|野菜嫌い|嫌い|苦手|外食|早食い|偏食|短時間で済ま|早く食べ'];
+    const SUF_MET_CUES = ['自立|自力|自分で|一人で|問題なし|良好|清明|規則的|正常|普通食|常食|整|障害なし|異常なし|理解(?:力)?(?:あり|良好)|前向き|頑張|楽しみ|きれい好き', '睡眠[^\\d。、]{0,3}[6-9](?:\\s*[~〜～-]\\s*[6-9])?\\s*時間|眠れた|よく眠れ', '食欲(?:良好|あり)|全量摂取|摂取量\\s*(?:良好|十分)', 'SpO2\\s*[:：]?\\s*(?:9[4-9]|100)\\s*%', 'ペインスケール\\s*[「:：]?\\s*[0-2]|NRS\\s*[:：]?\\s*[0-2](?!\\d)|痛みなし|疼痛なし', '体温[^\\d。、]{0,3}(?:3[67]|35\\.[5-9])', '排便\\s*[:：]?\\s*\\d\\s*回/日|排尿\\s*[:：]?\\s*\\d+\\s*回/日', '呼吸困難感(?:の)?訴えなし|肺Air入り(?:が)?良好', '意思疎通(?:は)?(?:良好|可能|図れ)|言葉にで|希望を(?:伝え|話)|質問(?:が)?でき|ナースコール[^。]{0,6}(?:使用|押|できる)|コミュニケーション[^。]{0,6}(?:良好|障害なし)', '理解(?:力)?(?:が)?良好|現状認識(?:が)?良好|理解できて|理解している', '(?:旅行|趣味|友人|外出)[^。]{0,12}(?:楽しむ|楽しん|行って|している)', '信仰[^。]{0,8}なし|宗教[^。]{0,8}なし|特別な宗教', '(?:RR|呼吸数)[^\\d。、]{0,3}(?:1[2-9]|20)(?!\\d)|%(?:VC|肺活量)\\s*(?:[89]\\d|1\\d\\d)|胸部[^。、]{0,8}(?:明らかな)?(?:異常|病変)[^。、]{0,4}(?:なし|認めず|ない)|禁煙|呼吸困難(?:感)?(?:は)?(?:なし|ない|無)', '趣味|テニス|ゴルフ|ジム|ウォーキング|ジョギング|旅行|友人[^。]{0,6}(?:会|食事)'];
     // 言葉の種類ごとに、関係する欲求の番号（null＝どの欲求でも）。痛みは動く・休む・清潔など広く、体温は体温調節だけ、のように限る
-    const SUF_UNMET_SCOPE = [[4, 5, 6, 8, 9, 13, 14], [5], null, [9, 13, 14], [2, 3], [3], [8], [7, 8, 9], [1], [4, 9, 10, 13, 14], [7], null, [13], [14], [12]];
-    const SUF_MET_SCOPE = [null, [5], [2], [1], [4, 5, 6, 8, 9, 10, 12, 13, 14], [7], [3], [1], [10], [14], [13], [11]];
-    function sufficiencyClauseVerdict(clause, needId) {
+    const SUF_UNMET_SCOPE = [[4, 5, 6, 8, 13, 14], [5], null, [13, 14], [2, 3], [3], [8], [7, 8], [1], [4, 9, 10, 13, 14], [7], null, [13], [14], [12], [2]];
+    const SUF_MET_SCOPE = [null, [5], [2], [1], [4, 5, 6, 8, 10, 12, 13, 14], [7], [3], [1], [10], [14], [13], [11], [1], [13]];
+    // 根拠として使えるかの確認（言葉だけで充足にしない）：
+    //  ・発言や疑問・不安の言い方（「自分でできるかな？」「大丈夫？」「分かりました」）は、できている証拠にしない
+    //  ・ドレーン・挿入部・創部の所見は、排泄や姿勢などの充足の根拠にしない（清潔・体温の根拠にだけ使う）
+    //  ・排泄・姿勢の充足は、その欲求に関する言葉（排便・排尿・歩行・ADLなど）がある記載だけを根拠にする
+    const SUF_UNCERTAIN = /[？?]|かな$|かも|だっけ|だよね|んですね|でしょうか|ですか|分かりました|わかりました|大丈夫|問題ない|できる(?:かな|と思|はず)/;
+    const SUF_DEVICE_SITE = /挿入部|刺入部|ドレーン|ルート|チューブ|カテーテル|ライン|創部|ガーゼ/;
+    const SUF_MET_DOMAIN = { 3: /排便|排尿|排泄|便|尿|トイレ|下痢|便秘|ガス|腸蠕動|オムツ|ポータブル|ADL/, 4: /歩行|移動|ADL|体位|寝返|離床|立位|座位|起き上|筋力|ふらつき|歩く|運動|テニス|スポーツ|自立/, 2: /食|摂取|嚥下|咀嚼|栄養|水分|飲/ };
+    function sufficiencyMetAllowed(clause, needId, speech) {
+      if (speech || SUF_UNCERTAIN.test(clause)) return false;
+      if (SUF_DEVICE_SITE.test(clause) && ![7, 8].includes(needId)) return false;
+      const dom = SUF_MET_DOMAIN[needId];
+      if (dom && !dom.test(clause)) return false;
+      return true;
+    }
+    function sufficiencyClauseVerdict(clause, needId, opts) {
+      const speech = !!(opts && opts.speech);
       const t = String(clause || '').normalize('NFKC');
       // 12.仕事・達成感は、仕事・役割・達成感に関する言葉が無い記載（動作の自立など）では決めない（教員・利用者の指摘：情報が弱いときは判定保留）
       if (needId === 12 && !/仕事|職|復職|達成|役割|家事|意欲|生きがい|就労|勤務|主婦/.test(t)) return { v: '', hit: '' };
+      const metOk = sufficiencyMetAllowed(t, needId, speech);
       let unmet = '', met = '';
       for (let k = 0; k < SUF_UNMET_CUES.length; k++) {
         const src = SUF_UNMET_CUES[k], sc = SUF_UNMET_SCOPE[k];
@@ -1104,13 +1131,14 @@ ${missLines || '（なし）'}
         const m = t.match(new RegExp(`(${src})(${SUF_NEG_AFTER})?`));
         if (!m) continue;
         const negated = m[2] && !/^[↑↓]/.test(m[1]);
-        if (negated) { met = met || m[0]; continue; }
+        if (negated) { if (metOk) met = met || m[0]; continue; }
         unmet = m[0]; break;
       }
       // 自立してできている記載（「自立」「自力」）に、好みや気持ちの言葉（「毎日入らないと気持ちが悪い」）が添えられているだけなら、満たされていると見る
-      if (unmet && /自立|自力/.test(t) && !/全介助|要介助|介助|できない|困難|不可|禁止|制限|見守り/.test(t) && /気持ち|不安|心配|戸惑|申し訳|情けない/.test(unmet)) return { v: 'met', hit: '自立' };
+      if (unmet && metOk && /自立|自力/.test(t) && !/全介助|要介助|介助|できない|困難|不可|禁止|制限|見守り/.test(t) && /気持ち|不安|心配|戸惑|申し訳|情けない/.test(unmet)) return { v: 'met', hit: '自立' };
       if (unmet) return { v: 'unmet', hit: unmet };
       if (met) return { v: 'met', hit: met };
+      if (!metOk) return { v: '', hit: '' };
       for (let k = 0; k < SUF_MET_CUES.length; k++) { const sc = SUF_MET_SCOPE[k]; if (needId && sc && !sc.includes(needId)) continue; const m = t.match(new RegExp(SUF_MET_CUES[k])); if (m) return { v: 'met', hit: m[0] }; }
       return { v: '', hit: '' };
     }
@@ -1119,10 +1147,12 @@ ${missLines || '（なし）'}
     function sufficiencyCardVerdict(item, needId, phase) {
       const parts = String(item.text || '').normalize('NFKC').split(/[。\n、,，]|\s{2,}|(?<=[)）])/).map(s => s.trim()).filter(Boolean);
       let met = null, unmet = null;
+      // 「」の発言のカードは、本人の気持ちや質問であって、できている証拠ではない
+      const speech = /[「」]/.test(String(item.text || ''));
       for (const p of parts) {
         // 入院前の評価では、「現在は痛みのため眠れていない」のように今の状態を述べた節は入院後の情報なので使わない
         if (phase === 'pre' && /^(?:現在|今回|今は|入院後|術後)/.test(p)) continue;
-        const r = sufficiencyClauseVerdict(p, needId);
+        const r = sufficiencyClauseVerdict(p, needId, { speech });
         if (r.v === 'unmet') {
           // 「やや〜」「軽度」や検査値の矢印だけは、問題の重さが小さいので数えない（正常な所見が十分あれば充足と見る）
           if (SUF_MILD.test(p) || /^[↑↓]$/.test(r.hit)) continue;
@@ -1131,10 +1161,45 @@ ${missLines || '（なし）'}
         }
         if (r.v === 'met' && !met) met = { v: 'met', hit: r.hit, clause: p };
       }
+      // コミュニケーション：本人が気持ち・疑問・要望を言葉にして伝えられている発言は、「伝える力がある」根拠になる（発言のカードが10に入っているのは、この種類のもの）
+      if (!unmet && !met && needId === 10 && speech) {
+        const q = (String(item.text || '').match(/「[^」]{4,}」/) || [String(item.text || '')])[0];
+        met = { v: 'met', hit: '発言', clause: q.slice(0, 30) };
+      }
       return unmet || met || { v: '', hit: '', clause: '' };
     }
     function placeByDate(i) {
       return typeof inferAssessmentColumn === 'function' ? inferAssessmentColumn(i.fieldLabel, i.timestamp, null) : null;
+    }
+    // 治療のための制限（絶飲食・留置カテーテル・床上安静）や、術後の直接の所見は、「治療が代わりに満たしている」だけで、その欲求を通常の方法では満たせていない状態。
+    // 入院後の判定では、古い正常所見（術前の「朝食全量摂取」など）より、今も続いている制限・所見を優先する（あとで解除された記載があれば、制限は終わったと見る）
+    const SUF_STATE_RULES = [
+      { need: 2, re: /絶飲食|禁飲食|絶食|飲水(?:も)?禁止|禁食|NPO/, lift: /(?:絶飲食|絶食|禁飲食|NPO)[^。、]{0,4}解除|(?:食事|飲水|経口摂取|水分)[^。、]{0,4}(?:開始|再開)|流動食|五分粥|全粥|粥食|全量摂取|[0-9]割摂取/, label: '術後の絶飲食（治療のため、通常の食事・水分摂取ができていない）' },
+      { need: 3, re: /留置カテーテル|膀胱留置|尿道留置|バルーンカテーテル|尿道バルーン|尿道カテーテル|導尿/, lift: /(?:カテーテル|バルーン)[^。、]{0,4}(?:抜去|抜い|除去)|自尿|自排尿/, label: '膀胱留置カテーテル（排尿を管に頼っており、通常の排泄を自力で満たせていない）' },
+      { need: 4, re: /床上安静|ベッド上安静|絶対安静|ベッド安静/, lift: /安静(?:度)?[^。、]{0,4}(?:解除|拡大|フリー)|歩行(?:が)?可能|自力歩行|室内歩行|トイレ歩行|病棟歩行|離床(?:した|でき|を開始|開始)/, label: '術後の床上安静（治療のため、動くこと・姿勢を保つことが制限されている）' }
+    ];
+    const SUF_RESP_DIRECT = /酸素\s*[0-9]|酸素(?:投与|吸入)|(?<![A-Za-z])O2\s*[0-9]|湿性咳嗽|息遣い(?:は)?浅|浅い呼吸|呼吸(?:が)?浅|浅表性|顔色(?:やや)?(?:不良|蒼白)|蒼白|チアノーゼ|喘鳴|呼吸困難(?:感)?(?:あり|を訴|が強)|痰(?:が)?(?:多|絡)/g;
+    function sufficiencyStateOverrides(items, res, isPre) {
+      const post = items.filter(i => !isPre(i) && !/[「」]/.test(String(i.text || '')));
+      const nz = x => String(x || '').normalize('NFKC');
+      const idx = new Map(items.map((i, n) => [i, n]));
+      const set = (needId, reason, ev) => {
+        const r = res[needId]; if (!r) return;
+        const v = { verdict: 'unmet', reason, evidence: ev.slice(0, 5).map(i => i.id), need: '' };
+        r.post = v; if (!r.all || r.all.verdict !== 'unmet') r.all = v;
+      };
+      SUF_STATE_RULES.forEach(rule => {
+        const hit = post.filter(i => rule.re.test(nz(i.text)));
+        if (!hit.length) return;
+        const lastAt = Math.max(...hit.map(i => idx.get(i)));
+        // あとで解除・再開の記載があれば、制限は終わったので上書きしない
+        if (post.some(i => idx.get(i) > lastAt && rule.lift.test(nz(i.text)))) return;
+        set(rule.need, rule.label, hit);
+      });
+      // 呼吸：術後の直接の所見（酸素・湿性咳嗽・浅い呼吸・顔色）を最優先の根拠にする。訓練の成績（ボールが維持できない）は根拠の中心にしない
+      const found = [], evs = [];
+      post.forEach(i => { const m = nz(i.text).match(SUF_RESP_DIRECT); if (m) { m.forEach(x => { if (!found.includes(x)) found.push(x); }); evs.push(i); } });
+      if (found.length) set(1, `術後の直接の所見（${found.slice(0, 5).join('・')}）`, evs);
     }
     function judgeSufficiencyByRules(cp) {
       // 現病歴・診断名・既往歴などは、受傷の経緯や病名の記載で、その欲求が満たされているかを示す記録ではないので判定に使わない
@@ -1162,15 +1227,16 @@ ${missLines || '（なし）'}
           if (um.length && (um.some(x => x.r.severe) || um.length * 2 >= mt.length)) return { verdict: 'unmet', reason: `${um.slice(0, 3).map(short).join('')}`, evidence: um.slice(0, 5).map(x => x.i.id), need: '' };
           if (mt.length) return { verdict: 'met', reason: `${mt.slice(0, 3).map(short).join('')}`, evidence: mt.slice(0, 5).map(x => x.i.id), need: '' };
           if (need.id === 11 && cards.length) return { verdict: 'met', reason: '信仰による問題の記載なし', evidence: cards.slice(0, 3).map(i => i.id), need: '' };
-          return { verdict: 'unknown', reason: '', evidence: [], need: cards.length ? '基準と比べられる具体的な記録（回数・数値・できる／できない）' : `${label}の記録` };
+          return { verdict: 'unknown', reason: '', evidence: [], need: cards.length ? `${label}の記録が少なく、満たされているか判断できない` : `${label}の記録がない` };
         };
         const res = {};
         // 術前（手術前の基準になる状態）の記録は、充足の判定では入院前の側で見る（表の欄は入院後のまま）
-        const isPreop = i => /^術前/.test(String(i.timestamp || ''));
+        const isPreop = () => false; // 術前・手術前日などは入院後（入院前／入院後の2つに分ける）
         const phases = { pre: ['入院前', (c, i) => c === 'preadmission' || (c === 'postadmission' && isPreop(i))], post: ['入院後', c => c === 'postadmission'], all: ['全体', c => c !== 'missing'] };
         Object.keys(phases).forEach(k => { res[k] = judge(mine.filter(i => phases[k][1](effCol(i), i)), phases[k][0], k); });
         out[need.id] = res;
       });
+      try { sufficiencyStateOverrides(items, out, i => /^入院前/.test(String(i.timestamp || '')) || (Object.values(i.assessmentCols || {}).length > 0 && Object.values(i.assessmentCols).every(c => c === 'preadmission'))); } catch (e) { console.warn('制限の確認に失敗:', e); }
       return out;
     }
     window.runSufficiencyRules = function() {
