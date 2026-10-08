@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-08.2023'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-08.2045'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -260,11 +260,17 @@
       if (UNTAGGED_ADMIN_RE.test(text)) {
         return set('none', '事務的・管理的な背景情報で、特定のヘンダーソンの基本的欲求との直接の関係が弱い情報です。', UNTAGGED_ADMIN_STRONG_RE.test(text) ? '高' : '中', [], ['支援体制（9.環境）に関わる内容が含まれていないか確認してください']);
       }
+      if (/アレルギー/.test(text)) {
+        return set('none', 'アレルギーの有無は、基準では9.環境・薬剤の項目にしない背景情報です（アレルギーがある場合は、その内容を別の項目の根拠として確認します）。', '中', [], ['「あり」の場合は原因物質と症状を確認し、必要な項目に別のカードで記録してください']);
+      }
       if (UNTAGGED_PATHOLOGY_RE.test(text)) {
         return set('none', '疾患の分類・病理所見で、患者の学び（理解・学習）の根拠ではありません。「説明すると今後必要になる」だけでは14.学びにしません。臨床背景として残します。', '中', [], ['患者の病状理解や説明への反応が書かれていれば、それを別のカードにして14.学びの根拠にしてください']);
       }
       if (typeof OUTSIDE_14_NEEDS_REGEX !== 'undefined' && OUTSIDE_14_NEEDS_REGEX.test(text)) {
         return set('none', '生殖・月経など、14項目に直接の項目が無い基本情報です。', '中', [], ['必要なら学習データ管理の「追加キーワード」でどの項目に入れるか決めてください']);
+      }
+      if (typeof PAIN_TEXT_REGEX !== 'undefined' && PAIN_TEXT_REGEX.test(text)) {
+        return set('insufficient', '痛み・鎮痛薬の記載で、何に影響しているか（睡眠・動作・食事・排泄など）が書かれていないため、基準（痛みは影響している項目へ）に従い、どの項目にも付けていません。9.環境にも付けません。', '高', [], ['痛みで眠れない→5、動くと痛い→4、食事・排泄・清潔への影響→2・3・8のように、影響を確認して別のカードに記録するか、「タグを付ける」で項目を選んでください']);
       }
       if (UNTAGGED_NOINFO_RE.test(text)) {
         return set('insufficient', '「不明」「未記載」など、情報そのものが得られていない記載です。', '中', [], ['本人・家族・カルテで聴取し、得られたら情報カードとして追加してください']);

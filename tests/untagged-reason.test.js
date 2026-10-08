@@ -38,3 +38,17 @@ test('assigning a tag works and original text is untouched', () => {
   app.setUntaggedReview(cp, 'x', { decision: 'assign', tagIds: [4] });
   assert.deepEqual(cp.items[0].hendersonIds, [4]);
 });
+test('Patient 36 cards: real gaps are tagged; pain without stated effect is explained, not forced', () => {
+  const app = loadApp();
+  const tags = t => Array.from(app.detectMultipleHendersonTags(t));
+  assert.equal(tags('アレルギー: なし').length, 0);
+  assert.equal(app.inferUntaggedReason({ id: 'al', text: 'アレルギー: なし', type: 'o', hendersonIds: [] }).kind, 'none');
+  assert.ok(tags('動かなければ疼痛訴えなく、鎮痛剤の内服も行わず経過').includes(4));
+  assert.ok(tags('手術時間: 2時間30分 出血量 350ml(輸血なし) 術中輸液量 2,320ml').includes(1));
+  assert.ok(tags('昼食: 点滴終了、抗生剤のみとなったため、ヘパリンロック行う').includes(9));
+  assert.ok(tags('ガーゼ汚染なし').includes(8));
+  assert.ok(tags('上半身を支えることができているが苦痛表情あり、ペインスケール「6」になったと。').includes(4));
+  assert.equal(tags('創痛がある。').length, 0);
+  const r = app.inferUntaggedReason({ id: 'p', text: '創痛がある。', type: 'o', hendersonIds: [] });
+  assert.equal(r.kind, 'insufficient'); assert.equal(r.confidence, '高');
+});
