@@ -15,9 +15,9 @@ const { detectMultipleHendersonTags, labCategoryTags } = loadApp();
 const tags = t => Array.from(detectMultipleHendersonTags(t)).sort((a, b) => a - b);
 const labTags = t => Array.from(labCategoryTags(t)).sort((a, b) => a - b);
 
-test('疼痛に関する記載は1(呼吸)ではなく9(安楽)', () => {
-  assert.deepEqual(tags('動かなければ疼痛訴えなく、鎮痛剤の内服も行わず経過。'), [9]);
-  assert.ok(tags('疼痛: 安静時ペインスケール「2-3」').includes(9));
+test('疼痛に関する記載は1(呼吸)にも9(環境)にもしない（利用者の指摘：9は安全・環境に絞る）', () => {
+  assert.ok(!tags('動かなければ疼痛訴えなく、鎮痛剤の内服も行わず経過。').includes(9));
+  assert.ok(!tags('疼痛: 安静時ペインスケール「2-3」').includes(9));
   assert.ok(!tags('疼痛: 安静時ペインスケール「2-3」').includes(1));
 });
 
@@ -51,7 +51,7 @@ test('栄養・代謝の指標は引き続き2(食事)（回帰確認）', () =>
 });
 
 test('出血量は3(排泄)ではなく9(環境)', () => {
-  assert.deepEqual(tags('出血量:350ml(輸血なし)'), [9]);
+  assert.ok(!tags('出血量:350ml(輸血なし)').includes(3)); // 出血量は3.排泄にしない。9.環境にもしない（利用者の指摘：9は安全・環境に絞る）
 });
 
 test('入浴・洗髪・歯磨き・更衣の「自立」は4(姿勢)にならない', () => {
@@ -69,7 +69,7 @@ test('「訴えなし」は10(コミュニケーション)の手がかりにし�
   assert.deepEqual(tags('呼吸困難訴えなし、自力排痰可能、肺Air入り良好(深呼吸できる)'), [1]);
   // 【変更】以前は「痛みを訴える」にも10を付けていたが、身体の症状の報告は症状の項目の情報であり、
   // 10.コミュニケーションではない（利用者からの指摘：患者34）。ほかにどの項目も当てはまらないときだけ10。
-  assert.deepEqual(tags('創部の痛みを訴える'), [9]);
+  assert.deepEqual(tags('創部の痛みを訴える'), []);
   assert.deepEqual(tags('何かを訴えている様子'), [10]);
 });
 

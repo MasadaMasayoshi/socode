@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-08.4'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-08.10'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カード → 元の文章（カルテ・看護記録入力欄）の該当箇所を探す
     // ------------------------------------------------------------------------
@@ -1037,6 +1037,8 @@
     function renderAssessmentTable() {
       if (typeof resetCardLabFlags === 'function') resetCardLabFlags();
       const cp = getCurrentPatient();
+      // 日時が読み取れているカードは「未分類」のままにせず、日時から入院前／入院後の欄へ自動で振り分ける（手で動かしたカードはそのまま）
+      cp.items.forEach(i => { if (!i.assessmentCols || typeof inferAssessmentColumn !== 'function') return; const col = inferAssessmentColumn(i.fieldLabel, i.timestamp, null); if (!col) return; Object.keys(i.assessmentCols).forEach(h => { if (i.assessmentCols[h] === 'unclassified') i.assessmentCols[h] = col; }); });
       const activeItems = cp.items.filter(i => i.type !== 'unnecessary');
       const selectedNeed = getSelectedAssessmentNeed();
       const frag = document.createDocumentFragment();
@@ -1161,8 +1163,8 @@
           ${nUnc ? `<div class="asm-aux-body">${categorize('unclassified')}</div>` : ''}
         </section>
         <div class="asm-center">
-          <section class="asm-col asm-col-pre" ${drop('preadmission')}><div class="asm-col-title">入院前 <b>${nPre}</b></div><div class="space-y-1.5">${categorize('preadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div></section>
-          <section class="asm-col asm-col-post" ${drop('postadmission')}><div class="asm-col-title">入院後 <b>${nPost}</b></div><div class="space-y-1.5">${categorize('postadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div></section>
+          <section class="asm-col asm-col-pre" ${drop('preadmission')}><div class="asm-col-title">術前（入院前） <b>${nPre}</b></div><div class="space-y-1.5">${categorize('preadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div></section>
+          <section class="asm-col asm-col-post" ${drop('postadmission')}><div class="asm-col-title">入院後〜受持ち時 <b>${nPost}</b></div><div class="space-y-1.5">${categorize('postadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div></section>
         </div>
         <section class="asm-aux asm-aux-miss" ${drop('missing')}>
           <div class="asm-aux-title"><i class="fa-solid fa-clipboard-question" style="color:var(--brick)"></i>不足情報 <b>${nMiss}</b>${nMiss ? `<span class="my-asm-muted">未確認 ${unchecked}</span>` : '<span class="my-asm-muted">まだありません</span>'}

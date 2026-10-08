@@ -1186,9 +1186,26 @@ function mergeKeyedPatientFields(first, second) {
   return out;
 }
 
+const CASE_DERIVED_FIELDS = ['myAssessments', 'missingChecks', 'carePlans', 'checkpoints', 'relationMap'];
+// 「置き換えて分類」で別の事例に替えたとき（caseResetAt）、替える前の事例から作られた記録（関連図・看護計画・自分のアセスメント等）が
+// 他端末・共有先に残っていて戻ってこないよう、リセットを知らない側の派生データは捨てる
+function applyCaseReset(a, b) {
+  const t = r => (r && r.caseResetAt ? new Date(r.caseResetAt).getTime() || 0 : 0);
+  const reset = Math.max(t(a), t(b));
+  if (!reset) return [a, b, null];
+  const strip = r => {
+    if (!r || t(r) >= reset) return r;
+    const c = { ...r };
+    CASE_DERIVED_FIELDS.forEach(f => { delete c[f]; });
+    return c;
+  };
+  return [strip(a), strip(b), new Date(reset).toISOString()];
+}
 function mergePatientRecord(incoming, existing, now = Date.now()) {
   if (!existing) return incoming; // 新規患者、またはサーバー側にまだ保存が無い場合はそのまま採用
   if (!incoming) return existing;
+  const __cr = applyCaseReset(incoming, existing);
+  incoming = __cr[0]; existing = __cr[1];
 
   // items・deletedItemIds以外の項目は、従来通りupdatedAtが新しい方をまるごと採用する
   const incomingWins = isNotStale(incoming, existing);
@@ -1252,6 +1269,7 @@ function mergePatientRecord(incoming, existing, now = Date.now()) {
     ...mergeKeyedPatientFields(existing, incoming),
     items: mergedItems,
     deletedItemIds: mergedTombstones,
+    ...(__cr[2] ? { caseResetAt: __cr[2] } : {}),
     updatedAt: (incomingUpdatedTime >= existingUpdatedTime ? incoming.updatedAt : existing.updatedAt) || new Date(now).toISOString()
   };
 }

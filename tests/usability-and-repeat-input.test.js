@@ -64,7 +64,7 @@ test('分類ボードの並びは分類の前も後も同じ（カードが無�
   assert.doesNotMatch(src, /sourcePaneManual = 'wide'; updateSourcePaneLayout\(\);/);
   // 入力欄のまわりは、利用者が示した画面のとおり（大きい写真の枠・「AIなしで分類」・「テスト用：例文をセット」）
   assert.match(html, /記録メモ・検査結果写真をドラッグ＆ドロップ/);
-  assert.match(html, /<i class="fa-solid fa-list-check"><\/i> AIなしで分類<\/button>/);
+  assert.doesNotMatch(html, /AIなしで分類<\/button>/); // 「AIなしで分類」ボタンは廃止（分類はいつもAIなし）
   assert.match(html, /id="btn-load-sample"[^>]*>例文をセット</);
 });
 

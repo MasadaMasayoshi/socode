@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.5'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.11'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -288,9 +288,10 @@
     function buildMyAssessmentsText(cp, { withEvidence = true } = {}) {
       return HENDERSON_NEEDS.map(need => {
         const e = getMyAssessment(cp, need.id);
-        if (!e || !(sufficiencyTextOf(cp, need.id) || MY_ASSESSMENT_FIELDS.some(f => String(e[f.key] || '').trim()))) return null;
+        if (!e || !(sufficiencyHasVerdict(cp, need.id) || MY_ASSESSMENT_FIELDS.some(f => String(e[f.key] || '').trim()))) return null;
         const labels = myEvidenceLabels(cp, need.id);
-        const lines = [`${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}${sufficiencyTextOf(cp, need.id) ? '【' + sufficiencyTextOf(cp, need.id) + '】' : ''}`];
+        const lines = [`${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}`];
+        if (sufficiencyHasVerdict(cp, need.id)) SUFFICIENCY_UI_PHASES.forEach(ph => lines.push(`・${ph.label}：${SUFFICIENCY_LABELS[getSufficiency(cp, need.id, ph.key) || 'unknown']}　${sufficiencySentence(cp, need.id, ph.key)}`));
         MY_ASSESSMENT_FIELDS.forEach(f => { if (String(e[f.key] || '').trim()) lines.push(`${f.label}：${e[f.key].trim()}`); });
         if (withEvidence && (e.evidenceIds || []).length) {
           lines.push('根拠：' + e.evidenceIds.map(id => { const d = describeMyEvidence(cp, need.id, id, labels, e); return `${d.label}「${d.text}」${d.removed ? '（消されたカード）' : ''}`; }).join('／'));
@@ -333,7 +334,7 @@
     // 充足・未充足：14項目ごとに「充足／未充足／未判定」を選ぶ（総合アセスメント表の各項目の見出しに出す。
     // 「自分のアセスメント」を非表示にしていても選べる）。結論を最初に明言する（参考データの「充足・未充足の判断」）ための印。
     // ==========================================================================
-    const SUFFICIENCY_LABELS = { met: '充足', unmet: '未充足' };
+    const SUFFICIENCY_LABELS = { met: '充足', unmet: '未充足', unknown: '判定保留' };
     // 入院前・入院後・全体（総合）の3つについて、それぞれ充足／未充足を持つ。
     //   pre ：入院前（発症・入院の前の状態）／post：入院後（入院・手術・治療のあとの状態）／all：全体
     const SUFFICIENCY_PHASES = [
@@ -341,32 +342,62 @@
       { key: 'post', label: '入院後', field: 'sufficiencyPost', by: 'sufficiencyPostBy' },
       { key: 'all', label: '全体', field: 'sufficiency', by: 'sufficiencyBy' }
     ];
-    // 画面・書き出しに出すのは「全体」の1つだけ（入院前・入院後に分けない。利用者の希望）。中のデータの形は変えない
-    const SUFFICIENCY_UI_PHASES = SUFFICIENCY_PHASES.filter(p => p.key === 'all');
+    // 画面・書き出しには「入院前」「入院後」を分けて出す（利用者の要望。全体は内部の集計とAIの評価だけに使う）
+    const SUFFICIENCY_UI_PHASES = SUFFICIENCY_PHASES.filter(p => p.key !== 'all');
     function sufficiencyPhase(key) { return SUFFICIENCY_PHASES.find(p => p.key === key) || SUFFICIENCY_PHASES[2]; }
+    // 充足・未充足はサイトが決める（記録の言葉と看護の基準だけ。AIなし）。利用者が選ぶ欄は無い
+    const sufficiencyCache = { sig: '', res: null, cp: null };
+    function ruleSufficiencyFor(cp) {
+      const sig = (cp.items || []).map(i => `${i.id}|${i.type}|${String(i.text || '').length}|${(i.hendersonIds || []).join(',')}|${JSON.stringify(i.assessmentCols || {})}`).join(';');
+      if (sufficiencyCache.cp === cp && sufficiencyCache.sig === sig && sufficiencyCache.res) return sufficiencyCache.res;
+      let res = {};
+      try { res = judgeSufficiencyByRules(cp); } catch (err) { console.warn('充足・未充足の判定に失敗しました:', err); }
+      sufficiencyCache.cp = cp; sufficiencyCache.sig = sig; sufficiencyCache.res = res;
+      return res;
+    }
     function getSufficiency(cp, needId, phase = 'all') {
-      const e = getMyAssessment(cp, needId);
-      const v = e && e[sufficiencyPhase(phase).field];
+      const r = ruleSufficiencyFor(cp)[needId];
+      const v = r && r[phase] && r[phase].verdict;
       return v === 'met' || v === 'unmet' ? v : '';
     }
+    function sufficiencyHasVerdict(cp, needId) {
+      return SUFFICIENCY_UI_PHASES.some(ph => getSufficiency(cp, needId, ph.key));
+    }
     // 書き出し・印刷用の短い文：「入院前：充足／入院後：未充足／全体：未充足」（選んである所だけ）
+    // 教員の指導：「充足or未充足と言い切る」「何のリスクが考えられるかまで書く」。欲求ごとの、満たされないときに考えられる主なリスク
+    const SUFFICIENCY_RISKS = {
+      1: '誤嚥・無気肺・肺炎などの呼吸器合併症', 2: '低栄養・脱水・創傷治癒の遅れ', 3: '便秘・尿閉・腸閉塞（イレウス）', 4: '廃用症候群・深部静脈血栓症・転倒',
+      5: '睡眠不足による疼痛の増強・せん妄', 6: '更衣困難による皮膚トラブル・保温不足', 7: '感染による発熱・体温調節の乱れ', 8: '感染・皮膚トラブル（褥瘡）',
+      9: '転倒・転落・感染・事故', 10: '不安の増強・ニーズの把握の遅れ', 11: '精神的な苦痛の増強', 12: '役割の喪失・自己効力感の低下', 13: '気分転換の不足・活動意欲の低下',
+      14: '自己管理の不足・退院後の合併症（脱臼・再発など）'
+    };
+    function sufficiencySentence(cp, needId, phase) {
+      const r = ruleSufficiencyFor(cp)[needId];
+      const a = r && r[phase];
+      if (!a || !a.verdict) return '';
+      const need = HENDERSON_NEEDS.find(n => n.id === needId);
+      const name = need ? need.name.replace(/^\d+\.\s*/, '') : '';
+      if (a.verdict === 'met') return `${a.reason}より、${name}は満たされているため、充足。`;
+      if (a.verdict === 'unmet') return `${a.reason}より、${SUFFICIENCY_RISKS[needId] || '合併症'}のリスクが考えられるため、未充足。`;
+      return a.need ? `情報不足（${a.need}）のため、判定保留。` : '情報不足のため、判定保留。';
+    }
     function sufficiencyTextOf(cp, needId) {
-      return SUFFICIENCY_UI_PHASES.map(ph => { const v = getSufficiency(cp, needId, ph.key); return v ? SUFFICIENCY_LABELS[v] : ''; }).filter(Boolean).join('／');
+      if (!sufficiencyHasVerdict(cp, needId)) return '';
+      return SUFFICIENCY_UI_PHASES.map(ph => `${ph.label}：${SUFFICIENCY_LABELS[getSufficiency(cp, needId, ph.key) || 'unknown']}`).join('／');
     }
     function sufficiencyControlHtml(cp, needId) {
-      const e = getMyAssessment(cp, needId);
-      return `<div class="suf-ctl" role="group" aria-label="充足・未充足">${SUFFICIENCY_UI_PHASES.map(ph => {
+      const rows = SUFFICIENCY_UI_PHASES.map(ph => {
         const cur = getSufficiency(cp, needId, ph.key);
-        const btn = (val, label, icon) => `<button type="button" class="suf-btn suf-${val}${cur === val ? ' is-on' : ''}" aria-pressed="${cur === val}" onclick="setSufficiency(${needId}, '${val}', '${ph.key}')" title="${ph.label}：${label}と判断（もう一度押すと未判定に戻ります）"><i class="fa-solid ${icon}"></i> ${label}</button>`;
-        const aiMark = cur && e && (e[ph.by] === 'ai' || e[ph.by] === 'rules') ? `<span class="suf-ai" title="${e[ph.by] === 'rules' ? 'サイト内のルール（AIなし）が判定して入れました' : 'AIが判定して入れました'}。押し直すと自分の判断になります">${e[ph.by] === 'rules' ? 'ルール' : 'AI'}</span>` : '';
-        return `<span class="suf-line">${btn('met', '充足', 'fa-circle-check')}${btn('unmet', '未充足', 'fa-triangle-exclamation')}${aiMark}</span>`;
-      }).join('')}</div>`;
+        const label = SUFFICIENCY_LABELS[cur || 'unknown'];
+        return `<span class="suf-line"><span class="suf-phase">${ph.key === 'pre' ? '術前の充足状態' : '術後の充足状態'}</span><span class="suf-badge suf-${cur || 'unknown'}"><i class="fa-solid ${cur === 'met' ? 'fa-circle-check' : cur === 'unmet' ? 'fa-triangle-exclamation' : 'fa-circle-question'}"></i> ${label}</span></span>`;
+      }).join('');
+      return `<div class="suf-ctl" role="group" aria-label="充足・未充足">${rows}</div>`;
     }
     function sufficiencySummaryHtml(cp) {
       return `<span class="suf-sum">${SUFFICIENCY_UI_PHASES.map(ph => {
         let met = 0, unmet = 0;
         HENDERSON_NEEDS.forEach(n => { const v = getSufficiency(cp, n.id, ph.key); if (v === 'met') met++; else if (v === 'unmet') unmet++; });
-        return `<span class="suf-sum-grp"><b class="suf-met-n">充足 ${met}</b><b class="suf-unmet-n">未充足 ${unmet}</b><span>未判定 ${HENDERSON_NEEDS.length - met - unmet}</span></span>`;
+        return `<span class="suf-sum-grp"><span>${ph.label}</span><b class="suf-met-n">充足 ${met}</b><b class="suf-unmet-n">未充足 ${unmet}</b><span>保留 ${HENDERSON_NEEDS.length - met - unmet}</span></span>`;
       }).join('')}</span>`;
     }
     window.setSufficiency = function(needId, val, phase = 'all') {
@@ -973,7 +1004,7 @@ ${missLines || '（なし）'}
       return { set, kept, unknown };
     }
     function hasRuleSufficiency(cp) {
-      return HENDERSON_NEEDS.some(n => { const e = getMyAssessment(cp, n.id); return !!(e && e.aiSufficiency && ['pre', 'post', 'all'].some(k => e.aiSufficiency[k] && e.aiSufficiency[k].source === 'rules')); });
+      return (cp.items || []).some(i => i.type !== 'unnecessary');
     }
     // AIの評価：ルールの判定は書き換えない。AIが賛成か反対か・AIの判断・理由を、各項目に添える
     function applySufficiencyReview(cp, result, now = new Date().toISOString()) {
@@ -986,7 +1017,7 @@ ${missLines || '（なし）'}
         SUFFICIENCY_PHASES.forEach(ph => {
           const r = res[ph.key];
           if (!r) return;
-          const ruleV = e.aiSufficiency && e.aiSufficiency[ph.key] && e.aiSufficiency[ph.key].verdict;
+          const rr = ruleSufficiencyFor(cp)[need.id]; const ruleV = rr && rr[ph.key] && rr[ph.key].verdict;
           const same = ruleV ? (r.agree === null ? r.verdict === ruleV : r.agree) : null;
           if (same === true) agree++; else if (same === false) disagree++;
           saved[ph.key] = { verdict: r.verdict, reason: r.reason, evidence: r.evidence, need: r.need, agree: same, at: now };
@@ -997,34 +1028,30 @@ ${missLines || '（なし）'}
       return { agree, disagree };
     }
     function sufficiencyRuleSummaryForPrompt(cp) {
+      const all = ruleSufficiencyFor(cp);
       return HENDERSON_NEEDS.map(need => {
-        const e = getMyAssessment(cp, need.id);
-        const a = e && e.aiSufficiency;
+        const a = all[need.id] && all[need.id].all;
         if (!a) return '';
-        const one = ph => a[ph] && a[ph].verdict && a[ph].source === 'rules' ? `${SUFFICIENCY_PHASES.find(p => p.key === ph).label}=${a[ph].verdict === 'met' ? '充足' : a[ph].verdict === 'unmet' ? '未充足' : '判定できない'}${a[ph].reason ? `（${a[ph].reason.slice(0, 80)}）` : ''}` : '';
-        const t = ['pre', 'post', 'all'].map(one).filter(Boolean).join(' / ');
-        return t ? `${need.id}.${need.name.replace(/^\d+\.\s*/, '')}：${t}` : '';
+        return `${need.id}.${need.name.replace(/^\d+\.\s*/, '')}：${a.verdict === 'met' ? '充足' : a.verdict === 'unmet' ? '未充足' : '判定保留'}${a.reason ? `（${a.reason.slice(0, 80)}）` : ''}`;
       }).filter(Boolean).join('\n');
     }
     function sufficiencyReasonHtml(cp, needId) {
       const e = getMyAssessment(cp, needId);
-      let ai = e && e.aiSufficiency;
-      if (!ai) return '';
-      if (ai.verdict) ai = { all: ai }; // 以前の形
+      const r = ruleSufficiencyFor(cp)[needId];
+      if (!r) return '';
       const labels = myEvidenceLabels(cp, needId);
-      const rows = SUFFICIENCY_UI_PHASES.map(ph => {
-        const a = ai[ph.key];
+      const lines = SUFFICIENCY_UI_PHASES.map(ph => {
+        const a = r[ph.key];
         if (!a || !a.verdict) return '';
         const ev = (a.evidence || []).map(id => labels[id]).filter(Boolean).join('・');
-        const mine = e[ph.field];
-        const head = a.verdict === 'unknown' ? '判定できない' : `${SUFFICIENCY_LABELS[a.verdict]}${mine && mine !== a.verdict ? '（自分の判断と異なります）' : ''}`;
-        const body = a.verdict === 'unknown' ? (a.need ? `足りない情報：${a.need}` : a.reason) : a.reason;
-        const from = a.source === 'rules' ? 'ルール判定（サイト内・AIなし）' : 'AI判定';
-        const rv = e.aiReview && e.aiReview[ph.key];
-        const rvHtml = rv ? `<span class="suf-ev"><b>AIの評価：${rv.agree === true ? 'ルールの判定に賛成' : rv.agree === false ? `ルールの判定に反対（AIは${SUFFICIENCY_LABELS[rv.verdict] || '判定できない'}と判断）` : SUFFICIENCY_LABELS[rv.verdict] || '判定できない'}</b> ${escapeHtml(rv.reason || rv.need || '')}</span>` : '';
-        return `<div class="suf-reason"><b>${from} ${escapeHtml(head)}</b> ${escapeHtml(body || '')}${ev ? `<span class="suf-ev">根拠：${escapeHtml(ev)}</span>` : ''}${rvHtml}</div>`;
+        const body = sufficiencySentence(cp, needId, ph.key);
+        if (!body && !ev) return '';
+        return `<div><b>${ph.label}</b> ${escapeHtml(body || '')}${ev ? `<span class="suf-ev">根拠：${escapeHtml(ev)}</span>` : ''}</div>`;
       }).join('');
-      return rows;
+      const rv = e && e.aiReview && e.aiReview.all;
+      const rvHtml = rv ? `<span class="suf-ev"><b>AIの評価：${rv.agree === true ? '賛成' : rv.agree === false ? `反対（AIは${SUFFICIENCY_LABELS[rv.verdict] || '判定保留'}と判断）` : SUFFICIENCY_LABELS[rv.verdict] || '判定保留'}</b> ${escapeHtml(rv.reason || rv.need || '')}</span>` : '';
+      if (!lines && !rvHtml) return '';
+      return `<div class="suf-reason">${lines}${rvHtml}</div>`;
     }
     let sufficiencyAiRunning = false;
     window.runSufficiencyAi = async function() {
@@ -1035,7 +1062,6 @@ ${missLines || '（なし）'}
       if (!(await requireApiKey('充足・未充足のAI判定'))) return;
       sufficiencyAiRunning = true;
       // まずサイト内のルールで判定し（まだ無ければ）、AIはその結果を評価する
-      if (!hasRuleSufficiency(cp)) applySufficiencyResult(cp, judgeSufficiencyByRules(cp), new Date().toISOString(), 'rules');
       const btn = document.getElementById('btn-sufficiency-ai');
       if (btn) { btn.disabled = true; btn.dataset.label = btn.innerHTML; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 判定中…'; }
       showToast('ルールの判定結果を、AIが評価しています…（1分ほどかかります）', 'info');
@@ -1062,13 +1088,15 @@ ${missLines || '（なし）'}
     // 考え方：カードの文を1文ずつ見て、「基準から外れる・援助が必要」を示す言葉（未充足）と「自力でできている・基準内」を示す言葉（充足）を探す。
     // 否定（「痛みの訴えなし」「障害なし」）は反対の意味にする。未充足の面が1つでもあれば未充足（援助が必要な面を優先）。どちらも無ければ「判定できない」。
     const SUF_NEG_AFTER = '(?:[^、。,]{0,6})(?:なし|ない|無|訴えず|みられず|見られず|認めず|なく|ありません)';
-    const SUF_UNMET_CUES = ['痛み|疼痛|創痛|痛い|NRS\\s*[:：]?\\s*[3-9]|ペインスケール\\s*[「:：]?\\s*[3-9]', '眠れ[なず]|不眠|睡眠(?:不足|障害)|寝つけ', '全介助|要介助|介助(?:が必要|を要|にて|で)|見守りが必要|できない|困難|不可|禁止|制限', '不安|怖い|恐怖|心配|戸惑|情けない|申し訳', '食欲(?:低下|不振|がない|ない)|摂取量(?:半分|減)|半分のみ|おなかすかない|嘔気|嘔吐', '排便(?:なし|なく)|便秘|下痢|腹部膨満|お腹が張', 'べたべた|べたつき|気持ちが悪い|汚れ|悪臭|掻痒', '発赤|腫脹|熱感|発熱|排膿|浮腫|褥瘡', '呼吸困難(?:感)?(?:あり|を訴)|息苦しい|息切れ|チアノーゼ|喘鳴|SpO2\\s*[:：]?\\s*(?:[0-8]\\d|9[0-3])\\s*%', '転倒|ふらつき|不安定|せん妄|不穏|混乱|拒否', '体温\\s*[:：]?\\s*3[89]|3[89](?:\\.\\d)?\\s*度', '[↑↓]'];
-    const SUF_MET_CUES = ['自立|自力|自分で|一人で|問題なし|良好|清明|規則的|正常|普通食|常食|整|障害なし|異常なし|理解(?:力)?(?:あり|良好)|前向き|頑張|楽しみ|きれい好き', '睡眠\\s*[:：]?\\s*[6-9]\\s*時間|眠れた|よく眠れ', '食欲(?:良好|あり)|全量摂取|摂取量\\s*(?:良好|十分)', 'SpO2\\s*[:：]?\\s*(?:9[4-9]|100)\\s*%', 'ペインスケール\\s*[「:：]?\\s*[0-2]|NRS\\s*[:：]?\\s*[0-2](?!\\d)|痛みなし|疼痛なし', '体温\\s*[:：]?\\s*3[67](?:\\.\\d)?', '排便\\s*[:：]?\\s*\\d\\s*回/日|排尿\\s*[:：]?\\s*\\d+\\s*回/日', '呼吸困難感(?:の)?訴えなし|肺Air入り(?:が)?良好'];
+    const SUF_UNMET_CUES = ['痛み|疼痛|創痛|痛い|NRS\\s*[:：]?\\s*[3-9]|ペインスケール\\s*[「:：]?\\s*[3-9]', '眠れ[なず]|不眠|睡眠(?:不足|障害)|寝つけ', '全介助|要介助|介助(?:が必要|を要|にて|で)|見守りが必要|できない|困難|不可|禁止|制限', '不安|怖い|恐怖|心配|戸惑|情けない|申し訳', '食欲(?:低下|不振|がない|ない)|摂取量(?:半分|減)|半分のみ|おなかすかない|嘔気|嘔吐', '排便(?:なし|なく)|便秘|下痢|腹部膨満|お腹が張', 'べたべた|べたつき|気持ちが悪い|汚れ|悪臭|掻痒', '発赤|腫脹|熱感|発熱|排膿|浮腫|褥瘡', '呼吸困難(?:感)?(?:あり|を訴)|息苦しい|息切れ|チアノーゼ|喘鳴|SpO2\\s*[:：]?\\s*(?:[0-8]\\d|9[0-3])\\s*%', '転倒|ふらつき|不安定|せん妄|不穏|混乱|拒否', '体温\\s*[:：]?\\s*3[89]|3[89](?:\\.\\d)?\\s*度', '[↑↓]', '(?:旅行|趣味|外出|散歩|余暇)[^。]{0,20}(?:したい|できず|できない|行けない|行きたい)|早く治して', '(?:わから|分から)ない|教えて(?:ほしい|欲しい|ください)|大丈夫(?:か|なの|でしょうか)|ずれ(?:たり)?しないか|気を付け(?:れば|ること)', '仕事[^。]{0,10}(?:できない|できず|休)|復職[^。]{0,10}(?:不安|心配|難)|働けな'];
+    const SUF_MET_CUES = ['自立|自力|自分で|一人で|問題なし|良好|清明|規則的|正常|普通食|常食|整|障害なし|異常なし|理解(?:力)?(?:あり|良好)|前向き|頑張|楽しみ|きれい好き', '睡眠\\s*[:：]?\\s*[6-9]\\s*時間|眠れた|よく眠れ', '食欲(?:良好|あり)|全量摂取|摂取量\\s*(?:良好|十分)', 'SpO2\\s*[:：]?\\s*(?:9[4-9]|100)\\s*%', 'ペインスケール\\s*[「:：]?\\s*[0-2]|NRS\\s*[:：]?\\s*[0-2](?!\\d)|痛みなし|疼痛なし', '体温\\s*[:：]?\\s*3[67](?:\\.\\d)?', '排便\\s*[:：]?\\s*\\d\\s*回/日|排尿\\s*[:：]?\\s*\\d+\\s*回/日', '呼吸困難感(?:の)?訴えなし|肺Air入り(?:が)?良好', '意思疎通(?:は)?(?:良好|可能|図れ)|言葉にで|希望を(?:伝え|話)|質問(?:が)?でき|ナースコール[^。]{0,6}(?:使用|押|できる)|コミュニケーション[^。]{0,6}(?:良好|障害なし)', '理解(?:力)?(?:が)?良好|現状認識(?:が)?良好|理解できて|理解している', '(?:旅行|趣味|友人|外出)[^。]{0,12}(?:楽しむ|楽しん|行って|している)', '信仰[^。]{0,8}なし|宗教[^。]{0,8}なし|特別な宗教'];
     // 言葉の種類ごとに、関係する欲求の番号（null＝どの欲求でも）。痛みは動く・休む・清潔など広く、体温は体温調節だけ、のように限る
-    const SUF_UNMET_SCOPE = [[4, 5, 6, 8, 9, 10, 12, 13, 14], [5], null, [9, 10, 12, 13, 14], [2, 3], [3], [8], [7, 8, 9], [1], [4, 9, 10, 13, 14], [7], null];
-    const SUF_MET_SCOPE = [null, [5], [2], [1], [4, 5, 6, 8, 9, 10, 12, 13, 14], [7], [3], [1]];
+    const SUF_UNMET_SCOPE = [[4, 5, 6, 8, 9, 13, 14], [5], null, [9, 13, 14], [2, 3], [3], [8], [7, 8, 9], [1], [4, 9, 10, 13, 14], [7], null, [13], [14], [12]];
+    const SUF_MET_SCOPE = [null, [5], [2], [1], [4, 5, 6, 8, 9, 10, 12, 13, 14], [7], [3], [1], [10], [14], [13], [11]];
     function sufficiencyClauseVerdict(clause, needId) {
       const t = String(clause || '').normalize('NFKC');
+      // 12.仕事・達成感は、仕事・役割・達成感に関する言葉が無い記載（動作の自立など）では決めない（教員・利用者の指摘：情報が弱いときは判定保留）
+      if (needId === 12 && !/仕事|職|復職|達成|役割|家事|意欲|生きがい|就労|勤務|主婦/.test(t)) return { v: '', hit: '' };
       let unmet = '', met = '';
       for (let k = 0; k < SUF_UNMET_CUES.length; k++) {
         const src = SUF_UNMET_CUES[k], sc = SUF_UNMET_SCOPE[k];
@@ -1079,38 +1107,68 @@ ${missLines || '（なし）'}
         if (negated) { met = met || m[0]; continue; }
         unmet = m[0]; break;
       }
+      // 自立してできている記載（「自立」「自力」）に、好みや気持ちの言葉（「毎日入らないと気持ちが悪い」）が添えられているだけなら、満たされていると見る
+      if (unmet && /自立|自力/.test(t) && !/全介助|要介助|介助|できない|困難|不可|禁止|制限|見守り/.test(t) && /気持ち|不安|心配|戸惑|申し訳|情けない/.test(unmet)) return { v: 'met', hit: '自立' };
       if (unmet) return { v: 'unmet', hit: unmet };
       if (met) return { v: 'met', hit: met };
       for (let k = 0; k < SUF_MET_CUES.length; k++) { const sc = SUF_MET_SCOPE[k]; if (needId && sc && !sc.includes(needId)) continue; const m = t.match(new RegExp(SUF_MET_CUES[k])); if (m) return { v: 'met', hit: m[0] }; }
       return { v: '', hit: '' };
     }
-    function sufficiencyCardVerdict(item, needId) {
-      const parts = String(item.text || '').normalize('NFKC').split(/[。\n、,，]|\s{2,}/).map(s => s.trim()).filter(Boolean);
-      let met = null;
+    const SUF_SEVERE = /全介助|要介助|できない|不可|禁止|不眠|眠れ[なず]|転倒|せん妄|不穏|チアノーゼ|呼吸困難(?:感)?(?:あり|を訴)|息苦しい|SpO2/;
+    const SUF_MILD = /やや|軽度|少量|わずか|軽い|軽度/;
+    function sufficiencyCardVerdict(item, needId, phase) {
+      const parts = String(item.text || '').normalize('NFKC').split(/[。\n、,，]|\s{2,}|(?<=[)）])/).map(s => s.trim()).filter(Boolean);
+      let met = null, unmet = null;
       for (const p of parts) {
+        // 入院前の評価では、「現在は痛みのため眠れていない」のように今の状態を述べた節は入院後の情報なので使わない
+        if (phase === 'pre' && /^(?:現在|今回|今は|入院後|術後)/.test(p)) continue;
         const r = sufficiencyClauseVerdict(p, needId);
-        if (r.v === 'unmet') return { v: 'unmet', hit: r.hit, clause: p };
+        if (r.v === 'unmet') {
+          // 「やや〜」「軽度」や検査値の矢印だけは、問題の重さが小さいので数えない（正常な所見が十分あれば充足と見る）
+          if (SUF_MILD.test(p) || /^[↑↓]$/.test(r.hit)) continue;
+          if (!unmet) unmet = { v: 'unmet', hit: r.hit, clause: p, severe: SUF_SEVERE.test(p) };
+          else if (SUF_SEVERE.test(p)) unmet.severe = true;
+        }
         if (r.v === 'met' && !met) met = { v: 'met', hit: r.hit, clause: p };
       }
-      return met || { v: '', hit: '', clause: '' };
+      return unmet || met || { v: '', hit: '', clause: '' };
+    }
+    function placeByDate(i) {
+      return typeof inferAssessmentColumn === 'function' ? inferAssessmentColumn(i.fieldLabel, i.timestamp, null) : null;
     }
     function judgeSufficiencyByRules(cp) {
-      const items = (cp.items || []).filter(i => i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i));
+      // 現病歴・診断名・既往歴などは、受傷の経緯や病名の記載で、その欲求が満たされているかを示す記録ではないので判定に使わない
+      const HISTORY_LABELS = ['現病歴', '診断名', '既往歴', '手術術式', '氏名', '年齢', '性別', '感染症'];
+      const items = (cp.items || []).filter(i => i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i) && !HISTORY_LABELS.includes(i.fieldLabel));
       const out = {};
       HENDERSON_NEEDS.forEach(need => {
         const mine = items.filter(i => (i.hendersonIds || []).includes(need.id));
         const colOf = i => (i.assessmentCols && i.assessmentCols[need.id]) || 'unclassified';
-        const judge = (cards, label) => {
-          const rs = cards.map(i => ({ i, r: sufficiencyCardVerdict(i, need.id) }));
+        // 日時が読み取れているカードは「未分類」にせず、日時から入院前／入院後に振り分ける
+        const effCol = i => { const x = colOf(i); return x === 'unclassified' ? (placeByDate(i) || x) : x; };
+        // 「問題を示す言葉が1つでもあれば未充足」ではなく、正常な所見と問題の所見を比べて、その欲求が満たされているかを見る：
+        //   ・重い問題（全介助・できない・不眠・転倒など）が1つでもあれば未充足
+        //   ・それ以外は、問題のカードの数が正常なカードの数の半分以上なら未充足、そうでなければ充足
+        //   ・正常も問題も読み取れなければ「判定保留」（無理に決めない）。信仰は、問題の記載が無ければ充足とする
+        const judge = (cards, label, phaseKey) => {
+          // 術前の記録は、入院前の基準になる状態（できていること＝充足の根拠）としては入院前で、問題の記載は入院後で見る
+          const rs = cards.map(i => {
+            let r = sufficiencyCardVerdict(i, need.id, phaseKey);
+            if (isPreop(i) && ((phaseKey === 'pre' && r.v === 'unmet') || (phaseKey === 'post' && r.v === 'met'))) r = { v: '', hit: '', clause: '' };
+            return { i, r };
+          });
           const um = rs.filter(x => x.r.v === 'unmet'), mt = rs.filter(x => x.r.v === 'met');
           const short = x => `「${x.r.clause.slice(0, 30)}」`;
-          if (um.length) return { verdict: 'unmet', reason: `未充足：${um.slice(0, 3).map(short).join('')}など、基準から外れる・援助が必要な記録があります（${label}）。${mt.length ? `できている面（${short(mt[0])}）もありますが、援助が必要な面を優先しました。` : ''}`, evidence: um.slice(0, 5).map(x => x.i.id), need: '' };
-          if (mt.length) return { verdict: 'met', reason: `充足：${mt.slice(0, 3).map(short).join('')}など、自力でできている・基準内の記録があり、援助が必要な記録は見当たりません（${label}）。`, evidence: mt.slice(0, 5).map(x => x.i.id), need: '' };
+          if (um.length && (um.some(x => x.r.severe) || um.length * 2 >= mt.length)) return { verdict: 'unmet', reason: `${um.slice(0, 3).map(short).join('')}`, evidence: um.slice(0, 5).map(x => x.i.id), need: '' };
+          if (mt.length) return { verdict: 'met', reason: `${mt.slice(0, 3).map(short).join('')}`, evidence: mt.slice(0, 5).map(x => x.i.id), need: '' };
+          if (need.id === 11 && cards.length) return { verdict: 'met', reason: '信仰による問題の記載なし', evidence: cards.slice(0, 3).map(i => i.id), need: '' };
           return { verdict: 'unknown', reason: '', evidence: [], need: cards.length ? '基準と比べられる具体的な記録（回数・数値・できる／できない）' : `${label}の記録` };
         };
         const res = {};
-        const phases = { pre: ['入院前', c => c === 'preadmission'], post: ['入院後', c => c === 'postadmission'], all: ['全体', c => c !== 'missing'] };
-        Object.keys(phases).forEach(k => { res[k] = judge(mine.filter(i => phases[k][1](colOf(i))), phases[k][0]); });
+        // 術前（手術前の基準になる状態）の記録は、充足の判定では入院前の側で見る（表の欄は入院後のまま）
+        const isPreop = i => /^術前/.test(String(i.timestamp || ''));
+        const phases = { pre: ['入院前', (c, i) => c === 'preadmission' || (c === 'postadmission' && isPreop(i))], post: ['入院後', c => c === 'postadmission'], all: ['全体', c => c !== 'missing'] };
+        Object.keys(phases).forEach(k => { res[k] = judge(mine.filter(i => phases[k][1](effCol(i), i)), phases[k][0], k); });
         out[need.id] = res;
       });
       return out;
@@ -1148,9 +1206,9 @@ ${missLines || '（なし）'}
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {
     MY_ASSESSMENT_FIELDS,
-    ensureMyAssessment, getMyAssessment, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
+    ensureMyAssessment, getMyAssessment, ruleSufficiencyFor, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
     myAssessmentStatus, myAssessmentNeedsReview, confirmMyAssessmentEntry, restoreMyAssessmentFromHistory,
-    buildSufficiencyPrompt, hasRuleSufficiency, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyCardVerdict, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
+    buildSufficiencyPrompt, hasRuleSufficiency, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
     renderMyAssessmentRowHtml, evidencePickerCandidates, buildMyAssessmentAiPrompt, myAssessmentAlwaysShown
   });
   if (module.exports.__testHooks) Object.assign(module.exports.__testHooks, { flushMyAssessmentSaves, saveMyAssessmentsSoon });

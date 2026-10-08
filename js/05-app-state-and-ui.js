@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-07.36'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-08.7'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -1395,12 +1395,29 @@
       if (typeof location === 'undefined' || !/\.github\.io$/i.test(location.hostname || '')) return false;
       try { return !localStorage.getItem(PAGES_FIRST_SYNC_KEY); } catch (e) { return false; }
     })();
+    const CASE_DERIVED_FIELDS = ['myAssessments', 'missingChecks', 'carePlans', 'checkpoints', 'relationMap'];
+    // 「置き換えて分類」で別の事例に替えたとき（caseResetAt）、替える前の事例から作られた記録（関連図・看護計画・自分のアセスメント等）が
+    // 他端末・共有先に残っていて戻ってこないよう、リセットを知らない側の派生データは捨てる
+    function applyCaseResetClient(a, b) {
+      const t = r => (r && r.caseResetAt ? new Date(r.caseResetAt).getTime() || 0 : 0);
+      const reset = Math.max(t(a), t(b));
+      if (!reset) return [a, b, null];
+      const strip = r => {
+        if (!r || t(r) >= reset) return r;
+        const c = { ...r };
+        CASE_DERIVED_FIELDS.forEach(f => { delete c[f]; });
+        return c;
+      };
+      return [strip(a), strip(b), new Date(reset).toISOString()];
+    }
     function mergePatientRecordClient(local, server, now = Date.now()) {
       // 【レビューで発見】共有先から届いた記録のカード・参考データのIDも確かめて直す（repairPatientRecordIds）
       if (server) repairPatientRecordIds(server);
       if (!server) return local;
       if (!local) return server;
       repairPatientRecordIds(local);
+      const __cr = applyCaseResetClient(local, server);
+      local = __cr[0]; server = __cr[1];
 
       const localTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
       const serverTime = server.updatedAt ? new Date(server.updatedAt).getTime() : 0;
@@ -1465,6 +1482,7 @@
         ...mergeKeyedPatientFieldsClient(local, server),
         items: mergedItems,
         deletedItemIds: mergedTombstones,
+        ...(__cr[2] ? { caseResetAt: __cr[2] } : {}),
         updatedAt: (localWins ? local.updatedAt : server.updatedAt) || new Date(now).toISOString()
       };
     }

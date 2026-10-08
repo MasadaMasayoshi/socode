@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-07.25'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-08.8'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 書式付き書き出し（Word / PDF）
     // ------------------------------------------------------------------------
@@ -757,7 +757,8 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         const shown = matching.filter(include);
         if (onlyIds && shown.length === 0) return; // 選択したカードの書き出しでは、該当するカードの無い項目は省く
         const suf = typeof sufficiencyTextOf === 'function' ? sufficiencyTextOf(cp, need.id) : '';
-        out += `\n■ ${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}${suf ? '【' + suf + '】' : ''}\n`;
+        out += `\n■ ${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}\n`;
+        if (suf) suf.split('／').forEach(s => { out += `  ・${s}\n`; });
         if (shown.length === 0) { out += '  （カードなし）\n'; return; }
         ASSESSMENT_COL_ORDER.forEach(([col, label]) => {
           const inCol = shown.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === col);
