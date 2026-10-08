@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-08.2045'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-08.2121'; // 版（scripts/stamp-version.js が書き込む）
     // 「祖母を胃がん、父を前立腺がんで亡くしている〜」のような家族歴の文は、本人の食事・栄養
     // 状態の所見ではないにもかかわらず、id2(食事)の疾患名キーワード（「胃がん」等）に一致して
     // しまい、食事に無関係な家族歴が「2. 食事」に混入していた（利用者からの報告事例）。
@@ -586,6 +586,44 @@
         };
       }
       return extractionContextCache;
+    }
+    // ==========================================================================
+    // 句読点の自動判定（複文・重文を分けたり、つないだりするとき）
+    // 述語（〜した・〜ある・〜ない 等）で終わる文には「。」を付け、「〜したが、」「〜ので、」のように
+    // 接続の言い回しで終わる文は、その言い回しと読点を外して「。」で閉じる。「〜して、」のような中止形は
+    // 文として閉じられないため、そのまま（読点だけ外す）にする。カギ括弧の中・すでに文末記号がある文は変えない。
+    // ==========================================================================
+    const CLAUSE_TERMINAL_RE = /[。！？!?」』）)]$/;
+    const CLAUSE_PREDICATE_RE = /[ぁ-ん]$/; // 述語は平仮名で終わる（名詞止めの「ペインスケール3」等には付けない）
+    const CLAUSE_CHUUSHI_RE = /(?:て|で|し|ながら|ので|ため|から|が|けど|けれど|ものの)$/;
+    const CLAUSE_CONNECTIVE_RE = /(?:が|けれども|けれど|けど|ものの|のに|ので|ため|から)$/;
+    function punctuateClause(piece) {
+      let t = String(piece || '').trim();
+      if (!t) return t;
+      t = t.replace(/[、,，\s]+$/, '');
+      if (!t || CLAUSE_TERMINAL_RE.test(t)) return t;
+      const m = t.match(/^(.*?(?:した|った|いた|れた|んだ|えた|ている|いる|ある|ない|なし|あり|です|ます|ました|する|できる|だ|い|る|た))(?:が|けれども|けれど|けど|ものの|のに)$/);
+      if (m) return m[1] + '。';
+      if (CLAUSE_CHUUSHI_RE.test(t)) return t;
+      if (CLAUSE_PREDICATE_RE.test(t)) return t + '。';
+      return t;
+    }
+    // 重文・複文を、文として独立できる所（「〜したが、」「〜ないけど、」の後ろ）で分けてから、それぞれに句読点を付ける
+    function splitCompoundSentences(text) {
+      const src = String(text || '');
+      const cut = src.replace(/((?:した|った|いた|れた|んだ|えた|ている|いる|ある|ない|なし|あり|です|ます|ました|する|できる|だ))(が|けれども|けれど|けど|ものの)、(?![^「]*」)/g, '$1$2\n');
+      return cut.split('\n').map(punctuateClause).filter(Boolean);
+    }
+    // 複数の文を1つにつなぐとき：前の文が文末記号で終わっていればそのまま、中止形・接続の言い回しで終われば「、」、それ以外は「。」
+    function joinWithPunctuation(texts) {
+      const list = (texts || []).map(t => String(t || '').trim()).filter(Boolean);
+      return list.map((t, i) => {
+        if (i === list.length - 1) return CLAUSE_TERMINAL_RE.test(t) ? t : punctuateClause(t) || t;
+        if (CLAUSE_TERMINAL_RE.test(t)) return t;
+        if (/[、,]$/.test(t)) return t;
+        if (CLAUSE_CHUUSHI_RE.test(t)) return t + '、';
+        return (CLAUSE_PREDICATE_RE.test(t) ? t + '。' : t + '、');
+      }).join('');
     }
     function cleanExtractedPhrase(str) {
       if (!str) return '';

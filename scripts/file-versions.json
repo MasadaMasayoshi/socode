@@ -24,20 +24,20 @@
     "hash": "e750ed35a502596d"
   },
   "js/07-classification.js": {
-    "version": "2026-10-08.2045",
-    "hash": "eb623d3bee6d349d"
+    "version": "2026-10-08.2121",
+    "hash": "cc983dedc611d67c"
   },
   "js/08-assessment-tools.js": {
     "version": "2026-10-08.2023",
     "hash": "619d02acfa63411b"
   },
   "js/09-board.js": {
-    "version": "2026-10-08.2103",
-    "hash": "639a28f7962afe0e"
+    "version": "2026-10-08.2121",
+    "hash": "c1a4475f1b91f690"
   },
   "js/10-reference-page-and-startup.js": {
-    "version": "2026-10-08.2103",
-    "hash": "b54d59c7b05ce83b"
+    "version": "2026-10-08.2121",
+    "hash": "c6f10c6b83d267a9"
   },
   "js/11-own-assessment.js": {
     "version": "2026-10-08.35",
@@ -48,8 +48,8 @@
     "hash": "3f03213ac7d54c4d"
   },
   "js/13-compare-and-report.js": {
-    "version": "2026-10-08.28",
-    "hash": "2cbe7db3704f9e2f"
+    "version": "2026-10-08.2121",
+    "hash": "1ea6689f119a2ce5"
   },
   "js/14-drug-reference.js": {
     "version": "2026-10-06.14",

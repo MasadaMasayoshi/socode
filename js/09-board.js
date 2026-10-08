@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-08.2103'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-08.2121'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カード → 元の文章（カルテ・看護記録入力欄）の該当箇所を探す
     // ------------------------------------------------------------------------
@@ -472,6 +472,57 @@
     const boardSearchInput = document.getElementById('board-search');
     if (boardSearchInput) boardSearchInput.addEventListener('input', e => { boardSearchTerm = e.target.value.trim(); renderSoBoard(); });
 
+    // 元の文章（入力欄・該当箇所の表示）で選んだことばから、そのことばを含むカードを検索する。
+    // ことばを選ぶと「カードを検索」の小さなボタンが出て、押すと検索欄にそのことばが入り、一致するカードだけが表示される。
+    function searchBoardByWord(term) {
+      term = String(term || '').replace(/\s+/g, ' ').trim();
+      if (term.length < 2) return;
+      boardSearchTerm = term;
+      if (boardSearchInput) boardSearchInput.value = term;
+      renderSoBoard();
+      const cp = getCurrentPatient();
+      const n = (cp.items || []).filter(i => itemMatchesSearch(i, term)).length;
+      showToast(n ? `「${term.slice(0, 20)}」を含むカード ${n}枚を表示しました（検索欄を空にすると全部に戻ります）` : `「${term.slice(0, 20)}」を含むカードは見つかりませんでした`, n ? 'success' : 'info');
+      if (boardSearchInput && boardSearchInput.scrollIntoView) boardSearchInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    window.searchBoardByWord = searchBoardByWord;
+    (function setupSelectionSearch() {
+      if (typeof document === 'undefined' || !document.body) return;
+      let btn = null, pending = '';
+      const hide = () => { if (btn) btn.style.display = 'none'; };
+      const selectedWord = () => {
+        const ta = document.getElementById('source-text');
+        if (ta && document.activeElement === ta && ta.selectionEnd > ta.selectionStart) return ta.value.slice(ta.selectionStart, ta.selectionEnd);
+        const sel = window.getSelection && window.getSelection();
+        const view = document.getElementById('source-highlight-view');
+        if (sel && !sel.isCollapsed && view && sel.anchorNode && view.contains(sel.anchorNode)) return sel.toString();
+        return '';
+      };
+      const show = (x, y) => {
+        const w = selectedWord().replace(/\s+/g, ' ').trim();
+        if (w.length < 2 || w.length > 60) return hide();
+        pending = w;
+        if (!btn) {
+          btn = document.createElement('button');
+          btn.type = 'button';
+          btn.id = 'sel-search-btn';
+          btn.className = 'btn';
+          btn.style.cssText = 'position:fixed;z-index:80;display:none;font-size:11px;padding:.25rem .6rem;background:var(--accent);color:var(--on-fill);border-radius:999px;box-shadow:0 2px 8px rgba(0,0,0,.25)';
+          btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> このことばでカードを検索';
+          btn.addEventListener('mousedown', e => e.preventDefault());
+          btn.addEventListener('click', () => { const w2 = pending; hide(); searchBoardByWord(w2); });
+          document.body.appendChild(btn);
+        }
+        btn.style.left = Math.max(8, Math.min(window.innerWidth - 220, x)) + 'px';
+        btn.style.top = Math.max(8, y - 34) + 'px';
+        btn.style.display = 'inline-flex';
+      };
+      document.addEventListener('mouseup', e => { if (e.target && e.target.id === 'sel-search-btn') return; setTimeout(() => show(e.clientX, e.clientY), 0); });
+      document.addEventListener('keyup', e => { if (e.shiftKey) { const ta = document.getElementById('source-text'); const r = ta ? ta.getBoundingClientRect() : { left: 20, bottom: 60 }; show(r.left + 20, r.bottom); } });
+      document.addEventListener('mousedown', e => { if (!e.target || e.target.id !== 'sel-search-btn') hide(); });
+      document.addEventListener('scroll', hide, true);
+    })();
+
     // タグ選択肢を一括操作バーに反映（ヘンダーソン14項目は固定なので起動時に一度だけ）
     const bulkTagSelect = document.getElementById('bulk-tag-select');
     if (bulkTagSelect) HENDERSON_NEEDS.forEach(n => {
@@ -524,7 +575,7 @@
     let mergeSourceItems = [];
 
     function joinTextsForMerge(items) {
-      return items.map(i => (i.text || '').trim()).filter(Boolean).join('。');
+      return joinWithPunctuation(items.map(i => (i.text || '').trim()));
     }
 
     // 統合元それぞれのtypeVotes/hendersonVotes/preferredColsを合算する（サーバー側の'merge'処理と同じロジック）

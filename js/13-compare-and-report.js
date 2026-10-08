@@ -5,7 +5,7 @@
     //   （コピー・テキストファイル・印刷／PDF）。
     // （js/10 の起動の処理より後に読み込む。最後に総合アセスメント表などを描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-08.28'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-08.2121'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // ④ 記録した時点（cp.checkpoints[ID] = { id, label, kind, at, updatedAt, items:[カードの写し] }。
@@ -585,7 +585,9 @@
     function splitCardIntoParts(cp, id, parts) {
       const idx = cp.items.findIndex(i => i.id === id);
       if (idx === -1) return null;
-      const texts = parts.map(t => cleanExtractedPhrase(t)).filter(Boolean);
+      let texts = parts.map(t => cleanExtractedPhrase(t)).filter(Boolean);
+      // 元のカードが文（句点つき）なら、分けた各カードの終わりにも句読点を付ける
+      if (texts.length >= 2 && texts.some(t => /。$/.test(t))) texts = texts.map(t => punctuateClause(t));
       if (texts.length < 2) return null;
       const src = cp.items[idx];
       const before = src.text;
@@ -615,7 +617,8 @@
     window.closeSplitCard = function() { splitEditingId = null; document.getElementById('modal-split').classList.add('hidden'); };
     window.splitAtSentences = function() {
       const ta = document.getElementById('split-text');
-      ta.value = ta.value.replace(/\n+/g, '').replace(/(。|、(?=「)|」(?=[^。、」]))/g, '$1\n').replace(/\n+$/, '');
+      // 重文・複文は、独立できる所（「〜したが、」の後ろ等）でも分け、それぞれに句読点を付ける（punctuateClause参照）
+      ta.value = ta.value.replace(/\n+/g, '').replace(/(。|、(?=「)|」(?=[^。、」]))/g, '$1\n').replace(/\n+$/, '').split('\n').flatMap(line => splitCompoundSentences(line)).join('\n');
       updateSplitPreview();
     };
     function updateSplitPreview() {
