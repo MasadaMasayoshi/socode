@@ -1277,3 +1277,16 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
 
 .suf-phase { font-size: .7rem; color: var(--ink-muted); min-width: 3.2rem; }
 .suf-reason b { font-weight: 600; margin-right: .25rem; }
+
+    /* ヘンダーソンタグ未設定の理由（js/12 ④） */
+    .ut-list { max-height: 420px; }
+    .mc-list > li.ut-item { flex-direction: column; align-items: stretch; gap: .3rem; }
+    .ut-line { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+    .ut-kind { font-size: 10.5px; font-weight: 700; padding: .05rem .5rem; border-radius: 999px; background: var(--line-soft); color: var(--ink); }
+    .ut-k-source, .ut-k-classify { background: var(--brick-soft); color: var(--brick); }
+    .ut-status { margin-left: auto; font-size: 10.5px; color: var(--ink-muted); }
+    .ut-done .ut-status { color: var(--accent-dark); font-weight: 700; }
+    .ut-meta { font-size: 11px; color: var(--ink-muted); line-height: 1.5; }
+    .ut-parts { font-size: 11px; padding-left: .5rem; border-left: 2px solid var(--line); }
+    .ut-actions { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
+    .ut-sel { font-size: 11px; padding: .1rem .3rem; width: auto; }

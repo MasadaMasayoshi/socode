@@ -1148,7 +1148,7 @@ function itemEffectiveTime(item, wholePatientUpdatedAt) {
 // 自分のアセスメント（myAssessments：欲求ごと）・不足情報の確認（missingChecks）・看護計画（carePlans）のように、
 // 1つの項目の中に「キー → { …, updatedAt }」の形で記録を持つものは、キーごとに updatedAt が新しい方を使う
 // （別の端末で別の欲求のアセスメントを書いても、片方が消えないように）。
-const PATIENT_KEYED_RECORD_FIELDS = ['myAssessments', 'missingChecks', 'carePlans', 'checkpoints'];
+const PATIENT_KEYED_RECORD_FIELDS = ['myAssessments', 'missingChecks', 'untaggedReviews', 'carePlans', 'checkpoints'];
 function recordTime(r) {
   const t = r && typeof r.updatedAt === 'string' ? new Date(r.updatedAt).getTime() : NaN;
   return Number.isNaN(t) ? 0 : t;
@@ -1186,7 +1186,7 @@ function mergeKeyedPatientFields(first, second) {
   return out;
 }
 
-const CASE_DERIVED_FIELDS = ['myAssessments', 'missingChecks', 'carePlans', 'checkpoints', 'relationMap'];
+const CASE_DERIVED_FIELDS = ['myAssessments', 'missingChecks', 'untaggedReviews', 'carePlans', 'checkpoints', 'relationMap'];
 // 「置き換えて分類」で別の事例に替えたとき（caseResetAt）、替える前の事例から作られた記録（関連図・看護計画・自分のアセスメント等）が
 // 他端末・共有先に残っていて戻ってこないよう、リセットを知らない側の派生データは捨てる
 function applyCaseReset(a, b) {

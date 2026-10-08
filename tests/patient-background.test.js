@@ -70,11 +70,11 @@ test('isUntaggedItem: 「不要」判定済みのカードは患者背景の有�
 // 【変更】「患者背景」の区分は廃止済みで、タグ未設定のまま残ると利用者が困る（「タグ未設定のものがなぜそうなって
 // いるのか考えて修正して」）。病期（Stage）・病理結果は、病状の理解（14）・治療の環境（9）の情報として9・14を付ける。
 // 血液型だけは引き続きどの項目にも当たらない。
-test('血液型はヘンダーソンタグが提案されず、病期・病理結果は9・14が提案される', () => {
+test('血液型はヘンダーソンタグが提案されず、病期・病理結果は学び(14)にしない（疾患の分類。タグ不要の理由として示す）', () => {
   // Array.fromで包むのは、app.jsをvmサンドボックス内で実行しているため（サンドボックス側の
   // Arrayとテスト側のArrayが別レルムになり、空配列同士でも参照が異なるとdeepStrictEqualが
   // 失敗することがある。他のテストファイルの既存の書き方に合わせる）。
   assert.deepEqual(Array.from(suggestHendersonTagsForText('【血液型】 A型', null, undefined)), []);
-  assert.deepEqual(Array.from(suggestHendersonTagsForText('Stage 1B', null, undefined)).sort(), [14]);
-  assert.deepEqual(Array.from(suggestHendersonTagsForText('【病理結果】T2 NO PO HO MO', null, undefined)).sort(), [14]);
+  assert.deepEqual(Array.from(suggestHendersonTagsForText('Stage 1B', null, undefined)).sort(), []);
+  assert.deepEqual(Array.from(suggestHendersonTagsForText('【病理結果】T2 NO PO HO MO', null, undefined)).sort(), []);
 });

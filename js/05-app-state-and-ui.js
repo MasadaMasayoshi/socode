@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-08.28'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-08.2023'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -1354,7 +1354,7 @@
     }
     // 欲求ごとの自分のアセスメント（myAssessments）など「キー → { …, updatedAt }」の記録は、キーごとに新しい方を使う
     // （server.js の mergeKeyedRecords と同じ考え方）
-    const PATIENT_KEYED_RECORD_FIELDS = ['myAssessments', 'missingChecks', 'carePlans', 'checkpoints'];
+    const PATIENT_KEYED_RECORD_FIELDS = ['myAssessments', 'missingChecks', 'untaggedReviews', 'carePlans', 'checkpoints'];
     function fillMissingFieldsClient(primary, secondary) {
       // 新しい方(primary)を土台にし、そこに無い・空の部分だけ、もう一方(secondary)から取り込む（新しい方が丸ごと勝って他端末の追記が消えるのを防ぐ）
       const isMap = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -1395,7 +1395,7 @@
       if (typeof location === 'undefined' || !/\.github\.io$/i.test(location.hostname || '')) return false;
       try { return !localStorage.getItem(PAGES_FIRST_SYNC_KEY); } catch (e) { return false; }
     })();
-    const CASE_DERIVED_FIELDS = ['myAssessments', 'missingChecks', 'carePlans', 'checkpoints', 'relationMap'];
+    const CASE_DERIVED_FIELDS = ['myAssessments', 'missingChecks', 'untaggedReviews', 'carePlans', 'checkpoints', 'relationMap'];
     // 「置き換えて分類」で別の事例に替えたとき（caseResetAt）、替える前の事例から作られた記録（関連図・看護計画・自分のアセスメント等）が
     // 他端末・共有先に残っていて戻ってこないよう、リセットを知らない側の派生データは捨てる
     function applyCaseResetClient(a, b) {

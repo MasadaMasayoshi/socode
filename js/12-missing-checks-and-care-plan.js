@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-08.33'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-08.2023'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -117,8 +117,10 @@
     function renderMissingCheckSummary(cp) {
       const el = document.getElementById('missing-check-summary');
       if (!el) return;
+      applyUntaggedReviews(cp);
       const counts = missingCheckCounts(cp);
-      if (!counts.total) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+      const utHtml = untaggedSectionHtml(cp);
+      if (!counts.total && !utHtml) { el.classList.add('hidden'); el.innerHTML = ''; return; }
       el.classList.remove('hidden');
       const chip = s => `<button type="button" class="mc-filter mc-${s.key}${missingSummaryOpen && missingSummaryFilter === s.key ? ' active' : ''}" onclick="showMissingCheckList('${s.key}')"><i class="fa-solid ${s.icon}"></i>${s.label} <b>${counts[s.key]}</b></button>`;
       let list = '';
@@ -129,10 +131,11 @@
           return `<li><span class="mc-need">${escapeHtml(needs.map(h => `${h}.${hendersonNameOf(h).replace(/^\d+\.\s*/, '')}`).join('・'))}</span><span class="mc-text">${escapeHtml(i.text.replace(/^原因:\s*/, ''))}</span>${missingCheckCardHtml(cp, i)}</li>`;
         }).join('') || '<li class="my-asm-muted">当てはまる不足情報はありません。</li>'}</ul>`;
       }
-      el.innerHTML = `<div class="mc-summary-head"><span class="mc-summary-title"><i class="fa-solid fa-clipboard-question"></i> 不足情報の確認</span>
+      const mcHtml = !counts.total ? '' : `<div class="mc-summary-head"><span class="mc-summary-title"><i class="fa-solid fa-clipboard-question"></i> 不足情報の確認</span>
         ${MISSING_CHECK_STATUSES.map(chip).join('')}
         <button type="button" class="mc-filter${missingSummaryOpen && missingSummaryFilter === 'all' ? ' active' : ''}" onclick="showMissingCheckList('all')">すべて <b>${counts.total}</b></button>
         ${missingSummaryOpen ? '<button type="button" class="my-asm-link" onclick="showMissingCheckList(null)">一覧を閉じる</button>' : ''}</div>${list}`;
+      el.innerHTML = mcHtml + utHtml;
     }
     window.showMissingCheckList = function(filter) {
       if (!filter || (missingSummaryOpen && missingSummaryFilter === filter)) missingSummaryOpen = false;
@@ -190,6 +193,191 @@
       saveDataAndSync();
       if (r && r.card) showToast('確認結果を記録し、情報カードとして追加しました（入院後の欄）', 'success');
       else showToast(`「${MISSING_CHECK_STATUSES.find(s => s.key === status).label}」にしました`, 'success');
+    };
+
+    // ==========================================================================
+    // ④ ヘンダーソンタグ未設定の理由（cp.untaggedReviews[文章の鍵] = { decision, tagIds, note, text, updatedAt }）
+    // ------------------------------------------------------------------------
+    // タグが付いていない＝誤り、とは限らない（社会保険・病期のように14項目に直接の根拠が無い情報、原本が読めない情報など）。
+    // 未設定のカードごとに「推定理由・確からしさ・分類候補・確認事項」を示し、利用者が確定する。原文は書き換えない。
+    // 確定した内容はその患者（cp）の中だけに残し、文章の鍵で結びつけるので、再生成でカードのIDが変わっても引き継ぐ。
+    // 他の患者には自動で当てはめない。
+    // ==========================================================================
+    const UNTAGGED_KINDS = {
+      none: 'タグ不要', source: '原本確認', classify: '分類要確認', insufficient: '情報不足', unset: 'タグ未設定'
+    };
+    const UNTAGGED_DECISIONS = [
+      { key: 'accept', label: '理由を了承' }, { key: 'assign', label: 'タグを付ける' },
+      { key: 'none', label: 'タグ不要にする' }, { key: 'source', label: '原本確認を依頼' }
+    ];
+    const UNTAGGED_ADMIN_RE = /社会保険|国民健康保険|健康保険|後期高齢者医療|保険証|介護保険証|医療費|限度額|生活保護|入院形態|診察券|保証人|住所|電話番号|郵便番号|保険[:：]/;
+    const UNTAGGED_ADMIN_STRONG_RE = /社会保険|国民健康保険|健康保険|保険証|診察券/;
+    const UNTAGGED_PATHOLOGY_RE = /Stage\s*[0-4IV]|ステージ|病期|TNM|[pc][TN][0-4x]|病理|組織型|分化度|腺癌|扁平上皮癌|腫瘍マーカー/i;
+    const UNTAGGED_NOINFO_RE = /不明|未記載|記載なし|未確認|聴取できず|情報なし/;
+    function untaggedTextKey(text) {
+      const s = String(text || '').normalize('NFKC').replace(/\s+/g, '');
+      let h = 5381;
+      for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+      return 'u' + (h >>> 0).toString(36) + s.length;
+    }
+    function untaggedOcrSuspect(text) {
+      const t = String(text || '').normalize('NFKC');
+      if (typeof isLabTextUnreliable === 'function' && isLabTextUnreliable(t)) return { level: '高', why: '検査値の項目名・数値・単位が崩れている可能性があります' };
+      if (typeof analyzeLabCard === 'function') {
+        let r = null; try { r = analyzeLabCard(t, null); } catch (e) { r = null; }
+        if (r && r.kind === 'lab' && r.quality !== 'valid') return { level: '高', why: '検査値の桁・単位が通常の範囲と合わず、原本の確認が必要な値です', lab: true };
+      }
+      const hasParticle = /[のをはがにでともへや]|あり|なし|ない|する|した|いる|です|ます|。/.test(t);
+      if (t.length <= 25 && /[A-Za-z]{1,4}[ァ-ヶー]{2,}/.test(t) && !hasParticle) return { level: '中', why: '英字とカタカナが不自然に連なり、文として読み取れません' };
+      if (t.length < 12 && !/[A-Za-z0-9ぁ-んァ-ヶ一-龥]/.test(t.replace(/[:：].*$/, ''))) return { level: '中', why: '文字が短く、意味を読み取れません' };
+      return null;
+    }
+    function untaggedSegmentTags(text) {
+      const segs = String(text || '').split(/[。\n；;]+/).map(s => s.trim()).filter(s => s.length >= 4);
+      if (segs.length < 2 || typeof detectMultipleHendersonTags !== 'function') return [];
+      return segs.map(s => ({ text: s, tagIds: Array.from(detectMultipleHendersonTags(s)) })).filter(p => p.tagIds.length);
+    }
+    // 未設定のカード1枚について、理由を推定する（確からしさは根拠の強さを表す語で、数値の確率ではない）
+    function inferUntaggedReason(item) {
+      const text = String((item && item.text) || '');
+      const out = { text, kind: 'unset', kindLabel: UNTAGGED_KINDS.unset, reason: '理由を特定できないため確認が必要', confidence: '低', candidates: [], parts: [], checks: ['この情報がどの基本的欲求の根拠になるか、原文と前後の記録から確認してください'] };
+      const set = (kind, reason, confidence, candidates, checks) => Object.assign(out, { kind, kindLabel: UNTAGGED_KINDS[kind], reason, confidence, candidates: candidates || [], checks: checks || [] });
+      const log = (item && item.editLog) || [];
+      const removed = log.filter(e => e.kind === 'tagRemove').map(e => e.hendersonId || e.hId).filter(Boolean);
+      const ocr = untaggedOcrSuspect(text);
+      if (ocr) {
+        return set('source', `${ocr.why}。意味を推測して分類すると誤るため、原文のまま残しています。`, ocr.level, [], ['原本（元の記録）で文字・数値・単位を確認してください', '確認できるまで、臨床的な根拠として使わないでください']);
+      }
+      const parts = untaggedSegmentTags(text);
+      if (parts.length) {
+        out.parts = parts;
+        const ids = Array.from(new Set(parts.flatMap(p => p.tagIds)));
+        return set('classify', '複数の内容が1枚に混ざっており、一部の文にはタグの候補があります。全体に付けず、内容ごとに分けて付けるのが適切です。', '中', ids, ['「分けてタグを付ける」で内容ごとに分割できます', '関係のない内容にまでタグが付かないよう、分けた後に確認してください']);
+      }
+      if (removed.length) {
+        return set('none', `以前に利用者がタグ（${removed.map(h => hendersonNameOf(h)).join('・')}）を外した履歴があります。意図的な除外の可能性があります。`, '中', [], ['外した理由を確認し、不要ならこのまま「タグ不要」にしてください']);
+      }
+      if (UNTAGGED_ADMIN_RE.test(text)) {
+        return set('none', '事務的・管理的な背景情報で、特定のヘンダーソンの基本的欲求との直接の関係が弱い情報です。', UNTAGGED_ADMIN_STRONG_RE.test(text) ? '高' : '中', [], ['支援体制（9.環境）に関わる内容が含まれていないか確認してください']);
+      }
+      if (UNTAGGED_PATHOLOGY_RE.test(text)) {
+        return set('none', '疾患の分類・病理所見で、患者の学び（理解・学習）の根拠ではありません。「説明すると今後必要になる」だけでは14.学びにしません。臨床背景として残します。', '中', [], ['患者の病状理解や説明への反応が書かれていれば、それを別のカードにして14.学びの根拠にしてください']);
+      }
+      if (typeof OUTSIDE_14_NEEDS_REGEX !== 'undefined' && OUTSIDE_14_NEEDS_REGEX.test(text)) {
+        return set('none', '生殖・月経など、14項目に直接の項目が無い基本情報です。', '中', [], ['必要なら学習データ管理の「追加キーワード」でどの項目に入れるか決めてください']);
+      }
+      if (UNTAGGED_NOINFO_RE.test(text)) {
+        return set('insufficient', '「不明」「未記載」など、情報そのものが得られていない記載です。', '中', [], ['本人・家族・カルテで聴取し、得られたら情報カードとして追加してください']);
+      }
+      return out;
+    }
+    function untaggedReviewOf(cp, item) {
+      const m = cp && cp.untaggedReviews;
+      const r = m && item ? m[untaggedTextKey(item.text)] : null;
+      return r && typeof r === 'object' && !r.deleted ? r : null;
+    }
+    // 確定済みの判断を、現在のカードに反映し直す（再生成でIDが変わっても文章が同じなら引き継ぐ）
+    function applyUntaggedReviews(cp) {
+      if (!cp || !cp.untaggedReviews) return;
+      (cp.items || []).forEach(i => {
+        const r = untaggedReviewOf(cp, i);
+        if (r && r.decision === 'none' && !(i.hendersonIds || []).length) { if (!i.tagNotNeeded) i.tagNotNeeded = true; }
+        else if (i.tagNotNeeded && !r) i.tagNotNeeded = false;
+      });
+    }
+    // 画面に出す対象：不要でなく、タグが無く、タグ不要と確定していないカード（確定済みも一覧には残して見直せる）
+    function untaggedReviewItems(cp) {
+      return (cp.items || []).filter(i => i.type !== 'unnecessary' && !(i.hendersonIds || []).length);
+    }
+    function untaggedReviewCounts(cp) {
+      const c = { open: 0, done: 0, total: 0 };
+      untaggedReviewItems(cp).forEach(i => { c.total++; if (untaggedReviewOf(cp, i)) c.done++; else c.open++; });
+      return c;
+    }
+    function setUntaggedReview(cp, itemId, { decision, tagIds = [], note = '' } = {}, now = new Date().toISOString()) {
+      const item = (cp.items || []).find(i => i.id === itemId);
+      if (!item || !UNTAGGED_DECISIONS.some(d => d.key === decision)) return null;
+      if (!cp.untaggedReviews || typeof cp.untaggedReviews !== 'object' || Array.isArray(cp.untaggedReviews)) cp.untaggedReviews = {};
+      const inf = inferUntaggedReason(item);
+      const ids = Array.from(new Set((tagIds || []).map(Number).filter(n => n >= 1 && n <= 14)));
+      cp.untaggedReviews[untaggedTextKey(item.text)] = { decision, tagIds: decision === 'assign' ? ids : [], kind: decision === 'none' ? 'none' : (decision === 'source' ? 'source' : inf.kind), note: String(note || '').trim(), text: item.text.slice(0, 200), updatedAt: now };
+      if (decision === 'assign') {
+        ids.forEach(h => {
+          if (!(item.hendersonIds || (item.hendersonIds = [])).includes(h)) {
+            item.hendersonIds.push(h); (item.assessmentCols = item.assessmentCols || {})[h] = 'unclassified';
+            logItemEdit(item, { kind: 'tagAdd', hId: h });
+          }
+        });
+        item.patientBackground = null; item.predictionSource = 'confirmed'; item.tagNotNeeded = false;
+        touchItem(item);
+      } else {
+        item.tagNotNeeded = decision === 'none';
+        touchItem(item);
+      }
+      return cp.untaggedReviews[untaggedTextKey(item.text)];
+    }
+    function untaggedStatusLabel(r) {
+      if (!r) return '未確認';
+      return { accept: '理由を了承済み', assign: 'タグ付け済み', none: 'タグ不要（確認済み）', source: '原本確認待ち' }[r.decision] || '確認済み';
+    }
+    function untaggedReviewRowHtml(cp, item) {
+      const inf = inferUntaggedReason(item), r = untaggedReviewOf(cp, item);
+      const cand = inf.candidates.length ? inf.candidates.map(h => `${h}.${hendersonNameOf(h).replace(/^\d+\.\s*/, '')}`).join('・') : 'なし';
+      const id = jsArg(item.id);
+      const opts = HENDERSON_NEEDS.map(n => `<option value="${n.id}">${n.id}. ${escapeHtml(n.name)}</option>`).join('');
+      const parts = inf.parts.length ? `<div class="ut-parts">${inf.parts.map(p => `<div>・${escapeHtml(p.text)} <span class="my-asm-muted">→ ${p.tagIds.map(h => hendersonNameOf(h).replace(/^\d+\.\s*/, '')).join('・')}</span></div>`).join('')}</div>` : '';
+      return `<li class="ut-item ut-${r ? 'done' : 'open'}">
+        <div class="ut-line"><span class="ut-kind ut-k-${inf.kind}">${escapeHtml(inf.kindLabel)}</span><span class="mc-text">${escapeHtml(item.text)}</span><span class="ut-status">${escapeHtml(untaggedStatusLabel(r))}</span></div>
+        <div class="ut-meta">原文：${escapeHtml(item.text.slice(0, 60))}／タグ：未設定／推定理由：${escapeHtml(inf.reason)}／推定の確からしさ：${inf.confidence}／分類候補：${escapeHtml(cand)}／確認事項：${escapeHtml(inf.checks.join('・') || '—')}</div>${parts}
+        <div class="ut-actions">
+          <button type="button" class="mc-filter" onclick="untaggedAction(${id},'accept')">理由を了承</button>
+          ${inf.candidates.length ? `<button type="button" class="mc-filter" onclick="untaggedAction(${id},'assign')">候補のタグを付ける</button>` : ''}
+          ${inf.parts.length ? `<button type="button" class="mc-filter" onclick="untaggedSplit(${id})">分けてタグを付ける</button>` : ''}
+          <select class="field ut-sel" onchange="untaggedAssignOther(${id}, this)"><option value="">別の項目を選ぶ</option>${opts}</select>
+          <button type="button" class="mc-filter" onclick="untaggedAction(${id},'none')">タグ不要にする</button>
+          <button type="button" class="mc-filter" onclick="untaggedAction(${id},'source')">原本確認を依頼</button>
+        </div></li>`;
+    }
+    let untaggedListOpen = false;
+    function untaggedSectionHtml(cp) {
+      const c = untaggedReviewCounts(cp);
+      if (!c.total) return '';
+      const list = untaggedListOpen ? `<ul class="mc-list ut-list">${untaggedReviewItems(cp).map(i => untaggedReviewRowHtml(cp, i)).join('')}</ul>` : '';
+      return `<div class="mc-summary-head"><span class="mc-summary-title"><i class="fa-solid fa-tag"></i> ヘンダーソンタグ未設定の理由</span>
+        <button type="button" class="mc-filter mc-unchecked${untaggedListOpen ? ' active' : ''}" onclick="toggleUntaggedList()">未確認 <b>${c.open}</b></button>
+        <button type="button" class="mc-filter mc-checked" onclick="toggleUntaggedList()">確認済み <b>${c.done}</b></button>
+        ${untaggedListOpen ? '<button type="button" class="my-asm-link" onclick="toggleUntaggedList()">一覧を閉じる</button>' : ''}</div>${list}`;
+    }
+    window.toggleUntaggedList = function() { untaggedListOpen = !untaggedListOpen; renderMissingCheckSummary(getCurrentPatient()); };
+    window.untaggedAction = function(itemId, decision) {
+      const cp = getCurrentPatient(), item = cp.items.find(i => i.id === itemId);
+      if (!item) return;
+      const inf = inferUntaggedReason(item);
+      setUntaggedReview(cp, itemId, { decision, tagIds: decision === 'assign' ? inf.candidates : [] });
+      saveDataAndSync(); renderMissingCheckSummary(cp);
+      showToast(decision === 'source' ? '原本確認が必要として記録しました（原文はそのままです）' : '記録しました', 'success');
+    };
+    window.untaggedAssignOther = function(itemId, sel) {
+      const h = parseInt(sel.value, 10); if (!h) return;
+      const cp = getCurrentPatient();
+      setUntaggedReview(cp, itemId, { decision: 'assign', tagIds: [h] });
+      saveDataAndSync(); renderMissingCheckSummary(cp);
+      showToast('タグを付けました', 'success');
+    };
+    window.untaggedSplit = function(itemId) {
+      const cp = getCurrentPatient(), item = cp.items.find(i => i.id === itemId);
+      if (!item) return;
+      const inf = inferUntaggedReason(item);
+      const segs = item.text.split(/(?<=[。\n；;])/).map(s => s.trim()).filter(Boolean);
+      const res = splitCardIntoParts(cp, itemId, segs);
+      if (!res) return showToast('分けられませんでした', 'warn');
+      res.forEach(c => {
+        const ids = typeof detectMultipleHendersonTags === 'function' ? Array.from(detectMultipleHendersonTags(c.text)) : [];
+        c.hendersonIds = ids; c.assessmentCols = {}; ids.forEach(h => { c.assessmentCols[h] = 'unclassified'; });
+        c.predictionSource = 'auto'; touchItem(c);
+      });
+      saveDataAndSync(); renderMissingCheckSummary(cp);
+      showToast(`${res.length}枚に分けて、内容ごとにタグを付けました`, 'success');
     };
 
     // ==========================================================================
@@ -1833,6 +2021,7 @@ ${body}
 
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {
+    inferUntaggedReason, untaggedTextKey, untaggedReviewOf, setUntaggedReview, applyUntaggedReviews, untaggedReviewItems, untaggedReviewCounts, untaggedSectionHtml,
     buildCarePlansPrintHtml, buildCarePlansText, buildCarePlansByRules, autoBuildCarePlans, carePlanList, deleteCarePlan,
     formatCardTimestamp, MISSING_CHECK_STATUSES, missingInfoItems, missingCheckStatus, missingCheckCounts, setMissingCheck, missingCheckCardHtml,
     CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,

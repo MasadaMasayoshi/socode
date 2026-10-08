@@ -17,7 +17,7 @@ test('家族の住まい・支援者・アレルギー・常用薬・入院歴�
   assert.ok(!tagsOf('アレルギー: なし').includes(9)); // アレルギー・薬剤は9.環境にしない（利用者の指摘）
   assert.ok(!tagsOf('常用薬: ノルバスク2.5mg 1錠×朝').includes(9));
   assert.ok(tagsOf('出産時以外入院歴なし、手術歴なし').includes(9));
-  assert.ok(tagsOf('Stage 1B').includes(14));
+  assert.ok(!tagsOf('Stage 1B').includes(14)); // 病期は疾患の分類。学びの根拠にしない
   assert.ok(tagsOf('精神状態は現状認識できている。').includes(10));
   assert.ok(tagsOf('胃底部の病変があり、胃を全摘し、R-Y法で再建した。').includes(2));
 });

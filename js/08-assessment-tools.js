@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-08.28'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-08.2023'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -666,7 +666,7 @@
     // まま見分けがつかなくなっていた（利用者からの指摘：「タグが未設定のものがわかりにくい」。
     // 「受持ち開始」「4〜5日目」等）。「不要」でないカードでタグが1つも無ければ、すべて「タグ未設定」とする。
     function isUntaggedItem(item) {
-      return item.type !== 'unnecessary' && (!item.hendersonIds || item.hendersonIds.length === 0) && !isOtherBasicInfoItem(item);
+      return item.type !== 'unnecessary' && (!item.hendersonIds || item.hendersonIds.length === 0) && !item.tagNotNeeded && !isOtherBasicInfoItem(item);
     }
     // 【基本情報（14項目外）】利用者からの指摘（患者36）：「生殖：特に問題なし、出産歴2回、閉経50歳」は
     // 「基本情報／その他」を推奨。ヘンダーソンの14項目に直接の項目が無い情報（生殖・出産歴・閉経など）で、
