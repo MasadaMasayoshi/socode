@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-08.30'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-08.31'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -1382,7 +1382,7 @@
         }
         const gast = /胃/.test(dxLabel + surgery.label);
         const aim = N('dx_aim', 'pathophysiology', '手術の対象と目的：腫瘍と周囲のリンパ節を切除し、根治をめざす', { source: 'knowledge', max: 60, evidence: gast && /全摘/.test(surgery.label) ? '切除範囲は腫瘍の位置・広がりで決まる。全摘を選んだ理由は医師の説明で確認する' : '' });
-        E(stage || exam || disease, aim, 'results_in', { evidence: tnm ? '遠隔転移がなく、切除で根治をめざせる進行度' : 'がんの根治をめざす治療方針' });
+        E(stage || disease, aim, 'results_in', { evidence: tnm ? '遠隔転移がなく、切除で根治をめざせる進行度' : 'がんの根治をめざす治療方針' });
         E(surgery, aim, 'treats', { evidence: '手術の対象・目的' });
       }
       const gastric = surgery && /胃/.test(surgery.label + dxLabel) && /全摘|切除/.test(surgery.label);

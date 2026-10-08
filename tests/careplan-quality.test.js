@@ -257,3 +257,19 @@ test('関連図：病名が「胃底部に25mm大のがんを指摘され」と�
   assert.match(dis[0].label, /^胃がん/);
   assert.ok(map.edges.some(e => e.target === dis[0].id || e.source === dis[0].id));
 });
+
+test('関連図：がんの手術（治療）は、手術の目的を通って疾患（胃がん）までつながる', () => {
+  const fs2 = require('fs'), path2 = require('path');
+  const { loadApp } = require('./app-helpers');
+  const app2 = loadApp();
+  const text = fs2.readFileSync(path2.join(__dirname, 'golden/cases/胃がん_A氏58歳.txt'), 'utf8');
+  const items = app2.classifyTextByRules(text).map((i, k) => ({ ...i, id: `it${k}` }));
+  const map = app2.buildRelationMapFromRecord({ id: 'p1', title: 'A氏', sourceText: text, items, carePlans: {}, selectedDiagnosisIds: [], diagnosisCandidates: [] });
+  const dis = map.nodes.find(n => n.type === 'disease');
+  const sur = map.nodes.find(n => n.id === 'surgery' || (n.type === 'treatment' && /全摘/.test(n.label)));
+  const adj = new Map();
+  map.edges.forEach(e => { (adj.get(e.source) || adj.set(e.source, []).get(e.source)).push(e.target); (adj.get(e.target) || adj.set(e.target, []).get(e.target)).push(e.source); });
+  const seen = new Set([dis.id]); const q = [dis.id];
+  while (q.length) { const c = q.shift(); (adj.get(c) || []).forEach(n => { if (!seen.has(n)) { seen.add(n); q.push(n); } }); }
+  assert.ok(seen.has(sur.id));
+});
