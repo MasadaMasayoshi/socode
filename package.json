@@ -10,7 +10,10 @@
     "golden": "node scripts/golden.js",
     "golden:update": "node scripts/golden.js --update",
     "build:css": "npx tailwindcss@3.4.17 -c tailwind.config.js -i tailwind.input.css -o vendor/tailwind.css --minify",
-    "stamp": "node scripts/stamp-version.js"
+    "stamp": "node scripts/stamp-version.js",
+    "test:quiet": "node scripts/test-quiet.js",
+    "map": "node scripts/file-map.js",
+    "ship": "node scripts/ship.js"
   },
   "engines": {
     "node": "20.x"
