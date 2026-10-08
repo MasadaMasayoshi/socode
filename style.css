@@ -512,8 +512,23 @@
     .suf-b-unknown { border-left-color: var(--ink-muted); border-style: dashed; border-left-style: solid; }
     /* 見出しの判定（入院前・入院後を縦に並べ、「O-1により、…のため充足」の根拠を添える） */
     .suf-header { display: flex; flex-direction: column; gap: .35rem; }
-    .suf-hline { padding-left: .45rem; border-left: 3px solid var(--line); }
-    .suf-hwhy { display: block; margin-top: .1rem; font-size: 11px; line-height: 1.5; color: var(--ink-muted); }
+    .suf-hline { padding: .35rem .5rem; border-left: 4px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); }
+    .suf-hline.suf-b-met { border-left-color: var(--accent); background: var(--accent-soft); }
+    .suf-hline.suf-b-unmet { border-left-color: var(--brick); background: var(--brick-soft); }
+    .suf-hline.suf-b-conflict { border-left-color: var(--gold); background: var(--gold-soft); }
+    .suf-hline.suf-b-unknown { border-left-color: var(--ink-muted); background: var(--slate-soft); }
+    .suf-hline .suf-phase { padding: .05rem .45rem; border-radius: 999px; background: var(--ink); color: var(--surface); min-width: 0; }
+    .suf-hwhy { display: block; margin-top: .25rem; font-size: 11px; line-height: 1.7; color: var(--ink); }
+    /* 根拠のカード（S＝発言は金色、O＝観察は青灰色。表のカードの色と同じ） */
+    .suf-cref { display: inline-block; margin: 0 .15em; padding: 0 .4em; border-radius: 4px; border: 1px solid; font-size: 10.5px; line-height: 1.5; background: var(--surface); }
+    .suf-cref b { margin-right: .3em; }
+    .suf-cref-S { color: var(--gold); border-color: var(--gold); }
+    .suf-cref-O { color: var(--slate); border-color: var(--slate); }
+    .suf-end { padding: 0 .35em; border-radius: 4px; color: var(--surface); }
+    .suf-end-充足 { background: var(--accent-dark); }
+    .suf-end-未充足 { background: var(--brick); }
+    .suf-end-判定保留 { background: var(--gold); }
+    .suf-end-情報不足 { background: var(--ink-muted); }
     .suf-badge.suf-conflict { color: var(--gold); background: var(--gold-soft); border-color: var(--gold-line); }
     .suf-ctl { display: flex; flex-direction: column; gap: .25rem; }
     .suf-line { display: flex; align-items: center; gap: .25rem; flex-wrap: wrap; }
