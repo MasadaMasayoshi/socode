@@ -16,8 +16,8 @@
     "hash": "9defcf16b9085fc4"
   },
   "js/05-app-state-and-ui.js": {
-    "version": "2026-10-08.14",
-    "hash": "630e54ae073c70d1"
+    "version": "2026-10-08.18",
+    "hash": "4eab03ae929ff909"
   },
   "js/06-export.js": {
     "version": "2026-10-08.15",
@@ -28,8 +28,8 @@
     "hash": "4893fc7faf07caed"
   },
   "js/08-assessment-tools.js": {
-    "version": "2026-10-08.14",
-    "hash": "4516732aa0feecd5"
+    "version": "2026-10-08.18",
+    "hash": "6370204823ec9088"
   },
   "js/09-board.js": {
     "version": "2026-10-08.15",
@@ -44,12 +44,12 @@
     "hash": "f45ec57f4f1b126e"
   },
   "js/12-missing-checks-and-care-plan.js": {
-    "version": "2026-10-08.17",
-    "hash": "6ce12c453e525a57"
+    "version": "2026-10-08.18",
+    "hash": "27aa63913aaa4130"
   },
   "js/13-compare-and-report.js": {
-    "version": "2026-10-06.15",
-    "hash": "19fc5cbe1a694aa2"
+    "version": "2026-10-08.18",
+    "hash": "bbf3ef8f368266ad"
   },
   "js/14-drug-reference.js": {
     "version": "2026-10-06.14",

@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-08.14'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-08.18'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -2825,7 +2825,7 @@
       if (viewCarePlan) viewCarePlan.classList.toggle('hidden', viewName !== 'careplan');
       const tabCarePlan = document.getElementById('tab-careplan');
       if (tabCarePlan) tabCarePlan.className = `tab-pill ${viewName === 'careplan' ? 'active' : ''}`;
-      if (viewName === 'careplan' && typeof renderCarePlans === 'function') renderCarePlans();
+      if (viewName === 'careplan' && typeof renderCarePlans === 'function') { if (typeof autoBuildCarePlans === 'function') autoBuildCarePlans(getCurrentPatient()); renderCarePlans(); }
       // 関連図のページ（js/15）
       document.getElementById('view-relation')?.classList.toggle('hidden', viewName !== 'relation');
       // スマホでは上の見出し（ヘッダー）が画面の3分の1ほどの高さになり、関連図の上の方を隠してしまう。

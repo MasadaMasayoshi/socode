@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-08.14'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-08.18'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -678,13 +678,14 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       const steps = [
         { key: 'missing', label: '① 不足情報を推定', done: !!run.missing, detail: run.missing ? `済・${missingCount}件（${formatAiStepTime(run.missing)}）` : '未' },
         { key: 'diagnosis', label: '② 看護診断候補', done: !!run.diagnosis || !!cp.diagnosisResult, detail: cands.length ? `済・${cands.length}件中 ${selectedCount}件を選択` : (cp.diagnosisResult ? '済' : '未') },
-        { key: 'careplan', label: '③ 看護計画', done: !!run.careplan || !!cp.carePlanResult, detail: run.careplan ? `済（${formatAiStepTime(run.careplan)}）` : (cp.carePlanResult ? '済' : '未') }
+        // 看護計画は記録から自動で作る（js/12 autoBuildCarePlans）。AIは作るためではなく、できた計画を評価するために使う
+        { key: 'careplan', label: '③ 看護計画を評価', done: typeof carePlanSetState !== 'undefined' && !!(carePlanSetState.ai && carePlanSetState.ai[cp.id]), detail: (() => { const n = typeof carePlanList === 'function' ? carePlanList(cp).length : 0; const ev = typeof carePlanSetState !== 'undefined' && carePlanSetState.ai && carePlanSetState.ai[cp.id]; return ev ? `済・計画${n}件を評価` : (n ? `計画${n}件（自動作成）・未評価` : '計画は「看護計画」タブで自動作成'); })() }
       ];
       const next = steps.find(s => !s.done);
       if (next) next.next = true;
       return steps;
     }
-    const AI_STEP_ACTIONS = { missing: 'evaluateMissingInfoAI()', diagnosis: 'suggestNursingDiagnosesAI()', careplan: 'generateCarePlanAI()' };
+    const AI_STEP_ACTIONS = { missing: 'evaluateMissingInfoAI()', diagnosis: 'suggestNursingDiagnosesAI()', careplan: 'reviewAllCarePlansAiUI()' };
     // 【AIのボタンを使いやすく】利用者からの要望：「AIのボタンをもう少し使いやすく」「AIを実行すると総合アセスメント表の
     // ページがごちゃごちゃする」。以前は、右上の「AI分析ツール」の中に7つのボタンが隠れ、その下に「AIで進める順番」の
     // 案内が別にあり、AIを実行するたびに結果の欄が表の上へ1つずつ積み重なっていた。
@@ -697,7 +698,7 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       { key: 'timeline', label: '経時変化サマリー', icon: 'fa-clock-rotate-left', action: 'generateTimelineSummaryAI()', panel: 'timeline-panel', title: '日ごとの変化をまとめます' },
       { key: 'review', label: '分類の評価', icon: 'fa-list-check', action: 'openAiReview()', panel: null, title: 'S/O・タグの分類をAIに見てもらい、改善点を一覧にします（別の画面で開きます）' }
     ];
-    const AI_STEP_PANELS = { missing: null, diagnosis: 'diagnosis-panel', careplan: 'careplan-panel' };
+    const AI_STEP_PANELS = { missing: null, diagnosis: 'diagnosis-panel', careplan: null };
     function aiPanelRunning(panelId) {
       const body = panelId && document.getElementById(panelId)?.querySelector?.('.ai-panel-body');
       return !!(body && body.querySelector && body.querySelector('.fa-spinner'));
@@ -721,7 +722,7 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       const pipe = window.aiPipelineStatus;
       const runAll = pipe && pipe.running
         ? `<span class="ai-run-all is-running" role="status"><i class="fa-solid fa-spinner fa-spin"></i> ${escapeHtml(pipe.label || '実行中')}</span>`
-        : `<button type="button" class="ai-run-all" onclick="runAiPipelineToCarePlan()" title="①不足情報の推定 → ②看護診断候補（優先度の高い順に選ぶ）→ ③看護計画 → 「看護計画」タブへの取り込み までを、順番に自動で行います"><i class="fa-solid fa-forward"></i> 看護計画までまとめて実行</button>`;
+        : `<button type="button" class="ai-run-all" onclick="runAiPipelineToCarePlan()" title="①不足情報の推定 → ②看護診断候補（優先度の高い順に選ぶ）→ 看護計画の自動作成 → ③看護計画のAI評価 までを、順番に自動で行います"><i class="fa-solid fa-forward"></i> 看護計画までまとめて実行</button>`;
       el.innerHTML = `<button type="button" class="ai-title-toggle" onclick="document.getElementById('ai-steps').classList.toggle('is-open')" aria-label="AIの順番ボタンを開く・閉じる（スマホ）"><i class="fa-solid fa-wand-magic-sparkles"></i> AI</button>
         ${runAll}
         <div class="ai-bar-group ai-bar-steps" aria-label="AIで順番に進める">${steps}</div>
@@ -737,12 +738,12 @@ ${cp.items.filter(i => i.type !== 'unnecessary' && isMissingInfoOnlyItem(i) && !
       // 【レビューで発見】保存された結果のHTMLは、表示の前に動く部品を取り除く（storedAiHtml）
       if (cands.length === 0) { content.innerHTML = storedAiHtml(cp.diagnosisResult); return; }
       const sel = new Set(cp.selectedDiagnosisIds || []);
-      content.innerHTML = '<p class="dx-hint">看護計画を立てたい診断にチェックを入れて、下の「選んだ診断で看護計画を作る」を押してください。</p>' +
+      content.innerHTML = '<p class="dx-hint">看護計画は記録から自動で作られます（「看護計画」タブ）。ここでは、計画の根拠にしたい診断にチェックを入れておくと、AIの評価で参考にします。</p>' +
         cands.map(c => `<div class="dx-candidate${sel.has(c.id) ? ' dx-selected' : ''}">
           <label class="dx-name"><input type="checkbox" ${sel.has(c.id) ? 'checked' : ''} onchange="toggleDiagnosisSelection('${safeDomId(c.id)}', this.checked)"> ${escapeHtml(c.name)}</label>
           ${c.bodyHtml ? `<div class="dx-body">${storedAiHtml(c.bodyHtml)}</div>` : ''}
         </div>`).join('') +
-        `<div class="dx-actions"><span>${sel.size}件を選択中</span><button type="button" class="btn btn-primary text-[11px] py-1" onclick="generateCarePlanAI()" ${sel.size ? '' : 'disabled style="opacity:.5;cursor:not-allowed;"'}><i class="fa-solid fa-notes-medical"></i> 選んだ診断で看護計画を作る</button></div>`;
+        `<div class="dx-actions"><span>${sel.size}件を選択中</span><button type="button" class="btn btn-primary text-[11px] py-1" onclick="switchView('careplan')"><i class="fa-solid fa-notes-medical"></i> 看護計画を見る（自動作成）</button></div>`;
     }
     window.toggleDiagnosisSelection = function(id, on) {
       const cp = getCurrentPatient();

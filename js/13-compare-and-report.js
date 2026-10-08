@@ -5,7 +5,7 @@
     //   （コピー・テキストファイル・印刷／PDF）。
     // （js/10 の起動の処理より後に読み込む。最後に総合アセスメント表などを描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-06.15'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-08.18'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // ④ 記録した時点（cp.checkpoints[ID] = { id, label, kind, at, updatedAt, items:[カードの写し] }。
@@ -736,23 +736,15 @@
         cp.selectedDiagnosisIds = cands.slice(0, AI_PIPELINE_SELECT_COUNT).map(c => c.id);
         persistData();
         if (typeof renderDiagnosisPanel === 'function') renderDiagnosisPanel(cp);
-        setAiPipelineStatus(true, '③ 看護計画を作っています…（3/3）');
-        const before3 = (cp.aiRunAt || {}).careplan;
-        await window.generateCarePlanAI();
+        // 看護計画は記録から自動で作る（AIなし）。AIは、できた計画を評価するために使う
+        setAiPipelineStatus(true, '③ 看護計画を自動作成し、AIで評価しています…（3/3）');
+        if (typeof autoBuildCarePlans === 'function') autoBuildCarePlans(cp, { notify: false });
+        if (typeof carePlanList !== 'function' || !carePlanList(cp).length) return stop('記録から作れる看護計画が見つからなかったため、ここで止めました');
+        if (typeof renderCarePlans === 'function') renderCarePlans();
+        await window.reviewAllCarePlansAiUI();
         if (!same()) return stop('患者を切り替えたため、まとめて実行を止めました');
-        if ((cp.aiRunAt || {}).careplan === before3 || !cp.carePlanResult) return stop('看護計画を作れなかったため、ここで止めました');
-        const fresh = typeof importCarePlans === 'function' ? importCarePlans(cp, 'ai') : [];
-        if (fresh.length && typeof commitCarePlanChange === 'function') commitCarePlanChange(cp);
         setAiPipelineStatus(false);
-        // 【レビューで発見】AIの看護計画の形を読み取れず1件も取り込めなかったときも「できました」と出ていた。
-        // 読み取れなかったときは、そのことを伝える（同じ看護問題が既にあって取り込まなかったときは従来どおり）。
-        const readable = parseCarePlanText(htmlToPlainText(cp.carePlanResult)).length;
-        if (!fresh.length && !readable) {
-          if (typeof showAiResult === 'function') { window.showAiResult(null); window.showAiResult('careplan-panel'); }
-          return showToast(['看護計画の叩き台はできましたが、「看護計画」タブに取り込める形で読み取れませんでした', { text: '「AIの結果」の看護計画を見て、「看護計画」タブで書き写すか、もう一度「③ 看護計画」を押してください。', detail: true }], 'warn', 8000);
-        }
-        if (typeof showAiResult === 'function') { window.showAiResult(null); window.showAiResult('careplan-panel'); }
-        showToast([`看護計画までできました（看護診断 ${cp.selectedDiagnosisIds.length}件・看護計画 ${fresh.length}件を「看護計画」タブに取り込み）`, { text: '優先度の高い順に上から2件の看護診断を選んでいます。選び直すときは「看護診断候補」のチェックを変えて「③ 看護計画」を押してください。取り込んだ計画は自分の言葉で書き直しましょう。', detail: true }], 'success', 8000);
+        showToast([`看護計画を自動で作り、AIで評価しました（看護診断 ${cp.selectedDiagnosisIds.length}件・看護計画 ${carePlanList(cp).length}件）`, { text: '「看護計画」タブで、自動で作った計画とAIの評価を確かめてください', detail: true }], 'success', 9000);
       } catch (err) {
         console.warn('AI pipeline error:', err);
         stop(`まとめて実行の途中で止まりました（${err && err.message ? err.message : 'エラー'}）`);

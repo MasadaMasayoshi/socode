@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-08.17'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-08.18'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -241,9 +241,11 @@
       Object.assign(p, patch, { updatedAt: now });
       return p;
     }
+    function carePlanProblemKey(problem) { return String(problem || '').replace(/\s+/g, ''); }
     function deleteCarePlan(cp, id, now = new Date().toISOString()) {
       if (!getCarePlan(cp, id)) return false;
-      cp.carePlans[id] = { id, deleted: true, updatedAt: now };
+      // 自動作成で同じ看護問題が戻ってこないよう、消した計画の看護問題を覚えておく
+      cp.carePlans[id] = { id, deleted: true, updatedAt: now, problemKey: carePlanProblemKey(cp.carePlans[id].problem) };
       return true;
     }
     function moveCarePlan(cp, id, dir, now = new Date().toISOString()) {
@@ -972,17 +974,28 @@
     }
     // 記録から看護計画をAIなしで作る：関連図の作り方（記録→看護問題）と、手本（目標・OP/TP/EP）をそのまま使う。
     // 関連図がまだ無くても、その場で作った図から看護問題を取り込む（図は保存しない）。書き終えたら、必要な理由を書いて使う。
-    window.buildCarePlansByRulesUI = function() {
-      const cp = getCurrentPatient();
-      if (!(cp.items || []).some(i => i.type !== 'unnecessary')) return showToast('カードがありません。先に「分類開始」で分類してください', 'warn');
+    // 記録から看護計画をAIなしで作る本体。消した計画の看護問題は作り直さない（skipDeleted）。作った計画の数などを返す
+    function buildCarePlansByRules(cp, { skipDeleted = false } = {}) {
+      if (!(cp.items || []).some(i => i.type !== 'unnecessary')) return { fresh: [], withModel: 0, noCards: true };
       let map = cp.relationMap && typeof normalizeRelationMap === 'function' ? normalizeRelationMap(cp.relationMap) : null;
       if (!map || !map.nodes.some(n => n.type === 'nursing_problem')) map = typeof buildRelationMapFromRecord === 'function' ? buildRelationMapFromRecord(cp) : null;
+      const deletedKeys = new Set(Object.values(cp.carePlans || {}).filter(p => p && p.deleted && p.problemKey).map(p => p.problemKey));
+      if (map && skipDeleted && deletedKeys.size) map = { ...map, nodes: map.nodes.filter(n => n.type !== 'nursing_problem' || !deletedKeys.has(carePlanProblemKey(String(n.label).replace(/（候補）$/, '').trim()))) };
       const fresh = map ? importCarePlansFromMap(cp, new Date().toISOString(), map) : [];
-      if (!fresh.length) return showToast('作れる看護問題が記録から見つからないか、すべて看護計画にあります', 'info');
       let withModel = 0;
       fresh.forEach(p => {
         carePlanOpen.add(p.id);
-        const m = reviewCarePlan(cp, p).model;
+        // 手本の無い看護問題は、関係するヘンダーソン項目から、形だけそろった叩き台にする（数値・期間はこの患者に合わせて直す）
+        let m = reviewCarePlan(cp, p).model;
+        if (!m && p.relatedNeeds.length) {
+          const nm = hendersonNameOf(p.relatedNeeds[0]).replace(/^\d+\.\s*/, '');
+          const prob = p.problem || nm;
+          m = { goalLong: `退院までに、${prob}が改善し、${nm}の欲求が自分で満たせる`,
+            goalShort: `数日以内に、${prob}に関する訴えや観察の値（記録の指標）が、改善に向かう`,
+            op: [`${prob}の程度・経過（訴え・観察・検査値）を観察する`, `${nm}に関する日常生活への影響を観察する`],
+            tp: [`${prob}を和らげる援助を、患者の状態に合わせて行い、悪化したときは医師に報告する`],
+            ep: [`${prob}の状態と、自分でできる対処・知らせるタイミングを説明し、理解を確認する`] };
+        }
         if (!m) return;
         const patch = {};
         if (!String(p.goalLong || '').trim()) patch.goalLong = m.goalLong;
@@ -990,8 +1003,26 @@
         ['op', 'tp', 'ep'].forEach(k => { if (!p[k].length && m[k] && m[k].length) patch[k] = [...m[k]]; });
         if (Object.keys(patch).length) { updateCarePlan(cp, p.id, { ...patch, reasonNeeded: true, source: 'rules' }); withModel++; }
       });
+      return { fresh, withModel };
+    }
+    // 看護計画は、記録から自動で作る（「看護計画」のページを開いたとき・分類のあと）。AIは作るためではなく、できた計画を評価するために使う。
+    // 手で消した計画は作り直さない。作れる看護問題が増えたときだけ、足りない分を足す
+    function autoBuildCarePlans(cp, { notify = true } = {}) {
+      if (!cp) return 0;
+      let r;
+      try { r = buildCarePlansByRules(cp, { skipDeleted: true }); } catch (err) { console.warn('看護計画の自動作成に失敗:', err); return 0; }
+      if (!r.fresh.length) return 0;
+      commitCarePlanChange(cp, false);
+      if (notify) showToast(`記録から看護計画を${r.fresh.length}件、自動で作りました。この患者に合うか確かめて、理由を書いて直してください。内容はAIで評価できます`, 'success', 7000);
+      return r.fresh.length;
+    }
+    window.buildCarePlansByRulesUI = function() {
+      const cp = getCurrentPatient();
+      if (!(cp.items || []).some(i => i.type !== 'unnecessary')) return showToast('カードがありません。先に「分類開始」で分類してください', 'warn');
+      const { fresh, withModel } = buildCarePlansByRules(cp);
+      if (!fresh.length) return showToast('作れる看護問題が記録から見つからないか、すべて看護計画にあります', 'info');
       commitCarePlanChange(cp);
-      showToast(`AIなしで看護計画を${fresh.length}件作りました（うち${withModel}件に目標・OP/TP/EPの手本を入れました）。この患者に合うか確かめて、理由を書いて直してください`, 'success', 9000);
+      showToast(`看護計画を${fresh.length}件作りました（うち${withModel}件に目標・OP/TP/EPの手本を入れました）。この患者に合うか確かめて、理由を書いて直してください`, 'success', 7000);
     };
     window.importCarePlansFromMapUI = function() {
       const cp = getCurrentPatient();
@@ -1423,11 +1454,11 @@ ${body}
     };
 
     // 「看護計画」のページへ切り替えたとき・患者を切り替えたとき（js/05 の switchView・loadLocalState から呼ぶ）
-    function onCarePlanViewShown() { renderCarePlans(); }
+    function onCarePlanViewShown() { try { autoBuildCarePlans(getCurrentPatient()); } catch (e) { console.warn(e); } renderCarePlans(); }
 
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {
-    buildCarePlansPrintHtml, buildCarePlansText,
+    buildCarePlansPrintHtml, buildCarePlansText, buildCarePlansByRules, autoBuildCarePlans, carePlanList, deleteCarePlan,
     formatCardTimestamp, MISSING_CHECK_STATUSES, missingInfoItems, missingCheckStatus, missingCheckCounts, setMissingCheck, missingCheckCardHtml,
     CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,

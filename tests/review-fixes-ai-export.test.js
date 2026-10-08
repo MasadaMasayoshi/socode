@@ -189,25 +189,25 @@ test('検査値の推移：値ごとに、そのカードの基準値→行の�
   assert.deepEqual(odd['CRP@入院3日目'], ['5'], '換算できない単位は判定しない');
 });
 
-test('看護計画までまとめて実行：AIの答えが空なら前の看護計画を残して止まる', async () => {
-  const { run } = loadSandbox(['[]', '■ ガス交換障害\n根拠：SpO2低下〔C1〕\n\n■ 活動耐性低下\n根拠：x', { candidates: [] }]);
-  setPatient(run, `, carePlanResult: '<div class="ai-text"><p>前の看護計画</p></div>', aiRunAt: { careplan: '2026-09-01T00:00:00.000Z' }`);
+test('看護計画までまとめて実行：看護計画はAIなしで記録から自動で作り、AIは評価だけに使う（診断候補の答えが空なら途中で止まる）', async () => {
+  const { run, calls } = loadSandbox(['[]', '', '']);
+  setPatient(run);
   await run('runAiPipelineToCarePlan()');
-  assert.equal(run('getCurrentPatient().carePlanResult'), '<div class="ai-text"><p>前の看護計画</p></div>');
-  assert.equal(run('getCurrentPatient().aiRunAt.careplan'), '2026-09-01T00:00:00.000Z');
   assert.equal(run('window.aiPipelineStatus.running'), false);
-  const toasts = plain(run('__toasts'));
-  assert.ok(toasts.some(([t, m]) => t === 'warn' && /看護計画を作れなかった/.test(m)), JSON.stringify(toasts));
-  assert.ok(!toasts.some(([, m]) => /看護計画までできました/.test(m)));
+  assert.deepEqual(plain(run('carePlanList(getCurrentPatient())')), [], '診断候補が作れなかったので、計画の自動作成まで進まない');
+  assert.ok(plain(run('__toasts')).some(([t, m]) => t === 'warn' && /看護診断候補を作れなかった/.test(m)));
+  assert.ok(calls.length <= 2, 'AIで看護計画を作る依頼は出さない');
 });
 
-test('看護計画までまとめて実行：見出し付き（### ■）の答えでも、診断を選んで看護計画を取り込む', async () => {
-  const plan = '### 要点\n- 呼吸を優先\n### ■ガス交換障害\n#### 目標\n1. SpO2 95%以上を保てる\n#### OP（観察計画）\n1. SpO2を観察する〔C1〕\n#### TP（援助計画）\n1. 半座位にする\n#### EP（教育計画）\n1. 息苦しさを伝えるよう説明する';
-  const { run } = loadSandbox(['```json\n[]\n```', '### ■ ガス交換障害\n根拠：SpO2低下〔C1〕\n\n### ■ 活動耐性低下\n根拠：x', plan]);
+test('看護計画まとめて実行：診断候補のあと、計画を自動作成し、AIには評価を依頼する（作る依頼は出さない）', async () => {
+  const { run, calls } = loadSandbox(['```json\n[]\n```', '### ■ ガス交換障害\n根拠：SpO2低下〔C1〕\n\n### ■ 活動耐性低下\n根拠：x', '{"plans":[]}']);
   setPatient(run);
   await run('runAiPipelineToCarePlan()');
   assert.deepEqual(plain(run('getCurrentPatient().diagnosisCandidates.map(c => c.name)')), ['ガス交換障害', '活動耐性低下']);
-  assert.deepEqual(plain(run('carePlanList(getCurrentPatient()).map(p => [p.problem, p.op, p.tp])')), [['ガス交換障害', ['SpO2を観察する'], ['半座位にする']]]);
+  assert.ok(run('carePlanList(getCurrentPatient()).length') > 0, '記録から看護計画が自動で作られる');
+  assert.ok(run('carePlanList(getCurrentPatient()).every(p => p.source === "rules" || p.source === "map")'));
+  assert.equal(calls.length, 3, '①不足情報・②診断候補・③計画の評価の3回だけ');
+  assert.equal(run('getCurrentPatient().carePlanResult'), undefined);
 });
 
 test('AIのボタンを続けて押しても、同じ患者・同じ機能の依頼は1つだけ走る。まとめて実行の途中は①②③を押せない', async () => {

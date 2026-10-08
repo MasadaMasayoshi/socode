@@ -49,7 +49,7 @@ test('薬の情報：AIへの指示に記録の薬を添え、カードに「薬
 
 test('ボタン1つで看護計画まで：①→②→優先度の高い2件を選ぶ→③→看護計画タブへ取り込む。途中で止まる条件', () => {
   assert.match(src, /window\.runAiPipelineToCarePlan = async function/);
-  assert.match(src, /await window\.evaluateMissingInfoAI\(\);[\s\S]*await window\.suggestNursingDiagnosesAI\(\);[\s\S]*cands\.slice\(0, AI_PIPELINE_SELECT_COUNT\)[\s\S]*await window\.generateCarePlanAI\(\);[\s\S]*importCarePlans\(cp, 'ai'\)/);
+  assert.match(src, /await window\.evaluateMissingInfoAI\(\);[\s\S]*await window\.suggestNursingDiagnosesAI\(\);[\s\S]*cands\.slice\(0, AI_PIPELINE_SELECT_COUNT\)[\s\S]*autoBuildCarePlans\(cp[\s\S]*await window\.reviewAllCarePlansAiUI\(\)/);
   assert.match(src, /患者を切り替えたため、まとめて実行を止めました/);
   assert.match(src, /onclick="runAiPipelineToCarePlan\(\)"/);
 });
