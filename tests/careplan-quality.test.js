@@ -231,3 +231,15 @@ test('検査値：単位・桁が崩れた値は判定不可（推定候補は�
   assert.match(t, /SpO2：95%（術前）[^\n]*室内気の値/);
   assert.doesNotMatch(t, /SpO2：95%（術前）[^\n]*酸素投与下/);
 });
+
+test('関連図：「診断名」の欄が無くても、本人のがんの病名は疾患の四角として残る（家族歴は使わない）', () => {
+  const { loadApp } = require('./app-helpers');
+  const app2 = loadApp();
+  const text = '成人看護学実習\n氏名：A氏 58歳 男性\n胃がんのため、腹腔鏡下胃全摘術を施行した。\n祖父を大腸がんで亡くしている。\n創部痛 NRS 2。';
+  const items = app2.classifyTextByRules(text).map((i, k) => ({ ...i, id: `it${k}` }));
+  const cp = { id: 'p1', title: 'A氏', sourceText: text, items, carePlans: {}, selectedDiagnosisIds: [], diagnosisCandidates: [] };
+  const map = app2.buildRelationMapFromRecord(cp);
+  const dis = map.nodes.filter(n => n.type === 'disease');
+  assert.equal(dis.length, 1);
+  assert.match(dis[0].label, /胃がん/);
+});
