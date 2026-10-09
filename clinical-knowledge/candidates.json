@@ -24,7 +24,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "pressure-ulcer-skin-observation",
@@ -48,7 +53,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "falls-inpatient-multifactor-assessment",
@@ -72,7 +82,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "falls-inpatient-safe-mobility-education",
@@ -96,7 +111,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "surgical-site-infection-discharge-education",
@@ -120,7 +140,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "who-five-moments-hand-hygiene",
@@ -144,7 +169,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "copd-exacerbation-individual-oxygen-target",
@@ -168,7 +198,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "copd-exacerbation-pulse-ox-limitations",
@@ -192,7 +227,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "postoperative-pain-shared-planning",
@@ -216,7 +256,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "postoperative-pain-functional-recovery",
@@ -240,7 +285,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "diabetic-foot-bilateral-examination",
@@ -264,7 +314,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "diabetic-foot-ulcer-record-size-depth-site",
@@ -288,7 +343,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "nutrition-malnutrition-screening-bmi-weight-loss",
@@ -312,7 +372,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "nutrition-unintentional-low-intake-risk",
@@ -336,7 +401,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "fluid-iv-therapy-daily-monitoring",
@@ -360,7 +430,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "fluid-status-history-exam-monitoring",
@@ -384,7 +459,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "urinary-incontinence-bladder-diary",
@@ -408,7 +488,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "surgical-wound-dressing-aseptic-technique",
@@ -432,7 +517,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "vte-surgery-bleeding-risk-assessment",
@@ -456,7 +546,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "vte-mobilisation-and-hydration",
@@ -480,7 +575,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "delirium-risk-and-acute-fluctuation",
@@ -504,7 +604,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "delirium-low-activity-screening",
@@ -528,7 +633,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "constipation-bowel-history-record",
@@ -552,7 +662,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "constipation-red-flag-symptoms",
@@ -576,7 +691,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "postop-respiratory-vital-monitoring",
@@ -600,7 +720,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "postop-deterioration-trigger-response",
@@ -624,7 +749,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "postop-bleeding-physiological-assessment",
@@ -648,7 +778,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "postop-high-risk-recovery-area",
@@ -672,7 +807,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     },
     {
       "id": "postop-clinical-concern-independent-escalation",
@@ -696,7 +836,12 @@
         "status": "approved",
         "date": "2026-10-10",
         "source": "explicit-user-instruction"
-      }
+      },
+      "sourceVerification": {
+        "status": "not-independently-verified",
+        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+      },
+      "reviewDue": "2027-04-10"
     }
   ]
 }
