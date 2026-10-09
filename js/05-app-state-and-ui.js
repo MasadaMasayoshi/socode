@@ -775,7 +775,12 @@
       // OCR専用呼び出しは画像の文字転記以外の生成処理を認めない。
       // 関数名だけでなくリクエスト内容も制限し、将来のAI機能の誤接続を防ぐ。
       const textParts = contents.flatMap(c => c.parts || []).filter(p => typeof p.text === 'string').map(p => p.text.trim());
-      const hasOnlyOcrInstructions = textParts.length > 0 && textParts.every(t => /文字起こし|文字を読み取|テキスト化/.test(t) && !/診断を作成|看護計画を作成|アセスメントを生成|文章を生成|分類を評価/.test(t));
+      // 登録済みのOCR操作だけを許可。任意の画像付きプロンプトをAI生成に転用させない。
+      const OCR_ALLOWED_INSTRUCTIONS = new Set([
+        '画像に含まれる看護基準・プロトコル・参考資料の内容を正確に文字起こししてください。',
+        '画像に含まれるカルテ記載や検査データ結果（WBC, CRP, Hb, クレアチニン等）を正確に文字起こししてください。'
+      ]);
+      const hasOnlyOcrInstructions = textParts.length === 1 && OCR_ALLOWED_INSTRUCTIONS.has(textParts[0]);
       if (!hasOnlyOcrInstructions) throw new Error('OCR以外のAIへの依頼は許可されていません。');
       // 実際のOCR操作は画像1枚＋文字起こし指示だけ。追加の命令・ファイルは許可しない。
       const parts = contents.flatMap(c => c.parts || []);
