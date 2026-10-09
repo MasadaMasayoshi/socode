@@ -47,5 +47,7 @@ jobs:
         run: node --test tests/clinical-ui-syntax.test.js
       - name: Integrated automatic nursing quality checks
         run: node --test tests/auto-quality-integrated.test.js
+      - name: Nursing evidence traceability audit tests
+        run: node --test tests/evidence-audit.test.js
       - name: Unit regression suite
         run: npm test
