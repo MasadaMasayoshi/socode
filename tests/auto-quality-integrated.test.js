@@ -13,3 +13,15 @@ test('automatic checks never send patient records or invoke generative AI',()=>{
  assert.match(src,/output\.replaceChildren\(\)/);
  assert.match(src,/div\.textContent=/);
 });
+
+test('real patient source and organized cards can be inspected side-by-side without transmission',()=>{
+ assert.match(html,/id="nursing-source-compare"/);
+ assert.match(html,/id="nursing-original-text"/);
+ assert.match(html,/id="nursing-organized-text"/);
+ assert.match(html,/aria-expanded="false"/);
+ assert.match(html,/sourceOutput\.textContent=String\(cp\.sourceText/);
+ assert.match(html,/row\.textContent=/);
+ const block=html.match(/<script>(\s*\/\/ Local, read-only checks[\s\S]*?)<\/script>/);
+ assert.ok(block);
+ assert.doesNotThrow(()=>new vm.Script(block[1]));
+});
