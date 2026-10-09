@@ -322,8 +322,8 @@
 
       <!-- AIのボタン（js/08 の renderAiSteps）：左は順番に進めるもの（①不足情報 → ②看護診断候補 → ③看護計画）、右はそのほかの確認。
            結果は下の「AIの結果」の欄に種類ごとのタブで1つだけ出す（js/05 の refreshAiResults。表の上に積み重ねない） -->
-      <div id="ai-steps" class="ai-steps"></div>
-      <div id="ai-results" class="ai-results hidden">
+      <div id="ai-steps" class="ai-steps hidden" aria-hidden="true"></div>
+      <div id="ai-results" class="ai-results hidden" aria-hidden="true">
         <div class="ai-results-bar">
           <span class="ai-results-title"><i class="fa-solid fa-comment-medical"></i> 結果</span>
           <div id="ai-results-tabs" class="ai-results-tabs" role="tablist" aria-label="結果の種類"></div>
@@ -887,7 +887,7 @@
           <option value="flash">標準（Flash）</option>
         </select>
         <p class="text-[10px] text-[var(--ink-muted)] mb-2">「混雑しています」が続くときは「軽量（Flash-Lite）」も試してください。応答の速さ・混み具合はGoogle側の状況で変わり、どのモデルでも保証はできません。</p>
-        <p class="text-[10px] text-[var(--ink-muted)]">写真の文字起こし（OCR）と「AI分析ツール」（検査値評価・看護診断候補・看護計画など）に使います。「分類開始」の下で「AIありで分類」を選んだときにも使います（このブラウザだけに保存）。HTMLファイルを直接開いて使っても動きます。ただし、ブラウザの種類や開き方（ファイルから／サーバーから）が変わると保存場所も別になるため、もう一度入力が必要です。</p>
+        <p class="text-[10px] text-[var(--ink-muted)]">写真の文字起こし（OCR）のみに使用します。AIによる分類・文章生成・関連図生成・看護計画生成・評価は使用しません（このブラウザだけに保存）。HTMLファイルを直接開いて使っても動きます。ただし、ブラウザの種類や開き方（ファイルから／サーバーから）が変わると保存場所も別になるため、もう一度入力が必要です。</p>
       </div>
       <!-- AIに送る前に伏せる語句（改善案F。js/05 の maskPersonalInfo）。このブラウザだけに保存し、サーバーには送らない -->
       <div class="border-t border-[var(--line-soft)] pt-3">
