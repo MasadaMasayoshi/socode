@@ -1526,7 +1526,7 @@
         const items=(cp.items||[]).filter(x=>x&&!x.deleted&&x.type!=='unnecessary'&&!x.aiSuggested);
         const plans=Object.values(cp.carePlans||{}).filter(p=>p&&!p.deleted);
         const map=cp.relationMap;
-        const fingerprint=JSON.stringify([cp.id,cp.sourceText,items.map(i=>[i.id,i.text,i.type,i.hendersonIds,i.timestamp,i.tagNotNeeded,i.assessmentCols,i.admissionPhase,i.fieldLabel]),plans.map(p=>[p.id,p.problem,p.goalLong,p.goalShort,p.op,p.tp,p.ep,p.evidence,p.evidenceIds,p.evidenceSnapshot]),map&&[map.nodes,map.edges]]);
+        const fingerprint=JSON.stringify([cp.id,cp.sourceText,items.map(i=>[i.id,i.text,i.type,i.hendersonIds,i.timestamp,i.tagNotNeeded,i.assessmentCols,i.admissionPhase,i.fieldLabel]),plans.map(p=>[p.id,p.problem,p.goalLong,p.goalShort,p.op,p.tp,p.ep,p.evidence,p.evidenceIds,p.evidenceSnapshot,p.mapEvidenceRefs]),map&&[map.nodes,map.edges]]);
         if(!force&&fingerprint===previous)return;
         previous=fingerprint;lastScan=Date.now();
         if(!comparison.hidden)reviewSource();

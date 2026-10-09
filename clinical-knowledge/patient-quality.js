@@ -27,7 +27,18 @@
         if (reason?.kind !== 'none') add('untagged', 'ヘンダーソン分類を確認してください' + (reason?.reason ? '：'+reason.reason : ''),card.id,[String(card.id)]);
       }
     }
+    const checkRefs = (refs, owner) => {
+      for (const ref of array(refs)) {
+        if (!ref || !ref.sourceId) continue;
+        if (ref.patientId && String(ref.patientId) !== String(patient.id)) {
+          add('foreign-evidence','根拠参照が別の患者を指しています',owner,[String(ref.sourceId)]);
+          continue;
+        }
+        if (ref.sourceType === 'card' && !byId.has(String(ref.sourceId))) add('broken-evidence','根拠カードが削除・除外されています',owner,[String(ref.sourceId)]);
+      }
+    };
     for (const plan of plans) {
+      checkRefs(plan.mapEvidenceRefs,plan.id);
       const ids = array(plan.evidenceIds).map(String);
       for (const id of ids) if (!byId.has(id)) add('broken-evidence','看護計画の根拠カードが削除・除外されています',plan.id,[id]);
       for (const snapshot of array(plan.evidenceSnapshot)) {
@@ -40,7 +51,7 @@
         const needle = norm(entry);
         if (needle.length >= 4 && !bodies.some(body=>body.includes(needle))) add('evidence-text-review','根拠の文章が現在のカードと一致しません。省略・編集・時期を確認してください',plan.id);
       }
-      if (!ids.length && !array(plan.evidence).some(e=>text(e))) add('missing-evidence','看護問題の根拠情報がありません',plan.id);
+      if (!ids.length && !array(plan.evidence).some(e=>text(e)) && !array(plan.mapEvidenceRefs).some(r=>r?.sourceType==='card' && (!r.patientId || String(r.patientId)===String(patient.id)) && byId.has(String(r.sourceId)))) add('missing-evidence','看護問題の根拠情報がありません',plan.id);
       const lines = new Map();
       for (const section of ['op','tp','ep']) for (const [index,line] of array(plan[section]).entries()) {
         const key = norm(line);
@@ -52,7 +63,12 @@
     const map = patient?.relationMap;
     if (map && array(map.nodes).length) {
       const nodes = new Map(array(map.nodes).map(n=>[String(n.id),n]));
+      for (const node of array(map.nodes)) {
+        checkRefs(node.sourceRefs,node.id);
+        for (const id of array(node.itemIds).map(String)) if (!byId.has(id)) add('broken-evidence','関連図の根拠カードが削除・除外されています',node.id,[id]);
+      }
       for (const edge of array(map.edges)) {
+        checkRefs(edge.sourceRefs,edge.id);
         const from=String(edge.source??edge.from??''),to=String(edge.target??edge.to??'');
         const source=nodes.get(from),target=nodes.get(to);
         if (!source || !target) continue;

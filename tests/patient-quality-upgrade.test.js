@@ -92,3 +92,10 @@ test('a plan cannot validate itself with an unrecorded current observation',()=>
  const result=app.validateCarePlanEvidence(cp,{problem:'ガス交換障害',evidence:['SpO2 88%']});
  assert.notEqual(result.kind,'existing');
 });
+
+test('native map source references and plan mapEvidenceRefs detect deleted and foreign cards',()=>{
+ const patient={id:'p',items:[{id:'live',text:'記録',type:'o',hendersonIds:[1]}],carePlans:{plan:{id:'plan',evidence:['記録'],mapEvidenceRefs:[{sourceType:'card',sourceId:'live',patientId:'other'}]}},relationMap:{nodes:[{id:'node',itemIds:['deleted'],sourceRefs:[{sourceType:'card',sourceId:'missing',patientId:'p'}]}],edges:[]}};
+ const findings=audit.audit(patient).findings;
+ assert.ok(findings.some(f=>f.code==='foreign-evidence'));
+ assert.equal(findings.filter(f=>f.code==='broken-evidence').length,2);
+});
