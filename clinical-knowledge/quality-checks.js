@@ -51,7 +51,7 @@
       const value=plan?.[key]??plan?.[key.toLowerCase()];
       if(!(Array.isArray(value)?value.some(Boolean):String(value||'').trim()))add(issues,'missing-'+key,'看護計画の'+key+'が未記入です');
     }
-    if(!String(plan?.goal||'').trim())add(issues,'missing-goal','看護目標が未記入です');
+    if(![plan?.goal,plan?.goalLong,plan?.goalShort].some(x=>String(x||'').trim()))add(issues,'missing-goal','看護目標が未記入です');
     return issues;
   }
   function lab(entry){
