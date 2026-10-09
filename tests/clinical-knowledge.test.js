@@ -63,3 +63,21 @@ test('source candidates are isolated from approved clinical knowledge', () => {
     });
   }
 });
+
+test('29 literature candidates have traceable source-text comparisons but remain outside clinical approval', () => {
+  const candidates = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'clinical-knowledge', 'candidates.json'), 'utf8'));
+  assert.equal(candidates.claims.length, 29);
+  for (const claim of candidates.claims) {
+    assert.equal(claim.ownerApproval?.status, 'approved', claim.id);
+    assert.equal(claim.status, 'pending-expert-review', claim.id);
+    assert.equal(claim.reviewer, null, claim.id);
+    const match = claim.sourceVerification;
+    assert.equal(match?.status, 'source-text-matched', claim.id);
+    assert.match(match.checkedOn || '', DATE, claim.id);
+    assert.ok(claim.sources.some(src => src.url === match.url), claim.id + ': evidence URL mismatch');
+    assert.ok(typeof match.note === 'string' && match.note.length > 12);
+    assert.ok(typeof match.limitations === 'string' && match.limitations.length > 12);
+    assert.match(claim.reviewDue || '', DATE);
+  }
+  assert.equal(registry.claims.length, 0, 'expert-approved registry must remain empty');
+});
