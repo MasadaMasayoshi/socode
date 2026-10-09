@@ -28,6 +28,17 @@ const {app}=require('../server');
     await page.locator('#view-'+name).waitFor({state:'visible'});
     await page.screenshot({path:`browser-artifacts/${width}-${name}.png`});
    }
+   const assessmentHistory=await page.evaluate(()=>{
+    const cp=getCurrentPatient(),entry=ensureMyAssessment(cp,1);
+    entry.interpretation='編集前';
+    onMyAssessmentInput(1,'interpretation',{value:'編集後'});
+    const undone=undoMyAssessmentEdit(1)&&getMyAssessment(cp,1).interpretation==='編集前';
+    const redone=undoMyAssessmentEdit(1,true)&&getMyAssessment(cp,1).interpretation==='編集後';
+    getMyAssessment(cp,1).interpretation='外部更新';
+    const protectedUpdate=undoMyAssessmentEdit(1)===false&&getMyAssessment(cp,1).interpretation==='外部更新';
+    return {undone,redone,protectedUpdate};
+   });
+   assert.deepEqual(assessmentHistory,{undone:true,redone:true,protectedUpdate:true});
    const planHistory=await page.evaluate(()=>{
     const cp=getCurrentPatient(),plan=createCarePlan(cp,{problem:'架空の確認',goalShort:'編集前'});
     onCarePlanInput(plan.id,'goalShort',{value:'編集後'});

@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-10.quality1'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-10.zhistory2'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -581,6 +581,8 @@
           ${isAllMode ? `<button type="button" class="my-asm-toggle" onclick="toggleMyAssessment(${needId})" aria-expanded="true"><i class="fa-solid fa-chevron-down"></i> <i class="fa-solid fa-user-pen"></i> 自分のアセスメント</button>` : `<span class="my-asm-title"><i class="fa-solid fa-user-pen"></i> 自分のアセスメント<small>${need.id}. ${escapeHtml(needName)}</small></span>`}
           <span id="my-asm-state-${needId}" class="my-asm-state">${stateHtml}</span>
           <span class="my-asm-tools">
+            <button type="button" class="btn btn-outline my-asm-btn" onclick="undoMyAssessmentEdit(${needId},false)" title="この欲求の文章編集を元に戻す（この画面を開いている間）">元に戻す</button>
+            <button type="button" class="btn btn-outline my-asm-btn" onclick="undoMyAssessmentEdit(${needId},true)">やり直す</button>
             ${historyCount ? `<button type="button" class="btn btn-outline my-asm-btn" onclick="toggleMyAssessmentHistory(${needId})" aria-expanded="${myAsmHistoryOpen.has(needId)}"><i class="fa-solid fa-clock-rotate-left"></i> 評価の履歴（${historyCount}）</button>` : ''}
           </span>
         </div>
@@ -702,15 +704,47 @@
       const ck = document.getElementById(`my-asm-check-${needId}`);
       if (ck) ck.innerHTML = myAssessmentCheckHtml(cp, needId);
     }
+    const myAssessmentEditHistories = new Map();
+    function myAssessmentEditHistory(cp, needId) {
+      if(!myAssessmentEditHistories.has(cp.id)) myAssessmentEditHistories.set(cp.id,new Map());
+      const needs=myAssessmentEditHistories.get(cp.id);
+      if(!needs.has(needId)) needs.set(needId,{undo:[],redo:[]});
+      return needs.get(needId);
+    }
+    function rememberMyAssessmentEdit(cp,needId,field,before,after) {
+      if(!['interpretation','cause','outlook','revisionNote'].includes(field) || before===after)return;
+      const history=myAssessmentEditHistory(cp,needId),last=history.undo[history.undo.length-1],now=Date.now();
+      if(last && last.field===field && last.after===before && now-last.at<750){last.after=after;last.at=now;}
+      else history.undo.push({field,before,after,at:now});
+      if(history.undo.length>40)history.undo.shift();history.redo=[];
+    }
+    window.undoMyAssessmentEdit = function(needId,redo=false) {
+      const cp=getCurrentPatient(),history=myAssessmentEditHistory(cp,needId),from=redo?history.redo:history.undo,to=redo?history.undo:history.redo,entry=from[from.length-1];
+      if(!entry){showToast('戻せるアセスメントの編集はありません','info');return false;}
+      const e=getMyAssessment(cp,needId);
+      if(!e || String(e[entry.field]||'')!==(redo?entry.before:entry.after)){
+        showToast('アセスメントが削除・更新されています。現在の内容を保持しました','warn');return false;
+      }
+      e[entry.field]=redo?entry.after:entry.before;e.updatedAt=new Date().toISOString();
+      from.pop();to.push(entry);if(to.length>40)to.shift();
+      commitMyAssessmentChange(cp);
+      showToast(redo?'アセスメントの編集をやり直しました':'アセスメントの編集を元に戻しました','info');return true;
+    };
     const myAsmCheckTimers = {};
     window.onMyAssessmentInput = function(needId, field, el) {
       const cp = getCurrentPatient();
       const e = ensureMyAssessment(cp, needId);
+      rememberMyAssessmentEdit(cp,needId,field,String(e[field]||''),el.value);
       e[field] = el.value;
       e.updatedAt = new Date().toISOString();
       saveMyAssessmentsSoon(cp.id);
-      if (myAsmCheckTimers[needId]) clearTimeout(myAsmCheckTimers[needId]);
-      myAsmCheckTimers[needId] = setTimeout(() => { delete myAsmCheckTimers[needId]; refreshMyAssessmentSideInfo(getCurrentPatient(), needId); }, 500);
+      const timerKey=JSON.stringify([cp.id,needId]);
+      if (myAsmCheckTimers[timerKey]) clearTimeout(myAsmCheckTimers[timerKey]);
+      myAsmCheckTimers[timerKey] = setTimeout(() => {
+        delete myAsmCheckTimers[timerKey];
+        const current=getCurrentPatient();
+        if(current?.id===cp.id)refreshMyAssessmentSideInfo(current, needId);
+      }, 500);
     };
     // 表を描き直すとき、書いている途中の入力欄のカーソルの位置を保つ（js/09 の renderAssessmentTable から呼ぶ）
     function captureMyAssessmentFocus() {
