@@ -83,7 +83,10 @@ function runGolden({ update = false } = {}) {
   const results = listCases().map(name => {
     const actual = classifyCase(app, name);
     const expected = readExpected(name);
-    if (update || !expected) {
+    if (!update && !expected) {
+      return { name, cards: actual.length, missingExpected: true, diff: ['  正解データがありません。承認済みの元データを復元してください。'] };
+    }
+    if (update) {
       writeExpected(name, actual);
       return { name, cards: actual.length, created: !expected, diff: [] };
     }
