@@ -1876,14 +1876,6 @@
       return `<div class="cpr" id="cpr-${pid}"><div class="cpr-title"><i class="fa-solid fa-clipboard-list"></i> 計画のチェック（AIなし）<span class="my-asm-muted">要確認 ${cpReviewCount(r)}件</span></div><ul class="cpr-list">${rows}</ul>${modelHtml}</div>`;
     }
 
-    // ---- AIで看護計画を評価 ----
-    // この計画以外の計画の要約（個別の評価で、別の計画に書かれた内容を見落とさないため）
-    function cpOtherPlansBrief(cp, exceptId) {
-      const others = carePlanList(cp).filter(o => o.id !== exceptId);
-      if (!others.length) return '（なし）';
-      const cut = (arr, n) => (arr || []).slice(0, n).map(t => String(t).slice(0, 70)).join(' / ');
-      return others.map(o => `■${o.problem || '（無題）'}\n  短期目標：${String(o.goalShort || '（なし）').slice(0, 80)}\n  TP：${cut(o.tp, 6) || '（なし）'}\n  EP：${cut(o.ep, 6) || '（なし）'}`).join('\n');
-    }
     // ---- 全計画をまとめて評価（計画どうしの重複・補完・不足） ----
     const CP_SET_TOPICS = [
       ['分割食', /分割食/], ['栄養士の指導・食事療法', /栄養士|栄養指導|食事療法|カロリー制限|エネルギー/], ['低血糖の対応', /低血糖|ブドウ糖/],
@@ -1936,7 +1928,7 @@
       return out;
     }
     // 全体の評価の表示（計画の一覧の上）。AIの結果はこの画面を開いている間だけ覚える
-    const carePlanSetState = { open: false, ai: {}, running: false };
+    const carePlanSetState = { open: false };
     function carePlanSetReviewHtml(cp) {
       if (!carePlanSetState.open) return '';
       const local = reviewCarePlanSet(cp);
@@ -1959,7 +1951,6 @@
     window.openCarePlanSetReview = function() { carePlanSetState.open = true; renderCarePlanSetReview(); const el = document.getElementById('careplan-set-review'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' }); };
     window.closeCarePlanSetReview = function() { carePlanSetState.open = false; renderCarePlanSetReview(); };
 
-    const carePlanAiRunning = new Set();
 
     // 書き出し・AI用：看護計画を文章にする
     function buildCarePlansText(cp, { withRecords = true, recordFilter = null } = {}) {
