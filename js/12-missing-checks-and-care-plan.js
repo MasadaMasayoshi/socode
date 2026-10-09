@@ -616,11 +616,7 @@
       const cp = getCurrentPatient();
       const plans = carePlanList(cp);
       const importInfo = document.getElementById('careplan-import-info');
-      if (importInfo) {
-        const ai = cp.carePlanResult ? parseCarePlanText(htmlToPlainText(cp.carePlanResult)).length : 0;
-        const dx = selectedDiagnosisNames(cp).length;
-        importInfo.textContent = ai || dx ? `取り込める内容：${[ai ? `AIの看護計画 ${ai}件` : '', dx ? `選んだ看護診断候補 ${dx}件` : ''].filter(Boolean).join('・')}` : '';
-      }
+      if (importInfo) importInfo.textContent = '';
       if (!plans.length) {
         wrap.innerHTML = `<div class="cp-empty"><i class="fa-solid fa-notes-medical"></i><p>まだ看護計画がありません。「＋看護計画を追加」から看護問題・目標・OP・TP・EPを入力できます。</p></div>`;
         return;
