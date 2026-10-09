@@ -49,6 +49,26 @@ const {app}=require('../server');
     return {undone,redone,protectedUpdate};
    });
    assert.deepEqual(planHistory,{undone:true,redone:true,protectedUpdate:true});
+   await page.evaluate(()=>{
+    const cp=getCurrentPatient(),plan=createCarePlan(cp,{problem:'削除確認の架空計画'});
+    window.__confirmationPlanId=plan.id;
+    window.__confirmation=deleteCarePlanUI(plan.id);
+   });
+   await page.locator('#modal-dialog').waitFor({state:'visible'});
+   await page.evaluate(()=>{getCarePlan(getCurrentPatient(),window.__confirmationPlanId).problem='確認中の更新';});
+   await page.locator('#dialog-confirm').click();
+   await page.evaluate(()=>window.__confirmation);
+   assert.equal(await page.evaluate(()=>getCarePlan(getCurrentPatient(),window.__confirmationPlanId)?.problem),'確認中の更新');
+   const recordProtected=await page.evaluate(()=>{
+    const cp=getCurrentPatient(),plan=getCarePlan(cp,window.__confirmationPlanId);
+    const record=addCareRecord(cp,plan.id,{evaluation:'編集前'});
+    openCareRecord(plan.id,record.id);
+    getCarePlan(cp,plan.id).records.find(r=>r.id===record.id).evaluation='外部更新';
+    saveCareRecordUI();
+    const protectedUpdate=getCarePlan(cp,plan.id).records.find(r=>r.id===record.id).evaluation==='外部更新';
+    closeCareRecord();return protectedUpdate;
+   });
+   assert.equal(recordProtected,true);
    const recovery = await page.evaluate(() => {
     const cp=getCurrentPatient();
     rmCommit(cp,{version:2,nodes:[{id:'smoke-node',type:'assessment',label:'架空の検証',x:50,y:50,itemIds:[]}],edges:[]},{pushUndo:true});

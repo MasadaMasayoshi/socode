@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-10.zhistory1'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-10.zhistory3'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -862,10 +862,13 @@
       const cp = getCurrentPatient();
       const p = getCarePlan(cp, id);
       if (!p) return;
+      const expected = JSON.stringify(p);
       const ok = await openDialog({ title: 'この看護計画を消しますか？', message: `「${p.problem || '（無題）'}」と、その実施・評価の記録${p.records.length}件を消します。`, confirmLabel: '消す', danger: true });
       if (ok !== true) return;
-      deleteCarePlan(cp, id);
-      commitCarePlanChange(cp);
+      const current=getCurrentPatient();
+      if(current?.id!==cp.id || JSON.stringify(getCarePlan(current,id))!==expected){showToast('確認中に患者または計画が更新されました。削除せず、現在の内容を保持しました','warn');return;}
+      deleteCarePlan(current, id);
+      commitCarePlanChange(current);
       showToast('看護計画を消しました', 'info');
     };
     // 旧AIの結果からの看護計画取り込みは廃止。手動作成と関連図からの取り込みを使用する。
@@ -878,13 +881,14 @@
     };
 
     // ---- 実施・評価の記録の画面 ----
+    function careRecordPlanState(p){return JSON.stringify([p.problem,p.relatedNeeds,p.goalShort,p.goalLong,p.op,p.tp,p.ep]);}
     let careRecordEditing = null; // { planId, recId }
     window.openCareRecord = function(planId, recId = null) {
       const cp = getCurrentPatient();
       const p = getCarePlan(cp, planId);
       if (!p) return;
       const r = recId ? p.records.find(x => x.id === recId) : null;
-      careRecordEditing = { planId, recId: r ? r.id : null };
+      careRecordEditing = { patientId:cp.id, planId, recId:r?r.id:null, expectedPlan:careRecordPlanState(p), expectedRecord:r?JSON.stringify(r):null };
       document.getElementById('care-record-title').textContent = `${r ? '実施・評価の記録を直す' : '実施・評価を記録'}：${p.problem || '（無題）'}`;
       document.getElementById('care-record-at').value = toLocalInputValue(r ? r.at : null);
       const done = new Set(r ? r.doneItems : []);
@@ -912,7 +916,9 @@
       const cp = getCurrentPatient();
       const { planId, recId } = careRecordEditing;
       const p = getCarePlan(cp, planId);
-      if (!p) return closeCareRecord();
+      if (!p || cp.id!==careRecordEditing.patientId || careRecordPlanState(p)!==careRecordEditing.expectedPlan || (recId && JSON.stringify(p.records.find(r=>r.id===recId&&!r.deleted))!==careRecordEditing.expectedRecord)) {
+        showToast('記録を開いた後に患者・計画・記録が更新されています。入力は保持しました。現在の内容を確認してから開き直してください','warn');return;
+      }
       const rec = {
         at: fromLocalInputValue(document.getElementById('care-record-at').value),
         doneItems: Array.from(document.querySelectorAll('#care-record-items input:checked')).map(i => i.value),
@@ -935,10 +941,14 @@
       showToast(card ? '記録しました。患者の反応を情報カードとしても追加しました' : '実施・評価を記録しました', 'success');
     };
     window.deleteCareRecordUI = async function(planId, recId) {
+      const cp=getCurrentPatient(),record=getCarePlan(cp,planId)?.records.find(r=>r.id===recId&&!r.deleted);
+      if(!record)return;
+      const expected=JSON.stringify(record);
       const ok = await openDialog({ title: 'この記録を削除しますか？', confirmLabel: '削除', danger: true });
       if (ok !== true) return;
-      const cp = getCurrentPatient();
-      if (deleteCareRecord(cp, planId, recId)) commitCarePlanChange(cp);
+      const current=getCurrentPatient(),latest=getCarePlan(current,planId)?.records.find(r=>r.id===recId&&!r.deleted);
+      if(current?.id!==cp.id || JSON.stringify(latest)!==expected){showToast('確認中に患者または記録が更新されました。削除していません','warn');return;}
+      if (deleteCareRecord(current, planId, recId)) commitCarePlanChange(current);
     };
 
 

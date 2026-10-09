@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-10.zhistory2'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-10.zhistory3'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -823,11 +823,13 @@
       showToast(entry.version > 1 ? `再評価として第${entry.version}版を確定しました` : '評価を確定しました（第1版）。あとで情報が増えたら、ここでお知らせします', 'success');
     };
     window.restoreMyAssessmentVersion = async function(needId, version) {
+      const cp=getCurrentPatient(),expected=JSON.stringify(getMyAssessment(cp,needId));
       const ok = await openDialog({ title: `第${version}版の内容に戻しますか？`, message: '今の書きかけの文章と根拠のカードが、その版の内容に置き換わります（確定はしません）。', confirmLabel: '戻す' });
       if (ok !== true) return;
-      const cp = getCurrentPatient();
-      if (restoreMyAssessmentFromHistory(cp, needId, version)) {
-        commitMyAssessmentChange(cp);
+      const current=getCurrentPatient();
+      if(current?.id!==cp.id || JSON.stringify(getMyAssessment(current,needId))!==expected){showToast('確認中に患者またはアセスメントが更新されました。現在の内容を保持しました','warn');return;}
+      if (restoreMyAssessmentFromHistory(current, needId, version)) {
+        commitMyAssessmentChange(current);
         showToast(`第${version}版の内容を書きかけに写しました`, 'info');
       }
     };
