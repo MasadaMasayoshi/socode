@@ -66,7 +66,12 @@ const {app}=require('../server');
     getCarePlan(cp,plan.id).records.find(r=>r.id===record.id).evaluation='外部更新';
     saveCareRecordUI();
     const protectedUpdate=getCarePlan(cp,plan.id).records.find(r=>r.id===record.id).evaluation==='外部更新';
-    closeCareRecord();return protectedUpdate;
+    closeCareRecord();
+    openCareRecord(plan.id,record.id);
+    document.getElementById('care-record-evaluation').value='確認済み';
+    saveCareRecordUI();
+    const saved=getCarePlan(cp,plan.id).records.find(r=>r.id===record.id).evaluation==='確認済み';
+    return protectedUpdate&&saved;
    });
    assert.equal(recordProtected,true);
    const recovery = await page.evaluate(() => {

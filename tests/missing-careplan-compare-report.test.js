@@ -23,14 +23,14 @@ test('②不足情報：未確認・確認済み・該当なしを記録し、�
   const app = loadApp();
   const cp = patient();
   assert.deepEqual(clone(app.missingCheckCounts(cp)), { unchecked: 2, checked: 0, na: 0, total: 2 });
-  const r = app.setMissingCheck(cp, 'm1', { status: 'checked', method: '本人に聞いた', result: '普段は2日に1回', checkedAt: '2026-09-29T05:00:00.000Z', addCard: true, cardType: 's' });
+  const r = app.setMissingCheck(cp, 'm1', { status: 'checked', method: '本人に聞いた', result: '普段は2日に1回', checkedAt: new Date(2026, 8, 29, 14, 0).toISOString(), addCard: true, cardType: 's' });
   assert.equal(r.check.status, 'checked');
   assert.equal(r.card.text, '普段は2日に1回（本人に聞いた）');
   assert.equal(r.card.type, 's');
   assert.deepEqual(clone(r.card.hendersonIds), [3]);
   assert.equal(r.card.assessmentCols[3], 'postadmission');
   assert.equal(r.card.fieldLabel, '確認結果');
-  assert.match(r.card.timestamp, /^9月29日 \d{1,2}:00$/);
+  assert.equal(r.card.timestamp, '9月29日 14:00');
   const again = app.setMissingCheck(cp, 'm1', { status: 'checked', method: '本人に聞いた', result: '普段は毎日', addCard: true, cardType: 's' });
   assert.equal(again.card.id, r.card.id, '同じカードを書き換える');
   assert.equal(cp.items.filter(i => i.fieldLabel === '確認結果').length, 1);
