@@ -1403,7 +1403,31 @@
         row.style.borderBottom='1px solid var(--line-soft)';
         row.style.padding='6px 2px';
         const tags=(item.hendersonIds||[]).join('、')||'未分類';
-        row.textContent='['+tags+'] '+String(item.text||'（本文なし）');
+        const label=document.createElement('button');
+        label.type='button';
+        label.className='btn btn-outline';
+        label.style.textAlign='left';
+        label.style.whiteSpace='normal';
+        label.textContent='['+tags+'] '+String(item.text||'（本文なし）');
+        label.title='クリックして元の文章内の一致箇所を探します';
+        label.addEventListener('click',()=>{
+          const original=String(cp.sourceText||'');
+          const snippet=String(item.text||'').trim();
+          const start=snippet?original.indexOf(snippet):-1;
+          sourceOutput.replaceChildren();
+          if(start<0){
+            sourceOutput.textContent=original||'原文が保存されていません';
+            status.textContent='原文と完全一致する箇所がありません。言い換えや省略がないか確認してください。';
+            return;
+          }
+          sourceOutput.append(document.createTextNode(original.slice(0,start)));
+          const mark=document.createElement('mark');
+          mark.textContent=original.slice(start,start+snippet.length);
+          sourceOutput.append(mark,document.createTextNode(original.slice(start+snippet.length)));
+          mark.scrollIntoView({block:'center',behavior:'auto'});
+          status.textContent='選択したカードに完全一致する原文を表示しています。';
+        });
+        row.append(label);
         cardsOutput.append(row);
       }
     }
