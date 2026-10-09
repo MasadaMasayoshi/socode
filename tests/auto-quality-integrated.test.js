@@ -73,3 +73,11 @@ test('original source coverage reports unmatched sentences as review candidates 
  const block=html.match(/<script>(\s*\/\/ Local, read-only checks[\s\S]*?)<\/script>/);
  assert.ok(block);assert.doesNotThrow(()=>new vm.Script(block[1]));
 });
+
+test('quality warning details remain collapsible on mobile and accessible',()=>{
+ assert.match(html,/id="nursing-toggle-warnings"/);
+ assert.match(html,/id="nursing-auto-check-results" hidden/);
+ assert.match(html,/toggleWarnings\.setAttribute\('aria-expanded'/);
+ const block=html.match(/<script>(\s*\/\/ Local, read-only checks[\s\S]*?)<\/script>/);
+ assert.ok(block);assert.doesNotThrow(()=>new vm.Script(block[1]));
+});
