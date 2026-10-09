@@ -238,8 +238,8 @@
       try { data = parseImportedDataText(text); } catch (err) { showToast(['ファイルを読み込めませんでした', { text: err.message, detail: true }], 'warn'); return false; }
       const existingIds = new Set(globalAppData.patients.map(p => p.id));
       const replacing = data.patients.filter(p => existingIds.has(p.id)).length;
-      const replacementIds = data.patients.filter(p=>existingIds.has(p.id)).map(p=>p.id);
-      const beforePreview = JSON.stringify(globalAppData.patients.filter(p=>replacementIds.includes(p.id)));
+      const importTargetIds = data.patients.map(p=>p.id);
+      const beforePreview = JSON.stringify(globalAppData.patients.filter(p=>importTargetIds.includes(p.id)));
       const changes = data.patients.reduce((sum,p)=>{ const old=globalAppData.patients.find(x=>x.id===p.id); if(old){const d=importCardChanges(old,p); for(const key of Object.keys(sum))sum[key]+=d[key];} return sum; },{added:0,removed:0,changed:0});
       const cardCount = data.patients.reduce((n, p) => n + p.items.length, 0);
       const ok = await openDialog({
@@ -250,7 +250,7 @@
         confirmLabel: '読み込む'
       });
       if (ok !== true) return false;
-      if (beforePreview !== JSON.stringify(globalAppData.patients.filter(p=>replacementIds.includes(p.id)))) {
+      if (beforePreview !== JSON.stringify(globalAppData.patients.filter(p=>importTargetIds.includes(p.id)))) {
         showToast('確認中にカルテが更新されました。最新の内容を確認してから読み込み直してください', 'warn');
         return false;
       }

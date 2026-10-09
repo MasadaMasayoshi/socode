@@ -46,3 +46,11 @@ test('a patient updated while an import preview is open is protected',async()=>{
  const pending=ctx.importPatientsDataText('unused');p.items[0].text='later';resolve(true);
  assert.equal(await pending,false);assert.equal(p.items[0].text,'later');assert.equal(changed,false);
 });
+test('a newly synced same-ID patient cannot be overwritten by a pending import',async()=>{
+ let resolve;
+ const fn=startup.slice(startup.indexOf('    async function importPatientsDataText'),startup.indexOf("    document.getElementById('input-load-data')"));
+ const ctx={globalAppData:{patients:[]},parseImportedDataText:()=>({patients:[{id:'new',items:[]}]}),openDialog:()=>new Promise(r=>resolve=r),showToast:()=>{}};
+ vm.createContext(ctx);vm.runInContext(changesFn+fn,ctx);
+ const pending=ctx.importPatientsDataText('unused');ctx.globalAppData.patients.push({id:'new',items:[{id:'c',text:'synced'}]});resolve(true);
+ assert.equal(await pending,false);assert.equal(ctx.globalAppData.patients[0].items[0].text,'synced');
+});
