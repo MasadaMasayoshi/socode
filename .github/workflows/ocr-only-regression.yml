@@ -37,5 +37,7 @@ jobs:
         run: node --test tests/quality-checks.test.js
       - name: Additional nursing review checks
         run: node --test tests/review-plus.test.js
+      - name: Synthetic nursing practice tests
+        run: node --test tests/practice.test.js
       - name: Unit regression suite
         run: npm test
