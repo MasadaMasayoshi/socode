@@ -7,6 +7,8 @@ on:
     paths:
       - 'js/**'
       - 'tests/**'
+      - 'clinical-knowledge/**'
+      - 'scripts/audit-clinical-knowledge.js'
       - 'index.html'
   workflow_dispatch:
 jobs:
@@ -25,5 +27,7 @@ jobs:
       - name: JavaScript syntax check
         run: |
           for f in js/*.js tests/*.test.js; do node --check "$f"; done
+      - name: Clinical knowledge metadata audit
+        run: node scripts/audit-clinical-knowledge.js
       - name: Unit regression suite
         run: npm test
