@@ -167,6 +167,8 @@
         <div><strong>自動品質チェック（非AI）</strong><p style="font-size:12px;color:var(--ink-muted)">情報カード・看護計画・関連図の不足候補を自動確認。診断や記録の書き換えはしません。</p></div>
         <button type="button" id="nursing-auto-check-run" class="btn btn-outline">今すぐ点検</button>
         <button type="button" id="nursing-source-compare" class="btn btn-outline" aria-expanded="false" aria-controls="nursing-source-review">原文とカードを照合</button>
+        <button type="button" id="nursing-undo-text" class="btn btn-outline" title="直近のカード本文の手動編集だけを取り消します">本文編集を戻す</button>
+        <button type="button" id="nursing-redo-text" class="btn btn-outline" title="この画面で取り消した本文編集をやり直します">やり直す</button>
       </div>
       <p id="nursing-auto-check-status" role="status" aria-live="polite" style="font-size:13px">読み込み後に点検します。</p>
       <div id="nursing-auto-check-results" style="max-height:250px;overflow:auto;font-size:13px"></div>
@@ -1387,6 +1389,50 @@
     const status=document.getElementById('nursing-auto-check-status');
     const output=document.getElementById('nursing-auto-check-results');
     const button=document.getElementById('nursing-auto-check-run');
+    const undoButton=document.getElementById('nursing-undo-text');
+    const redoButton=document.getElementById('nursing-redo-text');
+    const undoneKeys=new Set();
+    const redoStack=[];
+    function undoLastTextEdit(){
+      if(typeof getCurrentPatient!=='function'||typeof saveDataAndSync!=='function'||typeof touchItem!=='function'||typeof logItemEdit!=='function')return;
+      const cp=getCurrentPatient(),candidates=[];
+      for(const item of cp.items||[]){
+        for(const entry of item.editLog||[]){
+          if(entry.kind!=='text'||entry.undoOf||entry.redoOf||typeof entry.from!=='string'||typeof entry.to!=='string')continue;
+          const key=String(cp.id)+':'+String(item.id)+':'+String(entry.at);
+          if(undoneKeys.has(key)||item.text!==entry.to)continue;
+          candidates.push({item,entry,key});
+        }
+      }
+      candidates.sort((a,b)=>String(b.entry.at||'').localeCompare(String(a.entry.at||'')));
+      const target=candidates[0];
+      if(!target){status.textContent='取り消せる本文編集がありません。';return;}
+      target.item.text=target.entry.from;
+      touchItem(target.item);
+      logItemEdit(target.item,{kind:'text',from:target.entry.to,to:target.entry.from,undoOf:target.entry.at});
+      undoneKeys.add(target.key);
+      redoStack.push({patientId:String(cp.id),itemId:String(target.item.id),before:target.entry.from,after:target.entry.to,at:target.entry.at});
+      saveDataAndSync();
+      status.textContent='カードの本文編集を1件取り消しました。';
+      scan(true);
+    }
+    function redoTextEdit(){
+      if(typeof getCurrentPatient!=='function'||typeof saveDataAndSync!=='function'||typeof touchItem!=='function'||typeof logItemEdit!=='function')return;
+      const cp=getCurrentPatient();
+      while(redoStack.length&&redoStack[redoStack.length-1].patientId!==String(cp.id))redoStack.pop();
+      const entry=redoStack.pop();
+      if(!entry){status.textContent='やり直せる本文編集がありません。';return;}
+      const item=(cp.items||[]).find(x=>String(x.id)===entry.itemId);
+      if(!item||item.text!==entry.before){status.textContent='他の編集が行われたため、やり直しを中止しました。';return;}
+      item.text=entry.after;
+      touchItem(item);
+      logItemEdit(item,{kind:'text',from:entry.before,to:entry.after,redoOf:entry.at});
+      saveDataAndSync();
+      status.textContent='本文編集を1件やり直しました。';
+      scan(true);
+    }
+    undoButton.addEventListener('click',undoLastTextEdit);
+    redoButton.addEventListener('click',redoTextEdit);
     const compareButton=document.getElementById('nursing-source-compare');
     const comparison=document.getElementById('nursing-source-review');
     const sourceOutput=document.getElementById('nursing-original-text');
