@@ -535,7 +535,7 @@ test('OCRで閉じ括弧が丸括弧になっている「【診断)」のよう�
   const diagnosis = findByIncludes(items, '腹腔鏡下胃全摘術');
   assert.ok(diagnosis, '診断名の値の行が抽出される');
   assert.equal(diagnosis.fieldLabel, '診断名', '「診断」は「診断名」の別名として認識される');
-  assert.ok(diagnosis.hendersonIds.includes(1) && diagnosis.hendersonIds.includes(9), '胃がん（胃全摘）の診断名ヒントから複数タグが推測される');
+  assert.equal(fieldLabelHintTags('診断名', diagnosis.text).length, 0, '診断名だけを理由に複数のヘンダーソン項目を確定しない');
 });
 
 test('既往歴の「胆結石」（「胆石症」の別表記）にも診断名ヒントのタグが付与される', () => {
@@ -543,7 +543,7 @@ test('既往歴の「胆結石」（「胆石症」の別表記）にも診断�
   const history = findByIncludes(items, '胆結石');
   assert.ok(history, '既往歴カードが抽出される');
   assert.equal(history.fieldLabel, '既往歴');
-  assert.ok(history.hendersonIds.includes(2), '「胆結石」からも「胆石症」と同様に2(食事)タグが推測される');
+  assert.equal(fieldLabelHintTags('既往歴', history.text).length, 0, '既往歴の疾患名だけを食事の所見として確定しない');
 });
 
 test('山括弧だけの区切り見出し行（＜バイタルサイン)等、OCRで閉じ括弧が丸括弧になっている場合を含む）は不要な情報として除外される', () => {
@@ -652,4 +652,16 @@ test('detectMultipleHendersonTags: 「ホーマンズ徴候」「自己調節鎮
   assert.ok(detectMultipleHendersonTags('ホーマンズ徴候陰性').includes(9));
   assert.ok(detectMultipleHendersonTags('自己調節鎮痛法を使用').includes(1));
   assert.ok(detectMultipleHendersonTags('自己調節頭痛法を使用').includes(1), 'OCR誤読表記でも検出される');
+});
+
+// 文脈を見ない過剰なタグ付与を防止する回帰テスト（合成文のみ）。
+test('疾患名の候補知識は維持し、診断・既往歴ラベルでは自動確定しない', () => {
+  assert.ok(detectDiagnosisTagHints('胃がん').length > 0);
+  assert.equal(fieldLabelHintTags('診断名', '胃がん').length, 0);
+  assert.equal(fieldLabelHintTags('既往歴', '胆結石を指摘された').length, 0);
+  assert.deepEqual(Array.from(fieldLabelHintTags('保険', '社会保険')), [9]);
+});
+test('単なる引用ではコミュニケーションのタグを自動付与しない', () => {
+  assert.ok(!detectMultipleHendersonTags('「あまり食欲がない」').includes(10));
+  assert.ok(detectMultipleHendersonTags('「不安です」').includes(10));
 });
