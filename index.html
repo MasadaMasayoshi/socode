@@ -167,11 +167,12 @@
         <div><strong>自動品質チェック（非AI）</strong><p style="font-size:12px;color:var(--ink-muted)">情報カード・看護計画・関連図の不足候補を自動確認。診断や記録の書き換えはしません。</p></div>
         <button type="button" id="nursing-auto-check-run" class="btn btn-outline">今すぐ点検</button>
         <button type="button" id="nursing-source-compare" class="btn btn-outline" aria-expanded="false" aria-controls="nursing-source-review">原文とカードを照合</button>
+        <button type="button" id="nursing-toggle-warnings" class="btn btn-outline" aria-expanded="false" aria-controls="nursing-auto-check-results">確認事項を表示</button>
         <button type="button" id="nursing-undo-text" class="btn btn-outline" title="直近のカード本文の手動編集だけを取り消します">本文編集を戻す</button>
         <button type="button" id="nursing-redo-text" class="btn btn-outline" title="この画面で取り消した本文編集をやり直します">やり直す</button>
       </div>
       <p id="nursing-auto-check-status" role="status" aria-live="polite" style="font-size:13px">読み込み後に点検します。</p>
-      <div id="nursing-auto-check-results" style="max-height:250px;overflow:auto;font-size:13px"></div>
+      <div id="nursing-auto-check-results" hidden style="max-height:250px;overflow:auto;font-size:13px"></div>
       <div id="nursing-source-review" hidden style="border-top:1px solid var(--line);padding-top:10px">
         <p style="font-size:12px;color:var(--ink-muted)">原文と情報カードを並べて確認します。個人情報を含む文章はこの画面から送信されません。原文からの省略・言い換えは手動で確認してください。</p>
         <p id="nursing-source-coverage" style="font-size:12px" role="status"></p>
@@ -1389,6 +1390,12 @@
     'use strict';
     const status=document.getElementById('nursing-auto-check-status');
     const output=document.getElementById('nursing-auto-check-results');
+    const toggleWarnings=document.getElementById('nursing-toggle-warnings');
+    toggleWarnings.addEventListener('click',()=>{
+      output.hidden=!output.hidden;
+      toggleWarnings.setAttribute('aria-expanded',String(!output.hidden));
+      toggleWarnings.textContent=output.hidden?'確認事項を表示':'確認事項を閉じる';
+    });
     const button=document.getElementById('nursing-auto-check-run');
     const undoButton=document.getElementById('nursing-undo-text');
     const redoButton=document.getElementById('nursing-redo-text');
