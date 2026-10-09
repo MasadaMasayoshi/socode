@@ -29,5 +29,7 @@ jobs:
           for f in js/*.js tests/*.test.js; do node --check "$f"; done
       - name: Clinical knowledge metadata audit
         run: node scripts/audit-clinical-knowledge.js
+      - name: Clinical knowledge review tests
+        run: node --test tests/clinical-knowledge.test.js
       - name: Unit regression suite
         run: npm test
