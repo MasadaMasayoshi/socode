@@ -52,5 +52,18 @@
     const counts={};for(const issue of issues||[])counts[issue.type]=(counts[issue.type]||0)+1;
     return Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([type,count])=>({type,count}));
   }
-  return Object.freeze({audit,summarize});
+  function compareSourceCoverage(source,items){
+    // Exact textual correspondence only. Paraphrases and split cards remain manual-review items.
+    const clean=v=>str(v).normalize('NFKC').replace(/\\s+/g,'');
+    const chunks=str(source).split(/\\n|(?<=。)/u).map(v=>v.trim()).filter(v=>clean(v).length>=8);
+    const texts=(items||[]).filter(x=>x&&x.type!=='unnecessary').map(x=>clean(x.text||'')).filter(Boolean);
+    const matched=[],needsReview=[];
+    chunks.forEach((chunk,index)=>{
+      const hit=texts.some(t=>t.includes(clean(chunk)));
+      const entry={index,excerpt:chunk.slice(0,160)};
+      (hit?matched:needsReview).push(entry);
+    });
+    return {segments:chunks.length,matched,needsReview,notice:'文字列の完全一致のみです。言い換え・分割・日時見出しにより要確認が増える場合があります。'};
+  }
+  return Object.freeze({audit,summarize,compareSourceCoverage});
 });
