@@ -13,6 +13,9 @@
 <option value="measurableGoal">評価可能な目標</option><option value="labRanges">検査値の条件</option>
 <option value="ocrRisk">OCR誤読候補</option><option value="ruleSuggestion">修正履歴の改善候補</option>
 <option value="bibliography">根拠資料の一覧</option><option value="learningStats">学習結果の傾向</option>
+<option value="missingInformation">不足情報の確認優先度</option>
+<option value="planRepeats">OP/TP/EPの重複</option>
+<option value="sourceConflicts">参考資料の同一領域比較</option>
 </optgroup>
 </select>
 <p><label for="payload">入力JSON（架空の例のみ）</label><textarea id="payload" spellcheck="false"></textarea></p>
@@ -40,7 +43,10 @@ overlappingProblems:[{id:1,problem:'転倒リスク'},{id:2,problem:'転倒リ�
 crossCheckPlan:{map:{nodes:[]},plans:[{id:1,problem:'感染リスク'}]},
 measurableGoal:'疼痛が改善する',labRanges:{low:12,high:16,unit:'g/dL'},ocrRisk:'WBC 8.O mg',
 ruleSuggestion:[{reason:'タグ'},{reason:'タグ'}],bibliography:[{sources:[{url:'https://example.org',title:'例'}]}],
-learningStats:[{topic:'呼吸',correct:false},{topic:'循環',correct:true}]
+learningStats:[{topic:'呼吸',correct:false},{topic:'循環',correct:true}],
+missingInformation:[{id:'q1',urgency:'routine'},{id:'q2',urgency:'immediate'}],
+planRepeats:{op:['呼吸数確認'],tp:['呼吸数確認'],ep:[]},
+sourceConflicts:[{id:'a',topic:'転倒'},{id:'b',topic:'転倒'}]
 };
 document.getElementById('example').onclick=()=>{payload.value=JSON.stringify(cases[mode.value],null,2);output.textContent='例を読み込みました';};
 document.getElementById('clear').onclick=()=>{payload.value='';output.textContent='入力を消去しました';};
