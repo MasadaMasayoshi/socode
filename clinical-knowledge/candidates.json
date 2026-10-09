@@ -39,6 +39,82 @@
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
       "reviewer": null
+    },
+    {
+      "id": "falls-inpatient-multifactor-assessment",
+      "type": "assessment-criterion",
+      "statement": "入院中の転倒予防では、対象者の個別の転倒関連因子を総合的に評価する。評価対象には起立・臥位血圧、認知・気分、めまい、食事・水分・体重減少などを必要に応じて含める。",
+      "scope": "NICE NG249の対象となる65歳以上、または転倒リスク因子のある50〜64歳の入院患者・施設入所者。",
+      "limitations": "年齢範囲外への一律適用はしない。患者の転倒既往や状況に応じて判断し、単一スコアで転倒を予測しない。評価項目の実施権限と施設手順に従う。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Falls: assessment and prevention in older people and in people 50 and over at higher risk (NG249), recommendations 1.1.7 and 1.2.2",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng249/chapter/Recommendations",
+          "year": 2025
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "falls-inpatient-safe-mobility-education",
+      "type": "nursing-intervention",
+      "statement": "入院中の転倒予防教育では、病棟で安全に移動する方法、必要な介助の求め方、ナースコールやベッド操作など慣れない設備の使い方について話し合う。",
+      "scope": "NICE NG249の対象となる転倒リスク評価・管理を受ける成人入院患者。",
+      "limitations": "離床の許可や運動量を自動決定するものではない。安静度・認知機能・移動能力・医師指示・施設環境を確認する。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Falls: assessment and prevention (NG249), recommendation 1.5.2",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng249/chapter/Recommendations",
+          "year": 2025
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "surgical-site-infection-discharge-education",
+      "type": "nursing-intervention",
+      "statement": "術後創部の管理について退院時に患者・介護者へ情報提供し、手術部位感染を疑う徴候と相談先を説明する。",
+      "scope": "手術部位の創傷ケアを必要とする周術期患者と介護者。NICE NG125の患者説明に関する推奨。",
+      "limitations": "感染を確定診断する基準ではない。創部の状態・術式・退院指示・施設手順に合わせる。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Surgical site infections: prevention and treatment (NG125), recommendations 1.1.2 and 1.1.3",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng125/chapter/Recommendations",
+          "year": 2019
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "who-five-moments-hand-hygiene",
+      "type": "nursing-intervention",
+      "statement": "医療従事者の手指衛生の重要な5つのタイミングは、患者に触れる前、清潔・無菌操作の前、体液曝露リスク後、患者に触れた後、患者周囲の環境に触れた後である。",
+      "scope": "医療現場におけるWHOの手指衛生指針。外来・在宅等は環境に応じた適用が必要。",
+      "limitations": "これだけで手指衛生の方法・消毒薬の適応・隔離対策すべてを網羅しない。手袋の着脱や施設感染対策の手順も確認する。",
+      "sources": [
+        {
+          "kind": "official-standard",
+          "title": "Five moments for hand hygiene",
+          "publisher": "World Health Organization",
+          "url": "https://www.who.int/publications/m/item/five-moments-for-hand-hygiene",
+          "year": 2021
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
     }
   ]
 }
