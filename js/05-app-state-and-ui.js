@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-10.quality1'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-10.quality2'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -258,7 +258,7 @@
       try {
         localStorage.setItem(key, value);
         const back = localStorage.getItem(key);
-        return typeof back === 'string' ? back.length === value.length : true;
+        return typeof back === 'string' && back === value;
       } catch (e) {
         console.warn('このブラウザへの保存に失敗しました（保存容量が不足している可能性があります）:', e);
         return false;

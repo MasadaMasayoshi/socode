@@ -20,3 +20,6 @@ app-2.js
 # 教材の文章なので公開しない（手元のテストでは使える）。
 tests/golden/cases/
 tests/golden/expected/
+
+# 架空データのみを使うブラウザ検証の出力
+browser-artifacts/

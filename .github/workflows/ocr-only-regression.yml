@@ -10,6 +10,9 @@ on:
       - 'clinical-knowledge/**'
       - 'scripts/audit-clinical-knowledge.js'
       - 'index.html'
+      - 'scripts/**'
+      - 'package*.json'
+      - '.github/workflows/ocr-only-regression.yml'
   workflow_dispatch:
 jobs:
   node-regression:
@@ -53,3 +56,24 @@ jobs:
         run: node --test tests/learning-modules.test.js
       - name: Unit regression suite
         run: npm test
+
+  browser-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - name: Install pinned browser test runner
+        run: npm install --no-save --package-lock=false playwright@1.62.1
+      - run: npx playwright install --with-deps chromium
+      - name: Desktop and mobile browser checks
+        run: node scripts/browser-smoke.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-smoke-screenshots
+          path: browser-artifacts/
+          if-no-files-found: ignore
