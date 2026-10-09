@@ -258,15 +258,8 @@
         return;
       }
 
-      try {
-        const text = await callGeminiAI([{ role: "user", parts: [{ text: `あなたは熟練した看護師長・指導者です。以下の「基準ノート」（登録された基準）の検査値評価規則を根拠にして、患者のOデータに含まれる検査値やバイタルの臨床的意味を評価し、総合評価欄向けに分かりやすく解説・アセスメント文章を作成してください。\n【基準ノート】\n${buildAssessmentNotebookContent()}\n【患者のOデータ一覧】\n${labTexts}\n${typeof drugPromptSection === 'function' ? drugPromptSection(cp) : ''}要点では、基準を外れた値と、看護で最も注意すべきことを示してください。詳細は系統ごと（呼吸・循環／炎症・感染／栄養・代謝／腎機能 など）の見出しにし、各値は「項目 値（基準値）：意味」の形で1行にしてください。最後に「### まとめ（アセスメント文）」として、記録にそのまま使える3〜4文の文章を付けてください。${AI_STYLE_INSTRUCTION}` }] }]);
-        cp.labEvaluationResult = formatAiResultHtml(text, '評価の生成に失敗しました。');
-        if (finishAiResult(cp, () => { DOM.labEvalContent.innerHTML = cp.labEvaluationResult; }, '検査値の評価')) showToast('検査値の評価を表示しました', 'success');
-      } catch (err) {
-        console.warn('Lab evaluation error:', err);
-        showAiErrorKeepingPrevious(DOM.labEvalContent, cp, `評価中にエラーが発生しました（${err.message || '通信エラー'}）。APIキーや通信状況をご確認ください。`, prevResult);
-        showToast(['検査値の評価を表示できませんでした', { text: '理由は「検査データ臨床評価」の欄に出しています。時間を置いてもう一度押すか、APIキーを外すとAIを使わない簡易チェックになります。', detail: true }], 'warn');
-      }
+      // Geminiによる検査値の文章生成機能は廃止。評価は上記の登録基準による処理のみ。
+
     });
 
     // 「不足情報をAI推定」：入院前後の記録の差分・Oデータの医学的所見・参考データを根拠に、
