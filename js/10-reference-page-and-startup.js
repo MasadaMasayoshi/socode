@@ -99,7 +99,7 @@
       const reader = new FileReader();
       reader.onload = async e => {
         try {
-          const ocrText = await callGeminiAI([{ parts: [{ text: "画像に含まれる看護基準・プロトコル・参考資料の内容を正確に文字起こししてください。" }, { inline_data: { mime_type: file.type || "image/jpeg", data: e.target.result.split(',')[1] } }] }]);
+          const ocrText = await callGeminiAI([{ parts: [{ text: "画像に含まれる看護基準・プロトコル・参考資料の内容を正確に文字起こししてください。" }, { inline_data: { mime_type: file.type || "image/jpeg", data: e.target.result.split(',')[1] } }] }], { ocr: true });
           if (!ocrText) throw new Error('文字起こし結果が空でした');
           referenceOcrPrefill = ocrText;
           openReferenceModal(null, ocrText);
@@ -366,7 +366,7 @@
       const ocrPatientId = getCurrentPatient().id;
       reader.onload = async e => {
         try {
-          const ocrText = await callGeminiAI([{ parts: [{ text: "画像に含まれるカルテ記載や検査データ結果（WBC, CRP, Hb, クレアチニン等）を正確に文字起こししてください。" }, { inline_data: { mime_type: file.type || "image/jpeg", data: e.target.result.split(',')[1] } }] }]);
+          const ocrText = await callGeminiAI([{ parts: [{ text: "画像に含まれるカルテ記載や検査データ結果（WBC, CRP, Hb, クレアチニン等）を正確に文字起こししてください。" }, { inline_data: { mime_type: file.type || "image/jpeg", data: e.target.result.split(',')[1] } }] }], { ocr: true });
           if (!ocrText) throw new Error('文字起こし結果が空でした');
           const target = globalAppData.patients.find(p => p.id === ocrPatientId);
           if (!target) throw new Error('文字起こしを頼んだ患者が見つかりません（削除された可能性があります）');
