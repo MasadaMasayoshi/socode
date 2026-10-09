@@ -1,0 +1,25 @@
+name: OCR-only regression checks
+on:
+  push:
+    branches:
+      - 'review/nursing-classification-stage1'
+  pull_request:
+    paths:
+      - 'js/**'
+      - 'tests/**'
+      - 'index.html'
+  workflow_dispatch:
+jobs:
+  node-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: JavaScript syntax check
+        run: |
+          for f in js/*.js tests/*.test.js; do node --check "$f"; done
+      - name: Unit regression suite
+        run: npm test
