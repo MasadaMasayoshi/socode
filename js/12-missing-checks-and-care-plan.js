@@ -1519,6 +1519,13 @@
         if (v.kind === 'conflict') add('conflict', 'warn', v.msgs[0]);
         if (v.kind === 'risk' && v.msgs[0] && !cpIsRisk(p)) add('should-be-risk', 'warn', v.msgs[0]);
         if (!(p.evidence && p.evidence.length) && p.source !== 'manual' && p.source) add('no-evidence', 'info', '根拠データ（記録の事実）が紐づいていません');
+        // 記録の根拠（観察事実）と医学文献に裏付けられた介入の根拠は別。
+        // 医学的介入を含むAI生成案には専門的な妥当性・適用条件の照合を促す。
+        // 計画そのものを根拠なく確定したり、自動的に消したりしない。
+        if (p.source === 'ai' && Array.isArray(p.tp) && p.tp.length > 0) {
+          add('clinical-guidance-review', 'info',
+            'AI生成のTPは記録との一致だけでは医学的妥当性を保証できません。公的ガイドライン等の出典、適用条件、禁忌、実施権限を確認してください');
+        }
         else {
           const text = cpEvidenceTexts(cp).all.replace(/\s/g, '');
           (p.evidence || []).forEach(e => { const s = cpNorm(e).replace(/\s/g, ''); if (s.length >= 4 && !text.includes(s.slice(0, Math.min(s.length, 12)))) add('evidence-missing', 'warn', `根拠「${e}」がこの患者の記録に見当たりません`); });
