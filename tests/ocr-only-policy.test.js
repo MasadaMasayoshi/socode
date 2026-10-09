@@ -11,9 +11,9 @@ test('non-image Gemini requests are rejected at common entry point', () => {
   assert.match(source, /p\.inline_data \|\| p\.file_data/);
   assert.ok(source.indexOf('if (!hasImage) throw new Error') < source.indexOf('requestGemini(globalAppData.apiKey, body)'), 'network request must follow gate');
 });
-test('AI analysis panels remain hidden and OCR input remains visible', () => {
+test('AI analysis results remain hidden, non-AI checks and OCR remain available', () => {
   const source = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-  assert.match(source, /id="ai-steps" class="ai-steps hidden"/);
+  assert.match(source, /id="ai-steps" class="ai-steps"/);
   assert.match(source, /id="ai-results" class="ai-results hidden"/);
   assert.match(source, /画像OCRドロップゾーン/);
 });
