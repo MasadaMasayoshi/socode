@@ -39,10 +39,10 @@ test('願い・希望（「〜したい」）の発言は、ほかのタグが�
   assert.ok(tags('「早く自分でトイレに行けるようになりたい」との言葉も聞かれる').includes(10));
 });
 
-test('「分類開始」はいつもルール（AIなし）。AIは「AIで分類を評価」で結果を確かめるときに使う', () => {
+test('「分類開始」はいつもルール（AIなし）。AIによる分類・評価は禁止', () => {
   const src = require('./app-helpers').readAppSource();
   assert.match(src, /function getClassifyMode\(\) \{\s*return 'rules';/); // 分類は、いつもサイト内のルール（AIなし）
-  assert.match(src, /if \(classifyMode === 'ai' && globalAppData\.apiKey && globalAppData\.notebookContent\)/);
+  assert.doesNotMatch(src, /if \(classifyMode === 'ai' && globalAppData\.apiKey && globalAppData\.notebookContent\)/);
   const html = require('fs').readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
   assert.doesNotMatch(html, /data-classify-mode=/); // 切り替えボタンは廃止
   assert.doesNotMatch(html, /data-classify-mode="ai"/); // 分類はAIなし（ルール）が先。AIは評価に使う
