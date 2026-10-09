@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "description": "Unapproved literature-backed candidate claims. Do not use as approved clinical knowledge or automatically enforce these interventions.",
+  "description": "Literature-backed knowledge candidates with owner approval recorded. Clinical expert review remains pending; do not treat as clinically validated or use for automatic patient decisions.",
   "claims": [
     {
       "id": "pressure-ulcer-risk-assessment",
@@ -19,7 +19,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "pressure-ulcer-skin-observation",
@@ -38,7 +43,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "falls-inpatient-multifactor-assessment",
@@ -57,7 +67,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "falls-inpatient-safe-mobility-education",
@@ -76,7 +91,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "surgical-site-infection-discharge-education",
@@ -95,7 +115,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "who-five-moments-hand-hygiene",
@@ -114,7 +139,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "copd-exacerbation-individual-oxygen-target",
@@ -133,7 +163,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "copd-exacerbation-pulse-ox-limitations",
@@ -152,7 +187,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "postoperative-pain-shared-planning",
@@ -171,7 +211,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "postoperative-pain-functional-recovery",
@@ -190,7 +235,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "diabetic-foot-bilateral-examination",
@@ -209,7 +259,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "diabetic-foot-ulcer-record-size-depth-site",
@@ -228,7 +283,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "nutrition-malnutrition-screening-bmi-weight-loss",
@@ -247,7 +307,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "nutrition-unintentional-low-intake-risk",
@@ -266,7 +331,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "fluid-iv-therapy-daily-monitoring",
@@ -285,7 +355,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "fluid-status-history-exam-monitoring",
@@ -304,7 +379,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "urinary-incontinence-bladder-diary",
@@ -323,7 +403,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "surgical-wound-dressing-aseptic-technique",
@@ -342,7 +427,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "vte-surgery-bleeding-risk-assessment",
@@ -361,7 +451,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "vte-mobilisation-and-hydration",
@@ -380,7 +475,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "delirium-risk-and-acute-fluctuation",
@@ -399,7 +499,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "delirium-low-activity-screening",
@@ -418,7 +523,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "constipation-bowel-history-record",
@@ -437,7 +547,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "constipation-red-flag-symptoms",
@@ -456,7 +571,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "postop-respiratory-vital-monitoring",
@@ -475,7 +595,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "postop-deterioration-trigger-response",
@@ -494,7 +619,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "postop-bleeding-physiological-assessment",
@@ -513,7 +643,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "postop-high-risk-recovery-area",
@@ -532,7 +667,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     },
     {
       "id": "postop-clinical-concern-independent-escalation",
@@ -551,7 +691,12 @@
       ],
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
-      "reviewer": null
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      }
     }
   ]
 }
