@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-09.41'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-10.quality1'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -462,10 +462,57 @@
       if (!CARE_PLAN_STATUSES.some(s => s.key === p.status)) p.status = 'planned'; // 作っただけの計画を「実施中」にしない
       return p;
     }
+    // Only exact, unique text matches establish a link; never infer a card ID from a substring.
+    function captureCarePlanEvidence(cp, plan) {
+      const cards = (cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && !i.aiSuggested);
+      const ids = new Set((Array.isArray(plan.evidenceIds) ? plan.evidenceIds : []).map(String));
+      for (const text of plan.evidence || []) {
+        const matches = cards.filter(i => String(i.text || '').trim() === String(text).trim());
+        if (matches.length === 1) ids.add(String(matches[0].id));
+      }
+      plan.evidenceIds = [...ids];
+      plan.evidenceSnapshot = cards.filter(i => ids.has(String(i.id))).map(i => ({ id: String(i.id), text: String(i.text || ''), timestamp: String(i.timestamp || ''), type: i.type, hendersonIds: [...(i.hendersonIds || [])], admissionPhase: i.admissionPhase || '', assessmentCols: { ...(i.assessmentCols || {}) } }));
+    }
+    function carePlanEvidenceChanges(cp, plan) {
+      const cards = new Map((cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && !i.aiSuggested).map(i => [String(i.id), i]));
+      return (plan.evidenceSnapshot || []).map(before => ({ before, after: cards.get(String(before.id)) || null })).filter(x => {
+        if (!x.after) return true;
+        const state = c => JSON.stringify([c.text, c.timestamp || '', c.type, c.hendersonIds || [], c.admissionPhase || '', c.assessmentCols || {}]);
+        return state(x.before) !== state(x.after);
+      });
+    }
+    function refreshCarePlanEvidence(cp, id, expected, now = new Date().toISOString()) {
+      const plan = getCarePlan(cp, id);
+      if (!plan) return false;
+      const changes = carePlanEvidenceChanges(cp, plan);
+      // Preview and commit must refer to the same evidence state.
+      if (!changes.length || JSON.stringify(changes) !== expected || changes.some(x => !x.after)) return false;
+      const evidence = (plan.evidence || []).map(line => {
+        const changed = changes.find(x => String(x.before.text).trim() === String(line).trim());
+        return changed ? String(changed.after.text || '') : line;
+      });
+      const history = [...(plan.evidenceReviewHistory || []), { at: now, before: plan.evidenceSnapshot, changes: changes.map(x => ({ id: x.before.id, before: x.before.text, after: x.after.text })) }].slice(-20);
+      updateCarePlan(cp, id, { evidence, evidenceReviewHistory: history }, now);
+      return true;
+    }
+    window.reviewCarePlanEvidenceUI = function(id) {
+      const cp = getCurrentPatient(), p = getCarePlan(cp, id);
+      if (!p) return;
+      const changes = carePlanEvidenceChanges(cp, p);
+      if (!changes.length) return showToast('根拠カードに変更はありません', 'info');
+      if (changes.some(x => !x.after)) return showToast('削除・除外された根拠があります。計画に必要な根拠を見直してください', 'warn');
+      const expected = JSON.stringify(changes);
+      const preview = changes.map(x => `変更前：${x.before.text} [${x.before.timestamp || '日時不明'}]\n現在：${x.after.text} [${x.after.timestamp || '日時不明'}]`).join('\n\n');
+      if (!confirm(preview + '\n\n計画の根拠を現在のカードに更新しますか？目標・OP・TP・EPは更新後に見直してください。')) return;
+      if (getCurrentPatient() !== cp || !refreshCarePlanEvidence(cp, id, expected)) return showToast('情報が変わったため更新を中止しました。再度確認してください', 'warn');
+      commitCarePlanChange(cp);
+      showToast('根拠を更新しました。目標・OP・TP・EPを再確認してください', 'info');
+    };
     function createCarePlan(cp, fields = {}, now = new Date().toISOString()) {
       if (!cp.carePlans || typeof cp.carePlans !== 'object' || Array.isArray(cp.carePlans)) cp.carePlans = {};
       const order = carePlanList(cp).reduce((m, p) => Math.max(m, Number(p.order) || 0), 0) + 1;
       const plan = normalizeCarePlan({ ...fields, id: newRecordId('plan'), order, createdAt: now, updatedAt: now });
+      captureCarePlanEvidence(cp, plan);
       cp.carePlans[plan.id] = plan;
       return plan;
     }
@@ -477,6 +524,7 @@
       const p = getCarePlan(cp, id);
       if (!p) return null;
       Object.assign(p, patch, { updatedAt: now });
+      if (Object.prototype.hasOwnProperty.call(patch, 'evidence') || Object.prototype.hasOwnProperty.call(patch, 'evidenceIds')) captureCarePlanEvidence(cp, p);
       return p;
     }
     function carePlanProblemKey(problem) { return String(problem || '').replace(/\s+/g, ''); }
@@ -630,6 +678,8 @@
     function carePlanBasisHtml(p, cp) {
       const pid = safeDomId(p.id);
       const parts = [];
+      const changedEvidence = cp ? carePlanEvidenceChanges(cp, p) : [];
+      if (changedEvidence.length) parts.push(`<div class="cp-qa cp-qa-warn"><b>根拠カードに変更があります</b><ul>${changedEvidence.map(x => `<li>${escapeHtml(x.before.text)} → ${x.after ? escapeHtml(x.after.text) : '削除・除外済み'}（日時・分類も確認してください）</li>`).join('')}</ul><button type="button" class="btn btn-outline" onclick="reviewCarePlanEvidenceUI('${pid}')">変更内容を確認して根拠を更新</button></div>`);
       if (p.note) parts.push(`<p class="cp-note">${escapeHtml(p.note)}</p>`);
       if (p.evidence && p.evidence.length) parts.push(`<div class="cp-ev"><span class="my-asm-label"><i class="fa-solid fa-diagram-project"></i> 根拠データ（関連図から）</span><div class="cpr-ev">${p.evidence.map(e => `<span>${escapeHtml(e)}</span>`).join('')}</div></div>`);
       const reasons = Array.isArray(p.reasons) ? p.reasons : [];
@@ -1072,7 +1122,7 @@
     }
     // 記録の中の、目標の例に使う値（いちばん新しいもの）
     function cpRecordContext(cp) {
-      const items = ((cp && cp.items) || []).filter(i => i && i.text && i.type !== 'unnecessary');
+      const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && !i.aiSuggested && i.text && i.type !== 'unnecessary');
       const text = [String((cp && cp.sourceText) || ''), ...items.map(i => i.text)].join('\n').normalize('NFKC');
       const last = (re) => { const all = [...text.matchAll(re)]; return all.length ? all[all.length - 1] : null; };
       const nrs = last(/NRS\s*[:：]?\s*(\d{1,2})(?!\d)/g);
@@ -1317,10 +1367,10 @@
     ];
     // 時期：入院前の所見だけで「いまの問題」と決めないよう、現在の問題の判定には入院後（または時期不明）の記録を使う
     function cpEvidenceTexts(cp) {
-      const items = ((cp && cp.items) || []).filter(i => i && i.text && i.type !== 'unnecessary');
+      const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && !i.aiSuggested && i.text && i.type !== 'unnecessary');
       const all = [String((cp && cp.sourceText) || ''), ...items.map(i => i.text)].join('\n');
-      const now = items.length ? items.filter(i => i.admissionPhase !== 'preadmission' && i.assessmentColumn !== 'preadmission').map(i => i.text).join('\n') : all;
-      return { all: cpNorm(all), now: cpNorm(now || all) };
+      const now = items.length ? items.filter(i => i.admissionPhase !== 'preadmission' && i.assessmentColumn !== 'preadmission' && !(Object.values(i.assessmentCols || {}).length && Object.values(i.assessmentCols).every(c => c === 'preadmission')) && !/^入院前/.test(String(i.timestamp || ''))).map(i => i.text).join('\n') : all;
+      return { all: cpNorm(all), now: cpNorm(now) }; // No fallback from historical-only cards into the current period.
     }
     function cpEvidenceNotes(rule, t) {
       const msgs = [];
@@ -1339,7 +1389,8 @@
       const dom = cpDomainOf(plan);
       const head = cpNorm(plan.problem);
       const t = cpEvidenceTexts(cp);
-      const ev = cpNorm((plan.evidence || []).join('\n'));
+      // A plan's own evidence text cannot establish a current observation unless it is present in current records.
+      const ev = cpNorm((plan.evidence || []).filter(e => t.now.includes(cpNorm(e))).join('\n'));
       const sub = dom ? ((CP_SUBTYPES[dom.key] || []).find(([re]) => re.test(head)) || [null, ''])[1] : '';
       const rule = dom && (CP_EVID_RULES.find(r => r.key === dom.key && r.sub === sub) || CP_EVID_RULES.find(r => r.key === dom.key && !r.sub));
       if (!rule) return { kind: 'unchecked', msgs: [] };
@@ -1485,7 +1536,7 @@
         if (seen.has(key)) add('duplicate', 'warn', `「${seen.get(key)}」と同じ意味の看護問題です。1つにまとめてください`); else seen.set(key, p.problem);
         if (p.caseId && cp.id && p.caseId !== cp.id) add('foreign', 'error', '別の患者の計画が混ざっています。この患者の記録で確かめてください');
         cpForeignTerms(cp, p).forEach(t => add('foreign-term', 'warn', `この患者の記録にない「${t}」が計画に出ています。別の患者の計画の流用ではないか確認してください`));
-        const v = p.validation || validateCarePlanEvidence(cp, p);
+        const v = validateCarePlanEvidence(cp, p); // Recheck current evidence; a saved validation may be stale.
         if (v.kind === 'insufficient') add('unsupported', 'warn', (v.msgs[0] || '現時点では判断するための情報が不足しています'));
         if (v.kind === 'conflict') add('conflict', 'warn', v.msgs[0]);
         if (v.kind === 'risk' && v.msgs[0] && !cpIsRisk(p)) add('should-be-risk', 'warn', v.msgs[0]);
@@ -1577,7 +1628,7 @@
     // 【根拠の選び方】リスク状態の計画は、「実際にその危険を高めている要因（手術の内容・処置・デバイス・直近の変化）」を先に示し、
     // 検査値や痛みなどの間接的な情報は「参考」として後ろに置く。炎症反応は感染の確定ではなく、手術後の炎症と区別して評価する
     function cpRecSnip(cp, re, max = 36, skipRe = null) {
-      const items = ((cp && cp.items) || []).filter(i => i && i.text && i.type !== 'unnecessary');
+      const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && !i.aiSuggested && i.text && i.type !== 'unnecessary');
       for (const i of items) {
         if (skipRe && skipRe.test(`${i.fieldLabel || ''}${i.text}`)) continue;
         const t = cpNorm(i.text).replace(/\s+/g, ' ');
@@ -2034,7 +2085,7 @@ if (typeof module !== 'undefined' && module.exports) {
     inferUntaggedReason, untaggedContextEffects, untaggedTextKey, untaggedReviewOf, setUntaggedReview, applyUntaggedReviews, untaggedReviewItems, untaggedReviewCounts, untaggedSectionHtml,
     buildCarePlansPrintHtml, buildCarePlansText, buildCarePlansByRules, autoBuildCarePlans, carePlanList, deleteCarePlan,
     formatCardTimestamp, MISSING_CHECK_STATUSES, missingInfoItems, missingCheckStatus, missingCheckCounts, setMissingCheck, missingCheckCardHtml,
-    CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
+    captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
     cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf,
     CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpMissingProblemCandidates, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,

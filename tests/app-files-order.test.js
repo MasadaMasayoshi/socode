@@ -13,7 +13,7 @@ const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 
 test('index.html は js/01〜13 をこの順番で読み込み、古い app.js は読み込まない', () => {
   const srcs = Array.from(html.matchAll(/<script src="([^"?]+)(?:\?v=[^"]*)?"><\/script>/g)).map(m => m[1]);
-  assert.deepEqual(srcs, APP_SCRIPT_FILES);
+  assert.deepEqual(srcs, [...APP_SCRIPT_FILES, 'clinical-knowledge/patient-quality.js']);
   assert.doesNotMatch(html, /src="app\.js/);
 });
 

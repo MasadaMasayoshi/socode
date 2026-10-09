@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-09.41">
-  <meta name="app-file-versions" content="01:2026-10-08.2045,02:2026-10-08.8,03:2026-10-08.14,04:2026-10-09.41,05:2026-10-08.2023,06:2026-10-08.2103,07:2026-10-08.2121,08:2026-10-08.2023,09:2026-10-08.2121,10:2026-10-08.2121,11:2026-10-08.35,12:2026-10-09.41,13:2026-10-08.2121,14:2026-10-06.14,15:2026-10-09.41">
+  <meta name="app-version" content="2026-10-10.quality1">
+  <meta name="app-file-versions" content="01:2026-10-08.2045,02:2026-10-08.8,03:2026-10-10.quality1,04:2026-10-09.41,05:2026-10-10.quality1,06:2026-10-08.2103,07:2026-10-10.quality1,08:2026-10-10.quality1,09:2026-10-08.2121,10:2026-10-10.quality1,11:2026-10-10.quality1,12:2026-10-10.quality1,13:2026-10-08.2121,14:2026-10-06.14,15:2026-10-10.quality1">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
@@ -1371,19 +1371,20 @@
        順番は tests/app-helpers.js の APP_SCRIPT_FILES と同じにする（tests/app-files-order.test.js で確認）。 -->
   <script src="js/01-henderson-keywords.js?v=2026-10-08.2045"></script>
   <script src="js/02-reference-data.js?v=2026-10-08.8"></script>
-  <script src="js/03-extraction-helpers.js?v=2026-10-08.14"></script>
+  <script src="js/03-extraction-helpers.js?v=2026-10-10.quality1"></script>
   <script src="js/04-server-sync.js?v=2026-10-09.41"></script>
-  <script src="js/05-app-state-and-ui.js?v=2026-10-08.2023"></script>
+  <script src="js/05-app-state-and-ui.js?v=2026-10-10.quality1"></script>
   <script src="js/06-export.js?v=2026-10-08.2103"></script>
-  <script src="js/07-classification.js?v=2026-10-08.2121"></script>
-  <script src="js/08-assessment-tools.js?v=2026-10-08.2023"></script>
+  <script src="js/07-classification.js?v=2026-10-10.quality1"></script>
+  <script src="js/08-assessment-tools.js?v=2026-10-10.quality1"></script>
   <script src="js/09-board.js?v=2026-10-08.2121"></script>
-  <script src="js/10-reference-page-and-startup.js?v=2026-10-08.2121"></script>
-  <script src="js/11-own-assessment.js?v=2026-10-08.35"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-09.41"></script>
+  <script src="js/10-reference-page-and-startup.js?v=2026-10-10.quality1"></script>
+  <script src="js/11-own-assessment.js?v=2026-10-10.quality1"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-10.quality1"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-08.2121"></script>
   <script src="js/14-drug-reference.js?v=2026-10-06.14"></script>
-  <script src="js/15-relation-map.js?v=2026-10-09.41"></script>
+  <script src="js/15-relation-map.js?v=2026-10-10.quality1"></script>
+  <script src="clinical-knowledge/patient-quality.js?v=2026-10-10.quality1"></script>
   <script>
   // Local, read-only checks on the active chart. AI and network access are never used.
   (function(){
@@ -1400,11 +1401,15 @@
     const undoButton=document.getElementById('nursing-undo-text');
     const redoButton=document.getElementById('nursing-redo-text');
     const undoneKeys=new Set();
-    const redoStack=[];
+    const redoByPatient=new Map();
+    function patientRedoStack(cp){const key=String(cp.id);if(!redoByPatient.has(key))redoByPatient.set(key,[]);return redoByPatient.get(key);}
     function undoLastTextEdit(){
       if(typeof getCurrentPatient!=='function'||typeof saveDataAndSync!=='function'||typeof touchItem!=='function'||typeof logItemEdit!=='function')return;
       const cp=getCurrentPatient(),candidates=[];
+      if(!cp)return;
+      const redoStack=patientRedoStack(cp);
       for(const item of cp.items||[]){
+        if(!item||item.deleted||item.aiSuggested||item.type==='unnecessary')continue;
         for(const entry of item.editLog||[]){
           if(entry.kind!=='text'||entry.undoOf||entry.redoOf||typeof entry.from!=='string'||typeof entry.to!=='string')continue;
           const key=String(cp.id)+':'+String(item.id)+':'+String(entry.at);
@@ -1427,7 +1432,8 @@
     function redoTextEdit(){
       if(typeof getCurrentPatient!=='function'||typeof saveDataAndSync!=='function'||typeof touchItem!=='function'||typeof logItemEdit!=='function')return;
       const cp=getCurrentPatient();
-      while(redoStack.length&&redoStack[redoStack.length-1].patientId!==String(cp.id))redoStack.pop();
+      if(!cp)return;
+      const redoStack=patientRedoStack(cp);
       const entry=redoStack.pop();
       if(!entry){status.textContent='やり直せる本文編集がありません。';return;}
       const item=(cp.items||[]).find(x=>String(x.id)===entry.itemId);
@@ -1510,21 +1516,24 @@
     });
     let previous='',lastScan=0;
     const priorCardsByPatient=new Map();
+    const pendingEvidenceByPatient=new Map();
     function scan(force){
       try{
         if(!force && document.hidden)return; // Stop chart scanning in background tabs.
         if(typeof getCurrentPatient!=='function')return;
         const cp=getCurrentPatient();
         if(!cp)return;
-        const items=(cp.items||[]).filter(x=>x&&x.type!=='unnecessary'&&!x.aiSuggested);
+        const items=(cp.items||[]).filter(x=>x&&!x.deleted&&x.type!=='unnecessary'&&!x.aiSuggested);
         const plans=Object.values(cp.carePlans||{}).filter(p=>p&&!p.deleted);
         const map=cp.relationMap;
-        const fingerprint=JSON.stringify([cp.id,items.map(i=>[i.id,i.text,i.type,i.hendersonIds,i.timestamp]),plans.map(p=>[p.id,p.problem,p.goalLong,p.goalShort,p.op,p.tp,p.ep,p.evidence]),map&&[map.nodes,map.edges]]);
+        const fingerprint=JSON.stringify([cp.id,cp.sourceText,items.map(i=>[i.id,i.text,i.type,i.hendersonIds,i.timestamp,i.tagNotNeeded,i.assessmentCols,i.admissionPhase,i.fieldLabel]),plans.map(p=>[p.id,p.problem,p.goalLong,p.goalShort,p.op,p.tp,p.ep,p.evidence,p.evidenceIds,p.evidenceSnapshot]),map&&[map.nodes,map.edges]]);
         if(!force&&fingerprint===previous)return;
         previous=fingerprint;lastScan=Date.now();
         if(!comparison.hidden)reviewSource();
         const findings=[];
-        const warn=(code,message,id)=>findings.push({code,message,id});
+        const warn=(code,message,id)=>{if(!findings.some(f=>f.code===code&&f.message===message&&f.id===id))findings.push({code,message,id});};
+        const audit=window.NursingPatientQuality.audit(cp,{isUntagged:typeof isUntaggedItem==='function'?isUntaggedItem:null,untaggedReason:typeof inferUntaggedReason==='function'?inferUntaggedReason:null});
+        for(const finding of audit.findings)warn(finding.code,finding.message,finding.id);
         const currentCards=new Map(items.map(item=>[String(item.id),String(item.text||'')]));
         const former=priorCardsByPatient.get(String(cp.id));
         if(former){
@@ -1533,18 +1542,28 @@
             for(const plan of plans){
               const evidenceRefs=[...(Array.isArray(plan.evidenceIds)?plan.evidenceIds:[]),
                 ...(Array.isArray(plan.refs)?plan.refs.filter(x=>typeof x==='string'):[])].map(String);
-              if(changed.some(id=>evidenceRefs.includes(id)))warn('evidence-updated','根拠カードの文章が変更されました。看護計画の内容を再確認してください',plan.id);
+              if(changed.some(id=>evidenceRefs.includes(id))){
+                const pending=pendingEvidenceByPatient.get(String(cp.id))||new Map();
+                pending.set(plan.id,JSON.stringify([plan.evidence,plan.evidenceIds,plan.evidenceSnapshot]));
+                pendingEvidenceByPatient.set(String(cp.id),pending);
+              }
             }
           }
         }
         priorCardsByPatient.set(String(cp.id),currentCards);
+        const pending=pendingEvidenceByPatient.get(String(cp.id));
+        if(pending)for(const [id,basis] of pending){
+          const plan=plans.find(p=>p.id===id);
+          if(!plan||JSON.stringify([plan.evidence,plan.evidenceIds,plan.evidenceSnapshot])!==basis){pending.delete(id);continue;}
+          warn('evidence-updated','根拠カードの文章が変更されました。看護計画の内容を再確認してください',id);
+        }
         const seen=new Map();
         for(const item of items){
-          const key=String(item.text||'').replace(/\s+/g,'').normalize('NFKC');
-          if(!key){warn('empty','本文が空の情報カード',item.id);continue;}
+          const key=JSON.stringify([String(item.text||'').replace(/\s+/g,'').normalize('NFKC'),item.type,item.timestamp||'',item.admissionPhase||'']);
+          if(!String(item.text||'').trim()){warn('empty','本文が空の情報カード',item.id);continue;}
           if(seen.has(key))warn('duplicate','同じ内容のカードが重複しています',item.id);
           else seen.set(key,item.id);
-          if(!Array.isArray(item.hendersonIds)||item.hendersonIds.length===0)warn('untagged','ヘンダーソン分類が未設定です',item.id);
+          // Unclassified warnings use the established tag-not-needed and background rules above.
           if((item.hendersonIds||[]).some(n=>!Number.isInteger(Number(n))||Number(n)<1||Number(n)>14))warn('tag-range','分類番号が1～14の範囲外です',item.id);
         }
         const itemIds=new Set(items.map(i=>String(i.id)));

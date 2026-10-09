@@ -4,7 +4,7 @@
     // 知らせて「再評価」できるようにする。
     // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.35'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-10.quality1'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // データの形（患者ごと。cp.myAssessments[欲求の番号]）
@@ -354,7 +354,7 @@
       if (/術前|手術前|入院時|入院日|入院当日/.test(ts) || /^[【\[]?術前/.test(head)) return 'pre';
       return '';
     }
-    function isSurgicalPatient(cp) { return (cp.items || []).some(i => i.type !== 'unnecessary' && surgPhaseOf(i) === 'post'); }
+    function isSurgicalPatient(cp) { return (cp.items || []).some(i => i && !i.deleted && !i.aiSuggested && i.type !== 'unnecessary' && surgPhaseOf(i) === 'post'); }
     function sufficiencyUiPhases(cp) {
       const base = SUFFICIENCY_UI_PHASES;
       return cp && isSurgicalPatient(cp) ? [base[0], ...SUFFICIENCY_SURG_PHASES] : base;
@@ -363,7 +363,7 @@
     // 充足・未充足はサイトが決める（記録の言葉と看護の基準だけ。AIなし）。利用者が選ぶ欄は無い
     const sufficiencyCache = { sig: '', res: null, cp: null };
     function ruleSufficiencyFor(cp) {
-      const sig = (cp.items || []).map(i => `${i.id}|${i.type}|${String(i.text || '').length}|${(i.hendersonIds || []).join(',')}|${JSON.stringify(i.assessmentCols || {})}`).join(';');
+      const sig = JSON.stringify((cp.items || []).map(i => [i.id, i.type, i.text, i.hendersonIds, i.assessmentCols, i.timestamp, i.fieldLabel, i.admissionPhase, i.assessmentColumn, i.deleted, i.aiSuggested]));
       if (sufficiencyCache.cp === cp && sufficiencyCache.sig === sig && sufficiencyCache.res) return sufficiencyCache.res;
       let res = {};
       try { res = judgeSufficiencyByRules(cp); } catch (err) { console.warn('充足・未充足の判定に失敗しました:', err); }
@@ -1211,7 +1211,7 @@
     function judgeSufficiencyByRules(cp) {
       // 現病歴・診断名・既往歴などは、受傷の経緯や病名の記載で、その欲求が満たされているかを示す記録ではないので判定に使わない
       const HISTORY_LABELS = ['現病歴', '診断名', '既往歴', '手術術式', '氏名', '年齢', '性別', '感染症'];
-      const items = (cp.items || []).filter(i => i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i) && !HISTORY_LABELS.includes(i.fieldLabel));
+      const items = (cp.items || []).filter(i => i && !i.deleted && !i.aiSuggested && i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i) && !HISTORY_LABELS.includes(i.fieldLabel));
       const out = {};
       const surgical = isSurgicalPatient(cp);
       HENDERSON_NEEDS.forEach(need => {
