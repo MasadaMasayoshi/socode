@@ -43,5 +43,7 @@ jobs:
         run: node --test tests/japanese-sources.test.js
       - name: Local OCR comparison smoke tests
         run: node --test tests/ocr-image-review.test.js
+      - name: HTML embedded script syntax checks
+        run: node --test tests/clinical-ui-syntax.test.js
       - name: Unit regression suite
         run: npm test
