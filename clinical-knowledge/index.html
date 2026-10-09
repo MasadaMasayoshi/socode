@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>看護知識資料集｜socode</title>
+<style>
+:root{font-family:system-ui,"Noto Sans JP",sans-serif;color:#1d2733;background:#f8fafc;color-scheme:light}
+body{max-width:980px;margin:auto;padding:20px 16px 64px;line-height:1.65}
+header{border-bottom:1px solid #cbd5e1;padding-bottom:14px}
+a{color:#075cb4} a:focus-visible,input:focus-visible{outline:3px solid #3366cc}
+input{font:inherit;padding:10px;border:1px solid #94a3b8;border-radius:8px;width:100%;box-sizing:border-box}
+article{background:white;border:1px solid #dbe1e8;border-radius:10px;padding:16px;margin:12px 0}
+h1{font-size:1.6rem}h2{font-size:1.12rem;margin:0 0 8px}h3{font-size:1rem}
+small,.muted{color:#526174} .meta{font-size:.9rem;margin:8px 0}
+ul{margin:8px 0 0;padding-left:22px}button{font:inherit}
+#status{padding:10px 0}
+</style>
+</head>
+<body>
+<header>
+<p><a href="../index.html">← socode に戻る</a></p>
+<h1>看護知識資料集</h1>
+<p>出典・適用範囲・注意事項を確認するための参照資料です。AIによる診断、アセスメント、看護計画生成には使用しません。</p>
+<p><strong>開発上の承認済み／専門家による臨床審査は未完了</strong>。個別患者への自動適用や治療判断には使用しないでください。</p>
+</header>
+<main>
+<p><label for="search">知識を検索</label><input id="search" type="search" placeholder="例：血栓症、術後、糖尿病"></p>
+<p id="status" role="status" aria-live="polite">資料を読み込んでいます…</p>
+<div id="entries"></div>
+</main>
+<script>
+'use strict';
+const entries = document.getElementById('entries');
+const status = document.getElementById('status');
+const input = document.getElementById('search');
+let records = [];
+function line(parent, tag, label, value) {
+  const el = document.createElement(tag);
+  const strong = document.createElement('strong');
+  strong.textContent = label;
+  el.append(strong, document.createTextNode(value || '未記載'));
+  parent.append(el);
+}
+function render() {
+  const q = input.value.trim().toLocaleLowerCase('ja-JP');
+  const list = records.filter(x => [x.id,x.statement,x.scope,x.limitations,...(x.sources||[]).map(y=>y.title)].join(' ').toLocaleLowerCase('ja-JP').includes(q));
+  entries.replaceChildren();
+  for (const rec of list) {
+    const article = document.createElement('article');
+    const title = document.createElement('h2');
+    title.textContent = rec.statement;
+    article.append(title);
+    line(article,'p','適用範囲：',rec.scope);
+    line(article,'p','注意・限界：',rec.limitations);
+    line(article,'p','区分：',(rec.ownerApproval?.status === 'approved' ? '開発上の承認済み' : '開発上の未承認') + '／臨床専門家審査：未完了');
+    const heading = document.createElement('h3');
+    heading.textContent = '出典';
+    article.append(heading);
+    const ul = document.createElement('ul');
+    for (const src of rec.sources || []) {
+      const li = document.createElement('li');
+      const link = document.createElement('a');
+      if (/^https:\/\//.test(src.url || '')) {
+        link.href = src.url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = src.title || src.url;
+        li.append(link);
+      } else {
+        li.textContent = src.title || '出典情報未記載';
+      }
+      li.append(document.createTextNode('（' + (src.publisher || '発行元不明') + '・' + (src.year || '年不明') + '）'));
+      ul.append(li);
+    }
+    article.append(ul);
+    entries.append(article);
+  }
+  status.textContent = list.length + '件表示／全' + records.length + '件';
+}
+input.addEventListener('input', render);
+fetch('./candidates.json', {cache:'no-store'})
+  .then(r => { if(!r.ok) throw new Error('資料取得エラー'); return r.json(); })
+  .then(data => { if(!Array.isArray(data.claims)) throw new Error('資料形式エラー'); records = data.claims; render(); })
+  .catch(() => {status.textContent = '資料を読み込めませんでした。接続状態を確認してください。';});
+</script>
+</body></html>
