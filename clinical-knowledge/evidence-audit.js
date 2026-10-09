@@ -54,8 +54,8 @@
   }
   function compareSourceCoverage(source,items){
     // Exact textual correspondence only. Paraphrases and split cards remain manual-review items.
-    const clean=v=>str(v).normalize('NFKC').replace(/\\s+/g,'');
-    const chunks=str(source).split(/\\n|(?<=。)/u).map(v=>v.trim()).filter(v=>clean(v).length>=8);
+    const clean=v=>str(v).normalize('NFKC').replace(/\s+/g,'');
+    const chunks=str(source).split(/\n|(?<=。)/u).map(v=>v.trim()).filter(v=>clean(v).length>=8);
     const texts=(items||[]).filter(x=>x&&x.type!=='unnecessary').map(x=>clean(x.text||'')).filter(Boolean);
     const matched=[],needsReview=[];
     chunks.forEach((chunk,index)=>{
