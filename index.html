@@ -1444,7 +1444,7 @@
       if(!cp)return;
       sourceOutput.textContent=String(cp.sourceText||'原文が保存されていません');
       const sourceText=String(cp.sourceText||'');
-      const segments=sourceText.split(/\\n|(?<=。)/u).map(x=>x.trim()).filter(x=>x.length>=12);
+      const segments=sourceText.split(/\n|(?<=。)/u).map(x=>x.trim()).filter(x=>x.length>=12);
       const cardTexts=(cp.items||[]).filter(x=>x&&x.type!=='unnecessary').map(x=>String(x.text||''));
       const unmatched=segments.filter(segment=>!cardTexts.some(card=>card.includes(segment)));
       document.getElementById('nursing-source-coverage').textContent=
