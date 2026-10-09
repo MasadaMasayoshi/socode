@@ -81,3 +81,11 @@ test('29 literature candidates have traceable source-text comparisons but remain
   }
   assert.equal(registry.claims.length, 0, 'expert-approved registry must remain empty');
 });
+
+test('clinical knowledge review dates use Japan local time at UTC midnight boundary', () => {
+  const utc = new Date('2026-10-09T17:30:00.000Z');
+  assert.equal(utc.toISOString().slice(0,10), '2026-10-09');
+  assert.equal(utc.toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' }), '2026-10-10');
+  const auditSource = fs.readFileSync(path.join(__dirname,'..','scripts','audit-clinical-knowledge.js'),'utf8');
+  assert.ok(auditSource.includes("timeZone: 'Asia/Tokyo'"));
+});
