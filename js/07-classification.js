@@ -3030,7 +3030,7 @@
       if (note) {
         note.textContent = mode === 'ai'
           ? (globalAppData.apiKey ? 'Gemini が基準ノートを根拠に分類します（個人情報は伏せ字にして送ります。失敗したらルールで分類）' : 'APIキーが未設定です。「API設定」でキーを保存してください')
-          : 'AIは使わず、このサイトのルール（キーワード等）で分類します。結果は「AIで分類を評価」で確かめられます';
+          : 'サイト内のルールに基づいて分類します。画像の文字起こし以外にはAIを使用しません';
         note.classList.toggle('text-[var(--brick)]', mode === 'ai' && !globalAppData.apiKey);
       }
     }
