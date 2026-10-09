@@ -28,6 +28,8 @@ ul{margin:8px 0 0;padding-left:22px}button{font:inherit}
 <main>
 <p><a href="checks.html">非AIの看護データ品質チェックを開く</a>（架空のJSONで試す検証画面）</p>
 <p><label for="search">知識を検索</label><input id="search" type="search" placeholder="例：血栓症、術後、糖尿病"></p>
+<p><label for="category-filter">知識の区分</label>
+<select id="category-filter"><option value="all">すべて</option><option value="assessment-criterion">アセスメントの確認</option><option value="nursing-intervention">看護援助</option><option value="other">その他</option></select></p>
 <p><label for="review-filter">確認状況</label>
 <select id="review-filter"><option value="all">すべて</option><option value="matched">出典本文を照合済み</option><option value="pending">出典本文が未照合</option></select>
 <button id="download-catalog" type="button" disabled>資料をJSONで保存</button></p>
@@ -40,6 +42,7 @@ const entries = document.getElementById('entries');
 const status = document.getElementById('status');
 const input = document.getElementById('search');
 const reviewFilter = document.getElementById('review-filter');
+const categoryFilter = document.getElementById('category-filter');
 const downloadCatalog = document.getElementById('download-catalog');
 let records = [];
 function line(parent, tag, label, value) {
@@ -53,7 +56,8 @@ function render() {
   const q = input.value.trim().toLocaleLowerCase('ja-JP');
   const list = records.filter(x => {
     const matched = x.sourceVerification?.status === 'source-text-matched';
-    return (reviewFilter.value === 'all' || (reviewFilter.value === 'matched' ? matched : !matched)) &&
+    const categoryOk = categoryFilter.value === 'all' || (categoryFilter.value === 'other' ? !['assessment-criterion','nursing-intervention'].includes(x.type) : x.type === categoryFilter.value);
+    return categoryOk && (reviewFilter.value === 'all' || (reviewFilter.value === 'matched' ? matched : !matched)) &&
       [x.id,x.statement,x.scope,x.limitations,...(x.sources||[]).map(y=>y.title)].join(' ').toLocaleLowerCase('ja-JP').includes(q);
   });
   entries.replaceChildren();
@@ -94,6 +98,7 @@ function render() {
 }
 input.addEventListener('input', render);
 reviewFilter.addEventListener('change', render);
+categoryFilter.addEventListener('change', render);
 downloadCatalog.addEventListener('click', () => {
   const blob = new Blob([JSON.stringify({schemaVersion:1,claims:records},null,2)],{type:'application/json'});
   const url = URL.createObjectURL(blob);
