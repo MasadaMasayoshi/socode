@@ -115,6 +115,120 @@
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
       "reviewer": null
+    },
+    {
+      "id": "copd-exacerbation-individual-oxygen-target",
+      "type": "assessment-criterion",
+      "statement": "COPD急性増悪時に酸素を投与する場合は、対象者ごとに処方された目標酸素飽和度範囲を確認し、酸素化を評価する。",
+      "scope": "16歳以上のCOPD急性増悪患者。NICE NG115の酸素療法に関する推奨。",
+      "limitations": "全患者に同一のSpO2目標値を自動設定しない。SpO2だけでPaCO2やpHは分からないため、必要に応じ血液ガスを確認する。酸素流量変更には指示・施設手順が必要。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Chronic obstructive pulmonary disease in over 16s (NG115), recommendations 1.3.27-1.3.29",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng115/chapter/Recommendations",
+          "year": 2018
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "copd-exacerbation-pulse-ox-limitations",
+      "type": "assessment-criterion",
+      "statement": "COPD急性増悪時のパルスオキシメータによる測定は酸素化の評価に役立つが、PaCO2やpHは測定できない。",
+      "scope": "16歳以上のCOPD急性増悪患者における酸素化評価。",
+      "limitations": "機器装着・循環・測定誤差などの影響にも注意する。換気状態や酸塩基平衡の判断にSpO2値だけを用いない。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Chronic obstructive pulmonary disease in over 16s (NG115), recommendation 1.3.28",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng115/chapter/Recommendations",
+          "year": 2018
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "postoperative-pain-shared-planning",
+      "type": "nursing-intervention",
+      "statement": "術後疼痛管理の選択肢は手術前から患者と話し合い、痛みの既往・患者の希望・併存疾患・年齢・臓器機能・薬剤アレルギー・退院計画等を考慮する。",
+      "scope": "成人周術期患者。NICE NG180の術前疼痛管理計画。",
+      "limitations": "特定の鎮痛薬・投与量の推奨ではない。施設の方針と処方権限に従う。看護上の説明と医学的処方を混同しない。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Perioperative care in adults (NG180), recommendation 1.6.1",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng180/chapter/Recommendations",
+          "year": 2020
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "postoperative-pain-functional-recovery",
+      "type": "assessment-criterion",
+      "statement": "術後疼痛を評価するときは痛みの強さだけでなく、咳嗽や離床などの機能回復への影響を確認する。",
+      "scope": "成人周術期患者。NICE NG180の疼痛管理の計画と機能回復に関する推奨。",
+      "limitations": "NRSの特定数値だけで鎮痛目標達成と判定しない。疼痛の原因・禁忌・安静度・鎮痛薬の副作用を個別に確認する。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Perioperative care in adults (NG180), recommendations 1.6.1 and 1.6.10",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng180/chapter/Recommendations",
+          "year": 2020
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "diabetic-foot-bilateral-examination",
+      "type": "assessment-criterion",
+      "statement": "糖尿病患者の足部リスク評価では両足を観察し、神経障害、虚血、潰瘍、胼胝、感染・炎症、変形、壊疽、シャルコー関節症の徴候を確認する。知覚検査の一部に10gモノフィラメントを用いる。",
+      "scope": "糖尿病患者の足病変リスク評価。NICE NG19の足部診察推奨。",
+      "limitations": "足に疼痛がないことだけで安全と判断しない。必要な専門診察・血流評価・紹介を代替しない。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Diabetic foot problems (NG19), recommendation 1.3.4 (updated 2023)",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng19/chapter/Recommendations",
+          "year": 2015
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "diabetic-foot-ulcer-record-size-depth-site",
+      "type": "assessment-criterion",
+      "statement": "糖尿病性足潰瘍を認めた場合は、その大きさ、深さ、部位を評価し記録する。",
+      "scope": "糖尿病性足潰瘍が確認された患者。NICE NG19の潰瘍評価。",
+      "limitations": "潰瘍の範囲や重症度の判定は画像や単一の測定値だけで確定しない。感染・虚血の診察と適切な専門的管理が必要。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Diabetic foot problems (NG19), recommendations 1.5.1-1.5.2",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng19/chapter/Recommendations",
+          "year": 2015
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
     }
   ]
 }
