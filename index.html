@@ -166,9 +166,17 @@
       <div style="display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap">
         <div><strong>自動品質チェック（非AI）</strong><p style="font-size:12px;color:var(--ink-muted)">情報カード・看護計画・関連図の不足候補を自動確認。診断や記録の書き換えはしません。</p></div>
         <button type="button" id="nursing-auto-check-run" class="btn btn-outline">今すぐ点検</button>
+        <button type="button" id="nursing-source-compare" class="btn btn-outline" aria-expanded="false" aria-controls="nursing-source-review">原文とカードを照合</button>
       </div>
       <p id="nursing-auto-check-status" role="status" aria-live="polite" style="font-size:13px">読み込み後に点検します。</p>
       <div id="nursing-auto-check-results" style="max-height:250px;overflow:auto;font-size:13px"></div>
+      <div id="nursing-source-review" hidden style="border-top:1px solid var(--line);padding-top:10px">
+        <p style="font-size:12px;color:var(--ink-muted)">原文と情報カードを並べて確認します。個人情報を含む文章はこの画面から送信されません。原文からの省略・言い換えは手動で確認してください。</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px">
+          <div><strong>元の文章</strong><pre id="nursing-original-text" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:420px;overflow:auto;padding:8px;border:1px solid var(--line);font-size:12px"></pre></div>
+          <div><strong>整理後のカード</strong><div id="nursing-organized-text" style="max-height:420px;overflow:auto;padding:8px;border:1px solid var(--line);font-size:12px"></div></div>
+        </div>
+      </div>
     </section>
 
     <!-- 作業の流れ（情報収集〔記録を貼る・分類・手直し〕 → アセスメント → 看護計画 → 書き出し）。次に進む所に印を付ける（js/13 の renderWorkflowSteps） -->
@@ -1379,6 +1387,31 @@
     const status=document.getElementById('nursing-auto-check-status');
     const output=document.getElementById('nursing-auto-check-results');
     const button=document.getElementById('nursing-auto-check-run');
+    const compareButton=document.getElementById('nursing-source-compare');
+    const comparison=document.getElementById('nursing-source-review');
+    const sourceOutput=document.getElementById('nursing-original-text');
+    const cardsOutput=document.getElementById('nursing-organized-text');
+    function reviewSource(){
+      if(typeof getCurrentPatient!=='function')return;
+      const cp=getCurrentPatient();
+      if(!cp)return;
+      sourceOutput.textContent=String(cp.sourceText||'原文が保存されていません');
+      cardsOutput.replaceChildren();
+      for(const item of cp.items||[]){
+        if(!item||item.type==='unnecessary')continue;
+        const row=document.createElement('div');
+        row.style.borderBottom='1px solid var(--line-soft)';
+        row.style.padding='6px 2px';
+        const tags=(item.hendersonIds||[]).join('、')||'未分類';
+        row.textContent='['+tags+'] '+String(item.text||'（本文なし）');
+        cardsOutput.append(row);
+      }
+    }
+    compareButton.addEventListener('click',()=>{
+      comparison.hidden=!comparison.hidden;
+      compareButton.setAttribute('aria-expanded',String(!comparison.hidden));
+      if(!comparison.hidden)reviewSource();
+    });
     let previous='',lastScan=0;
     function scan(force){
       try{
@@ -1391,6 +1424,7 @@
         const fingerprint=JSON.stringify([cp.id,items.map(i=>[i.id,i.text,i.type,i.hendersonIds,i.timestamp]),plans.map(p=>[p.id,p.problem,p.goalLong,p.goalShort,p.op,p.tp,p.ep,p.evidence]),map&&[map.nodes,map.edges]]);
         if(!force&&fingerprint===previous)return;
         previous=fingerprint;lastScan=Date.now();
+        if(!comparison.hidden)reviewSource();
         const findings=[];
         const warn=(code,message,id)=>findings.push({code,message,id});
         const seen=new Map();
