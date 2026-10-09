@@ -771,7 +771,12 @@
     async function callGeminiAIOnce(contents, options = {}) {
       // AIは画像の文字認識（OCR）のみに使用する。他の生成・評価・分類リクエストは送信しない。
       const hasImage = Array.isArray(contents) && contents.some(c => (c.parts || []).some(p => p.inline_data || p.file_data));
-      if (!hasImage) throw new Error('AI機能は画像の文字認識（OCR）のみに限定されています。分類・評価・計画にはAIを使用しません。');
+      if (!hasImage || options.ocr !== true) throw new Error('AI機能は画像の文字認識（OCR）のみに限定されています。分類・評価・計画にはAIを使用しません。');
+      // OCR専用呼び出しは画像の文字転記以外の生成処理を認めない。
+      // 関数名だけでなくリクエスト内容も制限し、将来のAI機能の誤接続を防ぐ。
+      const textParts = contents.flatMap(c => c.parts || []).filter(p => typeof p.text === 'string').map(p => p.text.trim());
+      const hasOnlyOcrInstructions = textParts.length > 0 && textParts.every(t => /文字起こし|文字を読み取|テキスト化/.test(t) && !/診断を作成|看護計画を作成|アセスメントを生成|文章を生成|分類を評価/.test(t));
+      if (!hasOnlyOcrInstructions) throw new Error('OCR以外のAIへの依頼は許可されていません。');
       if (hasImage && !imageSendConfirmed) {
         const ok = await openDialog({ title: '画像をAIに送りますか？', message: '画像はそのままAI（Gemini）に送られ、文字のように自動で伏せ字にすることはできません。\n氏名・学籍番号・病院名・患者さんを特定できる情報が写っていないか確認してから送ってください。', confirmLabel: '確認したので送る' });
         if (ok !== true) throw new Error('画像の送信を取りやめました');
