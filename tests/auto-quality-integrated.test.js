@@ -34,3 +34,12 @@ test('clicking a classified card highlights only an exact source match',()=>{
  const script=html.match(/<script>(\s*\/\/ Local, read-only checks[\s\S]*?)<\/script>/);
  assert.ok(script);assert.doesNotThrow(()=>new vm.Script(script[1]));
 });
+
+test('text selection in source highlights candidate cards without changing the data',()=>{
+ assert.match(html,/sourceOutput\.addEventListener\('mouseup'/);
+ assert.match(html,/window\.getSelection\(\)/);
+ assert.match(html,/dataset\.cardText\.includes\(selected\)/);
+ assert.match(html,/候補/);
+ const script=html.match(/<script>(\s*\/\/ Local, read-only checks[\s\S]*?)<\/script>/);
+ assert.ok(script);assert.doesNotThrow(()=>new vm.Script(script[1]));
+});
