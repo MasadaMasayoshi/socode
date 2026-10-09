@@ -51,5 +51,7 @@ jobs:
         run: node --test tests/evidence-audit.test.js
       - name: Patient backup import safety tests
         run: node --test tests/backup-safety.test.js
+      - name: Nursing deep-learning course tests
+        run: node --test tests/learning-modules.test.js
       - name: Unit regression suite
         run: npm test
