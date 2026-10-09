@@ -174,6 +174,7 @@
       <div id="nursing-auto-check-results" style="max-height:250px;overflow:auto;font-size:13px"></div>
       <div id="nursing-source-review" hidden style="border-top:1px solid var(--line);padding-top:10px">
         <p style="font-size:12px;color:var(--ink-muted)">原文と情報カードを並べて確認します。個人情報を含む文章はこの画面から送信されません。原文からの省略・言い換えは手動で確認してください。</p>
+        <p id="nursing-source-coverage" style="font-size:12px" role="status"></p>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px">
           <div><strong>元の文章</strong><pre id="nursing-original-text" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:420px;overflow:auto;padding:8px;border:1px solid var(--line);font-size:12px"></pre></div>
           <div><strong>整理後のカード</strong><div id="nursing-organized-text" style="max-height:420px;overflow:auto;padding:8px;border:1px solid var(--line);font-size:12px"></div></div>
@@ -1442,6 +1443,12 @@
       const cp=getCurrentPatient();
       if(!cp)return;
       sourceOutput.textContent=String(cp.sourceText||'原文が保存されていません');
+      const sourceText=String(cp.sourceText||'');
+      const segments=sourceText.split(/\\n|(?<=。)/u).map(x=>x.trim()).filter(x=>x.length>=12);
+      const cardTexts=(cp.items||[]).filter(x=>x&&x.type!=='unnecessary').map(x=>String(x.text||''));
+      const unmatched=segments.filter(segment=>!cardTexts.some(card=>card.includes(segment)));
+      document.getElementById('nursing-source-coverage').textContent=
+        '原文の文節 '+segments.length+'件中、完全一致が見つからない文節 '+unmatched.length+'件。言い換えや分割による不一致も含むため、抽出漏れとは断定しません。';
       cardsOutput.replaceChildren();
       for(const item of cp.items||[]){
         if(!item||item.type==='unnecessary')continue;
