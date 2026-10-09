@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-10.quality1'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-10.zhistory1'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -763,6 +763,35 @@
       if (rerender) renderCarePlans();
     }
 
+    const carePlanFieldHistories = new Map();
+    const carePlanUndoFields = new Set(['problem','goalShort','goalLong','op','tp','ep','status','relatedNeeds','reason']);
+    const cpHistoryClone = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+    function carePlanFieldHistory(cp) {
+      if (!carePlanFieldHistories.has(cp.id)) carePlanFieldHistories.set(cp.id,{undo:[],redo:[]});
+      return carePlanFieldHistories.get(cp.id);
+    }
+    function rememberCarePlanField(cp,id,key,before,after) {
+      if (!carePlanUndoFields.has(key) || JSON.stringify(before)===JSON.stringify(after)) return;
+      const history=carePlanFieldHistory(cp), last=history.undo[history.undo.length-1], now=Date.now();
+      if (last && last.id===id && last.key===key && now-last.at<750 && JSON.stringify(last.after)===JSON.stringify(before)) {
+        last.after=cpHistoryClone(after); last.at=now;
+      } else history.undo.push({id,key,before:cpHistoryClone(before),after:cpHistoryClone(after),at:now});
+      if(history.undo.length>40) history.undo.shift();
+      history.redo=[];
+    }
+    window.undoCarePlanField = function(redo=false) {
+      const cp=getCurrentPatient(), history=carePlanFieldHistory(cp), from=redo?history.redo:history.undo, to=redo?history.undo:history.redo;
+      const entry=from[from.length-1];
+      if(!entry){showToast('戻せる看護計画の編集はありません','info');return false;}
+      const plan=getCarePlan(cp,entry.id), expected=redo?entry.before:entry.after;
+      if(!plan || JSON.stringify(plan[entry.key])!==JSON.stringify(expected)) {
+        showToast('計画が削除・更新されています。現在の内容を保護するため変更しません','warn');return false;
+      }
+      updateCarePlan(cp,entry.id,{[entry.key]:cpHistoryClone(redo?entry.after:entry.before),userEdited:true});
+      from.pop();to.push(entry);if(to.length>40)to.shift();
+      commitCarePlanChange(cp);
+      showToast(redo?'看護計画の編集をやり直しました':'看護計画の編集を元に戻しました','info');return true;
+    };
     window.toggleCarePlan = function(id) {
       if (carePlanOpen.has(id)) carePlanOpen.delete(id); else carePlanOpen.add(id);
       renderCarePlans();
@@ -771,7 +800,9 @@
       const cp = getCurrentPatient();
       const p = getCarePlan(cp, id);
       if (!p) return;
+      const before = cpHistoryClone(p[key]);
       p[key] = CARE_PLAN_SECTIONS.some(s => s.key === key) ? carePlanLinesToList(el.value) : el.value;
+      rememberCarePlanField(cp,id,key,before,p[key]);
       if (key !== 'problem') p.userEdited = true; // 自分で書いた計画は、自動の作り直しで上書きしない
       // 書いている途中の空行・行頭の印は入力欄のまま残したいので、欄は描き直さない（見出しだけ直す）
       p.updatedAt = new Date().toISOString();
@@ -805,11 +836,14 @@
       const p = getCarePlan(cp, id);
       if (!p) return;
       const needs = p.relatedNeeds.includes(needId) ? p.relatedNeeds.filter(h => h !== needId) : [...p.relatedNeeds, needId].sort((a, b) => a - b);
+      rememberCarePlanField(cp,id,'relatedNeeds',p.relatedNeeds,needs);
       updateCarePlan(cp, id, { relatedNeeds: needs });
       commitCarePlanChange(cp);
     };
     window.setCarePlanStatus = function(id, status) {
       const cp = getCurrentPatient();
+      const p=getCarePlan(cp,id);if(!p)return;
+      rememberCarePlanField(cp,id,'status',p.status,status);
       updateCarePlan(cp, id, { status });
       commitCarePlanChange(cp);
     };

@@ -28,6 +28,16 @@ const {app}=require('../server');
     await page.locator('#view-'+name).waitFor({state:'visible'});
     await page.screenshot({path:`browser-artifacts/${width}-${name}.png`});
    }
+   const planHistory=await page.evaluate(()=>{
+    const cp=getCurrentPatient(),plan=createCarePlan(cp,{problem:'架空の確認',goalShort:'編集前'});
+    onCarePlanInput(plan.id,'goalShort',{value:'編集後'});
+    const undone=undoCarePlanField(false)&&getCarePlan(cp,plan.id).goalShort==='編集前';
+    const redone=undoCarePlanField(true)&&getCarePlan(cp,plan.id).goalShort==='編集後';
+    getCarePlan(cp,plan.id).goalShort='外部更新';
+    const protectedUpdate=undoCarePlanField(false)===false&&getCarePlan(cp,plan.id).goalShort==='外部更新';
+    return {undone,redone,protectedUpdate};
+   });
+   assert.deepEqual(planHistory,{undone:true,redone:true,protectedUpdate:true});
    const recovery = await page.evaluate(() => {
     const cp=getCurrentPatient();
     rmCommit(cp,{version:2,nodes:[{id:'smoke-node',type:'assessment',label:'架空の検証',x:50,y:50,itemIds:[]}],edges:[]},{pushUndo:true});
