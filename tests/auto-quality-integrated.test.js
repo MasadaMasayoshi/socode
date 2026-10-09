@@ -90,3 +90,9 @@ test('linked nursing plans get advisory review warning when evidence text change
  const block=html.match(/<script>(\s*\/\/ Local, read-only checks[\s\S]*?)<\/script>/);
  assert.ok(block);assert.doesNotThrow(()=>new vm.Script(block[1]));
 });
+
+test('automatic patient audit pauses when browser tab is hidden',()=>{
+ assert.match(html,/!force && document\.hidden/);
+ const block=html.match(/<script>(\s*\/\/ Local, read-only checks[\s\S]*?)<\/script>/);
+ assert.ok(block);assert.doesNotThrow(()=>new vm.Script(block[1]));
+});
