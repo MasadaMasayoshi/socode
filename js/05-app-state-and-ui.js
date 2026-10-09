@@ -2896,12 +2896,9 @@
     // 【AIの結果はタブで1つだけ】利用者からの指摘：「AIを実行すると総合アセスメント表のページがごちゃごちゃする」。
     // 以前は結果の欄が種類ごとに表の上へ積み重なっていた。結果のあるものだけを「AIの結果」の欄にタブで並べ、
     // 選んだ1つだけを表示する（もう一度押すか「たたむ」で閉じる）。AIに頼んだときは、その結果のタブを開く。
+    // OCR以外のAI生成・評価結果タブは廃止。登録基準による検査値評価だけを表示する。
     const AI_RESULT_TABS = [
-      { panel: 'lab-evaluation-panel', label: '検査値の評価' },
-      { panel: 'contradiction-panel', label: 'S/O矛盾' },
-      { panel: 'diagnosis-panel', label: '看護診断候補' },
-      { panel: 'timeline-panel', label: '経時変化サマリー' },
-      { panel: 'careplan-panel', label: '看護計画の叩き台' }
+      { panel: 'lab-evaluation-panel', label: '検査値の評価' }
     ];
     let aiResultsActive = null; // 表示中の結果（null＝たたんでいる）
     function refreshAiResults(keepActive = true) {
