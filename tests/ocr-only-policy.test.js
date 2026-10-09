@@ -41,3 +41,11 @@ test('both image-upload workflows explicitly opt into OCR only', () => {
   assert.equal(calls.length, 2);
   assert.equal((source.match(/\], \{ ocr: true \}\);/g) || []).length, 2);
 });
+
+test('OCR gate permits exactly one image with a supported MIME type', () => {
+ const source = fs.readFileSync(path.join(root, 'js/05-app-state-and-ui.js'), 'utf8');
+ assert.ok(source.includes('contents.length !== 1 || parts.length !== 2 || images.length !== 1 || textParts.length !== 1'));
+ assert.ok(source.includes("imagePart.mime_type || ''"));
+ assert.ok(source.includes('image\\/(?:jpeg|png|webp|gif)'));
+ assert.ok(source.indexOf('contents.length !== 1') < source.indexOf('requestGemini(globalAppData.apiKey, body)'));
+});
