@@ -25,3 +25,12 @@ test('real patient source and organized cards can be inspected side-by-side with
  assert.ok(block);
  assert.doesNotThrow(()=>new vm.Script(block[1]));
 });
+
+test('clicking a classified card highlights only an exact source match',()=>{
+ assert.match(html,/original\.indexOf\(snippet\)/);
+ assert.match(html,/document\.createElement\('mark'\)/);
+ assert.match(html,/mark\.textContent=/);
+ assert.match(html,/完全一致する箇所がありません/);
+ const script=html.match(/<script>(\s*\/\/ Local, read-only checks[\s\S]*?)<\/script>/);
+ assert.ok(script);assert.doesNotThrow(()=>new vm.Script(script[1]));
+});
