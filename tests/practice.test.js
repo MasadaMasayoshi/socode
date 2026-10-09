@@ -7,3 +7,13 @@ t('practice UI rotates option positions while preserving original answer values'
 });
 
 t('practice UI stores question identifiers for distinct topics',()=>{const fs=require('node:fs'),path=require('node:path');const html=fs.readFileSync(path.join(__dirname,'..','clinical-knowledge','practice.html'),'utf8');a.match(html,/attempts\.push\(\{id:active\.id,topic:result\.topic/);});
+
+t('practice progress is private, bounded and user-clearable',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const html=fs.readFileSync(path.join(__dirname,'..','clinical-knowledge','practice.html'),'utf8');
+ a.match(html,/PROGRESS_KEY='socode-nursing-practice-v1'/);
+ a.match(html,/known\.has\(x\.id\)/);
+ a.match(html,/attempts\.slice\(-500\)/);
+ a.match(html,/localStorage\.removeItem\(PROGRESS_KEY\)/);
+ a.match(html,/id="reset-progress"/);
+});
