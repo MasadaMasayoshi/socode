@@ -65,3 +65,11 @@ test('timeline check only analyzes parseable ISO dates',()=>{
  const block=html.match(/<script>(\s*\/\/ Local, read-only checks[\s\S]*?)<\/script>/);
  assert.ok(block);assert.doesNotThrow(()=>new vm.Script(block[1]));
 });
+
+test('original source coverage reports unmatched sentences as review candidates only',()=>{
+ assert.match(html,/id="nursing-source-coverage"/);
+ assert.match(html,/unmatched\.length/);
+ assert.match(html,/抽出漏れとは断定しません/);
+ const block=html.match(/<script>(\s*\/\/ Local, read-only checks[\s\S]*?)<\/script>/);
+ assert.ok(block);assert.doesNotThrow(()=>new vm.Script(block[1]));
+});
