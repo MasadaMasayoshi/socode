@@ -5,11 +5,20 @@
 <label for="mode">点検する種類</label>
 <select id="mode">
 <option value="classifyEvidence">ヘンダーソンタグの確認</option><option value="periodSatisfaction">入院前・入院後の充足</option><option value="nursingProblem">看護問題と根拠</option><option value="relationMap">関連図の接続と因果根拠</option><option value="carePlan">看護計画 OP/TP/EP</option><option value="lab">検査値と基準範囲</option><option value="ocr">OCR文字列の照合</option><option value="history">修正履歴の傾向</option><option value="applicability">知識の適用条件</option>
+<optgroup label="追加の品質チェック">
+<option value="traceExtraction">原文と情報カードの照合</option>
+<option value="chronology">日時の順序</option><option value="assessNarrative">アセスメント文章</option>
+<option value="contradiction">情報の矛盾候補</option><option value="problemPriority">看護問題の優先度の確認</option>
+<option value="overlappingProblems">看護問題の重複</option><option value="crossCheckPlan">関連図と看護計画の対応</option>
+<option value="measurableGoal">評価可能な目標</option><option value="labRanges">検査値の条件</option>
+<option value="ocrRisk">OCR誤読候補</option><option value="ruleSuggestion">修正履歴の改善候補</option>
+<option value="bibliography">根拠資料の一覧</option><option value="learningStats">学習結果の傾向</option>
+</optgroup>
 </select>
 <p><label for="payload">入力JSON（架空の例のみ）</label><textarea id="payload" spellcheck="false"></textarea></p>
 <button id="example" type="button">例を表示</button> <button id="check" type="button">点検する</button> <button id="clear" type="button">内容を消去</button>
 <h2>点検結果</h2><pre id="output" role="status" aria-live="polite">まだ点検していません。</pre>
-<script src="quality-checks.js"></script>
+<script src="quality-checks.js"></script><script src="review-plus.js"></script>
 <script>'use strict';
 const mode=document.getElementById('mode'),payload=document.getElementById('payload'),output=document.getElementById('output');
 const cases={
@@ -21,15 +30,28 @@ carePlan:{goal:'',OP:[],TP:[],EP:[]},
 lab:{value:9.8,unit:'g/dL',min:12,max:16,source:''},
 ocr:{source:'WBC 6000/μL',extracted:'WBC 8000/μL'},
 history:[{reason:'日時修正'},{reason:'タグ変更'},{reason:'タグ変更'}],
-applicability:{claim:{scope:'成人',status:'pending-expert-review'},context:{ageGroup:'adult',phase:'afterAdmission'}}
+applicability:{claim:{scope:'成人',status:'pending-expert-review'},context:{ageGroup:'adult',phase:'afterAdmission'}},
+traceExtraction:{source:'入院前は自立。',cards:[{id:1,text:'入院前は自立。'}]},
+chronology:[{timestamp:'2026-10-10T09:00:00+09:00'},{timestamp:'2026-10-09T09:00:00+09:00'}],
+assessNarrative:{evidence:'歩行時ふらつき',interpretation:'転倒につながる可能性'},
+contradiction:[{id:'a',metric:'体温',period:'術後',value:37},{id:'b',metric:'体温',period:'術後',value:39}],
+problemPriority:{urgency:'high'},
+overlappingProblems:[{id:1,problem:'転倒リスク'},{id:2,problem:'転倒リスク'}],
+crossCheckPlan:{map:{nodes:[]},plans:[{id:1,problem:'感染リスク'}]},
+measurableGoal:'疼痛が改善する',labRanges:{low:12,high:16,unit:'g/dL'},ocrRisk:'WBC 8.O mg',
+ruleSuggestion:[{reason:'タグ'},{reason:'タグ'}],bibliography:[{sources:[{url:'https://example.org',title:'例'}]}],
+learningStats:[{topic:'呼吸',correct:false},{topic:'循環',correct:true}]
 };
 document.getElementById('example').onclick=()=>{payload.value=JSON.stringify(cases[mode.value],null,2);output.textContent='例を読み込みました';};
 document.getElementById('clear').onclick=()=>{payload.value='';output.textContent='入力を消去しました';};
 mode.onchange=()=>{payload.value='';output.textContent='種類を選び直しました';};
 document.getElementById('check').onclick=()=>{
 try{const data=JSON.parse(payload.value);const key=mode.value;const q=window.NursingQualityChecks;
-const result=key==='ocr'?q.ocr(data.source,data.extracted):key==='applicability'?q.applicability(data.claim,data.context):q[key](data);
-output.textContent=JSON.stringify({warningCount:result.length,results:result},null,2);
+const ext=window.NursingReviewPlus;
+const result=key==='ocr'?q.ocr(data.source,data.extracted):key==='applicability'?q.applicability(data.claim,data.context):
+(key==='traceExtraction'?ext.traceExtraction(data.source,data.cards):key==='crossCheckPlan'?ext.crossCheckPlan(data.map,data.plans):
+typeof ext[key]==='function'?ext[key](data):q[key](data));
+output.textContent=JSON.stringify({warningCount:Array.isArray(result)?result.length:null,results:result},null,2);
 }catch(e){output.textContent='入力形式を確認してください: '+e.message;}
 };
 </script></body></html>
