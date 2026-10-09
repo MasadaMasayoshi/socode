@@ -116,7 +116,7 @@
       const a = document.createElement('a');
       // 【レビューで発見】以前は globalAppData をまるごと書き出していたため、ファイルに Gemini の APIキーまで入っていた
       // （先生や友だちにファイルを渡すとキーも渡ってしまう）。キーは入れず、カルテと学習内容だけを書き出す。
-      const backup = { patients: globalAppData.patients, currentPatientId: globalAppData.currentPatientId, learningUserDict: globalAppData.learningUserDict };
+      const backup = { schemaVersion: 1, exportedAt: new Date().toISOString(), patients: globalAppData.patients, currentPatientId: globalAppData.currentPatientId, learningUserDict: globalAppData.learningUserDict };
       a.href = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
       a.download = `nursing_assessment_all_patients_${Date.now()}.json`;
       document.body.appendChild(a); a.click(); a.remove();
@@ -214,6 +214,22 @@
       // ③今表示している患者の記録メモは、切り替える前に今の患者へ保存する
       if (typeof cancelSourceTextSave === 'function') cancelSourceTextSave();
       if (globalAppData.patients.some(p => p.id === globalAppData.currentPatientId)) persistData();
+      if (replacing > 0) {
+        // Preserve a user-managed local copy before the same-ID records are replaced.
+        const snapshot = {
+          schemaVersion: 1, exportedAt: new Date().toISOString(), reason: 'before-import-conflict',
+          patients: globalAppData.patients, currentPatientId: globalAppData.currentPatientId,
+          learningUserDict: globalAppData.learningUserDict
+        };
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' }));
+        link.download = 'nursing_before_import_' + Date.now() + '.json';
+        document.body.append(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+        showToast('置換前のバックアップを保存してください', 'warn');
+      }
       const byId = new Map(data.patients.map(p => [p.id, p]));
       const kept = globalAppData.patients.filter(p => !byId.has(p.id));
       globalAppData.patients = [...kept, ...data.patients];
