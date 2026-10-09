@@ -417,7 +417,7 @@
           <span id="careplan-import-info" class="text-[11px] text-[var(--ink-muted)]"></span>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="buildCarePlansByRulesUI()" title="記録から看護問題を見つけ、目標・OP/TP/EPの手本つきで看護計画を作ります"><i class="fa-solid fa-list-check"></i> 記録から計画を作る</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="importCarePlansFromMapUI()" title="関連図の看護問題を、根拠データ（関連図でその問題へたどれる記録の事実）つきで取り込みます"><i class="fa-solid fa-diagram-project"></i> 関連図から取り込む</button>
-          <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="openCarePlanSetReview()" title="全ての計画を横断して、重複・補完・不足を確かめます（AIなし。AIで評価するボタンもあります）"><i class="fa-solid fa-layer-group"></i> 全計画をまとめて評価</button>
+          <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="openCarePlanSetReview()" title="全ての計画を横断して、重複・補完・不足をAIなしで確認します"><i class="fa-solid fa-layer-group"></i> 全計画をまとめて評価</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="printCarePlans()" title="看護計画と実施・評価の記録を、A4縦の印刷用の形で印刷・PDF保存します"><i class="fa-solid fa-file-pdf"></i> 印刷 / PDF</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="exportCarePlansText()" title="看護計画と実施・評価の記録をテキストファイルで保存します"><i class="fa-solid fa-file-lines"></i> テキスト</button>
           <button type="button" class="btn btn-primary text-[11px] py-1.5" onclick="addCarePlanUI()"><i class="fa-solid fa-plus"></i> 看護計画を追加</button>
@@ -759,7 +759,7 @@
             </span>
           </div>
           <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed">
-            <i class="fa-solid fa-circle-info"></i> AIによる自動分類（S/O判定、ヘンダーソンタグ付け、検査値評価、不足情報推定）の根拠になる基準ノート本体です。内容は全利用者・全端末に共有されます。これまでの学習データ（S/O・タグの修正）から繰り返し確認された傾向は、保存内容と自動的に統合されてAIへの指示に反映されるため、ここに書き足す必要はありません。
+            <i class="fa-solid fa-circle-info"></i> ルールに基づく分類・検査値評価と、手動の看護過程の検証に利用する基準ノートです。内容は全利用者・全端末に共有されます。これまでの学習データ（S/O・タグの修正）から繰り返し確認された傾向は、保存内容と自動的に統合されてAIへの指示に反映されるため、ここに書き足す必要はありません。
           </p>
           <!-- 保存されている基準ノートが統合版より前の版のときだけ出す（js/04 の renderNotebookContentEditor） -->
           <div id="notebook-upgrade-notice" class="hidden flex items-center justify-between gap-2 text-[11px] rounded-[var(--radius-sm)] px-2.5 py-1.5" style="background:var(--gold-soft);border:1px solid var(--line);">
@@ -897,7 +897,7 @@
         <button type="button" onclick="previewAiMasking()" class="btn btn-outline text-[11px] py-1 mt-1.5"><i class="fa-solid fa-eye"></i> 今の文章で伏せ字を確認</button>
       </div>
       <div class="border-t border-[var(--line-soft)] pt-3">
-        <p class="text-[10px] text-[var(--ink-muted)]"><i class="fa-solid fa-circle-info"></i> AIによる分類基準への追加の要望は、「学習データ管理」画面（パスワード保護）の「分類基準」タブから追加・編集できます。</p>
+        <p class="text-[10px] text-[var(--ink-muted)]"><i class="fa-solid fa-circle-info"></i> 分類基準への追加の要望は、「学習データ管理」画面（パスワード保護）の「分類基準」タブから追加・編集できます。</p>
       </div>
       <div class="border-t border-[var(--line-soft)] pt-3">
         <label class="block text-xs font-medium text-[var(--brick)] mb-1">学習データのリセット</label>
@@ -1111,7 +1111,7 @@
             <li>書いた内容はまず<b>このブラウザ</b>に保存し、続けて<b>共有先（サーバー）</b>にも保存します。画面右上の表示で状態が分かります：「このブラウザに保存済み」「共有先に保存済み」「共有先への保存に失敗（押すと再送）」。</li>
             <li>共有先に保存できないときも、このブラウザには残っています。自動で送り直すほか、表示を押すとすぐ送り直します。</li>
             <li>AI（Gemini）の機能は、右上の「︙」→「API設定」でキーを入れたときだけ使えます。キーが無くても、分類（AIなし）・手直し・アセスメント・看護計画・書き出しはすべて使えます。</li>
-            <li>AIの結果は参考案です。根拠を確認し、最終判断は医療従事者が行ってください。AIに送る前に、氏名などの個人情報らしい語句は伏せ字にします。</li>
+            <li>画像OCRの読取結果は必ず原画像と照合してください。画像は送信前に個人を特定できる情報を除いてください。</li>
           </ul>
         </section>
       </div>
