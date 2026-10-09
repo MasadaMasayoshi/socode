@@ -172,7 +172,7 @@ test('関連図：既往歴の手術（「70歳 PCI施行」）は今回の手�
   const gas = find(map, /ガス交換障害/), fluid = find(map, /体液量過剰/);
   assert.ok(gas && fluid && reaches(map, hf, gas) && reaches(map, hf, fluid));
   const du = find(map, /^利尿薬/);
-  assert.equal(du.type, 'treatment');
+  assert.equal(du.type, 'medication');
   assert.ok(map.edges.some(e => e.source === du.id && e.relation === 'treats'));
   // 2026-10-06.25：体液量不足リスクは利尿薬だけで決めない（この短い記録には摂取量の低下・発熱・尿量の記録が無い）
   assert.ok(!map.nodes.some(n => /体液量不足リスク/.test(n.label)), '利尿薬だけでは体液量不足リスクにしない');
@@ -194,7 +194,9 @@ test('関連図：自動チェック（浮島・重複・相互矢印・治療�
   assert.deepEqual(plain(m.nodes.filter(n => n.type === 'nursing_problem').map(n => n.priority).sort()), [1, 2]);
   app.rmApplyFixes(m, app.validateRelationMap(m));
   const after = app.validateRelationMap(m).map(i => i.code);
-  ['isolated', 'duplicate', 'mutual', 'risk-solid', 'risk-observed', 'from-problem'].forEach(c => assert.ok(!after.includes(c), `直った：${c}`));
+  // 相互作用は確認を促すが自動では消さない。
+  assert.ok(after.includes('mutual'), '相互作用を保持する');
+  ['isolated', 'duplicate', 'risk-solid', 'risk-observed', 'from-problem'].forEach(c => assert.ok(!after.includes(c), `直った：${c}`));
   assert.ok(!m.nodes.some(n => n.label === 'ぽつん'));
 });
 
@@ -250,7 +252,7 @@ function commonChecks(map, label) {
   assert.ok(probs.length >= 4 && probs.length <= 10, `${label}：看護問題 ${probs.length}`); // 2026-10-06.25：判定する看護問題を増やしたので上限10
   // 不安の言葉は、同じカードの別の文（「…」）を使うことがあるので重複の確認から外す
   const ids = new Set(); map.nodes.forEach(n => n.itemIds.forEach(id => { if ((n.type === 'symptom' || n.type === 'patient_fact') && !/不安の言動）$/.test(n.label)) { assert.ok(!ids.has(id), `${label}：同じカードが2つの四角に`); ids.add(id); } }));
-  map.edges.filter(e => e.relation === 'treats').forEach(e => assert.equal(map.nodes.find(n => n.id === e.source).type, 'treatment'));
+  map.edges.filter(e => e.relation === 'treats').forEach(e => assert.ok(['treatment', 'medication'].includes(map.nodes.find(n => n.id === e.source).type), '治療・薬剤から対象へ'));
   map.nodes.filter(n => n.type === 'future_risk').forEach(n => assert.equal(n.observed, false));
 }
 
@@ -422,7 +424,7 @@ const jumpEdges = map => {
   const byId = new Map(map.nodes.map(n => [n.id, n]));
   // 薬の効果そのものが記録にある所見（利尿薬 → 尿量の増加：記録）は一足飛びではない（2026-10-07.6）
   const drugEffect = e => /^利尿薬/.test(byId.get(e.source).label) && /尿量/.test(byId.get(e.target).label) && byId.get(e.target).observed !== false;
-  return map.edges.filter(e => e.relation !== 'treats' && !drugEffect(e) && ['treatment', 'disease', 'patient_fact'].includes(byId.get(e.source).type) && ['symptom', 'nursing_problem', 'future_risk'].includes(byId.get(e.target).type));
+  return map.edges.filter(e => e.relation !== 'treats' && !drugEffect(e) && ['treatment', 'medication', 'disease', 'patient_fact'].includes(byId.get(e.source).type) && ['symptom', 'nursing_problem', 'future_risk'].includes(byId.get(e.target).type));
 };
 const depthAvg = map => {
   const memo = new Map();

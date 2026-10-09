@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-08.2121">
-  <meta name="app-file-versions" content="01:2026-10-08.2045,02:2026-10-08.8,03:2026-10-08.14,04:2026-10-07.36,05:2026-10-08.2023,06:2026-10-08.2103,07:2026-10-08.2121,08:2026-10-08.2023,09:2026-10-08.2121,10:2026-10-08.2121,11:2026-10-08.35,12:2026-10-08.2103,13:2026-10-08.2121,14:2026-10-06.14,15:2026-10-08.35">
+  <meta name="app-version" content="2026-10-09.41">
+  <meta name="app-file-versions" content="01:2026-10-08.2045,02:2026-10-08.8,03:2026-10-08.14,04:2026-10-09.41,05:2026-10-08.2023,06:2026-10-08.2103,07:2026-10-08.2121,08:2026-10-08.2023,09:2026-10-08.2121,10:2026-10-08.2121,11:2026-10-08.35,12:2026-10-09.41,13:2026-10-08.2121,14:2026-10-06.14,15:2026-10-09.41">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=2026-10-08.2023">
+  <link rel="stylesheet" href="style.css?v=2026-10-09.41">
   <!-- 画面の見た目の部品（Tailwind CSS 3.4）。以前は開くたびにネット（cdn.tailwindcss.com）から読み込み、
        その場で作っていたため、ネットが不安定だったり配信が止まったりすると画面のレイアウトが崩れた。
        使っている部品だけを vendor/tailwind.css に作っておき、それを読み込む（改善提案7。作り直しは
@@ -449,11 +449,16 @@
             <option value="pathophysiology" selected>病態生理（現象・状態）</option>
             <option value="symptom">症状・徴候</option>
             <option value="lab">検査データ</option>
+            <option value="vital">バイタルサイン</option>
+            <option value="medication">薬剤</option>
+            <option value="assessment">アセスメント</option>
             <option value="treatment">治療・処置（楕円）</option>
             <option value="future_risk">今後のリスク（予測）</option>
             <option value="nursing_problem">看護問題</option>
           </select>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="add"><i class="fa-solid fa-plus"></i> 追加</button>
+          <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="import-clinical" data-rm-needs-map>薬剤・アセスメントを取り込む</button>
+          <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="toggle-text" aria-pressed="false" aria-controls="rm-text-view" data-rm-needs-map>関連図を一覧で表示</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5 rm-icon-btn" data-rm-action="undo" title="ひとつ前の状態に戻します（Ctrl+Z）" aria-label="元に戻す"><i class="fa-solid fa-rotate-left"></i></button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5 rm-icon-btn" data-rm-action="redo" title="元に戻した操作をやり直します（Ctrl+Y）" aria-label="やり直す"><i class="fa-solid fa-rotate-right"></i></button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="relayout" data-rm-needs-map title="左から右へ因果と時系列の順に並べ直し、看護問題を右端（重要なものほど上）にそろえます"><i class="fa-solid fa-table-cells"></i> 並べ直す</button>
@@ -477,6 +482,8 @@
         </div>
       </div>
       <div id="rm-selection-bar" class="rm-selbar" aria-live="polite"></div>
+      <button type="button" id="rm-conflict-button" class="btn btn-outline hidden" data-rm-action="resolve-conflict">最新の図を確認</button>
+      <button type="button" id="rm-backup-button" class="btn btn-outline hidden" data-rm-action="export-conflict-backup">競合時の図の控えを保存</button>
       <div id="rm-check" class="rm-check hidden" aria-live="polite"></div>
       <div id="rm-empty" class="rm-empty">
         <i class="fa-solid fa-diagram-project"></i>
@@ -486,6 +493,7 @@
       </div>
       <div class="rm-canvas-frame">
         <div id="rm-canvas-wrap" class="rm-canvas-wrap hidden" tabindex="-1"></div>
+        <div id="rm-text-view" class="rm-text-view hidden" aria-label="関連図の項目と矢印の一覧"></div>
         <!-- 拡大・縮小は図の右下に重ねる（地図のアプリと同じ場所） -->
         <div class="rm-zoom-pad" role="toolbar" aria-label="拡大・縮小・全画面">
           <button type="button" data-rm-action="fullscreen" data-rm-needs-map aria-pressed="false" title="関連図を画面いっぱいに広げます（Escキーで元に戻ります）" aria-label="全画面"><i class="fa-solid fa-expand"></i></button>
@@ -1337,7 +1345,7 @@
   <script src="js/01-henderson-keywords.js?v=2026-10-08.2045"></script>
   <script src="js/02-reference-data.js?v=2026-10-08.8"></script>
   <script src="js/03-extraction-helpers.js?v=2026-10-08.14"></script>
-  <script src="js/04-server-sync.js?v=2026-10-07.36"></script>
+  <script src="js/04-server-sync.js?v=2026-10-09.41"></script>
   <script src="js/05-app-state-and-ui.js?v=2026-10-08.2023"></script>
   <script src="js/06-export.js?v=2026-10-08.2103"></script>
   <script src="js/07-classification.js?v=2026-10-08.2121"></script>
@@ -1345,9 +1353,9 @@
   <script src="js/09-board.js?v=2026-10-08.2121"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-08.2121"></script>
   <script src="js/11-own-assessment.js?v=2026-10-08.35"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-08.2103"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-09.41"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-08.2121"></script>
   <script src="js/14-drug-reference.js?v=2026-10-06.14"></script>
-  <script src="js/15-relation-map.js?v=2026-10-08.35"></script>
+  <script src="js/15-relation-map.js?v=2026-10-09.41"></script>
 </body>
 </html>

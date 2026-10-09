@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-08.35'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-09.41'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -21,6 +21,9 @@
       { key: 'pathophysiology', label: '病態生理', shape: 'rect', fill: '#FFFFFF', stroke: '#6B665C' },
       { key: 'symptom', label: '症状・徴候', shape: 'rect', fill: '#FFF7EC', stroke: '#B7791F' },
       { key: 'lab', label: '検査データ', shape: 'rect', fill: '#F3F7FD', stroke: '#3A6EA5', paren: true },
+      { key: 'vital', label: 'バイタルサイン', shape: 'rect', fill: '#F3F7FD', stroke: '#3A6EA5', paren: true },
+      { key: 'medication', label: '薬剤', shape: 'ellipse', fill: '#EEF3FF', stroke: '#1E3A8A' },
+      { key: 'assessment', label: 'アセスメント', shape: 'rect', fill: '#F5F3FF', stroke: '#7C3AED' },
       { key: 'treatment', label: '治療・処置', shape: 'ellipse', fill: '#EEF3FF', stroke: '#1E3A8A' },
       { key: 'future_risk', label: '今後のリスク', shape: 'rect', fill: '#FFFFFF', stroke: '#7A7266' },
       { key: 'nursing_problem', label: '看護問題', shape: 'rect', fill: '#FBDDE3', stroke: '#B03A55', bold: true }
@@ -102,7 +105,18 @@
       { key: 'results_in', label: '結果として起こる' },
       { key: 'treats', label: '治療 → 治療の対象' },
       { key: 'predicts', label: '今後起こりうる（予測）' },
-      { key: 'supports', label: 'データが示す（根拠）' }
+      { key: 'supports', label: 'データが示す（根拠）' },
+      { key: 'manifests_as', label: '症状・徴候として現れる' },
+      { key: 'contradicts', label: '一致しない' },
+      { key: 'interpreted_as', label: '〜と評価する' },
+      { key: 'increases_risk_of', label: 'リスクを高める' },
+      { key: 'may_contribute_to', label: '影響する可能性' },
+      { key: 'improves', label: '改善に働く' },
+      { key: 'worsens', label: '悪化に働く' },
+      { key: 'managed_by', label: '治療・ケアする' },
+      { key: 'addresses', label: '対応する' },
+      { key: 'preceded_by', label: '時間的に先行する' },
+      { key: 'related_to', label: '関連する' }
     ];
     const RM_RELATION_KEYS = new Set(RM_RELATIONS.map(r => r.key));
     // 版1の種類 → 版2の種類
@@ -189,9 +203,117 @@
       return { w, h, lines, noteLines };
     }
 
+    // 臨床情報は描画用の型と分け、旧版の observed/source も保持する。
+    const RM_STATUSES = { observed: '記録された事実', reported: '患者さんから得た情報', assessed: 'アセスメント', inferred: '推論・補足', predicted: '今後の予測', planned: '予定' };
+    const RM_CERTAINTIES = { confirmed: '確認済み', probable: '可能性が高い', possible: '可能性がある', uncertain: '未確認' };
+    function rmEpistemicStatus(n) {
+      if (n.type === 'future_risk') return 'predicted';
+      if (n.source === 'knowledge' || n.added) return 'inferred';
+      if (Object.hasOwn(RM_STATUSES, n.epistemicStatus)) return n.epistemicStatus;
+      if (n.observed === false) return 'predicted';
+      return n.type === 'assessment' ? 'assessed' : 'observed';
+    }
+    function rmClinicalFields(n) {
+      const epistemicStatus = rmEpistemicStatus(n);
+      const fields = { epistemicStatus, certainty: Object.hasOwn(RM_CERTAINTIES, n.certainty) ? n.certainty : 'uncertain', origin: ['manual', 'rule', 'import', 'ai', 'migration'].includes(n.origin) ? n.origin : n.source === 'user' ? 'manual' : n.source === 'ai' ? 'ai' : n.source === 'knowledge' ? 'rule' : 'import' };
+      if (typeof n.effectiveTime === 'string') fields.effectiveTime = n.effectiveTime.slice(0, 80);
+      if (typeof n.ruleVersion === 'string') fields.ruleVersion = n.ruleVersion.slice(0, 40);
+      if (Array.isArray(n.sourceRefs)) fields.sourceRefs = n.sourceRefs.filter(r => r && ['card', 'assessment'].includes(r.sourceType) && rmSafeId(r.sourceId) && typeof r.patientId === 'string').slice(0, 40).map(r => ({ sourceType: r.sourceType, sourceId: r.sourceId, patientId: r.patientId.slice(0, 120) }));
+      if (n.observation && typeof n.observation === 'object') {
+        const o = n.observation;
+        fields.observation = { name: String(o.name || '').slice(0, 80), value: typeof o.value === 'number' && Number.isFinite(o.value) ? o.value : String(o.value == null ? '' : o.value).slice(0, 80), unit: String(o.unit || '').slice(0, 40) };
+      }
+      if (n.type === 'medication') fields.medication = { name: String(n.medication?.name || n.label || '').slice(0, 120), eventType: ['order', 'administered', 'reported', 'stopped', 'unknown'].includes(n.medication?.eventType) ? n.medication.eventType : 'unknown' };
+      return fields;
+    }
+    function rmPrepareClinicalMap(map, cp) {
+      if (!map) return map;
+      map.schemaVersion = '1.0.0';
+      if (cp && cp.id) map.patientId = cp.id;
+      map.nodes.forEach(n => {
+        if (!n.origin && map.source === 'rules') { n.origin = 'rule'; n.ruleVersion = String(map.buildVersion || RM_BUILD_VERSION); }
+        Object.assign(n, rmClinicalFields(n));
+        if (!n.sourceRefs && map.patientId) n.sourceRefs = (n.itemIds || []).map(id => ({ sourceType: 'card', sourceId: id, patientId: map.patientId }));
+      });
+      return map;
+    }
+    // 支持・因果の根拠だけをたどる。反証、関連、時間順序は根拠へ変換しない。
+    function findRelationEvidence(map, problemId, cp) {
+      const byId = new Map((map?.nodes || []).map(n => [n.id, n]));
+      const seen = new Set(), stack = [problemId], refs = new Map();
+      const relations = new Set(['supports', 'causes', 'contributes_to', 'results_in', 'manifests_as', 'interpreted_as', 'predicts', 'increases_risk_of', 'may_contribute_to', 'improves', 'worsens']);
+      const cards = cp ? new Set((cp.items || []).map(i => i.id)) : null;
+      while (stack.length) {
+        const id = stack.pop();
+        if (seen.has(id)) continue;
+        seen.add(id);
+        const n = byId.get(id);
+        if (!n) continue;
+        if (id !== problemId && !['inferred', 'predicted', 'planned'].includes(rmEpistemicStatus(n))) {
+          const sources = n.sourceRefs || (n.itemIds || []).map(sourceId => ({ sourceType: 'card', sourceId, patientId: map.patientId || cp?.id || '' }));
+          sources.forEach(r => {
+            if ((cp && r.patientId !== cp.id) || (map.patientId && r.patientId !== map.patientId) || (r.sourceType === 'card' && cards && !cards.has(r.sourceId))) return;
+            refs.set(`${r.sourceType}:${r.sourceId}`, { ...r });
+          });
+        }
+        (map.edges || []).forEach(e => { if (e.target === id && relations.has(e.relation)) stack.push(e.source); });
+      }
+      return { nodeIds: [...seen].filter(id => byId.has(id)), sourceRefs: [...refs.values()] };
+    }
+
+    // 独立した取り込み。記録にない投与状態や因果関係は作らない。
+    function rmImportClinicalEntities(map, cp, { includeUnlinked = true } = {}) {
+      const items = (cp.items || []).filter(i => i && i.id && i.text && !i.aiSuggested && i.type !== 'unnecessary');
+      const add = n => {
+        if (map.nodes.length >= RM_MAX_NODES) return null;
+        n.x = 30; n.y = 30 + map.nodes.length * 100;
+        map.nodes.push(n);
+        return n;
+      };
+      map.nodes.forEach(n => {
+        if (!n.effectiveTime) { const i = items.find(i => (n.itemIds || []).includes(i.id)); if (i?.timestamp) n.effectiveTime = String(i.timestamp).slice(0, 80); }
+        if (n.type === 'treatment' && typeof findDrugsInText === 'function') {
+          const drugs = findDrugsInText(n.label);
+          if (drugs.length && !/手術|カテーテル|ドレーン|酸素投与|挿管/.test(n.label)) {
+            n.type = 'medication';
+            n.medication = { name: drugs.map(d => d.term).join('・'), eventType: 'unknown' };
+          }
+        }
+      });
+      items.forEach(i => {
+        if (!includeUnlinked) return;
+        if (typeof findDrugsInText !== 'function') return;
+        findDrugsInText(i.text).forEach(({ drug, term }) => {
+          // 薬名の近くの記録だけで状態を判定。他の薬の投与記録を流用しない。
+          const text = String(i.text).normalize('NFKC'), at = text.indexOf(term);
+          const local = at < 0 ? '' : text.slice(at, at + term.length + 24).split(/[。\n、]/)[0];
+          const eventType = /中止/.test(local) ? 'stopped' : /予定|処方|指示/.test(local) ? 'order' : /投与済|投与した|内服した|服用した/.test(local) ? 'administered' : i.type === 's' ? 'reported' : 'unknown';
+          if (map.nodes.some(n => n.type === 'medication' && (n.itemIds || []).includes(i.id) && (n.medication?.name || n.label).includes(term))) return;
+          add({ id: rmNewId('n'), type: 'medication', label: term, evidence: String(i.text).slice(0, 200), source: 'record', observed: eventType !== 'order', epistemicStatus: eventType === 'order' ? 'planned' : i.type === 's' ? 'reported' : 'observed', origin: 'import', priority: 0, itemIds: [i.id], ...(i.timestamp ? { effectiveTime: String(i.timestamp) } : {}), medication: { name: drug.name, eventType } });
+        });
+      });
+      Object.entries(cp.myAssessments || {}).forEach(([needId, a]) => {
+        if (!includeUnlinked || !a || !a.interpretation || map.nodes.some(n => (n.sourceRefs || []).some(r => r.sourceType === 'assessment' && r.sourceId === needId && r.patientId === cp.id))) return;
+        const ids = (a.evidenceIds || []).filter(id => items.some(i => i.id === id));
+        const n = add({ id: rmNewId('n'), type: 'assessment', label: String(a.interpretation).slice(0, RM_TEXT_MAX * 2), evidence: String(a.cause || '').slice(0, 200), source: 'user', observed: true, epistemicStatus: 'assessed', origin: 'import', priority: 0, itemIds: ids, sourceRefs: [{ sourceType: 'assessment', sourceId: needId, patientId: cp.id }, ...ids.map(sourceId => ({ sourceType: 'card', sourceId, patientId: cp.id }))] });
+        if (!n) return;
+        map.nodes.filter(x => x.id !== n.id && (x.itemIds || []).some(id => ids.includes(id)) && !['inferred', 'predicted', 'planned'].includes(rmEpistemicStatus(x))).forEach(x => {
+          if (map.edges.length < RM_MAX_EDGES) map.edges.push({ id: rmNewId('e'), source: x.id, target: n.id, relation: 'supports', predicted: false, origin: 'import', evidence: '選択された根拠カード' });
+        });
+      });
+      return rmPrepareClinicalMap(map, cp);
+    }
+    function relationMapTextHtml(map, cp) {
+      const byId = new Map(map.nodes.map(n => [n.id, n]));
+      const esc = escapeHtml;
+      const events = { order: '処方・指示', administered: '投与済み', reported: '申告', stopped: '中止', unknown: '状態未確認' };
+      return `<p>矢印の意味と根拠を一覧で確認できます。項目を選ぶと上の操作ボタンで編集できます。</p><ol>${map.nodes.map(n => `<li><button type="button" class="btn btn-outline" data-rm-action="select-node" data-node-id="${esc(n.id)}">${esc(rmType(n).label)}：${esc(rmDisplayLabel(n))}</button><p>${esc(RM_STATUSES[rmEpistemicStatus(n)])}／${esc(RM_CERTAINTIES[n.certainty] || '未確認')}${n.effectiveTime ? `／${esc(n.effectiveTime)}` : ''}${n.medication ? `／${esc(events[n.medication.eventType] || events.unknown)}` : ''}</p>${n.evidence ? `<p>根拠：${esc(n.evidence)}</p>` : ''}${(n.sourceRefs || []).length ? `<p>参照：${(n.sourceRefs || []).map(r => esc(`${r.sourceType}:${r.sourceId}`)).join('、')}</p>` : ''}${n.type === 'nursing_problem' ? `<p>根拠カード：${findRelationEvidence(map, n.id, cp).sourceRefs.map(r => esc(`${r.sourceType}:${r.sourceId}`)).join('、') || '根拠がありません'}</p>` : ''}</li>`).join('')}</ol><h3>矢印の意味</h3><ul>${map.edges.map(e => `<li><button type="button" class="btn btn-outline" data-rm-action="select-edge" data-edge-id="${esc(e.id)}">${esc(byId.get(e.source)?.label || '不明')} → ${esc(byId.get(e.target)?.label || '不明')}</button>：${esc(RM_RELATIONS.find(r => r.key === e.relation)?.label || '関連する')}${e.predicted ? '（予測）' : ''}${e.evidence ? `／${esc(e.evidence)}` : ''}</li>`).join('')}</ul>`;
+    }
+
     // ---- 保存されている図を安全な形にそろえる（版1からの変換もここで行う） ----
     function normalizeRelationMap(raw) {
       if (!raw || typeof raw !== 'object' || !Array.isArray(raw.nodes)) return null;
+      if (raw.schemaVersion && raw.schemaVersion !== '1.0.0') return null;
       const v1 = raw.version !== 2;
       const nodes = [];
       const seen = new Set();
@@ -210,6 +332,7 @@
         }
         nodes.push({
           id, type, label,
+          ...rmClinicalFields({ ...n, type, label }),
           evidence: String(n.evidence || '').slice(0, 200),
           observed: v1 ? true : n.observed !== false,
           source: ['record', 'knowledge', 'user', 'plan', 'ai'].includes(n.source) ? n.source : (v1 ? 'user' : 'record'),
@@ -232,22 +355,25 @@
         : (Array.isArray(raw.edges) ? raw.edges : []);
       rawEdges.slice(0, RM_MAX_EDGES * 2).forEach(e => {
         if (!e || !byId.has(e.source) || !byId.has(e.target) || e.source === e.target) return;
-        let source = e.source, target = e.target, relation = RM_RELATION_KEYS.has(e.relation) ? e.relation : 'causes';
+        let source = e.source, target = e.target, relation = RM_RELATION_KEYS.has(e.relation) ? e.relation : 'related_to';
         // 版1は「疾患 → 治療」で描いていた。版2は「治療 → 治療の対象」にする
         if (v1) {
           const a = byId.get(source), b = byId.get(target);
-          if (b.type === 'treatment' && a.type !== 'treatment') { source = b.id; target = a.id; relation = 'treats'; }
-          else if (a.type === 'treatment' && b.type === 'disease') relation = 'treats';
+          if (['treatment', 'medication'].includes(b.type) && !['treatment', 'medication'].includes(a.type)) { source = b.id; target = a.id; relation = 'treats'; }
+          else if (['treatment', 'medication'].includes(a.type) && b.type === 'disease') relation = 'treats';
         }
-        const pk = `${source}>${target}`;
+        const pk = `${source}>${target}:${relation}`;
         if (pairs.has(pk)) return;
         pairs.add(pk);
-        edges.push({ id: rmSafeId(e.id) || rmNewId('e'), source, target, relation, predicted: !!e.predicted, evidence: String(e.evidence || '').slice(0, 200) });
+        const edgeId = rmSafeId(e.id);
+        edges.push({ id: edgeId && !edges.some(x => x.id === edgeId) ? edgeId : rmNewId('e'), source, target, relation, predicted: !!e.predicted, certainty: Object.hasOwn(RM_CERTAINTIES, e.certainty) ? e.certainty : 'uncertain', origin: ['manual', 'rule', 'import', 'ai', 'migration'].includes(e.origin) ? e.origin : 'migration', evidence: String(e.evidence || '').slice(0, 200) });
       });
       const map = { version: 2, nodes, edges: edges.slice(0, RM_MAX_EDGES), bands: Array.isArray(raw.bands) && !v1 ? raw.bands.filter(b => b && Number.isFinite(b.y1) && Number.isFinite(b.y2)).slice(0, 12).map(b => ({ y1: b.y1, y2: b.y2, p: Number(b.p) || 0 })) : [], headers: Array.isArray(raw.headers) && !v1 ? raw.headers.filter(h => h && Number.isFinite(h.x1) && Number.isFinite(h.x2)).slice(0, 8).map(h => ({ x1: h.x1, x2: h.x2, label: String(h.label || '').slice(0, 30) })) : [],
         source: String(raw.source || 'manual'), layoutStyle: Number(raw.layoutStyle) || 1, buildVersion: Number(raw.buildVersion) || 0,
         ...(raw.addedStash && Array.isArray(raw.addedStash.nodes) && Array.isArray(raw.addedStash.edges) ? { addedStash: { nodes: raw.addedStash.nodes.slice(0, RM_MAX_NODES), edges: raw.addedStash.edges.slice(0, RM_MAX_EDGES), created: Array.isArray(raw.addedStash.created) ? raw.addedStash.created.slice(0, RM_MAX_EDGES) : [], positions: raw.addedStash.positions && typeof raw.addedStash.positions === 'object' ? raw.addedStash.positions : {}, bands: Array.isArray(raw.addedStash.bands) ? raw.addedStash.bands : [], headers: Array.isArray(raw.addedStash.headers) ? raw.addedStash.headers : [] } } : {}), createdAt: raw.createdAt || null, updatedAt: raw.updatedAt || null };
       rmRenumberProblems(map, { keepOrder: true });
+      if (typeof raw.patientId === 'string') map.patientId = raw.patientId;
+      rmPrepareClinicalMap(map);
       if (v1 && nodes.length) layoutRelationMap(map); // 版1の段の並びは版2の列の並びに直す
       return map;
     }
@@ -419,8 +545,8 @@
       const byId = new Map(map.nodes.map(n => [n.id, n]));
       const res = new Map();
       map.nodes.forEach(n => {
-        if (n.type !== 'lab' || n.detached || map.edges.some(e => e.target === n.id)) return;
-        const outs = map.edges.filter(e => e.source === n.id && byId.has(e.target) && byId.get(e.target).type !== 'lab' && e.relation !== 'treats');
+        if (!['lab', 'vital'].includes(n.type) || n.detached || map.edges.some(e => e.target === n.id)) return;
+        const outs = map.edges.filter(e => e.source === n.id && byId.has(e.target) && !['lab', 'vital'].includes(byId.get(e.target).type) && e.relation !== 'treats');
         if (!outs.length) return;
         const host = outs.find(e => byId.get(e.target).type !== 'nursing_problem') || outs[0];
         res.set(n.id, host.target);
@@ -559,7 +685,7 @@
       // 看護問題へ流れの続かない治療（鎮痛薬 → 創部痛 など）は、治療の対象と同じ帯に置く
       map.edges.forEach(e => { if (e.relation === 'treats' && band.get(e.source) === 999 && band.has(e.target)) band.set(e.source, band.get(e.target)); });
       // 治療は対象のすぐ下に置くので、対象と同じ帯に入れる（帯が違うと、上下の矢印がほかの四角の上を通る）
-      treatFlow.forEach(k => { const [t, tr] = k.split('>'); if (band.has(t) && byId.get(tr) && byId.get(tr).type === 'treatment') band.set(tr, band.get(t)); });
+      treatFlow.forEach(k => { const [t, tr] = k.split('>'); if (band.has(t) && byId.get(tr) && ['treatment', 'medication'].includes(byId.get(tr).type)) band.set(tr, band.get(t)); });
       // 【横長を抑える】利用者からの要望：「関連図が横長になりすぎている」。以前は因果の深さごとに1列にしていたため、
       // 1本道の長い流れ（「＋補足」をはさむと特に）で列が12〜18個になり、横に長くなっていた。1本道の続き
       // （A の矢印が B だけへ出て、B へ入る矢印が A からだけ。同じ看護問題の帯の中）は、A と同じ列の下に積む。
@@ -569,7 +695,7 @@
       const stackable = (u, v) => {
         const nu = byId.get(u), nv = byId.get(v);
         // 治療（楕円）は「治療」の列にまとめて見せるので積まない
-        if (!nu || !nv || probIds.has(u) || probIds.has(v) || [nu.type, nv.type].some(t => t === 'patient_fact' || t === 'treatment')) return false;
+        if (!nu || !nv || probIds.has(u) || probIds.has(v) || [nu.type, nv.type].some(t => ['patient_fact', 'treatment', 'medication'].includes(t))) return false;
         // 治療の対象になる四角の下には治療を置くので、その下へは積まない
         if (treatTargets.has(u)) return false;
         return out.get(u).length === 1 && inn.get(v).length === 1 && band.get(u) === band.get(v);
@@ -600,8 +726,8 @@
       rankHeads(() => 0);
       // 【時系列】利用者からの要望：「時系列は気にするように」。術後・入院2日目以降の記録から作った四角は、
       // 治療（手術など）の列より右に置く（治療より前に起きたように見えないようにする）
-      const treatRanks = heads.filter(h => !probIds.has(h) && byId.get(h).type === 'treatment' && phaseOf(h) !== 2).map(h => hr.get(h));
-      if (treatRanks.length) { const tr = Math.min(...treatRanks); rankHeads(h => (phaseOf(h) === 2 && byId.get(h).type !== 'treatment' ? tr + 1 : 0)); }
+      const treatRanks = heads.filter(h => !probIds.has(h) && ['treatment', 'medication'].includes(byId.get(h).type) && phaseOf(h) !== 2).map(h => hr.get(h));
+      if (treatRanks.length) { const tr = Math.min(...treatRanks); rankHeads(h => (phaseOf(h) === 2 && !['treatment', 'medication'].includes(byId.get(h).type) ? tr + 1 : 0)); }
       const maxHr = Math.max(0, ...hr.values());
       [...order].reverse().forEach(h => {
         if (head.get(h) !== h || probIds.has(h)) return;
@@ -662,14 +788,14 @@
       }
       // 治療（楕円）は、同じ列の「治療の対象」のすぐ下に置く（上向きの短い矢印になる）
       cols.forEach(c => {
-        const tr = c.filter(e => byId.get(e.id).type === 'treatment' && members.get(e.id).length === 1);
+        const tr = c.filter(e => ['treatment', 'medication'].includes(byId.get(e.id).type) && members.get(e.id).length === 1);
         tr.forEach(e => {
           const tgtHeads = [...treatFlow].filter(k => k.endsWith(`>${e.id}`)).map(k => head.get(k.split('>')[0]));
           const k0 = c.findIndex(x => tgtHeads.includes(x.id));
           if (k0 < 0) return;
           c.splice(c.indexOf(e), 1);
           let k = c.findIndex(x => tgtHeads.includes(x.id));
-          while (k + 1 < c.length && byId.get(c[k + 1].id).type === 'treatment' && tr.includes(c[k + 1])) k++;
+          while (k + 1 < c.length && ['treatment', 'medication'].includes(byId.get(c[k + 1].id).type) && tr.includes(c[k + 1])) k++;
           c.splice(k + 1, 0, e);
         });
       });
@@ -974,7 +1100,8 @@
       const s = rmNodeSize(n);
       const sel = interactive && rmState.selected && rmState.selected.type === 'node' && rmState.selected.id === n.id;
       const from = interactive && rmState.connectFrom === n.id;
-      const dashed = n.observed === false;
+      const status = rmEpistemicStatus(n);
+      const dashed = ['predicted', 'planned'].includes(status) || n.observed === false;
       // 予測の四角（看護問題を除く）は、線と文字を薄くして、今ある事実の流れを目立たせる
       const faint = dashed && n.type !== 'nursing_problem';
       const fill = n.added ? RM_ADDED.fill : t.fill;
@@ -986,7 +1113,7 @@
       // 文字は四角のまん中にそろえる（左詰めだと行の長さがばらばらに見え、読みにくい。利用者の指摘：2026-10-06.19）
       const textX = s.w / 2;
       const anchor = ' text-anchor="middle"';
-      const tag = [n.added ? '＋補足' : '', dashed ? '予測' : '', n.source === 'knowledge' && !n.added ? '※知識' : ''].filter(Boolean).join(' ');
+      const tag = [n.added ? '＋補足' : '', status === 'inferred' ? '推論' : status === 'planned' ? '予定' : dashed ? '予測' : '', ['vital', 'medication', 'assessment'].includes(n.type) ? rmType(n).label : ''].filter(Boolean).join(' ');
       const tagW = Array.from(tag).reduce((w, ch) => w + (ch === ' ' ? 4 : 10), 0) + 12;
       const tagColor = faint ? stroke : n.added ? RM_ADDED.stroke : t.stroke;
       return `<g class="rm-node${n.added ? ' is-added' : ''}${faint ? ' is-pred' : ''}${sel ? ' is-selected' : ''}${from ? ' is-connect-from' : ''}" data-node-id="${escapeHtml(n.id)}" data-kind="${escapeHtml(n.type)}" transform="translate(${n.x},${n.y})"${interactive ? ` tabindex="0" role="button" aria-label="${escapeHtml(`${t.label}${dashed ? '（予測）' : ''}：${rmDisplayLabel(n)}`)}"` : ''}>
@@ -1047,12 +1174,24 @@
       }
       return seen;
     }
-    function validateRelationMap(map) {
+    function validateRelationMap(map, cp = null) {
       const issues = [];
       if (!map || !map.nodes.length) return issues;
       const byId = new Map(map.nodes.map(n => [n.id, n]));
       const name = n => rmShorten(rmDisplayLabel(n), 18);
       const add = (level, code, msg, extra = {}) => issues.push({ level, code, msg, ...extra });
+      if (cp && map.patientId && map.patientId !== cp.id) add('error', 'patient-mismatch', '患者情報が一致しないため、この関連図を使えません');
+      const cards = cp ? new Set((cp.items || []).map(i => i.id)) : null;
+      map.nodes.forEach(n => {
+        if (!RM_TYPE_BY_KEY.has(n.type)) add('error', 'unknown-type', '読み込めない項目の種類があります', { nodeIds: [n.id] });
+        if (rmEpistemicStatus(n) === 'inferred') add('info', 'inferred', `「${name(n)}」は記録に直接書かれた事実ではなく、推論・補足です。根拠を確認してください`, { nodeIds: [n.id] });
+        if (['lab', 'vital'].includes(n.type) && n.observation && !n.observation.unit) add('warn', 'missing-unit', `「${name(n)}」の単位が確認できません`, { nodeIds: [n.id] });
+        if (n.type === 'medication' && (!n.medication || n.medication.eventType === 'unknown')) add('warn', 'medication-event', `「${name(n)}」の処方・投与済み・中止が区別されていません`, { nodeIds: [n.id] });
+        (n.sourceRefs || []).forEach(r => {
+          if ((map.patientId && r.patientId !== map.patientId) || (cp && r.patientId !== cp.id)) add('error', 'evidence-patient', '別の患者の根拠が含まれています', { nodeIds: [n.id] });
+          else if (cards && r.sourceType === 'card' && !cards.has(r.sourceId)) add('warn', 'stale-evidence', `「${name(n)}」の元のカードがありません。再評価してください`, { nodeIds: [n.id] });
+        });
+      });
       // 1 浮島
       map.nodes.forEach(n => { if (!map.edges.some(e => e.source === n.id || e.target === n.id)) add('error', 'isolated', `どこにもつながっていない四角：「${name(n)}」。原因・結果・治療の対象・看護問題のどれかにつなぐか、要らなければ消してください`, { nodeIds: [n.id], fix: 'remove-node' }); });
       // 2 重複
@@ -1068,11 +1207,11 @@
         const a = byId.get(e.source), b = byId.get(e.target);
         if (!a || !b) return;
         // 3 相互矢印
-        if (pair.has(`${e.target}>${e.source}`) && e.source < e.target) add('error', 'mutual', `「${name(a)}」と「${name(b)}」の間に両向きの矢印があります。どちらが原因かを決めて1本にしてください`, { edgeIds: [e.id], fix: 'remove-edge' });
+        if (pair.has(`${e.target}>${e.source}`) && e.source < e.target) add('warn', 'mutual', `「${name(a)}」と「${name(b)}」の間に両向きの矢印があります。相互作用か、向きの誤りかを確認してください`, { edgeIds: [e.id] });
         // 4 治療 → 治療の対象
-        if (e.relation === 'treats' && a.type !== 'treatment') add('error', 'treat-source', `「治療 → 対象」の矢印の元が治療ではありません：「${name(a)}」→「${name(b)}」`, { edgeIds: [e.id], fix: 'relation-causes' });
-        if (a.type === 'treatment' && e.relation !== 'treats' && b.type === 'disease') add('warn', 'treat-direction', `「${name(a)}」は「${name(b)}」に対する治療なら、種類を「治療 → 治療の対象」にしてください`, { edgeIds: [e.id], fix: 'relation-treats' });
-        if (b.type === 'treatment' && e.relation !== 'treats' && (a.type === 'disease' || a.type === 'symptom')) add('warn', 'treat-reverse', `「${name(a)} → ${name(b)}」は治療の向きが逆の可能性があります（治療 → 治療の対象 にする）`, { edgeIds: [e.id], fix: 'reverse-treats' });
+        if (e.relation === 'treats' && !['treatment', 'medication'].includes(a.type)) add('error', 'treat-source', `「治療 → 対象」の矢印の元が治療ではありません：「${name(a)}」→「${name(b)}」`, { edgeIds: [e.id], fix: 'relation-causes' });
+        if (['treatment', 'medication'].includes(a.type) && e.relation !== 'treats' && b.type === 'disease') add('warn', 'treat-direction', `「${name(a)}」は「${name(b)}」に対する治療なら、種類を「治療 → 治療の対象」にしてください`, { edgeIds: [e.id], fix: 'relation-treats' });
+        if (['treatment', 'medication'].includes(b.type) && e.relation !== 'treats' && (a.type === 'disease' || a.type === 'symptom')) add('warn', 'treat-reverse', `「${name(a)} → ${name(b)}」は治療の向きが逆の可能性があります（治療 → 治療の対象 にする）`, { edgeIds: [e.id], fix: 'reverse-treats' });
         // 5 原因 → 結果
         if (a.type === 'nursing_problem') add('error', 'from-problem', `看護問題から矢印が出ています：「${name(a)}」→「${name(b)}」。看護問題は右端の結論にします`, { edgeIds: [e.id], fix: 'reverse' });
         if (b.type === 'patient_fact' && e.relation !== 'treats') add('warn', 'into-fact', `患者の背景（「${name(b)}」）が結果になっています。向きを確かめてください`, { edgeIds: [e.id] });
@@ -1084,7 +1223,7 @@
       map.nodes.forEach(n => { if (n.type === 'future_risk' && n.observed !== false) add('warn', 'risk-observed', `「${name(n)}」は今後のリスクなので「予測」にします`, { nodeIds: [n.id], fix: 'node-predicted' }); });
       // 7 看護問題の根拠の道筋
       const probs = map.nodes.filter(n => n.type === 'nursing_problem');
-      const factIds = map.nodes.filter(n => n.observed !== false && n.source !== 'knowledge' && ['patient_fact', 'disease', 'symptom', 'lab'].includes(n.type)).map(n => n.id);
+      const factIds = map.nodes.filter(n => !['inferred', 'predicted', 'planned'].includes(rmEpistemicStatus(n)) && ['patient_fact', 'disease', 'symptom', 'lab', 'vital', 'medication'].includes(n.type)).map(n => n.id);
       probs.forEach(p => {
         const back = rmReach(map, [p.id], false);
         if (!factIds.some(id => back.has(id))) add('error', 'no-evidence', `看護問題「${name(p)}」まで、患者に実際にある情報（症状・データ・背景）からたどれる矢印がありません`, { nodeIds: [p.id] });
@@ -1105,7 +1244,7 @@
       if (!probs.length) add('warn', 'no-problem', '看護問題がありません。右端に #1〜 の看護問題を置いてください');
       // 検査データが矢印の途中にある（A → 検査 → B）。検査は原因ではなく根拠なので、A → B にして検査は B の根拠として横に付ける
       map.nodes.forEach(n => {
-        if (n.type !== 'lab') return;
+        if (!['lab', 'vital'].includes(n.type)) return;
         const ins = map.edges.filter(e => e.target === n.id && e.relation !== 'treats');
         if (ins.length) add('warn', 'lab-in-chain', `検査データ「${name(n)}」が矢印の途中にあります。検査は原因ではなく根拠なので、前後を直接つなぎ、検査は横に付けます`, { nodeIds: [n.id], fix: 'lab-as-evidence' });
       });
@@ -1269,9 +1408,15 @@
         const last = cells[cells.length - 1], first = cells[0];
         const flag = last.flag === 'high' ? '↑' : last.flag === 'low' ? '↓' : '';
         const it = items.find(i => i.id === last.itemId);
-        return { key, flag: last.flag, value: last.value, text: `${key} ${first !== last && first.value !== last.value ? `${first.value} → ` : ''}${last.value}${row.unit || ''}${flag}`, item: it };
+        return { key, flag: last.flag, value: last.value, unit: row.unit || '', text: `${key} ${first !== last && first.value !== last.value ? `${first.value} → ` : ''}${last.value}${row.unit || ''}${flag}`, item: it };
       };
-      const labNode = (l, key) => l && N(key || `lab_${l.key}`, 'lab', l.text, { items: [l.item] });
+      const labNode = (l, key) => {
+        if (!l) return null;
+        const vital = /^(?:SpO2|体温|脈拍|心拍数|呼吸数|血圧|収縮期血圧|拡張期血圧|体重)$/.test(l.key);
+        const n = N(key || `lab_${l.key}`, vital ? 'vital' : 'lab', l.text, { items: [l.item] });
+        n.observation = { name: l.key, value: l.value, unit: l.unit };
+        return n;
+      };
 
       // ① 疾患
       // 「予定術式：…」「術式：…」の記録は手術であって疾患ではない（疾患の四角と治療の楕円に同じ手術が2つ出ていた）
@@ -2364,6 +2509,8 @@
       rmReduceShortcuts(map); // 別の道筋で同じ所へ行ける「近道」の矢印を省く（中央の線を減らす）
       layoutRelationMap(map);
       rmAutoFixBuilt(map);
+      rmImportClinicalEntities(map, cp, { includeUnlinked: false });
+      rmPrepareClinicalMap(map, cp);
       return map;
     }
     // 【検査値は原因にしない】Dダイマー・Alb・CRP・WBC・Hb・体温などの検査値・測定値は、看護問題や病態の「根拠・客観データ」。
@@ -2373,7 +2520,7 @@
       let n = 0;
       map.edges.forEach(e => {
         const a = byId.get(e.source);
-        if (a && a.type === 'lab' && e.relation !== 'supports') { e.relation = 'supports'; n++; }
+        if (a && ['lab', 'vital'].includes(a.type) && e.relation !== 'supports') { e.relation = 'supports'; n++; }
       });
       return n;
     }
@@ -2385,7 +2532,7 @@
       const facts = p => {
         const seen = new Set([p.id]), stack = [p.id];
         while (stack.length) { const id = stack.pop(); map.edges.forEach(e => { if (e.target === id && !seen.has(e.source)) { seen.add(e.source); stack.push(e.source); } }); }
-        return [...seen].map(id => byId.get(id)).filter(n => n && n.observed !== false && n.source !== 'knowledge' && ['symptom', 'lab', 'patient_fact'].includes(n.type)).map(n => n.id).sort().join('|');
+        return [...seen].map(id => byId.get(id)).filter(n => n && n.observed !== false && n.source !== 'knowledge' && ['symptom', 'lab', 'vital', 'medication', 'patient_fact'].includes(n.type)).map(n => n.id).sort().join('|');
       };
       // まとめるのは、同じことを別の名前で書きやすい組だけ（活動耐性低下 と 身体可動性障害）。排尿と排便のように
       // 同じ「排泄」でも別の問題はまとめない
@@ -2430,7 +2577,7 @@
       };
       [...map.edges].forEach(e => {
         const a = byId.get(e.source), b = byId.get(e.target);
-        if (!a || !b || e.relation === 'treats' || e.relation === 'supports' || a.type === 'lab' || b.type === 'nursing_problem') return;
+        if (!a || !b || e.relation === 'treats' || e.relation === 'supports' || ['lab', 'vital'].includes(a.type) || b.type === 'nursing_problem') return;
         if (altPath(e)) { map.edges = map.edges.filter(x => x !== e); removed++; }
       });
       return removed;
@@ -2590,27 +2737,21 @@
     }
 
     // ---- 画面の状態 ----
-    const rmState = { patientId: null, selected: null, connectFrom: null, zoom: 1, undo: [], redo: [], drag: null, lastTap: null, problemsOpen: false, moreOpen: false, focusProblem: null };
+    const rmState = { patientId: null, selected: null, connectFrom: null, zoom: 1, undo: [], redo: [], drag: null, lastTap: null, problemsOpen: false, moreOpen: false, focusProblem: null, textView: false };
     function rmMap(cp = getCurrentPatient()) {
       if (!cp) return null;
+      if (cp.relationMap?.patientId && cp.relationMap.patientId !== cp.id) return null;
       if (cp.relationMap && !cp.relationMap.__normalized) {
         const m = normalizeRelationMap(cp.relationMap);
-        if (!m) return null;
+        if (!m || (m.patientId && m.patientId !== cp.id)) {
+          showToast('この関連図は現在の形式または患者情報と一致しません。元のデータは保持しています', 'error');
+          return null;
+        }
+        rmPrepareClinicalMap(m, cp);
         if (m.nodes.length && m.layoutStyle !== RM_LAYOUT_STYLE) layoutRelationMap(m); // 文字を大きくする前に並べた図は、重ならないように並べ直す
         Object.defineProperty(m, '__normalized', { value: true, enumerable: false, configurable: true });
         cp.relationMap = m;
-        // 古い作り方で保存された「記録から作る」の図は、1度だけ新しい作り方で作り直す（手で作った図・AIで作った図は触らない）
-        if (m.source === 'rules' && (m.buildVersion || 0) < RM_BUILD_VERSION && (cp.items || []).some(i => i.type !== 'unnecessary')) {
-          try {
-            const fresh = buildRelationMapFromRecord(cp);
-            if (fresh && fresh.nodes.length) {
-              Object.defineProperty(fresh, '__normalized', { value: true, enumerable: false, configurable: true });
-              cp.relationMap = fresh;
-              if (typeof showToast === 'function') showToast('関連図を新しい作り方で作り直しました（手で直していた所は、もう一度直してください）', 'success', 8000);
-              if (typeof persistData === 'function' && cp.id === getCurrentPatient().id) setTimeout(() => persistData(), 0);
-            }
-          } catch (e) { console.warn('関連図の作り直しに失敗しました', e); }
-        }
+
       }
       return cp.relationMap || null;
     }
@@ -2626,6 +2767,7 @@
       // 「元に戻す」の記録は、表示している患者の分だけ（AIの結果が、別の患者に切り替えた後に届いたときは積まない）
       if (pushUndo && cp.id === rmState.patientId && cp.id === getCurrentPatient().id) rmPushUndo(cp);
       if (map) {
+        rmPrepareClinicalMap(map, cp);
         map.updatedAt = new Date().toISOString();
         Object.defineProperty(map, '__normalized', { value: true, enumerable: false, configurable: true });
       }
@@ -2666,7 +2808,7 @@
       const has = !!(map && map.nodes.length);
       if (empty) empty.classList.toggle('hidden', has);
       if (wrap) {
-        wrap.classList.toggle('hidden', !has);
+        wrap.classList.toggle('hidden', !has || rmState.textView);
         const keep = { left: wrap.scrollLeft, top: wrap.scrollTop };
         const fresh = !wrap.querySelector('svg');
         // 図のまわりに余白（.rm-stage の padding）を付け、端まで動かしても少し先までドラッグできるようにする
@@ -2681,6 +2823,10 @@
         wrap.classList.toggle('is-connecting', !!rmState.connectFrom);
         if (has) rmApplySelectionClasses();
       }
+      const textView = document.getElementById('rm-text-view');
+      if (textView) { textView.classList.toggle('hidden', !has || !rmState.textView); textView.innerHTML = has ? relationMapTextHtml(map, cp) : ''; }
+      const textToggle = view.querySelector('[data-rm-action="toggle-text"]');
+      if (textToggle) { textToggle.setAttribute('aria-pressed', String(rmState.textView)); textToggle.textContent = rmState.textView ? '図で表示' : '関連図を一覧で表示'; }
       rmRenderProblemList(map);
       const legend = document.getElementById('rm-legend');
       if (legend && !legend.dataset.ready) { legend.innerHTML = rmLegendHtml(); legend.dataset.ready = '1'; }
@@ -2688,6 +2834,10 @@
       if (info) info.textContent = has ? `${map.nodes.length}個の四角・${map.edges.length}本の矢印・看護問題${map.nodes.filter(n => n.type === 'nursing_problem').length}個${map.updatedAt ? `（最終更新 ${new Date(map.updatedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}）` : ''}` : '';
       rmRenderSelectionBar();
       rmRenderToolbarState();
+      const conflictBtn = document.getElementById('rm-conflict-button');
+      if (conflictBtn) conflictBtn.classList.toggle('hidden', !(typeof hasRelationMapConflict === 'function' && hasRelationMapConflict(cp.id)));
+      const backupBtn = document.getElementById('rm-backup-button');
+      if (backupBtn) { try { backupBtn.classList.toggle('hidden', !localStorage.getItem(`nursing_relation_map_conflict_${cp.id}`)); } catch (e) { backupBtn.classList.add('hidden'); } }
     }
     // 【看護問題の一覧】看護問題を優先順位（#）の順に並べ、押すとその四角を選んで図の真ん中に見せる。
     // 利用者から「図の上の一覧は邪魔」との声があり、ツールバー（全画面では右上）の「看護問題」ボタンで開く小さな一覧にした。
@@ -2859,7 +3009,9 @@
           ${rmBtn('edit-node', '<i class="fa-solid fa-pen"></i> 文字を編集')}
           ${prob ? rmBtn('edit-note', '<i class="fa-solid fa-comment-dots"></i> 補足（説明）') : ''}
           <label class="rm-kind-select"><span class="sr-only">種類</span><select class="field text-[11px] py-1" data-rm-action="kind">${RM_TYPES.map(t => `<option value="${t.key}"${t.key === n.type ? ' selected' : ''}>${escapeHtml(t.label)}</option>`).join('')}</select></label>
-          ${rmBtn('toggle-observed', n.observed === false ? '事実にする' : '予測にする（破線）')}
+          <label class="rm-kind-select">情報の状態<select class="field" data-rm-action="status">${Object.entries(RM_STATUSES).map(([key, label]) => `<option value="${key}"${key === rmEpistemicStatus(n) ? ' selected' : ''}${(n.source === 'knowledge' || n.added) && key !== 'inferred' || n.type === 'future_risk' && key !== 'predicted' ? ' disabled' : ''}>${label}</option>`).join('')}</select></label>
+          <label class="rm-kind-select">確からしさ<select class="field" data-rm-action="certainty">${Object.entries(RM_CERTAINTIES).map(([key, label]) => `<option value="${key}"${key === n.certainty ? ' selected' : ''}>${label}</option>`).join('')}</select></label>
+          ${n.type === 'medication' ? `<label class="rm-kind-select">薬剤の状態<select class="field" data-rm-action="medication-event">${Object.entries({ unknown: '状態未確認', order: '処方・指示', administered: '投与済み', reported: '申告', stopped: '中止' }).map(([key, label]) => `<option value="${key}"${key === n.medication?.eventType ? ' selected' : ''}>${label}</option>`).join('')}</select></label>` : ''}
           ${prob ? `${rmBtn('priority-up', '<i class="fa-solid fa-arrow-up"></i> 優先度を上げる')}${rmBtn('priority-down', '<i class="fa-solid fa-arrow-down"></i> 下げる')}` : ''}
           ${rmBtn('connect', '<i class="fa-solid fa-arrow-right-long"></i> ここから矢印でつなぐ', 'btn-primary')}
           ${n.evidence ? rmBtn('node-evidence', '<i class="fa-solid fa-circle-info"></i> 根拠') : ''}
@@ -2870,6 +3022,7 @@
         if (!e) { rmState.selected = null; return rmRenderSelectionBar(); }
         bar.innerHTML = `<span class="rm-sel-label">選んだ矢印</span>
           <label class="rm-kind-select"><span class="sr-only">矢印の意味</span><select class="field text-[11px] py-1" data-rm-action="relation">${RM_RELATIONS.map(r => `<option value="${r.key}"${r.key === e.relation ? ' selected' : ''}>${escapeHtml(r.label)}</option>`).join('')}</select></label>
+          <label class="rm-kind-select">確からしさ<select class="field" data-rm-action="certainty">${Object.entries(RM_CERTAINTIES).map(([key, label]) => `<option value="${key}"${key === e.certainty ? ' selected' : ''}>${label}</option>`).join('')}</select></label>
           ${rmBtn('toggle-predicted', e.predicted ? '事実にする（実線）' : '予測にする（破線）')}
           ${rmBtn('mid-add', '<i class="fa-solid fa-plus"></i> 間に四角を入れる')}
           ${rmBtn('reverse', '<i class="fa-solid fa-right-left"></i> 向きを逆にする', 'btn-primary')}
@@ -2975,7 +3128,7 @@
       if (map.edges.length >= RM_MAX_EDGES) { showToast(`矢印は${RM_MAX_EDGES}本までです`, 'warn'); return; }
       const a = rmNodeById(map, from), b = rmNodeById(map, targetId);
       const id = rmNewId('e');
-      rmMutate(m => { m.edges.push({ id, source: from, target: targetId, relation: a.type === 'treatment' && b.type !== 'treatment' && b.type !== 'nursing_problem' ? 'treats' : b.type === 'lab' ? 'supports' : 'causes', predicted: b.observed === false, evidence: '' }); });
+      rmMutate(m => { m.edges.push({ id, source: from, target: targetId, relation: ['treatment', 'medication'].includes(a.type) && !['treatment', 'medication'].includes(b.type) && b.type !== 'nursing_problem' ? 'treats' : ['lab', 'vital'].includes(a.type) ? 'supports' : 'related_to', predicted: b.observed === false, evidence: '' }); });
       rmState.selected = { type: 'edge', id };
       renderRelationMap();
     }
@@ -3088,7 +3241,7 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
         map.edges.forEach(e => { if (e.target === id && e.relation !== 'treats' && !keep.has(e.source)) { const s = map.nodes.find(n => n.id === e.source); if (s && s.type !== 'nursing_problem') { keep.add(s.id); stack.push(s.id); } } });
       }
       // 取り出した四角への治療（┤）と、その四角にくっつく検査データも入れる
-      map.edges.forEach(e => { if (keep.has(e.target) && !keep.has(e.source)) { const s = map.nodes.find(n => n.id === e.source); if (s && (e.relation === 'treats' || s.type === 'lab')) keep.add(s.id); } });
+      map.edges.forEach(e => { if (keep.has(e.target) && !keep.has(e.source)) { const s = map.nodes.find(n => n.id === e.source); if (s && (e.relation === 'treats' || ['lab', 'vital'].includes(s.type))) keep.add(s.id); } });
       const sub = JSON.parse(JSON.stringify({ ...map, nodes: map.nodes.filter(n => keep.has(n.id)), edges: map.edges.filter(e => keep.has(e.source) && keep.has(e.target)) }));
       delete sub.addedStash;
       layoutRelationMap(sub);
@@ -3183,12 +3336,21 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
         const sel = rmState.selected;
         if (btn.closest('#rm-ctx')) rmHideCtx();
         if (act === 'ctx-add') rmAddNode(btn.dataset.kind || 'pathophysiology', rmState.ctxPoint);
+        else if (act === 'toggle-text') { rmState.textView = !rmState.textView; renderRelationMap(); }
+        else if (act === 'resolve-conflict' && typeof resolveRelationMapConflict === 'function') resolveRelationMapConflict();
+        else if (act === 'export-conflict-backup') {
+          try { const text = localStorage.getItem(`nursing_relation_map_conflict_${getCurrentPatient().id}`); if (text) downloadTextBlob(new Blob([text], { type: 'application/json' }), '関連図_競合時の控え.json'); }
+          catch (err) { showToast('控えを保存できませんでした', 'error'); }
+        }
+        else if (act === 'select-node') { if (rmState.connectFrom) rmConnectTo(btn.dataset.nodeId); else rmSelect({ type: 'node', id: btn.dataset.nodeId }); }
+        else if (act === 'select-edge') rmSelect({ type: 'edge', id: btn.dataset.edgeId });
+        else if (act === 'import-clinical') rmMutate(map => { rmImportClinicalEntities(map, getCurrentPatient()); rmPrepareClinicalMap(map, getCurrentPatient()); });
         else if (act === 'build-rules') rmBuild();
         else if (act === 'add') rmAddNode(document.getElementById('rm-add-kind')?.value || 'pathophysiology');
         else if (act === 'relayout') rmMutate(map => layoutRelationMap(map), { message: '並べ直しました（重要な看護問題ほど上・看護問題は右端）' });
         else if (act === 'undo') rmUndoRedo(false);
         else if (act === 'redo') rmUndoRedo(true);
-        else if (act === 'check') { const m = rmMap(); rmShowCheck(m ? validateRelationMap(m) : []); }
+        else if (act === 'check') { const m = rmMap(); rmShowCheck(m ? validateRelationMap(m, getCurrentPatient()) : []); }
         else if (act === 'autofix' && rmLastIssues) { let n = 0; rmMutate(map => { n = rmApplyFixes(map, rmLastIssues); }); rmShowCheck(validateRelationMap(rmMap())); showToast(`${n}件を直しました（「元に戻す」で戻せます）`, 'success'); }
         else if (act === 'close-check') rmShowCheck(null);
         else if (act === 'show-issue' && rmLastIssues) {
@@ -3219,7 +3381,7 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
         else if (act === 'connect') { rmState.connectFrom = sel.id; rmApplySelectionClasses(); rmRenderSelectionBar(); }
         else if (act === 'cancel-connect') { rmState.connectFrom = null; rmApplySelectionClasses(); rmRenderSelectionBar(); }
         else if (act === 'delete') rmDeleteSelected();
-        else if (act === 'toggle-observed') rmMutate(m => { const n = rmNodeById(m, sel.id); if (n) n.observed = n.observed === false; });
+        else if (act === 'toggle-observed') rmMutate(m => { const n = rmNodeById(m, sel.id); if (n) { n.observed = n.observed === false; delete n.epistemicStatus; } });
         else if (act === 'priority-up') rmMoveProblem(sel.id, -1);
         else if (act === 'priority-down') rmMoveProblem(sel.id, 1);
         else if (act === 'node-evidence') { const n = rmNodeById(rmMap(), sel.id); if (n) openDialog({ title: 'この四角の根拠', message: `${rmDisplayLabel(n)}\n\n${n.evidence}`, confirmLabel: '閉じる' }); }
@@ -3232,7 +3394,7 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
         else if (act === 'mid-add') rmBridgeEdgeManual(sel.id);
         else if (act === 'reverse') {
           // 向きを逆にしたら並べ直す（左向きの矢印を残さない）。「治療 → 対象」を逆にしたときは、ふつうの矢印にする
-          rmMutate(m => { const x = m.edges.find(y => y.id === sel.id); if (x) { const t = x.source; x.source = x.target; x.target = t; const src = m.nodes.find(n => n.id === x.source); if (x.relation === 'treats' && (!src || src.type !== 'treatment')) x.relation = 'causes'; layoutRelationMap(m); } });
+          rmMutate(m => { const x = m.edges.find(y => y.id === sel.id); if (x) { const t = x.source; x.source = x.target; x.target = t; const src = m.nodes.find(n => n.id === x.source); if (x.relation === 'treats' && (!src || !['treatment', 'medication'].includes(src.type))) x.relation = 'causes'; layoutRelationMap(m); } });
           showToast('矢印の向きを逆にして、左から右へ並べ直しました（「元に戻す」で戻せます）', 'success');
         }
       });
@@ -3240,7 +3402,10 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
         const s = e.target.closest('select[data-rm-action]');
         if (!s || !rmState.selected) return;
         const id = rmState.selected.id;
-        if (s.dataset.rmAction === 'kind') rmMutate(m => { const n = rmNodeById(m, id); if (n && RM_TYPE_BY_KEY.has(s.value)) { n.type = s.value; if (s.value === 'future_risk') n.observed = false; rmRenumberProblems(m); } });
+        if (s.dataset.rmAction === 'kind') rmMutate(m => { const n = rmNodeById(m, id); if (n && RM_TYPE_BY_KEY.has(s.value)) { n.type = s.value; delete n.epistemicStatus; if (s.value === 'future_risk') n.observed = false; rmRenumberProblems(m); } });
+        else if (s.dataset.rmAction === 'status') rmMutate(m => { const n = rmNodeById(m, id); if (n && Object.hasOwn(RM_STATUSES, s.value)) { n.epistemicStatus = s.value; n.observed = !['predicted', 'planned'].includes(s.value); } });
+        else if (s.dataset.rmAction === 'certainty') rmMutate(m => { const n = rmState.selected.type === 'node' ? rmNodeById(m, id) : m.edges.find(x => x.id === id); if (n && Object.hasOwn(RM_CERTAINTIES, s.value)) n.certainty = s.value; });
+        else if (s.dataset.rmAction === 'medication-event') rmMutate(m => { const n = rmNodeById(m, id); if (n && ['order', 'administered', 'reported', 'stopped', 'unknown'].includes(s.value)) { n.medication = { name: n.medication?.name || n.label, eventType: s.value }; n.epistemicStatus = s.value === 'order' ? 'planned' : s.value === 'reported' ? 'reported' : 'observed'; n.observed = s.value !== 'order'; } });
         else if (s.dataset.rmAction === 'relation') rmMutate(m => { const x = m.edges.find(y => y.id === id); if (x && RM_RELATION_KEYS.has(s.value)) { x.relation = s.value; if (s.value === 'predicts') x.predicted = true; } });
       });
       const wrap = document.getElementById('rm-canvas-wrap');
@@ -3439,5 +3604,5 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
     if (typeof document !== 'undefined' && document.getElementById && document.getElementById('view-relation')) initRelationMapUi();
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, layoutRelationMap, buildRelationMapFromRecord, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel, rmShorten, rmProblemSubmap, rmReduceShortcuts, rmNodeSize, RM_PROBLEM_NOTES, rmPlainNote, rmLifeStage, rmMergeDuplicateProblems, rmLabsAsEvidence, layoutRelationMapOnce });
+  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, rmClinicalFields, rmEpistemicStatus, rmPrepareClinicalMap, findRelationEvidence, relationMapTextHtml, rmImportClinicalEntities, layoutRelationMap, buildRelationMapFromRecord, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel, rmShorten, rmProblemSubmap, rmReduceShortcuts, rmNodeSize, RM_PROBLEM_NOTES, rmPlainNote, rmLifeStage, rmMergeDuplicateProblems, rmLabsAsEvidence, layoutRelationMapOnce });
 }

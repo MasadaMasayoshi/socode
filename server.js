@@ -584,7 +584,47 @@ function assertSafePatientId(id) {
     throw err;
   }
 }
-async function patientStoreSave(id, incoming) {
+// 関連図はカードと違い、全体を1つの編集として保存する。古い図による上書きを拒否する。
+function mergePatientWithRelationMap(id, incoming, existing, ifMatch) {
+  const resetsCase = existing && new Date(incoming.caseResetAt || 0).getTime() > new Date(existing.caseResetAt || 0).getTime();
+  const ownsMap = hasOwn(incoming, 'relationMap') || resetsCase;
+  const proposed = ownsMap ? incoming.relationMap || null : existing?.relationMap;
+  if (proposed != null && proposed.schemaVersion) {
+    const fail = message => { const e = new Error(message); e.status = 422; throw e; };
+    if (proposed.schemaVersion !== '1.0.0' || proposed.version !== 2 || !Array.isArray(proposed.nodes) || !Array.isArray(proposed.edges)) fail('関連図の形式が一致しません。元のデータを確認してください');
+    if (proposed.patientId && proposed.patientId !== id) fail('関連図の患者情報が一致しません');
+    if (proposed.nodes.length > 70 || proposed.edges.length > 160) fail('関連図の項目または矢印が多すぎます');
+    const ids = new Set(), edgeIds = new Set();
+    const types = new Set(['patient_fact', 'disease', 'pathophysiology', 'symptom', 'lab', 'vital', 'medication', 'treatment', 'assessment', 'future_risk', 'nursing_problem']);
+    for (const n of proposed.nodes) {
+      if (!n || typeof n.id !== 'string' || !n.id || ids.has(n.id) || !types.has(n.type) || typeof n.label !== 'string' || !n.label.trim()) fail('関連図の項目が不正です');
+      ids.add(n.id);
+      if (n.sourceRefs && (!Array.isArray(n.sourceRefs) || n.sourceRefs.some(r => !r || r.patientId !== id || !['card', 'assessment'].includes(r.sourceType) || typeof r.sourceId !== 'string'))) fail('関連図の根拠が患者と一致しません');
+      if (n.type === 'future_risk' && n.epistemicStatus !== 'predicted') fail('今後のリスクは予測として保存してください');
+      if ((n.source === 'knowledge' || n.added) && n.type !== 'future_risk' && n.epistemicStatus !== 'inferred') fail('補った推論を事実として保存することはできません');
+    }
+    for (const e of proposed.edges) {
+      if (!e || typeof e.id !== 'string' || !e.id || edgeIds.has(e.id) || !ids.has(e.source) || !ids.has(e.target) || e.source === e.target) fail('関連図の矢印が不正です');
+      edgeIds.add(e.id);
+    }
+  }
+  const currentRevision = Number.isSafeInteger(existing?.relationMapRevision) ? existing.relationMapRevision : 0;
+  if (ifMatch && ifMatch !== `"relation-map-${currentRevision}"`) {
+    const e = new Error('関連図が更新されています。最新の図を確認してください'); e.status = 412; throw e;
+  }
+  const changed = ownsMap && JSON.stringify(proposed || null) !== JSON.stringify(existing?.relationMap || null);
+  if (changed && existing && (incoming.relationMapRevision || 0) !== currentRevision) {
+    const err = new Error('ほかの画面または端末で関連図が更新されています。手元の図を保持しています。最新の図を確認してから保存してください');
+    err.status = 412;
+    throw err;
+  }
+  const merged = mergePatientRecord(incoming, existing);
+  if (ownsMap) merged.relationMap = proposed;
+  else if (existing && hasOwn(existing, 'relationMap')) merged.relationMap = existing.relationMap;
+  if (ownsMap || currentRevision || hasOwn(incoming, 'relationMapRevision')) merged.relationMapRevision = currentRevision + (changed ? 1 : 0);
+  return merged;
+}
+async function patientStoreSave(id, incoming, { ifMatch } = {}) {
   assertSafePatientId(id);
   const col = await getPatientsCollection();
   if (!col) {
@@ -592,7 +632,7 @@ async function patientStoreSave(id, incoming) {
       if (hasOwn(patientDeletions, id) && patientDeletions[id]) return { deleted: true };
       const hadPrev = hasOwn(patientsDict, id);
       const prev = hadPrev ? patientsDict[id] : undefined;
-      const merged = mergePatientRecord(incoming, prev);
+      const merged = mergePatientWithRelationMap(id, incoming, prev, ifMatch);
       patientsDict[id] = merged;
       try {
         await persist(['patients']);
@@ -606,7 +646,7 @@ async function patientStoreSave(id, incoming) {
   for (let attempt = 0; attempt < PATIENT_SAVE_MAX_ATTEMPTS; attempt++) {
     const doc = await col.findOne({ _id: id });
     if (doc && doc.deleted) return { deleted: true };
-    const merged = mergePatientRecord(incoming, doc ? doc.data : undefined);
+    const merged = mergePatientWithRelationMap(id, incoming, doc ? doc.data : undefined, ifMatch);
     const savedAt = new Date().toISOString();
     if (doc) {
       const r = await col.updateOne({ _id: id, rev: doc.rev }, { $set: { data: merged, rev: (doc.rev || 0) + 1, savedAt } });
@@ -720,7 +760,8 @@ app.use('/api', (req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, If-Match');
+    res.setHeader('Access-Control-Expose-Headers', 'ETag');
     res.setHeader('Access-Control-Max-Age', '600');
     if (req.method === 'OPTIONS') return res.status(204).end();
   }
@@ -1280,6 +1321,15 @@ app.get('/api/patients', async (req, res) => {
   const { patients } = await patientStoreGetAll();
   res.json(patients);
 });
+app.get('/api/patients/:id/relation-map', async (req, res) => {
+  assertSafePatientId(req.params.id);
+  const { patients } = await patientStoreGetAll();
+  const patient = patients[req.params.id];
+  if (!patient) return res.status(404).json({ error: '患者がありません' });
+  res.set('Cache-Control', 'no-store');
+  res.set('ETag', `"relation-map-${patient.relationMapRevision || 0}"`);
+  res.json({ relationMap: patient.relationMap || null, relationMapRevision: patient.relationMapRevision || 0 });
+});
 // 完全に削除した患者の一覧（{ [患者ID]: 削除した日時 }）。画面側は起動時に読み、手元に残っている患者を外す。
 app.get('/api/patient-deletions', async (req, res) => {
   const { deletions } = await patientStoreGetAll();
@@ -1297,7 +1347,7 @@ app.put('/api/patients/:id', rateLimit('patients-put', { windowMs: 60000, max: 2
   if (!patient || typeof patient !== 'object' || Array.isArray(patient)) {
     return res.status(400).json({ error: 'body must be a patient object' });
   }
-  const result = await patientStoreSave(id, patient);
+  const result = await patientStoreSave(id, patient, { ifMatch: req.get('If-Match') });
   if (result.deleted) return res.status(410).json({ ok: false, deleted: true, error: 'この患者は完全に削除されています' });
   res.json({ ok: true, patient: result.patient });
 });

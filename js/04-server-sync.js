@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = '2026-10-07.36'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = '2026-10-09.41'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 共有学習（全利用者・全カードで共有する学習データ）
     // ------------------------------------------------------------------------
@@ -159,8 +159,13 @@
       // 自分のアセスメントなど、欲求ごとの記録は、欲求ごとに新しい方を使う（別の端末で書いた分を取り込む）
       const keyed = mergeKeyedPatientFieldsClient(current, serverPatient);
       const keyedChanged = Object.keys(keyed).some(f => JSON.stringify(current[f]) !== JSON.stringify(keyed[f]));
-      const changed = keyedChanged || JSON.stringify(current.items) !== JSON.stringify(merged.items);
+      const oldMap = JSON.stringify(current.relationMap || null), oldMapRevision = current.relationMapRevision;
+      let changed = keyedChanged || JSON.stringify(current.items) !== JSON.stringify(merged.items);
       Object.assign(current, keyed);
+      // 図の通信中の編集を保持し、次の保存の基準だけを進める。
+      if (Number.isSafeInteger(serverPatient.relationMapRevision)) current.relationMapRevision = serverPatient.relationMapRevision;
+      if (JSON.stringify(current.relationMap || null) === JSON.stringify(sentSnapshot?.relationMap || null) && Object.hasOwn(serverPatient, 'relationMap')) current.relationMap = serverPatient.relationMap;
+      changed = changed || oldMap !== JSON.stringify(current.relationMap || null) || oldMapRevision !== current.relationMapRevision;
       current.items = merged.items;
       current.deletedItemIds = merged.deletedItemIds;
       if (!editedWhileSending && serverPatient.updatedAt) current.updatedAt = serverPatient.updatedAt;
@@ -171,9 +176,37 @@
         if (getCurrentPatient().id === patientId) {
           renderSoBoard();
           renderAssessmentTable();
+          if (typeof renderRelationMap === 'function') renderRelationMap();
         }
       }
     }
+
+    async function resolveRelationMapConflict(patientId = getCurrentPatient().id) {
+      const cp = globalAppData.patients.find(p => p.id === patientId);
+      if (!cp) return;
+      try {
+        const res = await fetch(`${API_BASE}/patients/${encodeURIComponent(patientId)}/relation-map`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const latest = await res.json();
+        if (latest.relationMap?.patientId && latest.relationMap.patientId !== patientId) throw new Error('患者情報が一致しません');
+        const ok = await openDialog({ title: '関連図の更新が競合しています', message: '最新の図を読み込みますか？手元の図はこのブラウザに控えを保存します。取り消すと未保存の図をそのまま保持します。', confirmLabel: '最新の図を読み込む' });
+        if (ok !== true || !globalAppData.patients.includes(cp)) return;
+        // 控えが保存できない場合は置き換えない。画面の再読込でも控えは残る。
+        const key = `nursing_relation_map_conflict_${patientId}`;
+        const previous = JSON.parse(localStorage.getItem(key) || '[]');
+        const backups = Array.isArray(previous) ? previous : [previous];
+        backups.push({ patientId, relationMap: cp.relationMap || null, savedAt: new Date().toISOString() });
+        localStorage.setItem(key, JSON.stringify(backups));
+        cp.relationMap = latest.relationMap;
+        cp.relationMapRevision = latest.relationMapRevision;
+        const st = patientSyncState[patientId];
+        if (st) st.rejectedStatus = null;
+        if (typeof savePatientsLocally === 'function') savePatientsLocally();
+        schedulePatientSync(patientId);
+        if (getCurrentPatient().id === patientId && typeof renderRelationMap === 'function') renderRelationMap();
+      } catch (e) { showToast(`関連図を読み込めませんでした。手元の図を保持しています：${e.message}`, 'error'); }
+    }
+    function hasRelationMapConflict(patientId) { return patientSyncState[patientId]?.rejectedStatus === 412; }
 
     // 別の端末で完全に削除された患者：この端末からも外す（削除より古い同期で復活させない）
     function handlePatientDeletedElsewhere(patientId) {
@@ -226,7 +259,7 @@
       try {
         const res = await fetch(`${API_BASE}/patients/${encodeURIComponent(patientId)}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(Object.hasOwn(patient, 'relationMap') ? { 'If-Match': `"relation-map-${patient.relationMapRevision || 0}"` } : {}) },
           body
         });
         if (res.status === 410) { handlePatientDeletedElsewhere(patientId); ok = true; return; }
@@ -258,6 +291,13 @@
         // 429（送信の集中）以外の4xxは自動では送り直さず、「未保存」のまま残して知らせる
         // （次にカルテを編集したとき・右上の「共有先への保存に失敗」を押したときには、もう一度送る）。
         const status = e && typeof e.status === 'number' ? e.status : 0;
+        if (status === 412) {
+          if (st.retryTimer) { clearTimeout(st.retryTimer); st.retryTimer = null; }
+          st.rejectedStatus = 412;
+          showToast('ほかの端末で関連図が更新されています。手元の図は保持しています。関連図の「最新の図を確認」から確認してください', 'error');
+          if (getCurrentPatient().id === patientId && typeof renderRelationMap === 'function') renderRelationMap();
+          return;
+        }
         if (status >= 400 && status < 500 && ![408, 409, 429].includes(status)) {
           if (st.retryTimer) { clearTimeout(st.retryTimer); st.retryTimer = null; }
           if (st.rejectedStatus !== status && !(typeof IS_FILE_PROTOCOL !== 'undefined' && IS_FILE_PROTOCOL)) {

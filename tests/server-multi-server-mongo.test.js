@@ -27,6 +27,19 @@ test.after(async () => { await stopServer(httpA); await stopServer(httpB); });
 const put = (url, id, body) => fetch(`${url}/api/patients/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 const patient = (id, items, extra = {}) => ({ id, title: id, items, deletedItemIds: [], updatedAt: new Date().toISOString(), ...extra });
 
+test('関連図を別サーバーから同時更新しても古い図を上書きしない', async () => {
+  const id = 'mongo-map-race';
+  const saved = await serverA.patientStoreSave(id, patient(id, [], { relationMap: { version: 2, nodes: [{ id: 'n', type: 'symptom', label: '最初' }], edges: [] } }));
+  const a = structuredClone(saved.patient), b = structuredClone(saved.patient);
+  a.relationMap.nodes[0].label = 'Aの編集'; b.relationMap.nodes[0].label = 'Bの編集';
+  const results = await Promise.allSettled([serverA.patientStoreSave(id, a), serverB.patientStoreSave(id, b)]);
+  assert.equal(results.filter(r => r.status === 'fulfilled').length, 1);
+  const rejected = results.find(r => r.status === 'rejected');
+  assert.equal(rejected.reason.status, 412);
+  const all = await (await fetch(`${urlA}/api/patients`)).json();
+  assert.equal(all[id].relationMapRevision, 2);
+});
+
 test('別々のサーバーが登録した患者を、互いに消さない（どちらのサーバーからも両方見える）', async () => {
   assert.equal((await put(urlA, 'pA', patient('pA', [{ id: 'a1', text: 'ローカル版で登録' }]))).status, 200);
   assert.equal((await put(urlB, 'pB', patient('pB', [{ id: 'b1', text: '公開版で登録' }]))).status, 200);

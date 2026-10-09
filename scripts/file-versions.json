@@ -12,8 +12,8 @@
     "hash": "2ad22bff6197dcf1"
   },
   "js/04-server-sync.js": {
-    "version": "2026-10-07.36",
-    "hash": "9defcf16b9085fc4"
+    "version": "2026-10-09.41",
+    "hash": "41bde4ac013cc458"
   },
   "js/05-app-state-and-ui.js": {
     "version": "2026-10-08.2023",
@@ -44,8 +44,8 @@
     "hash": "c06ec335aeeb2961"
   },
   "js/12-missing-checks-and-care-plan.js": {
-    "version": "2026-10-08.2103",
-    "hash": "3f03213ac7d54c4d"
+    "version": "2026-10-09.41",
+    "hash": "251550b7ee559250"
   },
   "js/13-compare-and-report.js": {
     "version": "2026-10-08.2121",
@@ -56,12 +56,12 @@
     "hash": "b90c3185deaf3a8c"
   },
   "js/15-relation-map.js": {
-    "version": "2026-10-08.35",
-    "hash": "f98d5a929db6571b"
+    "version": "2026-10-09.41",
+    "hash": "083c1d2630a24dd4"
   },
   "style.css": {
-    "version": "2026-10-08.2023",
-    "hash": "92be6bf077e45e47"
+    "version": "2026-10-09.41",
+    "hash": "732529884f63b289"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",

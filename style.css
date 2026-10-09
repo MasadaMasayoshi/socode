@@ -1290,3 +1290,8 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
     .ut-parts { font-size: 11px; padding-left: .5rem; border-left: 2px solid var(--line); }
     .ut-actions { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
     .ut-sel { font-size: 11px; padding: .1rem .3rem; width: auto; }
+/* 関連図の文字による代替表示。色に依存せず状態と矢印の意味を読む。 */
+.rm-text-view { padding: 1rem; max-height: 70vh; overflow: auto; }
+.rm-text-view li { margin: .75rem 0; padding: .5rem; border-bottom: 1px solid #d6d3d1; }
+.rm-text-view p { margin: .35rem 0; overflow-wrap: anywhere; }
+.rm-text-view button:focus-visible { outline: 3px solid #7c3aed; outline-offset: 3px; }
