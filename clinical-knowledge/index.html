@@ -106,7 +106,7 @@ function downloadText(filename,content,type='text/plain') {
 }
 downloadBibliography.addEventListener('click',()=>{
   const sources=[...new Map(records.flatMap(x=>x.sources||[]).map(x=>[x.url,x])).values()];
-  downloadText('socode-references.txt',sources.map((x,i)=>(i+1)+'. '+[x.publisher,x.year,x.title,x.url].filter(Boolean).join(' / ')).join('\\n'));
+  downloadText('socode-references.txt',sources.map((x,i)=>(i+1)+'. '+[x.publisher,x.year,x.title,x.url].filter(Boolean).join(' / ')).join('\n'));
 });
 input.addEventListener('input', render);
 reviewFilter.addEventListener('change', render);
