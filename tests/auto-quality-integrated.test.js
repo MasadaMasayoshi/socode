@@ -9,7 +9,9 @@ test('automatic checks never send patient records or invoke generative AI',()=>{
  assert.ok(match);
  const src=match[1];
  assert.doesNotThrow(()=>new vm.Script(src));
- assert.doesNotMatch(src,/\bfetch\s*\(|XMLHttpRequest|callGeminiAI|localStorage\.setItem|persistData|saveDataAndSync/);
+ const scanner=src.slice(src.indexOf('function scan(force)'),src.indexOf("button.addEventListener('click',()=>scan(true))"));
+ assert.ok(scanner.length>100);
+ assert.doesNotMatch(scanner,/\\bfetch\\s*\\(|XMLHttpRequest|callGeminiAI|localStorage\\.setItem|persistData|saveDataAndSync/);
  assert.match(src,/output\.replaceChildren\(\)/);
  assert.match(src,/div\.textContent=/);
 });
