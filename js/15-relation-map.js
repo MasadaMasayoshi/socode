@@ -1206,6 +1206,16 @@
       map.edges.forEach(e => {
         const a = byId.get(e.source), b = byId.get(e.target);
         if (!a || !b) return;
+        // 臨床的な推論による因果関係は、単なる時間的前後関係と区別して根拠を確認する。
+        // 記録に直接書かれた観察データと、医学知識から補った病態の間に因果の矢印を
+        // 引く場合、根拠説明がないまま確定扱いにしない。画面配置は変更しない。
+        if (['causes', 'contributes_to', 'results_in'].includes(e.relation) &&
+            (rmEpistemicStatus(a) === 'inferred' || rmEpistemicStatus(b) === 'inferred') &&
+            !String(e.evidence || '').trim()) {
+          add('warn', 'clinical-causality-unverified',
+            `「${name(a)}」から「${name(b)}」への因果関係に検証可能な根拠の説明がありません。病態生理の出典と適用条件を確認してください`,
+            { edgeIds: [e.id] });
+        }
         // 3 相互矢印
         if (pair.has(`${e.target}>${e.source}`) && e.source < e.target) add('warn', 'mutual', `「${name(a)}」と「${name(b)}」の間に両向きの矢印があります。相互作用か、向きの誤りかを確認してください`, { edgeIds: [e.id] });
         // 4 治療 → 治療の対象
