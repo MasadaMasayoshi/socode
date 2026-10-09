@@ -26,10 +26,10 @@ for (const c of data.claims || []) {
   const verification = c.sourceVerification;
   if (!verification || !['not-independently-verified', 'source-text-matched'].includes(verification.status)) notes.push('出典本文の照合状態が不明');
   if (verification?.status === 'source-text-matched') {
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(verification.checkedOn || '') || verification.checkedOn > date || !verification.url || !verification.note || !verification.scope) notes.push('出典原文との照合記録が不足');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(verification.checkedOn || '') || verification.checkedOn > date || !verification.url || !verification.note || !verification.scope) notes.push('出典原文との照合記録が不足');
     if (!(c.sources || []).some(src=>src.url === verification.url)) notes.push('照合URLが登録出典と一致しない');
   }
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(c.reviewDue || '') || c.reviewDue < date) notes.push('再確認期限なし、または期限切れ');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(c.reviewDue || '') || c.reviewDue < date) notes.push('再確認期限なし、または期限切れ');
   if (c.patientId || c.patientName || c.personalData) notes.push('患者固有データは禁止');
   if (c.ownerApproval?.date > date) notes.push('承認日が未来');
   if (!c.sourceVerification?.limitations) notes.push('照合結果の限界が未記載');
