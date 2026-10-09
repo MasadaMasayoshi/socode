@@ -1509,6 +1509,7 @@
       if(!comparison.hidden)reviewSource();
     });
     let previous='',lastScan=0;
+    const priorCardsByPatient=new Map();
     function scan(force){
       try{
         if(typeof getCurrentPatient!=='function')return;
@@ -1523,6 +1524,19 @@
         if(!comparison.hidden)reviewSource();
         const findings=[];
         const warn=(code,message,id)=>findings.push({code,message,id});
+        const currentCards=new Map(items.map(item=>[String(item.id),String(item.text||'')]));
+        const former=priorCardsByPatient.get(String(cp.id));
+        if(former){
+          const changed=[...currentCards].filter(([id,body])=>former.has(id)&&former.get(id)!==body).map(([id])=>id);
+          if(changed.length){
+            for(const plan of plans){
+              const evidenceRefs=[...(Array.isArray(plan.evidenceIds)?plan.evidenceIds:[]),
+                ...(Array.isArray(plan.refs)?plan.refs.filter(x=>typeof x==='string'):[])].map(String);
+              if(changed.some(id=>evidenceRefs.includes(id)))warn('evidence-updated','根拠カードの文章が変更されました。看護計画の内容を再確認してください',plan.id);
+            }
+          }
+        }
+        priorCardsByPatient.set(String(cp.id),currentCards);
         const seen=new Map();
         for(const item of items){
           const key=String(item.text||'').replace(/\s+/g,'').normalize('NFKC');
