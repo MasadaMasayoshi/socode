@@ -1526,7 +1526,7 @@
           add('clinical-guidance-review', 'info',
             'AI生成のTPは記録との一致だけでは医学的妥当性を保証できません。公的ガイドライン等の出典、適用条件、禁忌、実施権限を確認してください');
         }
-        else {
+        if (p.evidence && p.evidence.length) {
           const text = cpEvidenceTexts(cp).all.replace(/\s/g, '');
           (p.evidence || []).forEach(e => { const s = cpNorm(e).replace(/\s/g, ''); if (s.length >= 4 && !text.includes(s.slice(0, Math.min(s.length, 12)))) add('evidence-missing', 'warn', `根拠「${e}」がこの患者の記録に見当たりません`); });
         }
