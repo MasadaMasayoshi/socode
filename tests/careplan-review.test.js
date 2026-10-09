@@ -86,21 +86,21 @@ test('関連図から取り込む：看護問題・補足・根拠データ（�
 });
 
 
-test('看護計画の画面：チェック・AIで評価・関連図から取り込むボタン。提案は理由を書いてから使う（学習の支え）。実施→評価の流れはそのまま', () => {
+test('看護計画の画面：非AIチェック・関連図から取り込むボタン。AI生成の評価や取り込みは禁止', () => {
   assert.match(html, /onclick="importCarePlansFromMapUI\(\)"[^>]*>[\s\S]*?関連図から取り込む/);
   const cp = stomaPatient();
   const p = app.createCarePlan(cp, { problem: '急性疼痛' });
   const card = app.carePlanCardHtml(cp, p, 0, 1);
   assert.doesNotMatch(card, /計画をチェック/, '閉じた計画には出さない');
   assert.match(src, /onclick="toggleCarePlanReview\('\$\{pid\}'\)"/);
-  assert.match(src, /AIで看護計画を評価/);
+  assert.doesNotMatch(src, /AIで看護計画を評価/, 'OCR以外のAIによる計画評価は禁止');
   assert.match(src, /onclick="openCareRecord\('\$\{pid\}'\)"><i class="fa-solid fa-plus"><\/i> 実施・評価を記録/);
   // 目標の例はそのまま入れない（例のままなら理由を書く）、OPの不足は理由を書いてから足す
   assert.match(src, /例のままですが、よいですか？/);
   assert.match(src, /const why = await askCareReason\('OPに足す理由'/);
   assert.match(src, /if \(t\.length < 6\) \{ showToast\('理由を、記録のデータを使って書いてください/);
   // AIの看護計画から取り込んだ計画も、理由を求める
-  assert.match(src, /forEach\(f => add\(\{ \.\.\.f, source: 'ai', reasonNeeded: true \}\)\)/);
+  assert.doesNotMatch(src, /forEach\(f => add\(\{ \.\.\.f, source: 'ai', reasonNeeded: true \}\)\)/);
   assert.match(css, /\.cpr-item \{/);
   assert.match(css, /\.cp-reason-need \{/);
 });
