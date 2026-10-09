@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "description": "Unapproved literature-backed candidate claims. Do not use as approved clinical knowledge or automatically enforce these interventions.",
+  "claims": [
+    {
+      "id": "pressure-ulcer-risk-assessment",
+      "type": "assessment-criterion",
+      "statement": "Pressure injury prevention planning should be based on risk and skin assessment, including mobility and the capacity to reposition.",
+      "scope": "Individuals assessed for pressure ulcer risk; adult guidance and age-specific sections differ.",
+      "limitations": "Does not establish the individual's risk, diagnosis or appropriate regimen without assessment. Local policies and patient preferences matter.",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Pressure ulcers: prevention and management (CG179), recommendations 1.1 and 1.3",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg179/chapter/Recommendations",
+          "year": 2014
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "pressure-ulcer-skin-observation",
+      "type": "nursing-intervention",
+      "statement": "NICE recommends skin assessment by a trained healthcare professional for adults assessed to be at high pressure-ulcer risk, including pressure-area skin integrity and changes in skin colour, heat, firmness and moisture.",
+      "scope": "Adults assessed to be at high risk of pressure ulcers.",
+      "limitations": "The recommendation is not an automatic finding of tissue injury. Assess risk and local clinical instructions; does not authorize any specific treatment.",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Pressure ulcers: prevention and management (CG179), recommendation 1.1.5",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg179/chapter/Recommendations",
+          "year": 2014
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    }
+  ]
+}
