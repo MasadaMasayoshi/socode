@@ -55,3 +55,11 @@ test('undo and redo guard against overwriting later edits',()=>{
  const match=html.match(/<script>(\s*\/\/ Local, read-only checks[\s\S]*?)<\/script>/);
  assert.ok(match);assert.doesNotThrow(()=>new vm.Script(match[1]));
 });
+
+test('timeline check only analyzes parseable ISO dates',()=>{
+ assert.match(html,/let previousTimestamp=null/);
+ assert.match(html,/Date\.parse\(raw\)/);
+ assert.match(html,/previousTimestamp!==null&&timestamp<previousTimestamp/);
+ const block=html.match(/<script>(\s*\/\/ Local, read-only checks[\s\S]*?)<\/script>/);
+ assert.ok(block);assert.doesNotThrow(()=>new vm.Script(block[1]));
+});
