@@ -32,3 +32,12 @@ test('rules-based laboratory results can display, former AI results cannot', () 
     assert.ok(!tabs.includes("'" + panel + "'"), 'obsolete AI tab must not reappear: ' + panel);
   }
 });
+
+test('both image-upload workflows explicitly opt into OCR only', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'js/10-reference-page-and-startup.js'), 'utf8');
+  const calls = source.match(/callGeminiAI\(\[\{ parts: \[/g) || [];
+  assert.equal(calls.length, 2);
+  assert.equal((source.match(/\], \{ ocr: true \}\);/g) || []).length, 2);
+});
