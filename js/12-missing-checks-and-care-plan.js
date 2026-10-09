@@ -788,38 +788,13 @@
       commitCarePlanChange(cp);
       showToast('看護計画を消しました', 'info');
     };
-    // AIの看護計画・選んだ看護診断候補から取り込む（同じ看護問題の計画が既にあれば足さない）
+    // 旧AIの結果からの看護計画取り込みは廃止。手動作成と関連図からの取り込みを使用する。
+    // 従来の外部呼び出しとの互換性のため関数名のみ残し、AIの生成結果は読み込まない。
     function importCarePlans(cp, source, now = new Date().toISOString()) {
-      const existing = new Set(carePlanList(cp).map(p => p.problem.replace(/\s+/g, '')));
-      const fresh = [];
-      const add = fields => {
-        const key = fields.problem.replace(/\s+/g, '');
-        if (!key || existing.has(key)) return;
-        existing.add(key);
-        const plan = createCarePlan(cp, fields, now);
-        if (!plan.relatedNeeds.length) plan.relatedNeeds = guessPlanNeeds(plan);
-        fresh.push(plan);
-      };
-      if (source === 'ai') parseCarePlanText(htmlToPlainText(cp.carePlanResult || '')).forEach(f => add({ ...f, source: 'ai', reasonNeeded: true }));
-      else selectedDiagnosisNames(cp).forEach(name => add({ problem: name }));
-      return fresh;
+      return [];
     }
-    window.importCarePlansUI = async function() {
-      const cp = getCurrentPatient();
-      const aiCount = cp.carePlanResult ? parseCarePlanText(htmlToPlainText(cp.carePlanResult)).length : 0;
-      const dxCount = selectedDiagnosisNames(cp).length;
-      if (!aiCount && !dxCount) return showToast('取り込める内容がありません。総合アセスメント表の「AI分析ツール」で看護診断候補を選ぶか、看護計画を自動生成してください', 'warn', 6000);
-      let source = aiCount ? 'ai' : 'dx';
-      if (aiCount && dxCount) {
-        const ans = await openDialog({ title: '何から取り込みますか？', message: `AIの看護計画（看護問題${aiCount}件、目標・OP/TP/EPつき）か、選んだ看護診断候補（${dxCount}件、看護問題の名前だけ）から取り込みます。取り込んだあと、自由に書き直せます。`, confirmLabel: 'AIの看護計画から', secondaryLabel: '看護診断候補から' });
-        if (ans === null) return;
-        source = ans === 'secondary' ? 'dx' : 'ai';
-      }
-      const fresh = importCarePlans(cp, source);
-      if (!fresh.length) return showToast('同じ看護問題の計画が既にあるため、取り込むものはありませんでした', 'info');
-      fresh.forEach(p => carePlanOpen.add(p.id));
-      commitCarePlanChange(cp);
-      showToast(`看護計画を${fresh.length}件取り込みました。自分の言葉で書き直しましょう`, 'success');
+    window.importCarePlansUI = function() {
+      showToast('AIの結果からの取り込みは廃止しました。「＋看護計画を追加」または「関連図から取り込む」を使用してください', 'info');
     };
 
     // ---- 実施・評価の記録の画面 ----
