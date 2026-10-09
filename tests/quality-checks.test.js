@@ -21,3 +21,8 @@ test('lab checks missing units and references',()=>assert.ok(q.lab({value:7,min:
 test('OCR comparisons identify discrepancies',()=>assert.equal(q.ocr('WBC 6000/μL','WBC 6000/μL').length,0));
 test('revision patterns count deterministically',()=>assert.deepEqual(q.history([{reason:'tag'},{reason:'tag'},{reason:'period'}])[0],{reason:'tag',count:2}));
 test('unreviewed medical knowledge never automatically applies',()=>assert.ok(q.applicability({scope:'成人',status:'pending-expert-review'},{ageGroup:'adult',phase:'afterAdmission'}).some(x=>x.code==='not-expert-approved')));
+
+test('existing socode care-plan schema is supported without false missing goals',()=>{
+ const plan={problem:'転倒リスク',goalLong:'安全に移動できる',goalShort:'ナースコールを使える',op:['観察'],tp:['援助'],ep:['教育']};
+ assert.equal(q.carePlan(plan).length,0);
+});
