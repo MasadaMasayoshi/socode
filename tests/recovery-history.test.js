@@ -22,7 +22,7 @@ const startup=fs.readFileSync(path.join(__dirname,'../js/10-reference-page-and-s
 const checkpoint=startup.slice(startup.indexOf('    const IMPORT_CHECKPOINT_KEY'),startup.indexOf('    async function importPatientsDataText'));
 test('import checkpoints retain three versions and restoration goes through import preview',async()=>{
  const data=new Map();let restored;
- const ctx={localStorage:{getItem:k=>data.get(k)||null},writeLocalVerified:(k,v)=>{data.set(k,v);return true;},importPatientsDataText:async text=>{restored=JSON.parse(text);return true;},showToast(){}};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(checkpoint,ctx);
+ const ctx={localStorage:{getItem:k=>data.get(k)||null},writeLocalVerified:(k,v)=>{data.set(k,v);return true;},openDialog:async()=>'1',importPatientsDataText:async text=>{restored=JSON.parse(text);return true;},showToast(){}};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(checkpoint,ctx);
  for(let i=0;i<5;i++)assert.equal(ctx.saveImportCheckpoint({patients:[{id:String(i)}]}),true);
  assert.equal(JSON.parse([...data.values()][0]).length,3);assert.equal(await ctx.restoreImportCheckpoint(),true);assert.equal(restored.patients[0].id,'4');
 });
@@ -30,4 +30,19 @@ test('checkpoint write failure blocks replacement before patient data changes',(
  const ctx={localStorage:{getItem:()=>null},writeLocalVerified:()=>false};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(checkpoint,ctx);assert.equal(ctx.saveImportCheckpoint({patients:[]}),false);
  const body=startup.slice(startup.indexOf('    async function importPatientsDataText'));
  assert.ok(body.indexOf('if (!saveImportCheckpoint(snapshot))')<body.indexOf('globalAppData.patients = [...kept'));
+});
+const changesFn=startup.slice(startup.indexOf('    function importCardChanges'),startup.indexOf('    async function importPatientsDataText'));
+test('import preview counts changed, added and deleted active cards',()=>{
+ const ctx={};vm.createContext(ctx);vm.runInContext(changesFn,ctx);
+ const d=ctx.importCardChanges({items:[{id:'a',text:'old'},{id:'b'},{id:'gone',deleted:true}]},{items:[{id:'a',text:'new'},{id:'c'}]});
+ assert.deepEqual(JSON.parse(JSON.stringify(d)),{added:1,removed:1,changed:1});
+});
+test('a patient updated while an import preview is open is protected',async()=>{
+ let resolve,changed=false;
+ const p={id:'p',items:[{id:'c',text:'before'}]};
+ const fn=startup.slice(startup.indexOf('    async function importPatientsDataText'),startup.indexOf("    document.getElementById('input-load-data')"));
+ const ctx={globalAppData:{patients:[p]},parseImportedDataText:()=>({patients:[{id:'p',items:[]}]}),openDialog:()=>new Promise(r=>resolve=r),showToast:()=>{},persistData:()=>{changed=true;}};
+ vm.createContext(ctx);vm.runInContext(changesFn+fn,ctx);
+ const pending=ctx.importPatientsDataText('unused');p.items[0].text='later';resolve(true);
+ assert.equal(await pending,false);assert.equal(p.items[0].text,'later');assert.equal(changed,false);
 });

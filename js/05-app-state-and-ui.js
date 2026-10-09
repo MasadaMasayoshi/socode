@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-10.quality2'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-10.recovery2'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -460,6 +460,15 @@
     dialogConfirmBtn.addEventListener('click', () => closeDialog(dialogInputEl.classList.contains('hidden') ? true : dialogInputEl.value.trim()));
     dialogInputEl.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); dialogConfirmBtn.click(); } });
     dialogEl.addEventListener('click', e => { if (e.target === dialogEl) closeDialog(null); });
+    dialogEl.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { e.preventDefault(); closeDialog(null); return; }
+      if (e.key !== 'Tab') return;
+      const focusable = Array.from(dialogEl.querySelectorAll('button, input')).filter(el=>!el.disabled && !el.classList.contains('hidden'));
+      if (!focusable.length) return;
+      const first=focusable[0], last=focusable[focusable.length-1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
 
     function escapeHtml(str) {
       if (!str) return '';

@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-10-10.recovery1'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-10-10.recovery2'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 参考データ ページ：看護基準・院内プロトコル等をユーザーが自由に登録・編集できる。
     // 「不足情報をAI推定」の判断材料としても使われる（evaluateMissingInfoAI 参照）。
@@ -210,25 +210,50 @@
     window.restoreImportCheckpoint = async function() {
       let snapshots;
       try { snapshots = JSON.parse(localStorage.getItem(IMPORT_CHECKPOINT_KEY) || '[]'); } catch (e) { snapshots = []; }
-      const snapshot = Array.isArray(snapshots) && snapshots[0];
+      let index = 0;
+      if (Array.isArray(snapshots) && snapshots.length > 1) {
+        const choice = await openDialog({ title: '読み込む控えを選ぶ', message: snapshots.map((x,i)=>`${i+1}：${x.exportedAt || '日時不明'}（${Array.isArray(x.patients)?x.patients.length:0}件）`).join('\n'), inputValue: '1', placeholder: '控えの番号', confirmLabel: '内容を確認' });
+        if (choice === null) return false;
+        index = Number(String(choice).trim()) - 1;
+        if (!Number.isInteger(index) || index < 0 || index >= snapshots.length) { showToast('一覧にある控えの番号を入力してください', 'warn'); return false; }
+      }
+      const snapshot = Array.isArray(snapshots) && snapshots[index];
       if (!snapshot) { showToast('このブラウザに読込前の控えはありません', 'info'); return false; }
       // Uses the same validation and replacement preview as file imports.
       return importPatientsDataText(JSON.stringify(snapshot));
     };
+    function importCardChanges(existing, incoming) {
+      const before = new Map((existing?.items || []).filter(x=>!x.deleted).map(x=>[x.id,x]));
+      const after = new Map((incoming.items || []).filter(x=>!x.deleted).map(x=>[x.id,x]));
+      let added=0, removed=0, changed=0;
+      for (const [id,item] of after) {
+        if (!before.has(id)) added++;
+        else if (JSON.stringify(before.get(id)) !== JSON.stringify(item)) changed++;
+      }
+      for (const id of before.keys()) if (!after.has(id)) removed++;
+      return {added,removed,changed};
+    }
     async function importPatientsDataText(text) {
       let data;
       try { data = parseImportedDataText(text); } catch (err) { showToast(['ファイルを読み込めませんでした', { text: err.message, detail: true }], 'warn'); return false; }
       const existingIds = new Set(globalAppData.patients.map(p => p.id));
       const replacing = data.patients.filter(p => existingIds.has(p.id)).length;
+      const replacementIds = data.patients.filter(p=>existingIds.has(p.id)).map(p=>p.id);
+      const beforePreview = JSON.stringify(globalAppData.patients.filter(p=>replacementIds.includes(p.id)));
+      const changes = data.patients.reduce((sum,p)=>{ const old=globalAppData.patients.find(x=>x.id===p.id); if(old){const d=importCardChanges(old,p); for(const key of Object.keys(sum))sum[key]+=d[key];} return sum; },{added:0,removed:0,changed:0});
       const cardCount = data.patients.reduce((n, p) => n + p.items.length, 0);
       const ok = await openDialog({
         title: `${data.patients.length}件のカルテを読み込みますか？`,
         message: `カード ${cardCount}枚を含む ${data.patients.length}件のカルテを読み込みます。` +
-          (replacing ? `\nそのうち ${replacing}件は、今ある同じカルテを読み込んだ内容で置き換えます。` : '') +
+          (replacing ? `\nそのうち ${replacing}件は、今ある同じカルテを読み込んだ内容で置き換えます。\n置換対象のカード：追加 ${changes.added}枚・削除 ${changes.removed}枚・変更 ${changes.changed}枚。` : '') +
           '\nほかの今のカルテはそのまま残ります。' + (data.learningUserDict ? '\n学習データは、同じ文章の票（回数）の多い方を残して取り込みます。' : ''),
         confirmLabel: '読み込む'
       });
       if (ok !== true) return false;
+      if (beforePreview !== JSON.stringify(globalAppData.patients.filter(p=>replacementIds.includes(p.id)))) {
+        showToast('確認中にカルテが更新されました。最新の内容を確認してから読み込み直してください', 'warn');
+        return false;
+      }
       // ③今表示している患者の記録メモは、切り替える前に今の患者へ保存する
       if (typeof cancelSourceTextSave === 'function') cancelSourceTextSave();
       if (globalAppData.patients.some(p => p.id === globalAppData.currentPatientId)) persistData();

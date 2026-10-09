@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-10.recovery1">
-  <meta name="app-file-versions" content="01:2026-10-08.2045,02:2026-10-08.8,03:2026-10-10.quality1,04:2026-10-09.41,05:2026-10-10.quality2,06:2026-10-08.2103,07:2026-10-10.quality1,08:2026-10-10.quality1,09:2026-10-08.2121,10:2026-10-10.recovery1,11:2026-10-10.quality1,12:2026-10-10.quality1,13:2026-10-08.2121,14:2026-10-06.14,15:2026-10-10.recovery1">
+  <meta name="app-version" content="2026-10-10.recovery2">
+  <meta name="app-file-versions" content="01:2026-10-08.2045,02:2026-10-08.8,03:2026-10-10.quality1,04:2026-10-09.41,05:2026-10-10.recovery2,06:2026-10-08.2103,07:2026-10-10.quality1,08:2026-10-10.quality1,09:2026-10-08.2121,10:2026-10-10.recovery2,11:2026-10-10.quality1,12:2026-10-10.quality1,13:2026-10-08.2121,14:2026-10-06.14,15:2026-10-10.recovery1">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
@@ -1190,11 +1190,11 @@
   </div>
 
   <!-- 汎用ダイアログモーダル（入力・確認共通） -->
-  <div id="modal-dialog" class="hidden fixed inset-0 z-[69] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+  <div id="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" aria-describedby="dialog-message" class="hidden fixed inset-0 z-[69] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface max-w-sm w-full p-5 flex flex-col gap-4">
       <h3 id="dialog-title" class="font-display font-semibold text-sm text-[var(--ink)]"></h3>
       <p id="dialog-message" class="hidden text-xs text-[var(--ink-muted)] leading-relaxed -mt-2 whitespace-pre-line"></p>
-      <input id="dialog-input" type="text" class="field hidden">
+      <input id="dialog-input" aria-labelledby="dialog-title" type="text" class="field hidden">
       <div class="flex justify-end gap-2">
         <button id="dialog-cancel" class="btn btn-outline">キャンセル</button>
         <!-- 3択の確認（例：分類前の文章を含めずに書き出す）でだけ表示する2つ目の選択ボタン（app.jsのopenDialogのsecondaryLabel） -->
@@ -1376,12 +1376,12 @@
   <script src="js/02-reference-data.js?v=2026-10-08.8"></script>
   <script src="js/03-extraction-helpers.js?v=2026-10-10.quality1"></script>
   <script src="js/04-server-sync.js?v=2026-10-09.41"></script>
-  <script src="js/05-app-state-and-ui.js?v=2026-10-10.quality2"></script>
+  <script src="js/05-app-state-and-ui.js?v=2026-10-10.recovery2"></script>
   <script src="js/06-export.js?v=2026-10-08.2103"></script>
   <script src="js/07-classification.js?v=2026-10-10.quality1"></script>
   <script src="js/08-assessment-tools.js?v=2026-10-10.quality1"></script>
   <script src="js/09-board.js?v=2026-10-08.2121"></script>
-  <script src="js/10-reference-page-and-startup.js?v=2026-10-10.recovery1"></script>
+  <script src="js/10-reference-page-and-startup.js?v=2026-10-10.recovery2"></script>
   <script src="js/11-own-assessment.js?v=2026-10-10.quality1"></script>
   <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-10.quality1"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-08.2121"></script>

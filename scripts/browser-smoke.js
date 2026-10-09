@@ -43,6 +43,16 @@ const {app}=require('../server');
     return {undone,redone,protectedUpdate,checkpoint};
    });
    assert.deepEqual(recovery,{undone:true,redone:true,protectedUpdate:true,checkpoint:true});
+   await page.evaluate(()=>{window.__smokePreview=importPatientsDataText(JSON.stringify({patients:[getCurrentPatient()],currentPatientId:getCurrentPatient().id}));});
+   await page.locator('#modal-dialog').waitFor({state:'visible'});
+   assert.match(await page.locator('#dialog-message').innerText(),/追加 .*枚・削除 .*枚・変更 .*枚/);
+   for(let i=0;i<4;i++) {
+    await page.keyboard.press('Tab');
+    assert.equal(await page.evaluate(()=>document.getElementById('modal-dialog').contains(document.activeElement)),true);
+   }
+   await page.keyboard.press('Escape');
+   assert.equal(await page.evaluate(()=>window.__smokePreview),false);
+
    await page.locator('#tab-so-board').click();
    await page.locator('#source-text').waitFor({state:'visible'});
    assert.ok(await page.evaluate(()=>getCurrentPatient().items.length)>=before);
