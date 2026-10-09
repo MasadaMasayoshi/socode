@@ -18,9 +18,9 @@ const { loadApp } = require('./app-helpers');
 const app = loadApp();
 const { suggestHendersonTagsForText, hasLearnedSignal } = app;
 
-test('既往歴フィールドの「胆結石」は2(食事)タグが提案される（利用者からの報告事例）', () => {
+test('症状のない胆結石の既往歴を、病名だけで2(食事)へ自動分類しない', () => {
   const ids = suggestHendersonTagsForText('53歳の時に胆結石を指摘されていたが、症状がないため経過観察中', '既往歴', undefined);
-  assert.ok(Array.from(ids).includes(2), '胆結石(胆石症の別表記)はfieldLabelHintTags経由で2(食事)が提案される');
+  assert.ok(!Array.from(ids).includes(2), '病名のみでは食事の充足・栄養状態を示さない。観察事実に基づき分類する');
 });
 
 test('年齢フィールドラベルには9タグが提案される（4.姿勢は付けない：患者36の指摘）', () => {
