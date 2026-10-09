@@ -18,6 +18,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Synchronize file versions for migration verification
+        run: node scripts/stamp-version.js 2026-10-10.0200
+      - name: Verify source versions and migration tests
+        run: node --test tests/app-files-order.test.js tests/ocr-only-policy.test.js tests/remove-ai-classification.test.js tests/disable-ai-plan-import.test.js
       - name: JavaScript syntax check
         run: |
           for f in js/*.js tests/*.test.js; do node --check "$f"; done
