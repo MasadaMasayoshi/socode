@@ -11,7 +11,7 @@
       "sources": [
         {
           "kind": "guideline",
-          "title": "Pressure ulcers: prevention and management (CG179), recommendations 1.1 and 1.3",
+          "title": "Pressure ulcers: prevention and management (CG179), recommendations 1.1.1–1.1.4 and 1.3.1",
           "publisher": "NICE",
           "url": "https://www.nice.org.uk/guidance/cg179/chapter/Recommendations",
           "year": 2014
@@ -26,8 +26,12 @@
         "source": "explicit-user-instruction"
       },
       "sourceVerification": {
-        "status": "not-independently-verified",
-        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/cg179/chapter/Recommendations",
+        "scope": "published-recommendation-text-or-official-clinical-guide",
+        "note": "CG179 1.1.1-1.1.4: risk factors include restricted mobility, poor sensation, nutrition and ability to reposition; care planning at 1.3.1. Original '1.1 and 1.3' is section-level citation.",
+        "limitations": "Only a match to source content, not independent expert review or local clinical approval."
       },
       "reviewDue": "2027-04-10"
     },
@@ -55,8 +59,12 @@
         "source": "explicit-user-instruction"
       },
       "sourceVerification": {
-        "status": "not-independently-verified",
-        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/cg179/chapter/Recommendations",
+        "scope": "published-recommendation-text-or-official-clinical-guide",
+        "note": "CG179 1.1.5: high-risk adult skin check by trained professional; includes integrity, colour, warmth, firmness and moisture.",
+        "limitations": "Only a match to source content, not independent expert review or local clinical approval."
       },
       "reviewDue": "2027-04-10"
     },
@@ -513,8 +521,12 @@
         "source": "explicit-user-instruction"
       },
       "sourceVerification": {
-        "status": "not-independently-verified",
-        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/cg174/chapter/recommendations",
+        "scope": "published-recommendation-text-or-official-clinical-guide",
+        "note": "CG174 1.2.2: history, clinical exam, fluid balance trends, weight and renal/electrolyte investigations.",
+        "limitations": "Only a match to source content, not independent expert review or local clinical approval."
       },
       "reviewDue": "2027-04-10"
     },
@@ -740,8 +752,12 @@
         "source": "explicit-user-instruction"
       },
       "sourceVerification": {
-        "status": "not-independently-verified",
-        "note": "出典本文と推奨番号の一致、および改訂状況は未確認。専門家による原文照合が必要。"
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.niddk.nih.gov/health-information/digestive-diseases/constipation/diagnosis",
+        "scope": "published-recommendation-text-or-official-clinical-guide",
+        "note": "NIDDK diagnosis and symptoms/causes: stool frequency/appearance, duration, diet, activity, medicines and symptoms. Residual stool feeling supported by symptoms/causes page.",
+        "limitations": "Only a match to source content, not independent expert review or local clinical approval."
       },
       "reviewDue": "2027-04-10"
     },
