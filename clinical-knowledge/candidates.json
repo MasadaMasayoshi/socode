@@ -343,6 +343,120 @@
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
       "reviewer": null
+    },
+    {
+      "id": "vte-surgery-bleeding-risk-assessment",
+      "type": "assessment-criterion",
+      "statement": "周術期・外傷患者では静脈血栓塞栓症（VTE）と出血の双方のリスクを評価し、病状変化に応じて再評価する。",
+      "scope": "16歳以上の入院患者における手術・外傷時のVTE予防評価。",
+      "limitations": "リスク評価だけで抗凝固薬や器具を開始しない。術式・禁忌・出血リスク・指示・施設で採用する評価ツールを確認する。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Venous thromboembolism in over 16s (NG89), recommendations 1.1.5, 1.1.6 and 1.1.8",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng89/chapter/recommendations",
+          "year": 2018
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "vte-mobilisation-and-hydration",
+      "type": "nursing-intervention",
+      "statement": "静脈血栓塞栓症の予防では、可能な限り早期の離床を促し、臨床上必要な場合を除き脱水状態を避ける。",
+      "scope": "16歳以上の手術を受ける患者などに対するNICE NG89の一般的な看護ケア。",
+      "limitations": "安静度、出血、循環動態、心不全・腎不全、術後指示や転倒リスクを確認し、全患者に一律の飲水や離床を指示しない。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Venous thromboembolism in over 16s (NG89), recommendations 1.3.14–1.3.15",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng89/chapter/recommendations",
+          "year": 2018
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "delirium-risk-and-acute-fluctuation",
+      "type": "assessment-criterion",
+      "statement": "せん妄リスク評価では65歳以上、認知機能障害、股関節骨折、重症疾患に留意し、数時間から数日の注意・認知・行動・活動性の変化や日内変動を観察する。",
+      "scope": "入院時および入院中にせん妄リスクがある人の評価。",
+      "limitations": "変化を確認しただけでせん妄と確定しない。原因評価と適切な評価尺度・専門的診断が必要。低活動型も見落とさない。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Delirium: prevention, diagnosis and management (CG103), recommendations 1.2.1 and 1.3.1–1.3.2",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg103/chapter/Recommendations",
+          "year": 2010
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "delirium-low-activity-screening",
+      "type": "assessment-criterion",
+      "statement": "せん妄が疑われる場合は、興奮だけでなく反応の遅さ、引きこもり、活動性や食欲の低下といった低活動型の所見にも注意する。",
+      "scope": "入院患者・長期ケアで、せん妄の可能性を示す急性の変化がある場合。",
+      "limitations": "低活動型の所見は非特異的で、単独では確定診断とならない。適切な尺度を使うことや専門職の判断が必要。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Delirium: prevention, diagnosis and management (CG103), recommendations 1.3.2 and 1.6.1–1.6.2",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg103/chapter/Recommendations",
+          "year": 2010
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "constipation-bowel-history-record",
+      "type": "assessment-criterion",
+      "statement": "便秘の評価では排便頻度だけでなく、便の硬さ・排便困難・残便感、症状の持続期間、食事・水分・活動量・使用薬剤の変化を確認する。",
+      "scope": "成人の便秘症状の初期情報収集。",
+      "limitations": "週3回未満だけで便秘と断定しない。術後の排便異常は腸閉塞などの別疾患を除外する必要がある。",
+      "sources": [
+        {
+          "kind": "official-standard",
+          "title": "Diagnosis of Constipation; Symptoms & Causes of Constipation",
+          "publisher": "National Institute of Diabetes and Digestive and Kidney Diseases",
+          "url": "https://www.niddk.nih.gov/health-information/digestive-diseases/constipation/diagnosis",
+          "year": 2018
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "constipation-red-flag-symptoms",
+      "type": "assessment-criterion",
+      "statement": "便秘に直腸出血、持続する腹痛、排ガス不能、嘔吐、発熱、意図しない体重減少などを伴う場合は、速やかな医学的評価が必要な徴候として扱う。",
+      "scope": "便秘を訴える患者の症状確認。",
+      "limitations": "これらの症状の原因を便秘と決めつけない。特に術後の腹痛・嘔吐・排ガス不能は緊急性を考慮する。",
+      "sources": [
+        {
+          "kind": "official-standard",
+          "title": "Symptoms & Causes of Constipation",
+          "publisher": "National Institute of Diabetes and Digestive and Kidney Diseases",
+          "url": "https://www.niddk.nih.gov/health-information/digestive-diseases/constipation/symptoms-causes",
+          "year": 2018
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
     }
   ]
 }
