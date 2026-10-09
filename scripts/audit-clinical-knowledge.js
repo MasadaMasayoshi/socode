@@ -23,14 +23,17 @@ for (const c of data.claims || []) {
     if (!src.title || !src.publisher || !Number.isInteger(src.year)) notes.push('出典の書誌情報不足');
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(c.lastChecked || '') || c.lastChecked > date) notes.push('最終確認日の不整合');
-  if (!c.sourceVerification || c.sourceVerification.status !== 'not-independently-verified') notes.push('出典本文の照合状態が不明');
+  const verification = c.sourceVerification;
+  if (!verification || !['not-independently-verified', 'source-text-matched'].includes(verification.status)) notes.push('出典本文の照合状態が不明');
+  if (verification?.status === 'source-text-matched' && (!verification.checkedOn || !verification.url || !verification.note)) notes.push('出典原文との照合記録が不足');
   if (!c.reviewDue || c.reviewDue < date) notes.push('再確認期限なし、または期限切れ');
   if (notes.length) problems.push({id:c.id,issues:notes});
 }
 console.log('Knowledge entries: ' + (data.claims || []).length);
 console.log('Owner-approved entries: ' + (data.claims || []).filter(c=>c.ownerApproval?.status==='approved').length);
 console.log('Expert-reviewed entries: 0 (no expert review is recorded in this registry)');
-console.log('Source-content verification: pending manual verification for all entries');
+console.log('Source-text matched entries: ' + (data.claims || []).filter(c=>c.sourceVerification?.status === 'source-text-matched').length);
+console.log('Source-text review pending: ' + (data.claims || []).filter(c=>c.sourceVerification?.status !== 'source-text-matched').length);
 if (problems.length) {
   console.log(JSON.stringify(problems,null,2));
   process.exitCode = 1;
