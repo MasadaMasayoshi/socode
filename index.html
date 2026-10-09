@@ -1402,7 +1402,11 @@
           if(!Array.isArray(item.hendersonIds)||item.hendersonIds.length===0)warn('untagged','ヘンダーソン分類が未設定です',item.id);
           if((item.hendersonIds||[]).some(n=>!Number.isInteger(Number(n))||Number(n)<1||Number(n)>14))warn('tag-range','分類番号が1～14の範囲外です',item.id);
         }
+        const itemIds=new Set(items.map(i=>String(i.id)));
         for(const p of plans){
+          for(const id of Array.isArray(p.evidenceIds)?p.evidenceIds:[]){
+            if(!itemIds.has(String(id)))warn('broken-evidence','看護計画の根拠カードが見つかりません',p.id);
+          }
           if(!String(p.problem||'').trim())warn('problem','看護問題名が未入力です',p.id);
           if(!String(p.goalLong||p.goalShort||'').trim())warn('goal','看護目標が未入力です',p.id);
           for(const type of ['op','tp','ep'])if(!(Array.isArray(p[type])&&p[type].some(v=>String(v||'').trim())))warn('plan-'+type,type.toUpperCase()+'が未入力です',p.id);
