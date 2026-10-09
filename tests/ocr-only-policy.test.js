@@ -7,9 +7,9 @@ const root = path.join(__dirname, '..');
 test('non-image Gemini requests are rejected at common entry point', () => {
   const source = fs.readFileSync(path.join(root, 'js/05-app-state-and-ui.js'), 'utf8');
   assert.match(source, /async function callGeminiAIOnce\(contents, options = \{\}\)/);
-  assert.match(source, /if \(!hasImage\) throw new Error\('AI機能は画像の文字認識/);
+  assert.match(source, /if \(!hasImage \|\| options\.ocr !== true\) throw new Error\('AI機能は画像の文字認識/);
   assert.match(source, /p\.inline_data \|\| p\.file_data/);
-  assert.ok(source.indexOf('if (!hasImage) throw new Error') < source.indexOf('requestGemini(globalAppData.apiKey, body)'), 'network request must follow gate');
+  assert.ok(source.indexOf('if (!hasImage || options.ocr !== true) throw new Error') < source.indexOf('requestGemini(globalAppData.apiKey, body)'), 'network request must follow gate');
 });
 test('AI analysis results remain hidden, non-AI checks and OCR remain available', () => {
   const source = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
