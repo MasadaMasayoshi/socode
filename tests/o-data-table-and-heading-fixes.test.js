@@ -129,7 +129,7 @@ test('数字だけを「」で囲んだ評価値はOデータ、かな・漢字�
   assert.equal(predictSOTypeFromNarrative('疼痛: 安静時ペインスケール「2-3」'), 'o');
   assert.equal(predictSOTypeFromNarrative('疼痛: 「動かなかったら痛くないよ」'), 's');
   assert.ok(!detectMultipleHendersonTags('安静時ペインスケール「2-3」').includes(10), '数字だけの括弧で10(コミュニケーション)は付かない');
-  assert.ok(detectMultipleHendersonTags('「先生にお任せするしかない」').includes(10), '発言には引き続き10が付く');
+  assert.ok(!detectMultipleHendersonTags('「先生にお任せするしかない」').includes(10), 'Sデータという形式だけでは10(コミュニケーション)に分類しない');
 });
 
 test('「術後1日目より受け持つ。」は日時が剥がされず、学生の受け持ち開始の記述として不必要な情報になる（利用者からの報告事例）', () => {
