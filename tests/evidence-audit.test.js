@@ -15,3 +15,13 @@ test('correct simple links produce no evidence-link warnings',()=>{
  const result=audit({id:'mock',items:[{id:'c',text:'所見',hendersonIds:[4]}],carePlans:{p:{id:'p',problem:'問題',goalShort:'目標',op:['観察'],tp:['援助'],ep:['説明'],evidenceIds:['c']}},relationMap:{nodes:[],edges:[]}});
  assert.ok(!result.issues.some(x=>x.type==='broken-evidence'||x.type==='missing-evidence'));
 });
+
+test('source coverage distinguishes exact text from manual-review paraphrases',()=>{
+ const {compareSourceCoverage}=require('../clinical-knowledge/evidence-audit.js');
+ const source='入院前は自分で歩いていた。\n術後は歩行に付き添いが必要になった。';
+ const x=compareSourceCoverage(source,[{text:'入院前は自分で歩いていた。'},{text:'術後は介助を要する。'}]);
+ assert.equal(x.segments,2);
+ assert.equal(x.matched.length,1);
+ assert.equal(x.needsReview.length,1);
+ assert.match(x.notice,/完全一致/);
+});
