@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-10.quality1'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-10.recovery1'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -2765,8 +2765,21 @@
       }
       return cp.relationMap || null;
     }
+    // Histories remain separate for each patient for the lifetime of this page.
+    const rmPatientHistories = new Map();
+    function rmSelectHistory(cp) {
+      if (rmState.patientId === cp.id) return;
+      if (rmState.patientId) rmPatientHistories.set(rmState.patientId, { undo: rmState.undo, redo: rmState.redo, expected: rmState.historyExpected });
+      const history = rmPatientHistories.get(cp.id);
+      rmState.patientId = cp.id;
+      rmState.undo = history?.undo || [];
+      rmState.redo = history?.redo || [];
+      rmState.historyExpected = history?.expected ?? rmSnapshot(cp);
+    }
     function rmSnapshot(cp) { return JSON.stringify(cp.relationMap || null); }
     function rmPushUndo(cp) {
+      rmSelectHistory(cp);
+      if (rmState.historyExpected !== rmSnapshot(cp)) { rmState.undo = []; rmState.redo = []; }
       rmState.undo.push(rmSnapshot(cp));
       if (rmState.undo.length > RM_UNDO_MAX) rmState.undo.shift();
       rmState.redo = [];
@@ -2782,6 +2795,7 @@
         Object.defineProperty(map, '__normalized', { value: true, enumerable: false, configurable: true });
       }
       cp.relationMap = map;
+      if (cp.id === rmState.patientId) rmState.historyExpected = rmSnapshot(cp);
       if (cp.id === getCurrentPatient().id) persistData();
       else { cp.updatedAt = new Date().toISOString(); if (typeof schedulePatientSync === 'function') schedulePatientSync(cp.id); if (typeof savePatientsLocally === 'function') savePatientsLocally(); }
       if (render && cp.id === getCurrentPatient().id) renderRelationMap();
@@ -2811,7 +2825,7 @@
       const view = document.getElementById('view-relation');
       if (!view) return;
       const cp = getCurrentPatient();
-      if (rmState.patientId !== cp.id) { rmState.patientId = cp.id; rmState.undo = []; rmState.redo = []; rmState.selected = null; rmState.connectFrom = null; rmState.focusProblem = null; rmShowCheck(null); }
+      if (rmState.patientId !== cp.id) { rmSelectHistory(cp); rmState.selected = null; rmState.connectFrom = null; rmState.focusProblem = null; rmShowCheck(null); }
       const map = rmMap(cp);
       const wrap = document.getElementById('rm-canvas-wrap');
       const empty = document.getElementById('rm-empty');
@@ -3144,12 +3158,23 @@
     }
     function rmUndoRedo(redo) {
       const cp = getCurrentPatient();
+      rmSelectHistory(cp);
       const from = redo ? rmState.redo : rmState.undo, to = redo ? rmState.undo : rmState.redo;
       if (!from.length) return;
+      if (rmState.historyExpected !== rmSnapshot(cp)) {
+        showToast('関連図が別の操作で更新されています。現在の図を保護するため元に戻しません', 'warn');
+        return;
+      }
+      const snap = from[from.length - 1];
+      let map;
+      try {
+        const parsed = JSON.parse(snap);
+        map = normalizeRelationMap(parsed);
+        if (parsed !== null && !map) throw new Error('Invalid history');
+      } catch (e) { showToast('履歴を読み込めません。現在の関連図を保持しました', 'warn'); return; }
       to.push(rmSnapshot(cp));
-      const snap = from.pop();
-      let map = null;
-      try { map = normalizeRelationMap(JSON.parse(snap)); } catch (e) { map = null; }
+      if (to.length > RM_UNDO_MAX) to.shift();
+      from.pop();
       rmState.selected = null; rmState.connectFrom = null;
       rmCommit(cp, map);
       showToast(redo ? 'やり直しました' : '元に戻しました', 'info');

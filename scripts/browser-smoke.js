@@ -28,11 +28,26 @@ const {app}=require('../server');
     await page.locator('#view-'+name).waitFor({state:'visible'});
     await page.screenshot({path:`browser-artifacts/${width}-${name}.png`});
    }
+   const recovery = await page.evaluate(() => {
+    const cp=getCurrentPatient();
+    rmCommit(cp,{version:2,nodes:[{id:'smoke-node',type:'assessment',label:'架空の検証',x:50,y:50,itemIds:[]}],edges:[]},{pushUndo:true});
+    rmMutate(map=>{map.nodes[0].label='変更後';});
+    rmUndoRedo(false);
+    const undone=cp.relationMap.nodes[0].label==='架空の検証';
+    rmUndoRedo(true);
+    const redone=cp.relationMap.nodes[0].label==='変更後';
+    cp.relationMap.nodes[0].label='外部更新';
+    rmUndoRedo(false);
+    const protectedUpdate=cp.relationMap.nodes[0].label==='外部更新';
+    const checkpoint=saveImportCheckpoint({patients:[cp],currentPatientId:cp.id});
+    return {undone,redone,protectedUpdate,checkpoint};
+   });
+   assert.deepEqual(recovery,{undone:true,redone:true,protectedUpdate:true,checkpoint:true});
    await page.locator('#tab-so-board').click();
    await page.locator('#source-text').waitFor({state:'visible'});
    assert.ok(await page.evaluate(()=>getCurrentPatient().items.length)>=before);
    assert.deepEqual(errors,[],`Uncaught browser errors at ${width}px`);
-   console.log(`PASS ${width}px: classification and five views`);
+   console.log(`PASS ${width}px: classification, five views and recovery`);
    await context.close();
   }
  } finally {

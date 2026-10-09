@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-10-10.quality1'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-10-10.recovery1'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 参考データ ページ：看護基準・院内プロトコル等をユーザーが自由に登録・編集できる。
     // 「不足情報をAI推定」の判断材料としても使われる（evaluateMissingInfoAI 参照）。
@@ -197,6 +197,24 @@
       const current = patients.find(p => p.id === mapped && !p.archived) || patients.find(p => !p.archived) || patients[0];
       return { patients, currentPatientId: current.id, learningUserDict };
     }
+    const IMPORT_CHECKPOINT_KEY = 'nursing_import_checkpoints_v1';
+    function saveImportCheckpoint(snapshot) {
+      try {
+        let previous;
+        try { previous = JSON.parse(localStorage.getItem(IMPORT_CHECKPOINT_KEY) || '[]'); } catch (e) { previous = []; }
+        if (!Array.isArray(previous)) previous = [];
+        const next = [snapshot, ...previous].slice(0, 3);
+        return writeLocalVerified(IMPORT_CHECKPOINT_KEY, JSON.stringify(next));
+      } catch (e) { return false; }
+    }
+    window.restoreImportCheckpoint = async function() {
+      let snapshots;
+      try { snapshots = JSON.parse(localStorage.getItem(IMPORT_CHECKPOINT_KEY) || '[]'); } catch (e) { snapshots = []; }
+      const snapshot = Array.isArray(snapshots) && snapshots[0];
+      if (!snapshot) { showToast('このブラウザに読込前の控えはありません', 'info'); return false; }
+      // Uses the same validation and replacement preview as file imports.
+      return importPatientsDataText(JSON.stringify(snapshot));
+    };
     async function importPatientsDataText(text) {
       let data;
       try { data = parseImportedDataText(text); } catch (err) { showToast(['ファイルを読み込めませんでした', { text: err.message, detail: true }], 'warn'); return false; }
@@ -221,6 +239,10 @@
           patients: globalAppData.patients, currentPatientId: globalAppData.currentPatientId,
           learningUserDict: globalAppData.learningUserDict
         };
+        if (!saveImportCheckpoint(snapshot)) {
+          showToast('読込前の控えを保存できません。容量を確認してください。今のカルテは置き換えていません', 'warn');
+          return false;
+        }
         const link = document.createElement('a');
         link.href = URL.createObjectURL(new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' }));
         link.download = 'nursing_before_import_' + Date.now() + '.json';
