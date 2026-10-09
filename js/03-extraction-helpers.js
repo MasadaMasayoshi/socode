@@ -698,7 +698,9 @@
     function fieldLabelHintTags(fieldLabel, text) {
       // 「既往歴：特になし」も、これまでの健康状態の情報として9（入院歴・手術歴と同じ）に入れる（実習生の記録のテストで追加）
       if (fieldLabel === '既往歴' && /^\s*(?:特に|とくに)?(?:なし|無し|ない|特記事項なし|特記すべきことなし)\s*[。.]?\s*$/.test(String(text || '').normalize('NFKC'))) return [9];
-      if (fieldLabel === '診断名' || fieldLabel === '既往歴') return detectDiagnosisTagHints(text);
+      // 疾患名からの複数タグは観察・評価候補にとどめる。事実の分類タグに自動確定しない。
+      // detectDiagnosisTagHints は参考候補の取得用として残し、原文の内容で分類する。
+      if (fieldLabel === '診断名' || fieldLabel === '既往歴') return [];
       return FIELD_LABEL_DEFAULT_TAGS[fieldLabel] || [];
     }
 
