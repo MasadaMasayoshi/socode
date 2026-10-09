@@ -162,6 +162,15 @@
   </header>
 
   <main class="flex-1 max-w-7xl w-full mx-auto p-4 flex flex-col gap-4">
+    <section id="nursing-auto-check" class="surface p-3" aria-label="自動品質チェック" style="border:1px solid var(--line);border-radius:10px">
+      <div style="display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap">
+        <div><strong>自動品質チェック（非AI）</strong><p style="font-size:12px;color:var(--ink-muted)">情報カード・看護計画・関連図の不足候補を自動確認。診断や記録の書き換えはしません。</p></div>
+        <button type="button" id="nursing-auto-check-run" class="btn btn-outline">今すぐ点検</button>
+      </div>
+      <p id="nursing-auto-check-status" role="status" aria-live="polite" style="font-size:13px">読み込み後に点検します。</p>
+      <div id="nursing-auto-check-results" style="max-height:250px;overflow:auto;font-size:13px"></div>
+    </section>
+
     <!-- 作業の流れ（情報収集〔記録を貼る・分類・手直し〕 → アセスメント → 看護計画 → 書き出し）。次に進む所に印を付ける（js/13 の renderWorkflowSteps） -->
     <nav id="workflow-steps" class="wf-steps" aria-label="作業の流れ"></nav>
     <!-- 1. 分類ボードビュー -->
@@ -1363,5 +1372,71 @@
   <script src="js/13-compare-and-report.js?v=2026-10-08.2121"></script>
   <script src="js/14-drug-reference.js?v=2026-10-06.14"></script>
   <script src="js/15-relation-map.js?v=2026-10-09.41"></script>
+  <script>
+  // Local, read-only checks on the active chart. AI and network access are never used.
+  (function(){
+    'use strict';
+    const status=document.getElementById('nursing-auto-check-status');
+    const output=document.getElementById('nursing-auto-check-results');
+    const button=document.getElementById('nursing-auto-check-run');
+    let previous='',lastScan=0;
+    function scan(force){
+      try{
+        if(typeof getCurrentPatient!=='function')return;
+        const cp=getCurrentPatient();
+        if(!cp)return;
+        const items=(cp.items||[]).filter(x=>x&&x.type!=='unnecessary'&&!x.aiSuggested);
+        const plans=Object.values(cp.carePlans||{}).filter(p=>p&&!p.deleted);
+        const map=cp.relationMap;
+        const fingerprint=JSON.stringify([cp.id,items.map(i=>[i.id,i.text,i.type,i.hendersonIds,i.timestamp]),plans.map(p=>[p.id,p.problem,p.goalLong,p.goalShort,p.op,p.tp,p.ep,p.evidence]),map&&[map.nodes,map.edges]]);
+        if(!force&&fingerprint===previous)return;
+        previous=fingerprint;lastScan=Date.now();
+        const findings=[];
+        const warn=(code,message,id)=>findings.push({code,message,id});
+        const seen=new Map();
+        for(const item of items){
+          const key=String(item.text||'').replace(/\s+/g,'').normalize('NFKC');
+          if(!key){warn('empty','本文が空の情報カード',item.id);continue;}
+          if(seen.has(key))warn('duplicate','同じ内容のカードが重複しています',item.id);
+          else seen.set(key,item.id);
+          if(!Array.isArray(item.hendersonIds)||item.hendersonIds.length===0)warn('untagged','ヘンダーソン分類が未設定です',item.id);
+          if((item.hendersonIds||[]).some(n=>!Number.isInteger(Number(n))||Number(n)<1||Number(n)>14))warn('tag-range','分類番号が1～14の範囲外です',item.id);
+        }
+        for(const p of plans){
+          if(!String(p.problem||'').trim())warn('problem','看護問題名が未入力です',p.id);
+          if(!String(p.goalLong||p.goalShort||'').trim())warn('goal','看護目標が未入力です',p.id);
+          for(const type of ['op','tp','ep'])if(!(Array.isArray(p[type])&&p[type].some(v=>String(v||'').trim())))warn('plan-'+type,type.toUpperCase()+'が未入力です',p.id);
+          if(!(p.evidence||[]).length)warn('evidence','看護問題の根拠情報を確認してください',p.id);
+        }
+        if(map&&Array.isArray(map.nodes)&&Array.isArray(map.edges)){
+          const ids=new Set(map.nodes.map(n=>String(n.id)));
+          const linked=new Set();
+          for(const e of map.edges){
+            const from=String(e.from??e.source??''),to=String(e.to??e.target??'');
+            if(!ids.has(from)||!ids.has(to))warn('edge','関連図の矢印の接続先が存在しません','関連図');
+            if(from===to)warn('loop','関連図に自己循環があります','関連図');
+            linked.add(from);linked.add(to);
+          }
+          for(const n of map.nodes)if(!linked.has(String(n.id)))warn('isolated','関連図に孤立した情報があります',n.id);
+        }
+        output.replaceChildren();
+        const shown=findings.slice(0,60);
+        for(const finding of shown){
+          const div=document.createElement('div');
+          div.style.padding='5px 0';div.style.borderTop='1px solid var(--line-soft)';
+          div.textContent='要確認：'+finding.message+(finding.id?'（ID: '+String(finding.id).slice(0,60)+'）':'');
+          output.append(div);
+        }
+        status.textContent='現在の患者ページ：確認事項 '+findings.length+'件'+(findings.length>60?'（最初の60件を表示）':'')+'。データは自動変更しません。';
+        if(!findings.length)output.textContent='設定した形式チェックでは不足候補が見つかりませんでした。医学的な妥当性を保証するものではありません。';
+      }catch(err){status.textContent='点検できませんでした。再度お試しください。';console.warn('Nursing auto-check:',err);}
+    }
+    button.addEventListener('click',()=>scan(true));
+    // Changes are inspected every 5 seconds without modifying app state or sending chart data.
+    window.setInterval(()=>scan(false),5000);
+    window.addEventListener('load',()=>scan(true));
+  })();
+  </script>
+
 </body>
 </html>
