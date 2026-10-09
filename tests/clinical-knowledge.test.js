@@ -38,3 +38,23 @@ test('clinical claims have reviewable, non-patient-specific evidence and scope',
     assert.ok(!('patientId' in claim) && !('patientName' in claim), claim.id + ': personal patient fields are not allowed');
   }
 });
+
+test('source candidates are isolated from approved clinical knowledge', () => {
+  const candidates = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'clinical-knowledge', 'candidates.json'), 'utf8'));
+  assert.equal(candidates.schemaVersion, 1);
+  const approvedIds = new Set(registry.claims.map(x => x.id));
+  assert.ok(Array.isArray(candidates.claims));
+  for (const claim of candidates.claims) {
+    assert.equal(claim.status, 'pending-expert-review');
+    assert.ok(!approvedIds.has(claim.id), 'unapproved claim must not be in approved registry: ' + claim.id);
+    assert.ok(TYPES.has(claim.type));
+    assert.ok(typeof claim.scope === 'string' && claim.scope.trim());
+    assert.ok(typeof claim.limitations === 'string' && claim.limitations.trim());
+    assert.ok(Array.isArray(claim.sources) && claim.sources.length > 0);
+    claim.sources.forEach(src => {
+      assert.ok(EVIDENCE_KINDS.has(src.kind));
+      assert.match(src.url || '', /^https:\\/\\//);
+      assert.ok(src.title && src.publisher);
+    });
+  }
+});
