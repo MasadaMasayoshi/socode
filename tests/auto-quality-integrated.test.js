@@ -20,7 +20,7 @@ test('real patient source and organized cards can be inspected side-by-side with
  assert.match(html,/id="nursing-organized-text"/);
  assert.match(html,/aria-expanded="false"/);
  assert.match(html,/sourceOutput\.textContent=String\(cp\.sourceText/);
- assert.match(html,/row\.textContent=/);
+ assert.match(html,/label\.textContent=/);
  const block=html.match(/<script>(\s*\/\/ Local, read-only checks[\s\S]*?)<\/script>/);
  assert.ok(block);
  assert.doesNotThrow(()=>new vm.Script(block[1]));
