@@ -20,6 +20,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Install locked dependencies
+        run: npm ci
       - name: Synchronize file versions for migration verification
         run: node scripts/stamp-version.js 2026-10-10.0200
       - name: Verify source versions and migration tests
