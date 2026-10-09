@@ -43,3 +43,15 @@ test('text selection in source highlights candidate cards without changing the d
  const script=html.match(/<script>(\s*\/\/ Local, read-only checks[\s\S]*?)<\/script>/);
  assert.ok(script);assert.doesNotThrow(()=>new vm.Script(script[1]));
 });
+
+test('undo and redo guard against overwriting later edits',()=>{
+ assert.match(html,/id="nursing-undo-text"/);
+ assert.match(html,/id="nursing-redo-text"/);
+ assert.match(html,/item\.text!==entry\.before/);
+ assert.match(html,/item\.text!==entry\.to/);
+ assert.match(html,/undoOf:target\.entry\.at/);
+ assert.match(html,/redoOf:entry\.at/);
+ assert.match(html,/saveDataAndSync\(\)/);
+ const match=html.match(/<script>(\s*\/\/ Local, read-only checks[\s\S]*?)<\/script>/);
+ assert.ok(match);assert.doesNotThrow(()=>new vm.Script(match[1]));
+});
