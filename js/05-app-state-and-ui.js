@@ -777,6 +777,16 @@
       const textParts = contents.flatMap(c => c.parts || []).filter(p => typeof p.text === 'string').map(p => p.text.trim());
       const hasOnlyOcrInstructions = textParts.length > 0 && textParts.every(t => /文字起こし|文字を読み取|テキスト化/.test(t) && !/診断を作成|看護計画を作成|アセスメントを生成|文章を生成|分類を評価/.test(t));
       if (!hasOnlyOcrInstructions) throw new Error('OCR以外のAIへの依頼は許可されていません。');
+      // 実際のOCR操作は画像1枚＋文字起こし指示だけ。追加の命令・ファイルは許可しない。
+      const parts = contents.flatMap(c => c.parts || []);
+      const images = parts.filter(p => p.inline_data || p.file_data);
+      if (contents.length !== 1 || parts.length !== 2 || images.length !== 1 || textParts.length !== 1) {
+        throw new Error('OCRの入力形式が不正です。画像1枚と文字起こし指示だけを送信してください。');
+      }
+      const imagePart = images[0].inline_data || images[0].file_data;
+      if (!/^image\/(?:jpeg|png|webp|gif)$/i.test(String(imagePart.mime_type || ''))) {
+        throw new Error('OCRで対応していない画像形式です。JPEG・PNG・WebP・GIFを使用してください。');
+      }
       if (hasImage && !imageSendConfirmed) {
         const ok = await openDialog({ title: '画像をAIに送りますか？', message: '画像はそのままAI（Gemini）に送られ、文字のように自動で伏せ字にすることはできません。\n氏名・学籍番号・病院名・患者さんを特定できる情報が写っていないか確認してから送ってください。', confirmLabel: '確認したので送る' });
         if (ok !== true) throw new Error('画像の送信を取りやめました');
