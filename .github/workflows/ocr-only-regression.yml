@@ -35,5 +35,7 @@ jobs:
         run: node --test tests/clinical-knowledge.test.js
       - name: Offline nursing quality rule tests
         run: node --test tests/quality-checks.test.js
+      - name: Additional nursing review checks
+        run: node --test tests/review-plus.test.js
       - name: Unit regression suite
         run: npm test
