@@ -81,3 +81,12 @@ test('quality warning details remain collapsible on mobile and accessible',()=>{
  const block=html.match(/<script>(\s*\/\/ Local, read-only checks[\s\S]*?)<\/script>/);
  assert.ok(block);assert.doesNotThrow(()=>new vm.Script(block[1]));
 });
+
+test('linked nursing plans get advisory review warning when evidence text changes',()=>{
+ assert.match(html,/priorCardsByPatient/);
+ assert.match(html,/former\.get\(id\)!==body/);
+ assert.match(html,/根拠カードの文章が変更されました/);
+ assert.match(html,/evidenceRefs\.includes\(id\)/);
+ const block=html.match(/<script>(\s*\/\/ Local, read-only checks[\s\S]*?)<\/script>/);
+ assert.ok(block);assert.doesNotThrow(()=>new vm.Script(block[1]));
+});
