@@ -15,3 +15,13 @@ test('history aggregation is deterministic',()=>assert.equal(q.ruleSuggestion([{
 test('non-expert knowledge is not automatically usable',()=>assert.ok(q.applicability({status:'pending-expert-review'},{ageGroup:'adult',phase:'postop',setting:'hospital'}).length));
 test('citations deduplicate',()=>assert.equal(q.bibliography([{sources:[{url:'https://example.org',title:'A'}]},{sources:[{url:'https://example.org',title:'A'}]}]).length,1));
 test('study insights sort weak areas first',()=>assert.equal(q.learningStats([{topic:'X',correct:false},{topic:'Y',correct:true}])[0].topic,'X'));
+
+test('missing-information priority is stable and does not diagnose',()=>{
+ const x=q.missingInformation([{id:'low',urgency:'routine'},{id:'high',urgency:'immediate'}]);
+ assert.deepEqual(x.map(y=>y.id),['high','low']);
+});
+test('OP TP EP duplicate items are flagged',()=>assert.equal(q.planRepeats({op:['呼吸数測定'],tp:['呼吸数測定'],ep:[]}).length,1));
+test('multiple sources invite human review rather than assumed conflict',()=>{
+ const r=q.sourceConflicts([{id:'a',topic:'褥瘡'},{id:'b',topic:'褥瘡'}]);
+ assert.equal(r.length,1);assert.equal(r[0].reviewNeeded,true);
+});
