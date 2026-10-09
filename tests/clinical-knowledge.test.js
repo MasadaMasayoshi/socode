@@ -53,7 +53,7 @@ test('source candidates are isolated from approved clinical knowledge', () => {
     assert.ok(Array.isArray(claim.sources) && claim.sources.length > 0);
     claim.sources.forEach(src => {
       assert.ok(EVIDENCE_KINDS.has(src.kind));
-      assert.match(src.url || '', /^https:\\/\\//);
+      assert.ok(typeof src.url === 'string' && src.url.startsWith('https://'));
       assert.ok(src.title && src.publisher);
     });
   }
