@@ -229,6 +229,120 @@
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
       "reviewer": null
+    },
+    {
+      "id": "nutrition-malnutrition-screening-bmi-weight-loss",
+      "type": "assessment-criterion",
+      "statement": "成人の栄養リスクのスクリーニングではBMIと意図しない体重減少の割合を評価し、摂取不足の期間や今後の摂取困難の可能性も確認する。",
+      "scope": "成人入院患者等に対するNICE CG32の低栄養スクリーニング。",
+      "limitations": "BMI単独で栄養状態を確定せず、浮腫・体液変動や測定条件を考慮する。栄養支援の必要性は個別に判断する。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Nutrition support for adults (CG32), recommendations 1.2.2 and 1.2.6",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg32/chapter/recommendations",
+          "year": 2006
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "nutrition-unintentional-low-intake-risk",
+      "type": "assessment-criterion",
+      "statement": "直近5日を超えてほとんど食べていない、または今後5日以上ほとんど食べられない可能性は、栄養支援の検討に関わる栄養リスクとして扱う。",
+      "scope": "成人の栄養支援の必要性を検討する場面。NICE CG32の低栄養リスク基準。",
+      "limitations": "摂取不足の情報だけで介入方法・投与量を決めない。リフィーディング症候群リスク、併存疾患、専門職評価を確認する。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Nutrition support for adults (CG32), recommendation 1.3.2",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg32/chapter/recommendations",
+          "year": 2006
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "fluid-iv-therapy-daily-monitoring",
+      "type": "assessment-criterion",
+      "statement": "成人の継続的な静脈輸液では、初期には少なくとも毎日、体液状態、尿素・クレアチニン・電解質、出納表を再評価し、体重は週2回測定することが推奨される。",
+      "scope": "NICE CG174の対象となる入院中で静脈輸液を継続している成人。",
+      "limitations": "輸液内容・速度・必要性を看護師が独断で変更する根拠にはならない。状態により観察頻度の増減が必要で、長期安定例は計画に従う。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Intravenous fluid therapy in adults in hospital (CG174), recommendation 1.2.4",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg174/chapter/recommendations",
+          "year": 2013
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "fluid-status-history-exam-monitoring",
+      "type": "assessment-criterion",
+      "statement": "体液・電解質需要の評価では、摂取不足、口渇、異常喪失、併存疾患などの病歴に加え、血圧・脈拍・浮腫・出納・体重の推移と腎機能・電解質データを組み合わせる。",
+      "scope": "静脈輸液の必要性や体液状態を評価する成人入院患者。NICE CG174。",
+      "limitations": "単一の尿量や血圧だけで脱水・体液過剰を断定しない。評価には患者状況と診療指示が必要。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Intravenous fluid therapy in adults in hospital (CG174), recommendation 1.2.2",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg174/chapter/recommendations",
+          "year": 2013
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "urinary-incontinence-bladder-diary",
+      "type": "assessment-criterion",
+      "statement": "女性の尿失禁または過活動膀胱の初期評価では、普段の生活の変化を含む最低3日間の排尿日誌を用いる。",
+      "scope": "女性の尿失禁・過活動膀胱の初期評価（NICE NG123）。",
+      "limitations": "すべての性別や排尿障害に一律に適用しない。尿閉、感染、神経因性膀胱等の評価を代替しない。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Urinary incontinence and pelvic organ prolapse in women (NG123), recommendation 1.3.13",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng123/chapter/Recommendations",
+          "year": 2019
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "surgical-wound-dressing-aseptic-technique",
+      "type": "nursing-intervention",
+      "statement": "手術創のドレッシング交換・除去時には、無菌的なノンタッチ手技を用いることが推奨される。",
+      "scope": "手術創のドレッシングを交換または除去する場面（NICE NG125）。",
+      "limitations": "創部の状態・施設感染対策・教育訓練・処置権限を確認する。創感染があるとの診断や特定の処置薬選択は導けない。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Surgical site infections: prevention and treatment (NG125), recommendation 1.4.1",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng125/chapter/recommendations",
+          "year": 2019
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
     }
   ]
 }
