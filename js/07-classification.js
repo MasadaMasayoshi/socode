@@ -221,7 +221,7 @@
       const QUOTED_SPEECH_REGEX = /「[^」]{0,300}[ぁ-んァ-ヶ一-龠々][^」]{0,300}」/;
       if (QUOTED_SPEECH_REGEX.test(patientText)) {
         const quotes = (patientText.match(/「[^」]*」/g) || []).join('');
-        if ((tags.size === 0 && !PAIN_TEXT_REGEX.test(quotes)) || QUOTE_FEELING_OR_QUESTION_REGEX.test(quotes)) tags.add(10); // 痛みだけの発言は、発言だからという理由で10にしない
+        if (QUOTE_FEELING_OR_QUESTION_REGEX.test(quotes)) tags.add(10); // 痛みだけの発言は、発言だからという理由で10にしない
       }
       // 「息苦しくて眠れなかった」と訴える、「少し呼吸が楽になった」と話す のように、身体の症状を伝えている
       // 場合は、その症状の項目（1.呼吸・5.睡眠等）の情報であり、10.コミュニケーション（気持ちの表出・
