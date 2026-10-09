@@ -1519,6 +1519,15 @@
           if((item.hendersonIds||[]).some(n=>!Number.isInteger(Number(n))||Number(n)<1||Number(n)>14))warn('tag-range','分類番号が1～14の範囲外です',item.id);
         }
         const itemIds=new Set(items.map(i=>String(i.id)));
+        let previousTimestamp=null;
+        for(const item of items){
+          const raw=String(item.timestamp||'');
+          if(!/^\\d{4}-\\d{2}-\\d{2}/.test(raw))continue;
+          const timestamp=Date.parse(raw);
+          if(!Number.isFinite(timestamp))continue;
+          if(previousTimestamp!==null&&timestamp<previousTimestamp)warn('chronology','カードの日時が前のカードより過去です。元の記録と照合してください',item.id);
+          previousTimestamp=timestamp;
+        }
         for(const p of plans){
           for(const id of Array.isArray(p.evidenceIds)?p.evidenceIds:[]){
             if(!itemIds.has(String(id)))warn('broken-evidence','看護計画の根拠カードが見つかりません',p.id);
