@@ -1410,6 +1410,7 @@
         label.style.whiteSpace='normal';
         label.textContent='['+tags+'] '+String(item.text||'（本文なし）');
         label.title='クリックして元の文章内の一致箇所を探します';
+        label.dataset.cardText=String(item.text||'');
         label.addEventListener('click',()=>{
           const original=String(cp.sourceText||'');
           const snippet=String(item.text||'').trim();
@@ -1431,6 +1432,17 @@
         cardsOutput.append(row);
       }
     }
+    sourceOutput.addEventListener('mouseup',()=>{
+      const selected=String(window.getSelection()?.toString()||'').trim();
+      if(selected.length<3)return;
+      let found=0;
+      for(const button of cardsOutput.querySelectorAll('button[data-card-text]')){
+        const matches=button.dataset.cardText.includes(selected);
+        button.style.outline=matches?'2px solid var(--accent)':'';
+        if(matches){found++;if(found===1)button.scrollIntoView({block:'nearest'});}
+      }
+      status.textContent=found?'選択した原文に対応するカード候補 '+found+'件（部分一致。必ず本文を確認してください）':'選択した原文に対応するカードが見つかりません。';
+    });
     compareButton.addEventListener('click',()=>{
       comparison.hidden=!comparison.hidden;
       compareButton.setAttribute('aria-expanded',String(!comparison.hidden));
