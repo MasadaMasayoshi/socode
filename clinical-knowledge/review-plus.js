@@ -70,5 +70,37 @@ function applicability(claim,context){const issues=[];
  return issues;}
 function bibliography(claims){return [...new Map((claims||[]).flatMap(x=>x.sources||[]).map(s=>[s.url,[s.publisher,s.year,s.title,s.url].filter(Boolean).join(' / ')])).values()];}
 function learningStats(attempts){const groups={};for(const a of attempts||[]){const k=text(a.topic)||'その他';const x=groups[k]||{correct:0,total:0};x.total++;if(a.correct===true)x.correct++;groups[k]=x;}return Object.entries(groups).sort((a,b)=>a[1].correct/a[1].total-b[1].correct/b[1].total).map(([topic,x])=>({topic,...x,accuracy:x.correct/x.total}));}
-return Object.freeze({traceExtraction,chronology,assessNarrative,contradiction,problemPriority,overlappingProblems,crossCheckPlan,measurableGoal,labRanges,ocrRisk,ruleSuggestion,applicability,bibliography,learningStats});
+function missingInformation(items){
+  const order={immediate:0,soon:1,routine:2};
+  return (items||[]).map((item,index)=>{
+    const priority=order[item.urgency]??3;
+    const status=item.confirmed===true?'確認済み':'要確認';
+    return {...item,priority,status,originalIndex:index};
+  }).sort((a,b)=>a.priority-b.priority||a.originalIndex-b.originalIndex);
+}
+function planRepeats(plan){
+  const found=new Map(),warnings=[];
+  for(const section of ['op','tp','ep']){
+    const items=Array.isArray(plan?.[section])?plan[section]:[];
+    items.forEach((line,index)=>{const n=norm(line);if(!n)return;
+      if(found.has(n))warnings.push(flag('plan-duplicate','看護計画内で同じ内容が繰り返されています',[found.get(n),section+':'+index]));
+      else found.set(n,section+':'+index);
+    });
+  }
+  return warnings;
+}
+function sourceConflicts(claims){
+  // Show records for manual comparison; do not infer disagreement solely from wording.
+  const buckets=new Map();
+  for(const claim of claims||[]){
+    const key=norm(claim.topic||claim.id||'');
+    if(!key)continue;
+    const list=buckets.get(key)||[];list.push(claim);buckets.set(key,list);
+  }
+  return [...buckets.entries()].filter(([key,x])=>x.length>1).map(([key,x])=>({
+    topic:key,claimIds:x.map(c=>c.id),reviewNeeded:true,
+    note:'同一テーマに複数の資料があります。推奨内容と適用条件を人手で照合してください'
+  }));
+}
+return Object.freeze({traceExtraction,chronology,assessNarrative,contradiction,problemPriority,overlappingProblems,crossCheckPlan,measurableGoal,labRanges,ocrRisk,ruleSuggestion,applicability,bibliography,learningStats,missingInformation,planRepeats,sourceConflicts});
 });
