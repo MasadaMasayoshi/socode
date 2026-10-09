@@ -22,8 +22,6 @@ jobs:
           node-version: '20'
       - name: Install locked dependencies
         run: npm ci
-      - name: Synchronize file versions for migration verification
-        run: node scripts/stamp-version.js 2026-10-10.0200
       - name: Verify source versions and migration tests
         run: node --test tests/app-files-order.test.js tests/ocr-only-policy.test.js tests/remove-ai-classification.test.js tests/disable-ai-plan-import.test.js
       - name: JavaScript syntax check
