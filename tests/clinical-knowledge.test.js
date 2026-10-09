@@ -43,8 +43,13 @@ test('source candidates are isolated from approved clinical knowledge', () => {
   const candidates = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'clinical-knowledge', 'candidates.json'), 'utf8'));
   assert.equal(candidates.schemaVersion, 1);
   const approvedIds = new Set(registry.claims.map(x => x.id));
+  const candidateIds = new Set();
   assert.ok(Array.isArray(candidates.claims));
   for (const claim of candidates.claims) {
+    assert.match(claim.id || '', /^[a-z0-9][a-z0-9-]{3,}$/);
+    assert.ok(!candidateIds.has(claim.id), 'duplicate candidate claim ID: ' + claim.id);
+    candidateIds.add(claim.id);
+    assert.ok(typeof claim.statement === 'string' && claim.statement.trim().length >= 12);
     assert.equal(claim.status, 'pending-expert-review');
     assert.ok(!approvedIds.has(claim.id), 'unapproved claim must not be in approved registry: ' + claim.id);
     assert.ok(TYPES.has(claim.type));
