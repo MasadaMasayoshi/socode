@@ -457,6 +457,101 @@
       "lastChecked": "2026-10-10",
       "status": "pending-expert-review",
       "reviewer": null
+    },
+    {
+      "id": "postop-respiratory-vital-monitoring",
+      "type": "assessment-criterion",
+      "statement": "術後を含む急性期入院成人の定期的な生理学的観察では、呼吸数、酸素飽和度、心拍数、収縮期血圧、意識レベル、体温を含める。",
+      "scope": "急性期病院の成人入院患者。術後患者も含む。",
+      "limitations": "この組み合わせだけで肺炎・無気肺・呼吸不全を診断しない。測定頻度は患者の病状、施設のエスカレーション基準および診療計画に従う。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Acutely ill adults in hospital (CG50), recommendations 1.1–1.2",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg50/chapter/recommendations",
+          "year": 2007
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "postop-deterioration-trigger-response",
+      "type": "assessment-criterion",
+      "statement": "術後を含む入院成人で生理学的観察値の異常や臨床的懸念がある場合は、複数のバイタル指標と院内の早期警告・報告基準に基づき、観察頻度の増加と適切なチームへの連絡を判断する。",
+      "scope": "急性期病院の成人入院患者。",
+      "limitations": "閾値と対応の階層は施設ごとに決められる。単独のSpO2や呼吸数で患者の診断・治療を自動決定しない。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Acutely ill adults in hospital (CG50), recommendations 1.3–1.10",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg50/chapter/recommendations",
+          "year": 2007
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "postop-bleeding-physiological-assessment",
+      "type": "assessment-criterion",
+      "statement": "術後出血が疑われるときは、心拍数、呼吸数、収縮期血圧、意識、酸素飽和度、体温の変化を組み合わせて全身状態を評価する。臨床状況に応じて尿量や乳酸などの追加観察も検討する。",
+      "scope": "術後に急性の状態悪化が疑われる成人入院患者。NICE CG50の急変時観察基準を術後に適用する。",
+      "limitations": "CG50は術後出血を直接診断するためのガイドラインではない。創部・排液の出血所見や診療指示など別の根拠との照合が必要。血圧が保たれていても出血を除外できない。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Acutely ill adults in hospital (CG50), recommendations 1.2 and 1.6",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg50/chapter/recommendations",
+          "year": 2007
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "postop-high-risk-recovery-area",
+      "type": "assessment-criterion",
+      "statement": "術後合併症や死亡のリスクが高い成人手術患者には、高依存度病棟、麻酔後回復室、ICUなどの専門的回復環境で術後管理を提供することが推奨される。",
+      "scope": "合併症または死亡のリスクが高い成人術後患者。",
+      "limitations": "すべての術後患者にICU管理が必要という意味ではない。管理場所の決定は医療チームの判断による。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Perioperative care in adults (NG180), recommendation 1.5.1",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng180/chapter/Recommendations",
+          "year": 2020
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
+    },
+    {
+      "id": "postop-clinical-concern-independent-escalation",
+      "type": "nursing-intervention",
+      "statement": "術後患者に急性の状態悪化を疑う臨床的懸念があるときは、早期警告スコアの閾値に達していなくても院内の対応・報告手順を開始する。",
+      "scope": "急性期病院の成人入院患者。",
+      "limitations": "スコアが正常でも安全を保証しない。緊急時は段階的対応を待たず院内の救急対応基準に従う。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Acutely ill adults in hospital (CG50), recommendations 1.8 and 1.11",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg50/chapter/recommendations",
+          "year": 2007
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null
     }
   ]
 }
