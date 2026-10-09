@@ -18,8 +18,22 @@ const cases=Object.freeze([
 {"id":"practice-original","topic":"情報抽出","story":"架空事例：元文に「夜間に2回起きた」とあるが、カードは「夜間に起きた」となっている。","prompt":"抽出品質を点検する際は？","choices":["回数2回が失われていることを確認し、原文に沿って修正する","意味が似ているので数値の欠落を無視する","新しい回数を推測して追加する"],"correct":0,"reason":"数値・日時・程度は看護データの意味に関わるため、原文から漏らさず記録する。"}
 ]);
 function grade(id,selected){const item=cases.find(c=>c.id===id);if(!item)throw Error('unknown practice');return {correct:item.correct===selected,answer:item.correct,reason:item.reason,topic:item.topic};}
-function chooseNext(attempts){const topics=new Map();for(const a of attempts||[]){const old=topics.get(a.topic)||{ok:0,total:0};old.total++;if(a.correct===true)old.ok++;topics.set(a.topic,old);}
-return [...cases].sort((a,b)=>{const x=topics.get(a.topic)||{ok:0,total:0},y=topics.get(b.topic)||{ok:0,total:0};if(x.total===0&&y.total!==0)return -1;if(y.total===0&&x.total!==0)return 1;if(x.total===0&&y.total===0)return 0;return (x.ok/x.total)-(y.ok/y.total)||x.total-y.total;})[0];}
+function chooseNext(attempts){
+ const byId=new Map(),byTopic=new Map();
+ for(const entry of attempts||[]){
+   if(entry.id){const x=byId.get(entry.id)||{ok:0,total:0};x.total++;if(entry.correct===true)x.ok++;byId.set(entry.id,x);}
+   const t=byTopic.get(entry.topic)||{ok:0,total:0};t.total++;if(entry.correct===true)t.ok++;byTopic.set(entry.topic,t);
+ }
+ // Present each fictitious question before repetition; then prioritize the weakest topic.
+ return [...cases].sort((a,b)=>{
+   const x=byId.get(a.id)||{ok:0,total:0},y=byId.get(b.id)||{ok:0,total:0};
+   if(x.total===0&&y.total>0)return -1;
+   if(y.total===0&&x.total>0)return 1;
+   if(x.total===0&&y.total===0)return 0;
+   const tx=byTopic.get(a.topic)||{ok:0,total:0},ty=byTopic.get(b.topic)||{ok:0,total:0};
+   return (tx.ok/tx.total)-(ty.ok/ty.total)||x.total-y.total;
+ })[0];
+}
 function rubric(submission){const missing=[];if(!submission?.evidence)missing.push('根拠が必要です');if(!submission?.interpretation)missing.push('アセスメントの解釈が必要です');if(!submission?.plan)missing.push('看護計画が必要です');return {missing,completedFields:3-missing.length,totalFields:3,notice:'教育用の記入チェックであり臨床的な採点・診断ではありません'};}
 return {cases,grade,chooseNext,rubric};
 });
