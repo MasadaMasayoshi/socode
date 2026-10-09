@@ -77,7 +77,7 @@ test('③看護計画：作成・書き換え・優先順位の入れ替え・�
   assert.doesNotMatch(html, /<img src=x/);
 });
 
-test('③AIの看護計画の文章を、看護問題・目標・OP/TP/EPに読み取って取り込む（同じ看護問題は二重にしない）', () => {
+test('③旧形式の計画文章は解析できても、廃止したAI自動取り込みは許可しない', () => {
   const app = loadApp();
   const plans = app.parseCarePlanText('看護計画です。\n**■#1 術後の創部痛に関連した急性疼痛**\n目標：3日以内に疼痛がNRS3以下になる〔S 痛い〕\nOP（観察計画）\n・疼痛の部位・程度\n・鎮痛薬の効果\nTP：\n1. 体位の工夫\nEP\n- 痛みを伝えるよう説明する\n\n■便秘リスク状態\n長期目標：退院まで排便が保たれる\nO-P: 排便の有無\n');
   assert.equal(plans.length, 2);
@@ -86,14 +86,11 @@ test('③AIの看護計画の文章を、看護問題・目標・OP/TP/EPに読�
   assert.deepEqual(clone(plans[1].op), ['排便の有無']);
   const cp = patient();
   cp.carePlanResult = '<b>■術後の創部痛に関連した急性疼痛</b><br>目標：NRS3以下<br>OP<br>・疼痛の程度';
-  assert.equal(app.importCarePlans(cp, 'ai').length, 1);
-  assert.equal(app.importCarePlans(cp, 'ai').length, 0, '同じ看護問題は取り込まない');
-  const p = app.carePlanList(cp)[0];
-  assert.ok(Array.isArray(p.relatedNeeds), '疼痛だけでは9.環境にしない');
-  assert.ok(!p.relatedNeeds.includes(9), `疼痛→9.環境にしない ${JSON.stringify(p.relatedNeeds)}`);
+  assert.equal(app.importCarePlans(cp, 'ai').length, 0, 'AI由来の看護計画は取り込まない');
+  assert.equal(app.carePlanList(cp).length, 0, '旧AIデータを看護計画に混入させない');
   cp.diagnosisCandidates = [{ id: 'd1', name: '便秘' }, { id: 'd2', name: '転倒転落リスク状態' }];
   cp.selectedDiagnosisIds = ['d2'];
-  assert.deepEqual(clone(app.importCarePlans(cp, 'dx').map(x => x.problem)), ['転倒転落リスク状態']);
+  assert.deepEqual(clone(app.importCarePlans(cp, 'dx').map(x => x.problem)), [], '旧AI診断からの自動取り込みも廃止');
 });
 
 test('④変更点の比較：同じIDどうし、分類し直してIDが変わったカードは本文で対応させ、追加・変更・削除を出す', () => {
