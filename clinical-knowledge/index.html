@@ -10,6 +10,7 @@ body{max-width:980px;margin:auto;padding:20px 16px 64px;line-height:1.65}
 header{border-bottom:1px solid #cbd5e1;padding-bottom:14px}
 a{color:#075cb4} a:focus-visible,input:focus-visible{outline:3px solid #3366cc}
 input{font:inherit;padding:10px;border:1px solid #94a3b8;border-radius:8px;width:100%;box-sizing:border-box}
+select,button{padding:9px;font:inherit;border:1px solid #94a3b8;border-radius:8px;background:white}
 article{background:white;border:1px solid #dbe1e8;border-radius:10px;padding:16px;margin:12px 0}
 h1{font-size:1.6rem}h2{font-size:1.12rem;margin:0 0 8px}h3{font-size:1rem}
 small,.muted{color:#526174} .meta{font-size:.9rem;margin:8px 0}
@@ -26,6 +27,9 @@ ul{margin:8px 0 0;padding-left:22px}button{font:inherit}
 </header>
 <main>
 <p><label for="search">知識を検索</label><input id="search" type="search" placeholder="例：血栓症、術後、糖尿病"></p>
+<p><label for="review-filter">確認状況</label>
+<select id="review-filter"><option value="all">すべて</option><option value="matched">出典本文を照合済み</option><option value="pending">出典本文が未照合</option></select>
+<button id="download-catalog" type="button" disabled>資料をJSONで保存</button></p>
 <p id="status" role="status" aria-live="polite">資料を読み込んでいます…</p>
 <div id="entries"></div>
 </main>
@@ -34,6 +38,8 @@ ul{margin:8px 0 0;padding-left:22px}button{font:inherit}
 const entries = document.getElementById('entries');
 const status = document.getElementById('status');
 const input = document.getElementById('search');
+const reviewFilter = document.getElementById('review-filter');
+const downloadCatalog = document.getElementById('download-catalog');
 let records = [];
 function line(parent, tag, label, value) {
   const el = document.createElement(tag);
@@ -44,7 +50,11 @@ function line(parent, tag, label, value) {
 }
 function render() {
   const q = input.value.trim().toLocaleLowerCase('ja-JP');
-  const list = records.filter(x => [x.id,x.statement,x.scope,x.limitations,...(x.sources||[]).map(y=>y.title)].join(' ').toLocaleLowerCase('ja-JP').includes(q));
+  const list = records.filter(x => {
+    const matched = x.sourceVerification?.status === 'source-text-matched';
+    return (reviewFilter.value === 'all' || (reviewFilter.value === 'matched' ? matched : !matched)) &&
+      [x.id,x.statement,x.scope,x.limitations,...(x.sources||[]).map(y=>y.title)].join(' ').toLocaleLowerCase('ja-JP').includes(q);
+  });
   entries.replaceChildren();
   for (const rec of list) {
     const article = document.createElement('article');
@@ -54,6 +64,9 @@ function render() {
     line(article,'p','適用範囲：',rec.scope);
     line(article,'p','注意・限界：',rec.limitations);
     line(article,'p','区分：',(rec.ownerApproval?.status === 'approved' ? '開発上の承認済み' : '開発上の未承認') + '／臨床専門家審査：未完了');
+    line(article,'p','出典照合：',rec.sourceVerification?.status === 'source-text-matched' ? '本文との対応を確認（専門家審査とは別）' : '未確認');
+    line(article,'p','照合メモ：',rec.sourceVerification?.note);
+    line(article,'p','再確認期限：',rec.reviewDue);
     const heading = document.createElement('h3');
     heading.textContent = '出典';
     article.append(heading);
@@ -79,9 +92,21 @@ function render() {
   status.textContent = list.length + '件表示／全' + records.length + '件';
 }
 input.addEventListener('input', render);
+reviewFilter.addEventListener('change', render);
+downloadCatalog.addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify({schemaVersion:1,claims:records},null,2)],{type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'socode-clinical-knowledge.json';
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+});
 fetch('./candidates.json', {cache:'no-store'})
   .then(r => { if(!r.ok) throw new Error('資料取得エラー'); return r.json(); })
-  .then(data => { if(!Array.isArray(data.claims)) throw new Error('資料形式エラー'); records = data.claims; render(); })
+  .then(data => { if(!Array.isArray(data.claims)) throw new Error('資料形式エラー'); records = data.claims; downloadCatalog.disabled = false; render(); })
   .catch(() => {status.textContent = '資料を読み込めませんでした。接続状態を確認してください。';});
 </script>
 </body></html>
