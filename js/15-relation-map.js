@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-10.znavigation18'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-10.znavigation19'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -1022,7 +1022,9 @@
       const top = 0;
       return { x: x1 - pad, y: y1 - pad - top, w: x2 - x1 + pad * 2, h: y2 - y1 + pad * 2 + top };
     }
+    let rmMaskSequence = 0;
     function rmEdgesSvg(map, { interactive }) {
+      const maskPrefix = `rm-cross-mask-${++rmMaskSequence}`;
       const { routes } = rmRouteEdges(map);
       const nodeById = new Map(map.nodes.map(n => [n.id, n]));
 
@@ -1035,7 +1037,7 @@
         const cuts = crossings.filter(c => r.segs.some(s =>
           Math.abs(s.x1 - s.x2) < 0.5 && Math.abs(s.x1 - c.x) < 0.5 &&
           c.y > Math.min(s.y1, s.y2) && c.y < Math.max(s.y1, s.y2)));
-        const maskId = `rm-cross-mask-${routeIndex}`;
+        const maskId = `${maskPrefix}-${routeIndex}`;
         const mask = cuts.length ? `<defs><mask id="${maskId}" maskUnits="userSpaceOnUse" x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}"><rect x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}" fill="white"/>${cuts.map(c => `<circle cx="${c.x}" cy="${c.y}" r="4" fill="black"/>`).join('')}</mask></defs>` : '';
         const e = r.edge;
         const d = rmRoutePath(r);
