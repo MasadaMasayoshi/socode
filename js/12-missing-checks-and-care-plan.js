@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-10.znavigation2'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-10.znavigation6'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -462,10 +462,16 @@
       if (!CARE_PLAN_STATUSES.some(s => s.key === p.status)) p.status = 'planned'; // 作っただけの計画を「実施中」にしない
       return p;
     }
-    // Only exact, unique text matches establish a link; never infer a card ID from a substring.
+    // Text links require exact, unique matches. Native map links require explicit same-patient card IDs.
     function captureCarePlanEvidence(cp, plan) {
       const cards = (cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && !i.aiSuggested);
       const ids = new Set((Array.isArray(plan.evidenceIds) ? plan.evidenceIds : []).map(String));
+      // 関連図の根拠は本文の似た文字ではなく、同じ患者の明示されたカード参照で結ぶ。
+      if (cp.id && plan.caseId === cp.id) {
+        for (const ref of Array.isArray(plan.mapEvidenceRefs) ? plan.mapEvidenceRefs : []) {
+          if (ref && ref.sourceType === 'card' && ref.patientId === cp.id && cards.some(i => String(i.id) === String(ref.sourceId))) ids.add(String(ref.sourceId));
+        }
+      }
       for (const text of plan.evidence || []) {
         const matches = cards.filter(i => String(i.text || '').trim() === String(text).trim());
         if (matches.length === 1) ids.add(String(matches[0].id));
@@ -524,7 +530,7 @@
       const p = getCarePlan(cp, id);
       if (!p) return null;
       Object.assign(p, patch, { updatedAt: now });
-      if (Object.prototype.hasOwnProperty.call(patch, 'evidence') || Object.prototype.hasOwnProperty.call(patch, 'evidenceIds')) captureCarePlanEvidence(cp, p);
+      if (Object.prototype.hasOwnProperty.call(patch, 'evidence') || Object.prototype.hasOwnProperty.call(patch, 'evidenceIds') || Object.prototype.hasOwnProperty.call(patch, 'mapEvidenceRefs')) captureCarePlanEvidence(cp, p);
       return p;
     }
     function carePlanProblemKey(problem) { return String(problem || '').replace(/\s+/g, ''); }
@@ -1851,9 +1857,9 @@
         const key = problem.replace(/\s+/g, '');
         if (!key || existing.has(key) || existingCanon.has(cpPlanKey({ problem }))) return;
         existing.add(key);
-        const plan = createCarePlan(cp, { caseId: cp.id || '', problem, evidence: cpMapEvidence(map, n), note: n.note || '', source: 'map', reasonNeeded: true }, now);
+        const mapEvidenceRefs = typeof findRelationEvidence === 'function' ? findRelationEvidence(map, n.id, cp).sourceRefs : [];
+        const plan = createCarePlan(cp, { caseId: cp.id || '', problem, evidence: cpMapEvidence(map, n), mapEvidenceRefs, note: n.note || '', source: 'map', reasonNeeded: true }, now);
         plan.relatedNeeds = guessPlanNeeds(plan);
-        if (typeof findRelationEvidence === 'function') plan.mapEvidenceRefs = findRelationEvidence(map, n.id, cp).sourceRefs;
         fresh.push(plan);
       });
       return fresh;

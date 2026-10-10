@@ -189,10 +189,10 @@ const {app}=require('../server');
      const cp=getCurrentPatient(),items=cp.items.filter(i=>!i.deleted),ids=new Set(items.map(i=>i.id));
      const plans=carePlanList(cp),map=cp.relationMap;
      return {items:items.length,plans:plans.length,planned:plans.every(p=>p.caseId===cp.id&&p.status==='planned'&&p.records.length===0),
-      nodes:map?.nodes.length||0,refs:(map?.nodes||[]).every(n=>(n.itemIds||[]).every(id=>ids.has(id)))};
+      linked:plans.some(p=>(p.evidenceIds||[]).length>0),nodes:map?.nodes.length||0,refs:(map?.nodes||[]).every(n=>(n.itemIds||[]).every(id=>ids.has(id)))};
     });
     assert.ok(result.items>0&&result.plans>0&&result.nodes>0,`${width}px ${id}: empty workflow`);
-    assert.ok(result.planned&&result.refs,`${width}px ${id}: state or evidence ownership`);
+    assert.ok(result.planned&&result.refs&&result.linked,`${width}px ${id}: state or evidence ownership`);
     if(id==='heart-failure') await page.screenshot({path:`browser-artifacts/${width}-public-long-relation.png`});
     console.log(`PASS ${width}px public ${id}: UI classification, assessment, plans, labs and relation map`);
    }
