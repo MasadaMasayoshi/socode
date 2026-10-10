@@ -1,5 +1,5 @@
 'use strict';
-// AIなしの「充足・未充足の判定」と「看護計画の自動作成」の検証
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');

@@ -15,7 +15,7 @@ test('AI analysis results remain hidden, non-AI checks and OCR remain available'
   const source = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.match(source, /id="ai-steps" class="ai-steps"/);
   assert.match(source, /id="ai-results" class="ai-results hidden"/);
-  assert.match(source, /画像OCRドロップゾーン/);
+  assert.match(source, /id="ocr-dropzone"/);
 });
 
 test('rules-based laboratory results can display, former AI results cannot', () => {
@@ -54,6 +54,6 @@ test('OCR-only API gate rejects arbitrary image-attached prompts', () => {
   const source = fs.readFileSync(path.join(root, 'js/05-app-state-and-ui.js'), 'utf8');
   assert.ok(source.includes('const OCR_ALLOWED_INSTRUCTIONS = new Set(['));
   assert.ok(source.includes('OCR_ALLOWED_INSTRUCTIONS.has(textParts[0])'));
-  assert.ok(source.includes('画像に含まれる看護基準・プロトコル・参考資料の内容を正確に文字起こししてください。'));
-  assert.ok(source.includes('画像に含まれるカルテ記載や検査データ結果（WBC, CRP, Hb, クレアチニン等）を正確に文字起こししてください。'));
+  assert.ok(source.includes('Transcribe all nursing reference text in the image verbatim, in its original language. Return text only.'));
+  assert.ok(source.includes('Transcribe all clinical notes and laboratory results in the image verbatim, in their original language. Return text only.'));
 });

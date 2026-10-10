@@ -1,7 +1,5 @@
 'use strict';
-// 入力は新規の公開用仕様再現事例。旧教材との全文互換性を証明するテストではない。
-// 利用者からの指摘（患者36・4.姿勢の欄）：「牽引、安静、荷重、ROM、移乗、歩行訓練は適切。一方『氏名・76歳・血液型』は
-// 明らかに不要。診断名などは背景情報として置くなら可だが、主タグにはしなくてよい」
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

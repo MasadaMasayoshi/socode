@@ -1,15 +1,10 @@
-    // 看護アセスメント支援システム：13-compare-and-report.js（全13ファイルのうち 13 番目）
-    // ④変更点の比較：記録した時点（手で記録した時点・分類し直す前・画面を開いたとき）のカードと今のカードを比べ、
-    //   追加・変更・削除したカードを並べる。消したカードは元に戻せる。
-    // ⑤提出・報告用の書き出し：SOAP形式・実習記録の様式で、載せる項目とその順番を選んで書き出す
-    //   （コピー・テキストファイル・印刷／PDF）。
-    // （js/10 の起動の処理より後に読み込む。最後に総合アセスメント表などを描き直す）
+// Checkpoints, Japanese reports and patient-scoped board history.
+// Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-10.znavigation13'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-10.znavigation17'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
-    // ④ 記録した時点（cp.checkpoints[ID] = { id, label, kind, at, updatedAt, items:[カードの写し] }。
-    //    消したものは { id, deleted:true, updatedAt }。1人の患者につき新しい方から CHECKPOINT_MAX 件まで）
+
     // ==========================================================================
     const CHECKPOINT_MAX = 8;
     const CHECKPOINT_KIND_LABELS = { manual: '手で記録', classify: '分類し直す前', open: '画面を開いたとき' };
@@ -27,7 +22,7 @@
       const id = `ckpt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const c = { id, label: String(label || '').trim(), kind, at: now, updatedAt: now, items: (cp.items || []).map(checkpointItemCopy) };
       cp.checkpoints[id] = c;
-      // 古いものから消す（手で記録したものは、自動の記録より後まで残す）
+
       const list = checkpointList(cp);
       if (list.length > CHECKPOINT_MAX) {
         const byAge = list.slice().reverse();
@@ -45,7 +40,6 @@
       return `${formatMyDateTime(c.at)} ${c.label || CHECKPOINT_KIND_LABELS[c.kind] || ''}（${c.items.length}枚）`;
     }
 
-    // カードの比べ方：同じIDどうし → 残りは本文が同じものどうし（分類し直すとIDが変わるため）
     const CARD_TYPE_LABELS = { s: 'S', o: 'O', unclassified: '未分類', unnecessary: '不要' };
     const CARD_COL_LABELS = { unclassified: '未分類', preadmission: '入院前', postadmission: '入院後', missing: '不足情報' };
     function normCardText(t) { return String(t || '').normalize('NFKC').replace(/\s+/g, ''); }
@@ -89,7 +83,7 @@
       });
       return out;
     }
-    // 本文の変わった所だけを印にする（前後の同じ部分は印を付けない）
+
     function inlineTextDiffHtml(a, b) {
       a = String(a || ''); b = String(b || '');
       let p = 0;
@@ -100,7 +94,6 @@
       return `${escapeHtml(a.slice(0, p))}${mid(a) ? `<del>${escapeHtml(mid(a))}</del>` : ''}${mid(b) ? `<ins>${escapeHtml(mid(b))}</ins>` : ''}${escapeHtml(a.slice(a.length - s))}`;
     }
 
-    // 画面を開いたときの自動の記録（その患者を開くのがこの画面で初めてで、前の記録から変わっていて、前の記録から30分以上たっているとき）
     const checkpointOpenedThisSession = new Set();
     function maybeCheckpointOnOpen(cp, now = new Date()) {
       if (!cp || checkpointOpenedThisSession.has(cp.id)) return null;
@@ -116,16 +109,15 @@
       saveMyAssessmentsSoon(cp.id, 1500);
       return c;
     }
-    // 分類し直す前の自動の記録（js/07 の「分類開始」から呼ぶ）
+
     function checkpointBeforeClassify(cp) {
       if (!cp || !(cp.items || []).length) return null;
-      // 同じ内容のまま続けて分類し直したときは、同じ記録を増やさない（繰り返し入力の確認で発覚）
+
       const latest = checkpointList(cp)[0];
       if (latest && JSON.stringify(latest.items) === JSON.stringify((cp.items || []).map(checkpointItemCopy))) return latest;
       return createCheckpoint(cp, { kind: 'classify' });
     }
 
-    // ---- 変更点の比較の画面 ----
     let compareState = { baseId: null, filter: 'all' };
     window.openCompare = function() {
       const cp = getCurrentPatient();
@@ -151,7 +143,7 @@
       const d = diffCards(base.items, cp.items);
       const f = compareState.filter;
       const chip = (key, label, n) => `<button type="button" class="cmp-filter cmp-${key}${f === key ? ' active' : ''}" onclick="setCompareFilter('${key}')">${label} <b>${n}</b></button>`;
-      // 【レビューで発見】カードのIDを onclick="…('…')" に入れるので、アプリが作る形のIDだけを使う（safeDomId、js/08）
+
       const cardLabel = c => `<span class="cmp-type cmp-type-${escapeHtml(c.type)}">${escapeHtml(CARD_TYPE_LABELS[c.type] || c.type)}</span>${c.timestamp && c.timestamp !== '日時不明' ? `<span class="ep-time">${escapeHtml(c.timestamp)}</span>` : ''}`;
       const exists = id => cp.items.some(i => i.id === id);
       const rows = [];
@@ -191,7 +183,7 @@
       closeCompare();
       jumpToBoardCard(id);
     };
-    // 消したカードを、記録した時点の内容で元に戻す
+
     function restoreCardFromCheckpoint(cp, checkpointId, itemId) {
       const c = checkpointList(cp).find(x => x.id === checkpointId);
       const src = c && c.items.find(i => i.id === itemId);
@@ -213,9 +205,9 @@
     };
 
     // ==========================================================================
-    // ⑤ 提出・報告用の書き出し
+
     // ==========================================================================
-    // 書き出しの形式と、載せられる項目（既定で載せるか）
+
     const REPORT_FORMATS = {
       soap: {
         label: 'SOAP形式',
@@ -262,9 +254,9 @@
       return out;
     }
     function saveReportLayout(st) {
-      try { localStorage.setItem(REPORT_LAYOUT_KEY, JSON.stringify({ format: st.format, layouts: st.layouts })); } catch (e) { /* 覚えられなくても書き出しはできる */ }
+      try { localStorage.setItem(REPORT_LAYOUT_KEY, JSON.stringify({ format: st.format, layouts: st.layouts })); } catch (e) {   }
     }
-    // 選べる「日」（カードの日時の日の部分。日の順番）
+
     function reportDayOptions(cp) {
       const active = (cp.items || []).filter(i => i.type === 's' || i.type === 'o');
       return groupItemsByDay(assessmentDisplayOrder(active)).map(g => g.day).filter(Boolean);
@@ -275,7 +267,7 @@
       const g = groups.find(x => x.day === day);
       return g ? g.items : [];
     }
-    // 実施・評価の記録を「日」で絞る（日が「9月29日」のような日付のときだけ。「術後3日目」などでは絞らない）
+
     function reportRecordFilter(day) {
       const m = day && String(day).normalize('NFKC').match(/^(\d{1,2})月(\d{1,2})日/);
       if (!m) return null;
@@ -295,7 +287,6 @@
       return out;
     }
 
-    // 書き出しの中身を組み立てる：[{ title, lines:[…], groups:[{ title, lines }] }]
     function buildReport(cp, { format = 'soap', layout = null, day = '' } = {}) {
       const sections = (layout || defaultReportLayout(format)).filter(s => s.on).map(s => s.key);
       const active = (cp.items || []).filter(i => i.type !== 'unnecessary');
@@ -343,7 +334,7 @@
         });
         return { title: `SOAP${dayNote}`, blocks };
       }
-      // 実習記録の様式
+
       sections.forEach(key => {
         if (key === 'profile') {
           const own = new Set(['確認結果', '患者の反応']);
@@ -366,8 +357,7 @@
           blocks.push({ title: '検査値の推移', lines });
         } else if (key === 'indices') {
           let list = [];
-          // 【レビューで発見】computeClinicalIndices は { basics, indices, missing } を返す（.items は無い）ため、
-          // 以前はこの節が常に空だった。画面の「計算した指標」と同じく、カルテ本文が空ならカードの文章から計算する。
+
           const idxText = cp.sourceText || active.map(i => i.text || '').join('\n');
           try { list = computeClinicalIndices(idxText, active).indices || []; } catch (e) { list = []; }
           blocks.push({ title: '計算した指標', lines: list.map(x => `${x.name}：${x.value}${x.unit ? ` ${x.unit}` : ''}（${x.detail}）${x.note ? `　${x.note}` : ''}`) });
@@ -433,7 +423,6 @@
 </style></head><body>${printDocHead(report.title, cp)}${body}</body></html>`;
     }
 
-    // ---- 書き出しの画面 ----
     let reportState = null;
     window.openReport = function() {
       reportState = loadReportLayout();
@@ -480,7 +469,7 @@
     window.downloadReport = function() {
       const cp = getCurrentPatient();
       const blob = new Blob([currentReportText()], { type: 'text/plain;charset=utf-8' });
-      // 【レビューで発見】ページに追加しないまま押していた（ファイル名が反映されない環境がある）。js/06 の downloadTextBlob を使う
+
       downloadTextBlob(blob, `${(cp.title || 'カルテ').replace(/[\\/:*?"<>|]/g, '_')}_${REPORT_FORMATS[reportState.format].label}.txt`);
       showToast('テキストファイル（.txt）を保存しました', 'success');
     };
@@ -490,8 +479,7 @@
     };
 
     // ==========================================================================
-    // 手直しを楽にする：①元に戻す（S/O・タグ・欄・本文・統合・分割を、1つずつ戻す。Ctrl+Z でも）
-    //                   ②カードを分ける（1枚のカードを改行の所で複数のカードに分ける）
+
     // ==========================================================================
     const UNDO_MAX = 30;
     const undoStacks = Object.create(null);
@@ -601,20 +589,18 @@
       const redo = e.shiftKey || String(e.key).toLowerCase() === 'y';
       if (['view-relation', 'view-careplan'].some(id => { const view = document.getElementById(id); return view && !view.classList.contains('hidden'); })) return;
       const t = document.activeElement;
-      if (t && (/^(?:INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return; // 文字を打っている所では、ブラウザの「元に戻す」に任せる
+      if (t && (/^(?:INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
       if (document.querySelector('.fixed.inset-0:not(.hidden)')) return;
       if (redo ? !(redoStacks[getCurrentPatient().id] || []).length : !undoLabel(getCurrentPatient().id)) return;
       e.preventDefault();
       window.undoLastEdit(redo);
     });
 
-    // カードを分ける：改行の所で分け、1行目は元のカード（ID・学習の記録を引き継ぐ）、2行目からは新しいカード。
-    // 日時・タグ・欄・S/O は元のカードと同じにする（分けた後に、それぞれ直せる）
     function splitCardIntoParts(cp, id, parts) {
       const idx = cp.items.findIndex(i => i.id === id);
       if (idx === -1) return null;
       let texts = parts.map(t => cleanExtractedPhrase(t)).filter(Boolean);
-      // 元のカードが文（句点つき）なら、分けた各カードの終わりにも句読点を付ける
+
       if (texts.length >= 2 && texts.some(t => /。$/.test(t))) texts = texts.map(t => punctuateClause(t));
       if (texts.length < 2) return null;
       const src = cp.items[idx];
@@ -645,7 +631,7 @@
     window.closeSplitCard = function() { splitEditingId = null; document.getElementById('modal-split').classList.add('hidden'); };
     window.splitAtSentences = function() {
       const ta = document.getElementById('split-text');
-      // 重文・複文は、独立できる所（「〜したが、」の後ろ等）でも分け、それぞれに句読点を付ける（punctuateClause参照）
+
       ta.value = ta.value.replace(/\n+/g, '').replace(/(。|、(?=「)|」(?=[^。、」]))/g, '$1\n').replace(/\n+$/, '').split('\n').flatMap(line => splitCompoundSentences(line)).join('\n');
       updateSplitPreview();
     };
@@ -671,8 +657,7 @@
     };
 
     // ==========================================================================
-    // 作業の流れ（利用者の確認項目：「記録を貼り付ける→分類→手直し→アセスメント→書き出し」で次に押すボタンが分かるか）
-    // 2026-10-06.15：「記録を貼る・分類・手直し」を「情報収集」の1つにまとめた（情報収集 → アセスメント → 看護計画 → 書き出し）
+
     // ==========================================================================
     function workflowStatus(cp) {
       const items = cp.items || [];
@@ -684,7 +669,7 @@
       const confirmed = asm.filter(e => (e.history || []).length).length;
       const plans = carePlanList(cp);
       const steps = [
-        // 利用者からの要望：「記録を貼る・分類・手直しを『情報収集』にまとめる」。記録を貼って分類し、未分類・タグなしが無くなれば済み
+
         { key: 'collect', label: '情報収集', done: items.length > 0 && !unclassified && !untagged,
           note: [items.length ? `${items.length}枚` : '', unclassified ? `未分類${unclassified}` : '', untagged ? `タグなし${untagged}` : ''].filter(Boolean).join('・') },
         { key: 'assess', label: 'アセスメント', done: confirmed > 0, note: written ? `${written}項目${confirmed ? `（確定${confirmed}）` : ''}` : '' },
@@ -706,7 +691,7 @@
         <span class="wf-no">${s.done ? '<i class="fa-solid fa-check"></i>' : k + 1}</span><span class="wf-label">${s.label}</span>${s.note ? `<span class="wf-note">${escapeHtml(s.note)}</span>` : ''}${s.current ? '<span class="wf-next">次はここ</span>' : ''}</button>`).join('<i class="fa-solid fa-chevron-right wf-sep" aria-hidden="true"></i>');
     }
     window.goWorkflowStep = function(key) {
-      // 情報収集：まだ記録が無ければ記録メモへ、貼ってあって分類前なら「分類開始」へ、分類後は未分類・タグなしのカードへ
+
       if (key === 'collect') {
         const cp = getCurrentPatient(), items = cp.items || [];
         key = !items.length ? (String(cp.sourceText || '').trim() ? 'classify' : 'paste') : 'fix';
@@ -723,21 +708,17 @@
       else if (key === 'export') openReport();
     };
 
-    // 患者を切り替えた・読み込んだとき（js/05 の loadLocalState から呼ぶ）
     function onPatientViewReloaded(cp) {
       renderCarePlans();
       renderUndoButton();
       renderWorkflowSteps();
       maybeCheckpointOnOpen(cp);
     }
-    // 起動時：js/10 の起動の処理で一度描いた画面を、js/11〜13 の分も入れて描き直す
-    try { renderAssessmentTable(); renderCarePlans(); renderWorkflowSteps(); } catch (err) { console.warn('画面を描き直せませんでした:', err); }
+
+    try { renderAssessmentTable(); renderCarePlans(); renderWorkflowSteps(); } catch (err) { console.warn('View render failed:', err); }
 
     // ==========================================================================
-    // 【ボタン1つで看護計画まで】利用者からの要望：「ボタン一つで順番に処理して看護計画立案」。
-    // ①不足情報の推定 → ②看護診断候補 → 優先度の高い候補（AIが優先順に挙げた上から2件）を選ぶ → ③看護計画の叩き台
-    // → 「看護計画」タブへ取り込み、までを順番に行う。途中で患者を切り替えたり、どこかで失敗したりしたら、そこで止める。
-    // 選んだ診断・計画は、あとから自由に選び直し・書き直しできる（AIの参考案であることは各結果の欄に表示）。
+
     // ==========================================================================
     window.aiPipelineStatus = { running: false, label: '' };
     const AI_PIPELINE_SELECT_COUNT = 2;
@@ -750,7 +731,7 @@ if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {
     CHECKPOINT_MAX, createCheckpoint, deleteCheckpoint, checkpointList, diffCards, inlineTextDiffHtml, maybeCheckpointOnOpen,
     restoreCardFromCheckpoint, splitCardIntoParts, undoLast, pushUndo, workflowStatus, REPORT_FORMATS, defaultReportLayout, buildReport, reportToText, reportToHtml, reportDayOptions,
-    // レビューで見つけた不具合の確認用（tests/review-fixes-ai-export.test.js）
+
     calculateAndAddDerivedMetricCards, parseAiJsonArray, safeDomId, buildPrintAiSectionsHtml, formatEditLogEntry, storedAiHtml, isAiStepRunning
   });
 }

@@ -1,6 +1,5 @@
 'use strict';
-// 自分のアセスメント（js/11）：ヘンダーソン14項目ごとに「情報の解釈」「考えられる原因」「今後の見通し」を書き、
-// 根拠のS/Oカードを紐付け、確定した版を履歴に残し、そのあとに増えた情報・変わった根拠を知らせて再評価できる
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');
@@ -31,7 +30,7 @@ test('根拠のカードを足す・外す：表と同じ番号（S-1・O-2）�
   assert.equal(cp.myAssessments[3].evidenceCache.o2.label, 'O-2');
   assert.ok(app.unlinkMyEvidenceId(cp, 3, 'o1'));
   assert.deepEqual(clone(cp.myAssessments[3].evidenceIds), ['s1', 'o2']);
-  // 根拠のカードを不要にすると「消された根拠」として知らせる
+
   cp.items.find(i => i.id === 'o2').type = 'unnecessary';
   const st = app.myAssessmentStatus(cp, 3);
   assert.deepEqual(clone(st.removedEvidence), [{ id: 'o2', text: '腸蠕動音やや微弱' }]);
@@ -67,7 +66,6 @@ test('再評価の流れ：新しいカード・根拠の本文の変更を知�
   let st = app.myAssessmentStatus(cp, 3);
   assert.equal(st.newItems.length, 0, '確定のときにあったカードは「新しい情報」にしない');
 
-  // 確定のあとに：新しいカードが増え、根拠のカードの本文が書き換わった
   cp.items.push(card('o9', 'o', '午後、軟便中量あり', [3], { timestamp: '術後3日目' }));
   cp.items.find(i => i.id === 'o1').text = '術後より排便なし（2日間）';
   st = app.myAssessmentStatus(cp, 3);
@@ -79,10 +77,9 @@ test('再評価の流れ：新しいカード・根拠の本文の変更を知�
   assert.match(html, /新しく増えた情報（1）/);
   assert.match(html, /再評価として確定（第2版）/);
 
-  // 「確認した」：その本文のままなら知らせない
   e.acknowledged.o1 = '術後より排便なし（2日間）';
   assert.equal(app.myAssessmentStatus(cp, 3).changedEvidence.length, 0);
-  // 新しいカードを根拠に加え、解釈を書き直して再評価
+
   app.linkMyEvidenceIds(cp, 3, ['o9']);
   e.interpretation = '排便があり、便秘の状態は改善した。';
   e.revisionNote = '軟便があったため判断を変えた';
@@ -95,7 +92,7 @@ test('再評価の流れ：新しいカード・根拠の本文の変更を知�
   assert.deepEqual(clone(d.changedFields), ['情報の解釈']);
   assert.deepEqual(clone(d.addedEvidence.map(x => x.id)), ['o9']);
   assert.equal(app.myAssessmentNeedsReview(app.myAssessmentStatus(cp, 3)), false);
-  // 前の版に戻す（書きかけに写すだけ）
+
   assert.ok(app.restoreMyAssessmentFromHistory(cp, 3, 1));
   assert.equal(e.interpretation, '排便がなく便秘の状態にある。');
   assert.deepEqual(clone(e.evidenceIds), ['s1', 'o1']);
@@ -159,7 +156,6 @@ test('根拠のカードを選ぶ画面：この項目のカードは表の番�
   assert.deepEqual(clone(app.evidencePickerCandidates(cp, 3, { query: 'crp' }).map(c => c.item.id)), ['o3']);
 });
 
-
 test('複数の端末：別々の欲求のアセスメントを書いても消えない（サーバー・起動時の読み込み・保存の応答）', async () => {
   const app = loadApp();
   const server = require('../server.js');
@@ -194,7 +190,7 @@ test('保存の応答：通信中に書いたアセスメントは戻らず、�
   e.interpretation = '送った内容';
   e.updatedAt = '2026-09-29T01:00:00.000Z';
   const sending = h.syncPatientToServer('P');
-  // 通信中に書き足す
+
   e.interpretation = '送った後に書き足した内容';
   e.updatedAt = '2026-09-29T01:00:05.000Z';
   h.schedulePatientSync('P');

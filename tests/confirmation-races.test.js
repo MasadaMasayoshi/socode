@@ -1,7 +1,8 @@
 'use strict';
+const sourceRange=require('./source-range');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const plans=fs.readFileSync(path.join(__dirname,'../js/12-missing-checks-and-care-plan.js'),'utf8'),assessment=fs.readFileSync(path.join(__dirname,'../js/11-own-assessment.js'),'utf8');
-const planDelete=plans.slice(plans.indexOf('    window.deleteCarePlanUI ='),plans.indexOf('    // 旧AIの結果'));
+const planDelete=sourceRange(plans,'    window.deleteCarePlanUI =','    function importCarePlans(');
 const recordDelete=plans.slice(plans.indexOf('    window.deleteCareRecordUI ='),plans.indexOf('    // ==========================================================================',plans.indexOf('    window.deleteCareRecordUI =')));
 const restore=assessment.slice(assessment.indexOf('    window.restoreMyAssessmentVersion ='),assessment.indexOf('    window.clearMyAssessmentAi ='));
 const patient=id=>({id,carePlans:{p:{id:'p',problem:'before',records:[{id:'r',evaluation:'before'}]}},myAssessments:{1:{interpretation:'before'}}});

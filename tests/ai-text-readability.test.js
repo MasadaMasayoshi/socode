@@ -1,16 +1,11 @@
 'use strict';
-// AIの文章を読みやすく（利用者からの要望：「AIが作成した文章をもう少し読みやすく、要点を分かりやすく」）
-//  ・前置き（「〜の視点から…まとめました」）と区切り線を取り除く
-//  ・見出し（###）・箇条書き（* - 1.）・引用（>）を記号のまま出さず、見出し・箇条書きにする
-//  ・【要点】は枠で囲む。根拠のカードの後ろに取り残されていた「。」を前に移す
-//  ・AIへの指示文で、最初に要点を書かせ、前置きを書かせない
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp, readAppSource } = require('./app-helpers');
 const app = loadApp();
 const src = readAppSource();
 
-// 利用者の書き出し（患者38）に出ていたAIの答えの形
 const LAB = `熟練した看護師長・指導者の視点から、ご提示いただいた患者のOデータおよび「NotebookLM 基準ノート」の検査値評価規則に基づき、総合評価欄向けに臨床的意味を解説・アセスメント文章としてまとめました。
 ---
 ### 要点
@@ -58,7 +53,6 @@ test('看護計画の叩き台の新しい形（見出し・番号付き）も�
   assert.deepEqual(JSON.parse(JSON.stringify(plans[0].op)), ['呼吸数の推移', '喀痰の性状']);
   assert.deepEqual(JSON.parse(JSON.stringify(plans[0].ep)), ['息苦しいときは知らせるよう説明する']);
 });
-
 
 test('不足情報のAI推定：推定し直すと、前回のAI推定のうち未確認・未編集のものは置き換える（増え続けない）', () => {
   assert.match(src, /function isUntouchedAiMissing\(cp, i\)/);

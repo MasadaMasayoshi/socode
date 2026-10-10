@@ -1,5 +1,5 @@
 'use strict';
-// 旧実記録の一致は未確認。現在の公開仕様回帰には含めず、不足時は明示的に失敗する。
+
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
 const app=require('../app-helpers').loadApp();
 const {groupClinicalPhrasesWithTimestamps,detectMultipleHendersonTags,LAB_ITEM_NAME_REGEX,fieldLabelHintTags,predictLocalItemType,extractAbnormalLabFindings,detectGastricPostopMissingChecks}=app;
@@ -10,16 +10,13 @@ function classifyLocally(text) {
     .map(chunk => {
       const cleanedText = chunk.text;
       const tagIds = new Set(detectMultipleHendersonTags(cleanedText));
-      // 本体（btn-start-classifyのローカル分類経路）と同様に、検査値・バイタルサインには
-      // 原則2(食事：栄養・代謝状態)タグも補う（このヘルパーが本体の挙動を省略していると
-      // classifyLocallyでの検証結果が実際の画面表示と食い違ってしまうため、本体の判定条件
-      // <chunk.isLabOrVital || LAB_ITEM_NAME_REGEX.test(...)>をそのまま揃える）。
+
       if (chunk.isLabOrVital || LAB_ITEM_NAME_REGEX.test(cleanedText)) tagIds.add(2);
       if (chunk.fieldLabel) {
         fieldLabelHintTags(chunk.fieldLabel, cleanedText).forEach(id => tagIds.add(id));
       }
       const type = predictLocalItemType(chunk, cleanedText, null);
-      // 比較できる検査データの表をまとめたカードは、本体と同じく時点ごとの値（labRows）も持つ
+
       return { text: cleanedText, timestamp: chunk.timestamp, type, hendersonIds: Array.from(tagIds), fieldLabel: chunk.fieldLabel || null, ...(chunk.labRows ? { labRows: chunk.labRows } : {}) };
     });
 }
@@ -48,4 +45,3 @@ test('実際の記録全文から期待通りの異常値・不足情報が検�
   const tennis = findByIncludes(items, 'テニス');
   assert.ok(tennis && tennis.hendersonIds.includes(4) && tennis.hendersonIds.includes(13));
 });
-

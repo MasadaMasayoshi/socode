@@ -1,8 +1,9 @@
 'use strict';
+const sourceRange=require('./source-range');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'../js/12-missing-checks-and-care-plan.js'),'utf8');
 const historySource=source.slice(source.indexOf('    const carePlanFieldHistories'),source.indexOf('    window.toggleCarePlan ='));
-const inputSource=source.slice(source.indexOf('    window.onCarePlanInput ='),source.indexOf('    // 看護問題の名前を書き換え終えたとき'));
+const inputSource=sourceRange(source,'    window.onCarePlanInput =','    window.onCarePlanProblemCommit =');
 function mount(){let patient,saves=0,now=1000;class Clock extends Date { static now(){return now;} }const ctx={Date:Clock,getCurrentPatient:()=>patient,getCarePlan:(p,id)=>p.carePlans[id]?.deleted?null:p.carePlans[id],updateCarePlan:(p,id,patch)=>Object.assign(p.carePlans[id],patch),commitCarePlanChange:()=>saves++,showToast(){},CARE_PLAN_SECTIONS:[{key:'op'},{key:'tp'},{key:'ep'}],carePlanLinesToList:v=>v.split('\n'),saveMyAssessmentsSoon(){},document:{querySelector:()=>null}};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(historySource+'\n'+inputSource,ctx);return {ctx,set:p=>patient=p,tick:()=>now+=1000,saves:()=>saves,input:(key,value)=>ctx.onCarePlanInput('plan',key,{value}),undo:()=>ctx.undoCarePlanField(),redo:()=>ctx.undoCarePlanField(true)};}
 const patient=id=>({id,carePlans:{plan:{id:'plan',goalShort:'before',op:['old'],status:'active'}}});
 test('actual care plan input supports patient-specific undo and redo',()=>{const h=mount(),a=patient('a'),b=patient('b');h.set(a);h.input('goalShort','after-a');h.undo();h.set(b);h.input('goalShort','after-b');h.undo();h.redo();h.set(a);h.redo();assert.equal(a.carePlans.plan.goalShort,'after-a');assert.equal(b.carePlans.plan.goalShort,'after-b');assert.equal(h.saves(),4);});

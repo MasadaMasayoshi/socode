@@ -1,7 +1,8 @@
 'use strict';
+const sourceRange=require('./source-range');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync(require.resolve('../js/05-app-state-and-ui.js'),'utf8');
-const code=source.slice(source.indexOf('    function showUndoToast'),source.indexOf('    // 汎用ダイアログ'));
+const code=sourceRange(source,'    function showUndoToast','    const dialogEl =');
 function mount(){
  const owner={id:'a',items:[]};let toast,saves=0,marks=0;const notices=[];
  const ctx={globalAppData:{patients:[owner]},document:{createElement:()=>({children:[],style:{},classList:{replace(){}},append(...x){this.children.push(...x);},addEventListener(_,fn){this.click=fn;},remove(){}})},DOM:{toastContainer:{appendChild:x=>toast=x}},setTimeout(){},markPatientChanged:()=>marks++,saveDataAndSync:()=>saves++,showToast:(text,type)=>notices.push({text,type})};

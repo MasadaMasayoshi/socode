@@ -1,17 +1,6 @@
 'use strict';
-// 「入院前／入院後」の自動判定（利用者からの要望）の検証。
+
 //
-// 【背景】利用者からの要望（原文の要旨）：
-//   ・最初は「入院前」と記憶して処理をスタートする（前半の基本情報や普段の生活習慣を拾うため）。
-//   ・行の中に「入院」「実習」「術前」「術後」などの見出しキーワードを見つけたら、
-//     記憶を「入院後」に切り替える。
-//   ・見出し以外のデータ行には、その時点で記憶している時期タグ（入院前 or 入院後）を
-//     自動的に付与する。
-// detectAdmissionPhaseSignal()は、この「切り替わりの手がかり」を1行分のテキストから
-// 判定する純粋関数（ローカル抽出・AI抽出の両方、および既存カードへの遡及反映
-// （window.reapplyTagRulesToUntagged）から共通で呼ばれる）。groupClinicalPhrasesWithTimestamps
-// は、この判定結果を使って「今何の時期を読んでいるか」を上から順に記憶しながら、
-// 抽出した各カードにadmissionPhaseを自動的に書き足す。
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -39,8 +28,7 @@ test('detectAdmissionPhaseSignal: 「入院」「実習」「術前」「術中�
 });
 
 test('detectAdmissionPhaseSignal: 「入院前」は「入院」を含んでいても入院後より優先される（優先順位の確認）', () => {
-  // 「入院前の生活歴」のように「入院」という字面上は入院後の手がかりも含む文字列でも、
-  // 明示的な「入院前」を優先して入院前に戻す（巻き戻しの手がかりを取り逃さないため）。
+
   assert.equal(detectAdmissionPhaseSignal('入院前の生活歴について本人・家族に確認'), 'preadmission');
 });
 
@@ -58,10 +46,9 @@ test('inferAssessmentColumn: タイムスタンプ・見出しラベルのどち
 });
 
 test('inferAssessmentColumn: タイムスタンプ・見出しラベルの明確な手がかりは、admissionPhaseより優先される（回帰確認）', () => {
-  // 「治療方針」は見出しラベルの手がかりでpostadmission確定のため、
-  // admissionPhaseがpreadmissionでも上書きされない。
+
   assert.equal(inferAssessmentColumn('治療方針', '', 'preadmission'), 'postadmission');
-  // タイムスタンプに「入院前」があれば、admissionPhaseがpostadmissionでも上書きされない。
+
   assert.equal(inferAssessmentColumn(null, '入院前', 'postadmission'), 'preadmission');
 });
 
@@ -91,17 +78,6 @@ test('groupClinicalPhrasesWithTimestamps: 見出しキーワードが一度も�
   });
 });
 
-// 【背景】利用者からのアップロード文書で発覚：「【入院当日】」「【入院2日目】」「【入院3日目】」
-// のように、山括弧（＜＞）ではなく全角鉤括弧（【】）で、かつ日付・時刻ではなく入院からの
-// 経過日数だけで区切りを表す見出し行が、時系列マーカー（TIME_MARKER_REGEXの「\d+日目」等）
-// としても、山括弧見出し（＜実習1日目…＞等）としても認識されず、見出し語だけの意味の無い
-// カードとして残ってしまっていた。しかもこのカードはヘンダーソン14項目のどのキーワードにも
-// 一致しないため、「患者背景（基本情報／医学情報）」の受け皿に誤って振り分けられてしまう
-// （利用者からの質問：「なぜ患者背景に分類された？」）という二重の不具合になっていた。
-// 「\d+日目」だけでは「入院」の分だけ手前にずれてしまい一致できない（見出し全体が数字から
-// 始まっていないため）ことが原因。「入院当日」「入院◯日目」を時系列マーカーの候補に追加し、
-// 他の「術前」「術後」等と同様に、見出し行自体はカード化せず（意味の無いカードを作らない）、
-// globalTimestamp・admissionPhaseの更新だけに使われるようにした。
 test('groupClinicalPhrasesWithTimestamps: 「【入院当日】」「【入院2日目】」のような全角鉤括弧の入院日数見出しも時系列マーカーとして認識され、見出し語だけの意味の無いカードを作らない（利用者からの報告事例）', () => {
   const text = [
     '【入院当日】',

@@ -1,3 +1,1 @@
-// このファイルは使われなくなりました（2026-09-28）。
-// プログラム本体は js フォルダの 01〜10 の10ファイルに分けました（README.md の「ファイル構成」を参照）。
-// index.html からは読み込んでいないので、削除して構いません。
+// Archived entry point; index.html loads js/01-15 instead.

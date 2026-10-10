@@ -1,15 +1,5 @@
 'use strict';
-// レビューで見つかったサーバー（server.js）・同期（js/04-server-sync.js）の不具合の再現と修正の確認
-//  ①「//data/…」「/%2fdata/…」「/js/../data/…」の書き方で、全患者のカルテや server.js を取得できた
-//  ②text='__proto__' の学習イベントで Object.prototype（全オブジェクトの親）が書き換わった
-//  ③タブを閉じたときの学習の一括同期が、ほかの利用者の票を古い内容へ巻き戻していた・壊れた値で以後 500 になった
-//  ④同じ患者への保存が重なると、先の保存の失敗で後の保存（200 を返した分）の内容が消えていた
-//  ⑤文章を編集すると、編集前と編集後の文章の票が同じ入れ物を共有していた
-//  ⑦学習イベントのたびに学習辞書「全体」を返していた・文章の長さに上限が無かった
-//  ⑨（JSONファイル保存）保存に失敗した基準などが、500 を返した後も一覧に残っていた
-//  ⑩経路ごとの受け取りの上限が使われていなかった（共通の読み取りが先に読んでいた）
-//  ⑪MongoDB：以前の形式の「完全に削除した患者の記録」が移行されず、削除した患者が復活できた
-//  ⑫画面：送り直しても変わらない断り（413 など）を永遠に送り直していた・保存できた後も送り直しのタイマーが残った
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
@@ -39,7 +29,7 @@ test('①非公開のファイルは、「//」「%2f」「..」を使った書�
     assert.equal(server.isPrivateStaticPath(p), false, p);
   }
   assert.equal(server.isPrivateStaticPath('/%E0%A4%A'), null, '不正な書き方は 400');
-  // 実際のHTTPでも（修正前は /%2fdata/patients.json で患者のカルテがそのまま返っていた）
+
   for (const p of ['/%2fdata/patients.json', '/%2Fserver.js']) {
     const res = await fetch(`${url}${p}`);
     assert.equal(res.status, 404, p);
@@ -56,13 +46,13 @@ test('②text が __proto__ などの学習イベントは断り、Object.protot
   assert.equal(({}).preferredType, undefined);
   assert.equal(({}).updatedAt, undefined);
   assert.equal(({}).typeVotes, undefined);
-  // 'toString' など、親から受け継いだ名前と同じ文章も、自分の学習として正しく記録する
+
   const res = await event('toString', 'type', { type: 'o' });
   assert.equal(res.status, 200);
   const dict = await getDict();
   assert.equal(dict.toString.preferredType, 'o');
   assert.deepEqual({ ...dict.toString.typeVotes }, { o: 1 });
-  // 票のキー（分類名）が __proto__ でも、おかしな票は数えない
+
   const t2 = '分類名がおかしい ' + uniq();
   assert.equal((await event(t2, 'type', { type: '__proto__' })).status, 200);
   assert.deepEqual({ ...(await getDict())[t2].typeVotes }, {});
@@ -86,17 +76,17 @@ test('③一括同期：__proto__ のキー・壊れた値は受け付けず、�
 test('③一括同期：古いタブの内容で、ほかの利用者が加えた票を巻き戻さない（新しい分は票ごとに多い方を残す）', async () => {
   const text = '一括同期の文 ' + uniq();
   const loadedAt = new Date(Date.now() - 60000).toISOString();
-  // タブAが開いた時点：s が1票
+
   await post('/api/learning-dict/sync', { [text]: { typeVotes: { s: 1 }, hendersonVotes: {}, preferredType: 's', updatedAt: loadedAt } });
-  // その後、ほかの利用者が s に2票
+
   await event(text, 'type', { type: 's' });
   await event(text, 'type', { type: 's' });
   assert.equal((await getDict())[text].typeVotes.s, 3);
-  // タブAが閉じられ、開いた時点の古い内容を一括同期してくる
+
   const stale = await post('/api/learning-dict/sync', { [text]: { typeVotes: { s: 1 }, hendersonVotes: {}, preferredType: 's', updatedAt: loadedAt } });
   assert.equal(stale.status, 200);
   assert.equal((await getDict())[text].typeVotes.s, 3, '以前はここで1票に巻き戻っていた');
-  // このタブで後から付けた票（届いていなかった分）は取り込む
+
   await post('/api/learning-dict/sync', { [text]: { typeVotes: { s: 1, o: 5 }, hendersonVotes: { 3: 2 }, updatedAt: new Date(Date.now() + 1000).toISOString() } });
   const merged = (await getDict())[text];
   assert.deepEqual({ ...merged.typeVotes }, { s: 3, o: 5 });
@@ -146,7 +136,7 @@ test('⑤文章を編集しても、編集前と編集後の文章の票は別�
   assert.deepEqual({ ...dict[a].typeVotes }, { s: 1 }, '以前は編集前の文章の票まで o:2 になっていた');
   assert.deepEqual({ ...dict[b].typeVotes }, { s: 1, o: 2 });
   assert.equal(dict[b].lastEditedFrom, a);
-  // 既に学習のある文章へ編集した場合は、票ごとに多い方を残す（上書きで消さない）
+
   const c = '既存 ' + uniq(), d = '別の文 ' + uniq();
   for (let i = 0; i < 3; i++) await event(c, 'type', { type: 'o' });
   await event(d, 'type', { type: 's' });
@@ -212,7 +202,7 @@ test('⑪MongoDB：以前の形式の「完全に削除した患者の記録」�
   let s;
   try {
     s = require('../server.js');
-    await s.loadFromMongo(); // 模擬DBの読み込みは最初の接続のときに行われる
+    await s.loadFromMongo();
   } finally {
     if (prevUri === undefined) delete process.env.MONGODB_URI; else process.env.MONGODB_URI = prevUri;
     if (prevMod === undefined) delete process.env.NURSING_MONGODB_MODULE; else process.env.NURSING_MONGODB_MODULE = prevMod;
@@ -224,11 +214,10 @@ test('⑪MongoDB：以前の形式の「完全に削除した患者の記録」�
   assert.ok((await db.collection('patients').findOne({ _id: 'live1' })).data);
   const r = await s.patientStoreSave('gone1', { id: 'gone1', items: [{ id: 'x' }], updatedAt: new Date().toISOString() });
   assert.equal(r.deleted, true, '古い端末からの保存で復活させない');
-  await s.loadFromMongo(); // 何度起動しても安全
+  await s.loadFromMongo();
   assert.equal((await db.collection('patients').findOne({ _id: 'gone1' })).rev, 1);
 });
 
-// ---- 画面側（js/04-server-sync.js） ----
 function memoryStorage() {
   const m = new Map();
   return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k) };
@@ -265,7 +254,7 @@ test('⑫画面：413 など送り直しても変わらない断りは、自動�
   await p;
   assert.ok(h.unsyncedPatientIds.has('A'), '未保存のまま');
   assert.ok(!timers.some(t => RETRY_WAITS.includes(t.ms)), '送り直しを予約しない');
-  // 429（送信の集中）は、これまでどおり送り直す
+
   const p2 = h.syncPatientToServer('A');
   calls[1].resolve(reply(429, { error: '短時間に送信が集中しています' }));
   await p2;
@@ -279,7 +268,7 @@ test('⑫画面：保存できたら、前の失敗で予約した送り直し�
   await p1;
   const retryIdx = timers.findIndex(t => t.ms === 3000);
   assert.ok(retryIdx >= 0);
-  const p2 = h.syncPatientToServer('A'); // 待たずに（編集などで）送り直した
+  const p2 = h.syncPatientToServer('A');
   calls[1].resolve(reply(200, { ok: true, patient: calls[1].body }));
   await p2;
   assert.ok(cleared.includes(retryIdx + 1), '残っていた送り直しのタイマーを止める');

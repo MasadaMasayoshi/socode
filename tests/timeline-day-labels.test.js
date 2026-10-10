@@ -1,7 +1,5 @@
 'use strict';
-// 入力は新規の公開用仕様再現事例。旧教材との全文互換性を証明するテストではない。
-// 利用者からの指摘（患者36）：時刻だけ（[12:00]）で抽出していたため、手術当日・術後1日目・術後2日目の
-// 同じ時刻の記録が区別できなかった。日時に日（術後日数）を付け、総合アセスメント表では日ごとに区切る。
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -38,11 +36,11 @@ test('冒頭の事例紹介は日時不明ではなく入院前（入院日は�
   assert.equal(c.find(x => x.fieldLabel === '入院日').timestamp, '入院時');
   assert.equal(find(c, '食事: 常食 1,600kcal').timestamp, '入院時');
   assert.equal(find(c, '足背動脈触知良好').timestamp, '術前');
-  // 検査データの表は関連する項目ごとにまとめ（日時は表の最後の時点）、項目ごとの時点は labRows に持つ
+
   const glucose = find(c, 'HbA1c');
   assert.equal(glucose.timestamp, '術後1日目');
   assert.match(glucose.text, /HbA1c 6\.0%（入院時のみ）/, '表の前の時刻（12:00）を引き継がない');
-  // 冒頭に患者紹介の無い文章（看護記録だけ）は入院前にしない
+
   assert.equal(cards('弾性ストッキング着用し、フットポンプ装着\n8:00 回診\n創部 ガーゼ汚染なし')[0].timestamp, '日時不明');
 });
 

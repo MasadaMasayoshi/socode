@@ -1,53 +1,37 @@
-    // 看護アセスメント支援システム：07-classification.js（全10ファイルのうち 7 番目）
-    // 分類：タグの判定（detectMultipleHendersonTags）、追加キーワード、文章からカードへの切り分け（groupClinicalPhrasesWithTimestamps）、「分類開始」ボタン。
-    // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
-    // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
+// Local semantic classification. S quotations are not automatically communication.
+// Learned corrections precede headings and fixed rules; automatic creation does not vote.
+// Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-10.znavigation4'; // 版（scripts/stamp-version.js が書き込む）
-    // 「祖母を胃がん、父を前立腺がんで亡くしている〜」のような家族歴の文は、本人の食事・栄養
-    // 状態の所見ではないにもかかわらず、id2(食事)の疾患名キーワード（「胃がん」等）に一致して
-    // しまい、食事に無関係な家族歴が「2. 食事」に混入していた（利用者からの報告事例）。
-    // 「（祖父母・父母・きょうだい・おじおば）を〜がんで亡くした/亡くしている」という家族歴の
-    // 文脈が検出された場合に限り、本人の疾患名としてのみ意味を持つキーワード（「胃がん」等、
-    // id2で本人の消化器疾患の診断名として登録されているもの）の一致を除外する。他の一般的な
-    // 食事・栄養関連キーワード（「食欲」「摂取量」等）はこのガードの対象外で、家族歴の文でも
-    // 引き続き通常どおり判定される。
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-10.znavigation17'; // Version stamp (scripts/stamp-version.js)
+
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
     const OWN_DIAGNOSIS_ONLY_KEYWORDS = new Set(["胃がん", "胃癌"]);
     const NEGATABLE_SPEECH_KEYWORDS = new Set(["訴え", "話す", "語る"]);
-    // キーワードの直後が特定の語のときは、別の意味で使われているため一致させない（利用者からの指摘：患者38）。
-    //  「体重をかける」「体重をのせる」＝荷重（4.姿勢）であり、体格の「体重」（2.食事）ではない
-    //  「安静時」＝ペインスケール等の評価の条件であり、安静度の指示（4.姿勢）ではない
-    //  「不安定」＝動作のふらつき（4.姿勢）であり、心理的な「不安」（10.コミュニケーション）ではない
-    //  「TP：〜」＝看護計画の援助計画（OP・TP・EP）であり、検査値の総蛋白（2.食事）ではない（利用者からの指摘：
-    //   リハビリ・日常生活の姿勢の説明のカードが2.食事になっていた）
+
     const KEYWORD_FOLLOWING_EXCLUSIONS = {
       "体重": /^\s*(?:を|が|は|も)?\s*(?:かけ|掛け|のせ|乗せ|負荷|支持|免荷)/,
       "安静": /^時/,
-      // 「昼食後より内服開始」「昼食、点滴終了」のように食事の時間を目安として書いただけのものは2.食事にしない
+
       "朝食": /^(?:後|前|時|まで|より|から|[、:：]\s*(?:点滴|抗|内服|投与|与薬|検温|処置))/,
       "昼食": /^(?:後|前|時|まで|より|から|[、:：]\s*(?:点滴|抗|内服|投与|与薬|検温|処置))/,
       "夕食": /^(?:後|前|時|まで|より|から|[、:：]\s*(?:点滴|抗|内服|投与|与薬|検温|処置))/,
       "不安": /^定/,
-      // 「活動的に生活している」＝性格・生活ぶりの表現であり、動作の情報（4.姿勢）ではない（利用者からの指摘：患者36）
+
       "活動": /^的/,
-      // 「（娘に）仕事を休ませてしまって」＝家族の仕事（新しい長文事例のテスト：緩和ケアの事例）
+
       "仕事": /^を休ませ/,
       "TP": /^\s*[:：]\s*[^\d\s.]|^\s*[（(]\s*援助/
     };
-    // キーワードの直前が特定の語のときも、別の意味なので一致させない（利用者からの指摘）。
-    //  「息子は仕事があるから」＝家族の仕事であり、患者本人の仕事・役割（12.仕事）ではない
-    //  「高血圧」＝病名（既往歴）であり、その場で測った血圧（1.呼吸の循環の観察）ではない（利用者からの指摘：患者34）
-    //  「義歯」の「歯」＝口腔の清潔（8）ではなく、咀嚼（2.食事）の情報（利用者からの指摘：患者36）
+
     const KEYWORD_PRECEDING_EXCLUSIONS = {
       "歯": /義$/,
-      // 「起座位」は呼吸が苦しくて座る姿勢（1.呼吸）で、4.姿勢の「座位」ではない
+
       "座位": /起$/,
-      // 「麻酔から目が覚めなかったら」は手術の不安で、夜間の睡眠（5）ではない
+
       "目が覚め": /麻酔から[^。」]{0,5}$/,
       "血圧": /高$/,
-      // 「長男:23歳、会社員」のような家族の職業は、患者本人の仕事（12.仕事）ではない
+
       "会社員": /(?:息子|娘|夫|妻|嫁|婿|長男|次男|三男|長女|次女|三女|主人|旦那|孫|兄|姉|弟|妹|父|母)[^。]{0,10}$/,
       "退職": /(?:息子|娘|夫|妻|嫁|婿|長男|次男|三男|長女|次女|三女|主人|旦那|孫|兄|姉|弟|妹|父|母)[^。]{0,10}$/,
       "パート": /(?:息子|娘|夫|妻|嫁|婿|長男|次男|三男|長女|次女|三女|主人|旦那|孫|兄|姉|弟|妹|父|母)[^。]{0,14}$/,
@@ -56,7 +40,7 @@
       "定年": /(?:息子|娘|夫|妻|嫁|婿|長男|次男|三男|長女|次女|三女|主人|旦那|孫|兄|姉|弟|妹|父|母)[^。]{0,10}$/,
       "仕事": /(?:息子|娘|夫|妻|嫁|婿|家族|長男|次男|三男|長女|次女|三女|主人|旦那|孫|兄|姉|弟|妹|子ども|子供|親|父|母)(?:さん|たち|達)?(?:は|も|が|の|には|にも)?[^。、」「]{0,6}$/
     };
-    // 英字だけのキーワード（TP・VF・BT等）は、ほかの英単語の一部（「OUTPUT」の中の「TP」等）には一致させない
+
     const ASCII_KEYWORD_REGEX = /^[A-Za-z0-9]+$/;
     function isValidKeywordOccurrence(text, kw, idx) {
       const after = text.slice(idx + kw.length);
@@ -73,7 +57,7 @@
       }
       return false;
     }
-    // 以前の呼び出し口（他の処理から使われている）も残す
+
     function hasOccurrenceNotFollowedBy(text, kw, excludeRegex) {
       let idx = text.indexOf(kw);
       while (idx !== -1) {
@@ -82,16 +66,12 @@
       }
       return false;
     }
-    // 看護師・療法士が患者に説明・指導したこと（日常生活で気をつける姿勢、ナースコールの使い方等）は、
-    // 患者の学び（14.学び）の情報でもある（利用者からの指摘：リハビリ・姿勢の説明は「14. 学び」）。
-    // 医師からの病状説明（「主治医より経過良好と説明あり」）は対象にしない。
+
     const LEARNING_NEED_IN_QUOTE_REGEX = /(?:気を付け|気をつけ|注意し)(?:ないと|ないといけない|れば|たらいい|ること)|(?:わから|分から)ない(?:ので|から)?.{0,8}(?:教えて|知りたい)|教えて(?:ください|ほしい|欲しい)|知りたい|どうしたら(?:いい|よい)の?|何に気を/;
-    // 治療・動作についての本人の疑問（「〜しても大丈夫なの？」「もう起きていいの？」「ずれたりしないかしら？」）
+
     const TREATMENT_QUESTION_IN_QUOTE_REGEX = /(?:ても|でも)(?:大丈夫|いい|平気)な(?:の|のかな|んですか|んでしょうか)|もう(?:起きて|動いて|歩いて)(?:も)?(?:いい|大丈夫)|ずれたりしない|外れたりしない/;
     const PATIENT_EDUCATION_REGEX = /(?:看護師|Ns|ナース|理学療法士|作業療法士|PT|OT|担当者)(?:より|から|が|は)[^。]{0,40}(?:説明|指導|伝え|練習)|(?:よう|ように)(?:に)?(?:説明|指導|伝え|声かけ|声掛け)|気をつけ(?:る|て|ましょう)|注意点|生活上の注意|退院指導|生活指導|パンフレット|(?<![A-Za-z])EP\s*[:：]/;
-    // 発言（「」内）が気持ちや疑問・心配を表しているか（その場合は10.コミュニケーションの所見とする）
-    // 「迷惑はかけられない」「遠慮」のような家族への気がねも、気持ちの表出として扱う（利用者からの指摘）
-    // 「〜したい」「〜してほしい」のような願い・希望の表出も同様（「早く自分でトイレに行けるようになりたい」）
+
     const QUOTE_FEELING_OR_QUESTION_REGEX = /(気持ち(?:が)?悪|いいんだけど|いいのに|といいな|緊張|たい(?:な|なあ|ね|わ|よ|です)?(?=[」。、!！?？]|$)|ほしい|欲しい|迷惑|遠慮|気がね|気兼ね|怖|恐|不安|心配|情けな|つら|辛|悲し|寂し|さみし|嫌|いや|困|悩|落ち込|イライラ|恥ずかし|悔し|嬉し|うれし|楽しみ|ありがと|申し訳|すみません|\?|？|かしら|かな(?=[?？。」、!！]|$)|だろう|でしょう)/;
     const SPEECH_NEGATION_REGEX = /^\s*(?:なし|無し|なく|無く|ない|無い|は(?:なし|無し|ない|無い|なく)|も(?:なし|なく|ない))/;
     function hasNonNegatedOccurrence(text, kw) {
@@ -102,10 +82,7 @@
       }
       return false;
     }
-    // 【見出し付きの生活の情報】「睡眠: 7時間程度…現在は痛みのため眠れていない」「趣味: 友人と旅行を楽しむ
-    // など、活動的に生活している」「嚥下・咀嚼障害: なし 上下義歯があるが不具合はない」のように、生活習慣・
-    // 身体機能の欄の見出しが行頭にあるカードは、その見出しの項目の情報として扱い、そのタグだけを付ける
-    // （利用者からの指摘：患者36。以前は本文の「痛み」「活動」「歯」等の語で9.環境・4.姿勢・8.清潔も付いていた）。
+
     const LABEL_PRIMARY_NEEDS = {
       '睡眠': [5], '休息': [5], '食事': [2], '嚥下・咀嚼障害': [2], '嚥下': [2], '咀嚼': [2], '体格': [2], '栄養': [2],
       '排泄': [3], '排尿': [3], '排便': [3], '清潔': [8], '入浴': [8], '更衣': [6], '活動': [4], '歩行': [4], '運動': [4], '移動': [4],
@@ -116,11 +93,7 @@
       const m = (text || '').match(/^([^:：「」、。\s]{1,14})\s*[:：]/);
       return m && LABEL_PRIMARY_NEEDS[m[1]] ? LABEL_PRIMARY_NEEDS[m[1]] : null;
     }
-    // 【「なし」と否定された症状】「呼吸困難感訴えなし、肺Air入り良好、嘔気・嘔吐なし」の「嘔気・嘔吐なし」、
-    // 「端坐位になり、食事摂取する 疼痛増強なし」の「疼痛増強なし」のように、ほかの観察に添えて「〜なし」と
-    // 書かれた症状は、そのカードの主な内容ではない（利用者からの指摘：患者36）。その項目のキーワードが
-    // すべて否定された症状だけのときは、ほかの項目のタグがあればその項目のタグを付けない（その症状だけの
-    // カード「嘔気・嘔吐なし」「疼痛増強見られず」なら、これまで通りその項目に付ける）。
+
     const WEAK_WHEN_NEGATED = { 2: ['嘔気', '嘔吐', '悪心', '吐気', 'むかつき'], 9: ['疼痛', '痛み', '痛'] };
     const SYMPTOM_NEGATION_REGEX = /^(?:[・、](?:嘔気|嘔吐|悪心|吐気|むかつき|疼痛|痛み))*[^、。「」]{0,4}?(?:なし|無し|認めず|みられず|見られず|はない|はなし|なく|ない|\(-\))/;
     function isNegatedEverywhere(text, kw) {
@@ -132,9 +105,7 @@
       }
       return true;
     }
-    // 【痛みの評価のカードの「〇〇時」】「安静時ペインスケール「2-3」 体位変換時「5-6」」「ペインスケール「5-6」
-    // 側臥位時、外転枕使用している」のように、痛みの評価の条件として書かれた姿勢の語では4.姿勢を付けない
-    // （利用者からの指摘：患者36「疼痛や安楽の確保は9」）。荷重・移乗・歩行・リハビリ等の動作が書かれていれば4も付ける。
+
     const PAIN_TEXT_REGEX = /疼痛|痛み|痛い|痛く|痛かった|創痛|ペインスケール|NRS|VAS|鎮痛|ロキソ|レスキュー/;
     const PAIN_SCORE_REGEX = /ペインスケール|NRS|VAS|フェイススケール/;
     const POSTURE_ACTIVITY_REGEX = /荷重|移乗|歩行|歩く|歩け|リハビリ|離床|端坐位|立位|移動|ROM|SLR|可動域|起立/;
@@ -144,10 +115,7 @@
     const COMM_ABILITY_REGEX = /聞こえ|聞き取|言葉(?:が|を)|話せ|伝え(?:られ|たい|にく)|意思疎通|難聴|筆談|声が出|会話/;
     const NOT_ENV_REGEX = /PCA|点滴|輸液|疼痛|痛み|痛い|鎮痛|ペインスケール|NRS|\bPLT\b|Plt|血小板|(?<![A-Za-z])PT(?![A-Za-z])|プロトロンビン|アミラーゼ|HBV|HCV|梅毒|HIV|病理|Stage|病期|T[0-9]\s*N[0-9O]|術式|手術時間|出血量|inout|バランス|怖い|不安|心配|フィブリノ|APTT|Dダイマー|感染症|血液型|麻酔科/;
     const ENV_EVIDENCE_REGEX = /ヘパリンロック|点滴終了|点滴ルート|保険|家族|妻|夫|長男|長女|次男|次女|娘|息子|同居|独居|一人暮らし|キーパーソン|サポート|支援者|経済|生活(?:の)?場|自宅|家屋|階段|段差|転倒|転落|転ぶ|ふらつき|歩行不安定|安全|危険|事故|感染予防|感染対策|手洗い|環境|ベッド柵|ナースコール|居室|病室|個室|退院先|施設|介護|ドレーン|チューブ|ガーゼ|創部|刺入部|挿入部|抜去|せん妄|不穏|ADL|見守り|ストッキング|フットポンプ|ホーマンズ|DVT|血栓|外転枕|脱臼|牽引|けん引|骨折|人工骨頭|人工関節|麻酔|知覚|しびれ|痺れ|足背動脈|患肢|聴力|聴覚|視力|視覚|平衡感覚|触覚|感覚|傷|悪露|子宮底|褥瘡|Homans|入院歴|手術歴|既往|手術室|退院|家に帰|圧迫装置|空気圧迫|弾性|住居|住まい|アパート|マンション|一戸建|自宅|医療費|職場/;
-    // ---- 意味の関連の確認（2026-10-08.28）：キーワードが一致しただけでは、その項目の情報とはしない ----
-    // 欲求ごとに、その項目の根拠として意味のつながりがある言葉（anchor）を決め、1つも無いのに付いたタグは外す。
-    // 外した結果、タグが1つも残らないときは、カードを迷子にしないため元のタグを残す（情報そのものは消さない）。
-    // 関係のうすい例（その欲求の言葉が1つも無いとき）：呼吸←血液型・鎮痛薬・内視鏡の結果／食事←血算・凝固などの検査値／排泄←呼吸訓練・腹腔ドレーン
+
     const HENDERSON_IRRELEVANT = {
       1: { when: /病理|Stage|病期|腫瘍マーカー|CEA|CA19|血液型|鎮痛薬?|オピオイド|内視鏡|胃カメラ|ガストロ|GIF|上部消化管/, anchor: /呼吸|SpO2|酸素|痰|咳|喘|ラ音|肺|気道|吸入|FEV|胸部|喫煙|たばこ|タバコ|息|換気/ },
       2: { when: /RBC|赤血球|Hb|ヘモグロビン|Ht|ヘマトクリット|PLT|血小板|WBC|白血球|CRP|PT|APTT|INR|フィブリノゲン|Dダイマー|D-?dimer|血液型|凝固/, anchor: /食|摂取|栄養|体重|BMI|Alb|アルブミン|TP|総蛋白|水分|嚥下|口腔|義歯|胃管|経管|輸液|絶飲|血糖|HbA1c|コレステロール|中性脂肪|悪心|嘔|カロリー|塩分/ },
@@ -161,7 +129,7 @@
       const keep = ids.filter(h => {
         const r = HENDERSON_IRRELEVANT[h];
         if (r && r.when.test(t) && !r.anchor.test(t)) return false;
-        if (h === 14 && HENDERSON_NOT_COMMUNICATED.test(t) && !HENDERSON_COMMUNICATION_WORDS.test(t)) return false; // 結果が患者に伝わった・理解された記載が無い
+        if (h === 14 && HENDERSON_NOT_COMMUNICATED.test(t) && !HENDERSON_COMMUNICATION_WORDS.test(t)) return false;
         if (h === 9 && /^[^。\n]*(?:血液型|年齢|性別|生年月日)/.test(t) && !/環境|転倒|安全|自宅|住/.test(t)) return false;
         return true;
       });
@@ -172,12 +140,12 @@
       return hendersonRelevanceFilter(String(text || '').replace(/（問い：[^）]*）/g, ''), raw);
     }
     function detectMultipleHendersonTagsRaw(text) {
-      // 会話形式で答えに添えた看護師の問い（「（問い：薬は毎日飲めていましたか）」）は、タグの判定に使わない
+
       text = String(text || '').replace(/（問い：[^）]*）/g, '');
-      if (typeof isLabTextUnreliable === 'function' && isLabTextUnreliable(text)) return []; // 項目名や数値が崩れた検査値は、分類しない（原本確認が先）
+      if (typeof isLabTextUnreliable === 'function' && isLabTextUnreliable(text)) return [];
       const tags = new Set();
       const skipOwnDiagnosisKeywords = FAMILY_HISTORY_DISEASE_CONTEXT_REGEX.test(text);
-      // 利用者が「学習データ管理」→「追加キーワード」で登録したルール（customTagRuleSets参照）
+
       const custom = customTagRuleSets();
       const primary = labelPrimaryNeeds(text);
       if (primary) {
@@ -188,11 +156,9 @@
       const weakNeeds = [];
       for (const need of HENDERSON_NEEDS) {
         const hits = need.keywords.filter(kw => {
-          if (custom.excluded.has(`${need.id}\u0000${kw}`)) return false; // 「このキーワードでは付けない」
+          if (custom.excluded.has(`${need.id}\u0000${kw}`)) return false;
           if (skipOwnDiagnosisKeywords && OWN_DIAGNOSIS_ONLY_KEYWORDS.has(kw)) return false;
-          // 「呼吸困難訴えなし」「疼痛訴えなく」のように、訴え・発言が「無い」ことの記載は看護師による
-          // 観察の所見であり、10.コミュニケーションの手がかりにはしない（利用者からの指摘）。
-          // 「訴える」「話す」は、それだけでは10.コミュニケーションにしない（下で判定する）
+
           if (NEGATABLE_SPEECH_KEYWORDS.has(kw)) return false;
           return hasValidKeywordOccurrence(text, kw);
         });
@@ -202,39 +168,19 @@
           if (weakList && hits.every(kw => weakList.includes(kw) && isNegatedEverywhere(text, kw))) weakNeeds.push(need.id);
         }
       }
-      // 患者本人の直接の発言（「〜」）は、内容そのもの（OCRの乱れ等でキーワード辞書のどれとも
-      // 一致しない場合を含む）にかかわらず、コミュニケーション（10.感情等の表出・伝達能力）の
-      // 所見そのものである（S/O判定でも「〜」を患者本人の発言＝Sデータの手がかりとして
-      // 扱っている基準と同じ考え方）。利用者からのアップロード文書で発覚：OCRで一部の文字が
-      // 誤読され、他のキーワードとも一致しない患者の発言（「やっぱりやらなくちゃいけないの?」
-      // 「ああ」等）を含むカードがタグ未設定のまま残っていた。
-      // ただし「ペインスケール「2-3」」のように数字・記号だけを囲んだ括弧は発言ではないため
-      // 対象外とする（S_QUOTE_REGEXの説明を参照。利用者からのアップロード文書で発覚）。
-      // 【修正】発言を含むだけで一律に10を付けると、「「あまり食欲がない」と半分のみ摂取」（2.食事）や
-      // 「排便なし…「動いてないからお腹が張っている」」（3.排泄）のように、発言の中身がはっきり別の欲求に
-      // ついての情報でも10に入ってしまっていた（利用者からの指摘：患者38）。発言が気持ち（怖い・不安・
-      // 情けない等）や疑問・心配（「〜なの？」「〜かしら」）を表している場合、または他のどの項目にも
-      // 当てはまらない場合だけ10を付ける。
-      // 医師・看護師等の言葉の「」（「担当看護師より「無理はしないようにしてほしい」」）は患者の気持ちの
-      // 表出ではないので、ここでは数えない（stripStaffQuotes。利用者からの指摘：患者36）。
+
       const patientText = stripStaffQuotes(text);
       const QUOTED_SPEECH_REGEX = /「[^」]{0,300}[ぁ-んァ-ヶ一-龠々][^」]{0,300}」/;
       if (QUOTED_SPEECH_REGEX.test(patientText)) {
         const quotes = (patientText.match(/「[^」]*」/g) || []).join('');
-        if (QUOTE_FEELING_OR_QUESTION_REGEX.test(quotes)) tags.add(10); // 痛みだけの発言は、発言だからという理由で10にしない
+        if (QUOTE_FEELING_OR_QUESTION_REGEX.test(quotes)) tags.add(10);
       }
-      // 「息苦しくて眠れなかった」と訴える、「少し呼吸が楽になった」と話す のように、身体の症状を伝えている
-      // 場合は、その症状の項目（1.呼吸・5.睡眠等）の情報であり、10.コミュニケーション（気持ちの表出・
-      // 伝達の障害）ではない（利用者からの指摘：患者34）。「訴え」「話す」「語る」は、ほかにどの項目も
-      // 当てはまらないときだけ10.コミュニケーションの手がかりにする（発言の「」の扱いと同じ考え方）。
-      // 【利用者の指摘】痛み・鎮痛薬は9.環境の主な情報ではない。発言の形ではなく、何に影響しているか（内容）で分ける：
-      // 痛みで眠れない→5、動くと痛い・リハビリ時の痛み→4、食事・排泄・清潔・更衣への影響→2/3/8/6
-      // 何に影響しているか書かれていない痛みは、どの項目にも付けない（9.環境にも、「訴え」だけの10.コミュニケーションにもしない）
+
       const isPainText = PAIN_TEXT_REGEX.test(text) && !/痛みなし|疼痛なし|疼痛(?:の)?訴え(?:なし|なく)|疼痛増強(?:なし|なく|見られず)/.test(text);
-      // 「動かなければ疼痛訴えなく」は、動くと痛む（体動時痛）という情報なので、痛みなしの記載でも4.姿勢に入れる（患者36）
+
       if (/動かなければ|動かさなければ|動かさない(?:と|限り)/.test(text) && /疼痛|痛/.test(text)) tags.add(4);
       if (isPainText) {
-        if (/床上|布団|臥床|臥位|上半身|支え|端坐|体動/.test(text)) tags.add(4); // 痛みで動けない・姿勢を保つ様子（患者36）
+        if (/床上|布団|臥床|臥位|上半身|支え|端坐|体動/.test(text)) tags.add(4);
         if (/眠|睡眠|寝/.test(text)) tags.add(5);
         if (/動|歩|立|起き|体位|リハ|離床|荷重|体重|座/.test(text)) tags.add(4);
         if (/食事|食欲|摂取/.test(text)) tags.add(2);
@@ -244,104 +190,86 @@
       }
       if (tags.size === 0 && !isPainText && Array.from(NEGATABLE_SPEECH_KEYWORDS).some(kw => hasNonNegatedOccurrence(text, kw))) tags.add(10);
       if (PATIENT_EDUCATION_REGEX.test(text)) tags.add(14);
-      // 患者の発言の中の「何に気を付けないといけないのかわからない」「また教えてください」のような、
-      // 退院後の生活についての知識不足・学びたい気持ちの表出は14.学び（利用者からの指摘：患者36）
+
       const patientQuotes = (patientText.match(/「[^」]*」/g) || []).join('');
       if (LEARNING_NEED_IN_QUOTE_REGEX.test(patientQuotes)) {
         tags.add(14);
-        // 退院後・家での生活についての心配は、安全（転倒・脱臼の予防）の情報でもある（9を追加）
+
         if (/退院|家に帰|自宅|家の中|帰って/.test(patientQuotes)) tags.add(9);
       }
-      // 【利用者からの指摘・患者36（14.学び・タグ不足）】治療や動くことへの疑問・心配（「人工骨頭がずれたりしない？」
-      // 「体重かけても大丈夫なの？」「もう起きていいの？」）は、知識の不足＝14.学びの情報。
-      // 人工骨頭のずれ（脱臼）の心配は4.姿勢・9.安全、荷重の心配は4.姿勢・9.安全にもかかわる。
+
       if (patientQuotes) {
         if (TREATMENT_QUESTION_IN_QUOTE_REGEX.test(patientQuotes)) tags.add(14);
         if (/人工骨頭|人工関節|脱臼|ずれたり/.test(patientQuotes)) { tags.add(4); tags.add(9); tags.add(14); }
         if (/体重を?かけ(?:て|ても)(?:も)?大丈夫|(?:足を)?つい(?:て|ても)大丈夫/.test(patientQuotes)) { tags.add(4); tags.add(9); tags.add(14); }
-        // 思うように動けない情けなさ・できるようになってきた手応えは、12.達成感の情報でもある
+
         if (/情けな|思うように(?:動け|でき|なら)な/.test(patientQuotes)) tags.add(12);
         if (/(?:動ける|歩ける|できる|立てる)ように(?:なって|なっ)き/.test(patientQuotes)) { tags.add(12); if (/動け|歩け|立て/.test(patientQuotes)) tags.add(4); }
-        // 旅行などの楽しみの発言は13.余暇。ただし「出かける日は（薬を）飲みたくない」のような服薬の話は13にしない（心不全事例）
+
         const aboutMedicine = /薬|飲み|飲ま|飲ませ|内服|服薬/.test(patientQuotes);
         if (/旅行|趣味|遊びに/.test(patientQuotes) || (/出かけ/.test(patientQuotes) && !aboutMedicine)) tags.add(13);
-        // 服薬の自己判断（「出かける日は飲みたくない」「飲ませていませんでした」）・薬を知らない（「何を飲んでいるかは知らない」）は14
+
         if (aboutMedicine && /飲みたくない|飲まない|飲まなかった|飲ませて(?:い)?(?:ない|ません)|やめ|知らない|わからない|分からない/.test(patientQuotes)) tags.add(14);
-        // 知らなかったことに気づいた発言（「漬物1切れでそんなに塩が入っているのか。知らなかった」）は14
+
         if (/知らなかった|初めて知った|知りませんでした/.test(patientQuotes)) tags.add(14);
-        // 自己管理の難しさ（「毎朝体重を測るのは面倒」「家には体重計がない」「手帳は家内に書いてもらう」）は14
+
         if (/体重計|測る(?:の)?(?:は|が)?面倒|記録(?:する|を)|手帳/.test(patientQuotes)) tags.add(14);
-        // 【改善点ファイル・患者36】病状・治療について聞いたこと（「6/10に手術をすると聞いていて」）は病識・理解度＝14.学び
+
         if (/と聞いて(?:いる|いて|いた)|と言われて(?:いる|いて|いた)|と説明され/.test(patientQuotes)) tags.add(14);
-        // 薬の使い方の思い込み（「痛み止めって我慢できなくなってから使うものでしょう？」）は14.学び
+
         if (/(?:痛み止め|鎮痛(?:剤|薬)|薬)[^」]{0,24}(?:もの|の)(?:でしょう|なの|じゃない|かしら)|我慢(?:でき)?なくなってから/.test(patientQuotes)) tags.add(14);
-        // 「痛くちゃ動けない」のような動けなさの訴えは4.姿勢（離床・動作の制限）
+
         if (/動けな(?:い|く)|動けん/.test(patientQuotes)) tags.add(4);
       }
-      // 【改善点ファイル・患者36】骨折・牽引・人工骨頭・術後肢位（脱臼予防）・患肢の循環は、4.姿勢と9.安全（合併症・
-      // 脱臼の予防、牽引中の安全管理・足背動脈など患肢の循環）が表裏一体なので、4に加えて9も付ける。
-      if (/足背動脈/.test(text)) tags.add(9); // 患肢の循環・安全の観察。所見の良否はここでは判定しない。
+
+      if (/足背動脈/.test(text)) tags.add(9);
       if ((tags.has(4) && /骨折|人工骨頭|置換術|(?<![A-Za-z])(?:BHA|THA)(?![A-Za-z])|牽引|けん引|キルシュナー|外転枕|脱臼|内旋|屈曲禁止/.test(text))) tags.add(9);
-      // 【改善点ファイル・患者21】「創部ガーゼ上層まで汚染なし」は9（創部の安全管理）なのに、同じ内容の「ガーゼ汚染なし」だけがタグ未設定だった。
-      // ガーゼの汚染の観察は、「創部」の語が無くても9.環境（安全管理）にする。ガーゼ汚染の有無だけで感染の有無は判定しない（タグを付けるだけ）。
-      // （利用者の指摘：創部の所見は9.環境にしない。ガーゼ汚染の観察でも9は付けない）
-      // 動作で痛みが出る訴え（「動くと右足が痛い」「歩くと痛い」）は4（動く・姿勢）も付ける。痛み自体は9のまま。
+
       if (/(?:動く|動かす|歩く|立つ|起き上が(?:る|り)|体重をかけ)(?:と|時|とき)[^。、]{0,8}痛/.test(text)) tags.add(4);
-      // 薬を忘れる（「長期管理薬について、最近は使用を忘れる日がある」）は、発言でなくても14.学び（服薬の自己管理）
+
       if (/薬/.test(text) && /忘れ/.test(text)) tags.add(14);
-      // 手術・治療の説明を受けて入院した経緯は、病識・治療の理解（14.学び）にかかわる
+
       if (/(?:手術|治療|病状)の説明を(?:う|受)け/.test(text)) tags.add(14);
-      // 貧血の検査値（RBC・Hb・Ht）は、酸素を運ぶ力の低下を通して呼吸・循環（1.呼吸）にもかかわる
+
       if (/貧血|RBC|赤血球|ヘモグロビン|ヘマトクリット|(?<![A-Za-z])(?:Hb|Hgb|Ht|Hct)(?![A-Za-z0-9])/.test(text) && /\d/.test(text)) tags.add(1);
-      // 【利用者からの指摘・患者36（7.体温）】「知覚異常、冷感なし」は患肢の循環・神経の評価であり、体温調節ではなく9.安全
+
       if (tags.has(7) && /知覚|しびれ|痺れ|足背動脈|患肢|末梢|チアノーゼ|感覚/.test(text) && !/体温|発熱|悪寒|熱感|℃|°C|検温|(?<![A-Za-z])(?:KT|BT)(?![A-Za-z])/.test(text)) {
         tags.delete(7); tags.add(9);
       }
-      // 否定された症状だけの項目（上の WEAK_WHEN_NEGATED）は、ほかのタグがあれば外す
+
       weakNeeds.forEach(h => { if (tags.size > 1) tags.delete(h); });
-      // 痛みの評価の条件としての姿勢の語だけなら、4.姿勢は付けない（上の PAIN_SCORE_REGEX の説明を参照）
+
       if (tags.has(4) && tags.has(9) && PAIN_SCORE_REGEX.test(text) && !POSTURE_ACTIVITY_REGEX.test(text)) tags.delete(4);
-      // 「このキーワードを含むときは〇〇のタグを付ける」（14項目の既定のキーワードに無い語・
-      // 「生殖」のようにどの項目に入れるかを現場で決める情報の受け皿）
-      // 家族の発言（「次女「仕事があるので日中はどうしたらいいか」」）の仕事は家族の仕事で、本人の12.仕事ではない
+
       if (tags.has(12) && new RegExp(`^${FAMILY_SPEAKER_WORD}(?:さん)?(?:[:：]|より|から|は|が)?\\s*「`).test(text.trim()) &&
         !/(?:本人|患者|[母父]|祖[母父])(?:さん)?(?:は|の|が|も)?[^。」]{0,8}(?:仕事|勤務|退職|会社|職場)/.test(text)) tags.delete(12);
-      // 【利用者の指摘】患者の発言は、ただ話したからではなく、内容で分ける。治療・予防・やり方についての理解や疑問（「安静にしていると良くないんですね」
-      // 「ゆっくり食べなきゃいけないんだよね」「肺炎になりにくくなるんだったよね？」「このやり方で大丈夫？」）は14.学び。
-      // 10.コミュニケーションは、聞く・話す・伝えるなどの力そのものや、気持ちの表出（怖い・不安など）がある発言だけにする。
+
       let learnFirst = false, learnAdded = false;
       if (patientQuotes && LEARN_CONTENT_IN_QUOTE_REGEX.test(patientQuotes)) {
         tags.add(14);
         if (!QUOTE_EMOTION_WORD_REGEX.test(patientQuotes) && !COMM_ABILITY_REGEX.test(patientQuotes)) tags.delete(10);
         learnFirst = LEARN_KNOWLEDGE_FIRST_REGEX.test(patientQuotes);
         learnAdded = true;
-        // 何についての理解・疑問かで、その欲求にも付ける（食べ方→2、肺炎・呼吸訓練→1）
+
         if (/食べ|たべ|食事|飲み|飲む/.test(patientQuotes)) tags.add(2);
         if (/肺炎|痰|咳|深呼吸|呼吸/.test(patientQuotes)) tags.add(1);
-        // 「痛かったら、これ、自分でできるかな？」のように動作の不安を言った発言は、4.姿勢（動くこと）も関係する
+
         if (/安静|動|自分でできる|歩|起き/.test(patientQuotes) && !tags.has(4) && /安静|動|歩|起き/.test(patientQuotes)) tags.add(4);
       }
-      // 9.環境は、保険・家族・生活の場・退院先・安全（転倒・事故）・ドレーンや創部など感染の直接の原因になるものだけ。
-      // PCA・点滴・検査値（Plt・PT・アミラーゼ）・病理・病期・手術の一般情報・痛み・不安だけの発言では付けない（残り物の受け皿にしない）
+
       if (tags.has(9) && NOT_ENV_REGEX.test(text) && !ENV_EVIDENCE_REGEX.test(text)) tags.delete(9);
       custom.add.forEach(r => { if (text.includes(r.keyword)) r.hendersonIds.forEach(h => tags.add(h)); });
       const out = Array.from(tags);
       if (learnFirst && out.includes(14)) return [14, ...out.filter(h => h !== 14)];
-      // 内容が主で、学びは副（「ゆっくり食べなきゃいけないんだよね」→ 主：2.食事、副：14.学び）
+
       if (learnAdded && out.length > 1 && out.includes(14)) return [...out.filter(h => h !== 14), 14];
       return out;
     }
 
     // ==========================================================================
-    // 追加キーワード（利用者が画面から登録できるタグ付けルール）
+
     // ------------------------------------------------------------------------
-    // 利用者への改善提案6：「14項目に入らない情報（例：生殖）の扱いを決めて、アプリの設定から
-    // 変えられるようにする」。プログラムを直さなくても、学習データ管理の「追加キーワード」タブで
-    //   ・mode 'add'    ：文章に keyword を含むとき、hendersonIds のタグを付ける
-    //   ・mode 'exclude'：14項目の既定のキーワード keyword では、hendersonIds のタグを付けない
-    //                    （例：「枕」で1.呼吸が付くのをやめる。他のキーワードで付く場合は付く）
-    // を登録できる。サーバー（data/custom-tag-rules.json／MongoDB）に保存され全員で共有される。
-    // サーバーに繋がらないときのために、このブラウザにも写しを保存しておく。
+
     // ==========================================================================
     const CUSTOM_TAG_RULES_CACHE_KEY = 'nursing_custom_tag_rules';
     function normalizeCustomTagRules(rules) {
@@ -358,9 +286,9 @@
     function loadCachedCustomTagRules() {
       try { return normalizeCustomTagRules(JSON.parse(localStorage.getItem(CUSTOM_TAG_RULES_CACHE_KEY) || '[]')); } catch (e) { return []; }
     }
-    // 起動直後は、このブラウザに保存してある写しを使う（サーバーの共有内容は loadCustomTagRules で取得）
+
     globalAppData.customTagRules = loadCachedCustomTagRules();
-    // detectMultipleHendersonTags から毎回呼ばれるため、ルールが変わったときだけ作り直す
+
     var customTagRuleSetsCache = null;
     function customTagRuleSets() {
       const rules = (typeof globalAppData !== 'undefined' && globalAppData && globalAppData.customTagRules) || [];
@@ -370,22 +298,18 @@
       customTagRuleSetsCache = { source: rules, add: rules.filter(r => r.mode === 'add'), excluded };
       return customTagRuleSetsCache;
     }
-    // 「このキーワードでは付けない」を登録しても効くのは、そのタグの既定のキーワードそのものの場合だけ
-    // （画面で登録前に確認する。既定のキーワードに無い語なら、そもそもそのタグは付かない）
+
     function isBuiltInKeywordOf(hendersonId, keyword) {
       const need = HENDERSON_NEEDS.find(n => n.id === hendersonId);
       return !!need && need.keywords.includes(keyword);
     }
 
     // ==========================================================================
-    // 表記ゆれの吸収（類似した文章にも学習結果を適用する）
+
     // ------------------------------------------------------------------------
-    // 学習は基本的に完全一致で管理しているが、句読点や助詞など軽微な表記の違いで
-    // せっかくの学習結果が効かないのはもったいないため、完全一致が無い場合に限り、
-    // 文字2-gramのDice係数で最も近い学習済みテキストを探し、十分似ていれば
-    // （しきい値以上）その学習結果を「類似学習」として適用する。
+
     // ==========================================================================
-    const FUZZY_MATCH_THRESHOLD = 0.82; // 誤字脱字・軽微な言い回しの違いは吸収しつつ、別内容の文章とは混同しない程度の高さ
+    const FUZZY_MATCH_THRESHOLD = 0.82;
     function normalizeForFuzzyMatch(text) {
       return (text || '').replace(/[\s　、。，．・「」『』（）()\[\]【】"'".,]/g, '').toLowerCase();
     }
@@ -405,8 +329,7 @@
       sa.forEach(g => { if (sb.has(g)) overlap++; });
       return (2 * overlap) / (sa.size + sb.size);
     }
-    // 完全一致がない場合に、学習辞書の中から最も似ているテキストを探す。
-    // 辞書サイズが大きくなりすぎない前提の単純な全件走査（十分な速度で動く想定）。
+
     function findFuzzyLearnedMatch(text) {
       const dict = globalAppData.learningUserDict || {};
       let bestKey = null, bestScore = 0;
@@ -417,7 +340,7 @@
       }
       return bestScore >= FUZZY_MATCH_THRESHOLD ? { key: bestKey, score: bestScore, learned: dict[bestKey] } : null;
     }
-    // 票（typeVotes等）の最多得票が複数の値で並んでいる（拮抗している）かどうか
+
     function isVoteTied(votes) {
       if (!votes) return false;
       const counts = Object.values(votes).filter(c => c > 0);
@@ -426,71 +349,36 @@
       return counts.filter(c => c === max).length > 1;
     }
 
-    // formatLabValueStringが数値の直後に続く文字列（単位のはずの部分）を検証するための正規表現。
-    // 【原因と修正】以前は数値を捕捉した後に続く文字列を検証せず無条件に捨てて正式な単位に
-    // 置き換えていたため、「511万/uL」「41.8%」のような正しくOCRされた単位表記だけでなく、
-    // 「60g/21」（おそらく「6.0g/dL」の「.」と「dL」がOCRで失われ、小数点の位置も分からなく
-    // なった破損表記）のような、単位として認識できない残骸まで無条件に切り捨てて「60 g/dL」
-    // という誤った数値を作り出してしまう恐れがあった（利用者からの報告：術前検査結果の表で
-    // 「TP」という項目名の行自体が消え、値の行「60g/21」だけがラベルの無いカードとして残っていた
-    // 実例の調査で発覚。原因は「TP」＋「60g/21」の結合を試みる際、値の行が単位として認識できず
-    // 結合自体に失敗し、項目名の行が読み進める側で捨てられてしまっていたこと）。
-    // 数値の直後の残りが、既知の単位（万・×10^n表記・g/dL等）や上下矢印(↑↓)等の組み合わせで
-    // 説明できる場合に限って変換を行い、説明できない残骸が残る場合は数値を誤って作り出すより
-    // 元の文字列をそのまま残す方が安全と判断し、変換しない。
     const LAB_VALUE_TRAILING_UNIT_REGEX =
       /^\s*万?\s*(?:[×xX]\s*10\s*(?:\^?\s*\d+|[⁰¹²³⁴⁵⁶⁷⁸⁹]+))?\s*(?:千|万)?\s*(?:\/\s*[μu从µ]L|\/mm3|\/mm³|\/μl|\/mL|[μuµmnp]?g\/(?:dL|L|mL)|I?U\/L|\/L|mE[qa]\/L|[mμuµ]mol\/L|fL|%|℃|°C|°c|mmHg|回\/分|秒)?\s*[↑↓HLhl]?\.?\s*$/i;
 
     function formatLabValueString(str) {
       if (!str) return str;
       const cleaned = str.trim();
-      // 既に基準値まで補われた文字列を再度処理して基準値を重複させないための判定。
-      // 【原因と修正】以前は「単位らしき文字列（g/dL・U/L・%等）を含むかどうか」で
-      // 「既に整形済み」と判定していたが、これでは基準値がまだ一度も補われていない
-      // 検査値（例：「Ht(ヘマトクリット) 41.8%」「ALP 221U/L」のように、元の記録に
-      // 単位だけが書かれていて基準値が付いていないもの）まで「済み」と誤判定してしまい、
-      // LAB_STANDARDSに登録済みの項目であっても基準値が永久に補われないままになっていた
-      // （利用者からの報告：RBC・Hb・Ht・Plt・PT・AST・ALT・ALP・Clに基準値が付かない）。
-      // 「基準値」の文字列そのものが含まれているかどうかで判定することで、この誤判定を避ける。
+
       if (/基準値/.test(cleaned)) return cleaned;
       for (const [key, info] of Object.entries(LAB_STANDARDS)) {
-        // 項目名の直後に「(赤血球数)」「(プロトロンビン時間)」「 (GOT)」のような日本語・英語の
-        // 補足説明が挟まれている場合も値と結合できるよう、任意の括弧書き1つを許容する
-        // （利用者が自分で書き添えた補足なので、そのまま残して基準値だけ追記する）。
-        // 【原因と修正】以前は項目名の直後に空白・コロン等が続く場合しか一致せず、このような
-        // 補足付きの項目名では基準値が補われないままになっていた（利用者からの報告事例）。
-        // さらに、紙のカルテのスキャン・OCR由来のテキストでは、丸括弧の開き側だけが波括弧
-        // 「｛」「{」に誤認識されることがある（例：「WBC{白血球数)」。BARE_LAB_KEY_REGEXと同様、
-        // 開き括弧・閉じ括弧をそれぞれ独立した候補として扱うことで、開閉の組み合わせが
-        // 一致していないOCR誤認識にも対応する（利用者からのアップロード文書で発覚）。
-        // 【原因と修正】表を貼り付けた際に空白が失われ「WBC11600」「Plt23」「Na140mEq/L」
-        // のように項目名と数値の間の区切り文字が一切無くなることがある。LAB_ITEM_NAME_REGEX
-        // （検査値として検出しタグを提案する側）は既にこの区切り無しの表記に対応済みだったが、
-        // formatLabValueString（基準値を補う側）は区切り文字を1文字以上要求する`+`のままだった
-        // ため、検出（タグ付け）はされるのに基準値だけが永久に補われないという不一致が生じていた
-        // （利用者からの報告：WBC11600・RBC4587・Hb12.2g/dl・Ht37.2%・Plt23・AST2・ALT250U/L・
-        // Na140mEq/Lに基準値が付かない）。区切り文字を0文字以上（`*`）に緩め、両者の判定基準を揃える。
+
         const match = cleaned.match(new RegExp(`^(${escapeRegExp(key)})(\\s*[（(｛{][^）)｝}]*[）)｝}])?[\\s:=]*([\\d.,]+)`, 'i'));
         if (match) {
-          // 数値の直後に続く残り（本来は単位のはずの部分）が、既知の単位表記として説明できない
-          // 場合は変換しない（LAB_VALUE_TRAILING_UNIT_REGEXの説明を参照）。
+
           const trailing = cleaned.slice(match[0].length);
           if (!LAB_VALUE_TRAILING_UNIT_REGEX.test(trailing)) continue;
           const alias = match[2] || '';
-          // 異常の印（↑↓、空白の後の H・L）と末尾の「.」を除いた部分が、書かれた単位（「mg/L」の L は単位の一部なので消さない）
+
           const written = trailing.replace(/[↑↓]/g, '').replace(/\s+[HLhl]\s*$/, '').replace(/\.\s*$/, '').trim();
-          // 【レビューで発見】空白の後の H・L（高値・低値の印）は、単位を読むときに外したまま戻していなかった（印が消えていた）
+
           const hlFlag = trailing.match(/\s([HLhl])\s*\.?\s*$/);
           const flag = (trailing.match(/[↑↓]/) || [''])[0] || (hlFlag ? ` ${hlFlag[1].toUpperCase()}` : '');
           const unitInfo = resolveLabUnit(key, match[3], written);
-          // 換算できない単位・ありえない値（単位が書かれていない「WBC 5.6」など）は、原文のまま残す（基準値は付けない）
+
           if (!unitInfo) return cleaned;
           const { value, unit, note } = unitInfo;
           const shownUnit = unit || info.unit;
           const noteText = note ? ` (${note})` : '';
-          // 随時・食後の血糖には、空腹時の基準値（70〜109）を付けない
+
           if (/随時|食後/.test(alias)) return `${match[1]}${alias} ${value} ${shownUnit}${flag}${noteText}`;
-          // 子どもの記録では、年齢で変わる基準値は大人の値を書き足さない（js/03 の detectAgeGroupFromText）
+
           if (extractionContext().child && !CHILD_SAFE_LAB_REFERENCE_KEYS.has(key)) return `${match[1]}${alias} ${value} ${shownUnit}${flag}${noteText}`;
           return `${match[1]}${alias} ${value} ${shownUnit}${flag}${noteText} (基準値: ${info.ref} ${shownUnit})`;
         }
@@ -498,14 +386,13 @@
       return cleaned;
     }
 
-    // 単位の書き方をそろえる（µ・u→μ、dl→dL、ml→mL、x→×、⁴→^4、空白を詰める）
     function normalizeLabUnit(u) {
       return String(u || '').replace(/\s+/g, '').replace(/从/g, 'μ').replace(/mEa\/L/i, 'mEq/L').replace(/万[uμµ]\/L/i, '万/μL').replace(/[µu](?=[gLl]|mol)/g, 'μ').replace(/^x(?=10)/i, '×')
         .replace(/10⁴/g, '10^4').replace(/10³/g, '10^3').replace(/10²/g, '10^2')
         .replace(/dl$/, 'dL').replace(/ml$/, 'mL').replace(/(^|\/)l$/, '$1L').replace(/mm³/g, 'mm3')
         .replace(/meq\/l/i, 'mEq/L').replace(/mmol\/l/i, 'mmol/L').replace(/iu\/l/i, 'IU/L').replace(/^u\/l$/i, 'U/L');
     }
-    // 項目ごとの「同じ意味の単位」と「換算できる単位」。factor を掛けるとアプリの基準値の単位になる。
+
     const LAB_UNIT_EQUIVALENTS = {
       WBC: ['/μL', '/mm3'], RBC: ['×10^4/μL', '万/μL', '万/mm3'], Plt: ['×10^4/μL', '万/μL', '万/mm3', '万'],
       Na: ['mEq/L', 'mmol/L'], K: ['mEq/L', 'mmol/L'], Cl: ['mEq/L', 'mmol/L'], 'Dダイマー': ['μg/mL', 'mg/L'],
@@ -519,7 +406,7 @@
       Plt: { '×10^3/μL': 0.1, '/μL': 0.0001, '/mm3': 0.0001 },
       RBC: { '×10^6/μL': 100 }
     };
-    // 単位が書かれていないときに、アプリの基準値の単位として読んでよい値の範囲（外れていたら換算せず原文のまま）
+
     const LAB_PLAUSIBLE_WITHOUT_UNIT = { WBC: [100, 300000], Plt: [0.1, 200], RBC: [50, 1000], Hb: [1, 30], CRP: [0, 60] };
     function formatConvertedNumber(v) {
       const abs = Math.abs(v);
@@ -527,7 +414,7 @@
       if (abs >= 1000) return Math.round(v).toLocaleString('en-US');
       return v.toFixed(digits);
     }
-    // 書かれた数値と単位から、表示する値・単位を決める。読めない・換算できないときは null（原文のまま残す）
+
     function resolveLabUnit(key, rawValue, writtenUnit) {
       const std = LAB_STANDARDS[key] ? normalizeLabUnit(LAB_STANDARDS[key].unit) : '';
       const num = Number(String(rawValue).replace(/,/g, ''));
@@ -539,31 +426,21 @@
         return { value: rawValue, unit: '' };
       }
       if (u === std || (!std && !u)) return { value: rawValue, unit: LAB_STANDARDS[key].unit };
-      // OCRの読み違い：μ が M に化けた「/ML」（白血球など）、U が消えた「/L」（AST などの U/L）は基準値の単位と読み替える
+
       if ((/^\/ML$/.test(String(writtenUnit).replace(/\s+/g, '')) && /\/μL$/.test(std)) || (u === '/L' && std === 'U/L')) {
         return { value: rawValue, unit: LAB_STANDARDS[key].unit, note: `単位「${String(writtenUnit).trim()}」を${LAB_STANDARDS[key].unit}と読み替え` };
       }
-      // 同じ意味の単位（万/μL＝×10^4/μL、mmol/L＝mEq/L など）は、基準値と同じ書き方にそろえる
+
       if ((LAB_UNIT_EQUIVALENTS[key] || []).includes(u)) return { value: rawValue, unit: LAB_STANDARDS[key].unit };
       const factor = (LAB_UNIT_CONVERSIONS[key] || {})[u];
       if (factor) return { value: formatConvertedNumber(num * factor), unit: LAB_STANDARDS[key].unit, note: `${rawValue} ${u}から換算` };
       return null;
     }
 
-    // 「創部：出血なし。」のように「創部」という一語だけの見出しでは、周術期の記録に複数
-    // 存在しうる創（腹部の手術創、吻合部、ドレーン刺入部等）のうちどれを指すか分からなくなる
-    // （利用者からの指摘：「なんの創部なのかがわからなくなってる」）。「吻合部・胃管ドレーン」
-    // 「左腹腔ドレーン」のように他の部位名とセットで書かれている場合は対象外とし、「創部」が
-    // 単独で見出しとして使われている場合に限り、周術期看護で最も一般的に指す腹部の手術創
-    // であることを明示する（ユーザーへの確認の上での対応）。
     const BARE_WOUND_LABEL_REGEX = /^創部[:：]/;
-    // 骨折・人工関節・脊椎などの手術の事例では、創部は腹部ではないので「腹部」を付けない（新しい長文事例のテスト：大腿骨転子部骨折）
+
     const NON_ABDOMINAL_SURGERY_REGEX = /骨折|骨接合|人工骨頭|人工関節|γネイル|ガンマネイル|BHA|THA|TKA|椎弓|脊椎|開頭|乳房切除|甲状腺/;
-    // 【レビューで発見】以前は「子どもの記録か」「創部を腹部とするか」を groupClinicalPhrasesWithTimestamps が読むたびに
-    // 書き換える1つの状態として持っていたため、前に分類した別の患者の状態が、AIでの分類やカードの手直し（js/09）に
-    // 残っていた（小児・骨折の患者を分類した後は、別の大人の患者の検査値に基準値が付かず、「創部：」が
-    // 「創部（手術創）：」になっていた）。今は、分類中の文章（withExtractionContext）、それが無ければ今の患者の
-    // 元の文章から、その都度決める。
+
     let extractionContextOverride = null;
     let extractionContextCache = { text: null, child: false, wound: '腹部創部（手術創）：' };
     function withExtractionContext(text, fn) {
@@ -589,13 +466,10 @@
       return extractionContextCache;
     }
     // ==========================================================================
-    // 句読点の自動判定（複文・重文を分けたり、つないだりするとき）
-    // 述語（〜した・〜ある・〜ない 等）で終わる文には「。」を付け、「〜したが、」「〜ので、」のように
-    // 接続の言い回しで終わる文は、その言い回しと読点を外して「。」で閉じる。「〜して、」のような中止形は
-    // 文として閉じられないため、そのまま（読点だけ外す）にする。カギ括弧の中・すでに文末記号がある文は変えない。
+
     // ==========================================================================
     const CLAUSE_TERMINAL_RE = /[。！？!?」』）)]$/;
-    const CLAUSE_PREDICATE_RE = /[ぁ-ん]$/; // 述語は平仮名で終わる（名詞止めの「ペインスケール3」等には付けない）
+    const CLAUSE_PREDICATE_RE = /[ぁ-ん]$/;
     const CLAUSE_CHUUSHI_RE = /(?:て|で|し|ながら|ので|ため|から|が|けど|けれど|ものの)$/;
     const CLAUSE_CONNECTIVE_RE = /(?:が|けれども|けれど|けど|ものの|のに|ので|ため|から)$/;
     function punctuateClause(piece) {
@@ -609,13 +483,13 @@
       if (CLAUSE_PREDICATE_RE.test(t)) return t + '。';
       return t;
     }
-    // 重文・複文を、文として独立できる所（「〜したが、」「〜ないけど、」の後ろ）で分けてから、それぞれに句読点を付ける
+
     function splitCompoundSentences(text) {
       const src = String(text || '');
       const cut = src.replace(/((?:した|った|いた|れた|んだ|えた|ている|いる|ある|ない|なし|あり|です|ます|ました|する|できる|だ))(が|けれども|けれど|けど|ものの)、(?![^「]*」)/g, '$1$2\n');
       return cut.split('\n').map(punctuateClause).filter(Boolean);
     }
-    // 複数の文を1つにつなぐとき：前の文が文末記号で終わっていればそのまま、中止形・接続の言い回しで終われば「、」、それ以外は「。」
+
     function joinWithPunctuation(texts) {
       const list = (texts || []).map(t => String(t || '').trim()).filter(Boolean);
       return list.map((t, i) => {
@@ -628,32 +502,24 @@
     }
     function cleanExtractedPhrase(str) {
       if (!str) return '';
-      // 行の頭の「:」（「入院時：胸痛…」の「入院時」を日時として外した残り）と、文の終わりの「、」も外す（実習生の記録のテスト）
+
       let cleaned = str.trim().replace(/^[\]\)\]〕』】〉、。・,\.\-\s〜〜:：]+/g, '').replace(/[,\-\s〜〜（〈〔『【「『、]+$/g, '');
       cleaned = formatLabValueString(cleaned);
       if (BARE_WOUND_LABEL_REGEX.test(cleaned)) cleaned = cleaned.replace(BARE_WOUND_LABEL_REGEX, extractionContext().wound);
-      // 文中の検査値・バイタルを別カードに切り出した後に残る連続した空白は1つにする（患者36の帰室の行）
+
       cleaned = cleaned.replace(/[ \t　]{2,}/g, ' ');
-      // 「バイタルサインは体温36.5℃、…」の値を切り出した後に残る「バイタルサインは」だけの言い回しを消す
-      // （「血圧140/85mmHgバイタルサインはに落ち着く」→「血圧140/85mmHgに落ち着く」）
+
       if (/バイタル(?:サイン)?は(?=[にで。、]|$)/.test(cleaned)) {
         cleaned = cleaned.replace(/バイタル(?:サイン)?は(?=[にで。、]|$)/g, '').replace(/。{2,}/g, '。').replace(/^[。、\s]+/, '').trim();
       }
-      // 「バイタル：体温36.4度、…」の値を切り出した後に残る「バイタル：、」だけの行も消す（実習記録のテスト）
+
       if (/^(?:バイタル(?:サイン)?|VS|V\/S)\s*[:：]?[、。,\s]*$/i.test(cleaned)) cleaned = '';
       return cleaned;
     }
 
-    // 見出しラベルが付いていない一般的な文章（行頭の残り・見出しに属さない残りの文章等）は、
-    // これまで句点「。」で区切らず行全体を1つのカードにしていたため、「シャワー浴を実施した。
-    // 弾性ストッキングを着用した。」のように本来は別々の看護行為（清潔ケア／循環ケア等、
-    // ヘンダーソンの分類も異なりうる）が1枚のカードに混ざってしまっていた。句点ごとに文を
-    // 分割し、それぞれを独立したカードの候補として扱う（末尾に句点が無い断片はそのまま1つ）。
     function splitIntoSentenceFragments(text) {
       if (!text) return [];
-      // 「」『』で囲まれた患者の発言・引用の中にある句点では分割しない
-      // （例:「息苦しくて夜もあまり眠れなかった。横になると特に苦しい」と訴える。を
-      // 発言の途中で2つに割ってしまわないようにする）。
+
       const fragments = [];
       let depth = 0;
       let start = 0;
@@ -670,23 +536,6 @@
       return fragments.map(s => s.trim()).filter(s => s.length > 0);
     }
 
-    // splitIntoSentenceFragmentsは句点「。」ごとに機械的に分割するため、シャワー浴／弾性
-    // ストッキングのように別々の看護行為が並んでいる文には有効だが、「麻酔からの覚醒も良好。
-    // 声を掛けると「あ、あ」と短く返事するのみ。のどの痛みあり。…」のように、1つの出来事
-    // （麻酔からの覚醒）について続けて観察所見を述べている一連の文章まで機械的に分断してしまう
-    // という指摘を受けた。句点の有無・文の長さだけでは「別々の行為の列挙」と「同じ出来事の
-    // 継続した記述」を区別できないため、見出しの付いていない一般的な文章（行頭の残り・
-    // 見出しに属さない残りの文章）については句点による分割自体は行わないことにし、構造的に
-    // 明確な列挙の合図である「・」（なかてん）が使われている場合だけを安全に分割対象とする。
-    // （「・」は「シャワー浴・弾性ストッキング着用を実施」のように単語・短い句を並べる用途に
-    // 限られ、文中に句点を含むような長い文の一部として使われることは無いため、誤分割の
-    // リスクが低い。）
-    // 「＜実習2日目（入院2日目、手術前日）＞」のような、＜＞【】（）[]等で囲まれた1つの
-    // 見出し・区切りマーカー全体を、「・」や「、」で機械的に分割すると、括弧の対応が崩れた
-    // 意味の無い断片（「＜実習2日目（入院2日目」「手術前日）＞」等）に分かれてしまうことがある
-    // （利用者からのアップロード文書で発覚：この見出し行が2枚のタグ未設定カードに分裂していた）。
-    // 分割後のいずれかの要素で開き括弧・閉じ括弧の対応数が崩れる場合は、列挙ではなく
-    // 1つのまとまった見出し・文章とみなし、分割自体を取りやめる。
     const BRACKET_PAIRS = [['<', '>'], ['＜', '＞'], ['(', ')'], ['（', '）'], ['[', ']'], ['【', '】']];
     function hasBalancedBrackets(str) {
       return BRACKET_PAIRS.every(([open, close]) => str.split(open).length === str.split(close).length);
@@ -696,32 +545,18 @@
       const trimmed = text.trim();
       if (!trimmed) return [];
       if (!trimmed.includes('・')) return [trimmed];
-      // 「眼鏡・コンタクトレンズ: 眼鏡使用」「装着器具・自助具の有無:」のように、「・」でつないだ
-      // 複数の語が1つの複合的な見出し（ラベル）を構成し、その後にコロンで共通の値が続く
-      // （またはコロンだけで終わる）形式のことがある。この場合の「・」は別々の事実の列挙ではなく
-      // 見出し語の一部であり、「・」で分割すると見出しと値が分断されて意味を失ってしまう
-      // （例：「眼鏡」「コンタクトレンズ: 眼鏡使用」の2枚に分かれ、1枚目の「眼鏡」だけでは
-      // 何のことか分からなくなる）。行内にコロン（：/:）があれば「・」による分割は行わず、
-      // 元の文をそのまま1つとして返す。
+
       if (/[:：]/.test(trimmed)) return [trimmed];
       const parts = trimmed.split('・').map(s => s.trim()).filter(Boolean);
-      // 分割後のいずれかの要素に句点が含まれる場合は、単語の列挙ではなく文中の一部として
-      // 「・」が使われている可能性が高いため、誤って分割しないよう元の文をそのまま返す。
+
       if (parts.length < 2 || parts.some(p => p.includes('。'))) return [trimmed];
       if (parts.some(p => !hasBalancedBrackets(p))) return [trimmed];
-      // 「〜リハビリ室に移動 立位保持・歩行訓練、関節可動域訓練やマッサージ行う〜」のように、「・」が
-      // 長い文の途中で2つの語（立位保持・歩行訓練）をつないでいるだけの場合も分割しない（利用者からの
-      // 修正依頼：患者34「変なところで区切られてる」）。分けた要素のどれかが読点「、」を含む、または
-      // 30文字を超える長い文なら、単語の列挙ではなく文の一部とみなす。
+
       if (parts.some(p => /[、,]/.test(p) || p.length > 30)) return [trimmed];
-      // 「嘔気・嘔吐なし」「発赤・腫脹なし」のように、最後の要素にだけ「なし」「あり」等の有無・
-      // 状態の語が付き、それより前の要素は名詞だけの場合、その語は列挙したすべてにかかっている
-      // （嘔気もなし、嘔吐もなし）。分割すると「嘔気」だけのカードが「嘔気がある」とも読めてしまい、
-      // 所見の意味が逆転する危険がある（利用者からのアップロード文書で発覚）ため、分割しない。
+
       const SHARED_STATUS_SUFFIX_REGEX = /(なし|無し|なく|ない|無|あり|有り|有|良好|不良|陰性|陽性|認めず|みられず|見られず|\([-+±]\)|（[-+±]）)$/;
       const lastPart = parts[parts.length - 1];
-      // 「呼吸困難感訴えなし、肺Air入り良好、嘔気・嘔吐なし」「軽度腫脹と熱感あるが、発赤・出血・排膿なし」のように
-      // 「、」で続く文の最後の部分で「・」が使われている場合も同じ（前の要素は「、」「。」より後ろの語だけを見る）。
+
       const tailOf = p => p.split(/[、。,]/).pop().trim();
       if (SHARED_STATUS_SUFFIX_REGEX.test(lastPart) && parts.slice(0, -1).every(p => !SHARED_STATUS_SUFFIX_REGEX.test(tailOf(p)) && tailOf(p).length <= 10)) {
         return [trimmed];
@@ -729,14 +564,6 @@
       return parts;
     }
 
-    // 「シャワー浴、弾性ストッキング着用」のように、句点「。」も「・」も使われず読点「、」だけで
-    // 別々の看護行為が並べて書かれることがある（利用者からの指摘：「シャワー浴と弾性ストッキングが
-    // 一緒になってしまっています。関連性のない二つの単語なので別々になるようにしてください」）。
-    // 読点は通常の文章中でも助詞・活用語尾（「〜で」「〜あり」等）を挟んで広く使われるため、
-    // 無条件に分割すると意味のある1つの文を誤って分断してしまう。そこで、読点で区切られた
-    // 各要素がひらがな（助詞・活用語尾）を一切含まない、短い体言止めの語句（「シャワー浴」
-    // 「弾性ストッキング着用」「口腔ケア」等、看護記録で名詞・行為名だけを並べる書き方に典型的）
-    // だけで構成されている場合に限り、安全に分割対象とする。
     const HIRAGANA_REGEX = /[ぁ-ゖ]/;
     function splitIndependentActionPhrases(text) {
       if (!text) return [text];
@@ -745,35 +572,21 @@
       if (/[:：]/.test(trimmed)) return [trimmed];
       const parts = trimmed.split('、').map(s => s.trim()).filter(Boolean);
       if (parts.length < 2 || parts.some(p => p.length < 2 || p.length > 20 || p.includes('。') || HIRAGANA_REGEX.test(p))) return [trimmed];
-      // 「入院後、キルシュナー牽引4kg実施」の「入院後」のように、先頭が時を表す語なら列挙ではなく文の一部（患者36）
+
       if (/^(?:入院後|入院時|入院前|術後|術前|帰室後|帰室時|翌日|翌朝|その後|食後|食前|夜間|日中|朝|夕方)$/.test(parts[0])) return [trimmed];
-      // 「酸素OFF、硬膜外麻酔抜去、フットポンプOFF」のように、医療機器・処置の開始／終了を並べたものは同じ場面
-      // （回診で安静度が進んだ）の1つの情報なので分けない（利用者からの指摘：患者36「同一時刻の指示や処置は1つに」）
+
       if (parts.every(p => /(?:OFF|ON|オフ|オン|off|on|抜去|抜針|中止|終了|開始|再開|装着|除去|解除)$/.test(p))) return [trimmed];
-      // hasBalancedBracketsの説明を参照（＜実習2日目（入院2日目、手術前日）＞のような
-      // 括弧付き見出し全体を、読点でも意味の無い断片に分けてしまわないようにする）。
+
       if (parts.some(p => !hasBalancedBrackets(p))) return [trimmed];
       return parts;
     }
 
-    // 上の「・」による列挙分割と、読点による独立行為の列挙分割を、まとめて安全な順序で試す。
-    // 「・」の方がより明確な列挙の合図のため先に試し、分割できなければ読点側を試す。
     function splitEnumeratedPhrases(text) {
       const byNakaten = splitByNakatenList(text);
       if (byNakaten.length > 1) return byNakaten;
       return splitIndependentActionPhrases(byNakaten[0]);
     }
 
-    // 「53歳 卵巣嚢腫、50歳代 胆石症 (症状がないため経過観察中)」のように、既往歴では
-    // 「◯歳（代）＋病名」の組が読点でつながれた列挙として記載されることが多い。この場合、
-    // 句点が無いため上記のsplitByNakatenListでは分割できず、かつ内容としては明確に複数の
-    // 既往（診断）を並べたものなので、1枚のカードにまとめず年齢の出現ごとに分割する。
-    // 年齢表記が1回しか出てこない場合は列挙ではなく単に発症年齢を含む1件の既往なので分割しない。
-    // 生活歴は「元会社員（20年前に退職）、喫煙歴なし、機会飲酒あり」のように、仕事・喫煙・飲酒など
-    // 別々のことを読点で並べることが多い。1枚のままだと喫煙（1.呼吸）・飲酒（2.食事）・仕事（12.仕事）の
-    // どのタグがどの内容のものか分からないため、短い項目の並びなら1項目ずつのカードに分ける（利用者からの
-    // 指摘：患者34「元会社員であることや飲酒習慣は呼吸に直接関係しないため、12. 仕事や2. 食事に分ける」）。
-    // 「仕事は退職し、現在は妻と二人暮らし」のように文として続いている場合は分けない。
     const EXPLANATION_LEAD_REGEX = /(?:主治医|担当医|執刀医|医師|Dr\.?)(?:より|から|が)[^。]{0,30}説明/;
     const PLAN_CONTINUATION_REGEX = /(?:開始する|開始となる|開始予定|行う予定|予定となる|予定である|予定。?$|方針|目標\s*[:：]|とする。?$)/;
     function mergeExplanationContinuations(extracted) {
@@ -798,13 +611,13 @@
         extracted.splice(i + 1, absorbed.length);
       }
     }
-    // コロンの無い見出し語だけの行を「〇〇:」の見出しとして扱う語（上の行の読み取り処理の説明を参照）
+
     const BARE_BLOCK_HEADING_REGEX = /^(?:術後肢位|肢位|良肢位|禁忌肢位|安静度|安静度指示|指示|指示事項|注意事項|禁止事項|禁忌事項|病室環境|観察項目|観察ポイント|生活上の注意|日常生活の注意|退院指導)$/;
     function splitLifeHistoryItems(content) {
       if (!content || !/[、,]/.test(content) || content.includes('。')) return [content];
       const parts = content.split(/[、,]/).map(p => p.trim()).filter(Boolean);
       if (parts.length < 2) return [content];
-      // 「退職し」「〜して」のように文が続いている形なら分けない（「喫煙歴なし」「機会飲酒あり」の「し」「り」は除く）
+
       if (parts.some(p => p.length < 2 || p.length > 25 || /(?:[てでがくけ]|(?<![な無])し|(?<![あ有])り)$/.test(p) || !hasBalancedBrackets(p))) return [content];
       return parts;
     }
@@ -816,10 +629,7 @@
       const regex = new RegExp(HISTORY_AGE_MARKER_REGEX);
       while ((m = regex.exec(content)) !== null) indices.push(m.index);
       if (indices.length < 2) return [content];
-      // 【レビューで発見】「高血圧（60歳）、糖尿病（65歳）、脳梗塞（70歳）」のように年齢が病名の後ろに書かれていると、
-      // 年齢の位置で切るため「高血圧(60歳)、糖尿病(」「65歳)、脳梗塞(」のように、かっこが崩れ、病名と年齢の組が
-      // ずれていた（タグも別の病名のカードに付いていた）。読点で分けた各部分に年齢がちょうど1つずつあり、
-      // かっこも閉じているなら、読点の位置で分ける（年齢が前でも後ろでも、病名と年齢の組が崩れない）。
+
       const commaParts = content.split(/[、,]/).map(p => p.trim()).filter(Boolean);
       if (commaParts.length === indices.length && commaParts.every(p => (p.match(new RegExp(HISTORY_AGE_MARKER_REGEX)) || []).length === 1 && hasBalancedBrackets(p))) {
         return commaParts;
@@ -836,31 +646,13 @@
         .filter(Boolean);
     }
 
-    // 【細かく分割しすぎないための結合】ローカル分類（groupClinicalPhrasesWithTimestamps）と
-    // AI分類の結果の両方に共通で使う（利用者からの修正依頼：「分割されすぎている」「入室だけで
-    // 情報カードになってるのがおかしい」。以前はローカル分類にしか無く、AI分類では効いていなかった）。
-    // list の各要素は { text, timestamp, fieldLabel, isLabOrVital, isUnnecessaryBoilerplate, _line,
-    // hendersonIds? } の形。結合した場合は text をつなぎ、hendersonIds があれば両方を合わせる。
-    //  ①「「先生にお任せするしかない」」のように患者の発言だけの行は、直前のカードも同じ日時の患者の
-    //    発言を含む場合、その続きとして1枚にまとめる。
-    //  ②「入室」「全身麻酔」のように名詞だけの非常に短い行（6文字以下で、数値・見出し・発言・
-    //    「なし」「可能」等の所見を表す語を含まないもの）は、同じ日時の直前のカード（無ければ直後の
-    //    カード）の続きにする（例：「9:00 入室」＋「右大腿骨人工骨頭置換術 後方アプローチ施行」＋
-    //    「全身麻酔」→1枚）。「会話可能」「発熱あり」のように短くても所見として完結している行や、
-    //    同じ行から列挙の分割で作られたカード（「シャワー浴、弾性ストッキング着用」→2枚。利用者の要望で
-    //    意図的に分けたもの）はそのまま残す。
     const FRAGMENT_QUOTE_WITH_WORDS_REGEX = /「[^」]*[ぁ-んァ-ヶ一-龠々][^」]*」/;
     const BARE_NOUN_FRAGMENT_STATUS_REGEX = /(なし|無し|あり|有り|良好|不良|可能|不可|困難|清明|クリア|自立|介助|禁止|陰性|陽性|著明|軽度|中等度|重度|みられ|認め)/;
-    // 【同じ時刻のバイタルサインを1枚に】「12:00 帰室: … 血圧140/70mmHg 脈拍80回/分整 呼吸20回/分 体温37.6度
-    // SpO2 98%…」のように1行に並んだバイタルサインは、1つずつのカードにせず1枚にまとめる（利用者からの指摘：
-    // 患者36「1時点の情報を一つにまとめると、循環・呼吸動態がひと目で把握できる」）。同じ行・同じ日時で続けて
-    // 切り出されたバイタルだけを対象にする（別々の行の検査値はまとめない）。
+
     const VITAL_SIGN_CARD_REGEX = /^(?:血圧|脈拍|心拍数?|呼吸(?:数)?|体温|SpO2|SPO2|Spo2|SpO₂|酸素飽和度|HR|BP|RR|BT|KT|P\s*\d|R\s*\d|T\s*\d)/;
     const VITAL_ORDER = [/^(?:体温|BT|KT|T\s*\d)/, /^(?:血圧|BP)/, /^(?:脈拍|心拍|HR|P\s*\d)/, /^(?:呼吸|RR|R\s*\d)/, /^(?:SpO2|SPO2|Spo2|SpO₂|酸素飽和度)/];
     const vitalOrderOf = t => { const k = VITAL_ORDER.findIndex(re => re.test(t)); return k === -1 ? VITAL_ORDER.length : k; };
-    // 【「検温」だけのカードを測定値と1枚にする】利用者からの指摘（患者36・7.体温）：「『検温』だけのカードは不要で、
-    // 測定値と一体化した方がよい」。「10:00 検温」の次（同じ日時）にバイタルの値のカードがあれば、「検温: 体温…」の
-    // 1枚にまとめる。値のカードが見つからなければそのまま残す。
+
     const VITAL_CHECK_HEADING_REGEX = /^(?:検温|バイタル(?:サイン)?(?:測定|チェック)?|VS(?:測定|チェック)?|V\/S(?:測定)?)\s*[:：。]?$/i;
     function mergeVitalCheckHeadings(list) {
       for (let i = 0; i < list.length; i++) {
@@ -878,15 +670,14 @@
       }
     }
     function mergeSameTimeVitals(list) {
-      // 同じ行・同じ日時のバイタルのカード（間に別のカードが挟まっていてもよい）を、最初のカードの位置に
-      // 体温→血圧→脈拍→呼吸→SpO2 の順で1枚にまとめる
+
       const groups = new Map();
       let lastVital = null;
       list.forEach((it, idx) => {
-        // 「血圧125/70」のように単位が無く検査値として切り出されなかったバイタルも、値だけのカードなら対象にする
+
         const valueOnly = /^(?:血圧|脈拍|心拍数?|呼吸数?|体温|SpO2|SPO2|Spo2|BP|HR|RR|BT|KT|[TPR](?=\s*\d))\s*[\d〜~\-\/.,()（）\s]+(?:mmHg|回\/分|度|°C|℃|%|bpm)?[^、。「」]{0,8}$/.test(it.text);
         if (!(it.isLabOrVital || valueOnly) || it.isUnnecessaryBoilerplate || it._lab || it.fieldLabel || it._line === undefined || !VITAL_SIGN_CARD_REGEX.test(it.text)) return;
-        // 「T 36.8℃」「P 78回/分」「BP 112/68mmHg」のように1行に1つずつ書かれた、すぐ前の行のバイタルとも同じ日時ならまとめる（産褥の事例）
+
         const prevVital = lastVital;
         lastVital = { idx, key: null, line: it._line, ts: it.timestamp };
         let key = `${it._line}\u0000${it.timestamp}`;
@@ -907,10 +698,7 @@
         list.splice(0, list.length, ...kept);
       }
     }
-    // 【比較できる検査データの表をまとめる】「検査項目／正常値／入院時／術後1日目」のように2つ以上の時点の列がある
-    // 表は、項目・時点ごとの1行ずつのカードにせず、関連する項目（貧血・炎症・栄養…）ごとに「入院時→術後1日目」の
-    // 変化が分かる1枚にまとめる（利用者からの指摘：患者36「術後の出血による貧血の進行具合や炎症反応の程度を
-    // アセスメントしやすくなる」）。日時は表の最後の時点にする。
+
     const LAB_GROUP_DEFS = [
       ['心不全', /^(?:BNP|NT-?proBNP)/i],
       ['血糖', /^(?:FBS|BS|血糖|空腹時血糖|HbA1c|グルコース)/i],
@@ -927,12 +715,12 @@
       list.forEach((it, idx) => {
         if (!it._lab || it.isUnnecessaryBoilerplate) return;
         const phases = (it._lab.phases || []).filter(Boolean);
-        if (phases.length < 2) return; // 時点が1つだけの表は、今まで通り1項目ずつ
+        if (phases.length < 2) return;
         if (!tables.has(it._lab.table)) tables.set(it._lab.table, []);
         tables.get(it._lab.table).push(idx);
       });
       const remove = new Set();
-      const inserts = []; // [位置, カード]
+      const inserts = [];
       tables.forEach(idxs => {
         const phases = list[idxs[0]]._lab.phases.filter(Boolean);
         const rows = new Map(); // key -> { key, values: {phase: value}, ref }
@@ -953,7 +741,7 @@
         });
         const lastPhase = phases[phases.length - 1];
         const cards = [];
-        // 表で先に出てくる項目のまとまりから順に並べる
+
         groups.forEach((gRows, name) => {
           const parts = gRows.map(row => {
             const present = phases.filter(ph => row.values[ph] !== undefined);
@@ -962,7 +750,7 @@
               : `${row.values[present[0]]}（${present[0]}のみ）`;
             return `${row.key} ${valueText}${row.ref ? ` (基準値: ${row.ref})` : ''}`;
           });
-          // 異常値の検出（extractAbnormalLabFindings）で時点ごとの値を使えるよう、元の値も持たせておく
+
           const labRows = gRows.map(row => ({ key: row.key, ref: row.ref || null, values: phases.filter(ph => row.values[ph] !== undefined).map(ph => ({ phase: ph, value: row.values[ph] })) }));
           cards.push({ text: cleanExtractedPhrase(`${name}（${phases.join('→')}）: ${parts.join('、')}`), timestamp: lastPhase, isLabOrVital: true, labRows, admissionPhase: list[idxs[0]].admissionPhase, _line: list[idxs[0]]._line });
         });
@@ -980,28 +768,14 @@
     }
     function restoreLabUnitSpacing(v) { return (v || '').replace(/\s+/g, ' ').trim(); }
 
-    // 【S（発言）とO（観察）が1枚に混ざったカードを分ける】利用者からの指摘（患者36）：
-    // 「ベッドアップし、昼食摂取「あまり食欲がない」と半分のみ摂取」「「体重をかけるのは怖い」と言いながら端坐位→
-    // 車いすへ移乗行う」のように、患者の発言（S）と看護師の観察（O）が1枚になっていると、正確なアセスメントが
-    // できない。発言だけのカード（S）と、発言を除いた観察のカード（O）に分ける。ただし同じ場面の情報であることが
-    // 分からなくならないよう、2枚には同じ場面の印（sceneId）を付け、総合アセスメント表では横に並べて表示する。
-    // 医師・看護師の説明の「」（STAFF_QUOTE_REGEXES）や、数字だけの「」（ペインスケール「5」）は発言ではないので分けない。
-    // 【発言の言い回しを最後まで取り除く】7事例のテストで、「と訴えたため救急要請され」から「と訴え」だけを除いて
-    // 「たため救急要請され」、「と話していた」から「と話し」だけを除いて「ていた」、「と回答」「と答えた」「と質問している」
-    // が残る壊れた文が多数あった。発言の動詞（言う・話す・訴える・答える・回答・質問・尋ねる・希望・相談・つぶやく）の後ろの
-    // ひらがな（活用・「ため」「という」等）までまとめて取り除く。
     const SPEECH_TAIL_REGEX = /^\s*(?:と(?:本人|患者)(?:は|が)?|との(?:言葉|発言)(?:も|が)?(?:聞かれる|聞かれた|あり)?|と?(?:も)?(?:(?:本人|患者)(?:は|が)?)?(?:言|話|訴え|答え|返答|回答|質問|尋ね|希望|発言|相談|つぶや|呟|頼)[ぁ-ん]{0,8}|と?の(?:こと|発言)(?:あり|である|です|だった|だ)?)?/;
     const PATIENT_WORD_QUOTE_REGEX = /「[^「」]*[ぁ-んァ-ヶ一-龠々][^「」]*」/g;
     const DANGLING_CLAUSE_END_REGEX = /(?:には|では|に対して|に|へ|から|より|は|が|も|の|と)$/;
-    // 【家族の発言】心不全事例のテストで発覚：「妻「…」」「長女が面会。「…」」のような家族の発言が、本人の発言と
-    // 同じSとして区別なく並び、「妻は「…」と話していた」をS/Oに分けると「妻は、ていた」という壊れた文が残っていた。
-    // 家族の発言は、①本人の発言と同じ文にあっても文ごとに分け、②S/Oには分けず、③カードに「家族」の印を付ける（表示時に判定）。
+
     const FAMILY_SPEAKER_WORD = '(?:妻|夫|長女|長男|次女|次男|三女|三男|娘|息子|嫁|婿|家族|母親?|父親?|孫|姉|妹|兄|弟|姪|甥|義母|義父|叔母|叔父|伯母|伯父)';
     const FAMILY_QUOTE_REGEX = new RegExp(`(?:^|[:：、。\\s])${FAMILY_SPEAKER_WORD}(?:さん)?(?:[:：]|からは|より|から|は|が|も)?(?:、)?(?:面会(?:時)?(?:に)?[。、]?)?\\s*「`);
     function isFamilySpeech(text) { return FAMILY_QUOTE_REGEX.test(text || ''); }
-    // 【会話形式の看護師の質問】「看護師：「薬は毎日飲めていましたか」」の次に「Cさん：「だいたい飲んでいたよ」」が続く会話形式では、
-    // 看護師の質問が患者の発言（S）として1枚になっていた（7事例のテスト）。質問は、すぐ後の答えのカードに（問い：…）として添える
-    // （タグの判定・S/Oの分け方には使わない）。
+
     const STAFF_QUESTION_LINE_REGEX = /^(?:看護師|Ns|NS|Dr\.?|医師|主治医|助産師|療法士|理学療法士|作業療法士|保健師|薬剤師|学生)(?:さん)?[:：]?\s*「([^「」]+)」\s*$/;
     function attachStaffQuestions(list) {
       for (let i = 0; i < list.length - 1; i++) {
@@ -1014,7 +788,7 @@
         i--;
       }
     }
-    // 本人の発言と家族の発言が同じカードにあるときは、文（句点）ごとに分ける
+
     function splitFamilySpeechSentences(list) {
       for (let i = 0; i < list.length; i++) {
         const it = list[i];
@@ -1039,10 +813,7 @@
         i += parts.length - 1;
       }
     }
-    // 【途中で切れた観察をつなぐ】改善点ファイル（患者36）：「本日より離床開始の許可あり…車椅子移動許可あるも」と
-    // 「痛みや動くことへの不安が生じている。」、「なかなか荷重かけられず」と「荷重をかけ、疼痛増強…移乗は中止。」が
-    // 別のカードになり、文末が不自然。「〜あるも」「〜ものの」「〜けど」で終わる観察は、同じ日時の次の観察と1枚にする
-    // （間にある本人の発言（S）は飛ばす）。「〜ず」で終わる短い観察は、次の観察が同じ動作（荷重・移乗など）のときだけ。
+
     const DANGLING_OBSERVATION_END_REGEX = /(?:あるも|するも|したが|ものの|けれど|けれども|けど|だが)$/;
     const SAME_ACTION_TERM_REGEX = /荷重|移乗|歩行|体重|離床|リハビリ|端坐位|立位|起立/g;
     function mergeDanglingObservations(list) {
@@ -1075,25 +846,25 @@
         const it = list[i];
         if (it.isUnnecessaryBoilerplate || it.isLabOrVital || it.sceneId) continue;
         const text = it.text;
-        if (stripStaffQuotes(text) !== text) continue; // 医療者の説明を含むカードは分けない
-        if (isFamilySpeech(text)) continue; // 家族の発言は、発言と観察に分けない（「妻は「…」と話していた」）
-        if (/（問い：[^）]*）$/.test(text)) continue; // 看護師の問いを添えた答えは分けない
+        if (stripStaffQuotes(text) !== text) continue;
+        if (isFamilySpeech(text)) continue;
+        if (/（問い：[^）]*）$/.test(text)) continue;
         const quotes = text.match(PATIENT_WORD_QUOTE_REGEX);
         if (!quotes) continue;
-        // 「ああ」「はい」のような短い返事は、意識・反応の観察（O）の一部なので分けない（「声を掛けると開眼し、「ああ」と…」）
+
         if (quotes.every(q => q.length - 2 <= 4)) continue;
-        // 「「…手術をすると」と聞いて、今検査をしている」のように、「」の後も本人の話の続き（伝聞・考え）なら分けない
+
         if (/」\s*と(?:聞いて|聞いた|聞いている|思って|思う|思い|考えて|考え)/.test(text)) continue;
         const labelMatch = text.match(/^([^:：「」、。\s]{1,14})\s*[:：]\s*/);
         const label = labelMatch ? labelMatch[1] : '';
         const body = labelMatch ? text.slice(labelMatch[0].length) : text;
-        // 「」の中の句点・読点で文を切らないよう、発言の「」をいったん番号付きの印に置き換えてから文・節に分ける
+
         const quoteList = [];
         const masked = body.replace(PATIENT_WORD_QUOTE_REGEX, q => `\u0001${quoteList.push(q) - 1}\u0002`);
         const MARK_REGEX = /\u0001\d+\u0002/;
         const unmask = t => t.replace(/\u0001(\d+)\u0002/g, (m, k) => quoteList[Number(k)]);
         const sentences = masked.split(/(?<=。)/).map(x => x.trim()).filter(Boolean);
-        // 発言を含む部分から「「…」と言いながら」のような発言の言い回しごと取り除いた残り（述語の無い残りは''）
+
         const removeSpeech = part => {
           const segs = part.split(/(?:\u0001\d+\u0002)+/);
           let rest = segs.map((seg, k) => (k === 0 ? seg : seg.replace(SPEECH_TAIL_REGEX, '').replace(/^\s*と(?:も)?(?=[^\s、。]|$)/, ''))).map(x => x.trim()).filter(Boolean).join('、');
@@ -1102,24 +873,17 @@
           if (!core || DANGLING_CLAUSE_END_REGEX.test(core)) return '';
           return rest;
         };
-        // 【分けても意味が分かるように】利用者からの指摘：「ひとつながりの文章をOとSに分けてしまっているので、何について
-        // 言及しているのか分かりにくい」。Sのカードには、発言だけでなく「誰に・どんな場面で」言ったのかを残す。
-        //  ・「息子たちの前では、「大丈夫よ」と言っていたが、〜」のように節に分けられる文は、発言を含む節をそのままSにする
-        //    （「息子たちの前では「大丈夫よ」と言っていた」）
-        //  ・節に分けられない文（「ベッドアップし、昼食摂取「あまり食欲がない」と半分のみ摂取」）は、発言の後ろに
-        //    （場面：ベッドアップし、昼食摂取、半分のみ摂取）のように同じ文の観察を添える
-        //    （「受持ち看護師には、「…」とも言っていた。」のように観察の無い文はそのままSにする）
+
         const kept = [];
         const subjectiveParts = [];
         sentences.forEach(sentence => {
           if (!MARK_REGEX.test(sentence)) { kept.push(sentence); return; }
-          // 「〜と言っていたが、〜」のように「が、」「けど、」で区切られた節ごとに見て、発言を含む節は言い回しごと除く
+
           const clauses = sentence.split(/(?<=(?:が|けど|けれど|ものの|ながら))、/);
           if (clauses.length > 1) {
             clauses.filter(c => MARK_REGEX.test(c)).forEach(c => subjectiveParts.push(unmask(c).replace(/(?:が|けど|けれど|ものの|ながら)$/, '').replace(/[、。\s]+$/, '') + '。'));
           } else {
-            // 節に分けられない文：発言を除いた残り（同じ文の観察）を（場面：…）として発言に添える。残りが無い
-            // （「受持ち看護師には、「…」とも言っていた。」のように言った相手と言い回しだけの）文は、そのままSにする
+
             const quoted = sentence.match(/\u0001\d+\u0002/g) || [];
             const rest = removeSpeech(sentence).replace(/[、。\s]+$/, '');
             if (!rest) subjectiveParts.push(unmask(sentence).replace(/[、\s]+$/, ''));
@@ -1130,13 +894,12 @@
           }
           const parts = clauses.map(c => (MARK_REGEX.test(c) ? removeSpeech(c) : c)).map(c => c.replace(/[、。\s]+$/, '')).filter(Boolean);
           if (!parts.length) return;
-          // 後ろの節を除いたために最後が「〜が」「〜けど」で終わる場合は、その接続の語を外す
+
           parts[parts.length - 1] = parts[parts.length - 1].replace(/(?:が|けど|けれど|ものの)$/, '');
           kept.push(parts.join('、') + (/。$/.test(sentence) ? '。' : ''));
         });
         let objective = unmask(kept.join('')).replace(/\s*、\s*/g, '、').replace(/、{2,}/g, '、').replace(/、。/g, '。').replace(/^[、。\s]+|[、\s]+$/g, '').trim();
-        // 観察として残ったのが言い回しだけ、または「ナースコールあり」のように短すぎて単独では何のことか分からない
-        // 場合は分けない（1枚のまま「「トイレに行きたい」とナースコールあり」とする）
+
         const meaningful = objective.replace(/[、。\s]/g, '');
         if (meaningful.length < 10 || /^(?:と|とも)?(?:話す|話した|訴える|訴えあり|言う|言っていた|返答あり|発言あり|本人より|患者より|本人|患者)+$/.test(meaningful)) continue;
         const sceneId = `scene_${Date.now().toString(36)}_${++serial}`;
@@ -1144,7 +907,7 @@
         const subjectiveText = subjectiveParts.join('').replace(/。{2,}/g, '。');
         const subjectiveCard = { ...it, text: cleanExtractedPhrase(`${prefix}${subjectiveText}`), sceneId, soRole: 's' };
         const objectiveCard = { ...it, text: cleanExtractedPhrase(`${prefix}${objective}`), sceneId, soRole: 'o' };
-        // 元の文章で先に書かれている方を先に並べる
+
         const quoteFirst = /^「/.test(body.trim());
         list.splice(i, 1, ...(quoteFirst ? [subjectiveCard, objectiveCard] : [objectiveCard, subjectiveCard]));
         i++;
@@ -1163,25 +926,22 @@
         const cur = list[qi];
         const prev = list[qi - 1];
         const isBareQuote = /^「[^「」]*」$/.test(cur.text.trim()) && FRAGMENT_QUOTE_WITH_WORDS_REGEX.test(cur.text);
-        // 直前のカードも発言だけの場合（別々の発言が続いている場合）は、同じ話題（ヘンダーソンの同じ項目）に
-        // ついての発言どうしのときだけまとめる（例：「痛み止めって…」「痛みのため昨晩は眠れなかった」は
-        // まとめるが、「動かすと…痛い」と「体がべたべたして…お風呂に…」は別の話題なのでまとめない）。
+
         const prevIsBareQuote = /^「[^「」]*」(?:「[^「」]*」)*$/.test(prev.text.trim());
         const topicTags = t => detectMultipleHendersonTags(t).filter(h => h !== 10);
         const sameTopic = () => {
           const a = topicTags(prev.text), b = topicTags(cur.text);
-          // 片方だけ話題が分からない発言（「ごめんなさいね。迷惑かけますね」＝10）と、話題のはっきりした発言
-          // （「…トイレに行けてよかった」＝3・4）はまとめない（患者36）。どちらも話題が分からない場合はまとめる。
+
           return (a.length === 0 && b.length === 0) || a.some(h => b.includes(h));
         };
-        // 医師・看護師の説明（「主治医より「…」と説明あり」）のカードには、次の行の本人の発言をまとめない（心不全事例）
+
         const prevIsStaffSpeech = stripStaffQuotes(prev.text) !== prev.text || STAFF_QUESTION_LINE_REGEX.test(prev.text.trim());
         const canMerge = isBareQuote && !prevIsStaffSpeech && !cur.isUnnecessaryBoilerplate && !prev.isUnnecessaryBoilerplate &&
           !prev.fieldLabel && !prev.isLabOrVital && prev.timestamp === cur.timestamp && FRAGMENT_QUOTE_WITH_WORDS_REGEX.test(prev.text) &&
           (!prevIsBareQuote ? (!/(?:訴え|話|言)[^「」]{0,6}$/.test(prev.text) || sameTopic()) : sameTopic());
         if (canMerge) {
           absorb(prev, cur, prev.text + cur.text);
-          list.splice(qi, 1); // 同じ位置に次の行が来るので、qiは進めずにもう一度確認する
+          list.splice(qi, 1);
         } else {
           qi++;
         }
@@ -1191,7 +951,7 @@
       const isBareNounFragment = it => !it.isUnnecessaryBoilerplate && !it.fieldLabel && !it.isLabOrVital &&
         (it._line === undefined || (cardsPerLine.get(it._line) || 0) <= 1) &&
         it.text.length <= 6 && !/[\d:：「」。、]/.test(it.text) && !BARE_NOUN_FRAGMENT_STATUS_REGEX.test(it.text);
-      // 患者の発言だけのカード（「…」）には、「検温」「入室」のような看護師側の記録の語をまとめない
+
       const canAbsorbFragment = (target, frag) => !!target && !target.isUnnecessaryBoilerplate && !target.fieldLabel && !target.isLabOrVital &&
         target.timestamp === frag.timestamp && !hasOwnFieldLabelPrefix(target.text) && !isBareNounFragment(target) &&
         !/^「/.test(target.text.trim());
@@ -1205,19 +965,14 @@
           list.splice(fi, 1);
         } else if (canAbsorbFragment(nextItem, frag) || (SCENE_EVENT_WORD_REGEX.test(frag.text) && nextItem && !nextItem.isUnnecessaryBoilerplate &&
           !nextItem.isLabOrVital && nextItem.timestamp === frag.timestamp && !/^「/.test(nextItem.text.trim()))) {
-          // 「回診」「検温」のような出来事の語は「回診: 酸素OFF、…」のように見出しとして前に付ける
+
           absorb(nextItem, frag, `${frag.text}${SCENE_EVENT_WORD_REGEX.test(frag.text) ? ': ' : '、'}${nextItem.text}`);
           list.splice(fi, 1);
         } else {
           fi++;
         }
       }
-      // ④それ単独ではどのヘンダーソン項目にも当てはまらない短いカード（例：「ガーゼ汚染なし」）が、元の文章の
-      //   すぐ前の行（同じ日時）のカードの続きとして書かれている場合は、その続きとして1枚にまとめる
-      //   （利用者からの指摘：「ガーゼ汚染なしの前後のつながりをしっかり見てください」。「創部 軽度腫脹と
-      //   熱感あるが、発赤・出血・排膿なし」の次の行の「ガーゼ汚染なし」は創部のガーゼのことだが、単独の
-      //   カードにすると何のガーゼか分からず、タグも付かなかった）。直前の行のカードが検査値・見出し付き・
-      //   発言だけの場合や、行が離れている場合はまとめない（まとめられなければ「タグ未設定」のまま残す）。
+
       for (let ci = 1; ci < list.length;) {
         const cur = list[ci];
         const prev = list[ci - 1];
@@ -1234,8 +989,7 @@
           ci++;
         }
       }
-      // ③前後のどのカードにもまとめられなかった「入室」「帰室」のような移動を表す語だけのカードは、
-      //   それ単独では所見にならないため不要な情報にする（日時は他のカードの日時として残っている）。
+
       list.forEach(it => {
         if (!it.isUnnecessaryBoilerplate && /^(?:入室|退室|帰室|入院|転棟|転室|手術室入室)$/.test((it.text || '').trim())) {
           it.isUnnecessaryBoilerplate = true;
@@ -1244,18 +998,8 @@
       return list;
     }
 
-    // 前後のつながりや接続詞（「〜と話すが、〜」など）を分断せず、一塊の自然な文章として抽出
     // ==========================================================================
-    // 【いろいろな書き方の事例文への対応】利用者からのテスト用の7事例（段落形式・時系列記録型・会話形式・申し送り・
-    // 電子カルテ風・Markdownの見出し付き）で、次のことが起きていた。行単位の処理の前に、行の形を整える。
-    //  ①「# 事例1 高齢者・肺炎」「## 形式:…」の見出しが「・」で割れたカードや、発言を含むSのカードになっていた
-    //    → 見出しは不要な情報（記録の見出し）にする。「### 術後2日目」は日の見出しとして読む。
-    //  ②【産褥1日目 7:00】のように日と時刻が1つの見出しにまとまっていると読めなかった → 日と時刻に分ける。
-    //  ③「翌日、呼吸状態は改善し…」の「翌日」で日が切り替わらなかった → 日の区切りにする。
-    //  ④「母親が帰宅しようとすると、」の次の行に「「今日ずっといて」」、さらに次の行に「と顔をしかめる。」のように、
-    //    1つの文が行に分かれていると、場面・発言・言い回しが別々のカードになっていた → 1行につなぐ。
-    //  ⑤1つの段落に何文も続く書き方（段落形式）では、咳・発熱・食事量・水分・家族の話が1枚のカードになっていた
-    //    → 3文以上ある長い段落（見出しの無いもの）は、文ごとの行に分ける。
+
     // ==========================================================================
     const SOURCE_TITLE_MARK = '\u0002TITLE\u0002';
     const DAY_HEADING_WORD_SOURCE = '(?:入院前日|入院当日|手術前日|手術当日|手術翌日|術後\\s*\\d+\\s*日目|産褥\\s*\\d+\\s*日目|入院\\s*\\d+\\s*日目|翌日|翌朝)';
@@ -1274,39 +1018,29 @@
       if (buf.trim()) out.push(buf.trim());
       return out.filter(Boolean);
     }
-    // SOAP形式の記録の「S)」「O)」「A)」「P)」（新しい長文事例のテスト：緩和ケアの事例）
-    // 学生の記録でよく使う「S：」「O：」も同じ（「P：72回/分」のように数字が続くものは脈拍なので除く）
+
     const SOAP_PREFIX_REGEX = /^(?:([SO])\s*[)）:：]|([AP])\s*(?:[)）]|[:：](?!\s*\d)))\s*/;
     const SOAP_ASSESSMENT_MARK = '\u0002SOAP\u0002';
-    // 【学生の実習記録】目標・行動計画・考察・明日の課題・振り返り・指導者からの助言は、学生自身の計画や考えで
-    // 患者の情報ではないので不要カードにする（実習記録のテスト：以前は「9:00 バイタルサイン測定」の計画が
-    // 実施した記録と同じ時刻のカードになり、考察の文にもタグが付いていた）
-    // 「【学生の考察】」「【指導者からの助言】」「【情報の整理（学生）】」も学生・指導者の書いた部分（実習生の記録のテストで発覚：
-    // 見出しが消え、中身が患者の観察（O）のカードになっていた）
+
     const STUDENT_SECTION_HEADING_REGEX = /^[【\[＜<■●◆]\s*(?:本日の|今日の|明日の|実習|学生の)?(?:目標|行動計画|看護計画|計画|考察|評価|自己評価|課題|学び|感想|振り返り|反省|気づき|明日への課題|今後の課題|指導者(?:から|より)?の?(?:助言|コメント|指導)|指導者より|助言|情報の整理)(?:[・と][^】\]＞>]{0,12})?\s*(?:[(（]\s*(?:学生|自分)[^)）]{0,6}[)）])?\s*[】\]＞>]?\s*$/;
     const STUDENT_NOTE_LINE_REGEX = /^(?:学生の(?:関わりの)?)?(?:アセスメント|考察|振り返り|感想|反省|今日の学び|学び|明日の課題|今後の課題|自己評価|看護問題|看護計画|目標|場面を選んだ理由|この場面を選んだ理由|気づいたこと|気付いたこと)\s*[:：]/;
-    // プロセスレコード：「②私が感じたこと・考えたこと：」「③私の言動：」は学生の考えや働きかけなので不要カード。
-    // 「①患者の言動：」は見出しを外して、患者の言動だけを残す（①はNFKCで「1」になる）
+
     const PROCESS_RECORD_STUDENT_REGEX = /^\d{0,2}\s*(?:私|学生|自分)(?:が|の)?(?:感じたこと|考えたこと|思ったこと|言動|行動|かかわり|関わり|対応)[^:：]{0,12}[:：]/;
     const PROCESS_RECORD_PATIENT_REGEX = /^\d{0,2}\s*(?:患者|本人|対象者?|[A-ZＡ-Ｚ]さん|[A-ZＡ-Ｚ]氏)(?:さん)?の(?:言動|反応|言葉|様子)\s*[:：]\s*/;
-    // 「〇情報（朝）」「◎ケア」のような記号付きの短い見出し（句点・コロン・数字の無いもの）
+
     const BULLET_HEADING_REGEX = /^[〇○◎]\s*([^。:：\d「」]{1,15})$/;
     const BULLET_MARK_REGEX = /^[〇○◎]\s*/;
-    // 【レビューで発見】「○ 腹痛なし」「○ 嘔気あり」「○ 排ガスあり、排便なし」のような○の箇条書きの所見も、短いため
-    // 上の見出しと判定され「不要」になっていた（●の箇条書きは所見のまま）。有無・程度・状態を表す語や読点を含む行は見出しにしない。
+
     const BULLET_OBSERVATION_WORD_REGEX = /なし|無し|あり|有り|良好|不良|可能|不可|困難|自立|介助|認め|みられ|見られ|摂取|低下|上昇|増強|軽減|著明|軽度|中等度|重度|陰性|陽性|[(（][-+±][)）]|[、,]/;
-    // 【レビューで発見】「A：」「P：」（アセスメント・計画）や【考察】の下の行は、次の見出しまで「不要」にするが、
-    // 以前は空行か時刻で始まる行でしか終わらなかったため、続けて書かれた次の日の見出し（「術後2日目」「10月4日」）と
-    // その下の観察・バイタルまで「不要」に入り、日も切り替わらなかった。日・日付の見出しの行で終わりにする。
+
     const DAY_BOUNDARY_LINE_REGEX = new RegExp(
       `^[【\\[<＜■●◆]?\\s*(?:(?:\\d{1,4}年)?\\d{1,2}月\\d{1,2}日(?:\\s*[(（][月火水木金土日祝](?:曜日?)?[)）])?|\\d{4}[\\/\\-]\\d{1,2}[\\/\\-]\\d{1,2}|\\d{1,2}\\/\\d{1,2}(?:\\s*[(（][月火水木金土日祝][)）])?|${DAY_HEADING_WORD_SOURCE})\\s*[】\\]>＞]?(?=\\s*$|\\s*\\d{1,2}[:時]\\d{0,2})`
     );
-    // 表の日付の列を読んだ後に、表の前の日時に戻すための印（expandTabSeparatedLabTables の説明を参照）
+
     const DAY_SAVE_MARK = '\u0002DAYSAVE\u0002';
     const DAY_RESTORE_MARK = '\u0002DAYRESTORE\u0002';
     const STUDENT_ADVICE_LINE_REGEX = /^(?:臨床)?(?:実習)?(?:指導者|担当教員|教員|指導ナース|指導看護師)(?:さん|の[^、。]{0,6})?(?:より|から|に|が)/;
-    // 「1．正常に呼吸する」「4.身体の位置を動かし、よい姿勢を保持する」のようなヘンダーソンの項目の見出し。
-    // 見出しの下の行は、学生がその項目の情報として書いたものなので、その項目のタグも付ける（needHint）
+
     const HENDERSON_HEADING_WORDS = [
       [1, /呼吸/], [2, /飲食|食事|食べ|飲む/], [3, /排泄/], [4, /身体の位置|姿勢|体位|移動/], [5, /睡眠|休息|眠る/],
       [6, /衣類|衣服|着脱|更衣/], [7, /体温/], [8, /清潔|身だしなみ|皮膚を保護/], [9, /環境|危険/],
@@ -1320,23 +1054,19 @@
       if (!m) return null;
       const n = Number(m[1]);
       if (n < 1 || n > 14) return null;
-      // 【レビューで発見】「2. 食事は全粥5割摂取」のような番号付きの所見まで項目の見出しにしていた。見出しに数値は無い
+
       if (/\d/.test(m[2])) return null;
       const hit = HENDERSON_HEADING_WORDS.find(([id]) => id === n);
       return hit && hit[1].test(m[2]) ? n : null;
     }
-    // 1行目・2行目の「成人看護学実習Ⅱ 実習記録（3日目）」「情報収集・アセスメント用紙」のような題名
+
     const STUDENT_TITLE_WORD_REGEX = /実習|記録|用紙|アセスメント|情報収集|看護過程|ケーススタディ|事例|症例/;
-    // 【発言の途中で行が分かれたとき・見出しの発言者を後ろへ引き継ぐ】改善点ファイル（患者21）の指摘：
-    //  ①「「体がべたべたして気持ちが悪い。髪も気持ち悪くなってきた。」と「早く動けるようになってお風呂には入れるといいんだけど・・・」」は
-    //    原文では1つの発言なのに、空行で2枚に分かれ、発言の続きが観察と混ざっていた → 閉じていない「」は、次の行で閉じるなら1行にする。
-    //  ②「担当看護師より」「本人より」だけの見出し行は、発言者の情報を持つ。単独のカード（タグなし）にせず、続く発言の
-    //    先頭に「担当看護師より」「本人より」を付け（先に引き継ぎ）、見出しの行は除く。
+
     const SPEAKER_HEADING_REGEX = /^(本人|患者|担当看護師|受け持ち看護師|受持ち看護師|看護師|主治医|医師|担当医|理学療法士|PT|作業療法士|OT|家族|妻|夫|長男|次男|長女|次女|息子|娘|嫁)\s*(?:より|から)\s*[:：]?$/;
     function carrySpeakerAndJoinQuotes(raw) {
       const count = (t, c) => (t.match(new RegExp(c, 'g')) || []).length;
       const lines = Array.from(raw);
-      // ①閉じていない「」を、次の（空行をはさんでもよい）行で閉じるなら1行にする
+
       const joined = [];
       for (let i = 0; i < lines.length; i++) {
         const t = String(lines[i]).trim();
@@ -1348,8 +1078,7 @@
         }
         joined.push(lines[i]);
       }
-      // ②「〇〇より」だけの行：続く「で始まる行との間の空行を除いて、ひとまとまりにする（空行が無い書き方なら、あとの処理が
-      //   発言者を引き継いで1枚にする。空行があると見出しだけの単独カードになり、続く発言が患者の発言（S）になっていた）
+
       const out = [];
       for (let i = 0; i < joined.length; i++) {
         const t = String(joined[i]).trim();
@@ -1374,33 +1103,29 @@
       const step1 = [];
       const firstIdx = raw.findIndex(l => String(l).trim() !== '');
       let soapPart = null;
-      let babySection = false; // 「＜児（新生児）＞」の見出しの下を読んでいる間
-      let lastDayHeading = null; // 直前の「Day N（…）」の見出し（{ n, label }）。かっこの無い「Day N」の日を決めるのに使う
+      let babySection = false;
+      let lastDayHeading = null;
       raw.forEach((original, idx) => {
         const line = original.trim();
-        // 表の前の日時に戻すための印は、そのまま通す（expandTabSeparatedLabTables）
+
         if (line === DAY_SAVE_MARK || line === DAY_RESTORE_MARK) { step1.push(line); return; }
-        // 1行目の「事例A 膵がん終末期…」「症例2：…」のような題名（句点の無い短い行）は不要カード
+
         if (idx === firstIdx && line.length <= 80 && !/[。「]/.test(line) && !/\d+\s*歳|男性|女性/.test(line) &&
           (/^[◆■●◇□○＜<【]?\s*(?:事例|症例|ケース|紙上事例)\s*[A-Za-zＡ-Ｚ0-9０-９一二三四五六七八九十]*(?:[\s　:：・]|$)/.test(line) ||
             (/実習|記録用紙|アセスメント用紙|情報収集|看護過程|ケーススタディ/.test(line) && !/[:：]/.test(line) && !/^[<＜【\[(（]/.test(line)))) {
           step1.push(SOURCE_TITLE_MARK + line);
-          // 題名の中の日付（「日々の記録 10/7（火）」）は、その日の区切りとして使う
+
           const titleDate = line.match(/(?:^|[^\d])(\d{1,2})[\/月](\d{1,2})日?(?![\d])/);
           if (titleDate && Number(titleDate[1]) >= 1 && Number(titleDate[1]) <= 12 && Number(titleDate[2]) >= 1 && Number(titleDate[2]) <= 31) step1.push(`${Number(titleDate[1])}月${Number(titleDate[2])}日`);
           return;
         }
-        // 「Day 1（月・術後3日目）」のような日の見出しは、かっこの中の日（術後3日目）を日の区切りとして使う
-        // 「Sデータ」「Oデータ」だけの行は見出し（中身の発言・観察でS／Oは決まる）（利用者の実習記録のテスト）
+
         const dayNHeading = line.match(/^[【\[<＜]?\s*(?:Day|DAY|day)\s*(\d{1,2})\s*(?:[(（]([^)）]*)[)）])?\s*[】\]>＞]?$/);
         if (dayNHeading) {
           const inner = (dayNHeading[2] || '').replace(/\s+/g, '');
           const innerDay = inner.match(new RegExp(DAY_HEADING_WORD_SOURCE));
           step1.push(SOURCE_TITLE_MARK + line);
-          // 【Day の見出しの日】繰り返し入力の確認で発覚：「Day1（入院時）」「Day2」の下のカードが「日時不明」になっていた。
-          //  ・かっこの中が「入院時」「術前」なども日として使う。
-          //  ・かっこの無い「Day2」は、直前の Day の見出しから数える（Day1＝入院時なら Day2＝入院2日目、
-          //    Day3＝術後1日目なら Day5＝術後3日目）。数えられないときは「2日目」とする。
+
           const n = Number(dayNHeading[1]);
           let label = innerDay ? normalizeDayLabel(innerDay[0]) : ((inner.match(/入院時|入院当日|手術当日|術前|入院前/) || [])[0] || null);
           if (!label && !inner) {
@@ -1423,12 +1148,7 @@
           soapPart = null;
           return;
         }
-        // 【日付の見出し】実習生の記録のテストで発覚：「10/7（火）術後1日目」「10/7（月）透析日」のような日付＋曜日の見出しが
-        // 見出しとして読まれず、その下のカードが「日時不明」や時刻だけ（「6:00」）になっていた。
-        // かっこの曜日の後ろの短い言葉に日の呼び方（術後1日目・入院3日目 など）があればそれを、無ければ日付（10月7日）を日の区切りにする。
-        // 【母性：児（新生児）の記録】実習生の記録のテストで発覚：「＜児（新生児）＞」の下の体温・心拍・体重が母親のカードと
-        // 区別できず、検査値の推移では母親の脈拍・呼吸数として「高い」と表示されていた。児の見出しの下の行には「児：」を付け、
-        // 次の見出し・日付・時刻まで続ける（「児：」の付いたカードは、検査値の推移の表に入れない）。
+
         if (/^[<＜【\[■●◆]?\s*(?:児|新生児|赤ちゃん|ベビー)\s*(?:[(（][^)）]{0,10}[)）])?\s*(?:の(?:状態|様子|観察|記録))?\s*[>＞】\]]?\s*$/.test(line)) {
           babySection = true; step1.push(SOURCE_TITLE_MARK + line); return;
         }
@@ -1445,7 +1165,7 @@
           soapPart = null;
           return;
         }
-        // 「実習1日目（入院2日目）10/8」のように、かっこで囲まない実習の日の見出し（実習生の記録のテスト：乳児のRSウイルス）
+
         const practiceDay = line.match(/^[・]?\s*実習\s*\d+\s*日目\s*(?:[(（]([^)）]{1,20})[)）])?\s*(?:(\d{1,2})\s*[\/月]\s*(\d{1,2})\s*日?)?\s*(?:[(（][月火水木金土日][)）])?\s*$/);
         if (practiceDay && (practiceDay[1] || practiceDay[2])) {
           const inner = extractDayLabelFromHeading(practiceDay[1] || '');
@@ -1457,7 +1177,7 @@
             return;
           }
         }
-        // 「訪問1回目（10/7 14:00〜15:00）」のような訪問の見出し：日付と始めの時刻を、その下のカードの日時にする
+
         const visitHeading = line.match(/^[【\[<＜・]?\s*(?:訪問|面接|実習)\s*\d+\s*(?:回目|日目)\s*[(（]\s*(\d{1,2})\s*[\/月]\s*(\d{1,2})\s*日?\s*(?:[(（][月火水木金土日][)）])?\s*(\d{1,2}:\d{2})?[^)）]*[)）]\s*[】\]>＞]?$/);
         if (visitHeading && Number(visitHeading[1]) >= 1 && Number(visitHeading[1]) <= 12 && Number(visitHeading[2]) >= 1 && Number(visitHeading[2]) <= 31) {
           step1.push(SOURCE_TITLE_MARK + line);
@@ -1468,9 +1188,9 @@
         }
         if (/^(?:[SO]\s*データ|[SO]\s*情報|主観的(?:データ|情報)|客観的(?:データ|情報))\s*[:：]?$/.test(line)) { step1.push(SOURCE_TITLE_MARK + line); return; }
         if (/^実習開始時の状況\s*[:：]|受け持つ設定/.test(line)) { step1.push(SOAP_ASSESSMENT_MARK + line); return; }
-        // 学生の目標・計画・考察などの見出しの下は、次の見出し（【…】）まで不要カード
+
         const bulletHeadingRaw = line.match(BULLET_HEADING_REGEX);
-        // 所見（「○ 腹痛なし」）は見出しにしない（BULLET_OBSERVATION_WORD_REGEX の説明を参照）
+
         const bulletHeading = bulletHeadingRaw && !BULLET_OBSERVATION_WORD_REGEX.test(bulletHeadingRaw[1]) ? bulletHeadingRaw : null;
         const headingBody = bulletHeading ? `【${bulletHeading[1].trim()}】` : line;
         if (STUDENT_SECTION_HEADING_REGEX.test(headingBody) || (bulletHeading && /気づ|気付|考察|振り返|感想|反省|学び|課題|目標|計画/.test(bulletHeading[1]))) {
@@ -1488,14 +1208,14 @@
         if (STUDENT_NOTE_LINE_REGEX.test(line) || STUDENT_ADVICE_LINE_REGEX.test(line)) { step1.push(SOAP_ASSESSMENT_MARK + line); return; }
         const needHead = hendersonHeadingNeed(line);
         if (needHead) { step1.push(`${NEED_HEADING_MARK}${needHead}\u0002${line}`); soapPart = null; return; }
-        // 「10/1」「10/1（月）」だけの行は日の区切り（「10月1日」として読む）
+
         const slashDate = line.match(/^(\d{1,2})\/(\d{1,2})(?:\s*[\(（][月火水木金土日][\)）])?$/);
         if (slashDate && Number(slashDate[1]) >= 1 && Number(slashDate[1]) <= 12 && Number(slashDate[2]) >= 1 && Number(slashDate[2]) <= 31) {
           step1.push(`${Number(slashDate[1])}月${Number(slashDate[2])}日`);
           soapPart = null;
           return;
         }
-        // S)・O)は印を外して本文だけにする。A)（アセスメント）・P)（計画）は記録した人の判断で患者の情報ではないので不要カード
+
         const soap = line.match(SOAP_PREFIX_REGEX);
         if (soap) {
           soapPart = soap[1] || soap[2];
@@ -1504,7 +1224,7 @@
           else if (body) step1.push(body);
           return;
         }
-        // 次の日・日付の見出しの行で A・P の続きは終わり（DAY_BOUNDARY_LINE_REGEX の説明を参照）
+
         if (soapPart && /[AP]/.test(soapPart) && DAY_BOUNDARY_LINE_REGEX.test(line)) soapPart = null;
         if (soapPart && /[AP]/.test(soapPart) && line && !/^\d{1,2}[:時]\d{2}/.test(line)) { step1.push(SOAP_ASSESSMENT_MARK + line); return; }
         if (!line) soapPart = soapPart && /[AP]/.test(soapPart) ? null : soapPart;
@@ -1526,8 +1246,7 @@
         if (nextDay) { step1.push(nextDay[1]); step1.push(nextDay[2]); return; }
         step1.push(original);
       });
-      // タブ区切りの表（「項目	入院前	術後5日目」）は、行ごとに「食事：入院前 自立 → 術後5日目 一部介助」の形にする
-      // （以前は列の見出しが消え、どちらが入院前の状態か分からなかった。新しい長文事例のテスト：ADLの表）
+
       for (let i = 0; i < step1.length; i++) {
         const header = step1[i].trim().split(/\t+/).map(c => c.trim());
         if (header.length < 3 || header.some(c => !c) || /基準|正常値|検査|単位/.test(header.join(' ')) || header.slice(1).some(c => /^[\d.,]+$/.test(c))) continue;
@@ -1544,7 +1263,7 @@
         step1.splice(i, 1 + rows.length, SOURCE_TITLE_MARK + header.join(' '), ...rewritten);
         i += rows.length;
       }
-      // ④ 行に分かれた1つの文をつなぐ
+
       const out = [];
       for (let i = 0; i < step1.length; i++) {
         const cur = step1[i].trim();
@@ -1568,13 +1287,12 @@
           last = j;
           followed = true;
         }
-        // 発言だけの行が続くときは、後に「と話す」の行が続く場合だけ1つにまとめる
-        // （患者36：別々の発言を並べた行は今まで通り別のカード）
+
         if ((isQuoteOnly && !followed) || joined === cur) { out.push(step1[i]); continue; }
         out.push(joined);
         i = last;
       }
-      // ⑤ 長い段落を文ごとの行に分ける（見出し「〜:」で始まる行・日時で始まる行は今まで通り）
+
       const result = [];
       out.forEach(line => {
         const t = line.trim();
@@ -1584,7 +1302,7 @@
         }
         result.push(line);
       });
-      // ヘンダーソンの項目の見出しの下の行に、その項目の印（needHint）を付ける
+
       let currentNeed = null;
       return result.map(line => {
         const t = String(line).trim();
@@ -1594,10 +1312,7 @@
         return currentNeed && t && !t.startsWith(SOAP_ASSESSMENT_MARK) && t !== DAY_SAVE_MARK && t !== DAY_RESTORE_MARK ? `\u0003${currentNeed}\u0003${t}` : line;
       });
     }
-    // 【Excelなどから貼った検査の表（タブ区切り）】実習生の記録のテストで発覚：「項目⇥基準値⇥10/2⇥10/7」の表を貼ると、
-    // 基準値の「8〜20」の下限を値と読み違え「BUN 8 mg/dL」という記録に無い値のカードができ、実際の値（78・42）は
-    // 意味の分からない断片のカードになっていた。基準値の列のある表は、行（項目）と列（日付）ごとに
-    // 「BUN 78 mg/dL (基準値: 8〜20 mg/dL)」の形の行に直してから読む（列の見出しの日付・日の呼び方をその日時にする）。
+
     const TAB_TABLE_REF_HEADER_REGEX = /^(?:基準値|基準範囲|正常値|参考値|正常範囲)$/;
     function tabTableColumnDay(label) {
       const t = String(label || '').normalize('NFKC').trim();
@@ -1627,16 +1342,14 @@
           if (!v || /^[-ー－―‐]+$/.test(v)) return null;
           const ref = (row[refIdx] || '').trim();
           const unit = /[A-Za-zμµ%]/.test(v) ? '' : unitOf(ref);
-          // 表の「P」は脈拍ではなくリン（mg/dL）なので、分かるように「P(リン)」と書く（検査値の推移で脈拍の行に入らないように）
+
           const name = /^P$/i.test(row[0]) && /mg\/dL/i.test(unit || v) ? 'P(リン)' : row[0];
           return `${name} ${v}${unit ? ` ${unit}` : ''}${ref && !/^[-ー－―‐]+$/.test(ref) ? ` (基準値: ${ref})` : ''}`;
         };
         const days = valueCols.map(k => tabTableColumnDay(cells[k]));
         out.push(SOURCE_TITLE_MARK + cells.join(' '));
         if (days.every(Boolean)) {
-          // 【レビューで発見】列の日付（「10/2」「10/7」）を日の区切りとして読んだ後、表の後ろの記録まで表の最後の列の日付
-          // （10月7日）になっていた（10月5日の「14:00 透析後ふらつきあり」が「10月7日 14:00」になる）。
-          // 表の前後に印を置き、表を読み終えたら表の前の日時に戻す（groupClinicalPhrasesWithTimestamps で読む）。
+
           out.push(DAY_SAVE_MARK);
           valueCols.forEach((k, n) => {
             const list = rows.map(r => line(r, k)).filter(Boolean);
@@ -1646,7 +1359,7 @@
           });
           out.push(DAY_RESTORE_MARK);
         } else {
-          // 列の見出しが日付でないときは、1つの項目を1行にまとめる（「BUN 前回 78 → 今回 42 mg/dL (基準値: …)」）
+
           rows.forEach(r => {
             const parts = valueCols.map(k => ((r[k] || '').trim() && !/^[-ー－―‐]+$/.test(r[k].trim()) ? `${cells[k]} ${r[k].trim()}` : null)).filter(Boolean);
             if (!parts.length) return;
@@ -1659,17 +1372,13 @@
       return out;
     }
     function groupClinicalPhrasesWithTimestamps(text) {
-      // 子どもの記録か・創部の書き方は、この文章から決める（extractionContext の説明を参照）
+
       return withExtractionContext(text, () => groupClinicalPhrasesWithTimestampsInner(text));
     }
     function groupClinicalPhrasesWithTimestampsInner(text) {
       const extracted = [];
       let globalTimestamp = "日時不明";
-      // 【日付（術後日数）付きの日時】利用者からの指摘（患者36）：「12:00」「8:00」のように時刻だけで
-      // 抽出していたため、手術当日・術後1日目・術後2日目の同じ時刻の記録が区別できなかった。
-      // 「手術当日」「術後1日目」「翌日」「＜実習2日目…＞」のような日の区切りを dayLabel に覚えておき、
-      // 時刻には「術後1日目 12:00」のように日を付ける。日の区切りが書かれていなくても、時刻が前の時刻より
-      // 大きく戻った（22:00→8:00）ときは次の日に進んだとみなす（nextDayLabel）。
+
       let dayLabel = null;
       let lastClockMin = null;
       function applyTimeMarker(raw) {
@@ -1696,7 +1405,7 @@
         lastClockMin = null;
         return dayLabel;
       }
-      // 見出しの中の日の手がかり（「＜実習3日目（入院3日目、手術当日・術直後）＞」→手術当日）で日を切り替える
+
       function setDayFromHeading(text) {
         const d = extractDayLabelFromHeading(text);
         if (!d) return false;
@@ -1706,115 +1415,50 @@
         return true;
       }
       // ==========================================================================
-      // 入院前／入院後の自動判定（利用者からの要望に基づく状態管理方式）
+
       // ------------------------------------------------------------------------
-      // 【背景】総合アセスメント表の「前」「後」欄の初期振り分け（inferAssessmentColumn）は
-      // 従来、そのカード自身のタイムスタンプ・見出しラベルだけを見て判定していたため、
-      // 明確な時系列マーカー（術前・術後・日付・時刻等）を伴わない普通の文章（既往歴の説明の
-      // 続きの文、等）は判定できずに「未分類」欄に残ってしまっていた。
-      // 記録は基本的に時系列順に書かれているため、「今どの時期の記録を読んでいるか」を
-      // 上から順に記憶しながら読み進めれば、明示的なマーカーが無い行にも前後の文脈から
-      // 妥当な判定を補えるはず、という利用者の提案に基づき、以下の状態機械を追加する：
-      //   ①最初は「入院前」と仮定して開始する（記録の冒頭は氏名・年齢・既往歴・生活歴等の
-      //     受け持ち前の基本情報から始まることが多いため）。
-      //   ②「入院」「実習」「術前」「術中」「術後」等の見出し・時系列マーカーを見つけたら、
-      //     以降は「入院後」として記憶する（「＜実習1日目…＞」のような日数見出しも対象）。
-      //   ③明示的に「入院前」と書かれたマーカーに戻ってきた場合は、その時点で「入院前」に
-      //     戻す（既存のinferAssessmentColumnがタイムスタンプの「入院前」表記を最優先するのと
-      //     同じ考え方）。
-      // この状態はカードそのものの内容ではなく「今どの行を読んでいるか」という抽出処理側の
-      // 一時的な文脈情報のため、抽出後の各カードに現在値をコピーして持たせる
-      // （pushExtractedの説明を参照）。
+
       let admissionPhase = 'preadmission';
       function updateAdmissionPhase(text) {
         const signal = detectAdmissionPhaseSignal(text);
         if (signal) admissionPhase = signal;
       }
-      // extracted.push(...)の代わりに必ずこちらを使うことで、その時点のadmissionPhaseを
-      // 全てのカードに一律で持たせる（抽出処理内には十数か所のpush箇所があり、個別に
-      // admissionPhaseを書き足すと見落としの恐れがあるため、共通の入口を1つにまとめる）。
-      // 各カードが元の文章の何行目から作られたか（_line）。同じ行から「、」「・」の列挙で分割された
-      // カード（例：「シャワー浴、弾性ストッキング着用」）を、下の短い断片の結合の対象から外すために使う。
-      // 内部の判定用のため、この関数から返す前に取り除く（カードとしては保存しない）。
+
       let currentSourceLine = -1;
       let currentNeedHint = null;
       function pushExtracted(obj) {
         extracted.push({ ...obj, admissionPhase, _line: currentSourceLine, ...(currentNeedHint && !obj.isUnnecessaryBoilerplate ? { needHint: currentNeedHint } : {}) });
       }
-      // detectFieldLabelHeadingOnlyLineで見出しラベルだけの行を検出した際、実際の値を持つ
-      // 次の行にそのラベルを引き継ぐための一時変数（detectFieldLabelHeadingOnlyLineの説明を参照）。
+
       let pendingFieldLabelKeys = null;
-      // 「検査項目／基準値／A氏(術前)／A氏(術後)」のような表のヘッダー行を読み取った際に、
-      // 3列目以降（基準値の次）がそれぞれ何のタイムスタンプに対応する列かを記憶しておく。
-      // ヘッダーが見つからない表（項目名→基準値→実測値、のような単純な形式）ではこの配列は
-      // 空のままで、その場合は従来通りその時点のglobalTimestampをそのまま使う。
+
       let tableColumnPhases = [];
-      // 何番目の表か（下のgroupComparisonLabTablesで、同じ表の行をまとめるために使う）
+
       let tableSerial = 0;
-      // ヘッダーで「基準値」（または同義の「正常値」「基準範囲」等）の列があると分かった表では、
-      // 各項目の値の1行目は必ず基準値の列（「ー」なら基準値なし）で、2行目以降が実測値の列になる。
-      // 以前はこの列構成を使わず、値の1行目が「〜」を含むかどうかだけで基準値かを推測していたため、
-      // 「8.1-9.0×10³/μL」（ハイフン区切り）や「<0.2mg/dl」（不等号）の基準値が実測値と誤認され、
-      // 基準値だけのカードが作られていた（利用者からのアップロード文書で発覚：患者34の血液データ）。
+
       let tableHasRefColumn = false;
       const REFERENCE_HEADER_REGEX = /^(?:基準値|正常値|基準範囲|参考値|正常範囲)(?:[:：]|\s|$)/;
-      // 表の中の値のセルとして扱える行か（通常の検査値・「ー」等の測定なし記号・「<0.2mg/dl」の
-      // ような不等号付きの基準値）。表の項目名の行の直後の値を読み進める際に使う。
+
       const isLabPlaceholderCell = (line) => /^[-−ー―‐]$/.test(line || '');
-      // 「<0.2mg/dl」のような不等号付きのほか、「18.4pg/mL以下」「0.14mg/dL以下」のような「以下・以上・未満」も基準値（心不全事例のBNP・CRP）
+
       const isComparatorRefCell = (line) => /^[<>≦≧≤≥＜＞]\s*[\d.,]+\s*[^\s]{0,12}$/.test(line || '') || /^[\d.,]+\s*[^\s\d]{0,12}?(?:以下|以上|未満)$/.test(line || '');
       const isTableValueCell = (line) => !!line && (isLabPlaceholderCell(line) || isComparatorRefCell(line) || BARE_LAB_VALUE_REGEX.test(line));
-      // NFKC正規化で「10³」が「103」になってしまうため、「×103/μL」のような指数表記を「×10^3/μL」に戻す。
+
       const restoreExponent = (s) => s.replace(/×\s*10([2-9])(?=\s*\/)/g, '×10^$1');
-      // 行が「基準値のような範囲表記（数値〜数値＋単位）」に見えるかどうかの判定。
-      // 表の項目名の行を検出する際・ヘッダーの列ラベル行を読み終える境目を判断する際の
-      // 両方で使う共通のヘルパー。
+
       const looksLikeReferenceRangeLine = (line) => /^[\d,]+(?:\.\d+)?\s*[〜\-~]\s*[\d,]+/.test(line || '') || isComparatorRefCell(line);
 
-      // 「【検温】帰室時、15分、30分、1時間…」のように、バイタル再検の間隔を「、」で列挙した
-      // 行が splitEnumeratedPhrases で1つずつの断片に分割された場合、「15分」「30分」のような
-      // 数値＋単位だけの断片は、それ単体では検温の間隔を示す以外の意味を持たず、日付だけの
-      // 断片（isDateOnlyText）と同種の「単独では意味が読み取れない断片」である。見出し語
-      // （「【検温】帰室時」等）を含む直前のカードに戻し、1枚のまとまったカードにする
-      // （利用者からのアップロード文書で発覚：「15分」「30分」等が見出し語を失った意味の無い
-      // 単独カードとして残っていた）。
       const BARE_DURATION_REGEX = /^\d+(?:分|時間|秒|日)$/;
-      // 「バイタルサインは血圧140/85mmHgに落ち着く。」のように、文中の検査値・バイタル部分
-      // （血圧140/85mmHg等）は既にこの行の検査値抽出（labRegex）で個別のカードとして
-      // 切り出されている。しかし残った「バイタルサインは」＋「に落ち着く。」等の言い回しの
-      // 部分には、値が抜き取られた後は実質的な観察内容が何も残っておらず、それ単独では
-      // ヘンダーソンのどの項目にも一致しないため「患者背景（基本情報／医学情報）」の受け皿に
-      // 誤って振り分けられてしまっていた（利用者からのアップロード文書で発覚：「バイタルサインは
-      // に落ち着く。」というカードが、値を含む本来の「血圧140/85mmHg」カードとは無関係な、
-      // 意味の読み取れない別カードとして残っていた）。
-      // 「バイタルサインは血圧140/85mmHgに落ち着く。」のように、値部分（血圧140/85mmHg）が
-      // 既に同じ行の検査値抽出で個別のカードとして切り出された後に残る「バイタルサインは」＋
-      // 接続の言い回しの断片は、値のカードと合わせて1つの所見として読むべき残骸であり、
-      // 独立した別カードにする意味が無い（利用者からのアップロード文書で発覚）。
-      // 「バイタルサイン」で始まる断片で、かつ同じ行から既に何らかのカードが切り出されている
-      // 場合（＝値が既に別カードに切り出された後の残骸であることが確定している場合）に限り、
-      // BARE_DURATION_REGEX等と同様に直前のカード（切り出された検査値・バイタルカード）へ
-      // つなぎ戻す（「バイタルサインを測定した。」のように他に検査値を伴わない単独の文は
-      // 同じ行にカードが無いためこの経路を通らず、誤って消えることはない）。
+
       const BARE_VITAL_LABEL_REMNANT_REGEX = /^バイタルサイン/;
-      // 助詞・接続表現から始まる断片、および日付だけの断片は新規カードにしない。
-      // 同じ行で直前に抜き出したカードがあれば、そこへ文章をつなぎ戻して1枚に統合する。
-      // つなぎ戻す先がない場合は、情報として使えないので中途半端なカードとして残さずに捨てる。
+
       function pushOrMerge(fragmentText, lineStartIndex, extraProps) {
-        // 見出し語（FIELD_LABELS）だけの断片は、他の抽出経路（isBareFieldHeaderOnlyを直接
-        // 呼んでいるfieldMatches等）と同様にここでも一律で除外する（利用者からのアップロード
-        // 文書で発覚：「氏名・年齢・性別・】」のような複合見出し行が「・」で列挙分割され、
-        // 「氏名」「年齢」「性別」がそれぞれ値の無い意味の無い単独カードとして残っていた。
-        // この経路はfieldMatches判定を経由しないため、既存のisBareFieldHeaderOnlyガードが
-        // 効いていなかった）。
+
         if (isBareFieldHeaderOnly(fragmentText)) return;
         const isVitalLabelRemnantToMerge = extracted.length > lineStartIndex && BARE_VITAL_LABEL_REMNANT_REGEX.test(fragmentText);
         if (UNNATURAL_START_REGEX.test(fragmentText) || isDateOnlyText(fragmentText) || BARE_DURATION_REGEX.test(fragmentText) || isVitalLabelRemnantToMerge) {
           if (extracted.length > lineStartIndex) {
-            // 【レビューで発見】「15分」のような時間だけの断片を、同じ行で最後に切り出したカードに無条件でつないでいたため、
-            // それが検査値・バイタルのカードだと「血圧 130/80mmHg2分」のように値が壊れていた（値の切り出しの後に残った断片は、
-            // 元の文章でそのカードの隣にあったとは限らない）。時間だけの断片は、同じ行の検査値・バイタル以外のカードにつなぎ、
-            // 無ければ消さずに1枚のカードにする。
+
             let prev = extracted[extracted.length - 1];
             if (BARE_DURATION_REGEX.test(fragmentText) && prev.isLabOrVital) {
               prev = null;
@@ -1824,50 +1468,19 @@
             prev.text = cleanExtractedPhrase(prev.text + fragmentText);
             return;
           }
-          // つなぎ戻す先がない場合、日付・時間だけの断片は破棄するが、文として中身のあるもの（8文字以上）は
-          // 捨てずに1枚のカードにする（本文が消えないように。7事例のテストで発覚）
+
           if (isDateOnlyText(fragmentText) || BARE_DURATION_REGEX.test(fragmentText) || fragmentText.replace(/[、。\s]/g, '').length < 8) return;
         }
         pushExtracted({ text: fragmentText, timestamp: globalTimestamp, ...extraProps });
       }
 
-      // 「●左横隔膜下ドレーン」（コロン・値を伴わないまま行末で途切れている）の直後の行が
-      // 「10ml、●挿入部異常なし。…」のように数値から始まっている場合がある。これは元の記録で
-      // 単に排液量の数値部分が改行によって次の行に折り返されただけで、実際には
-      // 「●左横隔膜下ドレーン：10ml」という1つの所見である。しかし行単位で処理する以降の
-      // 抽出処理では、この改行の位置でそのまま別々の断片として切り離されてしまい、
-      // 「●左横隔膜下ドレーン」（値の無い意味の無いラベルだけの断片）と「10ml、●挿入部
-      // 異常なし…」（ラベルの無い数値だけで始まる断片）という、単体では意味を持たない
-      // 2枚のカードに分断されていた（利用者からの報告事例）。
-      // 「●」で始まる列挙項目がコロン・値を伴わずに改行で終わっており、直後の行が数値＋単位＋
-      // 区切り（、,）で始まっている場合に限り、改行を全角コロンに置き換えて1行に結合し、
-      // 後続の既存の列挙分割ロジック（●・「、」区切り）にそのまま委ねる（次の行の残り部分
-      // 「●挿入部異常なし。…」はこの結合の対象にならず、そのまま後続の内容として残る）。
-      // ●で始まらない通常の見出し語＋値の続き（「●吻合部背面ドレーン」の直後が別の見出し語
-      // 「左横隔膜下ドレーン、…」から始まる場合等）は対象にしない（数値開始という条件が
-      // 無ければ誤って結合してしまうリスクがあるため）。
       const WRAPPED_ENUM_VALUE_CONTINUATION_REGEX =
         /(●[^\n：:。、,]{1,20})\r?\n[ \t]*([0-9０-９]+(?:\.[0-9]+)?[^\s、,。\n]{0,10}[、,])/g;
       text = text.replace(WRAPPED_ENUM_VALUE_CONTINUATION_REGEX, '$1：$2');
 
-      // 表やスプレッドシートのコピー貼り付けで、項目名と数値が別々の行に分かれてしまうことがある
-      // （例:1行目「WBC」、2行目「11200」）ため、forEachではなく添字ループにして、項目名だけの行
-      // を見つけたときに次の行（数値だけの行）を先読み・消費できるようにする。
-      // 患者の発言（「…」）が改行をまたいで2行以上に書かれている場合（例：「体がべたべたして気持ちが悪い。
-      // 髪も気持ち悪くなってきた。⏎早く動けるようになってお風呂には入れるといいんだけど・・・」）、行ごとに
-      // 別々のカードにすると、どちらも括弧の閉じていない発言の断片になり、タグも付かなかった（利用者からの
-      // アップロード文書で発覚：患者38）。開き括弧「の数が閉じ括弧」より多い行は、括弧が閉じるまで
-      // （最大3行先まで）次の行とつなげて1行として扱う。
-      // 「担当看護師より」「本人より」のように、話し手だけを書いた行の次の行から発言（「…」）が
-      // 続く書き方がある（患者36）。行ごとに処理すると話し手の行が直前のカードの末尾にくっつき、
-      // 発言のカードには誰の発言かが残らなかった（看護師の説明が患者の発言(S)と誤判定されていた）。
-      // 話し手だけの行は、続く「…」で始まる行（最大5行）とつなげて1行として扱う。
       const SPEAKER_LEAD_ONLY_REGEX = /^(?:本人|患者|患者様|担当看護師|受け?持ち?看護師|看護師|Ns|主治医|担当医|執刀医|医師|Dr\.?|PT|OT|理学療法士|作業療法士|薬剤師|栄養士|家族|長男|長女|次男|次女|妻|夫|息子|娘|嫁)(?:さん|氏)?(?:より|から|が|は)?[:：]?$/;
       const lines = (() => {
-        // 【レビューで発見】ヘンダーソンの項目の見出しの下の行には、行頭に項目の印（\u0003番号\u0003）が付いている。
-        // 以前はこの印を付けたまま下の「話し手の行＋発言の行」「2行にまたがる発言」をつないでいたため、印が文の途中に
-        // 残って「「最近食欲がなくて、\u00032\u0003ご飯が…」」のようにカードの本文に制御文字が入り、「本人より」の次の
-        // 行の発言（行頭に印がある）ともつながらなかった。つなぐ前に印を外し、つないだ行には最初の行の印を付け直す。
+
         const rawWithHints = preprocessFreeFormLines(expandTabSeparatedLabTables(text.split(/\r?\n/)));
         const hints = rawWithHints.map(l => (String(l).trim().match(NEED_HINT_REGEX) || [''])[0]);
         const raw = rawWithHints.map((l, k) => (hints[k] ? String(l).trim().slice(hints[k].length) : l));
@@ -1888,9 +1501,7 @@
             pushJoined(line);
             continue;
           }
-          // 「…と話す。＜実習3日目（入院3日目、手術当日・術直後）＞＜カルテより手術の情報）」のように、日の区切りの
-          // 見出しが前の行の末尾にくっついている場合（PDFやOCRからの貼り付けで改行が消えたもの）は、見出しを別の行に
-          // 分ける（見出しで日を切り替えられるように。胃がん_A氏の記録）。
+
           const inlineDayHeading = line.match(/^(.*?[^\s<＜])\s*([<＜]?実習\s*\d+\s*日[目日][^<＜>＞]{0,40}[>＞)）]?)(.*)$/);
           if (inlineDayHeading && inlineDayHeading[1].trim().length >= 4) {
             pushJoined(inlineDayHeading[1]);
@@ -1898,8 +1509,7 @@
             if (inlineDayHeading[3].trim()) pushJoined(inlineDayHeading[3].trim());
             continue;
           }
-          // 「「体重をかけるのは痛みが増す」と話す。自尿あり。」のように、発言の後に同じ行で短い観察（看護師側の
-          // 記録）が続く場合は、発言(S)と観察(O)を別の行として扱う（患者36：自尿ありは3.排泄の別カードにする）。
+
           const quoteThenObs = line.trim().match(/^(「[^「」]*」(?:「[^「」]*」)*と(?:話す|話される|話した|訴える|訴えあり|訴えた|発言あり|返答あり|言う|言われる)。)\s*([^「」。]{2,20}。?)$/);
           if (quoteThenObs && !/^(?:[がけどでもしかし]|ため|ので|から)/.test(quoteThenObs[2])) {
             pushJoined(quoteThenObs[1]);
@@ -1919,9 +1529,9 @@
       })();
       let markerOnlyRunCount = 0;
       let timestampBeforeMarkerRun = null;
-      // 先の行を見るとき（表の値の行・見出しの次の行など）は、行頭のヘンダーソンの項目の印を外して見る
+
       const peekText = k => { const t = String(lines[k] || '').trim(); const hm = t.match(NEED_HINT_REGEX); return hm ? t.slice(hm[0].length).trim() : t; };
-      // 表の日付の列を読む前の日時（DAY_SAVE_MARK／DAY_RESTORE_MARK。expandTabSeparatedLabTables の説明を参照）
+
       let savedDayState = null;
       for (let li = 0; li < lines.length; li++) {
         currentSourceLine = li;
@@ -1938,8 +1548,7 @@
         }
         if (cleanLine.startsWith(SOAP_ASSESSMENT_MARK)) {
           pushExtracted({ text: cleanLine.slice(SOAP_ASSESSMENT_MARK.length).trim(), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
-          // 【レビューで発見】間に文章（A・P・考察など）がある日付の行どうしは、表の列見出しの並び（下の markerOnlyRunCount）ではない。
-          // 数え直さないと「10月3日」「A：…」「10月4日」の2つ目の日付が取り消され、その下の記録が「日時不明」になっていた。
+
           markerOnlyRunCount = 0; timestampBeforeMarkerRun = null;
           continue;
         }
@@ -1947,50 +1556,25 @@
           pushExtracted({ text: cleanExtractedPhrase(cleanLine.slice(SOURCE_TITLE_MARK.length)), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
           continue;
         }
-        // 「入院当日の夜は咳が続き…」のように、日の語の直後に「の」が続く文は、日を切り替えるが文は削らない
-        // （以前は「入院当日」を剥がした残りの「の夜は…」が助詞で始まる断片として捨てられ、文が丸ごと消えていた）
-        // 【レビューで発見】「の」だけでなく「術後1日目にドレーン抜去。」「術後3日目は疼痛強く…」のように「に・は・で・も」が
-        // 続く文も同じ。以前は日の語だけを剥がし、残りの「にドレーン抜去。」が助詞で始まる短い断片として捨てられ、文が丸ごと消えていた。
-        // （「術後1日目の夜は…」も、以前は「術後1日目」が下で剥がされて「の夜は…」という文が残っていた）
+
         const dayOfSentence = cleanLine.match(/^(入院当日|入院前日|手術当日|手術前日|手術翌日|術後\s*\d+\s*日目|入院\s*\d+\s*日目|産褥\s*\d+\s*日目)(?:の|には|では|に|は|で|も)/);
         if (dayOfSentence) { globalTimestamp = applyTimeMarker(dayOfSentence[1].replace(/\s+/g, '')); updateAdmissionPhase(globalTimestamp); }
-        // 【術中・術後詳細および指示】のように、時系列マーカー（術中・術後）とセクション見出し語
-        // （詳細および指示）が同じ括弧内にまとめて書かれている行かどうかを、マーカーを剥がす前の
-        // 元の行が「【」「[」で始まっているかどうかで記憶しておく（下のマーカー除去後に使う）。
+
         const startedWithBracket = /^[\[【]/.test(cleanLine);
-        // Word・PowerPoint等からの箇条書き（「●【術前】」「○ 尿蛋白(-)」のような行頭の
-        // ●○◎■◆等の記号）をコピー貼り付けした場合、これらの記号が行頭に残ったままだと、
-        // 直後に続くマーカー（【術前】等）や本文が正しく認識できなくなる（マーカーの正規表現は
-        // 行の絶対先頭からしかマッチしないため）ほか、本文カードにも記号がそのまま残ってしまう。
-        // 実際の所見の一部として使われることのない記号のため、行頭にあれば安全に取り除く。
-        // ■□◆◇は、●○・（個々の所見の箇条書き）と違い、記録用紙の中の区切り見出し
-        // （「■ 嗜好品」「■ 活動・睡眠・清潔・更衣」等）に使われる記号のため、記号を取り除く前に
-        // 見出し行かどうかの手がかりとして記憶しておく（下のHEADING_BULLET判定を参照）。
+
         const startedWithHeadingBullet = /^[■□◆◇▪]/.test(cleanLine);
-        // 「1. 生活習慣・身体的機能（左ページ）」「4. 手術当日」のような、番号付きの章見出し。
-        // 値（コロン）・句読点・所見を表す語を含まない短い行に限る（「1. 疼痛あり」のような
-        // 番号付きの所見の列挙は見出しとみなさない）。
-        // 【レビューで発見】以前は番号の後の空白が「数字でない最初の文字」として数えられ、「4. 38度台の発熱持続」
-        // 「1. 食事は全粥5割摂取」「2. 夜間頻尿で3回覚醒」「3) 右下肢に浮腫を認める」のような番号付きの所見の列挙まで
-        // 見出しとして「不要」になっていた。見出しの語は空白の後から見て、数値を含むもの（「術後1日目」等の日の語は除く）、
-        // 所見を表す語（認める・摂取・覚醒・出現…）を含むものは見出しにしない。
+
         const numberedChapterHeadingMatch = cleanLine.match(/^\d{1,2}[.．)）]\s*([^\d\s:：。、,][^:：。、,]{0,29})$/);
         const isNumberedChapterHeading = !!numberedChapterHeadingMatch &&
           !/(なし|無し|あり|有り|良好|不良|痛|実施|施行|使用|↑|↓|認め|みられ|見られ|摂取|覚醒|出現|持続|訴え|増強|軽減|低下|上昇|改善|悪化|している|していた|した$|する$)/.test(numberedChapterHeadingMatch[1]) &&
           !/\d/.test(numberedChapterHeadingMatch[1].replace(/(?:術後|術前|入院|産褥)?\s*\d+\s*日目/g, ''));
         cleanLine = cleanLine.replace(/^(?:[・○●◯◎□■▪▫◆◇][\s　]*)+/, '');
-        // 【原因と修正】このアプリが書き出した整理シートをもう一度貼ったとき、「O-1 [入院前] …」「[未分類] [O] [氏名] …」のように
-        // 行頭に番号や欄の印が付いているため、直後の「[入院前]」「[術後1日目 10:00]」が日時として読まれず、直前の見出しの日時
-        // （術後2日目 16:00 など）を引き継いで、入院前の情報まで入院後になっていた。番号と欄の印を外して日時を読めるようにする。
+
         cleanLine = cleanLine.replace(/^[SO]-\d+\s+(?=[\[【])/, '').replace(/^\[(?:未分類|入院前|入院後|不足情報)\]\s*(?=\[[SO]\])/, '').replace(/^\[[SO]\]\s+/, '');
         if (!cleanLine) continue;
-        // 書き出した整理シートの章の見出し（「【4. 未分類のカード】」など）に来たら、前の章の日時・時期を引き継がない
-        // （引き継ぐと、日時の書かれていない入院前の情報まで、直前の章の最後の日時＝入院後になっていた）
+
         if (/^【\d+\.\s*[^】]{1,40}】/.test(cleanLine)) { globalTimestamp = '日時不明'; dayLabel = null; lastClockMin = null; admissionPhase = 'preadmission'; }
-        // 番号付きの章見出しは所見を含まないため「不要な情報」とする（利用者からのアップロード
-        // 文書で発覚：「1. 生活習慣・身体的機能（左ページ）」が「・」で分割され、「1. 生活習慣」
-        // 「身体的機能(左ページ)」という意味の無いOデータのカードになっていた）。
-        // 「4. 手術当日」のように時期を表す見出しは、以降の所見の日時としても引き継ぐ。
+
         if (isNumberedChapterHeading) {
           pushExtracted({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
           const chapterPhase = numberedChapterHeadingMatch[1].match(/^(手術当日|手術前日|入院当日|入院\d+日目|術後\d+日目|術前|術後)/);
@@ -2000,40 +1584,17 @@
           }
           continue;
         }
-        // 「γGTP」のギリシャ文字「γ」が、OCRで見た目の近いラテン文字「y」に誤認識され
-        // 「y GTP」（間にスペースが入ることもある）になっている場合がある。項目名の一致判定
-        // （BARE_LAB_KEY_REGEX等）はいずれも正式表記「γGTP」を前提にしているため、ここで
-        // 正式表記に正規化しておく（利用者からのアップロード文書で発覚：「y GTP」の行が
-        // 項目名として認識されず、直後の値「15U/L」が項目名の無いカードとして残っていた）。
+
         cleanLine = cleanLine.replace(/\by\s*GTP\b/i, 'γGTP');
-        // 「＜バイタルサイン＞」「＜カルテ情報＞」のように、山括弧（全角＜＞・半角<>）で
-        // 囲まれた区切り見出しだけの行がある。OCRで閉じ括弧が丸括弧「）」等に誤認識される
-        // こともある（利用者からのアップロード文書で発覚：「＜バイタルサイン）」
-        // 「＜カルテ情報）」等）。「【身長・体重】」等の全角鉤括弧の見出し行と同様、これ自体は
-        // 所見を含まない区切りのため「不要な情報」として除外する。
-        // 【原因と修正】以前は数字を含む行を対象外としていた（日付・時刻等の実質的な情報を
-        // 巻き込む恐れがあるため）。しかし「＜実習2日目（入院2日目、手術前日）＞」のように、
-        // この記録形式で頻出する山括弧見出しには「◯日目」という日数の数字が普通に含まれており、
-        // この対象外条件のせいでこれらの見出し行が「不要な情報」と判定されず、通常の文章として
-        // S/O未分類・タグ未設定のまま残ってしまっていた（利用者からのアップロード文書で発覚）。
-        // 山括弧（＜＞・<>）で囲まれていること自体が強い見出しの手がかりであり、生年月日等の
-        // 素の日付はこの記法では書かれない（TIME_MARKER_REGEX・DATE_ONLY_REGEX側で別途対応済み）
-        // ため、数字の除外は不要と判断し、山括弧の中身であれば数字を含んでいても対象とする。
-        // ただし「<0.2mg/dl」のように「<」の直後が数字の行は、見出しではなく不等号付きの検査値
-        // （CRPの基準値等）のため対象外とする（利用者からのアップロード文書で発覚：基準値の
-        // 「<0.2mg/dl」が山括弧見出しと誤認され、検査値が「不必要な情報」に入っていた）。
+
         if (/^[＜<][^＜<＞>]{1,40}[＞>）)]?$/.test(cleanLine) && !/^[＜<]\s*[\d.]/.test(cleanLine)) {
           pushExtracted({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
           setDayFromHeading(cleanLine);
-          // 「＜実習1日目…＞」のような山括弧見出しは、以降の行が読み進める時期（入院前／入院後）
-          // を示す強い手がかりのため、この行自体を読み終えた時点で状態を更新する
-          // （updateAdmissionPhaseの説明を参照。以降の行から反映されればよいため、この行
-          // 自身のpushExtractedより後で呼んでよい）。
+
           updateAdmissionPhase(cleanLine);
           continue;
         }
-        // 「入院時の状況」「入院から手術までの経過」のような時期を表す区切り見出しは、以降の記録の日時にする
-        // （「入院時」の語の後に「の」が続くため、上の日時の読み取りでは剥がさなくなったため）。
+
         const periodHeading = cleanLine.match(/^(入院時|入院前|術前|術中|術後|手術当日|手術前日)の(?:状況|様子|経過|状態|記録|情報)$/) ||
           (/^入院から手術(?:まで|前)の経過$/.test(cleanLine) ? [cleanLine, '術前'] : null);
         if (periodHeading) {
@@ -2042,16 +1603,12 @@
           pushExtracted({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
           continue;
         }
-        // 「看護記録（1日目〜翌日午後まで）」のような記録の区切りの見出しの後は、直前の時刻を引き継がない
-        // （手術当日12:00の帰室の記録の後の指示・21時の記録が「12:00」にならないように、日だけにする）
+
         if (/^看護記録(?:[(（][^)）]{0,30}[)）])?$/.test(cleanLine) && dayLabel) {
           globalTimestamp = dayLabel;
           lastClockMin = null;
         }
-        // 見出しラベルだけの行（値は次の行に別に書かれている）を検出し、次の非空白行に
-        // ラベルを引き継ぐ（detectFieldLabelHeadingOnlyLineの説明を参照）。
-        // 「嗜好品: タバコ なし 飲酒 なし」のように喫煙（1.呼吸）と飲酒（2.食事）が1行に並んでいる場合は、
-        // どちらのタグがどちらの内容か分かるよう「嗜好品: タバコ なし」「嗜好品: 飲酒 なし」の2枚に分ける（患者36）。
+
         const tasteMatch = cleanLine.match(/^(嗜好品?|嗜好)\s*[:：]\s*(.+)$/);
         if (tasteMatch) {
           const body = tasteMatch[2];
@@ -2071,60 +1628,38 @@
         if (pendingFieldLabelKeys) {
           const labels = pendingFieldLabelKeys;
           pendingFieldLabelKeys = null;
-          // 複合見出し（例：氏名・年齢・性別）の場合、その中でFIELD_LABEL_DEFAULT_TAGSに
-          // 初期提案タグを持つラベル（例：年齢→姿勢・環境）を優先して選ぶ。単一見出しの場合は
-          // そのまま使う（診断名・既往歴は病名から推測するfieldLabelHintTags側の判定に委ねる）。
+
           const chosenLabel = labels.find(k => FIELD_LABEL_DEFAULT_TAGS[k]) || labels[0];
           const labeledContent = isBareStatusWord(cleanLine) ? `${chosenLabel}: ${cleanLine}` : cleanLine;
           pushExtracted({ text: cleanExtractedPhrase(labeledContent), timestamp: globalTimestamp, fieldLabel: chosenLabel });
           continue;
         }
-        // 行頭の時刻・日付・「入院時」等のマーカーは複数連続することがある
-        // （例:「11:46 7月3日(金)」のようなスクリーンショットの日時表示をOCRで取り込んだ場合）ので、
-        // マッチしなくなるまで繰り返し剥がす。剥がした最後のものを、その行の日時として採用する。
-        // 術前・術中・術後（周術期の記録によく使われる区切り。術前＝入院前〜手術前を指す）も、
-        // 「入院時」と同様に前後の所見の時系列を示すマーカーとして扱う。
-        // 「【術前】」「【術中・術後】」のように、括弧内に区切りが1つまたは「・」「、」でつながった
-        // 複数個入り、かつ本文を伴わずその区切り単独で1行になっている場合（見出し行として
-        // 独立し、以降の箇条書き項目がまとめてその区切りに属することを示す書式）にも対応する。
-        // 半角の[ ]だけでなく、Wordのコピー貼り付けでよく使われる全角の【】にも対応する。
+
         const PHASE_MARKER_WORD = '(?:入院時|入院前|術前|術中|術後)';
-        // 「【入院当日】」「【入院2日目】」のように、日付・時刻ではなく入院からの経過日数で
-        // 区切りを表す見出し・時系列マーカーも、上の「術前」「術後」等と同様に扱う必要がある
-        // （利用者からのアップロード文書で発覚：この形式の見出し行が時系列マーカーとして
-        // 認識されず、見出し語だけの意味の無いカードとして残り、しかもヘンダーソンの
-        // どの項目にも一致しないため「患者背景」に誤って振り分けられていた）。
-        // 下の「\d+日目」だけでは「入院」の分だけ手前にずれてしまい一致できない
-        // （「\d+日目」は行頭が直接数字であることを前提とするため）ため、「入院」を
-        // 含めた形を別の候補として追加する。
+
         const ADMISSION_DAY_MARKER_WORD = '(?:入院当日|入院\\d+日目)(?!の)';
         const TIME_MARKER_REGEX = new RegExp(
           '^[\\[【]?(' +
             '\\d{1,2}[:時]\\d{2}(?:分)?' +
-            // 「21時」のように分を伴わない時刻（直後が空白か行末の場合のみ。「3時間」等と区別するため）
+
             '|\\d{1,2}時(?=\\s|$)' +
-            // 「14時ごろ、デイルームで…」のような、行頭の「〜時ごろ／頃／過ぎ」（実習記録のテスト）
+
             '|\\d{1,2}時(?:ごろ|頃|過ぎ)(?=[、,\\s]|$)' +
             '|(?:\\d{1,4}年)?\\d{1,2}月\\d{1,2}日(?:\\s*[\\(（][月火水木金土日][\\)）])?' +
-            // 【レビューで発見】電子カルテでよく使う「2026/10/05 10:00」「10/6(火) 10:00」「10/7 14:00」の日付を日時として読んでいなかった
-            // （前の日時のまま「10月4日 9:00」になり、本文に「10/6(火) 10:00」が残っていた）。年月日の「/」「-」区切りと、
-            // 曜日付き、または後ろに時刻が続く「月/日」を日付として読む（「1/2量摂取」のような分数は時刻が続かないので読まない）。
+
             '|\\d{4}[\\/\\-]\\d{1,2}[\\/\\-]\\d{1,2}(?:\\s*[\\(（][月火水木金土日][\\)）])?(?=\\s|$|\\d{1,2}[:時]\\d{2})' +
             '|\\d{1,2}\\/\\d{1,2}(?:\\s*[\\(（][月火水木金土日][\\)）](?=\\s|$|\\d{1,2}[:時]\\d{2})|(?=\\s+\\d{1,2}[:時]\\d{2}))' +
-            // 「術後1日目」は「術後」と「1日目」に分けずに1つの日として読む（以前は「1日目」だけが残っていた）
+
             '|(?:術後|術前|産褥)\\s*\\d+\\s*日目' +
-            // 「手術当日」「翌日」だけの行も日の区切り（患者36）。「手術当日の様子」のように語が続くものは除く
+
             '|(?:手術当日|手術前日|手術翌日|入院前日)(?![ぁ-んァ-ヶ一-龠々])' +
-            // 「翌朝6:00」「翌日10:00」のように時刻が直接続く書き方も日の区切り（【レビューで発見】以前は読めず前の日時のままだった）
+
             '|(?:翌日|翌朝)(?=\\s|$|\\d{1,2}[:時])' +
-            // 「術後排便なし」「術前MMT:」「入院時の様子:」のように語が直接続くものは、その行だけの言い回しで
-            // 以降の記録の日時ではないため、日時として剥がさない（以前は「入院時の様子」で以降の既往歴・生活習慣
-            // まで「入院時」になり、「術後排便なし」で術後1日目10:00の記録が「術後」になっていた）
-            // ただし「【術中・術後詳細および指示】」「【術前処置】」のように括弧の見出しの中は、これまで通り剥がす
+
             '|(?<=^[\\[【])' + PHASE_MARKER_WORD + '(?:\\s*[・、,\\/]\\s*' + PHASE_MARKER_WORD + ')*' +
             '|' + PHASE_MARKER_WORD + '(?:\\s*[・、,\\/]\\s*' + PHASE_MARKER_WORD + ')*(?![ぁ-んァ-ヶ一-龠々A-Za-z])' +
             '|' + ADMISSION_DAY_MARKER_WORD +
-            // 「術後4〜5日目」のような日数の範囲（リハビリの予定表の列見出し等）も日数のマーカーとして扱う
+
             '|\\d+\\s*[〜~\\-]\\s*\\d+日目' +
             '|\\d+日目' +
             '|検査データ' +
@@ -2132,25 +1667,19 @@
         );
         let marker;
         let markerStripped = false;
-        let strippedClockOnly = true; // 剥がしたのが時刻（「6:00」）だけか
-        // 「術後1日目より受け持つ。」「入院時から〜」のように、行頭の時期の語の直後が「より」
-        // 「から」「まで」で続く場合、その語は行の日時ではなく文の一部（起点・終点）である。
-        // 剥がすと「より受け持つ。」のような意味の通らない文が残る（利用者からのアップロード
-        // 文書で発覚）ため、この場合はマーカーとして扱わず、行全体をそのまま文章として残す。
+        let strippedClockOnly = true;
+
         const timestampBeforeMarkers = { ts: globalTimestamp, day: dayLabel, clock: lastClockMin };
         const timePhraseIsPartOfSentence = /^[\[【]?(?:(?:入院時|入院前|入院当日|入院\d+日目|手術当日|術前|術中|術後|\d+日目)\s*)+[\]】]?\s*(?:より|から|まで)/.test(cleanLine)
-          // 「10:30頃にお菓子を食べていたことを…」のように、行頭の時刻に「頃に・に・から・まで」が続く文も、時刻は文の一部
-          // （実習生の記録のテストで発覚：時刻だけ剥がされ「頃にお菓子を…」という文が残っていた）
+
           || /^\d{1,2}[:時]\d{2}分?\s*(?:ごろ|頃|過ぎ)?\s*(?:に|から|まで|の)/.test(cleanLine)
-          // 【レビューで発見】「6月10日に手術予定。」「2020年3月1日に胃がんで胃切除術を受けた。」「3日目に発熱」のように、日付の直後に
-          // 助詞が続く文も、日付は文の一部（以前は日付だけ剥がして「に手術予定。」が捨てられ文が消えるか、「に胃がんで…」という
-          // 壊れた文が残り、しかも過去の日付（2020年3月1日）が以降のすべての記録の日時になっていた）。文のまま残し、日時も変えない。
+
           || /^[\[【]?(?:(?:\d{1,4}年)?\d{1,2}月\d{1,2}日|\d+日目)(?:\s*[(（][月火水木金土日祝][)）])?[\]】]?\s*(?:に|で|の|は|が|を|も|頃|ごろ|まで|から|より)/.test(cleanLine)
-          // 上の「術後1日目にドレーン抜去」のように、日を切り替えたうえで文のまま残すもの
+
           || !!dayOfSentence;
         while (!timePhraseIsPartOfSentence && (marker = cleanLine.match(TIME_MARKER_REGEX))) {
           let rawMarker = marker[1].replace(/[\[\]【】]/g, '').replace(/\s+/g, '');
-          // 「2026/10/05」「10/6(火)」は「10月6日」の形にそろえる（日の順番・次の日の計算が使えるように）
+
           const slashMarker = rawMarker.match(/^(?:\d{4}[\/\-])?(\d{1,2})[\/\-](\d{1,2})(?:[(（][月火水木金土日][)）])?$/);
           if (slashMarker && Number(slashMarker[1]) >= 1 && Number(slashMarker[1]) <= 12 && Number(slashMarker[2]) >= 1 && Number(slashMarker[2]) <= 31) rawMarker = `${Number(slashMarker[1])}月${Number(slashMarker[2])}日`;
           if (!/^\d{1,2}(?::\d{2}|時(?:\d{2}分?)?)$/.test(rawMarker)) strippedClockOnly = false;
@@ -2159,39 +1688,19 @@
           cleanLine = cleanLine.slice(marker[0].length).trim();
           markerStripped = true;
         }
-        // 「【術中・術後詳細および指示】」のように、時系列マーカーの直後に見出し語が続けて
-        // 同じ括弧の中に書かれている場合、上のマーカー除去では「術中・術後」だけが剥がされ、
-        // 「詳細および指示】」という中身の無い断片（閉じ括弧だけが残った見出し語）がそのまま
-        // 文章として抽出されてしまっていた。元の行が「【」「[」で始まっていた場合に限り、
-        // マーカーを剥がした残りの先頭にコロン・数字を含まない短い見出し語＋閉じ括弧が
-        // 続いていれば、その部分は所見ではなく見出しの続きとみなして一緒に取り除く
-        // （コロンや数字を含む場合は実際の所見の可能性があるため取り除かない）。
+
         //
-        // 【修正】以前は「元の行が【で始まっている」という条件だけでこの除去を行っていたため、
-        // 上のマーカー除去で何も剥がされなかった場合（＝見出し語がタイムマーカーではない、
-        // 「【点滴】なし【内服】〜」のような通常の見出し付きの行）にまで誤って適用され、
-        // 行頭の「【点滴】」がそのまま失われて「なし【内服】〜」という、何についての「なし」か
-        // 分からない本文が残ってしまっていた（利用者からのアップロード文書で発覚。過去の
-        // 「感染症：無」が「無」だけになる不具合＝isBareStatusWordと同種の、見出しの文脈が
-        // 失われる問題）。この除去は、①実際にマーカーが剥がされていた場合（本来の想定通り、
-        // 残った断片が見出しの続きであることが確定している場合）、②剥がす対象が行全体
-        // （＝見出しだけで他に本文が無い行）である場合、のいずれかに限定し、本文を伴う
-        // 見出し付きの行からラベルを奪わないようにする。
+
         if (startedWithBracket) {
           const strayBracketTail = cleanLine.match(/^([^\]】:：\d]{0,20})[\]】]\s*/);
           if (strayBracketTail && (markerStripped || strayBracketTail[0].length === cleanLine.length)) {
             cleanLine = cleanLine.slice(strayBracketTail[0].length).trim();
           }
         }
-        // 時刻・日数だけの行（「術後1日目」「術後2日目」…）が2行以上続くのは、予定表などの表の列見出しを
-        // 1列ずつ縦に貼り付けたもので、それぞれが後の記録の日時を表しているわけではない（利用者からの
-        // アップロード文書で発覚：リハビリの予定表の「術後1日目〜術後4〜5日目」の列見出しで日時が上書きされ、
-        // 「4〜5日目」がタグ未設定のカードとして残っていた）。この場合は、見出しが始まる前の日時に戻す。
+
         if (!cleanLine) {
           if (markerStripped) {
-            // 【修正】「入院2日目」の行の次に「6:00」だけの行が来るのは、日の見出しと時刻（表の列見出しではない）。
-            // 以前は「日時だけの行が2行続いた」として両方を取り消し、翌朝6:00の記録が前日21:00になっていた
-            // （長文の事例でのテストで発覚）。時刻だけの行は、列見出しの並びとして数えない。
+
             if (strippedClockOnly) { markerOnlyRunCount = 0; timestampBeforeMarkerRun = null; continue; }
             if (markerOnlyRunCount === 0) timestampBeforeMarkerRun = timestampBeforeMarkers;
             markerOnlyRunCount++;
@@ -2204,44 +1713,18 @@
           lastClockMin = timestampBeforeMarkerRun.clock;
         }
         markerOnlyRunCount = 0;
-        // 「術後肢位」（「術後」は日時として外れ「肢位」が残る）「安静度」「病室環境」のように、コロンの無い
-        // 見出し語だけの行の下に、その見出しについての指示・所見の行が続く書き方がある。以前は「肢位」だけが
-        // 次の1行とまとまり、残りの「軽度外転位で、内旋位は禁止」「側臥位時は外転枕使用すること」等が
-        // 1行ずつ別のカードになっていた（利用者からの修正依頼：患者37「細かくなりすぎている」）。
-        // 登録した見出し語（BARE_BLOCK_HEADING_REGEX）の行は「肢位:」のようなコロン付きの見出しと同じに扱い、
-        // 下の短い行をまとめて1枚にする（「疼痛:」と同じ仕組み。isMergeableBlockLine参照）。
-        // 「回診」「検温」のような出来事の語は、下に別々の観察が続くため対象にしない。
+
         if (BARE_BLOCK_HEADING_REGEX.test(cleanLine)) {
           pushExtracted({ text: `${cleanLine}:`, timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
           continue;
         }
-        // 「■ 嗜好品」「■ 活動・睡眠・清潔・更衣」「■ 疾患に対する認識」のような■付きの区切り
-        // 見出しは、それ自体に所見を含まない（実際の値は次の行以降の「タバコ: なし」等に書かれて
-        // いる）ため「不要な情報」とする（利用者からのアップロード文書で発覚：これらが「嗜好品」
-        // 「活動」「睡眠」…のような見出し語だけのOデータのカードになっていた）。コロン・句点を
-        // 含む行（「■ 食事: 常食」等）は所見を含むため対象外。「■ 入院時の状況」のように時期を
-        // 表す見出しは、上のマーカー除去で既に以降の日時として反映済み。
+
         if (startedWithHeadingBullet && cleanLine.length <= 30 && !/[:：。]/.test(cleanLine)) {
           const headingText = peekText(li).replace(/^(?:[□■▪◆◇][\s　]*)+/, '');
           pushExtracted({ text: cleanExtractedPhrase(headingText), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
           continue;
         }
 
-        // 「①手術前日指示」「③手術当日術後指示」のように、丸数字（①②③等。この関数の呼び出し元で
-        // NFKC正規化されるため、ここに来る時点では半角数字1・2・3等に変換されている）に続けて、
-        // 周術期の指示・処置をまとめた見出し語だけが1行になっているケースがある。この見出し行
-        // 自体には実際の指示内容が含まれておらず、直後に【点滴】【食事】等の箇条書きが続く
-        // （利用者からのアップロード文書で発覚：「1手術前日指示」「3手術当日術後指示」が、
-        // 実際の指示内容を含まない意味の無いカードになっていた）。見出し語自体はカード化せず、
-        // 「術前」「術後」と同様に時系列マーカーとして扱い、直後の箇条書きカードに引き継ぐ。
-        // 誤って通常の文章まで巻き込まないよう、次の条件をすべて満たす場合だけを対象とする：
-        // ①行全体が「数字1文字＋コロン・【】・数字を含まない2〜18文字」だけで構成されている
-        // （実際の指示内容や検査値の断片でないことを、コロン・括弧・数字の不在で確認する）
-        // ②直後の空行を除いた次の行が「【」「[」で始まっている（＝これから箇条書きの見出し付き
-        // 内容が続くことを示す、この記録形式に特有の強い手がかり）。
-        // 【レビューで発見】以前は「数字1文字＋2〜18文字」の行なら何でも見出しとみなしたため、「3回嘔吐あり。」「2日間排便なし」
-        // 「5分間の歩行で息切れ」の次の行が【…】で始まると、所見の行が消え、「回嘔吐あり。」が以降のカードの日時になっていた。
-        // 指示・処置などをまとめる見出しの語で終わる行だけにする。
         const numberedSectionHeaderMatch = cleanLine.match(/^[1-9]([^\d:：【\[\]】。、,]{2,18}(?:指示|処置|予定|準備|内容|オーダー))$/);
         if (numberedSectionHeaderMatch) {
           let peekIdx3 = li + 1;
@@ -2254,10 +1737,6 @@
           }
         }
 
-        // 「(バイタルサイン)、脈拍72回/分、呼吸数18回/分、」のように、他の値と同じ行に
-        // 括弧書きの見出し語だけが混ざっている場合、それ自体は所見を含まないため
-        // 「不要な情報」として個別に切り出し、行から取り除く（残りの脈拍・呼吸数等の
-        // 実際の値は、この後の通常の検査値・バイタル抽出でそれぞれ別カードにできるようにする）。
         const INLINE_UNNECESSARY_MARKER_REGEX = /[\(（](?:バイタルサイン|バイタル)[\)）]/g;
         let inlineMarkerMatch;
         while ((inlineMarkerMatch = INLINE_UNNECESSARY_MARKER_REGEX.exec(cleanLine)) !== null) {
@@ -2266,10 +1745,6 @@
         cleanLine = cleanLine.replace(INLINE_UNNECESSARY_MARKER_REGEX, '').replace(/^[、,]\s*/, '').trim();
         if (!cleanLine) continue;
 
-        // 「身長」「体重」「BMI」は続けて別々の行に記載されることが多く、いずれも同じ身体計測に
-        // 関する客観的な情報のため、連続していれば1枚のカードにまとめる（必須ではないが、
-        // まとめておくとアセスメント表で見やすいため）。1行だけしか見つからない場合は、通常の
-        // 文章抽出にそのまま進む（1行でも「身長」等の語自体がOデータ判定の手がかりになる）。
         const PHYSICAL_MEASUREMENT_KEY_REGEX = /^(身長|体重|BMI)(?:[:：]|\s|$)/;
         const physicalMeasurementMatch = cleanLine.match(PHYSICAL_MEASUREMENT_KEY_REGEX);
         if (physicalMeasurementMatch) {
@@ -2287,25 +1762,17 @@
           if (measurementLines.length > 1) {
             const merged = cleanExtractedPhrase(measurementLines.join('、'));
             pushExtracted({ text: merged, timestamp: globalTimestamp });
-            li = mIdx - 1; // forループのli++で次の未処理行へ進む
+            li = mIdx - 1;
             continue;
           }
-          // 直後に他の身体計測の行が続かない場合は、この行だけを通常の文章抽出に委ねる
+
         }
 
-        // 「検査項目」の行の直後に「基準値」の行、続けて「A氏 (術前)」「A氏 (術後)」のような
-        // 列ラベルの行が続く場合、検査結果の表のヘッダー行とみなす。以降のデータ行（項目名→
-        // 基準値→実測値…）で、基準値の次に続く実測値の列がそれぞれ何のタイムスタンプに対応する
-        // 列かを、ここで読み取って記憶しておく（例：1列目=術前、2列目=術後）。
-        // 列ラベルの行は、次の行が基準値のような範囲表記になった時点（＝最初のデータ行に
-        // 到達した時点）で読み終わったと判断する。
         if (/^検査項目(?:[:：]|\s|$)/.test(cleanLine)) {
           let hIdx = li + 1;
           while (hIdx < lines.length && peekText(hIdx) === '') hIdx++;
           const nextHeaderLine = hIdx < lines.length ? peekText(hIdx) : '';
-          // 「正常値」「基準範囲」等も「基準値」と同じ列見出しとして扱う（利用者からのアップロード
-          // 文書で発覚：「検査項目／正常値／入院時／術後1日目」の表がヘッダーとして認識されず、
-          // 列見出し「術後1日目」が時系列マーカーとして以降のすべてのカードの日時を上書きしていた）。
+
           if (REFERENCE_HEADER_REGEX.test(nextHeaderLine)) {
             let cIdx = hIdx + 1;
             const phases = [];
@@ -2316,13 +1783,11 @@
               let peekIdx2 = cIdx + 1;
               while (peekIdx2 < lines.length && peekText(peekIdx2) === '') peekIdx2++;
               const peekLine2 = peekIdx2 < lines.length ? peekText(peekIdx2) : '';
-              // 次の行が基準値のような範囲表記なら、この行はもう列ラベルではなく最初の
-              // データ行（項目名）なので、ここでヘッダーの読み取りを止める。
+
               if (looksLikeReferenceRangeLine(peekLine2)) break;
-              // 検査項目名（BNP等）の行に来たら、列見出しの読み取りを終える（項目名を列見出しとして飲み込まない）
+
               if (BARE_LAB_KEY_REGEX.test(colLine)) break;
-              // 「術後1日目」「入院2日目」「POD1」のような経過日数の列見出しは数字を含むが、
-              // 列見出しとして正当なため、時系列の語として読み取れる場合は数字があっても受け付ける。
+
               const phaseMatch = colLine.match(/(入院当日|入院\d+日目|手術当日|手術前日|術後\s*\d+\s*日目|POD\s*\d+|\d+日目|入院前|入院時|術前|術中|術後|入院後)/);
               if (colLine.length > 20 || (/\d/.test(colLine) && !phaseMatch)) break;
               phases.push(phaseMatch ? phaseMatch[1].replace(/\s+/g, '') : null);
@@ -2334,53 +1799,36 @@
               tableHasRefColumn = true;
               pushExtracted({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
               pushExtracted({ text: cleanExtractedPhrase(nextHeaderLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
-              // 列ラベルの行自体は表の構造を示すだけで所見を含まないため、カード化せずそのまま読み飛ばす
-              li = cIdx - 1; // forループのli++で最初のデータ行（項目名）へ進む
+
+              li = cIdx - 1;
               continue;
             }
           }
         }
 
-        // 「実習科目名：老年看護学実習」のような、事例プリント自体の見出し・提出情報は、
-        // 値の内容が何であっても患者アセスメントとは無関係なため、行ごと「不要な情報」として
-        // そのまま1枚のカードにする（検査値抽出・見出しラベル切り出し・通常の文章抽出は行わない）。
         if (isUnnecessaryBoilerplateText(cleanLine)) {
           pushExtracted({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
           continue;
         }
 
-        // 「検査項目名だけの行」（表のコピー貼り付けで数値と別の行に分かれてしまったもの）は、
-        // 次の行が「数値だけ（＋単位）」であれば1つの検査値カードとして結合する。
-        // 次の行が数値でなければ、項目名だけでは意味のある情報にならないためカード化しない。
-        // 英語の検査略語（WBC等、BARE_LAB_KEY_REGEX）だけでなく、日本語の検査項目名
-        // （白血球・アルブミン(Alb)等）であっても、直後の行が基準値のような範囲表記になって
-        // いれば同様に表の項目名の行とみなす（日本語の項目名を1件ずつ登録する代わりに、
-        // 「範囲表記の行が続く」という表であることが明確な構造的手がかりで判定する）。
         const isKnownBareLabKey = BARE_LAB_KEY_REGEX.test(cleanLine);
         let genericKeyPeekIdx = li + 1;
         while (genericKeyPeekIdx < lines.length && peekText(genericKeyPeekIdx) === '') genericKeyPeekIdx++;
         const genericKeyPeekLine = genericKeyPeekIdx < lines.length ? peekText(genericKeyPeekIdx) : '';
         const isGenericTableKey = !isKnownBareLabKey && cleanLine.length <= 20 && !/\d/.test(cleanLine) &&
           !isUnnecessaryBoilerplateText(cleanLine) && looksLikeReferenceRangeLine(genericKeyPeekLine);
-        // ヘッダー（検査項目／正常値／入院時／術後1日目 等）を読み取った表の中では、値の1行目が
-        // 「ー」（基準値なし）や「100mg/dl」のように範囲表記でない項目（FBS・eGFR・PT%・APTT等）も
-        // あるため、「数字で始まらない短い行の直後に値のセルが続く」ことだけで項目名の行とみなす。
+
         const isInTableKey = !isKnownBareLabKey && !isGenericTableKey && tableHasRefColumn &&
           cleanLine.length <= 25 && !/^[\d<>≦≧≤≥＜＞]/.test(cleanLine) && !isTableValueCell(cleanLine) &&
           isTableValueCell(genericKeyPeekLine);
-        // 表の行として読めない行が現れたら、表はそこで終わったとみなす（列構成の記憶を引きずって
-        // 表の後ろの無関係な行を誤って表の行として扱わないようにする）。
+
         if (tableHasRefColumn && !isKnownBareLabKey && !isGenericTableKey && !isInTableKey) {
           tableColumnPhases = [];
           tableHasRefColumn = false;
         }
         if (isKnownBareLabKey || isGenericTableKey || isInTableKey) {
           const keyName = cleanLine.replace(/[:：]\s*$/, '').trim();
-          // 表のコピー貼り付けでは「項目名」の行の後に「基準値」の行、続けて「実測値」の行
-          // （「A氏(術前)」「A氏(術後)」のように2列以上ある場合はその列数分）が続くことがある。
-          // 値の行として認識できる限り（「-」は「その列の測定なし」を示す記号として扱う）、
-          // 空行を挟みつつ連続して読み進めて全て消費する（暴走的な結合を避けるため最大6行まで）。
-          // ヘッダーから列数が分かっている表では、基準値1列＋実測値の列数分だけを読む。
+
           const maxValueLines = tableHasRefColumn ? 1 + tableColumnPhases.length : 6;
           let nextIdx = li + 1;
           const valueLines = [];
@@ -2392,39 +1840,32 @@
             nextIdx++;
           }
           if (valueLines.length > 0) {
-            // ヘッダーで基準値の列があると分かっている表では、値の1行目は必ず基準値の列
-            // （「ー」等なら基準値なし）。ヘッダーの無い表では従来通り、先頭の値が範囲表記
-            // （「〜」「4.0-5.1」のようなハイフン区切り、「<0.2」のような不等号付き）で、かつ後続の
-            // 値が1つ以上ある場合に限り先頭を「基準値」とみなす。
+
             const firstIsRange = tableHasRefColumn
               ? valueLines.length > 1
               : valueLines.length > 1 && (/[〜~]/.test(valueLines[0]) || /^[\d,]+(?:\.\d+)?\s*-\s*[\d,]/.test(valueLines[0]) || isComparatorRefCell(valueLines[0]));
             const refRangeLine = firstIsRange && !isLabPlaceholderCell(valueLines[0]) ? restoreExponent(valueLines[0]) : null;
             const measurementLines = firstIsRange ? valueLines.slice(1) : valueLines;
             if (measurementLines.length === 1 && !firstIsRange) {
-              // 従来通りの単純な「項目名→実測値1件のみ」の形式（回帰確認用に体裁を維持）
+
               if (!isLabPlaceholderCell(measurementLines[0])) {
                 const merged = cleanExtractedPhrase(`${keyName} ${measurementLines[0]}`);
-                // ヘッダーの列が分かっている表の中で値が1つしか無い行は、1列目（多くは入院時）の日時にする（患者36のHbA1c）
+
                 const singleTs = (tableHasRefColumn && tableColumnPhases.find(Boolean)) || globalTimestamp;
                 if (merged.length >= 2) pushExtracted({ text: merged, timestamp: singleTs, isLabOrVital: true,
                   _lab: tableHasRefColumn ? { table: tableSerial, phases: tableColumnPhases.slice(), key: keyName, value: measurementLines[0], phase: singleTs } : undefined });
               }
             } else {
-              // 表では2列目以降の実測値の単位が省略されることが多い（例：入院時「8100/μL」、
-              // 術後1日目「10,200」）。単位の無い実測値には、同じ行の他の実測値の単位を、それも
-              // 無ければ基準値の単位を補う（利用者からのアップロード文書で発覚：単位の無い数値だけの
-              // カードになり、何の値か読み取りにくかった）。「380万/μL」の「万」も単位の一部として扱う。
+
               const splitNumberAndUnit = (s) => {
                 const m = (s || '').match(/^[<>≦≧≤≥＜＞]?\s*[\d,]+(?:\.\d+)?(?:\s*[〜~\-]\s*[\d,]+(?:\.\d+)?)?\s*(.*)$/);
-                // 末尾の↑↓（異常値の印）と、空白を挟んだH/L（High/Lowの印）だけを取り除く
-                // （μL・dLの「L」は単位の一部なので取り除かない）。
+
                 return m ? m[1].replace(/\s*[↑↓]$/, '').replace(/\s+[HLhl]$/, '').trim() : '';
               };
               const siblingUnit = measurementLines.map(v => isLabPlaceholderCell(v) ? '' : splitNumberAndUnit(restoreExponent(v))).find(u => u) || '';
               const rowUnit = siblingUnit || (refRangeLine ? splitNumberAndUnit(refRangeLine) : '');
               measurementLines.forEach((rawValLine, colIdx) => {
-                if (isLabPlaceholderCell(rawValLine)) return; // その列の測定なしを示す記号はカード化しない
+                if (isLabPlaceholderCell(rawValLine)) return;
                 let valLine = restoreExponent(rawValLine);
                 if (rowUnit && /^[\d,]+(?:\.\d+)?\s*[↑↓]?$/.test(valLine)) {
                   const numMatch = valLine.match(/^([\d,]+(?:\.\d+)?)\s*([↑↓]?)$/);
@@ -2432,28 +1873,15 @@
                 }
                 const withRef = refRangeLine ? `${valLine} (基準値: ${refRangeLine})` : valLine;
                 const merged = cleanExtractedPhrase(`${keyName} ${withRef}`);
-                // ヘッダーから読み取った列ごとのタイムスタンプ（例：1列目=術前、2列目=術後）があれば
-                // それを使い、無ければその時点のタイムスタンプ（globalTimestamp）をそのまま使う。
-                // 列の数より値が少ない行（空欄の列がある行）では、どの列の値か分からないため、1列目（多くは入院時）の
-                // 日時にする（以前は表の前の記録の時刻「12:00」がそのまま付いていた。患者36のHbA1c）。
+
                 const colTimestamp = tableColumnPhases[colIdx] || tableColumnPhases.find(Boolean) || globalTimestamp;
                 if (merged.length >= 2) pushExtracted({ text: merged, timestamp: colTimestamp, isLabOrVital: true,
                   _lab: tableHasRefColumn ? { table: tableSerial, phases: tableColumnPhases.slice(), key: keyName, value: valLine, ref: refRangeLine, phase: colTimestamp } : undefined });
               });
             }
-            li = nextIdx - 1; // 消費した値の行の直前まで読み進める（forループのli++で次の未処理行へ進む）
+            li = nextIdx - 1;
           } else if (isKnownBareLabKey) {
-            // 値の行が既知の形式（BARE_LAB_VALUE_REGEX）に一致しなかった場合でも、項目名の行
-            // 自体を静かに消してしまうと、項目名だけが失われ、直後の値がラベルの無い意味不明な
-            // 断片として残ってしまう（利用者からの報告事例：術前検査結果の表で「TP」＋「60g/21」
-            // （おそらく「6.0g/dL」がOCRで小数点・単位を失った表記）の行の組で、値が単位として
-            // 認識できず結合に失敗し、「TP」という項目名の行自体が丸ごと消えていた）。
-            // 直後の行が数字から始まる短い行であれば、単位表記が破損したOCR起因の値である
-            // 可能性が高いため、生の文字列のまま項目名と結合する（LAB_VALUE_TRAILING_UNIT_REGEXの
-            // 説明の通り、formatLabValueStringは単位として説明できない残骸があれば数値を
-            // 作り出さずそのまま残すため、誤った基準値付きの数値を作ってしまう心配は無い）。
-            // 数字から始まらない・次の行が見つからない場合は値との結合自体を諦め、それでも
-            // 項目名だけは（無かったことにせず）カードとして残す。
+
             let peekIdx = li + 1;
             while (peekIdx < lines.length && peekText(peekIdx) === '') peekIdx++;
             const rawCandidate = peekIdx < lines.length ? peekText(peekIdx) : '';
@@ -2466,10 +1894,7 @@
               if (aloneKey.length >= 2) pushExtracted({ text: aloneKey, timestamp: globalTimestamp, isLabOrVital: true });
             }
           }
-          // 【レビューで発見】次の行が「2〜3日に1回、硬便傾向」「5〜6割摂取」「4-5時間で中途覚醒あり」のように数値の幅で
-          // 始まるだけの普通の文だと、表の項目名の行とみなしたのに値のセルとして読めず、項目名の行（「排便習慣」「昼食」
-          // 「睡眠状況」）が黙って消えていた（残った文も何についての記録か分からずタグが付かなかった）。
-          // この場合は表ではなく「見出し＋その内容」なので、「排便習慣: 2〜3日に1回、硬便傾向」の1行として続けて読む。
+
           if (!valueLines.length && !isKnownBareLabKey && isGenericTableKey && genericKeyPeekLine) {
             cleanLine = `${keyName}: ${genericKeyPeekLine}`;
             li = genericKeyPeekIdx;
@@ -2479,55 +1904,41 @@
         }
 
         const lineStartIndex = extracted.length;
-        // 【レビューで発見】NFKC正規化で「×10³/μL」が「×103/μL」になり、「WBC 11.2×103/μL」のように103倍と読める
-        // カードになっていた（表の読み取りでは restoreExponent で戻していたが、文中の検査値では戻していなかった）
+
         cleanLine = restoreExponent(cleanLine);
 
-        // 検査データの個別抽出（SpO2は "(room air)" 等の直後の注記も含めて丸ごと1枚のカードにする。
-        // 各項目の単位もLAB_REGEX_SOURCEにoptionalで含まれているため、「WBC 11200/μL」のように
-        // 単位まで直接書かれていても、値と単位が分かれずに1つのカードとして抽出される）
         const labRegex = new RegExp(`(${LAB_REGEX_SOURCE})`, 'gi');
         let lMatch, lSubText = cleanLine;
-        // 【文の途中の値は抜き出さない】長文の心不全事例のテストで発覚：「酸素2L開始し、SpO2 94%に上昇」から値だけを
-        // 抜くと「酸素2L開始し、に上昇」、「歩行後SpO2 92%まで低下」が「歩行後まで低下」、「前後でSpO2 96%→94%」が
-        // 「前後で→94%」のように、残りの文が壊れていた。値の直後が助詞・矢印・「維持/上昇/低下」等で文が続く場合や、
-        // 直前が「歩行後」「前後で」のように文の途中の場合は、その行の値を抜き出さず、文ごと1枚にする。
+
         const embeddedLabInSentence = (() => {
           const re = new RegExp(`(${LAB_REGEX_SOURCE})`, 'gi');
           let m;
           while ((m = re.exec(cleanLine)) !== null) {
-            if (!isPlausibleLabMatch(m[0], cleanLine.slice(m.index + m[0].length))) continue; // 検査値でない語（js/03 の説明を参照）
+            if (!isPlausibleLabMatch(m[0], cleanLine.slice(m.index + m[0].length))) continue;
             const after = cleanLine.slice(m.index + m[0].length).replace(/^\s+/, '');
             const before = cleanLine.slice(0, m.index).replace(/\s+$/, '');
             if (/^(?:に|まで|へ|を|が|で|と|の|→|⇒|->|から|維持|上昇|低下|回復|改善|増加|減少|前後|程度|台)/.test(after)) return true;
-            if (/^[〜~～]\s*\d/.test(after)) return true; // 「SpO2 95〜98%で経過」のような値の幅（以前は「SpO2 95」と「〜98%で経過」に分かれていた）
+            if (/^[〜~～]\s*\d/.test(after)) return true;
             if (/(?:後|前|で)$/.test(before) && !/(?:入院前|術前|術後|手術前)$/.test(before)) return true;
           }
-          // 「透析前：体重 62.4kg、BP 168/92mmHg」「歩行後：SpO2 92%」のように、行の頭に「〜前・〜後・〜中」の見出しがある行は、
-          // 値を抜き出すと、いつの値か（透析の前か後か）が分からなくなるので、行ごと1枚にする（実習生の記録のテストで発覚）
+
           if (/^(?!入院|術|手術)[^\d:：、。()（）\s]{1,8}(?:前|後|中)\s*[:：]/.test(cleanLine)) return true;
-          if (/^(?:児|新生児)\s*[:：]/.test(cleanLine)) return true; // 児の値は、母親の値と分かれないよう行ごと1枚にする
+          if (/^(?:児|新生児)\s*[:：]/.test(cleanLine)) return true;
           return false;
         })();
-        // 「血液検査（10/8 6:00）：Na 133…」「バイタル 10:00 BT 37.4℃…」のように行の頭に書いた時刻は、その行の値の時刻にする
-        // （以前は「血液検査(10/8 6:00):、」「バイタル 10:00」だけのカードが残り、値のカードには時刻が付かなかった）
+
         const leadLabelTime = !embeddedLabInSentence && cleanLine.match(/^(?:血液検査|採血|検査結果|バイタル(?:サイン)?|VS|V\/S|検温)\s*(?:[(（]\s*(?:(\d{1,2})\/(\d{1,2})\s*)?(\d{1,2}:\d{2})?\s*[)）]|(\d{1,2}:\d{2}))\s*[:：]?/i);
         if (leadLabelTime && (leadLabelTime[3] || leadLabelTime[4]) && new RegExp(`(${LAB_REGEX_SOURCE})`, 'i').test(cleanLine.slice(leadLabelTime[0].length))) {
-          // 【レビューで発見】「血液検査（10/8 6:00）」の日付（10/8）を読み捨て、時刻だけを前の日に付けていた。日付があれば先に日を切り替える
-          // （「入院3日目」のように日の呼び方で書いている記録では、同じ日が2つの呼び方に分かれないよう、今の日の呼び方のままにする）
+
           if (leadLabelTime[1] && (!dayLabel || /^(?:\d{1,4}年)?\d{1,2}月\d{1,2}日$/.test(dayLabel)) && Number(leadLabelTime[1]) >= 1 && Number(leadLabelTime[1]) <= 12 && Number(leadLabelTime[2]) >= 1 && Number(leadLabelTime[2]) <= 31) {
             applyTimeMarker(`${Number(leadLabelTime[1])}月${Number(leadLabelTime[2])}日`);
           }
           globalTimestamp = applyTimeMarker(leadLabelTime[3] || leadLabelTime[4]);
         }
         while (!embeddedLabInSentence && (lMatch = labRegex.exec(cleanLine)) !== null) {
-          // 「1hr 100ml」「PT 2単位」「TP1」のような、検査値ではない語は切り出さない（isPlausibleLabMatch の説明を参照）
+
           if (!isPlausibleLabMatch(lMatch[0], cleanLine.slice(lMatch.index + lMatch[0].length))) continue;
-          // 【記録に書かれた基準値を残す】繰り返し入力の確認で発覚：「WBC 12000/μL (基準値: 3300〜8600)」の
-          // 値だけを抜き出していたため、カードにはアプリの基準値（4,000〜9,000）が付き、記録の基準値は
-          // 「(基準値: 3300〜8600)」だけの別のカードになっていた。値の直後に書かれた基準値は、値と同じカードに入れる
-          // （基準値が書いてあるので、アプリの基準値は付けない。formatLabValueString 参照）。
-          // 基準値の後ろの「↑」「↓」（「Na 131 mEq/L（基準値：138〜145）↓」）も、値の印として同じカードに残す（値の直後に置く）。
+
           const writtenRef = cleanLine.slice(lMatch.index + lMatch[0].length).match(/^(\s*[↑↓]?)\s*[（(]\s*(?:基準値|基準範囲|正常値|基準)\s*[:：]?\s*([^)）]{1,40})[)）](\s*[↑↓])?/);
           let writtenRefText = null;
           if (writtenRef) {
@@ -2538,8 +1949,7 @@
             lMatch = Object.assign([whole, ...lMatch.slice(1)], { index: lMatch.index, input: lMatch.input });
             labRegex.lastIndex = lMatch.index + whole.length;
           }
-          // 値の直後のかっこ書きの注記（「HbA1c 7.8%（9/30 受診時）」「BP 146/82mmHg（家庭血圧手帳：朝 130〜140台）」）と、
-          // 脈の「整」「不整」（「P 72回/分、整」）も、値と同じカードに残す（以前は注記だけのカードに分かれたり、「整」が消えたりしていた）
+
           if (!writtenRef) {
             const after = cleanLine.slice(lMatch.index + lMatch[0].length);
             const note = after.match(/^(\s*[↑↓]?)\s*[（(](?!\s*(?:基準|正常値|随時|早朝空腹時|空腹時|食前|食後|眠前|就寝前))([^()（）]{1,30})[)）]/);
@@ -2554,8 +1964,7 @@
             }
           }
           let lClean = cleanExtractedPhrase(writtenRefText || lMatch[0]);
-          // 「随時血糖246」「空腹時血糖130」の「随時・空腹時・食後」は値の意味を変えるので、項目名に付けて残す。
-          // 基準値（70〜109）は空腹時の値なので、随時・食後の血糖には付けない（7事例のテスト：糖尿病足病変）
+
           const glucoseQual = cleanLine.slice(0, lMatch.index).match(/(随時|早朝空腹時|空腹時|食後\s*\d*\s*時間?)\s*$/);
           if (glucoseQual && /^(?:血糖|BS|GLU|グルコース)/i.test(lClean)) {
             const qual = glucoseQual[1].replace(/\s+/g, '');
@@ -2563,7 +1972,7 @@
             if (!/空腹/.test(qual)) lClean = lClean.replace(/\s*\(基準値:[^)]*\)/, '');
             lSubText = lSubText.replace(new RegExp(`${glucoseQual[1]}\\s*(?=${lMatch[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`), '');
           }
-          // 「血糖 186mg/dL（食前）」のように値の後ろに書いた「（食前）」も項目名に付ける（残すと「(食前)、」だけの断片になっていた）
+
           const trailingQual = !glucoseQual && /^(?:血糖|BS|GLU|グルコース)/i.test(lClean)
             ? cleanLine.slice(lMatch.index + lMatch[0].length).match(/^\s*[（(]\s*(随時|早朝空腹時|空腹時|食前|食後\s*\d*\s*時間?|眠前|就寝前)\s*[)）]/) : null;
           if (trailingQual) {
@@ -2575,27 +1984,24 @@
           if (lClean.length >= 2) pushExtracted({ text: lClean, timestamp: globalTimestamp, isLabOrVital: true });
           lSubText = lSubText.replace(lMatch[0], '');
         }
-        // 値を抜いた後に残る空カッコや連続する読点・句点など、不自然な残骸を整える
+
         lSubText = lSubText
           .replace(/[\(（]\s*[\)）]/g, '')
           .replace(/[、。](?=[、。])/g, '')
           .trim();
-        // 値を抜いた後に「血液検査では、」「帰室時、」「随時」のような前置きの語だけが残った文は捨てる（7事例のテスト）
+
         if (extracted.length > lineStartIndex) {
           lSubText = splitSentencesOutsideQuotes(lSubText).filter(sent => {
             const core = sent.replace(/[、。\s,]/g, '');
-            // 「血液検査(10/8 6:00):」「バイタル 10:00」のような、見出しと日時だけが残ったものも捨てる
+
             const bare = core.replace(/[(（][\d\/:：〜~\-\s]*[)）]/g, '').replace(/\d{1,2}:\d{2}/g, '').replace(/[:：【】\[\]]/g, '');
             if (/^(?:血液検査|採血|検査|検査結果|血液データ|バイタル(?:サイン)?|VS|V\/S|検温)$/i.test(bare)) return false;
             return !(core.length <= 12 && !/\d/.test(core) && /(?:では|には|は|時|随時|空腹時|食後|結果|検査)$/.test(core));
           }).join('');
-          // 「血液検査：、総ビリルビン 6.8 mg/dL」のように、値を抜いた後に見出しと「、」だけが頭に残ったら外す
+
           lSubText = lSubText.replace(/^[【\[]?(?:血液検査|採血|検査結果|検査|バイタル(?:サイン)?|検温)[】\]]?\s*(?:[(（][^)）]*[)）])?\s*[:：]?\s*[、,]\s*/, '');
         }
 
-        // 現病歴・既往歴・診断名・保険・入院日・主訴・治療方針・治療内容などの見出しラベル付き項目を、
-        // 日時と同様に構造化して切り出す。
-        // 「現病歴：」のようなコロン付きだけでなく、「現病歴は」「現病歴」(コロンなし)でも検出する
         const fieldRegex = new RegExp(FIELD_LABEL_REGEX_SOURCE, 'g');
         const fieldMatches = [];
         let fMatch;
@@ -2604,11 +2010,7 @@
         }
 
         if (fieldMatches.length > 0) {
-          // 最初のラベルより前にある文章はそのまま一般カードとして残す。この部分は見出しに
-          // 属さない自由な文章であることが多く、句点ごとに機械的に分割すると麻酔覚醒後の
-          // 観察のような継続した文脈を分断してしまうため、句点による分割は行わず、
-          // 構造的に明確な「・」列挙だけを分割対象とする（不自然な始まりの文があれば
-          // 直前カードへ統合）。
+
           const leading = lSubText.slice(0, fieldMatches[0].start).trim();
           if (leading) {
             const leadingRaw = leading.replace(/^(?:入院時(?:[、,]|\s+|(?=患者は|本日は)))?(?:患者は|本日は)?/, '');
@@ -2619,26 +2021,14 @@
           }
           fieldMatches.forEach((m, idx) => {
             const hardEnd = idx + 1 < fieldMatches.length ? fieldMatches[idx + 1].start : lSubText.length;
-            // 見出しの内容は基本的に最初の句点「。」までとし、それ以降は無関係な別の文として切り離す
-            // （読点「、」は同じ文の中の列挙とみなし、句点が出るまでは１つの内容として扱う）
-            // 主訴は本人の訴えを並べたものなので、句点で切らずに行の終わりまで1枚にする（心不全事例：「足がむくんで
-            // 靴が履けない。」だけが見出しの無いOのカードになっていた）
+
             const periodIdx = m.key === '主訴' ? -1 : lSubText.indexOf('。', m.contentStart);
             const segmentEnd = (periodIdx !== -1 && periodIdx < hardEnd) ? periodIdx + 1 : hardEnd;
             const content = cleanExtractedPhrase(lSubText.slice(m.contentStart, segmentEnd).replace(/[、。]\s*$/, ''));
-            // 見出し（fieldLabel）が付いているからといって日付だけの内容を無条件に許可しない。
-            // タグ・バッジの有無に関わらず、内容の文字列そのものを見て「日付だけ」かどうかを判定する。
-            // 「入院日：2026年9月10日」のように見出しの内容が日付そのものだけの場合、それをそのまま
-            // 情報カードとして残しても新しい所見・タグは何も得られないため、他の見出しと同様に除外する
-            // （以前は「入院日」だけを対象外としていたが、単なる日付だけのカードが作られてしまうという
-            // 指摘を受けたため、見出しの種類にかかわらず統一的に判定する）。
+
             const isDateOnlyContent = isDateOnlyText(content);
             if (content.length >= 1 && !isDateOnlyContent && !isBareFieldHeaderOnly(content)) {
-              // 既往歴は「53歳 卵巣嚢腫、50歳代 胆石症 (症状がないため経過観察中)」のように
-              // 「◯歳（代）＋病名」の組が読点で列挙されることが多く、これを1枚のカードに
-              // まとめてしまうと個々の既往（診断）ごとのタグ付けができない。年齢表記が
-              // 2回以上出てくる場合はこの列挙パターンとみなし、年齢の出現ごとに分割する
-              // （1回だけの場合は単に発症年齢を含む1件の既往なので分割しない）。
+
               if (m.key === '生活歴' && splitLifeHistoryItems(content).length > 1) {
                 splitLifeHistoryItems(content).forEach(part => {
                   const cleanedPart = cleanExtractedPhrase(part);
@@ -2652,15 +2042,12 @@
                   }
                 });
               } else {
-                // 本文が「無」「なし」のような一語の状態語だけの場合、バッジ（fieldLabel）だけに
-                // 見出しの文脈を頼らず、本文にも見出し語を残しておく（isBareStatusWordの説明を参照）。
+
                 const labeledContent = isBareStatusWord(content) ? `${m.key}: ${content}` : content;
                 pushExtracted({ text: labeledContent, timestamp: globalTimestamp, fieldLabel: m.key });
               }
             }
-            // 見出しの内容にも次の見出しにも属さない残りの文章は、句点ごとに文を分けて一般カードとして拾う
-            // （例：「治療方針：〜を行う。シャワー浴、弾性ストッキング着用を実施。」のように見出しの後に
-            // 別の文が続く場合、それぞれ独立したカードにする）
+
             if (segmentEnd < hardEnd) {
               const leftoverRaw = lSubText.slice(segmentEnd, hardEnd);
               splitIntoSentenceFragments(leftoverRaw).forEach(sentence => {
@@ -2672,22 +2059,9 @@
           continue;
         }
 
-        // 行全体の文脈（引用や「〜と話すが、〜」などの接続表現を含む塊）は1つのまとまりとして
-        // 保持する。以前は句点「。」ごとに機械的に分割していたが、「麻酔からの覚醒も良好。
-        // 声を掛けると「あ、あ」と短く返事するのみ。のどの痛みあり。…」のように、同じ出来事
-        // （麻酔からの覚醒）について続けて観察所見を述べている一連の文章まで分断してしまう
-        // という指摘を受けたため、見出しの付かない一般的な文章は句点では分割しないことにした。
-        // 「シャワー浴・弾性ストッキング着用を実施」のように構造的に明確な「・」列挙だけは
-        // 安全に分割できるため、そちらのみ分割対象とする（不自然な始まりの文があれば、
-        // 同じ行で直前に抜き出したカード＝多くは検査値カードへ文章をつなぎ戻す）。
         let remainderText = lSubText.trim();
         remainderText = remainderText.replace(/^(?:入院時(?:[、,]|\s+|(?=患者は|本日は)))?(?:患者は|本日は)?/, '').trim();
-        // 「身体的状態:」「身体的機能の状態:」のように見出し語＋コロンだけで終わり、値が同じ行に
-        // 何も書かれていない行は、下のsplitByNakatenListに渡すと「・」を含む見出し
-        // （例：「装着器具・自助具の有無:」）が中身の無い断片に分割されてしまう上、分割されなくても
-        // 見出し語だけの意味のないカードになってしまう。実際の値は次の行以降の個別の見出しに
-        // 書かれているため、この行自体は「不要な情報」として除外する（UNNECESSARY_BOILERPLATE_KEYS
-        // に無い、未知の見出し語にも対応できる一般的な判定）。
+
         if (isEmptyColonHeaderLine(remainderText)) {
           if (remainderText.length >= 1) pushExtracted({ text: cleanExtractedPhrase(remainderText), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
           continue;
@@ -2698,30 +2072,6 @@
         });
       }
 
-      // 「不要な情報」として除外した見出し行のうち、「血液検査」「画像検査等」「身体的状態:」の
-      // ように後続の情報の説明（章タイトル）になっているものは、単に捨てるのではなく、その内容を
-      // 後続のカードすべてに書き込む（利用者からの指摘：説明になっているなら全部に反映してほしい）。
-      // 「検査項目」「基準値」は血液検査等の表の中で頻出するサブ見出しのため、これらが現れても
-      // その前に設定された章タイトルは変わらず有効とみなす（表の途中で章タイトルが失われない
-      // ようにするため）。それ以外の「不要な情報」（学籍番号等の事務情報や、「(バイタルサイン)」の
-      // ように別の話題への切り替わりを示すマーカー等）が現れた場合は、章タイトルの対象範囲が
-      // そこで終わったとみなしてリセットする。
-      // 【原因と修正】「＜帰室時の状況）」のような山括弧見出し（TIME_MARKER_REGEXとは別の、
-      // ＜＞<>で囲まれた区切り見出し）は、山括弧・閉じ側の記号（＞>）)）を残したまま
-      // item.textに格納される（山括弧見出しの検出処理はブラケットを剥がさないため）。
-      // このため、SECTION_HEADER_KEYSに登録した見出し語（例：「帰室時の状況」）と文字列として
-      // 一致せず、章タイトルとして認識できなかった（利用者からの報告：「帰室時の状況」の直後の
-      // 「声を掛けると開眼し、「ああ」と短く返事をするのみ。」が、どの状況の観察か分からない
-      // まま単独のカードとして残っていた）。末尾のコロンだけでなく、山括弧の開き・閉じの記号も
-      // 剥がしてから比較することで、山括弧形式の見出しもSECTION_HEADER_KEYSと一致できるようにする。
-      // 【細かく分割しすぎないための結合】（利用者からの修正依頼：「分割されすぎている」）
-      // ①「疼痛:」のように値の無い見出し行の直後に、その見出しについての短い行が続く場合
-      //   （例：「安静時ペインスケール「2-3」」「体位変換時「5-6」…」「「動かなかったら痛くないよ」」）は、
-      //   1行ずつ別々のカードにせず、見出しごと1枚のカードにまとめる（下の章タイトル書き込み処理で
-      //   「疼痛: 」が先頭に付く）。「血液検査」等の章タイトル（SECTION_HEADER_KEYS）は多数の独立した
-      //   検査値をまとめる見出しのため対象外。自前のラベル（「血液型: A型」等）・見出しラベル・検査値の
-      //   カード、日時の異なるカード、長い文章（60文字超）が現れたら、まとまりはそこで終わりとする。
-      // ②発言だけの行・名詞だけの短い行の結合は、AI分類と共通のmergeShortFragmentCardsで行う。
       const isMergeableBlockLine = (it, timestamp) => !it.isUnnecessaryBoilerplate && !it.fieldLabel && !it.isLabOrVital &&
         it.timestamp === timestamp && !hasOwnFieldLabelPrefix(it.text) && it.text.length <= 60;
       for (let hi = 0; hi < extracted.length; hi++) {
@@ -2738,17 +2088,12 @@
           extracted.splice(hi + 2, blockItems.length - 1);
         }
       }
-      // 医師からの説明の行の直後に、その説明の続き（「リハビリテーションスケジュールに沿って開始する。」
-      // 「退院目標：杖歩行で自宅退院」のような方針・予定・目標）が行を分けて書かれている場合は、説明と
-      // 同じ1枚のカードにまとめる（利用者からの修正依頼：患者37「しっかり文章の前後を確認。本人へ主治医より
-      // 「経過良好」と説明あり、本日から離床開始許可あり が抜け落ちている」）。すぐ次の行で同じ日時の、
-      // 短い（40文字以内）方針・予定・目標の行だけを、最大3行まで続けてつなぐ。
+
       mergeExplanationContinuations(extracted);
       mergeShortFragmentCards(extracted);
 
       let currentSectionLabel = null;
-      // 「疼痛:」「肢位:」のような話題の見出しは、日時が変わったらそこで終わりにする（章タイトルの
-      // 「血液検査」等は、日時に関係なく次の区切りまで続ける）
+
       let currentSectionTimestamp = null;
       extracted.forEach(item => {
         if (currentSectionLabel && currentSectionTimestamp !== null && item.timestamp !== currentSectionTimestamp) {
@@ -2765,34 +2110,7 @@
           }
           return;
         }
-        // カードの文章が既に「キーパーソン: 妻、50歳代...」「知的能力: 理解良好...」のように
-        // 自分自身のラベルを持っている場合、章タイトルをさらに重ねて付けると、その章タイトルの
-        // 語（特に「年齢・社会的・文化的状況」の「年齢」）が文中の無関係な数値・人物の情報と
-        // 混同され不自然になる（利用者からの指摘：「二枚目の50歳代というのは妻のことを指しているため
-        // 年齢・社会的・文化的状況: だと不自然になる」）。
-        // 同様に、「職業」「保険」のようにfieldLabelとして登録済みの項目は、カード上に既に色付きの
-        // バッジで見出しが表示されているため、章タイトルの文章まで重ねて付けると二重表示になり
-        // 読みにくい。加えて、「年齢・社会的・文化的状況」のような複数の話題（年齢／社会的／文化的
-        // 状況）をまとめた章タイトルは、実際には特定の一部（例：職業・保険は社会的な話題のみ）にしか
-        // 対応していないことが多く、内容とタイトルの対応が不正確にもなる（利用者からの指摘：
-        // 「年齢・社会的・文化的状況:のなかで二つとも社会の関係するものしかありませんよね？」
-        // 「すべてに割り振ってくれるのはありがたいですが少し文章がみずらくなってしまっています」）。
-        // このため、自分のラベル（自前の見出し、またはfieldLabelバッジ）を持たないカード
-        // （「白血球 5.8...」のようにラベルの無い数値・所見のみの文章）だけが対象になる。
-        // 「血液検査」「画像検査等」「治療方針・治療内容等」「帰室時の状況」等は単一の話題を
-        // まとめた章タイトルで、そのまま前置きすることで逆に文脈が分かりやすくなる
-        // （bracket-heading-split.test.js等で検証済みの既存の挙動）ため、これらは今まで通り
-        // 章タイトルをそのまま前置きする。
-        // 【修正】ただし「年齢・社会的・文化的状況」だけは、年齢／社会的状況／文化的状況という
-        // 互いに無関係な複数の話題を1つの見出しにまとめたものであり、これをそのまま前置きすると
-        // 内容と見出しが対応しなくなる、という利用者からの繰り返しの指摘があった（「年齢・社会的・
-        // 文化的状況:のなかで二つとも社会の関係するものしかありませんよね？」「すべてに割り振って
-        // くれるのはありがたいですが少し文章がみずらくなってしまっています」）。この見出しだけは
-        // 生の文字列を本文に埋め込むのをやめ、家族構成・同居家族・キーパーソンに関する内容だと
-        // 分かる場合だけ、既存の見出しラベル「家族関係」を付与する（AIプロンプト側の「短い見出し語を
-        // 自分で考えてfieldLabelに入れる」という指示と同じ考え方を、ローカル抽出でも再現できる
-        // 範囲で行う）。それ以外の内容は見出しを補わずそのままの文章として残す（情報を捨てるわけ
-        // ではなく、単に対応の不正確な前置きを付けない）。
+
         if (currentSectionLabel && !item.fieldLabel && !hasOwnFieldLabelPrefix(item.text)) {
           if (currentSectionLabel === AMBIGUOUS_MULTI_TOPIC_SECTION_LABEL) {
             const inferredLabel = inferFieldLabelFromSectionContent(currentSectionLabel, item.text);
@@ -2803,19 +2121,13 @@
         }
       });
 
-      // 記録の冒頭の「事例紹介」（氏名・現病歴・既往歴・生活習慣など）は日時が書かれていないため「日時不明」に
-      // なっていた（利用者からの指摘：患者36「現病歴や診断名は入院前や受傷時とする方が時系列として正確」）。
-      // 後ろに日時の分かる記録がある場合に限り、最初の日時より前の「日時不明」のカードは「入院前」にする
-      // （「入院日:」「入院時の〜」で始まるものは「入院時」）。記録全体に日時が1つも無い文章はそのままにする。
       const firstDatedIdx = extracted.findIndex(it => !it.isUnnecessaryBoilerplate && it.timestamp && it.timestamp !== '日時不明');
-      // 冒頭が患者紹介（氏名・現病歴・既往歴・診断名などの見出し）のときだけにする（看護記録の途中から
-      // 貼り付けた文章の冒頭の指示・所見まで「入院前」にしないため）
+
       const PROFILE_LABEL_REGEX = /^(?:氏名|年齢|性別|現病歴|既往歴|診断名|病名|生活歴|主訴|入院日|入院目的|家族構成|家族歴|職業)$/;
       const hasProfileIntro = firstDatedIdx > 0 && extracted.slice(0, firstDatedIdx).some(it => !it.isUnnecessaryBoilerplate &&
         ((it.fieldLabel && PROFILE_LABEL_REGEX.test(it.fieldLabel)) || /^(?:氏名|現病歴|既往歴|診断名|主訴|入院日)\s*[:：]/.test(it.text)));
       if (hasProfileIntro) {
-        // 【改善点ファイル・患者36】主訴は受診・入院の際に聞き取った情報なので「入院時」。現病歴の中の「〜と診断され、
-        // 入院となった」「入院後すぐに牽引開始」「手術予定」は入院前ではなく「入院時」（その文から同じ行の終わりまで）。
+
         let admittedLine = null;
         for (let k = 0; k < firstDatedIdx; k++) {
           const it = extracted[k];
@@ -2827,7 +2139,7 @@
           it.timestamp = ts;
         }
       }
-      // OCRで読み取れなかった検査値の残り（かな・漢字が無く「.」ばかりの行）は、検査値として切り出された行でも不要な情報にする
+
       extracted.forEach(it => { if (!it.isUnnecessaryBoilerplate && isOcrNoiseText((it.text || '').trim())) it.isUnnecessaryBoilerplate = true; });
       mergeSameTimeVitals(extracted);
       mergeVitalCheckHeadings(extracted);
@@ -2840,73 +2152,19 @@
       return extracted;
     }
 
-    // ローカル抽出（APIキー未設定時）でのS/O/不要判定ロジック。単体テストできるよう、分類ボタンの
-    // クリックハンドラ内から独立した関数として切り出している。
-    // 分類の優先順位: ①学習結果(完全一致 → 表記ゆれ類似) → ②見出しラベル → ③固定ルール
-    // ①②は呼び出し側で解決済みのuserLearned・chunk.fieldLabelとして渡される。
-    // ③のうち、事例プリント自体の見出し（基礎情報・実習科目名等）は、学習結果・見出しラベルによる
-    // 上書きがない限り、内容を問わず「不要な情報」に分類する。
-    // 表情・笑顔・顔色・様子などは、患者の発言そのものではなく看護師が客観的に観察・評価した所見なのでOデータとして扱う。
-    // 身長・体重・BMIなどの身体計測値、知的能力・理解度の評価も、患者本人の発言ではなく
-    // 医療従事者による客観的な測定・評価のため同様にOデータとして扱う。
-    // 診断名・検査結果（病期・Stage等）、医療従事者の指示・処置内容（点滴・留置・ドレーン等）も、
-    // 患者本人の発言ではなく記録上の客観情報のためOデータとして扱う（利用者からの指摘：
-    // 「診断、検査の結果だからO」「指示もOデータ」）。また、章タイトル書き込み処理により
-    // 血液検査・画像検査等・治療方針治療内容等・知的能力身体的能力等の章タイトルが先頭に
-    // 付与されたカードも、患者の発言でない限り同様に客観的な記録情報としてOデータとする
-    // （利用者からの指摘：「客観的にかかれているのでO」）。
-    // 【原因と修正】以前は上のいずれの手がかり（見出しラベル・検査値/バイタル・特定のキーワード等）
-    // にも一致しない文章を"unclassified"（S/O未分類）のまま残していた。しかしこのアプリ自身の
-    // 分類基準（DEFAULT_NOTEBOOK_CONTENTの【S/O判定】: 「実習記録は基本的に記録者が客観的に
-    // 記載したものであり、カギ括弧内の患者本人の発言や「訴え」「発言」等でない限りOデータとして
-    // 扱う」）が示すとおり、患者本人の発言・訴えでない文章は原則すべてOデータであるべきで、
-    // "unclassified"という第3の状態は本来存在しない。この結果、見出しラベルが（同じ見出しの
-    // 続きの文でラベルを繰り返していない等の理由で）付いていない普通の観察記録の文章が
-    // 大量にS/O未分類のまま残ってしまっていた（利用者からのアップロード文書で発覚：
-    // 「昼食は外食が多く、仕事が忙しく短時間で済ませるようにしている。」「【検温時状況】朝食
-    // 全量摂取…」等、多数の客観的な記録文がunclassifiedになっていた）。患者本人の発言・訴えの
-    // 手がかりが無い文章は、キーワードの有無を問わず常に"o"を既定値とする。
-    // 【背景】利用者からの指摘：「客観的な観察結果（Oデータ）と患者の発言（Sデータ）が
-    // 1つの文に混在しているにもかかわらず、全体に[S]タグが付与されている」。
-    // 例：「バイタルサインの測定。看護師から手術オリエンテーション(合併症とその予防方法)を
-    // 受ける。(学生同席)トライボールによる呼吸訓練を実施。腹部を押さえた起き上がりの練習を
-    // 行う。「安静にしていると良くないんですね。」「痛かったら、これ、自分でできるかな?」と
-    // 話す。」のように、複数の客観的な看護行為・観察（バイタル測定、オリエンテーション実施、
-    // 呼吸訓練実施、起き上がり練習）が続いた最後に患者の発言が添えられている文章は、
-    // これまで「引用符や「話す」等の語が文中のどこかに1つでもあれば、それより前の内容の
-    // 分量に関わらず全体をSと判定する」という単純な規則だったため、看護行為の記述が大半を
-    // 占める文章まで丸ごとSになってしまっていた。
-    // 「まとめる例」の方針（1つの場面についての続きの記述は分割せず1つのtextにまとめる）は
-    // 維持したまま、S/Oの判定だけを「患者の発言・訴えの手がかり（引用符・「話す」等）が
-    // 現れるより前に、実質的な内容を持つ文（句点区切りで4文字以上）がいくつあるか」で見る
-    // ように変更する。このアプリ自身の分類基準（DEFAULT_NOTEBOOK_CONTENTの【S/O判定】）が
-    // 定めるとおり、記録は原則Oであり患者本人の発言・訴えの部分だけが例外的にSなので、
-    // 発言の手がかりの前に看護行為・観察の文が2文以上続いていれば、文章全体は看護行為の
-    // 記録（O）が主体とみなす。0〜1文（＝「○○と話す。」のように発言そのものがほぼ全てを
-    // 占める場合）は、これまで通りSのままとする（回帰確認テスト参照）。
-    // 「」の中身が「2-3」「5-6」のように数字・記号だけの場合は、ペインスケール等の評価値を
-    // 括弧で囲んだだけで、患者本人の発言ではない（利用者からのアップロード文書で発覚：
-    // 「安静時ペインスケール「2-3」」がSデータになっていた）。中にかな・漢字を含む場合だけを発言とみなす。
     const S_QUOTE_REGEX = /["「][^"「」]*[ぁ-んァ-ヶ一-龠々][^"「」]*["」]/;
-    // 「疼痛訴えなく」「呼吸困難訴えなし」のように、訴え・発言が「無い」ことは、看護師が
-    // 観察・確認した客観的な所見であり、患者の発言（Sデータ）ではない（利用者からのアップロード
-    // 文書で発覚：これらがSデータになっていた）。直後に否定が続く場合は発言の手がかりにしない。
-    // 「話す」は「〜と話す」「」話す」のときだけ発言の手がかりにする（「2語文〜3語文で話す」「笑顔で話す」は様子の観察。実習生の記録のテスト）
+
     const S_KEYWORD_REGEX = /(?:訴え|発言|(?:と|」)\s*話す)(?!\s*(?:なし|無し|なく|無く|ない|無い|は(?:なし|無し|ない|無い|なく)|も(?:なし|なく|ない)))/;
     function countSubstantiveLeadSentences(leadText) {
       return leadText.split('。').map(s => s.trim()).filter(s => s.length >= 4).length;
     }
-    // 医師・看護師等の医療者の言葉を「」で書いたもの（「本人へ主治医より「経過良好」と説明あり」
-    // 「「順調です」と医師より説明」）は、患者本人の発言ではなくOデータ（利用者からの指摘：患者37。
-    // この説明のカードがSデータの列に入り、Oデータの続きのカードから離れて見えなくなっていた）。
-    // S/Oの判定では、医療者の言葉の「」を取り除いてから患者の発言があるかを見る。
+
     const STAFF_QUOTE_REGEXES = [
       /(?:夜勤|日勤|担当|受け持ち)?(?:主治医|担当医|執刀医|医師|Dr\.?|看護師|Ns\.?|NS\.?|理学療法士|作業療法士|PT|OT|薬剤師|栄養士)(?:さん)?(?:より|から|が|は)[^「」。]{0,15}(?:「[^」]*」[、・\s]*)+/g,
       /「[^」]*」と(?:主治医|担当医|執刀医|医師|Dr\.?|看護師|Ns|理学療法士|作業療法士|PT|OT)[^。]{0,6}(?:説明|言われ|伝え|指導)/g
     ];
     function stripStaffQuotes(text) {
-      // 「看護師が声をかけると、「…」と話した」「看護師が尋ねると「…」」のように、看護師の働きかけへの本人の答えは
-      // 看護師の発言ではない（7事例のテストで、本人の発言がOになっていた）
+
       return STAFF_QUOTE_REGEXES.reduce((t, re) => t.replace(re, m => (/(?:ると|たら|ところ|際に?|後)[、,]?\s*「/.test(m.slice(0, m.indexOf('「') + 1)) ? m : m.replace(/「[^」]*」/g, ''))), text);
     }
     function predictSOTypeFromNarrative(rawText) {
@@ -2924,57 +2182,39 @@
         || predictSOTypeFromNarrative(cleanedText);
     }
 
-    // 簡易ルール分類（AIを使わない分類）で、1枚のカードのタグとS/O/不要を決める。
-    // 「分類開始」ボタンと、分類結果の自動チェック（classifyTextByRules・tests/golden-classification）で
-    // 同じ処理を使う（2か所に同じ判定を書くと、片方だけ直して結果がずれるため）。
     function computeLocalTagsAndType(chunk, cleanedText, userLearned) {
-      // タグは複数持てるため、固定キーワード辞書での判定結果と過去の学習結果のどちらかを切り捨てず、
-      // 両方を合わせて採用する（固定ルールを土台に、学習結果で見つかったタグを積み増す統合方式。
-      // AI抽出経路でのNotebookLM基準×学習結果の統合と同じ考え方）。
+
       const ruleHIds = detectMultipleHendersonTags(cleanedText);
       const detectedHIds = Array.from(new Set([...ruleHIds, ...(userLearned?.preferredHendersonIds || [])]));
-      // 検査値・バイタルサインは、体力面の指標として原則ヘンダーソン2.食事（栄養・代謝状態）のタグも付与する
-      // （この文章について既に学習結果がある場合は、あえて外した等のユーザーの判断を尊重してここでは追加しない）。
-      // chunk.isLabOrVitalは項目名の直後に数値がある場合しか立たないため、数値を伴わず項目名だけが
-      // 文章中に出てくる場合にも同様に付与できるよう、LAB_ITEM_NAME_REGEXでの判定も合わせて見る。
+
       if ((chunk.isLabOrVital || mentionsLabItemName(cleanedText)) && !hasLearnedSignal(userLearned)) labCategoryTags(cleanedText).forEach(h => { if (!detectedHIds.includes(h)) detectedHIds.push(h); });
-      // 見出しラベル（家族関係・保険は固定、診断名は病名から推測）に応じた初期提案タグも同様に補う
+
       if (chunk.fieldLabel && !hasLearnedSignal(userLearned)) {
         fieldLabelHintTags(chunk.fieldLabel, cleanedText).forEach(hid => { if (!detectedHIds.includes(hid)) detectedHIds.push(hid); });
       }
-      // 【タグ未設定の見直し】どの項目のキーワード・見出しにも当たらなかったときの補い
-      //  ・「事例:B氏(65歳・女性)」「A氏 76歳 女性 血液型 A Rh+」のような年齢・性別の基本情報 → 年齢と同じ 9.環境
-      //    （利用者からの指摘・患者36：「氏名・76歳・血液型」は4.姿勢には明らかに不要）
-      //  ・「疾患: 右アテローム血栓性脳梗塞」のように病名が書かれた行 → 診断名と同じく病名から推測（DIAGNOSIS_TAG_HINTS）
+
       if (detectedHIds.length === 0 && !hasLearnedSignal(userLearned)) {
-        // 子ども・妊婦の「生後5か月 男児」「3歳2か月 女児」「13歳 女子」「29歳 初妊婦」も年齢と性別の基本情報（実習生の記録のテスト）
+
         if (/\d{1,3}歳|生後\s*\d+\s*(?:か月|ヶ月|カ月|ケ月|日)|日齢\s*\d+|(?:ちゃん|くん)\s*[(（]/.test(cleanedText) && /(?:男性|女性|男児|女児|男子|女子|男の子|女の子|初妊婦|経妊婦|初産婦|経産婦|妊婦|褥婦)/.test(cleanedText) && cleanedText.length <= 40) FIELD_LABEL_DEFAULT_TAGS['年齢'].forEach(h => detectedHIds.push(h));
-        // 同じ行に病名もあれば（「Qちゃん 4歳 女児 気管支肺炎」）、病名からの推測も合わせる
+
         detectDiagnosisTagHints(cleanedText).forEach(h => { if (!detectedHIds.includes(h)) detectedHIds.push(h); });
       }
-      // 薬の名前が書かれたカード（「内服：アムロジピン 5mg」「リトドリン 持続点滴」）は、薬の分類から関係の深い項目も補う
-      // （js/14 の薬の情報。学習結果がある場合は、利用者の判断を尊重して足さない）
+
       if (!hasLearnedSignal(userLearned) && typeof drugTagsForText === 'function' && /(?:内服|処方|点滴|注射|投与|持続|静注|使用|貼付|服薬|頓用|mg|単位|ml\/h)/i.test(cleanedText)) {
-        drugTagsForText(cleanedText, { primaryOnly: true }).forEach(h => { if (h !== 9 && !detectedHIds.includes(h)) detectedHIds.push(h); }); // 薬剤は9.環境にしない（利用者の指摘）
+        drugTagsForText(cleanedText, { primaryOnly: true }).forEach(h => { if (h !== 9 && !detectedHIds.includes(h)) detectedHIds.push(h); });
       }
-      // 学生がヘンダーソンの項目の見出しの下に書いた情報には、その項目のタグも付ける
+
       if (chunk.needHint && !hasLearnedSignal(userLearned) && !detectedHIds.includes(chunk.needHint)) detectedHIds.push(chunk.needHint);
       let predictedType = predictLocalItemType(chunk, cleanedText, userLearned);
-      // 発言と観察を分けたカードは、分けたときの役割（S／O）のとおりにする（学習結果があればそちらを優先）
+
       if (chunk.soRole && !hasLearnedSignal(userLearned)) predictedType = chunk.soRole;
       return { detectedHIds, predictedType };
     }
-    // 学習結果を使わない、キーワード等の固定ルールだけでの分類結果（「分類開始」の簡易ルール分類で
-    // 学習データが1件も無い場合と同じ結果）。分類結果の自動チェック（改善提案4）で、プログラムを
-    // 直したときに前の結果から変わったカードを見つけるために使う。
-    // 「肢位:」「疼痛:」のような見出しだけのもの（中身は下の行のカードに「肢位: 〜」として入る）は、
-    // 何の情報も無い「不必要」のカードとして並べても邪魔なだけなので、カードにしない
+
     function isHeadingOnlyChunk(chunk, cleanedText) {
       return !!chunk.isUnnecessaryBoilerplate && isEmptyColonHeaderLine(cleanedText);
     }
-    // 同じ場面（sceneId）から分けたS（発言）のカードに、話題のタグ（10以外）が1つも付かなかった場合は、
-    // 同じ場面のO（観察）のカードのタグを付ける（「「動いてないからお腹が張っている」」だけではタグが付かないが、
-    // 同じ場面の「排便なし…排ガスあり」から3.排泄と分かる）。総合アセスメント表の欄も同じ場面のカードに合わせる。
+
     function applySceneTagInheritance(items) {
       const byScene = new Map();
       items.forEach(it => { if (it.sceneId) { if (!byScene.has(it.sceneId)) byScene.set(it.sceneId, []); byScene.get(it.sceneId).push(it); } });
@@ -2990,8 +2230,7 @@
           });
           g.hendersonIds.sort((a, b) => a - b);
         });
-        // 反対に、観察（O）のカードにタグが1つも無い場合は、同じ場面の発言（S）のタグを付ける
-        // （「入院時の様子: 初めての入院・手術で戸惑いも多い様子だった」＝10）
+
         const subjectiveTags = Array.from(new Set(group.filter(g => g.type === 's').flatMap(g => g.hendersonIds || [])));
         group.filter(g => g.type === 'o' && (!g.hendersonIds || g.hendersonIds.length === 0)).forEach(g => {
           const partner = group.find(x => x.type === 's');
@@ -3005,7 +2244,7 @@
     function classifyTextByRules(text) {
       const src = (text || '').trim().normalize('NFKC');
       const out = [];
-      // カードの文章の整え（cleanExtractedPhrase）も、この文章を元に子どもの記録か等を決める（extractionContext）
+
       withExtractionContext(src, () => groupClinicalPhrasesWithTimestamps(src).forEach(chunk => {
         const cleanedText = cleanExtractedPhrase(chunk.text);
         if (cleanedText.length < 2 || isBareFieldHeaderOnly(cleanedText) || isHeadingOnlyChunk(chunk, cleanedText) || out.some(i => i.text === cleanedText && i.timestamp === (chunk.timestamp || '日時不明'))) return;
@@ -3015,10 +2254,9 @@
       return applySceneTagInheritance(out);
     }
 
-    // 「分類開始」の分類方法（'rules'＝ルールで分類（AIなし）／'ai'＝AIで分類）。このブラウザに覚えておく。
     const CLASSIFY_MODE_STORAGE_KEY = 'nursing_classify_mode';
     function getClassifyMode() {
-      return 'rules'; // 分類はいつも、サイト内のルール（AIなし）で先に出す。AIは「AIで分類を評価」で結果を確かめる
+      return 'rules';
     }
     function renderClassifyModeSwitch() {
       const mode = getClassifyMode();
@@ -3036,32 +2274,26 @@
       }
     }
     window.setClassifyMode = function(mode) {
-      try { localStorage.setItem(CLASSIFY_MODE_STORAGE_KEY, mode === 'ai' ? 'ai' : 'rules'); } catch (e) { /* 保存できなくても今回は切り替える */ }
+      try { localStorage.setItem(CLASSIFY_MODE_STORAGE_KEY, mode === 'ai' ? 'ai' : 'rules'); } catch (e) {   }
       renderClassifyModeSwitch();
     };
     renderClassifyModeSwitch();
 
     document.getElementById('btn-start-classify').addEventListener('click', async () => {
-      // OCRやスクリーンショット由来のテキストは全角数字（０-９）で日付・時刻が書かれている場合があり、
-      // \dベースの正規表現（TIME_MARKER_REGEX・DATE_ONLY_REGEX・LAB_REGEX_SOURCE等）が半角数字しか
-      // マッチしないため、全角文字を半角に正規化してから抽出処理に渡す（NFKC正規化）。
+
       const text = DOM.sourceText.value.trim().normalize('NFKC');
       if (!text) return showToast('文章を入力してください', 'warn');
       if (typeof resetSourcePaneLayout === 'function') resetSourcePaneLayout();
       const cp = getCurrentPatient();
-      // 「AIあり」でキーが無いときは、今のカードを置き換える前に案内する（以前は置き換えを選んだ後にやめてしまい、カードが消えていた）
+
       if (getClassifyMode() === 'ai' && !globalAppData.apiKey) {
         const st = await requireApiKey('AIありで分類', { fallbackLabel: 'AIなしで分類する' });
         if (st !== 'fallback') return;
         window.setClassifyMode('rules');
       }
 
-      // 既にカードがある患者で分類し直す場合、以前は今のカードを残したまま新しいカードを「追加」する
-      // だけだったため、分類ルールを直した後に分類し直しても、直す前の古いカード（例：「入室」だけの
-      // カード）がそのまま残り、直っていないように見えていた（利用者からの修正依頼：「入室だけで情報
-      // カードになってるのがおかしい」）。今のカードを置き換えるか、残したまま追加するかを選べるようにする。
       if (cp.items.length > 0) {
-        // 分類し直す前のカードを記録しておく（「変更点の比較」で比べられる。js/13）
+
         if (typeof checkpointBeforeClassify === 'function') checkpointBeforeClassify(cp);
         const editedCount = cp.items.filter(i => (Array.isArray(i.editLog) && i.editLog.length > 0) || i.predictionSource === 'confirmed').length;
         const answer = await openDialog({
@@ -3077,7 +2309,7 @@
         if (answer === true) {
           cp.items.forEach(i => markItemDeleted(cp, i.id));
           cp.items = [];
-          // 別の事例に替えるので、前の事例から作った関連図・看護計画・自分のアセスメント等も消す（共有先でも戻らないよう caseResetAt を記録）
+
           ['myAssessments', 'missingChecks', 'untaggedReviews', 'carePlans', 'checkpoints', 'relationMap'].forEach(f => { delete cp[f]; });
           cp.caseResetAt = new Date().toISOString();
           selectedCardIds.clear();
@@ -3085,19 +2317,18 @@
         }
       }
 
-      // 分類はサイト内の決定的ルールのみで実行（AIによる分類は廃止）。
       let addedCount = 0;
       const addedThisRun = [];
       withExtractionContext(text, () => groupClinicalPhrasesWithTimestamps(text).forEach(chunk => {
         const cleanedText = cleanExtractedPhrase(chunk.text);
         if (cleanedText.length < 2 || isBareFieldHeaderOnly(cleanedText) || isHeadingOnlyChunk(chunk, cleanedText) || cp.items.some(i => i.text === cleanedText && i.timestamp === chunk.timestamp)) return;
-        let userLearned = globalAppData.learningUserDict[cleanedText]; // ロード時に共有学習辞書とマージ済み
+        let userLearned = globalAppData.learningUserDict[cleanedText];
         let predictionSource = null;
         let fuzzyMatchedText = null;
         if (userLearned && (userLearned.preferredType || userLearned.preferredHendersonIds?.length)) {
           predictionSource = isVoteTied(userLearned.typeVotes) ? 'tied' : 'learned';
         } else {
-          // 完全一致がなければ、表記ゆれ（言い回し・句読点の違い）が近い学習済みの文章を探す
+
           const fuzzy = findFuzzyLearnedMatch(cleanedText);
           if (fuzzy && fuzzy.learned && (fuzzy.learned.preferredType || fuzzy.learned.preferredHendersonIds?.length)) {
             userLearned = fuzzy.learned;
@@ -3108,14 +2339,10 @@
         const { detectedHIds, predictedType } = computeLocalTagsAndType(chunk, cleanedText, userLearned);
         if (!predictionSource) predictionSource = 'rule';
         const assessmentCols = {};
-        // 学習結果が無い場合、タイムスタンプ・見出しラベル・admissionPhase（読み進めた位置から
-        // 記憶している入院前／入院後の状態）から入院前／入院後が明確なら総合アセスメント表の
-        // 欄を最初から振り分けておく（分からない場合は従来通り未分類）。
+
         const inferredCol = userLearned ? null : inferAssessmentColumn(chunk.fieldLabel, chunk.timestamp, chunk.admissionPhase);
         detectedHIds.forEach(hId => assessmentCols[hId] = userLearned?.preferredCols?.[hId] || inferredCol || 'unclassified');
-        // ヘンダーソンタグが1件も付かなかった場合（＝どの基本的欲求にも当てはまらなかった場合）、
-        // 「タグ未設定」の警告のまま残さず、患者背景（基本情報／医学情報）の受け皿に振り分ける
-        // （classifyPatientBackgroundの説明を参照）。
+
         const patientBackground = (predictedType !== 'unnecessary' && detectedHIds.length === 0)
           ? classifyPatientBackground(chunk.fieldLabel)
           : null;
@@ -3123,7 +2350,7 @@
         const newItem = { id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text: cleanedText, timestamp: chunk.timestamp || "日時不明", type: predictedType, hendersonIds: detectedHIds, assessmentCols, fieldLabel: chunk.fieldLabel || null, patientBackground, admissionPhase: chunk.admissionPhase || 'preadmission', predictionSource, ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}), _touchedAt: new Date().toISOString() };
         addedThisRun.push(newItem);
         cp.items.push(newItem);
-        // どう自動抽出・自動分類されたかを事例ログに残す（研究用）
+
         reportLearningEvent(cleanedText, 'create', { type: predictedType, hendersonIds: detectedHIds, assessmentCols, fieldLabel: newItem.fieldLabel, predictionSource, fuzzyMatchedText: fuzzyMatchedText || undefined });
         addedCount++;
       }));

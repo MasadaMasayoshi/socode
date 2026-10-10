@@ -17,9 +17,9 @@ const hash = f => crypto.createHash('sha1').update(fs.readFileSync(path.join(ROO
 const now = Object.fromEntries(all.map(f => [f, hash(f)]));
 const prev = fs.existsSync(MANIFEST) ? JSON.parse(fs.readFileSync(MANIFEST, 'utf8')) : {};
 const arg = process.argv[2];
-if (arg === '--baseline') { fs.writeFileSync(MANIFEST, JSON.stringify(now, null, 1)); console.log('記録しました（' + all.length + ' ファイル）'); process.exit(0); }
+if (arg === '--baseline') { fs.writeFileSync(MANIFEST, JSON.stringify(now, null, 1)); console.log('Baseline recorded (' + all.length + ' files)'); process.exit(0); }
 const changed = all.filter(f => prev[f] !== now[f] && f !== 'scripts/.ship-manifest.json');
-if (!changed.length) { console.log('変わったファイルはありません'); process.exit(0); }
+if (!changed.length) { console.log('No changed files'); process.exit(0); }
 if (arg && arg !== '--list') {
   for (const f of changed) {
     const dst = path.join(arg, f);
@@ -29,4 +29,4 @@ if (arg && arg !== '--list') {
   }
   fs.writeFileSync(MANIFEST, JSON.stringify(now, null, 1));
 }
-console.log(changed.length + ' ファイル:\n' + changed.join('\n'));
+console.log(changed.length + ' files:\n' + changed.join('\n'));

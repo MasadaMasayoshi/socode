@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node scripts/run-tests.js",
+    "test": "node scripts/test-quiet.js",
     "golden": "node scripts/golden.js",
     "golden:update": "node scripts/golden.js --update",
     "build:css": "npx tailwindcss@3.4.17 -c tailwind.config.js -i tailwind.input.css -o vendor/tailwind.css --minify",
@@ -15,7 +15,9 @@
     "map": "node scripts/file-map.js",
     "ship": "node scripts/ship.js",
     "test:legacy": "node --test tests/golden/legacy-classification.test.js tests/golden/legacy-real-record.test.js",
-    "test:public": "node scripts/run-tests.js"
+    "test:public": "node scripts/test-quiet.js",
+    "test:verbose": "node scripts/run-tests.js",
+    "context": "node scripts/context.js"
   },
   "engines": {
     "node": "20.x"

@@ -1,10 +1,4 @@
 'use strict';
-// 情報カードをクリックした時に、元の文章（カルテ・看護記録入力欄）の該当箇所に印を付ける機能の
-// 位置探索（findSourceHighlightRanges）の検証。
-// 利用者からの要望：「情報カードをクリックすると元文章のどこにあったのかわかるように、
-// 情報カードクリック時に文章の単語をマーカーをつけてわかるようにして」。
-// カードの文章は抽出時に書き換わる（全角/半角、改行の結合、表の項目名・値・基準値の結合、
-// 単位や「(基準値: …)」の補足等）ため、単純な文字列検索では見つからない場合も含めて確認する。
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -54,6 +48,6 @@ test('元の文章に無いカード・空の文章では何も示さない（�
 
 test('実際の分類結果のカードは、すべて元の文章の中に該当箇所が見つかる（ローカル分類との組み合わせ確認）', () => {
   const items = groupClinicalPhrasesWithTimestamps(SOURCE.normalize('NFKC')).filter(i => !i.isUnnecessaryBoilerplate);
-  assert.ok(items.length >= 5); // 比較できる表は関連する項目ごとの1枚にまとまる（患者36の指摘）
+  assert.ok(items.length >= 5);
   items.forEach(i => assert.ok(findSourceHighlightRanges(SOURCE, i.text).length > 0, `「${i.text}」の該当箇所が見つかるはず`));
 });

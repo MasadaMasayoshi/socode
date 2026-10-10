@@ -1,5 +1,5 @@
 'use strict';
-// 利用者からの要望：「総合アセスメント表も下にスクロールするのが面倒なのでボタン一つで各欲求のページが表示されるように」
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

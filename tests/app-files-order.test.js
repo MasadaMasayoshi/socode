@@ -1,8 +1,5 @@
 'use strict';
-// 改善提案8（app.js の分割）・3（版の確認）の検証。
-//  ・index.html の <script> の順番が、テストで読み込む順番（APP_SCRIPT_FILES）と同じ。
-//  ・古い app.js を index.html から読み込んでいない。
-//  ・各ファイルの版が index.html のファイルごとの版と同じ。版は中身が変わったファイルだけ上げる（scripts/stamp-version.js）。
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

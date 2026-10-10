@@ -73,8 +73,6 @@ const {app}=require('../server');
     });
    }),true);
 
-
-
    await page.locator('#source-text').fill('【架空の画面検証用記録】\n体温36.8℃、脈拍72回/分。\n「昨夜はよく眠れました」と話す。');
    // Fresh browser contexts may load the fictional chart saved by an earlier
    // width from the same temporary server. Exercise the real replacement dialog.
@@ -128,7 +126,6 @@ const {app}=require('../server');
    assert.equal(await page.evaluate(()=>window.__toastUndoWrites),0);
    assert.match(await page.locator('#toast-container').innerText(),/元に戻していません/);
    await page.evaluate(()=>{getCurrentPatient().items=getCurrentPatient().items.filter(i=>i.id!=='toast-later-update');});
-
 
    await page.locator('#nursing-source-compare').click();
    await page.evaluate(()=>{
@@ -248,7 +245,6 @@ const {app}=require('../server');
     await page.locator('#'+modalId).waitFor({state:'hidden'});
     await page.waitForFunction(()=>document.activeElement.id==='tab-careplan');
    }
-
 
    const recovery = await page.evaluate(() => {
     const cp=getCurrentPatient();

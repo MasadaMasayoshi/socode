@@ -83,14 +83,13 @@ test('基準値の判定・推移・呼吸機能・バイタルサイン・考�
   assert.match(t, /Hbが術前より低下しているため、手術に伴う出血や周術期の影響ではないかと考えられる/);
   assert.match(t, /WBCの上昇は術後の炎症反応によるものではないかと考えられるが、感染徴候/);
   assert.doesNotMatch(t, /感染している|正しい値は|修正しました/);
-  // 要確認の値は推移・考察に使わない（ASTの考察は、術前の値だけで出る高値の考察）
+
   assert.doesNotMatch(t, /ALTが高値/);
 });
 
 test('検査値が無い記録では評価を作らず、保存されたAIの結果があればそちらを優先する', () => {
   assert.equal(app.buildLabAssessment({ items: [{ id: 'x', type: 's', text: '食欲あり' }] }).has, false);
 });
-
 
 test('換算済みの実測値を原文の基準値と同じ単位で比較する', () => {
   for (const [value, expected] of [[3, 'low'], [5, 'normal'], [9, 'high']]) {
@@ -102,7 +101,6 @@ test('換算済みの実測値を原文の基準値と同じ単位で比較す�
   }
   assert.equal(app.analyzeLabCard('WBC 5000 /μL (基準値: 3.3〜8.6 mg/dL)').status, 'unknown', '換算不能な単位は判定しない');
 });
-
 
 test('基準値の数値が内蔵値と同じでも、記録の由来を自動承認しない', () => {
   const builtIn = app.analyzeLabCard('AST 20 U/L');
@@ -116,13 +114,11 @@ test('基準値の数値が内蔵値と同じでも、記録の由来を自動�
   assert.match(JSON.stringify(result), /内蔵値と一致・由来未確認/);
 });
 
-
 test('同じ標準単位の基準値では低値・正常・高値を判定する', () => {
   for (const [value, status] of [[8,'low'],[20,'normal'],[50,'high']]) {
     assert.equal(app.analyzeLabCard(`AST ${value} U/L (基準値: 10〜40 U/L)`).status,status);
   }
 });
-
 
 test('削除・除外・AI提案の値を判定・推移・考察の根拠にしない', () => {
   const active = card('active','AST 20 U/L','入院前');
@@ -139,7 +135,6 @@ test('削除・除外・AI提案の値を判定・推移・考察の根拠にし
   }
 });
 
-
 test('カードを並べ替えても日付と時刻で検査推移を比較する', () => {
   const items = [card('late','AST 200 U/L','術後2日目 12:00'),card('early','AST 50 U/L','術後1日目 09:00'),card('morning','AST 150 U/L','術後2日目 08:00')];
   assert.deepEqual(Array.from(app.analyzeLabData({items}).labs,l=>l.itemId),['early','morning','late']);
@@ -148,7 +143,6 @@ test('カードを並べ替えても日付と時刻で検査推移を比較す�
   const known = card('known','AST 20 U/L','術後1日目');
   assert.equal(app.analyzeLabData({items:[unknown,known]}).labs.find(l=>l.itemId==='known').reasonKinds.includes('change'),false,'日付不明を前回値にしない');
 });
-
 
 test('異なる単位を混ぜた推移表示と日時不明の並びを誤解させない', () => {
   const items=[card('a','WBC 5000 /μL','術前'),card('b','WBC 5 ×10^3/μL','術後1日目')];

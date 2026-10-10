@@ -1,8 +1,5 @@
 'use strict';
-// 検査値の単位・小数・カンマの扱いと、異常値の判定の不具合の再現と修正の確認
-//  ・「CRP 1 mg/L」が換算されずに「CRP 1 mg/dL」になっていた
-//  ・「Plt 28.7万/uL」が「Plt 28」と「.7万/uL」の2枚に分かれていた
-//  ・「WBC 2000」「WBC 12,000」「Dダイマー 10」「BNP 500」が、基準値を外れていても「異常なし」になっていた
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');

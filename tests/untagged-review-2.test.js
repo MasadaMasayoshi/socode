@@ -1,6 +1,5 @@
 'use strict';
-// 利用者からの要望：「タグ未設定のものがなぜそうなっているのか考えて修正してください」。
-// これまでの事例の文章でタグ未設定になっていたカードの原因ごとの確認。
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -14,10 +13,10 @@ test('家族の住まい・支援者・アレルギー・常用薬・入院歴�
   assert.ok(tagsOf('長男(53歳)・次男(50歳)はそれぞれ結婚し、別世帯に暮らしている。').includes(9));
   assert.ok(tagsOf('長男夫婦が同町内に住んでいる。').includes(9));
   assert.ok(tagsOf('援助者:長男とその嫁(主に長男が世話を行っている)').includes(9));
-  assert.ok(!tagsOf('アレルギー: なし').includes(9)); // アレルギー・薬剤は9.環境にしない（利用者の指摘）
+  assert.ok(!tagsOf('アレルギー: なし').includes(9));
   assert.ok(!tagsOf('常用薬: ノルバスク2.5mg 1錠×朝').includes(9));
   assert.ok(tagsOf('出産時以外入院歴なし、手術歴なし').includes(9));
-  assert.ok(!tagsOf('Stage 1B').includes(14)); // 病期は疾患の分類。学びの根拠にしない
+  assert.ok(!tagsOf('Stage 1B').includes(14));
   assert.ok(tagsOf('精神状態は現状認識できている。').includes(10));
   assert.ok(tagsOf('胃底部の病変があり、胃を全摘し、R-Y法で再建した。').includes(2));
 });

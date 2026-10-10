@@ -18,7 +18,7 @@ for (const {id,text} of loadPublicCases()) {
   test(`公開長文 ${id}: 重要発言・関連図・計画状態・患者参照の一貫性`, () => {
     let network = 0;
     const app = loadApp({fetch:async()=>{network++;return {ok:true,json:async()=>[],text:async()=>''};}});
-    network = 0; // 起動時の共有データ読込モックと、以下の分類・図・計画操作を区別する。
+    network = 0;
     const items = Array.from(app.classifyTextByRules(text)).map((c,i)=>({...c,id:`${id}-${i}`}));
     const [needle,type] = critical[id];
     const found = items.filter(c=>c.text.includes(needle));

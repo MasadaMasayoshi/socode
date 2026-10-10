@@ -1,7 +1,8 @@
 'use strict';
+const sourceRange=require('./source-range');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync(require.resolve('../js/10-reference-page-and-startup.js'),'utf8');
-const code=source.slice(source.indexOf('    async function doOcr(file)'),source.indexOf('    // カルテスナップショット',source.indexOf('    async function doOcr(file)')));
+const code=sourceRange(source,'    async function doOcr(file)','    function captureAndSendPatientSnapshot(');
 function mount() {
  const a={id:'a',sourceText:'original-a'},b={id:'b',sourceText:'original-b'};
  let current=a,keyCalls=0,reads=0,resolveKey,reader,finished;

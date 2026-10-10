@@ -33,6 +33,8 @@ jobs:
         run: node scripts/audit-clinical-knowledge.js
       - name: Public regression suite (archival comparator is separate)
         shell: bash
+        env:
+          SOCODE_TEST_LOG: validation-artifacts/full.log
         run: |
           mkdir -p validation-artifacts
           npm test | tee validation-artifacts/regression.log
@@ -40,6 +42,7 @@ jobs:
       - name: Prepare isolated static release payload
         run: node scripts/prepare-release.js "$RUNNER_TEMP/nursing-public"
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: regression-validation-evidence
           path: validation-artifacts/

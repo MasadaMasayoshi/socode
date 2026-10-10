@@ -19,11 +19,11 @@
       --icon-muted: #857D6E;
       --brick-line: #E7CFC8;
       --zebra: #EFEBDF;
-      /* 色で塗った部品（ボタン・S/Oの印など）の上の文字色。ダークモードでは明るい塗りの上に暗い文字を置く */
+
       --on-fill: #FFFFFF;
       --gold-line: #E9DBB8;
       --slate-line: #CBD9E6;
-      /* 複数選択したときに画面下に出る操作バー */
+
       --bar-bg: #262420;
       --bar-ink: #FFFFFF;
       --bar-btn-bg: #FFFFFF;
@@ -33,11 +33,9 @@
       --radius-lg: 14px;
       --shadow: 0 1px 2px rgba(38,36,32,0.06), 0 4px 14px rgba(38,36,32,0.05);
     }
-    /* ダークモード（夜勤帯での使用を想定）。ヘッダーの月アイコンで切り替え、localStorageに好みを保存する。 */
+
     html[data-theme="dark"] {
-      /* 2026-09-29.5 調整：以前は明るい塗り（緑・金・青・赤）の上に白い文字を置いていたため読みにくく、
-         白い背景のまま残る部品（検査値AI評価の枠・選択時の操作バー）もあった。
-         文字の明るさを上げ、塗りの上は暗い文字（--on-fill）にし、全体の色みを少し落ち着かせた。 */
+
       color-scheme: dark;
       --paper: #181715;
       --surface: #221F1B;
@@ -68,15 +66,13 @@
       --bar-btn-ink: #F2EEE5;
       --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 4px 14px rgba(0,0,0,0.35);
     }
-    /* 文字の書体（利用者の要望で Noto Serif JP を既定にした。右上の「︙」→「文字の書体」でゴシックに切り替えられる）。
-       Noto Serif JP はアプリに同梱（vendor/fonts。JIS第1・第2水準の漢字・かな・記号だけに絞った可変フォント。
-       ライセンスは vendor/fonts/OFL-NotoSerifJP.txt）。入っていない文字は端末の明朝体で表示する。 */
+
     @font-face { font-family: 'Noto Serif JP App'; src: url('vendor/fonts/NotoSerifJP-subset.woff2') format('woff2'); font-weight: 200 900; font-style: normal; font-display: swap; }
     :root { --font-body: 'Noto Serif JP App', 'Noto Serif JP', 'Yu Mincho', 'YuMincho', 'Hiragino Mincho ProN', serif; --font-display: var(--font-body); }
     html[data-font="gothic"] { --font-body: 'BIZ UDPGothic', 'BIZ UDPゴシック', 'IBM Plex Sans JP', 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif; --font-display: var(--font-body); }
     * { font-family: var(--font-body); }
     .font-display { font-family: var(--font-display); }
-    /* 明朝体は細い線が見えにくいので、少しだけ太く・行間を広くする */
+
     html:not([data-font="gothic"]) body { font-weight: 450; letter-spacing: .01em; }
     html:not([data-font="gothic"]) .field, html:not([data-font="gothic"]) textarea { line-height: 1.7; }
     body { background: var(--paper); color: var(--ink); }
@@ -134,7 +130,7 @@
 
     .type-btn { font-size: .625rem; font-weight: 700; padding: .15rem .5rem; border-radius: var(--radius-sm); border: 1.5px solid var(--line); color: var(--ink-muted); background: var(--surface); transition: all .15s ease; }
     .type-btn:hover { border-color: var(--accent); color: var(--accent); }
-    /* カードの操作ボタンは常に色つきの枠を出し、何のボタンか一目で分かるようにする */
+
     .type-btn-s { border-color: var(--gold); color: var(--gold); }
     .type-btn-s:hover { background: var(--gold); color: var(--on-fill); }
     .type-btn-o { border-color: var(--slate); color: var(--slate); }
@@ -149,40 +145,35 @@
     .modal-surface { background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--line); box-shadow: 0 20px 50px rgba(0,0,0,0.25); }
 
     table.assess-table th { font-family: var(--font-display); font-weight: 600; }
-    /* 基本欲求列: ヘンダーソン14項目を数字バッジ+項目名で見やすく。偶数行は背景を少し変えて縞にし、行の境目を目で追いやすくする */
+
     table.assess-table .need-cell { transition: background-color .15s ease; min-width: 150px; }
     table.assess-table thead th:first-child { min-width: 150px; }
     table.assess-table tbody tr:nth-child(even) .need-cell { background: var(--zebra); }
     table.assess-table tbody tr:hover .need-cell { background: var(--accent-soft); }
     table.assess-table tbody tr:hover .need-number { background: var(--accent-dark); }
 
-    /* 分類ボード: クリックで選択したカードの見た目、および総合アセスメント表から
-       ジャンプしてきた際に一瞬ハイライトするフラッシュ演出 */
+
     .card-selected { outline: 2px solid var(--accent); outline-offset: 1px; box-shadow: 0 0 0 3px var(--accent-soft); }
     @keyframes flashHighlight { 0%, 100% { box-shadow: none; } 15%, 55% { box-shadow: 0 0 0 4px var(--accent-soft), 0 0 0 2px var(--accent); } }
     .card-flash { animation: flashHighlight 1.6s ease; }
 
-    /* カード左上の選択チェックボックス：Ctrl/Cmd/Shiftキーが無いスマートフォン・タブレットでも
-       タップだけで複数選択できるようにするための操作要素。当たり判定を見た目より少し広く取る
-       （負のマージンで周囲のレイアウトを崩さずタップ領域だけ広げる）。 */
+
     .card-select-wrap { display: inline-flex; align-items: center; justify-content: center; padding: 5px; margin: -5px; cursor: pointer; }
     .card-select-checkbox { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
 
-    /* 自動分類の信頼度バッジ（カード上）：学習結果がない/類似一致/票が拮抗している場合に小さく表示し、
-       ユーザーに再確認を促す。完全一致で学習済み（confident）の場合は何も表示しない。 */
+
     .confidence-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 999px; font-size: .55rem; font-weight: 700; cursor: help; line-height: 1; }
     .confidence-fuzzy { background: var(--slate-soft); color: var(--slate); }
     .confidence-tied { background: var(--brick-soft); color: var(--brick); }
     .confidence-rule { background: var(--line-soft); color: var(--ink-muted); }
 
-    /* 学習データ管理：票数を手動で+/-調整するための小さなボタン */
+
     .vote-adjust-btn { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 3px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-muted); font-size: .6rem; line-height: 1; cursor: pointer; }
     .vote-adjust-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-    /* 総合アセスメント表の印刷・PDF保存用レイアウト（他のビューやボタン類は非表示にする） */
+
     @media print {
-      /* 印刷は「印刷 / PDF」「PDF書き出し」の印刷専用の文書（js/06 の buildAssessmentPrintHtml 等）を使う。
-         ここは、ブラウザのメニューから画面そのものを印刷した場合の保険（操作のボタン類は出さない）。 */
+
       header, footer, #view-so-board, #view-reference, .btn, button, select, #toast-container, #bulk-action-bar, #modal-patient-list,
       #app-version-warning, .asc-actions, #ai-tools-menu, .ai-steps { display: none !important; }
       body { padding: 0 !important; background: #fff !important; }
@@ -194,15 +185,14 @@
       .need-number { border: 1px solid #000; background: #fff !important; color: #000 !important; }
     }
 
-    /* 情報カードをクリックした時に、元の文章（カルテ・看護記録入力欄）の該当箇所に付ける蛍光ペン風の印 */
+
     .source-highlight-view { position: relative; white-space: pre-wrap; word-break: break-word; overflow-y: auto; cursor: text; line-height: 1.6; }
     .source-highlight-view mark.src-hl { background: rgba(255, 214, 10, .55); color: inherit; border-radius: 2px; padding: 0 1px; box-shadow: 0 0 0 1px rgba(214, 170, 0, .45); }
     html[data-theme="dark"] .source-highlight-view mark.src-hl { background: rgba(255, 200, 40, .38); box-shadow: 0 0 0 1px rgba(255, 210, 90, .5); }
     .source-highlight-bar { display: flex; align-items: center; justify-content: space-between; gap: .5rem; font-size: .6875rem; color: var(--gold); background: var(--gold-soft); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: .35rem .6rem; }
 
 
-    /* カードの一覧表示（画面いっぱい）。段組み（columns）で画面の幅いっぱいに並べ、文字の大きさはapp.jsの
-       fitCardOverviewが1画面に収まるように調整する（--ov-font）。 */
+
     .card-overview-body { overflow-y: auto; columns: 250px; column-gap: 6px; font-size: var(--ov-font, 12px); line-height: 1.35; }
     .ov-card { break-inside: avoid; margin-bottom: 4px; padding: .2em .45em; border: 1px solid var(--line); border-left-width: 3px; border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); cursor: pointer; }
     .ov-card:hover { border-color: var(--accent); }
@@ -217,24 +207,24 @@
     .ov-untagged-filter { font-size: 11px; font-weight: 700; padding: .2rem .6rem; border-radius: var(--radius-sm); border: 1.5px solid var(--brick); color: var(--brick); background: var(--surface); }
     .ov-untagged-filter.active { background: var(--brick); color: var(--on-fill); }
     .ov-untagged-filter.none { border-color: var(--line); color: var(--ink-muted); cursor: default; }
-    /* 総合アセスメント表の「入院前」「入院後」の欄の、日ごとの小見出し（手術当日・術後1日目…） */
+
     .asc-day-heading { font-size: 10px; font-weight: 700; color: var(--accent-dark, var(--accent)); background: var(--accent-soft); border-radius: var(--radius-sm); padding: 1px 6px; margin-top: 6px; }
     .asc-day-heading:first-child { margin-top: 0; }
-    /* 診断名・現病歴などの背景情報のまとまり（観察・ケアの記録と分けて控えめに表示） */
+
     .asc-bg-heading { color: var(--ink-muted); background: var(--paper); border: 1px dashed var(--line-strong); font-weight: 600; }
-    /* 同じ場面の発言（S）と観察（O）を左右に並べる枠（幅が狭いときは上下に並ぶ） */
+
     .asc-scene { border: 1px dashed var(--line); border-radius: var(--radius-sm); padding: 3px; background: var(--paper); }
     .asc-scene-label { font-size: 9px; font-weight: 700; color: var(--ink-muted); margin: 0 0 2px 2px; }
     .asc-scene-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 4px; }
     .asc-scene-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
     .scene-chip { font-size: 9px; font-weight: 700; padding: 0 .35rem; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-muted); background: var(--surface); line-height: 1.5; }
     .scene-chip:hover { border-color: var(--accent); color: var(--accent); }
-    /* ヘッダーのメニュー（書き出し・︙） */
+
     .hdr-menu-wrap { position: relative; }
     .hdr-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 60; min-width: 230px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 10px 28px rgba(0,0,0,.14); }
     .hdr-menu.hidden { display: none; }
     .hdr-menu-left { left: 0; right: auto; min-width: 260px; }
-    /* カルテの切り替え（今のカルテの名前＋一覧） */
+
     .patient-switcher { display: inline-flex; align-items: center; gap: .45rem; max-width: 240px; padding: .4rem .75rem; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--accent); font-size: .78rem; font-weight: 700; }
     .patient-switcher:hover { border-color: var(--accent); }
     .patient-switcher-count { font-size: 10px; font-weight: 700; color: var(--ink-muted); background: var(--line-soft); border-radius: 999px; padding: 0 .4rem; }
@@ -258,12 +248,12 @@
     .icon-btn-lg:hover { color: var(--ink); border-color: var(--accent); }
     .presence-pill { display: inline-flex; align-items: center; gap: .3rem; font-size: 11px; color: var(--ink-muted); padding: 0 .4rem; }
     .presence-pill i { color: var(--accent); }
-    /* 一覧表示：日時ごとの区切りの帯（段組みの全幅） */
+
     .ov-day-heading { column-span: all; background: var(--accent-soft); border: 0; border-left: 4px solid var(--accent); border-radius: var(--radius-sm); padding: .25em .6em; margin: .6em 0 .35em; font-size: 1.05em; }
     .ov-day-heading:first-child { margin-top: 0; }
     .ov-mode-toggle { font-size: 11px; font-weight: 700; padding: .2rem .6rem; border-radius: var(--radius-sm); border: 1.5px solid var(--accent); color: var(--accent); background: var(--surface); }
     .ov-mode-toggle .ov-mode-sub { font-weight: 400; color: var(--ink-muted); margin-left: .2rem; }
-    /* 総合アセスメント表：欲求ごとのページの切り替え（1〜14） */
+
     .need-nav { position: sticky; top: var(--need-nav-top, 0px); z-index: 20; display: flex; align-items: center; gap: .35rem; padding: .45rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 2px 8px rgba(0,0,0,.04); }
     .need-nav-list { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .3rem; }
     .need-nav-btn { position: relative; display: flex; align-items: center; gap: .3rem; min-width: 0; padding: .3rem .45rem; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-size: 11px; text-align: left; }
@@ -281,7 +271,7 @@
     .need-nav-all.active { background: var(--accent); color: var(--on-fill); border-color: var(--accent); }
     @media (max-width: 900px) { .need-nav-list { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
     @media (max-width: 560px) { .need-nav { flex-wrap: wrap; } .need-nav-list { order: 3; flex-basis: 100%; grid-template-columns: repeat(4, minmax(0, 1fr)); } .need-nav-name { display: none; } }
-    /* 分類をAIで評価 */
+
     .ai-review-dialog { width: min(980px, 100%); max-height: calc(100vh - 24px); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 20px 50px rgba(0,0,0,.25); }
     .ai-review-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .7rem .9rem; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
     .ai-review-body { overflow-y: auto; padding: .8rem .9rem 1rem; font-size: 12px; color: var(--ink); }
@@ -303,7 +293,7 @@
     .ai-review-summary { padding: .45rem .6rem; background: var(--accent-soft); border-radius: var(--radius-sm); margin-bottom: .4rem; }
     .ai-review-apply { position: absolute; right: .5rem; top: .45rem; font-size: 11px; font-weight: 700; padding: .2rem .7rem; border-radius: var(--radius-sm); background: var(--accent); color: var(--on-fill); }
     .ai-review-done { position: absolute; right: .5rem; top: .5rem; font-size: 10px; font-weight: 700; color: var(--accent); }
-    /* 評価結果の読みやすい表示（見出し→現状→修正案→理由） */
+
     .ai-review-overview { padding: .7rem .85rem; margin-bottom: 1rem; border-radius: var(--radius); background: var(--accent-soft); border-left: 4px solid var(--accent); line-height: 1.7; }
     .ai-review-overview-title { font-weight: 700; color: var(--accent-dark, var(--accent)); margin-bottom: .2rem; }
     .ai-review-item { padding: .6rem .7rem !important; }
@@ -326,7 +316,7 @@
     .ai-review-advice { list-style: disc; padding-left: 1.2rem; gap: .25rem !important; }
     .ai-review-advice li { padding: 0 !important; border: 0 !important; background: none !important; line-height: 1.6; }
     .ov-pager { display: flex; align-items: center; gap: .4rem; }
-    /* スマホの幅では操作説明を隠し、一覧の表示に使える高さを確保する */
+
     @media (max-width: 640px) { .ov-help { display: none; } .ov-page-label { font-size: 10px; } .ov-pager { gap: .25rem; } }
     .ov-pager.hidden { display: none; }
     .ov-pager button:disabled { opacity: .4; cursor: default; }
@@ -336,14 +326,14 @@
     .ov-tags { color: var(--accent-dark); font-size: .85em; }
     .ov-heading { break-after: avoid; font-weight: 700; font-size: .95em; color: var(--ink); margin: .2em 0 .3em; padding-bottom: .1em; border-bottom: 1px solid var(--line); }
 
-    /* AIの答えの中の「根拠のカード」ボタン（改善案A。js/08 の linkEvidenceCodes） */
+
     .ai-evidence-chip { display: inline-block; margin: 0 .15em; padding: 0 .35em; border-radius: 4px; font-size: .92em; line-height: 1.5; cursor: pointer; border: 1px solid var(--line); background: var(--paper); color: var(--ink); white-space: nowrap; }
     .ai-evidence-chip:hover, .ai-evidence-chip:focus { border-color: var(--accent); outline: none; }
     .ai-evidence-chip.ai-ev-s { background: var(--gold-soft); border-color: var(--gold-line); }
     .ai-evidence-chip.ai-ev-o { background: var(--slate-soft); border-color: var(--slate-line); }
 
-    /* AIでアセスメントを進める順番（改善案D。js/08 の renderAiSteps） */
-    /* AIのボタン（1列にまとめて常に見せる。js/08 の renderAiSteps） */
+
+
     .ai-steps { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem .6rem; font-size: 11px; padding: .45rem .6rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); }
     .ai-steps:empty { display: none; }
     .ai-steps-title { font-weight: 700; color: var(--accent-dark); display: inline-flex; align-items: center; gap: .3rem; }
@@ -358,7 +348,7 @@
     .ai-step.next { border: 1.5px solid var(--accent); background: var(--accent-soft); color: var(--accent-dark); }
     .ai-step-status { font-weight: 500; font-size: 10px; color: var(--ink-muted); }
     .ai-tool i { color: var(--ink-muted); font-size: 10.5px; }
-    /* AIの結果（タブで1つだけ表示。js/05 の refreshAiResults） */
+
     .ai-results { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
     .ai-results-bar { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem; padding: .35rem .6rem; }
     .ai-results-title { font-size: 11px; font-weight: 700; color: var(--ink); display: inline-flex; align-items: center; gap: .3rem; margin-right: .2rem; }
@@ -376,7 +366,7 @@
     .ai-results .ai-panel .ai-note { display: block; }
     .ai-results .ai-panel .dx-actions { display: flex; }
 
-    /* 看護診断候補を1件ずつ選ぶ表示（改善案D。js/08 の renderDiagnosisPanel） */
+
     .dx-hint { font-size: 11px; color: var(--ink-muted); margin-bottom: .4rem; }
     .dx-candidate { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: .45rem .6rem; margin-bottom: .4rem; background: var(--surface); }
     .dx-candidate.dx-selected { border: 2px solid var(--slate); background: var(--slate-soft); }
@@ -386,14 +376,13 @@
     .dx-actions { display: flex; align-items: center; justify-content: flex-end; gap: .6rem; margin-top: .3rem; font-size: 11px; color: var(--ink-muted); }
     @media print { .ai-steps, .dx-actions, .dx-hint, .dx-name input { display: none !important; } }
 
-    /* 「分類開始」の分類方法の切り替え（ルールで分類（AIなし）／AIで分類） */
+
     .classify-mode { display: flex; gap: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
     .classify-mode button { flex: 1; font-size: 11px; padding: .35rem .3rem; background: var(--surface); color: var(--ink-muted); font-weight: 600; }
     .classify-mode button + button { border-left: 1px solid var(--line); }
     .classify-mode button.active { background: var(--accent-soft); color: var(--accent-dark); box-shadow: inset 0 -2px 0 var(--accent); }
 
-    /* 総合アセスメント表のカード（js/09 の renderAssessmentCellCard）。操作のボタン類は1つの帯にまとめ、
-       マウスを重ねた時・キーボードで選んだ時だけカードの右上に重ねて出す。タッチ操作の端末では常に表示。 */
+
     .asc-card { position: relative; }
     .asc-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 2px; margin-top: 3px; }
     .asc-actions .icon-btn { width: 18px; height: 18px; }
@@ -403,12 +392,12 @@
       .asc-card:hover .asc-actions, .asc-card:focus-within .asc-actions { opacity: 1; pointer-events: auto; }
     }
 
-    /* ダークモード：ブラウザ標準の部品（選択肢・入力欄・チェックボックス）も暗い色にそろえる */
+
     html[data-theme="dark"] select, html[data-theme="dark"] option, html[data-theme="dark"] input, html[data-theme="dark"] textarea { color-scheme: dark; }
     html[data-theme="dark"] option { background: var(--surface); color: var(--ink); }
     .on-fill { color: var(--on-fill) !important; }
 
-    /* ---- 検査値の推移（js/08 の renderLabTrend） ---- */
+
     .lab-trend-wrap { overflow: auto; max-height: calc(100vh - 230px); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
     .lab-trend-table { border-collapse: separate; border-spacing: 0; font-size: 12px; min-width: 100%; }
     .lab-trend-table th, .lab-trend-table td { border-bottom: 1px solid var(--line-soft); border-right: 1px solid var(--line-soft); padding: .35rem .5rem; text-align: center; white-space: nowrap; }
@@ -432,7 +421,7 @@
     .lt-val small { font-size: 9px; color: var(--ink-muted); font-weight: 500; }
     .lt-val.lt-high { color: var(--brick); background: var(--brick-soft); }
     .lt-val.lt-low { color: var(--slate); background: var(--slate-soft); }
-    /* カードの文章の中の検査値の色分け（検査値の推移と同じ色） */
+
     .lt-val.card-lab-flag { display: inline; padding: 0 .25rem; margin: 0 .05rem; font-weight: 700; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
     .lt-val.card-lab-flag:hover { background: inherit; }
     .lt-val.card-lab-flag.lt-high:hover { background: var(--brick-soft); }
@@ -447,7 +436,7 @@
     .lab-trend-empty { padding: 2.5rem 1rem; text-align: center; color: var(--ink-muted); font-size: 12px; line-height: 1.8; }
     .lab-trend-empty i { font-size: 1.6rem; color: var(--icon-muted); margin-bottom: .5rem; }
 
-    /* ---- 記録メモの入力欄の全画面表示（js/05 の toggleSourceFullscreen） ---- */
+
     .source-editor { display: flex; flex-direction: column; gap: .35rem; }
     .source-editor-bar { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
     .source-editor-title { font-size: 11px; font-weight: 600; color: var(--ink-muted); display: inline-flex; align-items: center; gap: .35rem; }
@@ -469,7 +458,7 @@
       .source-editor.is-fullscreen #source-text { font-size: 14px; padding: .75rem; }
     }
 
-    /* ---- 記録から自動で計算した指標（js/08 の renderClinicalIndices） ---- */
+
     .clinical-indices { border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); padding: .75rem; display: flex; flex-direction: column; gap: .5rem; }
     .ci-head { font-size: 12px; font-weight: 700; color: var(--accent-dark); display: flex; align-items: center; gap: .4rem; }
     .ci-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: .5rem; }
@@ -483,7 +472,7 @@
     .ci-detail { font-size: 10px; color: var(--ink-muted); line-height: 1.5; }
     .ci-missing, .ci-caution { font-size: 10.5px; color: var(--ink-muted); line-height: 1.6; }
 
-    /* ==== 自分のアセスメント（js/11）：総合アセスメント表の各欲求の行の下 ==== */
+
     .my-asm-row > td.my-asm-cell { padding: 0 .4rem .7rem; border: 1px solid var(--line); border-top: none; background: var(--paper); }
     .my-asm { display: flex; flex-direction: column; gap: .55rem; margin-top: .45rem; padding: .7rem .8rem; background: var(--surface); border: 1px solid var(--accent-line); border-left: 4px solid var(--accent); border-radius: var(--radius); }
     .my-asm.my-asm-attn { border-left-color: var(--gold); }
@@ -498,9 +487,9 @@
     .my-asm-state { display: inline-flex; flex-wrap: wrap; gap: .3rem; }
     .my-asm-tools { margin-left: auto; display: inline-flex; flex-wrap: wrap; gap: .35rem; }
     .my-asm-btn { font-size: 11px !important; padding: .25rem .55rem !important; }
-    /* 充足・未充足（総合アセスメント表の各項目の見出し） */
+
     .suf-row { margin-top: .5rem; }
-    /* 期間ごとの判定（入院前・入院後の各区画の下。証拠カードと同じ枠の中に出す） */
+
     .suf-phase-block { position: relative; margin: .9rem -.2rem 0; padding: .35rem .5rem; border: 0; border-top: 2px dashed var(--ink-muted); border-radius: 0; background: transparent; }
     .suf-phase-block::before { content: '▼ 自動判定（情報カードではありません）'; position: absolute; top: -.62rem; left: .4rem; padding: 0 .4rem; font-size: 9px; font-weight: 700; color: var(--ink-muted); background: var(--paper); }
     .suf-phase-head { display: flex; align-items: center; gap: .5rem; cursor: pointer; list-style: none; }
@@ -523,7 +512,7 @@
     .suf-b-unmet { background: var(--brick-soft) !important; }
     .suf-b-conflict { background: var(--gold-soft) !important; }
     .suf-b-unknown { background: var(--slate-soft) !important; }
-    /* 見出しの判定（入院前・入院後を縦に並べ、「O-1により、…のため充足」の根拠を添える） */
+
     .suf-header { display: flex; flex-direction: column; gap: .35rem; }
     .suf-hline { padding: .35rem .5rem; border-left: 4px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); }
     .suf-hline.suf-b-met { border-left-color: var(--accent); background: var(--accent-soft); }
@@ -532,7 +521,7 @@
     .suf-hline.suf-b-unknown { border-left-color: var(--ink-muted); background: var(--slate-soft); }
     .suf-hline .suf-phase { padding: .05rem .45rem; border-radius: 999px; background: var(--ink); color: var(--surface); min-width: 0; }
     .suf-hwhy { display: block; margin-top: .25rem; font-size: 11px; line-height: 1.7; color: var(--ink); }
-    /* 根拠のカード（S＝発言は金色、O＝観察は青灰色。表のカードの色と同じ） */
+
     .suf-cref { display: inline-block; margin: 0 .15em; padding: 0 .4em; border-radius: 4px; border: 1px solid; font-size: 10.5px; line-height: 1.5; background: var(--surface); }
     .suf-cref b { margin-right: .3em; }
     .suf-cref-S { color: var(--gold); border-color: var(--gold); }
@@ -619,7 +608,7 @@
     .asc-ev-tag { display: inline-flex; align-items: center; gap: 1px; font-size: 8px; font-weight: 700; padding: 0 3px; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent-dark); border: 1px solid var(--accent-line); }
     .asc-ev-tag i { font-size: 7px; }
     .asc-actions .icon-btn.active { color: var(--accent); }
-    /* 根拠のカードを選ぶ画面 */
+
     .ep-modal { max-width: 46rem; max-height: 88vh; }
     .ep-list { flex: 1; min-height: 8rem; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); padding: .3rem; display: flex; flex-direction: column; gap: .25rem; }
     .ep-group { font-size: 10.5px; font-weight: 700; color: var(--ink-muted); padding: .35rem .2rem .1rem; }
@@ -633,7 +622,7 @@
     .ep-text { min-width: 0; word-break: break-word; }
     @media print { .my-asm-row { display: none !important; } }
 
-    /* ==== 不足情報の確認状況（js/12） ==== */
+
     .mc-summary { display: flex; flex-direction: column; gap: .4rem; padding: .45rem .6rem; border: 1px solid var(--brick-line); background: var(--brick-soft); border-radius: var(--radius); }
     .mc-summary-head { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
     .mc-summary-title { font-size: 12px; font-weight: 700; color: var(--brick); display: inline-flex; align-items: center; gap: .3rem; margin-right: .3rem; }
@@ -658,13 +647,13 @@
     .mc-target { font-size: 12px; color: var(--ink); background: var(--brick-soft); border-left: 3px solid var(--brick); padding: .4rem .55rem; border-radius: var(--radius-sm); margin: 0; }
     .mc-card-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; font-size: 11.5px; color: var(--ink); }
     .mc-card-row select { width: auto; font-size: 11px; padding: .2rem .4rem; }
-    /* 押し分けるボタンの列（確認状況・書き出しの形式・達成状況） */
+
     .seg { display: flex; flex-wrap: wrap; gap: .3rem; }
     .seg > button, .seg > label { display: inline-flex; align-items: center; gap: .3rem; font-size: 11.5px; font-weight: 600; padding: .3rem .7rem; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
     .seg > button.active, .seg > label:has(input:checked) { background: var(--accent); border-color: var(--accent); color: var(--on-fill); }
     .seg-radio input { accent-color: var(--accent); }
 
-    /* ==== 看護計画（js/12） ==== */
+
     .cp-empty { display: flex; gap: .7rem; align-items: flex-start; padding: 1rem; border: 1px dashed var(--line); border-radius: var(--radius); color: var(--ink-muted); font-size: 12px; line-height: 1.7; }
     .cp-empty i { color: var(--accent); font-size: 18px; margin-top: .2rem; }
     .cp-empty p { margin: 0; }
@@ -718,7 +707,7 @@
     .cr-row ul { padding-left: 1.1em; }
     .cr-items { display: flex; flex-direction: column; gap: .2rem; max-height: 200px; overflow-y: auto; padding: .35rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); }
     .cr-item { display: flex; align-items: baseline; gap: .35rem; font-size: 11.5px; color: var(--ink); }
-    /* 看護計画のチェック・AIの評価・根拠データ・この患者に必要な理由（js/12：2026-10-07.5） */
+
     .cp-basis { display: flex; flex-direction: column; gap: .35rem; }
     .cp-note { margin: 0; font-size: 11.5px; color: var(--ink-muted); }
     .cp-ev, .cp-reasons { display: flex; flex-direction: column; gap: .2rem; }
@@ -766,7 +755,7 @@
     .cpr-ai-head { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; font-size: 12px; font-weight: 700; color: var(--ink); }
     .cpr-ai-head .my-asm-muted { font-weight: 400; font-size: 10.5px; }
 
-    /* ==== 変更点の比較・提出用の書き出し（js/13） ==== */
+
     .cmp-modal { max-width: 52rem; max-height: 90vh; }
     .cmp-body { flex: 1; min-height: 8rem; overflow-y: auto; display: flex; flex-direction: column; gap: .5rem; }
     .cmp-summary { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
@@ -803,7 +792,7 @@
     .rp-move { display: inline-flex; gap: .1rem; }
     .rp-move .icon-btn:disabled { opacity: .3; }
     .rp-preview { flex: 1; min-height: 16rem; max-height: 60vh; overflow: auto; margin: 0; padding: .6rem .75rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); color: var(--ink); font-size: 11.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; font-family: inherit; }
-    /* 根拠のカードを選ぶ画面：日ごとにたたむ・絞り込み・選んだカード */
+
     .ep-filters > button { font-size: 11px; padding: .2rem .6rem; }
     .ep-filters small { opacity: .75; font-weight: 700; margin-left: .15rem; }
     .ep-selected-wrap { display: flex; flex-direction: column; gap: .25rem; max-height: 5.5rem; overflow-y: auto; }
@@ -821,8 +810,8 @@
     .toast-close { margin-left: auto; flex-shrink: 0; width: 22px; height: 22px; border-radius: 999px; font-size: 15px; line-height: 1; color: inherit; opacity: .75; }
     .toast-close:hover { opacity: 1; background: var(--surface); }
     #toast-container > div { max-width: min(420px, calc(100vw - 2rem)); }
-    /* カードの「︙」メニュー（js/09 の openCardMenu） */
-    /* カードの「︙」：利用者からの要望「縦三点リーダーが強調されるようにする」。枠と色を付け、押せる場所だと分かるようにする */
+
+
     .card-menu-btn { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; color: var(--accent-dark); background: var(--accent-soft); border: 1px solid var(--accent-line); font-size: 14px; font-weight: 900; box-shadow: 0 1px 0 var(--line); transition: background .12s ease, color .12s ease, transform .12s ease; }
     .card-menu-btn i { font-size: 14px; }
     .card-menu-btn:hover, .card-menu-btn:focus-visible, .card-menu-btn[aria-expanded="true"] { color: var(--on-fill); background: var(--accent); border-color: var(--accent); outline: none; transform: scale(1.06); }
@@ -834,7 +823,7 @@
     .card-menu button.danger, .card-menu button.danger i { color: var(--brick); }
     .card-menu hr { border: 0; border-top: 1px solid var(--line-soft); margin: .2rem 0; }
     @media (pointer: coarse) { .card-menu-btn { width: 34px; height: 34px; } .card-menu button { padding: .7rem .75rem; font-size: 13.5px; } }
-    /* 分類ボード：S・O を広く、未分類は上の補助枠、不要は下のたためる枠 */
+
     .board-layout { display: flex; flex-direction: column; gap: .75rem; }
     .board-main { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
     @media (max-width: 767px) { .board-main { grid-template-columns: 1fr; } }
@@ -853,14 +842,14 @@
     .board-aux-unclassified.is-empty > summary { color: var(--ink-muted); font-weight: 600; }
     .board-aux-unnecessary { background: var(--paper); }
     .board-aux-unnecessary .board-aux-body { opacity: .9; }
-    /* 分類の前は入力欄を横いっぱい・高く、分類の後はカードを広く（js/05 の updateSourcePaneLayout） */
+
     #view-so-board.input-wide { flex-direction: column; }
     #view-so-board.input-wide > section:first-child { width: 100% !important; }
     #view-so-board.input-wide > div:nth-child(2) { width: 100% !important; }
     #view-so-board.input-wide #source-text, #view-so-board.input-wide #source-highlight-view { min-height: 48vh; }
     #view-so-board.no-cards > div:nth-child(2) { display: none; }
     #view-so-board:not(.input-wide) #source-text, #view-so-board:not(.input-wide) #source-highlight-view { max-height: 34vh; }
-    /* AIの結果：要約1行＋詳細（js/05 の toggleAiPanel） */
+
     .ai-panel { gap: .4rem !important; padding: .55rem .8rem !important; }
     .ai-panel-head { display: flex; align-items: center; gap: .45rem; width: 100%; text-align: left; font-size: 12px; font-weight: 700; }
     .ai-panel-title { flex-shrink: 0; }
@@ -879,7 +868,7 @@
     .help-body ol, .help-body ul { margin: 0; padding-left: 1.3rem; }
     .help-body li { margin-bottom: .35rem; }
     .help-body kbd { display: inline-block; min-width: 1.4em; padding: 0 .3em; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 4px; background: var(--paper); font-size: 11px; text-align: center; }
-    /* 総合アセスメント表：1つの項目を選んだときの並び */
+
     .asm-single { display: flex; flex-direction: column; gap: .6rem; }
     .asm-single-head { display: flex; align-items: center; gap: .5rem; font-size: 14px; color: var(--ink); }
     .asm-single-no { width: 26px; height: 26px; border-radius: 999px; background: var(--accent); color: var(--on-fill); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
@@ -901,9 +890,9 @@
     .asm-single .asc-card { font-size: 11.5px; }
     .toast-container { right: 1rem; bottom: 1rem; align-items: flex-end; }
     body:has(#bulk-action-bar:not(.hidden)) .toast-container { bottom: 5.5rem; }
-    /* スマホでは、下に出る一括操作の帯と重ならないよう、通知は上に出す */
+
     @media (max-width: 640px) { .toast-container { left: .75rem; right: .75rem; top: .75rem; bottom: auto !important; align-items: stretch; } }
-    /* 作業の流れ（js/13 の renderWorkflowSteps） */
+
     .wf-steps { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; padding: .4rem .55rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
     .wf-patient { font-size: 12px; font-weight: 700; color: var(--ink); margin-right: .4rem; padding-right: .6rem; border-right: 1px solid var(--line); display: inline-flex; align-items: center; gap: .3rem; max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .wf-patient i { color: var(--accent); }
@@ -917,11 +906,11 @@
     .wf-note { font-size: 10px; color: var(--ink-muted); font-weight: 500; }
     .wf-next { font-size: 9.5px; font-weight: 800; color: var(--on-fill); background: var(--accent); padding: 0 .4rem; border-radius: 999px; }
     .wf-sep { font-size: 8px; color: var(--icon-muted); }
-    /* スマホでは、今の段階（次はここ）だけを出して場所を取らないようにする（押すと全体は操作方法の「作業の流れ」で見られる） */
+
     @media (max-width: 640px) { .wf-sep, .wf-note { display: none; } .wf-step { padding: .3rem .5rem; } .wf-step:not(.current) { display: none; } .wf-steps::after { content: attr(data-progress); font-size: 10.5px; color: var(--ink-muted); } }
     #view-so-board:not(.input-wide) .source-fs-btn span { display: none; }
     #view-so-board:not(.input-wide) .source-editor-count { display: none; }
-    /* 分類基準の統合（js/04 の openCriteriaIntegration） */
+
     .ig-modal { max-width: 64rem; max-height: 92vh; }
     .ig-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: .8rem; overflow: hidden; }
     @media (max-width: 800px) { .ig-layout { grid-template-columns: 1fr; overflow-y: auto; } }
@@ -933,7 +922,7 @@
     .ig-skipped summary { cursor: pointer; color: var(--ink-muted); font-weight: 700; }
     .ig-preview-wrap { min-height: 0; }
     .ig-preview { height: 64vh; font-size: 11px; line-height: 1.6; }
-    /* AIの文章（js/05 の formatAiResultHtml） */
+
     .ai-text { display: flex; flex-direction: column; gap: .45rem; line-height: 1.75; }
     .ai-text p { margin: 0; }
     .ai-text .ai-h { margin: .35rem 0 0; font-size: 12.5px; font-weight: 700; color: var(--ink); padding-left: .5rem; border-left: 3px solid var(--accent); }
@@ -947,22 +936,22 @@
     .ai-text .ai-key .ai-list { font-weight: 600; }
     .ai-text .ai-label { color: var(--accent-dark); }
     .ai-text .ai-evidence-chip { font-size: .82em; padding: 0 .3em; margin: 0 .1em; opacity: .9; }
-    /* 写真の文字起こしの枠：キーボードで選んだとき・ドラッグ中の見た目 */
+
     .ocr-drop:focus-visible, .ocr-drop.drag-over { border-color: var(--accent); background: var(--accent-soft); outline: none; }
     .classify-mode button { white-space: nowrap; }
-    /* 自分のアセスメントの表示の切り替え（js/11 の toggleMyAssessmentShown） */
+
     .my-asm-show-btn.is-on { border-color: var(--accent); color: var(--accent-dark); background: var(--accent-soft); }
     .my-asm-show-btn .my-asm-show-state { font-weight: 700; }
-    /* APIキーが未設定のときの案内（js/05 の requireApiKey） */
+
     .api-req-steps { margin: 0; padding-left: 1.2rem; list-style: decimal; font-size: 12px; line-height: 1.7; color: var(--ink); display: flex; flex-direction: column; gap: .2rem; }
     .api-req-steps a, .api-req-link { color: var(--accent-dark); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
     .api-req-steps a i { font-size: 10px; margin-right: .15rem; }
-    /* 看護計画までまとめて実行（js/13 の runAiPipelineToCarePlan） */
+
     .ai-run-all { display: inline-flex; align-items: center; gap: .4rem; padding: .35rem .8rem; min-height: 30px; border-radius: var(--radius-sm); background: var(--accent); color: var(--on-fill); font-weight: 700; font-size: 11.5px; border: 1px solid var(--accent); white-space: nowrap; }
     .ai-run-all:hover { filter: brightness(1.08); }
     .ai-run-all:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .ai-run-all.is-running { background: var(--accent-soft); color: var(--accent-dark); border-color: var(--accent-line); }
-    /* 薬の情報（js/14） */
+
     .drug-modal { max-height: 88vh; }
     .drug-list { overflow: auto; display: flex; flex-direction: column; gap: .5rem; max-height: 60vh; }
     .drug-card { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: .55rem .7rem; background: var(--surface); font-size: 12px; line-height: 1.6; color: var(--ink); }
@@ -982,13 +971,13 @@
     .drug-chip.drug-chip-alert { background: var(--brick-soft); color: var(--brick); border-color: var(--brick-line); }
     @media (max-width: 640px) { .drug-row { grid-template-columns: 1fr; gap: 0; } }
 
-    /* ==== 記録メモを空にするボタン（js/05 の clearSourceText） ==== */
+
     .source-clear-btn { color: var(--brick); }
     .source-clear-btn:hover { border-color: var(--brick); background: var(--brick-soft); }
 
-    /* ==== 関連図（js/15） ==== */
+
     .rm-toolbar { display: flex; flex-wrap: wrap; gap: .5rem .9rem; align-items: center; }
-    /* 2026-10-06.20 操作の整理：作る｜編集｜見る・出す（右寄せ）。区切りは細い線 */
+
     .rm-group-sep { padding-left: .9rem; border-left: 1px solid var(--line-soft); }
     .rm-group-end { margin-left: auto; }
     .rm-add-kind { width: auto; max-width: 11.5rem; }
@@ -998,7 +987,7 @@
     .rm-more-item:hover:not([disabled]) { background: var(--paper); }
     .rm-more-item[disabled] { opacity: .45; cursor: not-allowed; }
     .rm-more-item.rm-danger { color: #B42318; }
-    /* 拡大・縮小：図の右下に重ねる */
+
     .rm-canvas-frame { position: relative; }
     .rm-zoom-pad { position: absolute; right: 18px; bottom: 18px; z-index: 5; display: flex; flex-direction: column; overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 3px 10px rgba(0,0,0,.12); }
     .rm-zoom-pad button { min-width: 44px; height: 32px; padding: 0 .4rem; font-size: 11px; font-weight: 600; color: var(--ink); border-top: 1px solid var(--line-soft); }
@@ -1006,15 +995,15 @@
     .rm-zoom-pad button:hover:not([disabled]) { background: var(--paper); }
     .rm-zoom-pad button[disabled] { opacity: .4; }
     .rm-canvas-wrap.hidden ~ .rm-zoom-pad, #view-relation.rm-fullscreen .rm-zoom-pad { display: none; }
-    /* 何も選んでいないときの案内は1行。くわしい説明は開いたときだけ */
+
     .rm-help summary { cursor: pointer; list-style: none; }
     .rm-help summary::-webkit-details-marker { display: none; }
     .rm-help-more { margin-left: .5rem; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
     .rm-help[open] > div { margin-top: .35rem; line-height: 1.7; }
-    /* 図の四角に、ごく薄い影（地の色から浮き出て見え、どこが四角か分かりやすい） */
+
     .rm-canvas-wrap .rm-box { filter: drop-shadow(0 1px 1.5px rgba(60, 50, 40, .14)); }
     .rm-canvas-wrap .rm-node.is-pred .rm-box { filter: none; }
-    /* 右クリックのメニュー */
+
     .rm-ctx { position: fixed; z-index: 70; min-width: 190px; max-width: min(300px, calc(100vw - 12px)); max-height: 70vh; overflow: auto; padding: .3rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,.18); font-size: 12px; }
     .rm-ctx-title { padding: .3rem .55rem .35rem; font-size: 11px; font-weight: 700; color: var(--ink-muted); border-bottom: 1px solid var(--line-soft); margin-bottom: .2rem; }
     .rm-ctx-item { display: flex; align-items: center; gap: .5rem; width: 100%; padding: .38rem .55rem; border-radius: var(--radius-sm); color: var(--ink); text-align: left; }
@@ -1022,7 +1011,7 @@
     .rm-ctx-item.rm-danger { color: #B42318; }
     .rm-ctx-swatch { display: inline-block; width: 18px; height: 12px; border: 1.5px solid; border-radius: 2px; flex: none; }
     .rm-ctx-swatch.is-ellipse { border-radius: 50%; }
-    /* ダークモードの関連図（2026-10-06.21 調整）：地は暗く、四角は種類ごとの色を残し、予測は薄く */
+
     html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-pred .rm-text { fill: #A39C8F; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-pred .rm-box { stroke: #746C61; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-pred.is-added .rm-box { stroke: #8E7CC3; }
@@ -1037,7 +1026,7 @@
     .rm-danger { color: var(--brick) !important; }
     .rm-prob-menu { position: relative; display: inline-flex; }
     .rm-prob-count { margin-left: .2rem; font-variant-numeric: tabular-nums; }
-    /* 「看護問題」の一覧を開くボタンは、看護問題の四角と同じ色（ピンク）にして、どこにあるか一目で分かるように */
+
     .rm-prob-toggle { background: #FBDDE3; border-color: #B03A55; color: #8A2440; font-weight: 700; }
     .rm-prob-toggle:hover { background: #F7CBD5; }
     .rm-prob-toggle[aria-expanded="true"] { background: #B03A55; border-color: #B03A55; color: #FFFFFF; }
@@ -1055,7 +1044,7 @@
     .rm-prob-btn { display: inline-flex; align-items: center; gap: .3rem; max-width: 100%; padding: .2rem .55rem; border: 1px solid #B03A55; border-radius: var(--radius-sm); background: #FBDDE3; color: #6B1F33; font-size: 11px; font-weight: 600; text-align: left; }
     .rm-prob-btn:hover { filter: brightness(.96); }
     .rm-prob-btn.is-risk { border-style: dashed; }
-    /* 看護問題の補足（状態をそのまま書いた説明）は名前の下に小さく */
+
     .rm-prob-btn { flex-wrap: wrap; }
     .rm-prob-note { flex-basis: 100%; font-size: 10px; font-weight: 400; color: #7C3A4B; line-height: 1.35; }
     html[data-theme="dark"] .rm-prob-note { color: #E8BFCB; }
@@ -1067,11 +1056,9 @@
     .rm-empty { display: flex; flex-direction: column; align-items: center; gap: .4rem; text-align: center; padding: 2.2rem 1rem; border: 1px dashed var(--line); border-radius: var(--radius); color: var(--ink-muted); font-size: 12px; line-height: 1.7; }
     .rm-empty > i { font-size: 28px; color: var(--accent); opacity: .7; }
     .rm-empty p { max-width: 40rem; }
-    /* スマホ・小さい画面：関連図のページではヘッダーを上に固定しない（固定すると図の上の方が隠れるため） */
+
     @media (max-width: 767px) { body.is-relation-view > header { position: static; } }
-    /* 関連図の全画面表示（「全画面」ボタン・Escで戻る）。利用者からの要望：「サイト全体ではなく、関連図の範囲だけを広げる」。
-       図の枠（#rm-canvas-wrap）だけをブラウザの画面いっぱいに広げ、右上に拡大・縮小と「元の大きさ」の小さな操作、
-       四角・矢印を選んだときの操作欄は下に浮かせて出す。上のヘッダー（z-30）より上、確認の画面・通知（z-60〜80）より下。 */
+
     .rm-fs-controls { display: none; }
     #view-relation.rm-fullscreen .rm-canvas-wrap { position: fixed; inset: 0; z-index: 50; height: auto; min-height: 0; border: 0; border-radius: 0; }
     #view-relation.rm-fullscreen .rm-fs-controls { display: flex; gap: .35rem; align-items: center; position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: 52; padding: .3rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 4px 14px rgba(0,0,0,.12); }
@@ -1081,9 +1068,9 @@
     .rm-canvas-wrap { position: relative; overflow: auto; height: min(72vh, 820px); min-height: 320px; border: 1px solid var(--line); border-radius: var(--radius); background-color: var(--surface);
       background-image: radial-gradient(var(--line-soft) 1px, transparent 1px); background-size: 18px 18px; -webkit-overflow-scrolling: touch; }
     .rm-canvas-wrap:focus { outline: none; }
-    /* 図のまわりの余白：端までドラッグしても少し先まで動かせる（図の外の点の模様の上） */
+
     .rm-stage { display: inline-block; padding: min(28vh, 220px) min(28vw, 320px); vertical-align: top; }
-    .rm-canvas-wrap svg { display: block; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; } /* 何もない所をドラッグ・スワイプしてボードを動かす */
+    .rm-canvas-wrap svg { display: block; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
     .rm-canvas-wrap.is-panning, .rm-canvas-wrap.is-panning * { cursor: grabbing !important; }
     .rm-canvas-wrap .rm-node { cursor: grab; touch-action: none; }
     .rm-canvas-wrap .rm-node:active { cursor: grabbing; }
@@ -1097,7 +1084,7 @@
     .rm-legend { display: flex; flex-wrap: wrap; gap: .3rem .9rem; font-size: 11px; color: var(--ink-muted); align-items: center; }
     .rm-legend-item { display: inline-flex; align-items: center; gap: .3rem; }
     .rm-legend-swatch { display: inline-block; width: 1.3rem; height: .85rem; border: 1.5px solid; border-radius: 3px; }
-    /* ダークモード：図の色を暗い背景に合わせる（印刷・画像は属性の明るい色のまま） */
+
     html[data-theme="dark"] .rm-canvas-wrap .rm-text { fill: #EAE5DA; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-note { fill: #C9C2B5; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-link-line { stroke: #B9B2A3; }
@@ -1105,7 +1092,7 @@
     html[data-theme="dark"] .rm-canvas-wrap .rm-link-label { fill: #D8D2C5; stroke: #221F1B; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-selected .rm-box, html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-connect-from .rm-box { stroke: #F59E6B; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-link.is-selected .rm-link-line { stroke: #F59E6B; }
-    /* 関連図 版2（js/15）：チェック・楕円の凡例・ダークモード */
+
     .rm-legend-swatch.is-ellipse { border-radius: 50%; }
     .rm-canvas-wrap .rm-link.is-treat.is-selected .rm-link-line { stroke: #C2410C; }
     .rm-check { border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); padding: .5rem .7rem; font-size: 11.5px; display: flex; flex-direction: column; gap: .35rem; }
@@ -1137,29 +1124,29 @@
     html[data-theme="dark"] .rm-canvas-wrap .rm-header text { fill: #EAE5DA; }
     @media print { #view-relation .rm-toolbar, #view-relation .rm-selbar { display: none !important; } }
     html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-selected[data-kind] .rm-box, html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-connect-from[data-kind] .rm-box { stroke: #F59E6B; }
-    /* 関連図：選んだ四角の原因・結果の流れだけを濃く（js/15 の rmApplySelectionClasses） */
-    /* 関連図の文字は、小さく表示しても読みやすいゴシック体（ページ全体の明朝体より優先） */
+
+
     .rm-svg text, .rm-svg tspan { font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic UI', 'Yu Gothic', 'Meiryo', sans-serif; }
     .rm-canvas-wrap .rm-svg.rm-focus .rm-node:not(.is-path) { opacity: .22; }
     .rm-canvas-wrap .rm-svg.rm-focus .rm-link:not(.is-path) { opacity: .1; }
     .rm-canvas-wrap .rm-svg.rm-focus .rm-link.is-path .rm-link-line { stroke-width: 2.2px; }
     .rm-canvas-wrap .rm-node, .rm-canvas-wrap .rm-link { transition: opacity .15s; }
     .rm-canvas-wrap .rm-link:hover .rm-link-line { stroke-width: 2.4px; }
-    /* 図の下は無地（点の模様が線や四角の後ろに見えて読みにくいため。点は図の外の余白だけ）2026-10-06.19 */
+
     html[data-theme="dark"] .rm-canvas-wrap .rm-bg.is-paper { fill: #171512; }
 
-    /* ===== スマホの見やすさ（2026-10-06.22：利用者「スマホ版が見づらい」） ===== */
+
     @media (max-width: 639px) {
-      /* 上の見出し：カルテ名と書き出しボタンを1行に（小さめのボタン）。接続人数は省く */
+
       header > div:first-child { padding: .5rem .75rem; gap: .4rem; }
       header .ml-auto { gap: .3rem; }
       header .btn { padding: .32rem .5rem; font-size: 11px; }
       #presence-indicator { display: none; }
       .patient-switcher { max-width: 38vw; }
-      /* 保存の状態の文が長いと横にはみ出していた（ページ全体が横にずれる）→ 折り返す */
+
       #save-status { white-space: normal; min-width: 0; line-height: 1.4; }
       header .text-xs.flex { min-width: 0; max-width: 100%; }
-      /* 関連図の操作：区切りの線・右寄せをやめ、ボタンを小さめに詰める */
+
       .rm-toolbar { gap: .4rem; }
       .rm-group { gap: .3rem; }
       .rm-group-sep { padding-left: 0; border-left: 0; }
@@ -1167,7 +1154,7 @@
       .rm-toolbar .btn { padding: .3rem .5rem; font-size: 11px; }
       .rm-add-kind { max-width: 9.5rem; font-size: 11px; }
       .rm-canvas-wrap { height: 68vh; min-height: 300px; }
-      /* 拡大・縮小はスマホでは横1列（縦に並べると図の右側を大きくふさいでいた） */
+
       .rm-zoom-pad { right: 10px; bottom: 10px; flex-direction: row; }
       .rm-zoom-pad button { min-width: 40px; height: 36px; border-top: 0; border-left: 1px solid var(--line-soft); }
       .rm-zoom-pad button:first-child { border-left: 0; }
@@ -1176,24 +1163,23 @@
       .rm-legend { font-size: 10.5px; gap: .25rem .7rem; }
     }
 
-    /* 看護問題ごとに見る（2026-10-06.26）：選んでいる項目・全体の図の項目 */
+
     .rm-prob-all { display: block; width: 100%; padding: .3rem .55rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font-size: 11px; font-weight: 600; text-align: left; }
     .rm-prob-all.is-on, .rm-prob-btn.is-on { outline: 2px solid var(--accent); outline-offset: 1px; }
     #view-relation.rm-focus-view .rm-canvas-wrap { box-shadow: inset 0 0 0 2px var(--accent); }
 
-    /* 【アプリ内ブラウザ（LINE・Discord など）】アプリ自身の上のバーが画面の上に重なり、ヘッダーや全画面の操作が押せないことがあった。
-       ヘッダーは固定せず（ページと一緒に流れる）、関連図の全画面の操作は上のバーの分だけ下げる。 */
+
     html.in-app-browser body > header { position: static; }
     html.in-app-browser .need-nav { top: 0; }
     html.in-app-browser #view-relation.rm-fullscreen .rm-fs-controls { top: calc(max(10px, env(safe-area-inset-top)) + 56px); }
     html.in-app-browser #view-relation.rm-fullscreen .rm-problems { top: calc(max(10px, env(safe-area-inset-top)) + 102px); }
-    /* AI評価の「判定」（明確な誤り／分類基準次第／原文確認が必要） */
+
     .ai-review-verdict { display: inline-block; margin-right: .4rem; padding: .05rem .45rem; border-radius: 999px; font-size: 10.5px; font-weight: 700; border: 1px solid var(--line); background: var(--paper); color: var(--ink-muted); vertical-align: 1px; }
     .ai-review-verdict.error { background: #FBDDE3; border-color: #B03A55; color: #6B1F33; }
     .ai-review-verdict.criteria { background: #FFF4D6; border-color: #C28A1A; color: #6B4A00; }
     .ai-review-verdict.check { background: #E0ECFB; border-color: #3B6EB5; color: #1E3F73; }
 
-    /* スマホ（幅767px以下）の見直し：上のヘッダーは画面に貼り付けず（画面の約2割を占めていた）、表の上の操作は折り返す */
+
     @media (max-width: 767px) {
       body > header.sticky { position: static; }
       .asm-toolbar { width: 100%; }
@@ -1206,7 +1192,7 @@
       .asm-single-head .suf-ctl { margin-left: 0; width: 100%; flex-direction: column; }
     }
 
-    /* スマホ：AIの「①②③」と確認ボタンは、「AI」を押したときだけ開く（画面の約2割を占めていた）。「まとめて実行」は常に出す */
+
     .ai-title-toggle { font-weight: 700; color: var(--accent-dark); display: inline-flex; align-items: center; gap: .3rem; background: none; border: 0; padding: 0; font: inherit; cursor: default; }
     @media (max-width: 767px) {
       .ai-title-toggle { cursor: pointer; padding: .2rem .1rem; }
@@ -1216,7 +1202,7 @@
       .ai-steps .ai-run-all { flex: 1 1 auto; justify-content: center; }
     }
 
-    /* スマホ：看護計画のボタンは2列、長い説明は2行に縮めて、タップで全部を開く。作業の流れの患者名は上に出ているので省く */
+
     @media (max-width: 767px) {
       .cp-top-actions.flex { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
       .cp-top-actions > .btn { justify-content: center; min-height: 40px; }
@@ -1227,7 +1213,7 @@
       .wf-patient { display: none; }
     }
 
-/* スマホ：見出し・ボタン・状態の表示を中央に揃える（タブは、幅を超えたときに左が切れないよう safe center） */
+
 @media (max-width: 767px) {
   body > header > div.justify-between { justify-content: center; text-align: center; }
   body > header > div.justify-between > div { justify-content: center; }
@@ -1241,7 +1227,7 @@
 }
 @media (max-width: 767px) { .cp-top-actions > .btn:nth-last-child(2) { grid-column: 1 / -1; } }
 
-/* スマホ：タブは横に隠さず折り返して中央に並べる（選んだ関連図・参考データのタブが画面の外に隠れていた）。関連図の操作ボタンも中央に */
+
 @media (max-width: 767px) {
   body > header > div.justify-between > div.overflow-x-auto { overflow-x: visible; flex-wrap: wrap; justify-content: center; gap: .25rem; }
   .rm-toolbar { justify-content: center; }
@@ -1251,9 +1237,7 @@
   .rm-add-kind { max-width: 100%; }
 }
 
-/* いろいろな機種向け：①切り欠き・ホームバーのある画面の端（iPhone・iPad）に内容が隠れない ②文字の自動拡大を止める
-   ③幅320px（小さい機種）でもはみ出さない ④指で押す端末（pointer: coarse）では押す所を小さくしすぎない
-   ⑤iPhone/iPadは16px未満の入力欄を押すと画面が勝手に拡大されるので、幅767px以下では入力欄を16pxにする */
+
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); padding-bottom: env(safe-area-inset-bottom); }
 @media (max-width: 420px) {
@@ -1270,7 +1254,7 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
   .card-menu-btn { min-width: 34px; min-height: 34px; }
 }
 
-/* 充足・未充足の表示（サイトが決める。押す欄は無い） */
+
 .suf-badge { display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .6rem; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid var(--line, #d9d4c7); background: #fff; color: var(--ink-muted, #6b665c); }
 .suf-badge.suf-met { color: #2f6b4f; border-color: #2f6b4f; }
 .suf-badge.suf-unmet { color: #b4432c; border-color: #b4432c; background: #fdf1ee; }
@@ -1278,7 +1262,7 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
 .suf-phase { font-size: .7rem; color: var(--ink-muted); min-width: 3.2rem; }
 .suf-reason b { font-weight: 600; margin-right: .25rem; }
 
-    /* ヘンダーソンタグ未設定の理由（js/12 ④） */
+
     .ut-list { max-height: 420px; }
     .mc-list > li.ut-item { flex-direction: column; align-items: stretch; gap: .3rem; }
     .ut-line { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
@@ -1290,7 +1274,7 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
     .ut-parts { font-size: 11px; padding-left: .5rem; border-left: 2px solid var(--line); }
     .ut-actions { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
     .ut-sel { font-size: 11px; padding: .1rem .3rem; width: auto; }
-/* 関連図の文字による代替表示。色に依存せず状態と矢印の意味を読む。 */
+
 .rm-text-view { padding: 1rem; max-height: 70vh; overflow: auto; }
 .rm-text-view li { margin: .75rem 0; padding: .5rem; border-bottom: 1px solid #d6d3d1; }
 .rm-text-view p { margin: .35rem 0; overflow-wrap: anywhere; }

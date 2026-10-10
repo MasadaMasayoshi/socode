@@ -1,5 +1,5 @@
 'use strict';
-// スパム・大量送信への防御（rateLimit・capString）と、日付しきい値判定(isOlderThanThresholdDays)の検証。
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { setupIsolatedDataDir } = require('./helpers');
@@ -71,9 +71,6 @@ test('pickTopVote: 最多得票を選び、同数の場合は先に記録され�
   assert.equal(pickTopVote(null), null, '未定義でもnullを返す');
 });
 
-// カルテスナップショット等の「積み上げる配列」がMongoDBの1ドキュメント上限（16MB）に
-// 達して以後の保存が静かに失敗し続ける、という不具合（利用者からの報告：
-// 「カルテスナップショットに全然保存されていません」）を防ぐための間引きロジックの検証。
 test('capArrayByByteSize: 合計バイト数が上限以下ならそのまま、上限を超えたら古い方から間引く', () => {
   const arr = [
     { id: 'a', text: 'x'.repeat(100) },
@@ -88,7 +85,6 @@ test('capArrayByByteSize: 合計バイト数が上限以下ならそのまま、
   const capped = capArrayByByteSize(arr, eachSize * 2 + 1);
   assert.deepEqual(capped.map(e => e.id), ['c', 'd'], '古い（先頭の）ものから間引かれ、新しいものが残る');
 
-  // 1件だけでも上限を超える場合は、最新の1件だけは残す（全滅させない）
   const oversizedLast = capArrayByByteSize(arr, 1);
   assert.deepEqual(oversizedLast.map(e => e.id), ['d'], '上限が極端に小さくても最低限最新の1件は残す');
 

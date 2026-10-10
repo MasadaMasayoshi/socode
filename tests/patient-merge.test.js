@@ -1,14 +1,6 @@
 'use strict';
-// 起動時（loadSharedPatients）のカード単位マージ（mergePatientRecordClient）の検証。
+
 //
-// 【背景】以前はサーバー側の共有カルテとこのブラウザのカルテを起動時に統合する際、
-// 「患者カルテをまるごと」比較しupdatedAtが新しい方をそのまま採用していたため、
-// サーバー側が新しいと判定されるとこのブラウザだけが知っているカードごと丸ごと消えてしまう
-// ことがあった（利用者からの報告：「たまに情報カードがリセットされてしまう」）。
-// server.js側の通常保存（PUT /api/patients/:id）は既にカード単位でマージしているため、
-// 起動時のマージだけこの弱点があった。mergePatientRecordClientはserver.jsの
-// mergePatientRecordと同じ考え方（カードの生死はID単位・_touchedAt／tombstoneの新旧で
-// 判定する）をブラウザ側でも行い、この弱点を無くす。
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -28,8 +20,8 @@ test('サーバー側のupdatedAtが新しくても、このブラウザだけ�
     deletedItemIds: []
   };
   const server = {
-    id: 'p1', title: 'A氏', updatedAt: '2026-09-15T00:00:00.000Z', // ローカルより新しい
-    items: [], // このカードはまだサーバーに届いていない
+    id: 'p1', title: 'A氏', updatedAt: '2026-09-15T00:00:00.000Z',
+    items: [],
     deletedItemIds: []
   };
   const merged = mergePatientRecordClient(local, server);
@@ -48,8 +40,7 @@ test('サーバー側だけが持つカード（他端末で追加）はロー�
 });
 
 test('このブラウザで削除した（tombstoneを持つ）カードは、サーバーにまだ残っていても復活しない', () => {
-  // tombstone（削除記録）はテスト実行時点から3日以内でないと有効に扱われないため、
-  // 固定の過去日付ではなく実行時刻からの相対時刻を使う。
+
   const now = Date.now();
   const hoursAgo = h => new Date(now - h * 60 * 60 * 1000).toISOString();
   const local = {

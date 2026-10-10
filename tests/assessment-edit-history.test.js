@@ -1,7 +1,8 @@
 'use strict';
+const sourceRange=require('./source-range');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const src=fs.readFileSync(path.join(__dirname,'../js/11-own-assessment.js'),'utf8');
-const code=src.slice(src.indexOf('    const myAssessmentEditHistories'),src.indexOf('    // 表を描き直すとき'));
+const code=sourceRange(src,'    const myAssessmentEditHistories','    function captureMyAssessmentFocus()');
 function mount(){let cp,saves=0,now=1000;const timers=new Map(),checks=[];let serial=0;class Clock extends Date{static now(){return now;}}
  const ctx={Date:Clock,getCurrentPatient:()=>cp,getMyAssessment:(p,n)=>p.myAssessments[n],ensureMyAssessment:(p,n)=>p.myAssessments[n]||(p.myAssessments[n]={}),saveMyAssessmentsSoon(){},commitMyAssessmentChange:()=>saves++,showToast(){},setTimeout:f=>{timers.set(++serial,f);return serial;},clearTimeout:id=>timers.delete(id),refreshMyAssessmentSideInfo:(p,n)=>checks.push([p.id,n])};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(code,ctx);return {ctx,set:p=>cp=p,saves:()=>saves,checks,tick:()=>now+=1000,run:()=>{for(const f of timers.values())f();timers.clear();},input:(n,k,v)=>ctx.onMyAssessmentInput(n,k,{value:v}),undo:n=>ctx.undoMyAssessmentEdit(n),redo:n=>ctx.undoMyAssessmentEdit(n,true)};
 }

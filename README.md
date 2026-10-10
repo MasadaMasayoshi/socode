@@ -20,7 +20,7 @@ Use Node 20. Run `npm ci`, then `npm start`; open `http://localhost:3000`. Direc
 | `vendor/` | Bundled CSS/icons and licenses |
 | `scripts/`, `tests/` | Maintenance, packaging, regression and browser checks |
 
-Preserve script order in HTML. Root `app.js` is archival, not the active app. Use `npm run map`, then search `scripts/FILE-MAP.md` for symbols and read only the relevant lines. See [AGENTS.md](AGENTS.md) for editing conventions.
+Preserve script order in HTML. Root `app.js` is archival, not the active app. Use `npm run context -- FILE --symbol NAME` or `--line N` for bounded reads. `npm run map` provides a searchable symbol index. See [AGENTS.md](AGENTS.md) for editing conventions.
 
 ## Data and synchronization
 
@@ -62,7 +62,7 @@ node scripts/browser-smoke.js
 node scripts/prepare-release.js /tmp/socode-release
 ```
 
-Browser checks require Playwright/Chromium. Public tests use authored fictional specifications; server tests use isolated temporary storage. Missing legacy originals/approved answers remain failures under `npm run test:legacy` or `npm run golden`; public success does not establish historical full-card equivalence. Never generate expected answers from current output to fill missing fixtures. `golden:update` is an explicit maintenance command, not independent approval.
+`npm test` prints compact counts and a full-log path; `npm run test:verbose` restores verbose output. See [context budget](docs/token-budget.md). Browser checks require Playwright/Chromium. Public tests use authored fictional specifications; server tests use isolated temporary storage. Missing legacy originals/approved answers remain failures under `npm run test:legacy` or `npm run golden`; public success does not establish historical full-card equivalence. Never generate expected answers from current output to fill missing fixtures. `golden:update` is an explicit maintenance command, not independent approval.
 
 After runtime asset changes, use `npm run stamp -- <version>` to update changed asset fingerprints/cache versions. Use `npm run build:css` for bundled Tailwind CSS. `npm run ship -- --list` lists delivery changes; inspect before copying.
 

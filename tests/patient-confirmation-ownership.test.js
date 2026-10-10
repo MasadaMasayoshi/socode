@@ -1,7 +1,8 @@
 'use strict';
+const sourceRange=require('./source-range');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync(require.resolve('../js/05-app-state-and-ui.js'),'utf8');
-const rename=source.slice(source.indexOf("    document.getElementById('btn-rename-patient').addEventListener"),source.indexOf('    // タブ上の'));
+const rename=sourceRange(source,"    document.getElementById('btn-rename-patient').addEventListener",'    window.deletePatient =');
 const deletion=source.slice(source.indexOf('    window.hardDeletePatientFromList ='),source.indexOf('    // ==========================================================================',source.indexOf('    window.hardDeletePatientFromList =')));
 function mount(){
  const a={id:'a',title:'Original',items:[]},b={id:'b',title:'Other',items:[]};let confirm,renameHandler,deletions=0;

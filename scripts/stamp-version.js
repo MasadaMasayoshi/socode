@@ -9,7 +9,7 @@ const { APP_SCRIPT_FILES } = require('../tests/app-helpers');
 const now = new Date();
 const pad = n => String(n).padStart(2, '0');
 const version = process.argv[2] || `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}.${pad(now.getHours())}${pad(now.getMinutes())}`;
-if (!/^[\w.-]{1,40}$/.test(version)) throw new Error('版には英数字・ピリオド・ハイフンだけを使ってください');
+if (!/^[\w.-]{1,40}$/.test(version)) throw new Error('Version must use letters, digits, periods or hyphens');
 
 const MARK_REGEX = /^    \(window\.APP_FILE_VERSIONS = window\.APP_FILE_VERSIONS \|\| \{\}\)\['[^']*'\] = '[^']*';.*\n/m;
 const MARK_VERSION = /\(window\.APP_FILE_VERSIONS = window\.APP_FILE_VERSIONS \|\| \{\}\)\['[^']*'\] = '([^']*)'/;
@@ -33,7 +33,7 @@ APP_SCRIPT_FILES.forEach(rel => {
   const same = !all && current && prev && prev.hash === fp && prev.version === current;
   const v = same ? current : version;
   if (!same) {
-    const line = `    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['${id}'] = '${v}'; // 版（scripts/stamp-version.js が書き込む）\n`;
+    const line = `    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['${id}'] = '${v}'; // Version stamp (scripts/stamp-version.js)\n`;
     if (MARK_REGEX.test(s)) s = s.replace(MARK_REGEX, line);
     else {
       // Insert after the opening description.
@@ -73,4 +73,4 @@ html = html.replace(/((?:src|href)=")(js\/[\w-]+\.js|style\.css|vendor\/[\w./-]+
 });
 fs.writeFileSync(htmlFile, html);
 fs.writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2) + '\n');
-console.log(`版 ${version} を書き込みました。版を上げたファイル：${changed.length ? changed.join('、') : '（なし。index.html だけ）'}`);
+console.log(`Version ${version}; changed: ${changed.length ? changed.join(', ') : 'index.html only'}`);

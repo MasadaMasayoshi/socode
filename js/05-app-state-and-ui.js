@@ -1,14 +1,10 @@
-    // 看護アセスメント支援システム：05-app-state-and-ui.js（全10ファイルのうち 5 番目）
-    // アプリ全体の状態（globalAppData）、画面部品（ダイアログ・通知）、患者ページ一覧、学習データ管理画面、Gemini AI の呼び出しなど。
-    // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
-    // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
+// Patient-owned UI and learning state. Preserve Japanese display/export text.
+// Confirmations and Undo verify the captured patient/target; local writes require full readback.
+// AI transport accepts image OCR only; classification and clinical generation stay local.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-10.znavigation15'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-10.znavigation17'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
-    // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
-    // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
-    // サーバー側で1人分の投稿としてまとめて記録できるようにする（presenceの仕組みと同様、
-    // sessionStorageを使うのでタブを閉じれば次回は新しいsessionIdになる）。
+
     // ==========================================================================
     const CARD_REPORT_SESSION_KEY = 'nursing_card_report_session_id';
     let cardReportSessionId = null;
@@ -18,8 +14,6 @@
       try { sessionStorage.setItem(CARD_REPORT_SESSION_KEY, cardReportSessionId); } catch (e) { /* noop */ }
     }
 
-    // 学習によって「何がどう変わったか」をユーザー自身が確認できるよう、サーバーへの送信とは別に
-    // このブラウザ内にも変更履歴を保存しておく（サーバー未接続でも履歴が見られるようにするため）。
     const LEARNING_HISTORY_KEY = 'nursing_learning_history';
     const LEARNING_HISTORY_MAX = 300;
     let learningHistory = [];
@@ -27,12 +21,12 @@
     function addLearningHistoryEntry(text, action, payload) {
       learningHistory.push({ at: new Date().toISOString(), text, action, payload });
       if (learningHistory.length > LEARNING_HISTORY_MAX) learningHistory = learningHistory.slice(-LEARNING_HISTORY_MAX);
-      try { localStorage.setItem(LEARNING_HISTORY_KEY, JSON.stringify(learningHistory)); } catch (e) { console.warn('学習履歴の保存に失敗しました:', e); }
+      try { localStorage.setItem(LEARNING_HISTORY_KEY, JSON.stringify(learningHistory)); } catch (e) { console.warn('Learning history save failed:', e); }
     }
 
     // action: 'create' | 'type' | 'tagAdd' | 'tagRemove' | 'col' | 'edit' | 'delete'
     async function reportLearningEvent(text, action, payload) {
-      addLearningHistoryEntry(text, action, payload); // サーバーの成否によらず、必ずローカル履歴には残す
+      addLearningHistoryEntry(text, action, payload);
       try {
         const res = await fetch(`${API_BASE}/learning-event`, {
           method: 'POST',
@@ -43,15 +37,10 @@
         const updated = await res.json();
         if (updated && updated.dict) sharedLearningDict = updated.dict;
       } catch (e) {
-        console.warn('共有学習イベントの送信に失敗しました（サーバー未接続の場合はローカル学習のみで動作します）:', e);
+        console.warn('Shared learning send failed; offline learning remains local:', e);
       }
     }
 
-    // 患者カルテ一式は、サーバーへの共有保存（schedulePatientSync）とは別に、このブラウザにも
-    // localStorageで保存しておく。以前はタブを閉じると消えるsessionStorageを使っていたが、
-    // サーバーに接続できない・保存が間に合わなかった場合にタブやブラウザを閉じると内容が
-    // 失われてしまうため、ブラウザを閉じても残るlocalStorageに変更した
-    // （共用端末で使う場合は、各ブラウザの設定から消去できる）。
     const PATIENTS_STORAGE_KEY = 'nursing_patients_data';
     function loadPersistedPatients() {
       try {
@@ -59,7 +48,7 @@
         if (!raw) return null;
         const parsed = JSON.parse(raw);
         if (parsed && Array.isArray(parsed.patients) && parsed.patients.length) {
-          // 【レビューで発見】患者・カード・参考データのIDに使えない文字があれば直す（repairPatientsList）
+
           const r = repairPatientsList(parsed.patients);
           if (!r.patients.length) return null;
           parsed.patients = r.patients;
@@ -67,16 +56,12 @@
           return parsed;
         }
       } catch (e) {
-        console.warn('保存済みのカルテデータの読み込みに失敗しました:', e);
+        console.warn('Stored patient load failed:', e);
       }
       return null;
     }
     const persistedPatients = loadPersistedPatients();
 
-    // 学習データ（learningUserDict）も同様に、サーバー側の学習専用ファイルへの保存とは別に、
-    // このブラウザにもlocalStorageでバックアップを残す（サーバー未接続時でも、このブラウザ内では
-    // 学習結果が引き続き活用され、ブラウザ／タブを閉じても消えないようにするため）。
-    // サーバーから取得した共有学習データ（sharedLearningDict）は起動時に別途マージされる。
     const LEARNING_DICT_STORAGE_KEY = 'nursing_learning_dict';
     function loadPersistedLearningDict() {
       try {
@@ -85,7 +70,7 @@
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
       } catch (e) {
-        console.warn('保存済みの学習データの読み込みに失敗しました:', e);
+        console.warn('Stored learning load failed:', e);
       }
       return null;
     }
@@ -96,26 +81,16 @@
         { id: 'patient_1', title: '患者A', items: [], sourceText: '', labEvaluationResult: '', referenceNotes: [], archived: false, updatedAt: null, deletedItemIds: [] }
       ],
       currentPatientId: persistedPatients?.currentPatientId || 'patient_1',
-      // このブラウザにlocalStorageで保存されている学習データを起動直後の初期値とする
-      // （無ければ空のまま）。この後、起動時に loadSharedLearningDict() がサーバー側の
-      // 学習専用ファイル（data/learning-dict.json）の内容を取得し、ここへマージする
-      // （サーバー未起動時は、このブラウザ内の学習データだけで動作する）。
+
       learningUserDict: persistedLearningDict || {},
-      // 前後の空白・引用符などは取り除いて使う。【レビューで発見】サイトのデータ保存が止められている環境では
-      // localStorage に触るだけで例外になり、このファイル以降が読み込まれず画面全体が動かなくなっていた（storageGet は例外を出さない）
+
       apiKey: normalizeApiKey(storageGet('gemini_api_key') || ''),
-      notebookContent: DEFAULT_NOTEBOOK_CONTENT, // 起動直後の初期値。loadNotebookContent()でサーバー側の保存内容（あれば）に置き換わる
-      // NotebookLM基準ノート本体は「学習データ管理」画面の「分類基準」タブから編集でき、
-      // サーバー側 data/notebook-content.json に保存され全利用者で共有される。それに加えて、
-      // 現場からの「こう抽出・分類してほしい」という追加の要望はここに積み上げる
-      // （サーバー側 data/extraction-criteria.json に保存され、全利用者で共有）。
+      notebookContent: DEFAULT_NOTEBOOK_CONTENT,
+
       additionalCriteria: [],
-      // 利用者が登録した追加キーワード（detectMultipleHendersonTagsの下の「追加キーワード」の説明を参照）。
-      // 分類のファイル（js/07-classification.js）の読み込み時にこのブラウザの写しが入り、
-      // 起動後に loadCustomTagRules() でサーバーの共有内容に置き換わる。
+
       customTagRules: [],
-      // 参照元リンク（NotebookLM等）。名前＋URL＋（任意で）貼り付けた内容の一覧。
-      // サーバー側 data/reference-sources.json に保存され、全利用者で共有される。
+
       referenceSources: []
     };
 
@@ -135,15 +110,13 @@
       currentPatientTitle: document.getElementById('current-patient-title-label')
     };
 
-    // ダークモード切り替え（夜勤帯向け）。この設定自体は学習データではなく個人の画面設定なので、
-    // これまで通りlocalStorageに保存する（学習内容とは別の話）。
     const THEME_KEY = 'nursing_theme';
     function applyThemeIcon() {
       const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
       const icon = document.querySelector('#btn-toggle-theme i');
       if (icon) icon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
     }
-    // ヘッダーの「書き出し」「︙」メニュー。ボタンで開閉し、メニューの項目を選んだとき・外側を押したとき・Escで閉じる。
+
     function closeHeaderMenus(except) {
       document.querySelectorAll('.hdr-menu').forEach(m => {
         if (m.id === except) return;
@@ -162,21 +135,18 @@
         toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
         return;
       }
-      // 項目を選んだら閉じる（ファイル選択の「読込」はファイルの画面が開くので同じく閉じてよい）
+
       if (e.target.closest('.hdr-menu-item') || !e.target.closest('.hdr-menu')) closeHeaderMenus();
     });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeHeaderMenus(); });
-    // 【レビューで発見】確認のダイアログ・患者の一覧・学習データ管理・統合・報告などの画面の多くは、Esc キーで閉じられなかった。
-    // しかも分類ボードの Esc（カードの選択をすべて解除）だけが後ろで動き、画面は開いたまま選んでいたカードの選択が消えていた。
-    // Esc を押したら、いちばん手前に開いている画面（.fixed.inset-0）の「閉じる／キャンセル」ボタンを押したのと同じ動きで閉じ、
-    // 後ろの画面の Esc の処理には渡さない。APIキーの案内（modal-api-required）は、自分で Esc を受け取るのでそのままにする。
+
     function topmostOpenModal() {
       const open = Array.from(document.querySelectorAll('.fixed.inset-0:not(.hidden)'));
       let best = null, bestZ = -Infinity;
       open.forEach(el => {
         let z = 0;
         try { z = parseInt((window.getComputedStyle ? window.getComputedStyle(el).zIndex : '') || '0', 10) || 0; } catch (err) { z = 0; }
-        if (z >= bestZ) { best = el; bestZ = z; } // 同じ高さなら、後ろに書かれている（後から重なる）方
+        if (z >= bestZ) { best = el; bestZ = z; }
       });
       return best;
     }
@@ -184,7 +154,7 @@
       if (!modal || modal.id === 'modal-api-required') return false;
       const btn = modal.querySelector('#dialog-cancel, [id^="btn-close"], [id^="btn-cancel"], button[onclick^="close"]');
       if (btn && typeof btn.click === 'function') btn.click();
-      if (!modal.classList.contains('hidden')) modal.classList.add('hidden'); // 閉じるボタンが無い画面の保険
+      if (!modal.classList.contains('hidden')) modal.classList.add('hidden');
       return true;
     }
     document.addEventListener('keydown', e => {
@@ -243,11 +213,11 @@
         }
       }, true);
     }
-    // 文字の書体（明朝＝Noto Serif JP が既定／ゴシック）。このブラウザに覚えておく
+
     function currentAppFont() { return document.documentElement.getAttribute('data-font') === 'gothic' ? 'gothic' : 'serif'; }
     function setAppFont(font) {
       document.documentElement.setAttribute('data-font', font === 'gothic' ? 'gothic' : 'serif');
-      try { localStorage.setItem('nursing_font', font === 'gothic' ? 'gothic' : 'serif'); } catch (e) { /* 覚えられなくても今回は切り替える */ }
+      try { localStorage.setItem('nursing_font', font === 'gothic' ? 'gothic' : 'serif'); } catch (e) {   }
       const label = document.getElementById('font-current-label');
       if (label) label.textContent = font === 'gothic' ? 'ゴシック' : '明朝';
     }
@@ -257,20 +227,19 @@
       const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
       const next = isDark ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', next);
-      try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* 保存できなくても表示上の切り替えは有効 */ }
+      try { localStorage.setItem(THEME_KEY, next); } catch (e) {   }
       applyThemeIcon();
     });
-    applyThemeIcon(); // <head>の先読みスクリプトが設定したテーマに合わせて、アイコンを起動時から一致させる
+    applyThemeIcon();
 
     function getCurrentPatient() {
       let p = globalAppData.patients.find(x => x.id === globalAppData.currentPatientId);
       if (!p) { p = globalAppData.patients.find(x => !x.archived) || globalAppData.patients[0]; globalAppData.currentPatientId = p.id; }
-      if (!p.referenceNotes) p.referenceNotes = []; // 古い保存データとの互換性維持
+      if (!p.referenceNotes) p.referenceNotes = [];
       if (p.archived === undefined) p.archived = false;
       return p;
     }
 
-    // 「n分前」「n時間前」のような相対時刻表示（患者一覧・ヘッダーの最終更新表示用）
     function formatRelativeTime(iso) {
       if (!iso) return '';
       const diffMs = Date.now() - new Date(iso).getTime();
@@ -285,22 +254,8 @@
       return `${d.getMonth() + 1}/${d.getDate()}`;
     }
 
-    // 自動保存の状態表示。従来はローカル保存（sessionStorage）を行った時点で即座に「保存済み」と
-    // 表示していたが、これはサーバーへの共有保存（schedulePatientSync）が実際に成功したかどうかを
-    // 反映しておらず、サーバーが起動していない／通信できない場合でも常に「保存済み」と表示されてしまう
-    // 問題があった（この端末内には保存されていても、他端末とは共有されていない状態を見分けられない）。
-    // 'saving'＝サーバーへの保存を試行中、'saved'＝サーバーへの保存が確認できた、
-    // 'error'＝サーバーへの保存に失敗した（この端末内のみ保存）、の3状態を表示に反映する。
-    // 【保存先と状態を分けて表示】利用者からの指摘：「保存済み」「サーバー未接続」では、どこに保存できたのか分からない。
-    // このブラウザへの保存（書いた後に読み直して確かめる：writeLocalVerified）と、共有先（サーバー）への保存
-    // （サーバーの応答で確かめる：js/04 の syncPatientToServer）を分けて表示する。
-    //   'saving'       … このブラウザに保存済み・共有先へ送っているところ
-    //   'saved'        … 共有先に保存済み（サーバーが受け取ったことを確認した）
-    //   'error'        … 共有先への保存に失敗（このブラウザには保存済み。押すと送り直す）
-    //   'local-only'   … このブラウザに保存済み（HTMLファイルを直接開いていて共有先が無い）
-    //   'local-failed' … このブラウザにも保存できなかった（容量不足など）
     let lastLocalSaveOk = true;
-    let sourcePaneManual = null; // 記録メモの入力欄の広さ（updateSourcePaneLayout）
+    let sourcePaneManual = null;
     let lastSharedSaveAt = null;
     function writeLocalVerified(key, value) {
       try {
@@ -308,7 +263,7 @@
         const back = localStorage.getItem(key);
         return typeof back === 'string' && back === value;
       } catch (e) {
-        console.warn('このブラウザへの保存に失敗しました（保存容量が不足している可能性があります）:', e);
+        console.warn('Browser save failed; storage may be full:', e);
         return false;
       }
     }
@@ -331,7 +286,6 @@
       }
     }
 
-    // 「未保存」の表示を押すと、保存できていないカルテをすぐに送り直す
     (() => {
       const box = document.getElementById('save-status');
       if (!box) return;
@@ -350,17 +304,12 @@
       if (el) el.textContent = cp.updatedAt ? `(更新: ${formatRelativeTime(cp.updatedAt)})` : '';
     }
 
-    // AIの失敗を、理由つきで長めに表示する（理由は callGeminiAI が日本語で付ける。Googleの説明文を含むので文字は変換して表示）
     function showAiErrorToast(prefix, err) {
       const reason = err && err.message ? err.message : '理由は分かりませんでした';
       console.warn(prefix, err);
       showToast([prefix, { text: reason, detail: true }], 'error', 9000);
     }
-    // 【通知の出し方】利用者からの指摘により整理した：
-    //   success … 短く、数秒（2.5秒）で消える
-    //   info    … 少し長め（既定3.5秒）で消える
-    //   warn    … 入力の不足など、その場で直せること（5秒で消える）
-    //   error   … できなかったこと。「何ができなかったか・次に何をするか」を書き、×を押すまで残す
+
     function showToast(message, type = 'info', duration = null) {
       const toast = document.createElement('div');
       const styles = {
@@ -377,9 +326,7 @@
       toast.style.cssText = styles[type] || styles.info;
       toast.setAttribute('role', sticky ? 'alert' : 'status');
       const icon = type === 'success' ? 'fa-check' : type === 'error' ? 'fa-circle-exclamation' : type === 'warn' ? 'fa-triangle-exclamation' : 'fa-info-circle';
-      // 【HTML注入の防止】通知の本文は textContent で入れる。以前は innerHTML に文字列をそのまま入れていたため、
-      // 患者名（「「<img src=x onerror=…>」のカルテに切り替えました」など）がHTMLとして解釈され、
-      // スクリプトが動く経路になっていた。複数行にしたいときは、行の配列を渡す（{ text, detail } は小さめの説明行）。
+
       const iconEl = document.createElement('i');
       iconEl.className = `fa-solid ${icon}`;
       const body = document.createElement('span');
@@ -402,24 +349,18 @@
         close.textContent = '×';
         close.addEventListener('click', dismiss);
         toast.append(close);
-        // 同じ失敗の通知が重なって並ばないようにする
+
         const key = body.textContent;
         Array.from(DOM.toastContainer.children || []).forEach(t => { if (t.dataset && t.dataset.key === key) t.remove(); });
         if (toast.dataset) toast.dataset.key = key;
       }
       DOM.toastContainer.appendChild(toast);
-      // 消える通知が増えすぎないようにする（古いものから消す）
+
       const transient = Array.from(DOM.toastContainer.children || []).filter(t => t.classList && !t.classList.contains('toast-error'));
       if (transient.length > 3) transient.slice(0, transient.length - 3).forEach(t => t.remove());
       if (!sticky) setTimeout(dismiss, duration);
     }
 
-    // 削除・リセット系の操作の直後に「元に戻す」ボタン付きトーストを出す共通処理。
-    // undoFn は元に戻す処理そのもの（呼び出し側でsaveDataAndSync等の再描画も行う）。
-    // 【レビューで発見】「元に戻す」は、押した時点で表示している患者（saveDataAndSync が保存・共有先へ送る患者）とは
-    // 別の患者を書き換えることがある（削除の直後に別の患者へ切り替えてから押した場合など）。以前はその患者の
-    // updatedAt も変えず共有先へも送らなかったため、他の端末では削除されたままになっていた。
-    // options.patientId を渡すと、その患者の更新日時を進め、共有先への保存も予約する。
     function markPatientChanged(patientId) {
       const p = globalAppData.patients.find(x => x.id === patientId);
       if (!p) return;
@@ -459,23 +400,17 @@
       setTimeout(dismiss, 6000);
     }
 
-    // 汎用ダイアログ（window.prompt / window.confirm の代替。見た目をアプリ全体と統一する）
     const dialogEl = document.getElementById('modal-dialog');
     const dialogTitleEl = document.getElementById('dialog-title');
     const dialogMessageEl = document.getElementById('dialog-message');
     const dialogInputEl = document.getElementById('dialog-input');
     const dialogCancelBtn = document.getElementById('dialog-cancel');
     const dialogConfirmBtn = document.getElementById('dialog-confirm');
-    // 「含めて書き出す／含めずに書き出す／キャンセル」のように、はい・いいえに加えて中止も選べる
-    // 確認が必要な場合のための2つ目の選択ボタン（openDialogのsecondaryLabel。押すと'secondary'を返す）。
+
     const dialogSecondaryBtn = document.getElementById('dialog-secondary');
     let dialogResolve = null;
     let dialogReturnFocus = null;
 
-    // 【レビューで発見】①入力欄の無い確認ダイアログでは、フォーカスが後ろの画面（開いたボタン）に残っていたため、
-    // Enter で後ろのボタンがもう一度押されて2つ目のダイアログが開き、1つ目を待っている処理がずっと終わらなかった。
-    // 確認ボタンにフォーカスを移し、まだ答えの出ていないダイアログがあれば「キャンセル（null）」で終わらせてから開く。
-    // ②閉じたら、開く前にフォーカスのあった場所へ戻す（キーボードで続けて操作できるように）。
     function openDialog({ title, message = '', inputValue, placeholder = '', confirmLabel = 'OK', danger = false, secondaryLabel = null }) {
       if (dialogResolve) { const pending = dialogResolve; dialogResolve = null; pending(null); }
       else dialogReturnFocus = document.activeElement || null;
@@ -507,7 +442,7 @@
       const back = dialogReturnFocus;
       dialogReturnFocus = null;
       if (back && back.isConnected && typeof back.focus === 'function' && dialogEl.classList.contains('hidden')) {
-        try { back.focus(); } catch (e) { /* 戻せなくても操作は続けられる */ }
+        try { back.focus(); } catch (e) {   }
       }
     }
     dialogCancelBtn.addEventListener('click', () => closeDialog(null));
@@ -530,22 +465,12 @@
       return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
     }
 
-    // 【レビューで発見】onclick="fn('${id}')" のように、IDを引用符で囲んで属性の中のJavaScriptに入れていた。
-    // escapeHtml で ' を &#39; にしても、ブラウザは属性を読むときに ' へ戻してから実行するため防げない
-    // （IDに ' を含むカードがあると、押したときに任意のスクリプトが動く）。JSON.stringify で文字列の書き方にし、
-    // さらに escapeHtml で属性用に変換したものを、引用符を付けずにそのまま引数に書く：onclick="fn(${jsArg(id)})"
     function jsArg(v) {
       return escapeHtml(JSON.stringify(v == null ? '' : String(v)));
     }
 
-    // 【レビューで発見】患者・カード・参考データのID。共有先（サーバー）やファイルの読み込みから、HTMLや
-    // JavaScriptとして意味を持つ文字（' " < > など）を含むIDが入り込むと、画面の部品の属性が壊れたり
-    // スクリプトが動いたりする。使える文字は英数字と _ . : - だけにし、それ以外のIDは作り直す。
-    // 作り直すIDは元のIDから毎回同じものを計算する（共有先から同じカードが何度届いても、同じ1枚にまとまるように）。
-    // （起動直後の localStorage の読み込み＝このファイルの先頭でも使うため、const を使わず関数の中に書く）
     function isSafeRecordId(id) { return typeof id === 'string' && /^[\w.:-]{1,120}$/.test(id); }
-    // 患者の一覧全体（localStorage・ファイルの読み込み）：患者のIDも確かめて直し、同じIDの患者は1人にまとめる。
-    // 戻り値：{ patients, idMap（直した患者の 元のID→新しいID）, fixed }
+
     function repairPatientsList(patients) {
       const idMap = {};
       let fixed = 0;
@@ -566,12 +491,11 @@
     }
     function repairedRecordId(prefix, badId) {
       const s = String(badId == null ? '' : badId);
-      let h = 0x811c9dc5; // FNV-1a（32ビット）
+      let h = 0x811c9dc5;
       for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
       return `${prefix}_fix_${h.toString(36)}_${s.length.toString(36)}`;
     }
-    // 1人分の患者の記録の中のカード・参考データのIDを確かめて直す（直したら、元のIDは削除の記録として残し、
-    // 共有先にある古いIDのカードが次の保存で消えるようにする）。戻り値：直した数
+
     function repairPatientRecordIds(p) {
       if (!p || typeof p !== 'object') return 0;
       let fixed = 0;
@@ -589,7 +513,7 @@
             }
             if (!i._touchedAt) i._touchedAt = now;
           }
-          if (seen.has(i.id)) return false; // 同じIDのカードは1枚にまとめる
+          if (seen.has(i.id)) return false;
           seen.add(i.id);
           return true;
         });
@@ -601,12 +525,6 @@
       return fixed;
     }
 
-    // 【レビューで発見】AIの結果（検査値の評価・矛盾チェック・経時変化・看護計画・自分のアセスメントへの助言）は
-    // HTMLのまま患者の記録に保存され、共有先（サーバー）やファイルの読み込みから届いたものが、そのまま innerHTML で
-    // 表示されていた（誰でもサーバーへ送れるため、<img onerror=…> などを入れた記録を開くとスクリプトが動いた）。
-    // 表示する前に、動く部品（script・iframe・フォーム等）、on〜 の属性、style 属性、javascript: などのリンクを取り除く。
-    // 根拠のカードへのボタン（onclick="jumpToEvidenceCard('…')"）は、data-evidence-id に置き換えて、
-    // 下のまとめた処理（document のクリック）で同じように動かす。
     function sanitizeStoredHtml(html) {
       if (html == null || html === '') return '';
       const src = String(html);
@@ -614,7 +532,7 @@
       const URL_ATTRS = ['href', 'src', 'xlink:href', 'action', 'formaction', 'srcset', 'poster', 'background', 'data', 'ping', 'cite'];
       const EVIDENCE_ONCLICK = /^\s*jumpToEvidenceCard\(\s*(['"])([\w.:-]{1,120})\1\s*\)\s*;?\s*$/;
       if (typeof DOMParser === 'undefined') {
-        // テスト環境（DOMParser が無い）では、タグを全部外して文字として表示する
+
         const text = src.replace(/<(script|style)[\s\S]*?<\/\1\s*>/gi, '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '')
           .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
         return escapeHtml(text).replace(/\n/g, '<br>');
@@ -642,7 +560,7 @@
       });
       return body.innerHTML;
     }
-    // 根拠のカードのボタン（sanitizeStoredHtml が onclick を data-evidence-id に置き換えたもの）を押したとき
+
     if (typeof document !== 'undefined' && document.addEventListener) {
       const openEvidenceChip = el => { if (typeof window.jumpToEvidenceCard === 'function') window.jumpToEvidenceCard(el.getAttribute('data-evidence-id')); };
       document.addEventListener('click', e => {
@@ -656,26 +574,10 @@
       });
     }
 
-    // ---- Gemini AI呼び出しの共通処理 ----
-    // アプリ内の全AI機能（分類抽出・検査値評価・矛盾チェック・看護診断候補・経時変化サマリー・
-    // 看護計画生成・不足情報推定・報告要約・OCR）が、この1つの関数を通してGemini APIを呼び出す。
-    // contentsにはGemini APIの"contents"配列をそのまま渡す（通常のテキストプロンプトは
-    // [{ role: "user", parts: [{ text: prompt }] }]、画像を含むOCRの場合は
-    // [{ parts: [{ text }, { inline_data }] }] の形）。成功時は応答テキストをそのまま返し、
-    // HTTPエラー時は分かりやすいメッセージで例外を投げる（呼び出し側のtry/catchで拾う想定）。
     // ==========================================================================
-    // AIに送る前の個人情報の伏せ字（改善案F）
+
     // ------------------------------------------------------------------------
-    // カルテの文章はGemini（外部のAI）へそのまま送られていた。以前アップロードされた文書には学籍番号・
-    // 学生の氏名が入っていたこともあるため、送る直前に個人情報らしい語句を〈伏せ字1〉のような記号に
-    // 置き換え、AIの答えが返ってきたら記号を元の語句に戻す（カードの本文などは元のまま残る）。
-    // 伏せる対象：
-    //   ①設定画面で登録した語句（このブラウザだけに保存し、サーバーには送らない）
-    //   ②「氏名：」「学籍番号：」「病院名：」「住所：」「電話：」「生年月日：」等の見出しの後の値
-    //   ③メールアドレス・電話番号・郵便番号・7桁以上の番号（学籍番号・ID等）
-    //   ④「〇〇病院」「〇〇クリニック」等の固有の施設名（「総合病院」等の一般的な言い方は除く）
-    //   ⑤「田中さん」「山田先生」等の敬称付きの名前（「息子さん」「看護師さん」等の続柄・職種は除く）
-    // 画像（OCR）は伏せ字にできないため、送る前に一度だけ確認する（callGeminiAI参照）。
+
     // ==========================================================================
     const MASK_TERMS_STORAGE_KEY = 'nursing_ai_mask_terms';
     function loadUserMaskTerms() {
@@ -685,27 +587,25 @@
       } catch (e) { return []; }
     }
     const MASK_LABEL_REGEX = /((?:学生|患者|本人|家族|担当(?:教員|指導者|看護師|医)?|指導者|教員|キーパーソン)?(?:氏名|名前|姓名)|学籍番号|学生番号|学籍|患者ID|カルテ番号|診察券番号|(?:実習)?(?:病院名|施設名)|実習病院|実習施設|現?住所|電話番号|電話|TEL|携帯(?:番号)?|メールアドレス|メール|生年月日)(\s*[:：]\s*)((?:(?!\s+(?:学生|患者)?(?:氏名|名前|学籍番号|学生番号|電話番号|電話|住所|生年月日|実習病院|実習施設)\s*[:：])[^\n、。,，(（]){1,40})/gi;
-    // すでに匿名になっている値（A氏・B様など）や、中身の無い値は伏せない
+
     const MASK_ALREADY_ANONYMOUS_REGEX = /^(?:[A-Za-zＡ-Ｚａ-ｚ]{1,2}\s*(?:氏|さん|様)?|なし|無し|不明|記載なし|-|ー|―)$/;
     const MASK_PATTERN_REGEXES = [
-      /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g,                 // メールアドレス
-      /〒\s?\d{3}-?\d{4}/g,                              // 郵便番号
-      /(?<![\d.])0\d{1,4}-\d{1,4}-\d{3,4}(?![\d.])/g,   // 電話番号（ハイフン付き）
-      /(?<![\d.])0[5789]0\d{8}(?![\d.])/g,               // 携帯電話番号（ハイフン無し）
-      /(?<![\d.])\d{7,}(?![\d.])/g                        // 7桁以上の番号（学籍番号・ID等。検査値にはまず現れない）
+      /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g,
+      /〒\s?\d{3}-?\d{4}/g,
+      /(?<![\d.])0\d{1,4}-\d{1,4}-\d{3,4}(?![\d.])/g,
+      /(?<![\d.])0[5789]0\d{8}(?![\d.])/g,
+      /(?<![\d.])\d{7,}(?![\d.])/g
     ];
     const MASK_FACILITY_REGEX = /([一-龠々ァ-ヶーA-Za-z]{1,15})(大学(?:医学部)?附属病院|医療センター|クリニック|診療所|病院|医院)/g;
-    // 施設名の前半がこれらだけなら一般的な言い方なので伏せない（「総合病院」「整形外科クリニック」等）
+
     const MASK_GENERIC_FACILITY_PREFIXES = new Set(['総合', '大学', '市民', '県立', '市立', '町立', '村立', '国立', '公立', '私立', '急性期', '回復期', '療養型', '療養', '精神科', '一般', '転院先', '転院', '前', '当', '同', '他', '近隣', '地域', '地元', 'かかりつけ', '専門', 'リハビリ', 'リハビリテーション', '整形外科', '内科', '外科', '歯科', '眼科', '皮膚科', '耳鼻科', '耳鼻咽喉科', '産婦人科', '婦人科', '小児科', '脳外科', '脳神経外科', '循環器', '消化器', '在宅', '訪問']);
-    // 「様」は「苦悶様」「発作様」のような医学の言い回しと区別できないため対象にしない。「氏名」の「氏」も除く。
+
     const MASK_HONORIFIC_NAME_REGEX = /([一-龠々]{1,4}|[ァ-ヶー]{2,10})(さん|先生|医師|看護師|氏(?!名))/g;
-    // 敬称の前がこれらで終わるなら、名前ではなく続柄・職種なので伏せない（「息子さん」「看護師長さん」等）
+
     const MASK_ROLE_WORDS = ['患者', '息子', '娘', '奥', '旦那', '孫', '嫁', '婿', '妻', '夫', '兄', '姉', '弟', '妹', '母', '父', '祖母', '祖父', '叔父', '叔母', '伯父', '伯母', '家族', '本人', '友人', '隣人', '同室者', '同室', '担当', '主治', '主治医', '受持', '受け持ち', '看護', '看護師', '師長', '主任', '部長', '院長', '医', '研修医', '担当医', '皆', '各位', '先輩', '後輩', '学生', '実習生', '指導者', '教員', '薬剤師', '栄養士', '技師', '保健師', '助産師', '介護士', '職員', '親戚', '親族', '義母', '義父', '長男', '次男', '三男', '長女', '次女', '三女', '訪問', '病棟', '外来', '専任', '認定', '専門', '夜勤', '日勤', '准', '同', '当', '本', '両', '彼', '某', '故',
       'ヘルパー', 'ケアマネ', 'ケアマネージャー', 'ケアマネジャー', 'ソーシャルワーカー', 'ワーカー', 'スタッフ', 'セラピスト', 'ナース', 'ドクター', 'リハビリ', 'ボランティア', '退院支援', '支援', '緩和ケア', '認定看護', '専門看護', '感染管理', '病棟担当'];
     function isRoleWord(word) { return MASK_ROLE_WORDS.some(r => word.endsWith(r)); }
 
-    // text の中の個人情報らしい語句を〈伏せ字N〉に置き換える。ctx は1回のAI呼び出しの中で共有し、
-    // 同じ語句には同じ記号を使う（ctx.originals[N] = 元の語句）。
     function createMaskContext(extraTerms) {
       return { originals: [], index: new Map(), extraTerms: (extraTerms || []).slice().sort((a, b) => b.length - a.length) };
     }
@@ -721,15 +621,15 @@
       ctx.extraTerms.forEach(term => { if (out.includes(term)) out = out.split(term).join(maskToken(ctx, term)); });
       out = out.replace(MASK_LABEL_REGEX, (m, label, sep, value) => {
         const v = value.replace(/\s+$/, '');
-        // 「氏名： A氏 76歳 女性」のように匿名化済みの呼び方の後に年齢・性別等が続く場合も伏せない
+
         const firstToken = v.trim().split(/\s+/)[0];
-        // 「学籍番号：********」のように、すでに＊などで伏せてある値はそのまま
+
         if (/^[*＊×✕xX〇○●■□\-－]+$/.test(firstToken)) return m;
         if (!v.trim() || MASK_ALREADY_ANONYMOUS_REGEX.test(v.trim()) || MASK_ALREADY_ANONYMOUS_REGEX.test(firstToken) || v.includes('〈伏せ字')) return m;
         return label + sep + maskToken(ctx, v) + value.slice(v.length);
       });
       MASK_PATTERN_REGEXES.forEach(re => { out = out.replace(re, m => maskToken(ctx, m)); });
-      // 「B病院」のようにアルファベット1〜2文字だけの施設名は匿名化済みなので伏せない
+
       out = out.replace(MASK_FACILITY_REGEX, (m, name) => (MASK_GENERIC_FACILITY_PREFIXES.has(name) || isRoleWord(name) || /^[A-Za-z]{1,2}$/.test(name)) ? m : maskToken(ctx, m));
       out = out.replace(MASK_HONORIFIC_NAME_REGEX, (m, name) => isRoleWord(name) ? m : maskToken(ctx, name) + m.slice(name.length));
       return out;
@@ -738,7 +638,7 @@
       if (typeof text !== 'string' || !ctx || ctx.originals.length === 0) return text;
       return text.replace(/〈\s*伏せ字\s*(\d+)\s*〉/g, (m, n) => ctx.originals[Number(n) - 1] ?? m);
     }
-    // 設定画面の「今の文章で伏せ字を確認」：入力欄の文章（無ければカード）に伏せ字を当てて、何が伏せられるかを見せる
+
     window.previewAiMasking = async function() {
       const termsBox = document.getElementById('input-mask-terms');
       const terms = termsBox ? termsBox.value.split(/\r?\n/).map(x => x.normalize('NFKC').trim()).filter(x => x.length >= 2) : loadUserMaskTerms();
@@ -750,15 +650,9 @@
       const list = ctx.originals.map((o, k) => `〈伏せ字${k + 1}〉← ${o}`).join('\n');
       await openDialog({ title: `伏せ字になる語句：${ctx.originals.length}件`, message: ctx.originals.length ? `${list}\n\n伏せられていない個人情報があれば、「AIに送る前に伏せる語句」に追加してください。` : '個人情報らしい語句は見つかりませんでした。伏せたい語句があれば「AIに送る前に伏せる語句」に追加してください。', confirmLabel: '閉じる' });
     };
-    // 画像（OCR）を送ってよいかの確認は、ページを開いている間に一度だけ
+
     let imageSendConfirmed = false;
 
-    // 【改善案F】送る前に、文章の部分の個人情報らしい語句を伏せ字にし（maskPersonalInfo）、
-    // 返ってきた答えの伏せ字を元の語句に戻す（restoreMaskedText）。画像を含む場合は送る前に確認する。
-    // options.json=true：答えをJSONだけで返させる（AIで分類を評価する機能など、決まった形で受け取りたいとき）
-    // 【AIの処理の途中でページを閉じたとき】利用者に知らせずに結果が失われていた（確認項目）。AIに頼んでいる間は
-    // このブラウザに「実行中」の記録を残し、結果が届いたら消す。次にページを開いたときに古い記録が残っていれば、
-    // 結果が届かなかったことを知らせる（ほかのタブで実行中のものは消さないよう、3分より新しい記録には触れない）。
     const AI_PENDING_KEY = 'nursing_ai_pending';
     const AI_PENDING_STALE_MS = 3 * 60 * 1000;
     let aiRequestsRunning = 0;
@@ -766,7 +660,7 @@
       try { const v = JSON.parse(localStorage.getItem(AI_PENDING_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
     }
     function writeAiPending(list) {
-      try { if (list.length) localStorage.setItem(AI_PENDING_KEY, JSON.stringify(list.slice(-20))); else localStorage.removeItem(AI_PENDING_KEY); } catch (e) { /* 記録できなくてもAIの処理は続ける */ }
+      try { if (list.length) localStorage.setItem(AI_PENDING_KEY, JSON.stringify(list.slice(-20))); else localStorage.removeItem(AI_PENDING_KEY); } catch (e) {   }
     }
     function notifyLostAiRequests(now = Date.now()) {
       const list = readAiPending();
@@ -780,10 +674,7 @@
       showToast([`前回${when ? `（${when}）` : ''}AIの処理の途中でページを閉じたため、結果は届いていません`, { text: `${who ? `${who}で` : ''}実行していたAIの処理 ${lost.length}件。必要なら、もう一度AIのボタンを押してください。`, detail: true }], 'warn', 9000);
       return lost.length;
     }
-    // 【APIキーが未設定のとき】利用者からの要望：「APIを設定していないときにAI機能を使おうとすると『API設定してください』と
-    // 出るようにする。URLもしっかり準備する」。AIのボタンを押したときにキーが無ければ、取得のページ（Google AI Studio）と
-    // 設定の画面へ案内する。AIなしの簡易チェックがある機能は、そちらを選ぶこともできる（fallbackLabel）。
-    // 戻り値：'ok'（キーあり）｜'fallback'（AIなしで続ける）｜false（やめる）
+
     function requireApiKey(featureName, { fallbackLabel = '' } = {}) {
       if (globalAppData.apiKey) return Promise.resolve('ok');
       const modal = document.getElementById('modal-api-required');
@@ -822,7 +713,7 @@
     async function callGeminiAI(contents, options = {}) {
       const pendingId = 'ai_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
       let patientTitle = '';
-      try { patientTitle = getCurrentPatient().title || ''; } catch (e) { /* 患者が無くても続ける */ }
+      try { patientTitle = getCurrentPatient().title || ''; } catch (e) {   }
       writeAiPending(readAiPending().concat([{ id: pendingId, at: new Date().toISOString(), patient: patientTitle }]));
       aiRequestsRunning++;
       try {
@@ -833,20 +724,19 @@
       }
     }
     async function callGeminiAIOnce(contents, options = {}) {
-      // AIは画像の文字認識（OCR）のみに使用する。他の生成・評価・分類リクエストは送信しない。
+
       const hasImage = Array.isArray(contents) && contents.some(c => (c.parts || []).some(p => p.inline_data || p.file_data));
       if (!hasImage || options.ocr !== true) throw new Error('AI機能は画像の文字認識（OCR）のみに限定されています。分類・評価・計画にはAIを使用しません。');
-      // OCR専用呼び出しは画像の文字転記以外の生成処理を認めない。
-      // 関数名だけでなくリクエスト内容も制限し、将来のAI機能の誤接続を防ぐ。
+
       const textParts = contents.flatMap(c => c.parts || []).filter(p => typeof p.text === 'string').map(p => p.text.trim());
-      // 登録済みのOCR操作だけを許可。任意の画像付きプロンプトをAI生成に転用させない。
+
       const OCR_ALLOWED_INSTRUCTIONS = new Set([
-        '画像に含まれる看護基準・プロトコル・参考資料の内容を正確に文字起こししてください。',
-        '画像に含まれるカルテ記載や検査データ結果（WBC, CRP, Hb, クレアチニン等）を正確に文字起こししてください。'
+        'Transcribe all nursing reference text in the image verbatim, in its original language. Return text only.',
+        'Transcribe all clinical notes and laboratory results in the image verbatim, in their original language. Return text only.'
       ]);
       const hasOnlyOcrInstructions = textParts.length === 1 && OCR_ALLOWED_INSTRUCTIONS.has(textParts[0]);
       if (!hasOnlyOcrInstructions) throw new Error('OCR以外のAIへの依頼は許可されていません。');
-      // 実際のOCR操作は画像1枚＋文字起こし指示だけ。追加の命令・ファイルは許可しない。
+
       const parts = contents.flatMap(c => c.parts || []);
       const images = parts.filter(p => p.inline_data || p.file_data);
       if (contents.length !== 1 || parts.length !== 2 || images.length !== 1 || textParts.length !== 1) {
@@ -867,13 +757,9 @@
       const data = await requestGemini(globalAppData.apiKey, body);
       if (ctx.originals.length > 0) showToast(`AIに送る前に、個人情報らしい語句を${ctx.originals.length}件伏せ字にしました`, 'info');
       const text = extractGeminiText(data);
-      // 【レビューで発見】AIが空の答えを返したとき（candidates が空・STOPなのに文字が無い）、以前は '' を返し、各機能が
-      // 「結果を取得できませんでした」を“成功した結果”として保存して、前の良い結果（看護計画など）を上書きしていた。
-      // 空の答えは失敗として扱い、前の結果はそのまま残す。
+
       if (!String(text || '').trim()) throw new Error('AIの答えが空でした。少し待ってから、もう一度試してください（前の結果はそのまま残しています）。');
-      // 【AI機能の評価で発見】答えが長すぎて途中で切れたとき（finishReason が MAX_TOKENS）も、以前は何も知らせずに
-      // 完成した結果として保存していた（看護計画の最後の問題のEPが無い、等に気づけない）。
-      // 文章の答えには途中で切れたことを書き足し、JSONの答えは読み取れた所までを使うことを知らせる。
+
       const finish = data?.candidates?.[0]?.finishReason;
       let out = restoreMaskedText(text, ctx);
       if (finish === 'MAX_TOKENS') {
@@ -883,9 +769,6 @@
       return out;
     }
 
-    // 【AI機能の評価で発見】AIの答えのJSONは、```json の囲み・前後の説明・最後の余分な「,」・答えの途中切れで
-    // 崩れることがある。以前は機能ごとに JSON.parse していたため、これだけで「読み取れませんでした」になっていた。
-    // 崩れを直して読み取る共通の処理（読み取れないときは undefined）。truncated は途中切れを補ったか。
     function removeJsonTrailingCommas(s) {
       let out = '', inStr = false, esc = false;
       for (let i = 0; i < s.length; i++) {
@@ -904,7 +787,7 @@
       if (v !== undefined && v !== null && typeof v === 'object') return { value: v, truncated: false };
       for (let i = 0; i < raw.length; i++) {
         if (raw[i] !== '[' && raw[i] !== '{') continue;
-        // 括弧の対応を数える（文字列の中は数えない）。閉じ終わった要素の位置を覚えておき、途中で切れていたらそこで閉じる
+
         const stack = []; let inStr = false, esc = false, end = -1, lastCut = -1, lastStack = null;
         for (let j = i; j < raw.length; j++) {
           const c = raw[j];
@@ -933,31 +816,20 @@
     }
     function parseAiJsonLoose(text) { return parseAiJsonLooseInfo(text).value; }
 
-    // ---- Gemini への接続（キーの種類の見分け・送り先とモデルの選択・エラーの日本語化） ----
-    // HTMLファイルを直接開いて（file://）使っても、AIはブラウザから直接Googleに送るので動く。
-    // 【AQ.のキーへの対応】Google AI Studio で作るキーは、2026年から「AIza…」ではなく「AQ.…」で始まる新しい形式に
-    // なった。以前はAQ.をGoogle Cloud（Vertex AI）のキーとみなして Vertex AI に先に送っていたため、「Agent Platform API
-    // has not been used in project…」と断られていた。今は AQ. も AIza と同じ Gemini API（generativelanguage）に送り、
-    // キーはURLに付けず x-goog-api-key ヘッダーで渡す（Googleの推奨。新しいキーでも確実に通る）。
-    // 【モデルの提供終了への対応】固定の古いモデル（gemini-2.5-flash など）は提供が終わると 404 や
-    // 「ACCESS_TOKEN_TYPE_UNSUPPORTED」（認証の失敗に見える紛らわしいエラー）になる。既定は常に最新の Flash を指す
-    // 「gemini-flash-latest」を使い、モデルが使えないと言われたら、そのキーで使えるモデルの一覧を取得して
-    // いちばん新しい Flash に切り替えて送り直す。つながったモデルは覚えておく。
     const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
     const GEMINI_DEFAULT_MODEL = 'gemini-flash-latest';
-    // 一覧が取れないときに順に試すモデル（新しい順）
+
     const GEMINI_FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash'];
     const GEMINI_ENDPOINTS = {
-      // Gemini API（Google AI Studio のキー：AQ.… / AIza…）。キーはヘッダーで渡す
+
       studio: (key, model = GEMINI_DEFAULT_MODEL) => ({ url: `${GEMINI_API_BASE}/models/${model}:generateContent`, headers: { 'x-goog-api-key': key } }),
-      // Google Cloud の Vertex AI（エクスプレスモード）。AI Studio で断られたときだけ試す
+
       vertex: (key, model = GEMINI_FALLBACK_MODELS[GEMINI_FALLBACK_MODELS.length - 1]) => ({ url: `https://aiplatform.googleapis.com/v1/publishers/google/models/${model}:generateContent?key=${encodeURIComponent(key)}`, headers: {} })
     };
     function storageGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
-    function storageSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 保存できなくても動作には影響しない */ } }
+    function storageSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {   } }
     function currentGeminiModel() { return storageGet('gemini_model') || GEMINI_DEFAULT_MODEL; }
 
-    // 貼り付けたときに付きやすい余分な文字（前後の空白・改行・引用符・「key=」など）を取り除く
     function normalizeApiKey(raw) {
       let k = String(raw || '').replace(/[\s　​﻿]+/g, '');
       k = k.replace(/^(?:GEMINI_API_KEY|GOOGLE_API_KEY|API_KEY|key)[=:]/i, '');
@@ -965,7 +837,6 @@
       return k;
     }
 
-    // キーの形からどこで作ったキーかを見分ける
     function detectApiKeyKind(key) {
       const k = normalizeApiKey(key);
       if (!k) return { kind: 'empty', label: '未入力' };
@@ -975,8 +846,6 @@
       return { kind: 'unknown', label: '見慣れない形式のキー' };
     }
 
-    // 試す送り先の順番。AI Studio（Gemini API）を先に、AQ.や見慣れない形式のキーは Vertex AI も後で試す。
-    // 前回つながった送り先を覚えておき、次からはそれを先に使う。
     function geminiEndpointOrder(key) {
       const kind = detectApiKeyKind(key).kind;
       let order = kind === 'studio' ? ['studio'] : ['studio', 'vertex'];
@@ -985,14 +854,12 @@
       return order;
     }
 
-    // モデルが使えない（提供終了・名前が違う）ことを表すエラーか
     function isGeminiModelProblem(status, apiMessage) {
       const m = String(apiMessage || '');
       if (/ACCESS_TOKEN_TYPE_UNSUPPORTED|is not found for API version|models\/[\w.\-]+ is not found|not supported for generateContent|no longer (?:available|supported)|deprecated|has been (?:retired|shut ?down|discontinued)/i.test(m)) return true;
       return status === 404;
     }
 
-    // HTTPのエラーを、利用者が次に何をすればよいか分かる日本語にする
     function describeGeminiError(status, apiMessage, kind, model) {
       const m = String(apiMessage || '');
       const detail = m ? `\n（Googleからの説明：${m.slice(0, 200)}）` : '';
@@ -1020,7 +887,6 @@
       return `AIの呼び出しに失敗しました（HTTP ${status}）。${detail}`;
     }
 
-    // 送り先を切り替えて試すべきエラーか（キーと送り先が合っていないときに出るもの）
     function isEndpointMismatch(status, apiMessage) {
       if (status === 404) return true;
       if (status === 400 || status === 401 || status === 403) {
@@ -1029,7 +895,6 @@
       return false;
     }
 
-    // そのキーで使えるモデルの一覧から、いちばん新しい安定版の Flash を選ぶ（lite・音声・画像・プレビュー版は除く）
     function chooseBestFlashModel(models) {
       const usable = (models || []).filter(m => !m.supportedGenerationMethods || m.supportedGenerationMethods.includes('generateContent'))
         .map(m => String(m.name || '').replace(/^models\//, '')).filter(Boolean);
@@ -1052,33 +917,26 @@
       return chooseBestFlashModel(await fetchGeminiModelList(key));
     }
 
-    // 【混雑・回数の上限への対応】利用者からの報告：「AIを使いたいのにずっと混雑していて…となる」。
-    // 以前は 503（Google側の混雑）や 429（回数の上限）が1回返るとすぐにエラーにしていた。
-    //  ①同じモデルで少し待って2回まで送り直す（1日の上限に達したときは待っても同じなので送り直さない）
-    //  ②それでもだめなら、同じキーで使える別の Flash（軽量版の Flash-Lite や1つ前の版）に切り替える。
-    //    モデルごとに混雑の状況と回数の上限が別なので、別のモデルなら通ることが多い。
-    //    切り替え先はその回だけ使い、次からはまた普段のモデルを先に試す。
     const GEMINI_BUSY_ALTERNATIVES = ['gemini-flash-lite-latest'];
     function isGeminiTransientError(status) { return status === 429 || status === 500 || status === 502 || status === 503 || status === 504; }
     function isGeminiDailyQuota(apiMessage) { return /per ?day|PerDay|daily/i.test(String(apiMessage || '')); }
     function geminiRetryDelaysMs() { return Array.isArray(window.__geminiRetryDelaysMs) ? window.__geminiRetryDelaysMs : [2000, 5000]; }
     const geminiSleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-    // 混雑しているときに切り替える別のモデル（そのキーで使える Flash の新しい順＋軽量版）
+
     async function geminiBusyAlternatives(key, tried) {
       const list = await fetchGeminiModelList(key);
       const names = (list || []).filter(m => !m.supportedGenerationMethods || m.supportedGenerationMethods.includes('generateContent'))
         .map(m => String(m.name || '').replace(/^models\//, ''));
       const version = n => (n.match(/gemini-(\d+(?:\.\d+)?)/) || [0, '0'])[1].split('.').map(Number);
       const newerFirst = (a, b) => { const va = version(a), vb = version(b); return (vb[0] - va[0]) || ((vb[1] || 0) - (va[1] || 0)); };
-      // 「-latest」はプレビュー版を指すことがあり（Googleの説明）、新しい版ほど混みやすい。
-      // 安定版の Flash-Lite（新しい順）→ 1つ前の版の Flash → Flash-Lite の最新、の順に試す
+
       const lite = names.filter(n => /^gemini-\d+(?:\.\d+)?-flash-lite$/.test(n)).sort(newerFirst);
       const flash = names.filter(n => /^gemini-\d+(?:\.\d+)?-flash$/.test(n)).sort(newerFirst);
       const olderFlash = flash.slice(1);
       return [...lite, ...olderFlash, ...GEMINI_BUSY_ALTERNATIVES, ...flash.slice(0, 1), ...GEMINI_FALLBACK_MODELS.slice(1)]
         .filter((m, i, a) => a.indexOf(m) === i && !tried.has(m));
     }
-    // 混雑のときにつながったモデルは30分だけ覚えておき、その間は最初から使う（毎回待たされないように）
+
     const GEMINI_BUSY_MODEL_KEY = 'gemini_busy_model';
     const GEMINI_BUSY_MODEL_TTL_MS = 30 * 60 * 1000;
     function recentBusyModel() {
@@ -1087,7 +945,7 @@
         return v && v.model && Date.now() - v.at < GEMINI_BUSY_MODEL_TTL_MS ? v.model : null;
       } catch (e) { return null; }
     }
-    // 利用者が「API設定」で選ぶモデルの好み：auto（おすすめ）／lite（軽くて混みにくい）／flash（標準）
+
     const GEMINI_MODEL_PREFS = { auto: null, lite: 'gemini-flash-lite-latest', flash: GEMINI_DEFAULT_MODEL };
     function geminiModelPref() { const v = storageGet('gemini_model_pref'); return Object.prototype.hasOwnProperty.call(GEMINI_MODEL_PREFS, v) ? v : 'auto'; }
     function firstStudioModel() {
@@ -1122,13 +980,13 @@
         const e = (Array.isArray(j) ? j[0]?.error : j?.error) || {};
         apiMessage = e.message || '';
         if (e.status && !apiMessage.includes(e.status)) apiMessage = `${e.status}: ${apiMessage}`;
-        // 理由（ACCESS_TOKEN_TYPE_UNSUPPORTED・API_KEY_INVALID など）は details に入っていることがあるので添える
+
         const reasons = (Array.isArray(e.details) ? e.details : []).map(d => d && d.reason).filter(r => r && !apiMessage.includes(r));
         if (reasons.length) apiMessage += ` [${reasons.join(', ')}]`;
       } catch (e) { apiMessage = ''; }
       return { ok: false, status: res.status, apiMessage, model };
     }
-    // 1つの送り先で、モデルが使えなければ別のモデルに切り替えて試す（最大4回）
+
     async function tryGeminiEndpoint(ep, key, body) {
       const tried = new Set();
       const first = ep === 'studio' ? firstStudioModel() : (storageGet('gemini_model') && storageGet('gemini_model') !== GEMINI_DEFAULT_MODEL ? storageGet('gemini_model') : GEMINI_FALLBACK_MODELS[0]);
@@ -1141,7 +999,7 @@
         if (tried.has(model)) continue;
         tried.add(model);
         let r = await postGemini(ep, key, model, body);
-        // ①混雑・回数の上限：少し待って同じモデルに送り直す
+
         if (!r.ok && isGeminiTransientError(r.status) && !isGeminiDailyQuota(r.apiMessage)) {
           for (const wait of geminiRetryDelaysMs()) {
             await geminiSleep(wait);
@@ -1153,17 +1011,17 @@
           if (busyFallback && ep === 'studio') storageSet(GEMINI_BUSY_MODEL_KEY, JSON.stringify({ model, at: Date.now() }));
           return busyFallback || model === recentBusyModel() || geminiModelPref() !== 'auto' ? { ...r, viaBusyFallback: true } : r;
         }
-        // 覚えていた混雑回避のモデルがだめになったら忘れる
-        if (model === recentBusyModel()) { try { localStorage.removeItem(GEMINI_BUSY_MODEL_KEY); } catch (e) { /* 無視 */ } }
+
+        if (model === recentBusyModel()) { try { localStorage.removeItem(GEMINI_BUSY_MODEL_KEY); } catch (e) {   } }
         last = r;
-        // ②それでも混雑・上限なら、別のモデルに切り替える（AI Studio のみ）
+
         if (isGeminiTransientError(r.status)) {
           if (ep !== 'studio') return r;
           if (!busyFallback) { busyFallback = true; queue = await geminiBusyAlternatives(key, tried); }
           continue;
         }
         if (!isGeminiModelProblem(r.status, r.apiMessage)) return r;
-        // モデルが使えない：一覧から最新の Flash を探し（AI Studio のみ）、だめなら既知のモデルを順に試す
+
         if (ep === 'studio' && !discovered) {
           discovered = true;
           const best = await discoverGeminiModel(key);
@@ -1174,7 +1032,6 @@
       return last;
     }
 
-    // キーと依頼内容を受け取り、合う送り先・モデルに送って応答（JSON）を返す。失敗時は日本語のエラーを投げる。
     let lastGeminiModelUsed = null;
     async function requestGemini(rawKey, body) {
       const key = normalizeApiKey(rawKey);
@@ -1189,13 +1046,13 @@
         if (r.ok) {
           lastGeminiModelUsed = r.model;
           storageSet('gemini_api_endpoint', ep);
-          // 混雑のために一時的に切り替えたモデルは覚えない（次からはまた普段のモデルを先に使う）
+
           if (ep === 'studio' && !r.viaBusyFallback) storageSet('gemini_model', r.model);
           return r.data;
         }
         const err = new Error(describeGeminiError(r.status, r.apiMessage, kind, r.model));
         err.status = r.status; err.endpoint = ep; err.apiMessage = r.apiMessage;
-        // 最初の送り先（AI Studio）のエラーを優先して見せる
+
         if (!firstError) firstError = err;
         if (i < order.length - 1 && isEndpointMismatch(r.status, r.apiMessage)) continue;
         if (firstError !== err) {
@@ -1207,7 +1064,6 @@
       throw firstError;
     }
 
-    // 「API設定」の接続テスト：入力中のキーで短い依頼を送り、結果を文章で返す（キーは保存しない）
     async function testGeminiConnection(rawKey) {
       const info = detectApiKeyKind(rawKey);
       if (info.kind === 'empty') return { ok: false, kindLabel: info.label, message: 'APIキーを入力してください。' };
@@ -1221,25 +1077,11 @@
       }
     }
 
-    // AIの応答テキスト（改行と**強調**だけを使う簡易マークダウン形式で返ってくる想定）を
-    // 表示用HTMLに変換する共通処理。応答が空だった場合はfallbackの文言を使う。
-    // AIの答えに「<」等が含まれても表示が崩れないよう、先に文字をHTML用に変換してから整える。
-    // evidence（改善案A。buildEvidenceIndex参照）を渡すと、〔C3〕のような根拠のカードの番号を、
-    // 押すとそのカードへ移動できる小さなボタンに置き換える。
-    // 【読みやすさの改善】利用者からの要望：「AIが作成した文章をもう少し読みやすく、要点を分かりやすく」。
-    // 以前は改行と**太字**しか整えていなかったため、AIが使う見出し（###）・箇条書き（* - 1.）・引用（>）・区切り線（---）が
-    // 記号のまま表示され、「〜の視点から…まとめました」のような前置きも残っていた。また根拠のカード〔C3〕の後ろの「。」が
-    // 次の行に取り残されていた。ここで次のように整える：
-    //   ・前置き（「ご提示いただいた…作成しました」等）と区切り線を取り除く
-    //   ・見出し・箇条書き（入れ子も）・番号付きの箇条書き・引用を、表示用の形にする
-    //   ・【要点】の見出しの下は、枠で囲んで目立たせる（AIへの指示文で、最初に要点を書かせている：AI_STYLE_INSTRUCTION）
-    //   ・「根拠：」「理由：」などのラベルを太字にする
-    //   ・根拠のカードの番号は句点の後ろにまとめ、同じ番号が続いたら1つにする
     function cleanAiText(text) {
       let s = String(text || '').replace(/\r/g, '');
-      // 根拠のカードの番号の後ろの句読点を、番号の前に移す（「…推移〔C3〕〔C5〕。」→「…推移。〔C3〕〔C5〕」）
+
       s = s.replace(/((?:[ \t]*[〔【\[]\s*C\s*\d{1,4}(?:\s*[、,，・\/]?\s*C?\s*\d{1,4})*\s*[〕】\]])+)[ \t]*([。、．，])/g, '$2$1');
-      // 同じ番号が続けて付いていたら1つにする
+
       s = s.replace(/([〔【\[]\s*C\s*(\d{1,4})\s*[〕】\]])(?:\s*[〔【\[]\s*C\s*\2\s*[〕】\]])+/g, '$1');
       const lines = s.split('\n');
       const PREAMBLE = /(?:視点から|視点より|に基づき|に基づいて|をもとに|を踏まえ)[^。]*(?:まとめ|作成|評価|指摘|提案|整理|解説)[^。]*[。.:：]?$|(?:まとめました|作成しました|指摘します|提案します|記載しています|示します|整理しました|解説します)[。.:：]?$|^(?:はい|承知しました|かしこまりました)[、。]/;
@@ -1299,7 +1141,7 @@
           out.push(`<li>${aiInlineHtml(ul ? ul[1] : ol[2])}`);
           return;
         }
-        // 箇条書きのすぐ後ろの字下げした行は、その項目の続き
+
         if (lists.length && indent > 0) { out.push(`<br>${aiInlineHtml(t)}`); return; }
         closeLists();
         para.push(aiInlineHtml(t));
@@ -1313,10 +1155,7 @@
       if (evidence) html = linkEvidenceCodes(html, evidence);
       return `<div class="ai-text">${html}</div>`;
     }
-    // AIへの指示文に付ける、書き方の指示（最初に要点、前置きなし、短い箇条書き、根拠の番号は文の終わり）
-    // 【AIの内容の正確さ】利用者からの依頼「AIが出した内容をすべて評価して」で見つかった問題（記録に無い手術・薬を前提にした説明、
-    // 「著明な」などの誇張、基準値内の値を「低下」と書く、存在しない看護技術の名前、どのカードにも同じ根拠を付ける）を防ぐ決まり。
-    // すべてのAIの指示に添える。
+
     const AI_ACCURACY_RULES = '【正確さの決まり】記録に書かれていない事実（手術・使っている薬・既往など）を前提にしないでください。数値の程度を誇張しないでください（「著明」「重度」は基準値を大きく外れるときだけ使い、基準値内の値を「低下」「異常」と書かないでください）。アセスメントに必要なのに記録に無い値（例：肺炎なら呼吸数・意識・血糖など）は「記録がない」と書いてください。医学用語・看護技術の名前は教科書で使われる正確なものだけを使い、確かでない言葉は使わないでください。薬の量や治療を変える提案はしないでください。根拠のカードの番号は、その文に直接関係するカードだけに付け、同じカードを繰り返し付けないでください。';
     const AI_STYLE_INSTRUCTION = '【書き方】前置き・あいさつ・「〜の視点から」「〜をまとめました」のような説明は書かず、すぐ本題から書いてください。最初に「### 要点」の見出しを置き、結論を2〜3個の短い箇条書き（1つ40字程度まで）で示してください。そのあと詳細を「### 見出し」と「- 」の箇条書きで書き、1つの箇条書きは1〜2文にしてください。根拠のカードの番号は、文の終わりの句点の後ろにまとめて付けてください。' + AI_ACCURACY_RULES;
 
@@ -1324,47 +1163,35 @@
       const cp = getCurrentPatient();
       cp.sourceText = DOM.sourceText.value;
       cp.updatedAt = new Date().toISOString();
-      // 患者カルテ・学習データのいずれも、サーバー側への保存（共有・研究用途）とは別に、
-      // このブラウザのlocalStorageにも保存しておく。サーバーに接続できない場合や保存が
-      // 間に合わなかった場合でも、このブラウザ内には確実に残るようにするため。
-      // 書いた後に読み直して、このブラウザに確かに保存できたかを確かめる（容量超過などで保存できない場合も画面表示は続ける）
+
       const wasOk = lastLocalSaveOk;
       lastLocalSaveOk = writeLocalVerified(PATIENTS_STORAGE_KEY, JSON.stringify({ patients: globalAppData.patients, currentPatientId: globalAppData.currentPatientId }));
       if (!lastLocalSaveOk && wasOk) showToast(['このブラウザにカルテを保存できませんでした', { text: '保存容量が足りない可能性があります。「︙」→「データをファイルに保存」でバックアップを取り、使っていないカルテをアーカイブ・削除してください。', detail: true }], 'error');
       try {
         localStorage.setItem(LEARNING_DICT_STORAGE_KEY, JSON.stringify(globalAppData.learningUserDict));
       } catch (e) {
-        console.warn('学習データのブラウザ内保存に失敗しました（ブラウザの保存容量が不足している可能性があります）:', e);
+        console.warn('Local learning save failed; storage may be full:', e);
       }
-      // 学習専用ファイル（data/learning-dict.json）へのサーバー側の反映は、変更のたびに
-      // reportLearningEvent() が個別に、ページを閉じる時に beforeunload の sendBeacon がまとめて、
-      // それぞれサーバーへ送ることで行う（このブラウザ内の保存とは別経路）。
-      schedulePatientSync(cp.id); // 複数端末で共有できるよう、この患者カルテをサーバー側にも保存する（連続入力時は少し待ってまとめて送る）
-      // この時点ではサーバーへの保存はまだ完了していない（schedulePatientSyncは少し待ってから送信するため）。
-      // 実際に「保存済み」と表示するのは、syncPatientToServer()がサーバーからの成功応答を受け取った後。
+
+      schedulePatientSync(cp.id);
+
       updateSaveStatus('saving');
       updateCurrentPatientMeta();
     }
 
-    // 【患者の切り替えの順番】利用者からの報告：患者Aをアーカイブすると、切り替え先の患者Bの本文がAの本文で
-    // 上書きされた。以前は「患者IDを切り替える → persistData()」の順だったため、persistData() が入力欄に
-    // まだ表示されている患者Aの本文を、切り替え先の患者Bに書き込んでいた（新規作成・完全削除も同じ）。
-    // 必ず ①今の患者を保存（入力欄の本文は今の患者に書き戻す） ②患者IDを切り替える ③画面を読み直す
-    // ④どの患者を開いているかだけを保存（本文には触れない）の順にする。
     function savePatientsLocally() {
       lastLocalSaveOk = writeLocalVerified(PATIENTS_STORAGE_KEY, JSON.stringify({ patients: globalAppData.patients, currentPatientId: globalAppData.currentPatientId }));
       return lastLocalSaveOk;
     }
     function changeCurrentPatient(nextId, { saveCurrent = true } = {}) {
       window.clearCarePlanEvidenceNavigation?.();
-      // 記録メモの入力の保存待ち（下の scheduleSourceTextSave）は、ここで今の患者に保存する（①）ので取り消す。
-      // 取り消さないと、切り替えた後に保存待ちが動き、切り替え先の患者の更新日時だけが進んでしまう。
+
       cancelSourceTextSave();
       const currentExists = globalAppData.patients.some(p => p.id === globalAppData.currentPatientId);
-      if (saveCurrent && currentExists) persistData(); // ①入力欄の本文は、今表示している患者に保存する
+      if (saveCurrent && currentExists) persistData();
       globalAppData.currentPatientId = nextId;          // ②
-      loadLocalState();                                  // ③入力欄に切り替え先の本文を読み込む
-      savePatientsLocally();                             // ④本文は書き換えず、開いている患者だけを覚える
+      loadLocalState();
+      savePatientsLocally();
       updateCurrentPatientMeta();
     }
 
@@ -1375,21 +1202,10 @@
       renderReferenceList();
     }
 
-    // ---- 複数端末での同時編集マージ用のしるし ----
-    // 同じ患者カルテを複数端末が同時に編集すると、片方の端末が送った「カード一覧まるごと」が
-    // もう片方の端末だけが知っている新しいカードを消してしまうことがある。これを防ぐため、
-    // サーバー側（server.js の mergePatientRecord）はカード単位でマージする。その判断材料として、
-    // 「このカードが最後にいつ書き換えられたか」(touchItem)と「このカードがいつ削除されたか」
-    // (markItemDeleted、一定期間だけ保持する削除の記録＝tombstone)をカード操作のたびに付与する。
     function touchItem(item) {
       if (item) item._touchedAt = new Date().toISOString();
     }
-    // カードを手で編集した履歴（何を・どう変えたか）をカード自身に記録する。
-    // 利用者からの要望：「テキストを書き出すときに、何かしら編集されていた場合、何がどう編集されたか
-    // わかるように書き出しをするようにしてください」。書き出し（buildCardsReportText）で
-    // 「手で編集した履歴」として一覧にする。古い履歴から消して最大30件まで保持する。
-    //   kind: 'text'（本文の編集 from→to）/ 'type'（分類の変更 from→to）/
-    //         'tagAdd'・'tagRemove'（タグの追加・削除 hId）/ 'merge'（統合 from=[統合元の本文]）
+
     function logItemEdit(item, entry) {
       if (!item) return;
       const log = Array.isArray(item.editLog) ? item.editLog.slice() : [];
@@ -1407,23 +1223,7 @@
       cp.deletedItemIds = cp.deletedItemIds.filter(t => t && t.id !== itemId);
     }
 
-    // ---- 起動時（loadSharedPatients）のカード単位マージ ----
-    // 【原因と修正】起動時にサーバー側の共有カルテとこのブラウザのカルテを統合する処理
-    // （loadSharedPatients）は、これまで「患者カルテをまるごと」比較し、updatedAt（最終更新日時）が
-    // 新しい方をそのまま採用していた。しかしserver.js側の通常の保存（PUT /api/patients/:id）は
-    // 既にカード単位でマージしており（サーバー側のmergePatientRecord参照）、起動時だけこの
-    // 「まるごと置き換え」方式になっていたのが食い違いの原因になっていた。
-    // 例えば、①タブを開いたまま分類・カード追加をした直後（次回このタブを開き直すまでの間）に、
-    // 別端末・別ブラウザで同じ患者を編集してサーバー側のupdatedAtがこのブラウザより新しくなった
-    // 場合、②Render無料枠のサーバー起動待ち等でこの起動時マージが完了するより前に操作を始めて
-    // しまった場合等に、サーバー側のカルテのほうが「新しい」と判定され、このブラウザだけが
-    // 知っている新しいカードごと丸ごと消えてしまうことがあった（利用者からの報告：
-    // 「たまに情報カードがリセットされてしまう」）。
-    // server.js のmergePatientRecordと全く同じ考え方（カードの生死はID単位・_touchedAt／
-    // tombstoneの新旧で判定し、タイトル・カルテ本文等それ以外の項目だけをupdatedAtの新しい方で
-    // 採用する）をこのブラウザ側でも行うことで、起動時のマージでも片方だけが知っているカードを
-    // 誤って消さないようにする。
-    const ITEM_TOMBSTONE_WINDOW_MS = 3 * 24 * 60 * 60 * 1000; // 3日：server.js側と同じ保持期間
+    const ITEM_TOMBSTONE_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
     function pruneTombstonesClient(list, now) {
       if (!Array.isArray(list)) return [];
       return list.filter(t => t && typeof t.id === 'string' && typeof t.at === 'string' && (now - new Date(t.at).getTime()) <= ITEM_TOMBSTONE_WINDOW_MS);
@@ -1439,11 +1239,10 @@
       }
       return 0;
     }
-    // 欲求ごとの自分のアセスメント（myAssessments）など「キー → { …, updatedAt }」の記録は、キーごとに新しい方を使う
-    // （server.js の mergeKeyedRecords と同じ考え方）
+
     const PATIENT_KEYED_RECORD_FIELDS = ['myAssessments', 'missingChecks', 'untaggedReviews', 'carePlans', 'checkpoints'];
     function fillMissingFieldsClient(primary, secondary) {
-      // 新しい方(primary)を土台にし、そこに無い・空の部分だけ、もう一方(secondary)から取り込む（新しい方が丸ごと勝って他端末の追記が消えるのを防ぐ）
+
       const isMap = v => v && typeof v === 'object' && !Array.isArray(v);
       const isEmpty = v => v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
       if (!isMap(primary) || !isMap(secondary)) return primary;
@@ -1475,16 +1274,14 @@
       });
       return out;
     }
-    // GitHub Pages（*.github.io）では、このブラウザで「最初の1回だけ」Renderのサーバーの記録を正とする
-    // （ブラウザ内に残る古い記録で上書きしないため）。2回目以降は通常どおり、新しい方を土台に足りない部分を取り込む。
+
     const PAGES_FIRST_SYNC_KEY = 'pagesFirstSyncDone';
     const SERVER_IS_PRIMARY = (() => {
       if (typeof location === 'undefined' || !/\.github\.io$/i.test(location.hostname || '')) return false;
       try { return !localStorage.getItem(PAGES_FIRST_SYNC_KEY); } catch (e) { return false; }
     })();
     const CASE_DERIVED_FIELDS = ['myAssessments', 'missingChecks', 'untaggedReviews', 'carePlans', 'checkpoints', 'relationMap'];
-    // 「置き換えて分類」で別の事例に替えたとき（caseResetAt）、替える前の事例から作られた記録（関連図・看護計画・自分のアセスメント等）が
-    // 他端末・共有先に残っていて戻ってこないよう、リセットを知らない側の派生データは捨てる
+
     function applyCaseResetClient(a, b) {
       const t = r => (r && r.caseResetAt ? new Date(r.caseResetAt).getTime() || 0 : 0);
       const reset = Math.max(t(a), t(b));
@@ -1498,7 +1295,7 @@
       return [strip(a), strip(b), new Date(reset).toISOString()];
     }
     function mergePatientRecordClient(local, server, now = Date.now()) {
-      // 【レビューで発見】共有先から届いた記録のカード・参考データのIDも確かめて直す（repairPatientRecordIds）
+
       if (server) repairPatientRecordIds(server);
       if (!server) return local;
       if (!local) return server;
@@ -1508,8 +1305,7 @@
 
       const localTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
       const serverTime = server.updatedAt ? new Date(server.updatedAt).getTime() : 0;
-      // items・deletedItemIds以外の項目（タイトル・カルテ本文・検査値評価結果等）は、
-      // 従来通りupdatedAtが新しい方をまるごと採用する（server.js側のisNotStale相当）。
+
       const localWins = !SERVER_IS_PRIMARY && localTime >= serverTime;
       const base = localWins ? fillMissingFieldsClient(local, server) : fillMissingFieldsClient(server, local);
 
@@ -1525,7 +1321,6 @@
       });
       const survivingTombstoneIds = new Set(tombstonesById.keys());
 
-      // 並び順はローカル（このブラウザで今見えている順）を基本にし、サーバーだけが持つカードは末尾に足す
       const orderedIds = localItems.filter(i => i && i.id).map(i => i.id);
       serverItems.forEach(i => { if (i && i.id && !localById.has(i.id)) orderedIds.push(i.id); });
 
@@ -1542,7 +1337,7 @@
           const tombstoneTime = new Date(tombstone.at).getTime();
           if (localItem && itemEffectiveTimeClient(localItem, local.updatedAt) > tombstoneTime) {
             mergedItems.push(localItem);
-            survivingTombstoneIds.delete(id); // 削除より後に書き換えられている＝復元されたとみなす
+            survivingTombstoneIds.delete(id);
             return;
           }
           if (serverItem && itemEffectiveTimeClient(serverItem, server.updatedAt) > tombstoneTime) {
@@ -1550,7 +1345,7 @@
             survivingTombstoneIds.delete(id);
             return;
           }
-          return; // 削除が有効。カードは含めない
+          return;
         }
 
         if (localItem && serverItem) {
@@ -1577,22 +1372,20 @@
     function loadLocalState() {
       const cp = getCurrentPatient();
       DOM.sourceText.value = cp.sourceText || '';
-      // 別の患者に切り替えたら、前の患者の文章に付けた印の表示は閉じて入力欄に戻す。
+
       if (highlightedSourceItemId != null) clearSourceHighlight(false);
-      // 【レビューで発見】保存されたAIの結果のHTMLは、表示の前に sanitizeStoredHtml で動く部品を取り除く
+
       DOM.labEvalContent.innerHTML = sanitizeStoredHtml(cp.labEvaluationResult);
-      // 結果の無い欄は出さない（「AIの結果」の欄に、結果のあるものだけをタブで並べる。refreshAiResults）
+
       document.getElementById('lab-evaluation-panel')?.classList.toggle('hidden', !cp.labEvaluationResult);
-      // 保存されたAIの結果が無いときは、今の記録から作った検査値の評価（AIなし）を出す（js/08）
+
       if (!cp.labEvaluationResult && typeof window.refreshLabAssessmentPanel === 'function') window.refreshLabAssessmentPanel();
       DOM.currentPatientTitle.textContent = cp.title;
 
-      // 前回のAI分析結果（矛盾チェック・看護診断候補・経時変化サマリー）があれば患者切り替え時にも復元する
       const contradictionPanel = document.getElementById('contradiction-panel');
       if (cp.contradictionResult) { contradictionPanel.classList.remove('hidden'); document.getElementById('contradiction-content').innerHTML = sanitizeStoredHtml(cp.contradictionResult); }
       else { contradictionPanel.classList.add('hidden'); document.getElementById('contradiction-content').innerHTML = ''; }
-      // 看護診断候補は、1件ずつ選べる形で表示する（改善案D。js/08 の renderDiagnosisPanel）。
-      // 「AIでアセスメントを進める順番」の案内も、この患者の進み具合で描き直す（renderAiSteps）。
+
       if (typeof renderDiagnosisPanel === 'function') renderDiagnosisPanel(cp);
       if (typeof renderAiSteps === 'function') renderAiSteps(cp);
       const timelinePanel = document.getElementById('timeline-panel');
@@ -1603,9 +1396,8 @@
       else { carePlanPanel.classList.add('hidden'); document.getElementById('careplan-content').innerHTML = ''; }
       if (typeof refreshAiResults === 'function') refreshAiResults(false);
 
-      // 看護計画のページの描き直し・画面を開いたときの自動の記録（js/13。読み込む前の最初の表示では呼ばない）
       if (typeof onPatientViewReloaded === 'function') onPatientViewReloaded(cp);
-      if (typeof onRelationMapPatientReloaded === 'function') onRelationMapPatientReloaded(cp); // 関連図のページ（js/15）
+      if (typeof onRelationMapPatientReloaded === 'function') onRelationMapPatientReloaded(cp);
 
       selectedCardIds.clear();
       boardSearchTerm = '';
@@ -1617,12 +1409,10 @@
       renderAssessmentTable();
       renderReferenceList();
       updateCurrentPatientMeta();
-      // 患者ページを切り替えた直後は、切り替え先の患者の保存状態を表示する（共有先に送れていない患者なら「失敗」のまま）
+
       updateSaveStatus(typeof unsyncedPatientIds !== 'undefined' && unsyncedPatientIds.has(cp.id) ? 'error' : 'saved-earlier');
     }
 
-    // ヘッダー左上のカルテの切り替え（今のカルテの名前のボタン＋押すと開く一覧。index.htmlのpatient-menu参照）。
-    // 一覧は最近更新した順。アーカイブ済みのページは出さない（「すべてのページ・アーカイブ」から確認・復元できる）。
     function renderPatientTabs() {
       const visible = globalAppData.patients.filter(pat => !pat.archived);
       const current = getCurrentPatient();
@@ -1632,7 +1422,7 @@
       if (count) count.textContent = visible.length > 1 ? `${visible.length}` : '';
       const searchBox = document.getElementById('patient-menu-search');
       const q = (searchBox && searchBox.value || '').trim().toLowerCase();
-      if (searchBox) searchBox.classList.toggle('hidden', visible.length < 6); // 少ないうちは検索欄を出さない
+      if (searchBox) searchBox.classList.toggle('hidden', visible.length < 6);
       const sorted = visible.slice().sort((a, b) => (a.id === globalAppData.currentPatientId ? -1 : b.id === globalAppData.currentPatientId ? 1 : String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''))));
       const frag = document.createDocumentFragment();
       const shown = sorted.filter(pat => !q || (pat.title || '').toLowerCase().includes(q));
@@ -1663,9 +1453,7 @@
       box.addEventListener('input', () => renderPatientTabs());
       box.addEventListener('click', e => e.stopPropagation());
     })();
-    // 【レビューで発見】患者の一覧のボタンは、以前は押したときの処理（onclick）の中に、患者のIDを引用符で囲んで
-    // そのまま JavaScript に書き込んでいた（共有先から ' を含むIDの患者が届くと、押したときにスクリプトが動く）。
-    // IDは data-patient-id に入れ、ここでまとめて受け取る（見た目・動きは以前と同じ）。
+
     function handlePatientActionClick(e) {
       const el = e.target && e.target.closest ? e.target.closest('[data-patient-action]') : null;
       if (!el) return;
@@ -1696,7 +1484,7 @@
     });
     function createNewPatientPage(title) {
       const newId = 'patient_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-      if (globalAppData.patients.some(p => p.id === globalAppData.currentPatientId)) persistData(); // 先に今の患者を保存する
+      if (globalAppData.patients.some(p => p.id === globalAppData.currentPatientId)) persistData();
       globalAppData.patients.push({ id: newId, title: String(title).trim(), items: [], sourceText: '', labEvaluationResult: '', referenceNotes: [], archived: false, updatedAt: new Date().toISOString(), deletedItemIds: [] });
       changeCurrentPatient(newId, { saveCurrent: false });
       schedulePatientSync(newId);
@@ -1717,8 +1505,6 @@
       }
     });
 
-    // タブ上の「アーカイブ」ボタンは、誤操作でも「一覧」からすぐ復元できるようアーカイブ扱いにする
-    // （完全な削除は「一覧」モーダルの削除ボタンからのみ行う）
     window.deletePatient = function(patId, e) {
       e.stopPropagation();
       archivePatient(patId);
@@ -1730,14 +1516,14 @@
       const nonArchivedCount = globalAppData.patients.filter(x => !x.archived).length;
       if (!p.archived && nonArchivedCount <= 1) return showToast('最後のページはアーカイブできません', 'warn');
       const wasCurrent = globalAppData.currentPatientId === id;
-      // ①アーカイブする前に、今表示している患者（アーカイブする患者のこともある）の本文を保存する
+
       persistData();
       p.archived = true;
       p.updatedAt = new Date().toISOString();
-      schedulePatientSync(id); // アーカイブしたページ自身も明示的に同期する（現在のページと異なる場合、persistDataだけでは同期されないため）
+      schedulePatientSync(id);
       if (wasCurrent) {
         const next = globalAppData.patients.find(x => !x.archived);
-        if (next) changeCurrentPatient(next.id, { saveCurrent: false }); // ②③④（今の患者は①で保存済み）
+        if (next) changeCurrentPatient(next.id, { saveCurrent: false });
       } else {
         savePatientsLocally();
         renderPatientTabs();
@@ -1747,7 +1533,7 @@
         p.archived = false;
         p.updatedAt = new Date().toISOString();
         schedulePatientSync(id);
-        if (wasCurrent) changeCurrentPatient(id); // 今表示している患者（切り替え先）を保存してから戻る
+        if (wasCurrent) changeCurrentPatient(id);
         else { savePatientsLocally(); renderPatientTabs(); }
         renderPatientListModal();
       }, { patientId: id });
@@ -1758,7 +1544,7 @@
       if (!p) return;
       p.archived = false;
       p.updatedAt = new Date().toISOString();
-      persistData(); // 今表示している患者の本文を保存（復元した患者の本文には触れない）
+      persistData();
       schedulePatientSync(id);
       renderPatientTabs();
       renderPatientListModal();
@@ -1781,12 +1567,12 @@
       const idx = globalAppData.patients.findIndex(p => p.id === id);
       if (idx === -1) return;
       const deletingCurrent = globalAppData.currentPatientId === id;
-      // 削除するのが別の患者なら、先に今表示している患者の本文を保存する（削除する患者の本文は保存しない）
+
       if (!deletingCurrent) persistData();
       globalAppData.patients.splice(idx, 1);
       if (patientSyncTimers[id]) { clearTimeout(patientSyncTimers[id]); delete patientSyncTimers[id]; }
       rememberDeletedPatient(id);
-      deletePatientFromServer(id); // サーバー側の共有カルテからも削除する（他端末にも削除が反映される）
+      deletePatientFromServer(id);
       if (deletingCurrent) {
         const next = globalAppData.patients.find(x => !x.archived) || globalAppData.patients[0];
         changeCurrentPatient(next.id, { saveCurrent: false });
@@ -1799,7 +1585,7 @@
     };
 
     // ==========================================================================
-    // 患者ページ一覧モーダル：検索・並び替え・アーカイブ表示切り替え
+
     // ==========================================================================
     function renderPatientListModal() {
       const body = document.getElementById('patient-list-body');
@@ -1852,14 +1638,8 @@
     document.getElementById('patient-list-show-archived').addEventListener('change', renderPatientListModal);
     document.getElementById('modal-patient-list').addEventListener('click', e => { if (e.target.id === 'modal-patient-list') document.getElementById('modal-patient-list').classList.add('hidden'); });
 
-    // ===== 学習データ管理（パスワード保護） =====
-    // 分類ボード／総合アセスメント表とは別の入り口（ヘッダーの「学習データ管理」ボタン）から、
-    // 全利用者共有の学習内容（learningUserDict）を一覧・編集・削除できるようにする。
-    // 保存・読み込みは個別ファイルを都度作るのではなく、サーバー側の学習専用ファイル
-    // （data/learning-dict.json）に自動で反映される（ページを開いた時に自動読込／変更のたびに自動保存）。
     const ADMIN_PASSWORD = '1739';
-    // 一度パスワードを通したら、このタブを閉じて新しくページを開き直すまでは再入力を求めない。
-    // （sessionStorageなので、リロードでは保持され、新しいタブ/ウィンドウで開き直すと消える＝再度パスワードが必要）
+
     const ADMIN_UNLOCK_KEY = 'nursing_admin_unlocked';
     const adminPasswordModal = document.getElementById('modal-admin-password');
     const adminPasswordInput = document.getElementById('input-admin-password');
@@ -1873,7 +1653,7 @@
       setTimeout(() => adminPasswordInput.focus(), 30);
     }
     function closeAdminPasswordModal() { adminPasswordModal.classList.add('hidden'); }
-    // 学習データ管理のタブ（ボタンの id は admin-tab-btn-〇〇、中身は admin-panel-〇〇）
+
     const ADMIN_TABS = ['list', 'history', 'caselog', 'trends', 'review', 'customrules', 'reports', 'criteria', 'snapshots'];
     function switchAdminTab(tab) {
       ADMIN_TABS.forEach(t => {
@@ -1887,18 +1667,17 @@
       if (tab === 'caselog') loadAndRenderCaseLog();
       if (tab === 'trends') renderLearningTrendsList();
       if (tab === 'review') renderRuleReviewPanel();
-      // 追加キーワードは、開くたびに再取得して他の人が登録した分も見えるようにする
+
       if (tab === 'customrules') loadCustomTagRules();
       if (tab === 'reports') loadAndRenderCardReports();
-      // 分類基準タブを開くたびに再取得し、他端末が編集した基準ノート本体・追加の要望も見えるようにする
+
       if (tab === 'criteria') { editingCriteriaId = null; editingReferenceSourceId = null; loadNotebookContent(); loadSharedCriteria(); loadReferenceSources(); }
-      // カルテスナップショットタブを開くたびに再取得し、他端末がタブを閉じた分も見えるようにする
+
       if (tab === 'snapshots') loadAndRenderPatientSnapshots();
     }
-    // HTMLファイルを直接開いている（file://）か。サーバーが要る機能の案内に使う
-    // （GitHub Pages で開いたときは js/04 の API_BASE で Render のサーバーにつなぐので、file: とは別扱い）
+
     const IS_FILE_PROTOCOL = typeof location !== 'undefined' && location.protocol === 'file:';
-    // サーバーが要るタブ（事例ログ・報告・スナップショット）で読み込めなかったときの案内
+
     function adminServerNoticeHtml(featureName) {
       const why = IS_FILE_PROTOCOL ? 'HTMLファイルを直接開いているため' : 'サーバー（server.js）に接続できないため';
       return `<div class="text-xs text-[var(--ink)] leading-relaxed p-3 rounded-[var(--radius-sm)]" style="background:var(--gold-soft);border:1px solid var(--line);">
@@ -1906,7 +1685,7 @@
         <div class="text-[11px] text-[var(--ink-muted)]">全員で共有する記録なので、サーバーに保存されています。今は${why}表示できません。見るには、公開しているページから開くか、アプリのフォルダで「npm start」を実行してブラウザで http://localhost:3000 を開いてください。</div>
       </div>`;
     }
-    // 学習データ管理の上部に、全員の学習データが見えているかを表示する
+
     function renderAdminServerStatus() {
       const el = document.getElementById('admin-server-status');
       if (!el) return;
@@ -1927,14 +1706,14 @@
       renderAdminLearningList();
       switchAdminTab('list');
       adminModal.classList.remove('hidden');
-      // 開くたびに全員共有の学習データを取り直し、他の人の修正も見えるようにする
+
       await loadSharedLearningDict();
       renderAdminServerStatus();
       renderAdminLearningList();
     }
     function submitAdminPassword() {
       if (adminPasswordInput.value === ADMIN_PASSWORD) {
-        try { sessionStorage.setItem(ADMIN_UNLOCK_KEY, '1'); } catch (e) { /* 保存できなくても今回のパスワード確認自体は成立させる */ }
+        try { sessionStorage.setItem(ADMIN_UNLOCK_KEY, '1'); } catch (e) {   }
         closeAdminPasswordModal();
         openAdminPanel();
       } else {
@@ -1973,15 +1752,12 @@
     document.getElementById('admin-trends-search').addEventListener('input', renderLearningTrendsList);
     document.getElementById('admin-reports-search').addEventListener('input', renderCardReportsList);
 
-    // 【見直し】以前は1行ごとに票の＋−ボタンと14項目の選択欄を全部作っていたため、件数が増えると重く、
-    // 見た目もごちゃごちゃしていた。ふだんは「どう学習したか」だけを表示し、「編集」を押した行だけ票を直せる。
-    // 絞り込み・並べ替えを付け、100件ずつ表示する。
     const ADMIN_LEARNING_PAGE = 100;
     let adminLearningLimit = ADMIN_LEARNING_PAGE;
-    const adminLearningEditing = new Set(); // 「編集」中の文章
+    const adminLearningEditing = new Set();
     const learningTypeColorOf = t => t === 's' ? 'var(--gold)' : (t === 'o' ? 'var(--slate)' : (t === 'unnecessary' ? 'var(--brick)' : 'var(--ink-muted)'));
     const learningTypeLabelOf = t => t === 's' ? 'S' : (t === 'o' ? 'O' : (t === 'unnecessary' ? '不要' : t));
-    // 1件の学習内容を、表示・絞り込み・並べ替えに使う形にまとめる
+
     function summarizeLearningEntry(text, learned) {
       const typeVotes = learned?.typeVotes || {};
       const typeEntries = Object.keys(typeVotes).length > 0
@@ -2025,7 +1801,7 @@
       countEl.textContent = `${rows.length}件（全${total}件）`;
 
       if (total === 0) {
-        // 空のときは、何をすると溜まるのか・なぜ空なのかを説明する
+
         const offline = learningServerState === 'offline'
           ? `<p class="mt-2 text-[11px]" style="color:var(--brick);"><i class="fa-solid fa-plug-circle-xmark"></i> ${IS_FILE_PROTOCOL ? 'HTMLファイルを直接開いている' : 'サーバーに接続できない'}ため、全員で共有している学習データは読み込まれていません。このブラウザで直した分だけが表示されます。</p>`
           : '';
@@ -2046,7 +1822,7 @@
         const esc = escapeHtml(text);
         let chipsHtml;
         if (!editing) {
-          // ふだんの表示：どう学習したかだけ（票の多い分類を色付き、タグは名前と回数）
+
           const typeChips = r.typeEntries.map(([t, c]) => {
             const isTop = t === r.topType;
             return `<span class="field-chip" style="background:${isTop ? learningTypeColorOf(t) : 'var(--line-soft)'};color:${isTop ? 'var(--on-fill)' : 'var(--ink-muted)'};">${escapeHtml(learningTypeLabelOf(t))}${c > 1 ? ` ×${c}` : ''}</span>`;
@@ -2054,7 +1830,7 @@
           const tagChips = r.tagEntries.map(([h, c]) => `<span class="tag-chip">${escapeHtml(hendersonNameOf(Number(h)))}${c > 1 ? ` ×${c}` : ''}</span>`).join('');
           chipsHtml = (typeChips || tagChips) ? typeChips + tagChips : '<span class="field-chip" style="background:var(--ink-muted);color:var(--on-fill);">未設定</span>';
         } else {
-          // 編集中：票の＋−と、票の無い分類・タグの追加
+
           const typeChips = r.typeEntries.map(([t, c]) => {
             const isTop = t === r.topType;
             return `<span class="field-chip" style="background:${isTop ? learningTypeColorOf(t) : 'var(--line-soft)'};color:${isTop ? 'var(--on-fill)' : 'var(--ink-muted)'};gap:.3rem;">${escapeHtml(learningTypeLabelOf(t))}${c > 1 ? ` ×${c}` : ''}
@@ -2094,7 +1870,7 @@
       }
       listEl.replaceChildren(frag);
     }
-    // 検索・絞り込み・並べ替えを変えたら、表示件数を最初の100件に戻す
+
     ['admin-learning-filter', 'admin-learning-sort'].forEach(id => document.getElementById(id)?.addEventListener('change', () => { adminLearningLimit = ADMIN_LEARNING_PAGE; renderAdminLearningList(); }));
     document.getElementById('admin-learning-list').addEventListener('click', e => {
       if (e.target.closest('.admin-learning-more-btn')) { adminLearningLimit += ADMIN_LEARNING_PAGE; renderAdminLearningList(); return; }
@@ -2106,8 +1882,6 @@
       }
     });
 
-    // ---- 学習データの書き出し（バックアップ）・読み込み ----
-    // 読み込むときは、同じ文章の票は多い方を採用する（同じファイルを2回読み込んでも票が増えない）。
     function mergeLearningDicts(base, incoming) {
       const out = { ...(base || {}) };
       let added = 0, updated = 0;
@@ -2116,7 +1890,7 @@
         const cur = out[text];
         if (!cur) { out[text] = mergeOne({}, inc); added++; return; }
         const merged = mergeOne(cur, inc);
-        // キーの並び順の違いは変更とみなさない
+
         const stable = o => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.keys(v).sort().reduce((r, key) => { r[key] = v[key]; return r; }, {}) : v));
         if (stable(merged) !== stable(cur)) { out[text] = merged; updated++; }
       });
@@ -2165,7 +1939,7 @@
       try {
         const blob = new Blob([JSON.stringify(dict)], { type: 'application/json' });
         await fetch(`${API_BASE}/learning-dict/sync`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: blob });
-      } catch (e) { /* サーバー未接続でも、このブラウザには取り込み済み */ }
+      } catch (e) {   }
       renderAdminLearningList();
       showToast(`学習データを読み込みました（新規${added}件・更新${updated}件）`, 'success');
     }
@@ -2177,7 +1951,6 @@
       e.target.value = '';
     });
 
-    // 学習データ管理：票数の手動修正（自動分類が明らかに間違っている/古い場合に、票を直接調整できるようにする）
     window.adjustAdminTypeVote = function(text, type, delta) {
       const learned = globalAppData.learningUserDict[text] = { ...globalAppData.learningUserDict[text] };
       learned.typeVotes = { ...(learned.typeVotes || {}) };
@@ -2215,25 +1988,16 @@
       if (!confirmed) return;
       delete globalAppData.learningUserDict[text];
       saveDataAndSync();
-      reportLearningEvent(text, 'delete', {}); // フォルダ内の学習専用ファイル（data/learning-dict.json）からも削除する
+      reportLearningEvent(text, 'delete', {});
       renderAdminLearningList();
       showToast('学習内容を削除しました', 'success');
     }
-    // クリックされた削除ボタンのdata-text属性から対象を判定する（イベント委譲）。
-    // テキストに引用符等の特殊文字が含まれてもHTML属性が壊れないよう、inline onclickではなくこちらを使う。
+
     document.getElementById('admin-learning-list').addEventListener('click', e => {
       const btn = e.target.closest('.admin-delete-learning-btn');
       if (btn) deleteAdminLearningEntry(btn.dataset.text);
     });
 
-    // 学習データの保存・読み込みは、都度ファイルを作る／選ぶのではなく自動化されている：
-    //   ・ページを開いた時：起動時に loadSharedLearningDict() がフォルダ内の学習専用ファイル
-    //     （data/learning-dict.json）からすべてのデータを自動で読み込む。
-    //   ・変更のたびに：分類・タグ付け・削除などの操作ごとに reportLearningEvent() が
-    //     即座にその1ファイルへ反映する（新しいファイルは作らず、同じファイルに追加・削除する）。
-    //   ・ページを閉じる時：beforeunloadで念のためまとめて同期する（通信できていなかった分の保険）。
-
-    // 変更履歴（学習した結果、何がどう変わったか）の表示
     const ADMIN_ACTION_LABELS = { create: '新規登録', type: '分類変更', tagAdd: 'タグ追加', tagRemove: 'タグ削除', col: '欄の変更', edit: 'テキスト編集', delete: '削除', adjustTypeVote: '票の手動修正(分類)', adjustHendersonVote: '票の手動修正(タグ)', merge: 'カード統合' };
     const ADMIN_TYPE_LABELS = { s: 'S', o: 'O', unnecessary: '不要', unclassified: '未分類', undefined: '未設定' };
     function hendersonNameOf(hId) { return HENDERSON_NEEDS.find(n => n.id === hId)?.name || `項目${hId}`; }
@@ -2259,7 +2023,7 @@
       const listEl = document.getElementById('admin-history-list');
       const countEl = document.getElementById('admin-history-count');
       const term = (document.getElementById('admin-history-search').value || '').trim().toLowerCase();
-      let entries = learningHistory.slice().reverse(); // 新しい変更を上に表示
+      let entries = learningHistory.slice().reverse();
       if (term) entries = entries.filter(e =>
         e.text.toLowerCase().includes(term) ||
         formatHistoryDetail(e).toLowerCase().includes(term) ||
@@ -2297,9 +2061,6 @@
       showToast('変更履歴を消去しました', 'success');
     });
 
-    // ===== 事例ログ（case-log.json）ビューア（分析・研究用途） =====
-    // サーバー側に蓄積された「いつ・何が・どう変わったか」の生ログをそのまま検索・閲覧できるようにする。
-    // 変更履歴（learningHistory）はこのブラウザだけの簡易ログだが、事例ログは全利用者共有の記録。
     let cachedCaseLog = null;
     async function loadAndRenderCaseLog() {
       const listEl = document.getElementById('admin-caselog-list');
@@ -2325,12 +2086,11 @@
       const term = (document.getElementById('admin-caselog-search').value || '').trim().toLowerCase();
       const actionFilter = document.getElementById('admin-caselog-action-filter').value;
 
-      // 操作種別ごとの件数（全体の傾向をひと目で把握できるように）
       const actionCounts = {};
       cachedCaseLog.forEach(e => { actionCounts[e.action] = (actionCounts[e.action] || 0) + 1; });
       statsEl.textContent = `全${cachedCaseLog.length}件　` + Object.entries(actionCounts).map(([a, c]) => `${ADMIN_ACTION_LABELS[a] || a}:${c}`).join('　');
 
-      let entries = cachedCaseLog.slice().reverse(); // 新しいものを上に
+      let entries = cachedCaseLog.slice().reverse();
       if (actionFilter) entries = entries.filter(e => e.action === actionFilter);
       if (term) entries = entries.filter(e =>
         (e.text || '').toLowerCase().includes(term) ||
@@ -2339,7 +2099,7 @@
       );
       countEl.textContent = `${entries.length}件（全${cachedCaseLog.length}件）`;
 
-      const MAX_RENDER = 500; // 大量ログでも画面が重くならないよう表示件数に上限を設ける
+      const MAX_RENDER = 500;
       const shown = entries.slice(0, MAX_RENDER);
       if (shown.length === 0) {
         listEl.innerHTML = '<p class="text-xs text-[var(--ink-muted)] text-center py-6">条件に一致する事例ログがありません。</p>';
@@ -2369,14 +2129,6 @@
       listEl.replaceChildren(frag);
     }
 
-    // ===== 学習傾向レポート（学習データから見えている傾向の可視化） =====
-    // これまでは同じ文言への修正が繰り返された「傾向」（computeLearningTrendRows）は
-    // AIへの指示文（buildEffectiveNotebookContent経由）に自動で織り込まれるだけで、
-    // 実際に何が・どれだけ繰り返し確認されているのかを人が見て確かめる場所が無かった。
-    // このタブでは、そのまま画面上に一覧表示し、AIへの指示文に実際に反映される
-    // 上位LEARNING_TREND_MAX_FOR_PROMPT件かどうかも分かるようにする。
-    // ※データ源は他タブ（現在の学習内容）と同じ globalAppData.learningUserDict のため、
-    //   サーバーへの再取得は不要（学習データ管理を開いた時点で既に読み込み済み）。
     function renderLearningTrendsList() {
       const listEl = document.getElementById('admin-trends-list');
       const countEl = document.getElementById('admin-trends-count');
@@ -2411,15 +2163,6 @@
       listEl.replaceChildren(frag);
     }
 
-    // ===== ルール見直し候補（改善提案5）=====
-    // 利用者への改善提案5：「手直しの記録を集計して、『このキーワードは何回もタグを直されている』という
-    // 候補を一覧にする。そうすると、1件ずつ報告してもらわなくても改善点が見つかる」。
-    // データ源は、各カードに残っている手で編集した履歴（item.editLog。logItemEdit参照）。
-    //   ①外されたタグ：最後の操作が「タグ削除」で、今も付いていないタグ。そのタグを付けた原因と
-    //     考えられる既定のキーワード（本文に含まれる、そのタグのキーワード）ごとに数える。
-    //   ②手で追加されたタグ：最後の操作が「タグ追加」で、今も付いているタグ（キーワードが足りない候補）。
-    //   ③S/O・不要の手直し：最初の自動分類と今の分類が違うカード。
-    // 削除したカードは履歴も残らないため数えられない。
     const RULE_REVIEW_TYPE_LABELS = { s: 'Sデータ', o: 'Oデータ', unnecessary: '不必要', unclassified: '未分類' };
     function netTagEdits(item) {
       const last = new Map();
@@ -2444,7 +2187,7 @@
         removed.forEach(h => {
           const need = HENDERSON_NEEDS.find(n => n.id === h);
           const hits = need ? need.keywords.filter(kw => text.includes(kw)) : [];
-          // 長いキーワードに含まれる短いキーワード（「呼吸数」の中の「呼吸」等）は、長い方にまとめる
+
           const keywords = hits.filter(kw => !hits.some(o => o !== kw && o.includes(kw)));
           (keywords.length ? keywords : ['']).forEach(kw => {
             const key = `${h}\u0000${kw}`;
@@ -2551,7 +2294,6 @@
       showToast('ルール見直し候補をテキストファイル（.txt）に書き出しました', 'success');
     };
 
-    // ===== 追加キーワード（改善提案6。detectMultipleHendersonTagsの下の説明を参照）=====
     let customRulesOffline = false;
     async function loadCustomTagRules() {
       try {
@@ -2559,29 +2301,29 @@
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         globalAppData.customTagRules = normalizeCustomTagRules(data?.rules);
-        try { localStorage.setItem(CUSTOM_TAG_RULES_CACHE_KEY, JSON.stringify(globalAppData.customTagRules)); } catch (e) { /* 保存できなくても動作は続ける */ }
+        try { localStorage.setItem(CUSTOM_TAG_RULES_CACHE_KEY, JSON.stringify(globalAppData.customTagRules)); } catch (e) {   }
         customRulesOffline = false;
       } catch (e) {
         customRulesOffline = true;
-        console.warn('追加キーワードの読み込みに失敗しました（このブラウザに保存されている写しで動作します）:', e);
+        console.warn('Custom rules load failed; using local copy:', e);
       }
       renderCustomTagRulesPanel();
     }
     async function saveCustomTagRules(rules) {
       const normalized = normalizeCustomTagRules(rules);
       globalAppData.customTagRules = normalized;
-      try { localStorage.setItem(CUSTOM_TAG_RULES_CACHE_KEY, JSON.stringify(normalized)); } catch (e) { /* 保存できなくても動作は続ける */ }
+      try { localStorage.setItem(CUSTOM_TAG_RULES_CACHE_KEY, JSON.stringify(normalized)); } catch (e) {   }
       renderCustomTagRulesPanel();
       try {
         const res = await fetch(`${API_BASE}/custom-tag-rules`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: normalized }) });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         globalAppData.customTagRules = normalizeCustomTagRules(data?.rules);
-        try { localStorage.setItem(CUSTOM_TAG_RULES_CACHE_KEY, JSON.stringify(globalAppData.customTagRules)); } catch (e) { /* 同上 */ }
+        try { localStorage.setItem(CUSTOM_TAG_RULES_CACHE_KEY, JSON.stringify(globalAppData.customTagRules)); } catch (e) {   }
         renderCustomTagRulesPanel();
         showToast('追加キーワードを保存しました（全員に共有されます。今のカードに反映するには「分類開始」→「置き換えて分類」）', 'success');
       } catch (e) {
-        console.warn('追加キーワードの保存に失敗しました:', e);
+        console.warn('Custom rules save failed:', e);
         showToast(['共有先に保存できませんでした', { text: 'このブラウザでは使えますが、他の人には共有されていません。サーバーが動いているか確かめてから、もう一度登録してください。', detail: true }], 'error');
       }
     }
@@ -2592,7 +2334,7 @@
       if (select && select.options && select.options.length <= 1) select.innerHTML = '<option value="">タグを選択</option>' + HENDERSON_NEEDS.map(n => `<option value="${n.id}">${n.id}. ${escapeHtml(n.name)}</option>`).join('');
       const rules = globalAppData.customTagRules || [];
       document.getElementById('admin-customrules-count').textContent = `${rules.length}件`;
-      // サーバーにつながらないときは、このブラウザの写しを表示していることを伝える（他の人の登録は見えない）
+
       const offlineNote = customRulesOffline ? `<p class="text-[10.5px] text-[var(--brick)] px-1 pb-1"><i class="fa-solid fa-triangle-exclamation"></i> ${IS_FILE_PROTOCOL ? 'HTMLファイルを直接開いている' : 'サーバーに接続できない'}ため、このブラウザに保存されている写しを表示しています（他の人の登録は見えず、ここで登録した分も共有されません）。</p>` : '';
       if (!rules.length) {
         listEl.innerHTML = offlineNote + '<p class="text-xs text-[var(--ink-muted)] text-center py-6">まだ登録はありません。上の欄から登録すると、次に分類したときから反映されます。</p>';
@@ -2646,14 +2388,8 @@
       document.getElementById('customrule-keyword').focus();
     };
 
-    // ===== カルテスナップショットビューア（patient-snapshots.json）=====
-    // 自分やほかの利用者がタブを閉じた（＝編集を終えた）瞬間の患者カルテ（S/Oカードの内容一式）を
-    // そのまま振り返れる、閲覧専用の履歴（beforeunloadのsendBeaconで記録される。app.js側は
-    // window.addEventListener('beforeunload', ...) 内の /api/patient-snapshot 送信を参照）。
-    // patients.json（PUT /api/patients/:id）は他端末のカードとマージされ続ける「最新の共有カルテ」
-    // だが、ここは上書きせずそのまま積み重ねる点が異なる。事例ログ等と同様、削除機能は無い。
     let cachedPatientSnapshots = null;
-    const expandedSnapshotIds = new Set(); // どの行を展開表示中か（タブを開き直すとリセットされる）
+    const expandedSnapshotIds = new Set();
 
     async function loadAndRenderPatientSnapshots() {
       const listEl = document.getElementById('admin-snapshots-list');
@@ -2677,11 +2413,11 @@
       if (!Array.isArray(cachedPatientSnapshots)) return;
       const term = (document.getElementById('admin-snapshots-search').value || '').trim().toLowerCase();
 
-      let entries = cachedPatientSnapshots.slice().reverse(); // 新しいものを上に
+      let entries = cachedPatientSnapshots.slice().reverse();
       if (term) entries = entries.filter(e => (e.patientTitle || '').toLowerCase().includes(term));
       countEl.textContent = `${entries.length}件（全${cachedPatientSnapshots.length}件）`;
 
-      const MAX_RENDER = 200; // カード一式を含み1件が大きくなりやすいため、他のログより控えめな上限にする
+      const MAX_RENDER = 200;
       const shown = entries.slice(0, MAX_RENDER);
       if (shown.length === 0) {
         listEl.innerHTML = '<p class="text-xs text-[var(--ink-muted)] text-center py-6">条件に一致するカルテスナップショットがありません（タブを閉じるたびに、ここに記録されていきます）。</p>';
@@ -2691,14 +2427,10 @@
       const frag = document.createDocumentFragment();
       shown.forEach(entry => {
         const time = entry.closedAt ? new Date(entry.closedAt).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '(日時不明)';
-        // ログイン機能が無いため「誰が」を実名では特定できない。せめて同じタブ（clientId）による
-        // 複数回のクローズを見分けられるよう、識別子の末尾だけを短く表示する。
+
         const clientShort = entry.clientId ? entry.clientId.slice(-6) : '不明';
         const items = Array.isArray(entry.items) ? entry.items : [];
-        // 「不要」判定済みのカードはタグが無くて当然のため対象外とし、患者背景（基本情報／
-        // 医学情報）に振り分けられたカードも意図的にタグが無いカードのため対象外とする。
-        // それ以外でhendersonIdsが空のものだけを数える。折りたたんだ状態でも件数が分かるよう、
-        // 展開しなくても一覧の見出し行に表示する。
+
         const untaggedCount = items.filter(it => it.type !== 'unnecessary' && !(Array.isArray(it.hendersonIds) && it.hendersonIds.length > 0)).length;
         const isExpanded = expandedSnapshotIds.has(entry.id);
         const row = document.createElement('div');
@@ -2715,12 +2447,7 @@
           ${isExpanded ? `
             <div class="flex flex-col gap-1 pl-4 border-l-2 border-[var(--line-soft)]">
               ${items.length === 0 ? '<p class="text-[11px] text-[var(--ink-muted)]">カードはありませんでした。</p>' : items.map(it => {
-                // 【原因と修正】タグが付いている場合は括弧書きでタグ名を表示していたが、タグが
-                // 付いていない場合は何も表示されず、ぱっと見ただけではタグ未設定のカードを
-                // 見分けられなかった（利用者からの指摘：「スナップショットからもタグが
-                // 付いていないものがわかるようにしてほしい」）。「不要」判定済みのカードは
-                // タグが無くて当然のため対象外とし、それ以外でhendersonIdsが空のものには
-                // 目立つ「タグ未設定」バッジを表示する。
+
                 const hasTags = Array.isArray(it.hendersonIds) && it.hendersonIds.length > 0;
                 const tagBadge = hasTags
                   ? `<span class="text-[10px] text-[var(--ink-muted)] shrink-0">(${it.hendersonIds.map(hendersonNameOf).join('/')})</span>`
@@ -2756,16 +2483,12 @@
       renderPatientSnapshotsList();
     });
 
-    // ===== 情報カードの不具合報告ビューア（card-reports.json）=====
-    // カード右上の旗アイコンから送られた「この情報カードの書き込みが変だ」という内容の一覧。
-    // 事例ログ・抽出前の文章と同様、全利用者共有・閲覧のみ（削除機能は無い）。
-    // 同じ人がページを閉じるまでに送った複数件は、サーバー側で1つのレコード（items配列）にまとめられている。
     let cachedCardReports = null;
     async function loadAndRenderCardReports() {
       const listEl = document.getElementById('admin-reports-list');
       listEl.innerHTML = `<div class="flex items-center text-[var(--ink-muted)] text-xs p-2"><i class="fa-solid fa-spinner fa-spin mr-2"></i> 報告を読み込み中...</div>`;
       document.getElementById('admin-reports-summary').classList.add('hidden');
-      cachedReportSummaryLines = []; // タブを開き直したら前回の要約結果（行番号）は破棄する
+      cachedReportSummaryLines = [];
       try {
         const res = await fetch(`${API_BASE}/card-reports`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -2785,7 +2508,7 @@
       if (!Array.isArray(cachedCardReports)) return;
       const term = (document.getElementById('admin-reports-search').value || '').trim().toLowerCase();
 
-      let groups = cachedCardReports.slice().reverse(); // 新しい投稿を上に
+      let groups = cachedCardReports.slice().reverse();
       if (term) groups = groups.filter(g =>
         (g.patientTitle || '').toLowerCase().includes(term) ||
         (g.items || []).some(it => (it.cardText || '').toLowerCase().includes(term) || (it.comment || '').toLowerCase().includes(term))
@@ -2821,10 +2544,6 @@
       listEl.replaceChildren(frag);
     }
 
-    // 「AIで要約」：寄せられた報告全体をGeminiに渡し、不具合パターンごとの修正指示を1行1件で
-    // 生成する。各行はそのまま「抽出・分類基準への追加の要望」として単体で意味が通る文にしてもらい、
-    // 行ごとに「基準に追加」ボタンを添えることで、報告→要約→ワンクリックでの基準反映まで
-    // その場で完結できるようにする（extraction-criteria.jsonへの追加はaddExtraCriteria()を再利用）。
     let cachedReportSummaryLines = [];
 
     function renderReportSummaryLines() {
@@ -2846,8 +2565,6 @@
       `;
     }
 
-    // 要約結果の1行を、抽出・分類基準への追加の要望としてそのまま登録する（addExtraCriteriaを再利用）。
-    // 登録後はボタンを「追加済み」表示に変え、誤って同じ内容を二重登録しないようにする。
     window.addSummaryLineToCriteria = async function(idx) {
       const line = cachedReportSummaryLines[idx];
       if (!line) return;
@@ -2870,7 +2587,6 @@
     document.getElementById('tab-careplan')?.addEventListener('click', () => switchView('careplan'));
     document.getElementById('tab-relation')?.addEventListener('click', () => switchView('relation'));
 
-    // 総合アセスメント表の欲求の切り替えボタンは、上のヘッダーのすぐ下に貼り付ける（ヘッダーの高さに合わせる）
     function updateNeedNavTop() {
       const header = document.querySelector('header');
       if (header) document.documentElement.style.setProperty('--need-nav-top', getComputedStyle(header).position === 'sticky' ? `${Math.ceil(header.getBoundingClientRect().height) + 6}px` : '6px');
@@ -2886,16 +2602,15 @@
       DOM.tabSoBoard.className = `tab-pill ${viewName === 'so' ? 'active' : ''}`;
       DOM.tabAssessment.className = `tab-pill ${viewName === 'assessment' ? 'active' : ''}`;
       DOM.tabReference.className = `tab-pill ${viewName === 'reference' ? 'active' : ''}`;
-      // 看護計画のページ（js/12）
+
       const viewCarePlan = document.getElementById('view-careplan');
       if (viewCarePlan) viewCarePlan.classList.toggle('hidden', viewName !== 'careplan');
       const tabCarePlan = document.getElementById('tab-careplan');
       if (tabCarePlan) tabCarePlan.className = `tab-pill ${viewName === 'careplan' ? 'active' : ''}`;
       if (viewName === 'careplan' && typeof renderCarePlans === 'function') { if (buildPlans && typeof autoBuildCarePlans === 'function') autoBuildCarePlans(getCurrentPatient()); renderCarePlans(); }
-      // 関連図のページ（js/15）
+
       document.getElementById('view-relation')?.classList.toggle('hidden', viewName !== 'relation');
-      // スマホでは上の見出し（ヘッダー）が画面の3分の1ほどの高さになり、関連図の上の方を隠してしまう。
-      // 関連図のページを開いている間だけ、スマホではヘッダーを上に固定しない（CSS の body.is-relation-view）。
+
       document.body.classList.toggle('is-relation-view', viewName === 'relation');
       if (viewName !== 'relation' && typeof window.rmSetFullscreen === 'function') window.rmSetFullscreen(false);
       const tabRelation = document.getElementById('tab-relation');
@@ -2906,9 +2621,6 @@
       if (viewName === 'labs') renderLabTrend();
     }
 
-    // 【記録メモの全画面表示】利用者からの要望：「記録メモを貼り付けたボックスが見づらいときに全画面表示したい」。
-    // 入力欄（と、カードを選んだときの該当箇所の表示）を包む枠ごと画面いっぱいに広げる。入力欄そのものを
-    // 動かさないので、入力中の文字・保存・該当箇所の表示はそのまま使える。Escキーか「元に戻す」で戻る。
     function updateSourceEditorCount() {
       const el = document.getElementById('source-editor-count');
       if (el) el.textContent = DOM.sourceText.value ? `（${DOM.sourceText.value.length.toLocaleString()}文字）` : '';
@@ -2927,11 +2639,7 @@
       updateSourceEditorCount();
       if (on && !DOM.sourceText.classList.contains('hidden')) DOM.sourceText.focus();
     };
-    // 【分類ボードの並びはいつも同じ】利用者からの要望：「分類開始前のページが見づらい。最初から分類開始後の
-    // レイアウトにしてほしい。いちいち変えないでください」。以前は、カードが無いうちは入力欄を横いっぱいにし、
-    // 分類するとカードを広く表示するように、並びを自動で切り替えていた。今は分類の前も後も、
-    // 左に記録の入力欄・右にS/Oのカードの同じ並びにする（自動では変えない）。
-    // 「↔」のボタンで入力欄を広げたときだけ広くなり、もう一度押すまでそのまま（sourcePaneManual）。
+
     function updateSourcePaneLayout() {
       const view = DOM.viewSoBoard;
       if (!view || !view.classList) return;
@@ -2944,17 +2652,16 @@
         btn.classList.remove('hidden');
       }
     }
-    // 以前は分類・患者の切り替えのたびに並びを自動に戻していた。今は並びを変えないので、描き直すだけ
+
     function resetSourcePaneLayout() { updateSourcePaneLayout(); }
     window.toggleSourcePaneWidth = function() {
       sourcePaneManual = sourcePaneManual === 'wide' ? null : 'wide';
       updateSourcePaneLayout();
     };
-    // 【AIの結果は「要約＋詳細」】利用者からの指摘：検査値評価・矛盾チェック・診断候補・看護計画の結果が全部開くと、
-    // 表まで遠くなる。各結果は1行の要約だけを出し、「詳細を開く」で読む。AIに頼んで結果が届いたときは、その結果を開く。
+
     const aiPanelOpen = new Set();
     function aiPanelSummaryText(body) {
-      // 【要点】があれば、その1つ目を要約として出す
+
       const key = body && body.querySelector ? body.querySelector('.ai-key li') : null;
       if (key && key.textContent && key.textContent.trim()) {
         const k = key.textContent.replace(/\s+/g, ' ').replace(/〔[^〕]*〕/g, '').trim();
@@ -2983,14 +2690,11 @@
       if (aiPanelOpen.has(panel.id)) aiPanelOpen.delete(panel.id); else aiPanelOpen.add(panel.id);
       refreshAiPanel(panel);
     };
-    // 【AIの結果はタブで1つだけ】利用者からの指摘：「AIを実行すると総合アセスメント表のページがごちゃごちゃする」。
-    // 以前は結果の欄が種類ごとに表の上へ積み重なっていた。結果のあるものだけを「AIの結果」の欄にタブで並べ、
-    // 選んだ1つだけを表示する（もう一度押すか「たたむ」で閉じる）。AIに頼んだときは、その結果のタブを開く。
-    // OCR以外のAI生成・評価結果タブは廃止。登録基準による検査値評価だけを表示する。
+
     const AI_RESULT_TABS = [
       { panel: 'lab-evaluation-panel', label: '検査値の評価' }
     ];
-    let aiResultsActive = null; // 表示中の結果（null＝たたんでいる）
+    let aiResultsActive = null;
     function refreshAiResults(keepActive = true) {
       const box = document.getElementById('ai-results');
       const tabs = document.getElementById('ai-results-tabs');
@@ -3024,12 +2728,12 @@
         if (!body) return;
         let wasHidden = panel.classList.contains('hidden');
         new MutationObserver(() => {
-          // 処理中の表示（くるくる）が出たら開く＝利用者が今頼んだ結果
+
           if (body.querySelector('.fa-spinner')) { aiPanelOpen.add(panel.id); aiResultsActive = panel.id; }
           refreshAiPanel(panel);
           refreshAiResults();
         }).observe(body, { childList: true, subtree: true, characterData: true });
-        // 結果の欄が出た・消えたとき（患者の切り替えなど）もタブを描き直す
+
         new MutationObserver(() => {
           const nowHidden = panel.classList.contains('hidden');
           if (nowHidden === wasHidden) return;
@@ -3041,7 +2745,6 @@
       refreshAiResults(false);
     })();
 
-    // 操作方法（画面の説明文を短くし、詳しい使い方はここにまとめる）
     window.openHelp = function(section = 'flow') {
       const modal = document.getElementById('modal-help');
       if (!modal) return;
@@ -3062,7 +2765,6 @@
     });
     DOM.sourceText.addEventListener('input', updateSourceEditorCount);
 
-    // 総合アセスメント表のS/Oバッジから、分類ボード側の同じカードへジャンプして一瞬ハイライトする
     window.jumpToBoardCard = function(itemId) {
       const cp=getCurrentPatient();
       const item=(cp?.items||[]).find(i=>String(i.id)===String(itemId)&&!i.deleted&&i.type!=='unnecessary'&&!i.aiSuggested);
@@ -3086,10 +2788,6 @@
       return true;
     };
 
-    // 【レビューで発見】記録メモの入力欄は、1文字打つたびに全患者分の保存（localStorageへの書き込みと読み直し）と、
-    // 分類ボード・総合アセスメント表・参考データの描き直しをしていたため、カードや記録が多いと入力が重くなっていた。
-    // 打っている間は、患者の本文（と更新日時）だけをすぐに書き換え、保存と描き直しは打ち終わって少し待ってから1回にまとめる。
-    // 待っている分は、患者の切り替え（changeCurrentPatient）・「分類開始」・ページを閉じる／別のタブへ移るときに、すぐ保存する。
     var sourceTextSaveTimer = null;
     const SOURCE_TEXT_SAVE_DELAY_MS = 600;
     function cancelSourceTextSave() {
@@ -3103,8 +2801,8 @@
     }
     function scheduleSourceTextSave() {
       const cp = getCurrentPatient();
-      cp.sourceText = DOM.sourceText.value;          // ほかの処理（書き出し・AI等）がすぐ最新の本文を使えるように
-      cp.updatedAt = new Date().toISOString();       // 起動時の共有先とのまとめ（新しい方の本文を使う）でも負けないように
+      cp.sourceText = DOM.sourceText.value;
+      cp.updatedAt = new Date().toISOString();
       cancelSourceTextSave();
       sourceTextSaveTimer = setTimeout(() => { sourceTextSaveTimer = null; saveDataAndSync(); }, SOURCE_TEXT_SAVE_DELAY_MS);
     }
@@ -3116,7 +2814,7 @@
     }
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSourceTextSave(); });
     document.getElementById('btn-load-sample').addEventListener('click', () => { cancelSourceTextSave(); DOM.sourceText.value = SAMPLE_TEXT; saveDataAndSync(); });
-    // テスト用の事例（SAMPLE_CASES）：選んで「セット」、または「セット＋分類まで」（そのまま分類を実行。関連図・看護計画は分類のあと各ページのボタンで）
+
     (function setupSampleCases() {
       const sel = document.getElementById('sample-case-select');
       if (!sel || typeof SAMPLE_CASES === 'undefined') return;
@@ -3131,9 +2829,6 @@
       document.getElementById('btn-load-sample-classify')?.addEventListener('click', () => { if (load()) document.getElementById('btn-start-classify')?.click(); });
     })();
 
-    // 【記録メモを空にする】利用者からの要望：「記録メモのボックスの中身を空にする機能を追加してください」。
-    // 記録メモの文章だけを消す（分類ボードのカード・総合アセスメント表・看護計画などはそのまま）。
-    // 消す前に確かめ、消したあとも数秒間は「元に戻す」で戻せる（別の患者に切り替えた後でも、消した患者に戻す）。
     window.clearSourceText = async function() {
       const text = DOM.sourceText.value;
       if (!text.trim()) { showToast('記録メモはすでに空です', 'info'); return; }

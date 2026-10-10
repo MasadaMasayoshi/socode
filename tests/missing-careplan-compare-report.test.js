@@ -1,5 +1,5 @@
 'use strict';
-// ②不足情報の確認状況 ③看護計画の編集・実施・評価 ④変更点の比較 ⑤提出用の書き出し（js/12・js/13）
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');
@@ -97,7 +97,7 @@ test('④変更点の比較：同じIDどうし、分類し直してIDが変わ�
   const app = loadApp();
   const cp = patient();
   const c = app.createCheckpoint(cp, { label: '提出前', kind: 'manual' }, '2026-09-29T00:00:00.000Z');
-  // 今のカード：o1 の本文を変えた・s1 をO にした・o2 を消した・分類し直して f1 のIDが変わった・新しいカード
+
   cp.items.find(i => i.id === 'o1').text = '術後より排便なし（2日間）';
   const s1 = cp.items.find(i => i.id === 's1'); s1.type = 'o'; s1.hendersonIds = [3, 10]; s1.assessmentCols = { 3: 'missing', 10: 'postadmission' };
   cp.items = cp.items.filter(i => i.id !== 'o2');
@@ -110,7 +110,7 @@ test('④変更点の比較：同じIDどうし、分類し直してIDが変わ�
   const byId = Object.fromEntries(d.changed.map(x => [x.after.id, x.changes.map(ch => ch.label)]));
   assert.deepEqual(clone(byId), { s1: ['分類', 'タグ', '欄（3.排泄）'], o1: ['本文'] });
   assert.match(app.inlineTextDiffHtml('術後より排便なし', '術後より排便なし（2日間）'), /^術後より排便なし<ins>（2日間）<\/ins>$/);
-  // 消したカードを元に戻す
+
   assert.ok(app.restoreCardFromCheckpoint(cp, c.id, 'o2'));
   assert.equal(app.diffCards(c.items, cp.items).removed.length, 0);
 });
@@ -157,12 +157,12 @@ test('⑤SOAP形式：看護問題ごとに S・O・A・P、項目と順番を�
   const txt = app.reportToText(cp, r);
   assert.match(txt, /■ #1 便秘（3\.排泄）\nS：\n　\[術後1日目\] 「お腹が張る感じがする」\nO：\n　\[術後1日目\] 術後より排便なし\nA：\n　【3\.排泄】\n　情報の解釈：便秘の状態にある\n　根拠：S-1・O-1\n　評価（[^）]+）：排便あり\nP：\n　短期目標：2日以内に排便がある\n　OP1\. 排便の有無\n　TP1\. 腹部マッサージ\n　計画の修正（[^）]+）：TP1を終了/);
   assert.doesNotMatch(txt, /普段の排便の間隔/, '不足情報の欄のカードはOに入れない');
-  // 項目と順番を選ぶ：A・S だけ、Aを先に
+
   const layout = [{ key: 'A', on: true }, { key: 'S', on: true }, { key: 'O', on: false }, { key: 'P', on: false }, { key: 'I', on: false }, { key: 'E', on: true }];
   const t2 = app.reportToText(cp, app.buildReport(cp, { format: 'soap', layout }));
   assert.match(t2, /A：[\s\S]*S：[\s\S]*E：\n　【[^】]+】目標：達成　排便あり/);
   assert.doesNotMatch(t2, /^O：/m);
-  // 日で絞る
+
   const days = app.reportDayOptions(cp);
   assert.ok(days.includes('術後1日目') && days.includes('術後2日目'));
   const t3 = app.reportToText(cp, app.buildReport(cp, { format: 'soap', day: '術後2日目' }));

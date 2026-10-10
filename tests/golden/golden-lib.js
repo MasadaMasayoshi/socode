@@ -1,13 +1,6 @@
 'use strict';
-// 分類結果の自動チェック（改善提案4）の共通処理。
+
 // ------------------------------------------------------------------------
-// これまでの患者さんの元の文章（tests/golden/cases/*.txt）を、今のプログラムの簡易ルール分類
-// （学習データを使わない分類。app.jsのclassifyTextByRules）にかけ、保存してある「正しい分類結果」
-// （tests/golden/expected/*.json）と比べる。プログラムを直すたびに、直すつもりの無かった
-// カードまで変わっていないかを確かめるために使う。
-//   ・確認： npm run golden          （変わったカードだけを日本語で一覧表示）
-//   ・承認： npm run golden:update   （今の結果を新しい「正しい分類結果」として保存）
-// 「例文」は、画面の「例文をセット」の文章（app.jsのSAMPLE_TEXT）を使う。
 
 const fs = require('fs');
 const path = require('path');
@@ -23,7 +16,7 @@ function listCases() {
 }
 
 function classifyCase(app, name) {
-  // Windows の Git が改行を CRLF に変えても同じ結果になるよう、改行を \n にそろえる（画面の入力欄と同じ）
+
   const text = name === SAMPLE_CASE ? app.SAMPLE_TEXT : fs.readFileSync(path.join(CASES_DIR, `${name}.txt`), 'utf8').replace(/\r\n?/g, '\n');
   return Array.from(app.classifyTextByRules(text)).map(c => ({
     timestamp: c.timestamp, type: c.type, hendersonIds: Array.from(c.hendersonIds), fieldLabel: c.fieldLabel, text: c.text
@@ -47,7 +40,6 @@ function describeCard(app, c) {
   return `[${TYPE_LABEL[c.type] || c.type}] ${tagNames}`;
 }
 
-// 本文＋時刻が同じカード同士を対応させ、違いを日本語の行の一覧にする（違いが無ければ空配列）
 function diffCase(app, expected, actual) {
   const key = c => `${c.timestamp}\u0000${c.text}`;
   const pool = new Map();
@@ -64,7 +56,7 @@ function diffCase(app, expected, actual) {
     if ((old.fieldLabel || null) !== (c.fieldLabel || null)) changes.push(`見出し ${old.fieldLabel || 'なし'} → ${c.fieldLabel || 'なし'}`);
     if (changes.length) lines.push(`  変更: 「${c.text}」（${c.timestamp}）\n        ${changes.join(' ／ ')}`);
   });
-  // 見た目が同じで、改行・空白などの見えない文字だけが違うカードは、消えた／新しいではなく1行にまとめる
+
   const visible = c => `${c.timestamp}\u0000${c.text.replace(/\s/g, '')}`;
   const removed = [];
   pool.forEach(list => list.forEach(c => removed.push(c)));
@@ -77,7 +69,6 @@ function diffCase(app, expected, actual) {
   return lines;
 }
 
-// すべての事例を比べる。update=true なら今の結果を「正しい分類結果」として保存する。
 function runGolden({ update = false } = {}) {
   const app = loadApp();
   const results = listCases().map(name => {

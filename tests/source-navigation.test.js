@@ -1,8 +1,9 @@
 'use strict';
+const sourceRange=require('./source-range');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const code=fs.readFileSync(require('node:path').join(__dirname,'../js/09-board.js'),'utf8');
 const context={window:{}};vm.createContext(context);
-vm.runInContext(code.slice(0,code.indexOf('    // 入力欄（textarea）')),context);
+vm.runInContext(sourceRange(code,'','    var highlightedSourceItemId ='),context);
 const match=(source,text)=>JSON.parse(JSON.stringify(context.findSourceExactMatches(source,text)));
 test('all repeated literal occurrences remain separate and preserve chronological positions',()=>{
  const source='術前：痛みなし\n術後：痛みなし';
