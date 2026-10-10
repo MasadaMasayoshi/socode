@@ -20,7 +20,16 @@ const {app}=require('../server');
    await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
    await page.waitForFunction(()=>typeof getCurrentPatient==='function'&&!!getCurrentPatient());
    await page.locator('#source-text').fill('【架空の画面検証用記録】\n体温36.8℃、脈拍72回/分。\n「昨夜はよく眠れました」と話す。');
+   // Fresh browser contexts may load the fictional chart saved by an earlier
+   // width from the same temporary server. Exercise the real replacement dialog.
+   const existingCards=await page.evaluate(()=>getCurrentPatient().items.length);
    await page.locator('#btn-start-classify').click();
+   if(existingCards>0){
+    await page.locator('#modal-dialog').waitFor({state:'visible'});
+    assert.equal(await page.locator('#dialog-title').innerText(),'今あるカードをどうしますか？');
+    await page.locator('#dialog-confirm').click();
+    await page.locator('#modal-dialog').waitFor({state:'hidden'});
+   }
    await page.waitForFunction(()=>getCurrentPatient().items.some(x=>!x.deleted));
    const before=await page.evaluate(()=>getCurrentPatient().items.length);
    for(const name of ['assessment','careplan','labs','relation','reference']){
