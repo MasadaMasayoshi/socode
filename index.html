@@ -5,41 +5,35 @@
   <meta name="api-origin" content="https://socode.onrender.com">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
-  <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-09.41">
-  <meta name="app-file-versions" content="01:2026-10-08.2045,02:2026-10-08.8,03:2026-10-08.14,04:2026-10-09.41,05:2026-10-08.2023,06:2026-10-08.2103,07:2026-10-08.2121,08:2026-10-08.2023,09:2026-10-08.2121,10:2026-10-08.2121,11:2026-10-08.35,12:2026-10-09.41,13:2026-10-08.2121,14:2026-10-06.14,15:2026-10-09.41">
-  <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
-       アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
+
+  <meta name="app-version" content="2026-10-10.znavigation19">
+  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-10.znavigation17,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-10.znavigation17,06:2026-10-10.znavigation17,07:2026-10-10.znavigation17,08:2026-10-10.znavigation17,09:2026-10-10.znavigation17,10:2026-10-10.znavigation17,11:2026-10-10.znavigation17,12:2026-10-10.znavigation17,13:2026-10-10.znavigation17,14:2026-10-10.znavigation17,15:2026-10-10.znavigation19">
+
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=2026-10-09.41">
-  <!-- 画面の見た目の部品（Tailwind CSS 3.4）。以前は開くたびにネット（cdn.tailwindcss.com）から読み込み、
-       その場で作っていたため、ネットが不安定だったり配信が止まったりすると画面のレイアウトが崩れた。
-       使っている部品だけを vendor/tailwind.css に作っておき、それを読み込む（改善提案7。作り直しは
-       npm run build:css）。以前と同じく style.css より後に読み込み、同じ強さの指定ではこちらを優先する。 -->
+  <link rel="stylesheet" href="style.css?v=2026-10-10.znavigation18">
+
   <link rel="stylesheet" href="vendor/tailwind.css?v=2026-10-06.14">
   <script>
-    // ダークモードの初期適用（画面が一瞬だけ元のテーマで表示される「ちらつき」を防ぐため、
-    // CSS読み込み直後・本文描画前にこの小さなスクリプトで先に data-theme を決めてしまう）。
+
     (function () {
       try {
         var saved = localStorage.getItem('nursing_theme');
         if (saved === 'dark' || saved === 'light') {
           document.documentElement.setAttribute('data-theme', saved);
         }
-        // 文字の書体（明朝＝既定／ゴシック）。js/05 の setAppFont
+
         if (localStorage.getItem('nursing_font') === 'gothic') document.documentElement.setAttribute('data-font', 'gothic');
-      } catch (e) { /* localStorageが使えない場合は既定（ライト）のまま */ }
+      } catch (e) {   }
     })();
-  </script>
+</script>
   <script>
-    // LINE・Discord・Instagram などのアプリ内ブラウザでは、アプリ自身の上のバーが画面の上を隠すため、
-    // 当ページの上固定のヘッダーを固定しない（html に in-app-browser を付ける。CSS 側で対応）。
+
     (function () { try { if (/Line\/|\bLINE\b|Discord|Instagram|FBAN|FBAV|FB_IAB|MicroMessenger|Twitter|KAKAOTALK|Snapchat|TikTok|BytedanceWebview/i.test(navigator.userAgent || '')) document.documentElement.classList.add('in-app-browser'); } catch (e) {} })();
-  </script>
+</script>
 </head>
 <body class="min-h-screen flex flex-col pb-24">
 
@@ -47,9 +41,7 @@
     <div class="max-w-7xl mx-auto px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <h1 class="font-display text-[15px] font-semibold text-[var(--ink)] tracking-tight shrink-0 pr-3 border-r border-[var(--line)] hidden sm:block">看護アセスメント支援</h1>
-        <!-- 【カルテの切り替え】利用者からの要望：「左上のカルテページが増えるたびにごちゃごちゃする」。
-             以前はページの数だけタブが横に並んでいた。今表示しているカルテの名前のボタン1つにし、押すと
-             カルテの一覧（検索・新しいページ・アーカイブ済みを含む一覧）が開くようにした。 -->
+
         <div class="hdr-menu-wrap">
           <button id="btn-patient-switcher" class="patient-switcher" data-menu-toggle="patient-menu" aria-haspopup="true" aria-expanded="false" title="カルテ（患者ページ）を切り替えます">
             <i class="fa-solid fa-user-injured"></i>
@@ -59,7 +51,7 @@
           </button>
           <div id="patient-menu" class="hdr-menu hdr-menu-left hidden" role="menu">
             <input id="patient-menu-search" type="search" class="patient-menu-search" placeholder="カルテを検索" autocomplete="off">
-            <!-- カルテの一覧（JSで生成：renderPatientTabs） -->
+
             <div id="patient-tabs-container" class="patient-menu-list"></div>
             <div class="hdr-menu-sep"></div>
             <button id="btn-new-patient" class="hdr-menu-item" role="menuitem" title="新しい患者ページを作成">
@@ -72,11 +64,6 @@
         </div>
       </div>
 
-      <!-- 【UIの見直し】利用者からの指摘：「UIがごちゃごちゃしすぎている」。以前は接続人数・API設定・学習データ管理・
-           保存・読込・テキスト書き出し・PDF書き出し・ダークモードの8つが色付きの枠線で横一列に並んでいた。
-           「テキスト書き出し」「PDF書き出し」「ダークモード」のボタンは見た目が好評のためそのまま残し、
-           ファイルへの保存・読込、API設定、学習データ管理は右端の「︙」メニューにまとめた（ボタンのidはそのまま）。
-           接続人数は小さな数字だけの表示にした。 -->
       <div class="flex items-center gap-2 ml-auto flex-wrap justify-end">
         <span id="presence-indicator" class="presence-pill" title="この画面を開いているタブ・端末の数の目安です（同じ人が複数タブ・複数端末で開いている場合はその分だけ数えられます）">
           <i class="fa-solid fa-user-group"></i> <span id="presence-count">-</span>
@@ -102,6 +89,9 @@
             <button id="btn-save-data" class="hdr-menu-item" role="menuitem">
               <i class="fa-solid fa-floppy-disk"></i><span>データをファイルに保存<small>.json（バックアップ）</small></span>
             </button>
+            <button type="button" class="hdr-menu-item" role="menuitem" onclick="restoreImportCheckpoint()">
+              <i class="fa-solid fa-clock-rotate-left"></i><span>読込前の控えを読み込む<small>置換する内容を確認して復元</small></span>
+            </button>
             <label for="input-load-data" class="hdr-menu-item cursor-pointer" role="menuitem">
               <i class="fa-solid fa-folder-open"></i><span>ファイルから読込<small>保存した .json</small></span>
               <input type="file" id="input-load-data" accept=".json" class="hidden">
@@ -113,6 +103,12 @@
             <button type="button" class="hdr-menu-item" role="menuitem" onclick="openDrugInfo(null)">
               <i class="fa-solid fa-capsules"></i><span>薬の情報<small>記録に出てくる薬・名前で探す</small></span>
             </button>
+            <a href="clinical-knowledge/checks.html" target="_blank" rel="noopener noreferrer" class="hdr-menu-item" role="menuitem" title="手動入力した架空のJSONを端末内で点検します">
+              <i class="fa-solid fa-clipboard-check"></i><span>品質チェック<small>非AI・架空データで試験</small></span>
+            </a>
+            <a href="clinical-knowledge/index.html" target="_blank" rel="noopener noreferrer" class="hdr-menu-item" role="menuitem" title="承認記録のある看護知識候補と根拠資料を閲覧">
+              <i class="fa-solid fa-book-medical"></i><span>看護知識資料集<small>29件の出典・適用条件・注意事項</small></span>
+            </a>
             <button id="btn-open-settings" class="hdr-menu-item" role="menuitem">
               <i class="fa-solid fa-gear"></i><span>API設定</span>
             </button>
@@ -124,7 +120,6 @@
       </div>
     </div>
 
-    <!-- サブナビゲーション（分類ボード / 総合アセスメント表 / 参考データ 切り替え） -->
     <div class="border-t border-[var(--line-soft)] px-5 py-2 flex flex-wrap items-center justify-between gap-2 max-w-7xl mx-auto">
       <div class="flex items-center gap-1 overflow-x-auto max-w-full">
         <button id="tab-so-board" class="tab-pill active">
@@ -147,7 +142,7 @@
         </button>
       </div>
       <div class="text-xs text-[var(--ink-muted)] flex items-center gap-3">
-        <!-- スマホの幅ではカルテ名は左上のボタンにあるので省く -->
+
         <span class="hidden md:flex items-center whitespace-nowrap"><i class="fa-solid fa-hospital-user text-[var(--accent)] mr-1.5"></i> 表示中カルテ: <span id="current-patient-title-label" class="ml-1 text-[var(--ink)] font-semibold">患者A</span></span>
         <span id="current-patient-updated" class="hidden md:inline whitespace-nowrap"></span>
         <span id="save-status" class="flex items-center gap-1 whitespace-nowrap"><i class="fa-solid fa-circle-check text-[var(--accent)] text-[9px]"></i><span id="save-status-time">未保存</span></span>
@@ -156,19 +151,46 @@
   </header>
 
   <main class="flex-1 max-w-7xl w-full mx-auto p-4 flex flex-col gap-4">
-    <!-- 作業の流れ（情報収集〔記録を貼る・分類・手直し〕 → アセスメント → 看護計画 → 書き出し）。次に進む所に印を付ける（js/13 の renderWorkflowSteps） -->
+    <section id="nursing-auto-check" class="surface p-3" aria-label="自動品質チェック" style="border:1px solid var(--line);border-radius:10px">
+      <div style="display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap">
+        <div><strong>自動品質チェック（非AI）</strong><p style="font-size:12px;color:var(--ink-muted)">情報カード・看護計画・関連図の不足候補を自動確認。診断や記録の書き換えはしません。</p></div>
+        <button type="button" id="nursing-auto-check-run" class="btn btn-outline">今すぐ点検</button>
+        <button type="button" id="nursing-source-compare" class="btn btn-outline" aria-expanded="false" aria-controls="nursing-source-review">原文とカードを照合</button>
+        <button type="button" id="nursing-toggle-warnings" class="btn btn-outline" aria-expanded="false" aria-controls="nursing-auto-check-results">確認事項を表示</button>
+        <button type="button" id="nursing-undo-text" class="btn btn-outline" title="直近のカード本文の手動編集だけを取り消します">本文編集を戻す</button>
+        <button type="button" id="nursing-redo-text" class="btn btn-outline" title="この画面で取り消した本文編集をやり直します">やり直す</button>
+      </div>
+      <p id="nursing-auto-check-status" role="status" aria-live="polite" style="font-size:13px">読み込み後に点検します。</p>
+      <div id="nursing-auto-check-results" hidden style="max-height:250px;overflow:auto;font-size:13px"></div>
+      <div id="nursing-source-review" hidden style="border-top:1px solid var(--line);padding-top:10px">
+        <p style="font-size:12px;color:var(--ink-muted)">原文と情報カードを並べて確認します。個人情報を含む文章はこの画面から送信されません。原文からの省略・言い換えは手動で確認してください。</p>
+        <p id="nursing-source-coverage" style="font-size:12px" role="status"></p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <button type="button" id="nursing-source-prev" class="btn btn-outline" disabled>前の一致箇所</button>
+          <button type="button" id="nursing-source-next" class="btn btn-outline" disabled>次の一致箇所</button>
+          <span id="nursing-source-match-status" role="status" aria-live="polite">カードを選んで原文を確認</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px">
+          <div><strong>元の文章</strong><pre id="nursing-original-text" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:420px;overflow:auto;padding:8px;border:1px solid var(--line);font-size:12px"></pre></div>
+          <div><strong>整理後のカード</strong><div id="nursing-organized-text" style="max-height:420px;overflow:auto;padding:8px;border:1px solid var(--line);font-size:12px"></div></div>
+        </div>
+      </div>
+    </section>
+
     <nav id="workflow-steps" class="wf-steps" aria-label="作業の流れ"></nav>
-    <!-- 1. 分類ボードビュー -->
+    <div id="careplan-evidence-navigation" style="display:none;margin:8px 0" aria-label="根拠カードからの戻り先">
+      <button type="button" id="careplan-evidence-return" class="btn btn-outline">元の看護計画へ戻る</button>
+      <span id="careplan-evidence-origin" style="font-size:12px"></span>
+    </div>
+
     <div id="view-so-board" class="flex flex-col xl:flex-row gap-4">
-      <!-- 入力エリア -->
+
       <section class="xl:w-1/4 surface p-4 flex flex-col gap-3 min-w-[280px]">
         <h2 class="font-display font-semibold text-[var(--ink)] text-[13px] flex items-center justify-between">
           <span class="flex items-center"><i class="fa-solid fa-pen-to-square text-[var(--accent)] mr-1.5 text-xs"></i> カルテ・看護記録入力</span>
           <button id="btn-rename-patient" class="text-[10px] text-[var(--ink-muted)] hover:text-[var(--accent)] font-sans font-medium"><i class="fa-solid fa-pen"></i> 名称変更</button>
         </h2>
 
-        <!-- 画像OCRドロップゾーン -->
-        <!-- 利用者からの要望「分類ボードはこの並びだけにして、いちいち変えないで」：以前の大きさの枠に戻した（キーボードでも押せる） -->
         <div id="ocr-dropzone" class="ocr-drop border border-dashed border-[var(--line)] hover:border-[var(--accent)] bg-[var(--paper)] hover:bg-[var(--accent-soft)] rounded-[var(--radius)] p-3 text-center cursor-pointer transition" role="button" tabindex="0" title="記録メモや検査結果の写真をここへドラッグ＆ドロップするか、押してファイルを選ぶと文字起こしします">
           <input type="file" id="ocr-file-input" accept="image/*" class="hidden">
           <i class="fa-solid fa-camera text-[var(--ink-muted)] text-base mb-1"></i>
@@ -179,18 +201,15 @@
           <span id="ocr-status-text"><i class="fa-solid fa-spinner fa-spin mr-1"></i> 文字起こし中...</span>
         </div>
 
-        <!-- 情報カードをクリックすると、元の文章の該当箇所に印を付けて表示する（app.jsのshowSourceHighlight参照）。
-             入力欄（textarea）の中には色を付けられないため、表示中だけ同じ文章の読み取り専用の表示に切り替える。
-             表示をクリックするか「編集に戻る」で、該当箇所にカーソルを置いた状態で入力欄に戻る。 -->
         <div id="source-highlight-bar" class="source-highlight-bar hidden">
           <span><i class="fa-solid fa-highlighter mr-1"></i><span id="source-highlight-label">元の文章の該当箇所</span></span>
           <span class="flex items-center gap-3">
-            <!-- 一覧表示でカードを選んで来たときだけ表示（app.jsのselectCardFromOverview参照） -->
+
             <button type="button" id="btn-source-back-to-overview" onclick="openCardOverview(true)" class="hidden font-semibold hover:underline whitespace-nowrap"><i class="fa-solid fa-table-list"></i> 一覧に戻る</button>
             <button type="button" id="btn-source-highlight-close" class="font-semibold hover:underline whitespace-nowrap"><i class="fa-solid fa-pen"></i> 編集に戻る</button>
           </span>
         </div>
-        <!-- 記録メモの入力欄は「全画面」ボタンで画面いっぱいに広げて編集できる（js/05 の toggleSourceFullscreen） -->
+
         <div id="source-editor" class="source-editor">
         <div class="source-editor-bar">
           <span class="source-editor-title"><i class="fa-solid fa-file-lines"></i> 記録メモ<span id="source-editor-count" class="source-editor-count"></span></span>
@@ -205,11 +224,10 @@
         <div id="source-highlight-view" class="field source-highlight-view hidden" title="クリックすると編集に戻ります"></div>
         </div>
 
-        <!-- 分類開始ボタン -->
         <button id="btn-start-classify" class="btn btn-primary w-full py-2.5 text-[13px]">
           <i class="fa-solid fa-bolt"></i> 分類開始
         </button>
-        <!-- 分類はいつもサイト内のルール（AIなし）。切り替えは廃止（js/07 の getClassifyMode） -->
+
         <p id="classify-mode-note" class="text-[10px] text-[var(--ink-muted)] leading-snug -mt-1"></p>
 
         <div class="flex flex-wrap items-center justify-between gap-1 pt-1 border-t border-[var(--line-soft)]">
@@ -223,22 +241,22 @@
         </div>
       </section>
 
-      <!-- 分類カラム（未分類 / Sデータ / Oデータ / 不必要な情報） -->
       <div class="xl:w-3/4 flex flex-col gap-3 min-w-0">
         <div class="flex flex-wrap items-center gap-2">
           <div class="relative flex-1 min-w-[180px]">
             <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-muted)] text-[11px]"></i>
             <input type="text" id="board-search" class="field pl-7" placeholder="カードの内容・タグ名で検索...">
           </div>
-          <!-- すべてのカードを画面いっぱいの一覧で表示する（app.jsのopenCardOverview参照） -->
+
           <button id="btn-open-card-overview" onclick="openCardOverview()" class="btn btn-outline text-[11px] py-1.5 whitespace-nowrap" title="すべてのカードを画面いっぱいに並べて一覧で表示します（カードを選ぶと一覧を閉じて元の文章の該当箇所を表示）">
             <i class="fa-solid fa-table-list"></i> 一覧表示
           </button>
-          <!-- 直前の手直しを元に戻す（js/13 の undoLastEdit。Ctrl+Z でも） -->
+
           <button id="btn-undo" onclick="undoLastEdit()" class="btn btn-outline text-[11px] py-1.5 whitespace-nowrap" disabled title="元に戻せる操作はありません">
             <i class="fa-solid fa-rotate-left"></i> 元に戻す
           </button>
-          <!-- 記録した時点と今のカードを比べる（js/13 の openCompare） -->
+          <button id="btn-redo" onclick="undoLastEdit(true)" class="btn btn-outline text-[11px] py-1.5 whitespace-nowrap" disabled title="やり直す（Ctrl+Shift+Z）">やり直す</button>
+
           <button id="btn-open-compare" onclick="openCompare()" class="btn btn-outline text-[11px] py-1.5 whitespace-nowrap" title="記録した時点（分類し直す前・画面を開いたとき・手で記録したとき）と今のカードを比べ、追加・変更・削除したカードを表示します">
             <i class="fa-solid fa-code-compare"></i> 変更点の比較
           </button>
@@ -247,11 +265,10 @@
             <button type="button" class="help-link" onclick="openHelp('board')"><i class="fa-regular fa-circle-question"></i> 操作方法</button>
           </span>
         </div>
-      <!-- 【分類ボードの並び】利用者からの要望：4列だと長い文章を読む幅が狭い。S と O を広く2列に並べ、
-           未分類は件数付きの補助枠（S・O の下）、不要はたためる枠（いちばん下）にする。列のidはそのまま（js/08 の renderSoBoard）。 -->
+
       <section id="so-board-grid" class="board-layout">
         <div class="board-main">
-          <!-- Sデータ -->
+
           <div class="surface flex flex-col board-col">
             <div class="col-header">
               <span class="text-xs font-semibold text-[var(--ink)] flex items-center">
@@ -262,7 +279,6 @@
             <div id="col-s" class="flex-1 p-2 overflow-y-auto space-y-2" ondragover="allowDrop(event)" ondrop="handleDrop(event, 's')"></div>
           </div>
 
-          <!-- Oデータ -->
           <div class="surface flex flex-col board-col">
             <div class="col-header">
               <span class="text-xs font-semibold text-[var(--ink)] flex items-center">
@@ -274,7 +290,6 @@
           </div>
         </div>
 
-        <!-- 未分類（利用者からの要望で、S・O の下・不必要な情報の上に移した：2026-10-06.15） -->
         <details id="board-unclassified" class="board-aux board-aux-unclassified" ondragover="allowDrop(event)" ondrop="handleDrop(event, 'unclassified')" ontoggle="rememberBoardAuxToggle(this)">
           <summary>
             <span class="col-dot" style="background:var(--ink-muted)"></span><span class="board-aux-title">未分類</span>
@@ -284,7 +299,6 @@
           <div id="col-unclassified" class="board-aux-body"></div>
         </details>
 
-        <!-- 不必要な情報（たたんでおく） -->
         <details id="board-unnecessary" class="board-aux board-aux-unnecessary" ondragover="allowDrop(event)" ondrop="handleDrop(event, 'unnecessary')">
           <summary>
             <i class="fa-solid fa-trash-can text-[11px] text-[var(--ink-muted)]"></i><span class="board-aux-title">不必要な情報</span>
@@ -295,13 +309,10 @@
           <div id="col-unnecessary" class="board-aux-body"></div>
         </details>
 
-        <!-- 以前ここにあった「患者背景（基本情報／医学情報）」列は、利用者からの指摘
-             （基本情報もS/Oのどちらかに振り分けるべきで、第三の区分を作らない）により廃止した。 -->
       </section>
       </div>
     </div>
 
-    <!-- 2. 総合アセスメント表 ビュー -->
     <div id="view-assessment" class="hidden surface p-4 flex flex-col gap-4">
       <div class="flex flex-wrap items-center justify-between border-b border-[var(--line-soft)] pb-3 gap-2">
         <div>
@@ -320,8 +331,6 @@
         </div>
       </div>
 
-      <!-- AIのボタン（js/08 の renderAiSteps）：左は順番に進めるもの（①不足情報 → ②看護診断候補 → ③看護計画）、右はそのほかの確認。
-           結果は下の「AIの結果」の欄に種類ごとのタブで1つだけ出す（js/05 の refreshAiResults。表の上に積み重ねない） -->
       <div id="ai-steps" class="ai-steps"></div>
       <div id="ai-results" class="ai-results hidden">
         <div class="ai-results-bar">
@@ -330,7 +339,6 @@
           <button type="button" id="ai-results-close" class="ai-results-close hidden" onclick="showAiResult(null)"><i class="fa-solid fa-chevron-up"></i> たたむ</button>
         </div>
 
-      <!-- 検査値評価サマリーパネル -->
       <div id="lab-evaluation-panel" class="ai-panel hidden bg-[var(--accent-soft)] border border-[var(--accent-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
         <button type="button" class="ai-panel-head" onclick="toggleAiPanel(this)" aria-expanded="false" style="color:var(--accent-dark);"><i class="fa-solid fa-microscope"></i><span class="ai-panel-title">検査データ臨床評価</span><span class="ai-panel-summary"></span><span class="ai-panel-toggle">詳細を開く</span></button>
         <div id="lab-evaluation-content" class="ai-panel-body text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--accent-line)] min-h-[50px]">
@@ -338,28 +346,24 @@
         <details class="ai-note"><summary><i class="fa-solid fa-circle-info"></i> AIの参考案です。根拠を確認し、最終判断は医療従事者が行ってください</summary><p>AIや簡易チェックの結果は臨床判断の代替にはなりません。基準値は施設・検査法で異なることがあります。最終評価は必ず医療従事者が行ってください。</p></details>
       </div>
 
-      <!-- S/O矛盾チェックパネル -->
       <div id="contradiction-panel" class="ai-panel hidden bg-[var(--gold-soft)] border border-[var(--gold-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
         <button type="button" class="ai-panel-head" onclick="toggleAiPanel(this)" aria-expanded="false" style="color:var(--gold);"><i class="fa-solid fa-triangle-exclamation"></i><span class="ai-panel-title">S/O矛盾チェック（AI）</span><span class="ai-panel-summary"></span><span class="ai-panel-toggle">詳細を開く</span></button>
         <div id="contradiction-content" class="ai-panel-body text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--gold-line)] min-h-[40px]"></div>
         <details class="ai-note"><summary><i class="fa-solid fa-circle-info"></i> AIの参考案です。根拠を確認し、最終判断は医療従事者が行ってください</summary><p>指摘は、記録の中の食い違いに気づくきっかけとして使ってください。実際に食い違っているかは、元の記録と患者さんの状態で確かめてください。</p></details>
       </div>
 
-      <!-- 看護診断候補パネル -->
       <div id="diagnosis-panel" class="ai-panel hidden bg-[var(--slate-soft)] border border-[var(--slate-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
         <button type="button" class="ai-panel-head" onclick="toggleAiPanel(this)" aria-expanded="false" style="color:var(--slate);"><i class="fa-solid fa-clipboard-list"></i><span class="ai-panel-title">看護診断候補（AI）</span><span class="ai-panel-summary"></span><span class="ai-panel-toggle">詳細を開く</span></button>
         <div id="diagnosis-content" class="ai-panel-body text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--slate-line)] min-h-[40px]"></div>
         <details class="ai-note"><summary><i class="fa-solid fa-circle-info"></i> AIの参考案です。根拠を確認し、最終判断は医療従事者が行ってください</summary><p>看護診断の決定・優先順位付けは、自分のアセスメントと根拠をもとに行ってください。</p></details>
       </div>
 
-      <!-- 経時変化サマリーパネル -->
       <div id="timeline-panel" class="ai-panel hidden bg-[var(--accent-soft)] border border-[var(--accent-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
         <button type="button" class="ai-panel-head" onclick="toggleAiPanel(this)" aria-expanded="false" style="color:var(--accent-dark);"><i class="fa-solid fa-clock-rotate-left"></i><span class="ai-panel-title">経時変化サマリー（AI）</span><span class="ai-panel-summary"></span><span class="ai-panel-toggle">詳細を開く</span></button>
         <div id="timeline-content" class="ai-panel-body text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--accent-line)] min-h-[40px]"></div>
         <details class="ai-note"><summary><i class="fa-solid fa-circle-info"></i> AIの参考案です。根拠を確認し、最終判断は医療従事者が行ってください</summary><p>まとめに抜けや読み違いがないか、元のカードと照らし合わせて確かめてください。</p></details>
       </div>
 
-      <!-- 看護計画（ケアプラン）自動生成パネル -->
       <div id="careplan-panel" class="ai-panel hidden bg-[var(--brick-soft)] border border-[var(--brick-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
         <button type="button" class="ai-panel-head" onclick="toggleAiPanel(this)" aria-expanded="false" style="color:var(--brick);"><i class="fa-solid fa-notes-medical"></i><span class="ai-panel-title">看護計画の叩き台（AI）</span><span class="ai-panel-summary"></span><span class="ai-panel-toggle">詳細を開く</span></button>
         <div id="careplan-content" class="ai-panel-body text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--brick-line)] min-h-[40px]"></div>
@@ -367,14 +371,9 @@
       </div>
       </div><!-- /ai-results -->
 
-      <!-- 【欲求ごとのページ】利用者からの要望：「総合アセスメント表も下にスクロールするのが面倒なので、ボタン一つで
-           各欲求のページが表示されるようにしたい」。1〜14のボタンで、その欲求の行だけを表示する（「すべて」で全行）。
-           ◀ ▶ や ← → キーでも前後の欲求に移れる。js/09 の renderNeedNavigator・selectAssessmentNeed 参照。 -->
-      <!-- 不足情報の確認状況（未確認・確認済み・該当なし）の集計と一覧（js/12 の renderMissingCheckSummary） -->
       <div id="missing-check-summary" class="mc-summary hidden"></div>
-      <div id="assessment-need-nav" class="need-nav" role="tablist" aria-label="基本的欲求の切り替え"></div>
+      <div id="assessment-need-nav" class="need-nav" role="group" aria-label="基本的欲求の切り替え"></div>
 
-      <!-- 1つの項目を選んだときの並び（js/09 の renderAssessmentSingleHtml） -->
       <div id="assessment-single" class="asm-single hidden"></div>
       <div id="assessment-table-wrap" class="overflow-x-auto">
         <table class="assess-table w-full border-collapse text-xs">
@@ -388,14 +387,12 @@
             </tr>
           </thead>
           <tbody id="assessment-tbody">
-            <!-- JSで生成 -->
+
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- 3. 参考データ ビュー -->
-    <!-- 3. 検査値の推移ビュー（検査値・バイタルサインを「項目 × 日時」の表にする。js/08 の renderLabTrend） -->
     <div id="view-labs" class="hidden surface p-4 flex flex-col gap-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h2 class="font-display font-semibold text-[var(--ink)] text-[15px] flex items-center"><i class="fa-solid fa-flask-vial text-[var(--accent)] mr-2"></i>検査値の推移・計算した指標</h2>
@@ -409,15 +406,26 @@
       <div id="lab-trend-table-wrap" class="lab-trend-wrap"></div>
     </div>
 
-    <!-- 看護計画ビュー（看護問題ごとの目標・OP/TP/EP、実施・評価の記録。js/12 の renderCarePlans） -->
     <div id="view-careplan" class="hidden surface p-4 flex flex-col gap-3">
+      <div class="flex flex-wrap gap-2" aria-label="実施・評価記録の編集履歴">
+        <button type="button" class="btn btn-outline text-xs" onclick="undoCareRecordEdit(false)">記録の編集を元に戻す</button>
+        <button type="button" class="btn btn-outline text-xs" onclick="undoCareRecordEdit(true)">やり直す</button>
+        <span class="text-xs text-[var(--ink-muted)]">既存記録の編集のみ。情報カードの追加・記録の追加と削除は対象外</span>
+      </div>
+      <div class="flex flex-wrap gap-2" aria-label="看護計画の編集履歴">
+        <button type="button" class="btn btn-outline text-xs" onclick="undoCareOperation(false)">計画・記録の操作を元に戻す</button>
+        <button type="button" class="btn btn-outline text-xs" onclick="undoCareOperation(true)">操作をやり直す</button>
+        <button type="button" class="btn btn-outline text-xs" onclick="undoCarePlanField(false)">計画の編集を元に戻す</button>
+        <button type="button" class="btn btn-outline text-xs" onclick="undoCarePlanField(true)">やり直す</button>
+        <span class="text-xs text-[var(--ink-muted)]">文章・状態・関連項目の編集（この画面を開いている間）</span>
+      </div>
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h2 class="font-display font-semibold text-[var(--ink)] text-[15px] flex items-center"><i class="fa-solid fa-notes-medical text-[var(--accent)] mr-2"></i>看護計画・実施・評価</h2>
         <div class="cp-top-actions flex flex-wrap items-center gap-2">
           <span id="careplan-import-info" class="text-[11px] text-[var(--ink-muted)]"></span>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="buildCarePlansByRulesUI()" title="記録から看護問題を見つけ、目標・OP/TP/EPの手本つきで看護計画を作ります"><i class="fa-solid fa-list-check"></i> 記録から計画を作る</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="importCarePlansFromMapUI()" title="関連図の看護問題を、根拠データ（関連図でその問題へたどれる記録の事実）つきで取り込みます"><i class="fa-solid fa-diagram-project"></i> 関連図から取り込む</button>
-          <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="openCarePlanSetReview()" title="全ての計画を横断して、重複・補完・不足を確かめます（AIなし。AIで評価するボタンもあります）"><i class="fa-solid fa-layer-group"></i> 全計画をまとめて評価</button>
+          <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="openCarePlanSetReview()" title="全ての計画を横断して、重複・補完・不足をAIなしで確認します"><i class="fa-solid fa-layer-group"></i> 全計画をまとめて評価</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="printCarePlans()" title="看護計画と実施・評価の記録を、A4縦の印刷用の形で印刷・PDF保存します"><i class="fa-solid fa-file-pdf"></i> 印刷 / PDF</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="exportCarePlansText()" title="看護計画と実施・評価の記録をテキストファイルで保存します"><i class="fa-solid fa-file-lines"></i> テキスト</button>
           <button type="button" class="btn btn-primary text-[11px] py-1.5" onclick="addCarePlanUI()"><i class="fa-solid fa-plus"></i> 看護計画を追加</button>
@@ -428,14 +436,12 @@
       <div id="careplan-list" class="flex flex-col gap-3"></div>
     </div>
 
-    <!-- 関連図のページ（患者の情報 → 疾患 → 病態 → 症状・データ → 看護問題 を矢印でつなぐ図。js/15 の renderRelationMap） -->
     <div id="view-relation" class="hidden surface p-4 flex flex-col gap-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h2 class="font-display font-semibold text-[var(--ink)] text-[15px] flex items-center"><i class="fa-solid fa-diagram-project text-[var(--accent)] mr-2"></i>関連図</h2>
         <span id="rm-info" class="text-[11px] text-[var(--ink-muted)]"></span>
       </div>
-      <!-- 関連図の操作（2026-10-06.20 整理：「ごちゃごちゃしている」との声。作る／編集／見る・出す の3つにまとめ、
-           拡大・縮小は図の右下、印刷・画像・すべて消すは「その他」の中へ。js/15） -->
+
       <div class="rm-toolbar" role="toolbar" aria-label="関連図の操作">
         <div class="rm-group" aria-label="作る">
           <button type="button" class="btn btn-primary text-[11px] py-1.5" data-rm-action="build-rules" title="分類したカード・検査値の推移・看護計画（または選んだ看護診断）から、AIを使わずに関連図のたたき台を作ります"><i class="fa-solid fa-diagram-project"></i> 記録から作る</button>
@@ -465,7 +471,7 @@
           <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="check" data-rm-needs-map title="浮島・重複・矢印の向き・事実と予測・看護問題の根拠などを確かめます"><i class="fa-solid fa-list-check"></i> チェック</button>
         </div>
         <div class="rm-group rm-group-end" aria-label="見る・出す">
-          <!-- 看護問題の一覧：ボタンで開く小さな一覧（図の上に重ねて出し、場所をとらない）。押すとその四角へ移る：js/15 -->
+
           <div class="rm-prob-menu">
             <button type="button" class="btn btn-outline rm-prob-toggle text-[11px] py-1.5" data-rm-action="toggle-problems" aria-expanded="false" aria-controls="rm-problems" title="看護問題ごとに、その流れだけの図を見られます"><i class="fa-solid fa-list-ol"></i> 看護問題<span class="rm-prob-count"></span></button>
             <div id="rm-problems" class="rm-problems hidden" role="menu" aria-label="看護問題の一覧"></div>
@@ -494,7 +500,7 @@
       <div class="rm-canvas-frame">
         <div id="rm-canvas-wrap" class="rm-canvas-wrap hidden" tabindex="-1"></div>
         <div id="rm-text-view" class="rm-text-view hidden" aria-label="関連図の項目と矢印の一覧"></div>
-        <!-- 拡大・縮小は図の右下に重ねる（地図のアプリと同じ場所） -->
+
         <div class="rm-zoom-pad" role="toolbar" aria-label="拡大・縮小・全画面">
           <button type="button" data-rm-action="fullscreen" data-rm-needs-map aria-pressed="false" title="関連図を画面いっぱいに広げます（Escキーで元に戻ります）" aria-label="全画面"><i class="fa-solid fa-expand"></i></button>
           <button type="button" data-rm-action="zoom-in" data-rm-needs-map title="大きく表示" aria-label="大きく"><i class="fa-solid fa-plus"></i></button>
@@ -510,7 +516,7 @@
         <button type="button" class="btn btn-outline rm-prob-toggle text-[11px] py-1.5" data-rm-action="toggle-problems" aria-expanded="false" aria-controls="rm-problems" title="看護問題の一覧を出します"><i class="fa-solid fa-list-ol"></i> 看護問題<span class="rm-prob-count"></span></button>
         <button type="button" class="btn btn-primary text-[11px] py-1.5" data-rm-action="fullscreen" title="元の大きさに戻します（Escキーでも戻ります）"><i class="fa-solid fa-compress"></i> 元の大きさ</button>
       </div>
-      <!-- 右クリックのメニュー（四角・矢印の編集、何もない所に追加）：js/15 rmShowCtx -->
+
       <div id="rm-ctx" class="rm-ctx hidden" role="menu" aria-label="関連図の右クリックメニュー"></div>
       <div id="rm-legend" class="rm-legend" aria-label="四角の種類"></div>
     </div>
@@ -537,18 +543,17 @@
         </div>
       </div>
       <div id="reference-list" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <!-- JSで生成 -->
+
       </div>
       <p id="reference-empty" class="hidden text-xs text-[var(--ink-muted)] text-center py-8 border border-dashed border-[var(--line)] rounded-[var(--radius)]">
         まだ参考データがありません。「新規追加」または「画像から読み込む」で登録してください。
       </p>
     </div>
   </main>
-  <!-- 版の表示（ファイルが古い版に戻っていないかの確認用。js/10 の checkAppFileVersions 参照） -->
+
   <footer class="text-center text-[10px] text-[var(--ink-muted)] pb-3">看護アセスメント支援システム ／ 版 <span id="app-version-label">-</span></footer>
   <div id="app-version-warning" class="hidden fixed top-0 inset-x-0 z-[80] text-xs px-4 py-2 text-center" style="background:var(--brick);color:var(--on-fill);"></div>
 
-  <!-- 参考データ 追加・編集モーダル -->
   <div id="modal-reference-entry" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface max-w-lg w-full p-5 flex flex-col gap-4">
       <div class="flex items-center justify-between border-b border-[var(--line-soft)] pb-2">
@@ -571,7 +576,6 @@
     </div>
   </div>
 
-  <!-- 学習データ管理：パスワード入力モーダル -->
   <div id="modal-admin-password" class="hidden fixed inset-0 z-[65] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface max-w-xs w-full p-5 flex flex-col gap-3">
       <div class="flex items-center justify-between border-b border-[var(--line-soft)] pb-2">
@@ -590,7 +594,6 @@
     </div>
   </div>
 
-  <!-- 学習データ管理モーダル（本体） -->
   <div id="modal-admin" class="hidden fixed inset-0 z-[65] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface max-w-2xl w-full p-5 flex flex-col gap-3" style="max-height:85vh;">
       <div class="flex items-center justify-between border-b border-[var(--line-soft)] pb-2 shrink-0">
@@ -600,9 +603,6 @@
         <button id="btn-close-admin" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
       </div>
 
-      <!-- 「現在の学習内容一覧」と「学習によってどう変わったかの変更履歴」を切り替える。
-           タブ数が増えても崩れないよう折り返し可能にしている（flex-wrap）。 -->
-      <!-- サーバーにつながっているか（全員共有の学習データ・記録が見えているか）を表示する（renderAdminServerStatus） -->
       <div id="admin-server-status" class="text-[10.5px] text-[var(--ink-muted)] flex items-center gap-1.5 shrink-0"></div>
       <div class="flex items-center gap-1 flex-wrap shrink-0">
         <button id="admin-tab-btn-list" class="tab-pill active">現在の学習内容</button>
@@ -619,7 +619,7 @@
       <div id="admin-panel-list" class="flex flex-col gap-3" style="flex:1; min-height:0;">
         <div class="flex items-center justify-between gap-2 shrink-0 flex-wrap">
           <input type="text" id="admin-learning-search" class="field flex-1 min-w-[160px]" placeholder="登録内容を検索...">
-          <!-- 絞り込み・並べ替え（件数が増えても目的の学習内容を探しやすく） -->
+
           <select id="admin-learning-filter" class="field w-auto text-xs" title="絞り込み">
             <option value="">すべて</option>
             <option value="s">Sに直したもの</option>
@@ -636,7 +636,7 @@
           <span id="admin-learning-count" class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap"></span>
         </div>
         <div id="admin-learning-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
-        <!-- 学習データの書き出し（バックアップ）・読み込み・消去（以前は全タブ共通の下部にあり、誤って押しやすかった） -->
+
         <div class="flex items-center gap-2 flex-wrap shrink-0">
           <button id="btn-export-learning" class="btn btn-outline text-[11px] py-1"><i class="fa-solid fa-file-arrow-down"></i> 書き出し（バックアップ）</button>
           <button id="btn-import-learning" class="btn btn-outline text-[11px] py-1"><i class="fa-solid fa-file-arrow-up"></i> 読み込み</button>
@@ -657,7 +657,6 @@
         </button>
       </div>
 
-      <!-- 事例ログ（case-log.json）ビューア：サーバー側に蓄積された生の変更ログを、研究用に検索・閲覧する -->
       <div id="admin-panel-caselog" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
         <div class="flex items-center justify-between gap-2 shrink-0 flex-wrap">
           <input type="text" id="admin-caselog-search" class="field flex-1" placeholder="事例ログを検索（本文・操作種別）...">
@@ -681,21 +680,17 @@
         <div id="admin-caselog-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
       </div>
 
-      <!-- 学習傾向レポート：同じ文言への同じ修正が繰り返されて確立した傾向（computeLearningTrendRows）
-           を可視化する。以前はAIへの指示文に自動で織り込まれるだけで見る場所が無かった。 -->
       <div id="admin-panel-trends" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
         <div class="flex items-center justify-between gap-2 shrink-0">
           <input type="text" id="admin-trends-search" class="field flex-1" placeholder="学習傾向を検索（本文）...">
           <span id="admin-trends-count" class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap"></span>
         </div>
         <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
-          <i class="fa-solid fa-circle-info"></i> 同じ文言への同じ修正（分類・タグ）が2回以上繰り返されたものを、確立度（合計回数）の高い順に表示します。得票の多い上位のみがAIへの指示に反映されます（閲覧のみで削除機能はありません）。
+          <i class="fa-solid fa-circle-info"></i> 同じ文言への同じ修正（分類・タグ）が2回以上繰り返されたものを、確立度（合計回数）の高い順に表示します。修正傾向を確認するための参考表示です。分類結果は原文と照らして確認してください（閲覧のみで削除機能はありません）。
         </p>
         <div id="admin-trends-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
       </div>
 
-      <!-- ルール見直し候補：カードの手直しの記録（editLog）を集計し、よく外されるタグのキーワード・
-           よく手で追加されるタグ・S/Oの手直しを一覧にする（app.jsのcomputeRuleReviewCandidates参照） -->
       <div id="admin-panel-review" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
         <div class="flex items-center justify-between gap-2 shrink-0 flex-wrap">
           <span id="admin-review-count" class="text-[11px] text-[var(--ink-muted)]"></span>
@@ -707,8 +702,6 @@
         <div id="admin-review-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
       </div>
 
-      <!-- 追加キーワード：プログラムを直さずに、タグ付けのルールを画面から追加・削除する
-           （app.jsのcustomTagRuleSets・addCustomTagRuleFromForm参照。全員で共有） -->
       <div id="admin-panel-customrules" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
         <div class="flex items-center gap-2 shrink-0 flex-wrap">
           <input type="text" id="customrule-keyword" class="field flex-1 min-w-[140px]" placeholder="キーワード（例：生殖、閉経）" maxlength="40">
@@ -729,7 +722,6 @@
         <div id="admin-customrules-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
       </div>
 
-      <!-- 情報カードの不具合報告ビューア：カード右上の報告ボタンから送られた内容の一覧＋AIによる要約 -->
       <div id="admin-panel-reports" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
         <div class="flex items-center justify-between gap-2 shrink-0">
           <input type="text" id="admin-reports-search" class="field flex-1" placeholder="報告内容を検索（本文・コメント・患者名）...">
@@ -744,11 +736,6 @@
         <div id="admin-reports-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
       </div>
 
-      <!-- 分類基準：NotebookLM基準ノート本体を直接編集できるほか、それに上乗せしてAIへの
-           分類の指示に反映される「追加の要望」も追加・編集・削除できる（いずれも全利用者共有）。
-           学習データ（learningUserDict）から繰り返し確認された分類・タグの傾向は、
-           buildEffectiveNotebookContent()内で自動的に基準ノートへ統合されるため、
-           ここでの編集内容と学習結果はAIへの指示文の中で常に統合された状態で使われる。 -->
       <div id="admin-panel-criteria" class="hidden flex-col gap-3 overflow-y-auto" style="flex:1; min-height:0;">
         <div class="flex flex-col gap-1.5 shrink-0">
           <div class="flex items-center justify-between gap-2">
@@ -759,9 +746,9 @@
             </span>
           </div>
           <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed">
-            <i class="fa-solid fa-circle-info"></i> AIによる自動分類（S/O判定、ヘンダーソンタグ付け、検査値評価、不足情報推定）の根拠になる基準ノート本体です。内容は全利用者・全端末に共有されます。これまでの学習データ（S/O・タグの修正）から繰り返し確認された傾向は、保存内容と自動的に統合されてAIへの指示に反映されるため、ここに書き足す必要はありません。
+            <i class="fa-solid fa-circle-info"></i> ルールに基づく分類・検査値評価と、手動の看護過程の検証に利用する基準ノートです。内容は全利用者・全端末に共有されます。記載した文章は確認用の資料です。自然文を保存するだけで自動分類のルールが更新されるわけではありません。分類結果を原文・基準資料と照らして確認してください。
           </p>
-          <!-- 保存されている基準ノートが統合版より前の版のときだけ出す（js/04 の renderNotebookContentEditor） -->
+
           <div id="notebook-upgrade-notice" class="hidden flex items-center justify-between gap-2 text-[11px] rounded-[var(--radius-sm)] px-2.5 py-1.5" style="background:var(--gold-soft);border:1px solid var(--line);">
             <span><i class="fa-solid fa-circle-exclamation mr-1" style="color:var(--gold);"></i>サーバーに保存されていた古い版の代わりに、下の「統合版」を使っています。書き足した基準や追加の分類基準も入れるときは「分類基準を統合」を押してください。</span>
             <button type="button" class="btn btn-primary shrink-0" style="padding:2px 10px;font-size:10px;" onclick="openCriteriaIntegration()">分類基準を統合</button>
@@ -771,7 +758,7 @@
         <div class="border-t border-[var(--line-soft)] pt-3 flex flex-col gap-1.5" style="flex:1; min-height:200px;">
           <p class="text-[11px] font-semibold text-[var(--ink)] shrink-0">追加の分類基準（現場からの要望）</p>
           <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
-            <i class="fa-solid fa-circle-info"></i> 基準ノート本体とは別に、コードを直接編集せずに追加できる分類ルールです。内容は全利用者・全端末に共有されます。
+            <i class="fa-solid fa-circle-info"></i> 基準ノート本体とは別に、分類時に確認する要望を保存できます。文章を追加するだけで自動分類のルールが更新されるわけではありません。内容は全利用者・全端末に共有されます。
           </p>
           <div id="list-extra-criteria" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:150px;"></div>
           <div class="flex gap-1 items-end shrink-0">
@@ -780,13 +767,10 @@
           </div>
         </div>
 
-        <!-- 参照元リンク：NotebookLM等の外部の参照元を「名前＋リンク」として登録する。
-             NotebookLMには個人が使える公開APIが無いため内容の自動取得はできず、内容は
-             コピー＆ペーストで貼り付ける方式（貼り付けた内容だけがAIの分類に反映される）。 -->
         <div class="border-t border-[var(--line-soft)] pt-3 flex flex-col gap-1.5" style="flex:1; min-height:200px;">
           <p class="text-[11px] font-semibold text-[var(--ink)] shrink-0">参照元リンク（NotebookLM等）</p>
           <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
-            <i class="fa-solid fa-circle-info"></i> NotebookLMには個人が使える公開APIが無く、リンクを貼るだけでの内容の自動取得はできません。名前とリンクを登録し、内容はNotebookLM等からコピーしてここに貼り付けてください（貼り付けた内容が、基準ノート本体・追加の分類基準と同様にAIの分類に反映されます。内容が未貼付でもリンク自体は一覧に残ります）。内容は全利用者・全端末に共有されます。
+            <i class="fa-solid fa-circle-info"></i> リンク先の内容は自動取得しません。名前とリンクを登録し、確認に必要な資料を手動で貼り付けてください。資料は原文や分類結果との照合に使い、貼り付けただけで自動分類のルールは更新されません。内容は全利用者・全端末に共有されます。
           </p>
           <div id="list-reference-sources" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:150px;"></div>
           <div class="flex flex-col gap-1 shrink-0">
@@ -802,10 +786,6 @@
         </div>
       </div>
 
-      <!-- カルテスナップショット：自分やほかの利用者がタブを閉じた（＝編集を終えた）瞬間の
-           患者カルテ（S/Oカードの内容一式）をそのまま振り返れる、閲覧専用の履歴。
-           patients.json（最新の共有カルテ）とは別に、上書きされずに積み重ねて記録される。
-           ログイン機能が無いため「誰が」はブラウザタブ単位の識別子(clientId)の一部でのみ区別できる。 -->
       <div id="admin-panel-snapshots" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
         <div class="flex items-center justify-between gap-2 shrink-0 flex-wrap">
           <input type="text" id="admin-snapshots-search" class="field flex-1" placeholder="患者名で検索...">
@@ -829,8 +809,6 @@
     </div>
   </div>
 
-  <!-- API設定モーダル -->
-  <!-- 薬の情報（js/14 の openDrugInfo）：記録・カードに出てくる薬の要点と、最新の添付文書へのリンク -->
   <div id="modal-drug-info" class="hidden fixed inset-0 z-[61] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="drug-info-title" onclick="if (event.target === this) closeDrugInfo()" onkeydown="if (event.key === 'Escape') closeDrugInfo()">
     <div class="modal-surface w-full max-w-2xl p-4 flex flex-col gap-3 drug-modal">
       <div class="flex items-center justify-between gap-2">
@@ -844,7 +822,6 @@
     </div>
   </div>
 
-  <!-- AIのAPIキーが未設定のときの案内（js/05 の requireApiKey）。取得のページ・説明のページへのリンクと、設定を開くボタン -->
   <div id="modal-api-required" class="hidden fixed inset-0 z-[62] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="api-required-title">
     <div class="modal-surface w-full max-w-md p-5 flex flex-col gap-3">
       <h3 id="api-required-title" class="font-display font-semibold text-sm text-[var(--ink)] flex items-center gap-2"><i class="fa-solid fa-key text-[var(--gold)]"></i> AIを使うにはAPIキーの設定が必要です</h3>
@@ -887,9 +864,9 @@
           <option value="flash">標準（Flash）</option>
         </select>
         <p class="text-[10px] text-[var(--ink-muted)] mb-2">「混雑しています」が続くときは「軽量（Flash-Lite）」も試してください。応答の速さ・混み具合はGoogle側の状況で変わり、どのモデルでも保証はできません。</p>
-        <p class="text-[10px] text-[var(--ink-muted)]">写真の文字起こし（OCR）と「AI分析ツール」（検査値評価・看護診断候補・看護計画など）に使います。「分類開始」の下で「AIありで分類」を選んだときにも使います（このブラウザだけに保存）。HTMLファイルを直接開いて使っても動きます。ただし、ブラウザの種類や開き方（ファイルから／サーバーから）が変わると保存場所も別になるため、もう一度入力が必要です。</p>
+        <p class="text-[10px] text-[var(--ink-muted)]">写真の文字起こし（OCR）のみに使用します。AIによる分類・文章生成・関連図生成・看護計画生成・評価は使用しません（このブラウザだけに保存）。HTMLファイルを直接開いて使っても動きます。ただし、ブラウザの種類や開き方（ファイルから／サーバーから）が変わると保存場所も別になるため、もう一度入力が必要です。</p>
       </div>
-      <!-- AIに送る前に伏せる語句（改善案F。js/05 の maskPersonalInfo）。このブラウザだけに保存し、サーバーには送らない -->
+
       <div class="border-t border-[var(--line-soft)] pt-3">
         <label class="block text-xs font-medium text-[var(--ink)] mb-1"><i class="fa-solid fa-user-shield text-[var(--accent)] mr-1"></i>AIに送る前に伏せる語句</label>
         <textarea id="input-mask-terms" rows="3" class="field text-xs" placeholder="1行に1つ（例：自分の氏名、実習先の病院名、患者さんの本名）"></textarea>
@@ -897,7 +874,7 @@
         <button type="button" onclick="previewAiMasking()" class="btn btn-outline text-[11px] py-1 mt-1.5"><i class="fa-solid fa-eye"></i> 今の文章で伏せ字を確認</button>
       </div>
       <div class="border-t border-[var(--line-soft)] pt-3">
-        <p class="text-[10px] text-[var(--ink-muted)]"><i class="fa-solid fa-circle-info"></i> AIによる分類基準への追加の要望は、「学習データ管理」画面（パスワード保護）の「分類基準」タブから追加・編集できます。</p>
+        <p class="text-[10px] text-[var(--ink-muted)]"><i class="fa-solid fa-circle-info"></i> 分類基準への追加の要望は、「学習データ管理」画面（パスワード保護）の「分類基準」タブから追加・編集できます。</p>
       </div>
       <div class="border-t border-[var(--line-soft)] pt-3">
         <label class="block text-xs font-medium text-[var(--brick)] mb-1">学習データのリセット</label>
@@ -909,7 +886,6 @@
     </div>
   </div>
 
-  <!-- 不足情報追加モーダル -->
   <div id="modal-missing" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface max-w-sm w-full p-4 flex flex-col gap-3">
       <h3 class="font-display font-semibold text-sm text-[var(--ink)]">不足情報の追加</h3>
@@ -922,7 +898,6 @@
     </div>
   </div>
 
-  <!-- 自分のアセスメントの「根拠のカードを選ぶ」画面（js/11 の openEvidencePicker） -->
   <div id="modal-evidence-picker" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface ep-modal w-full p-4 flex flex-col gap-3">
       <div class="flex items-center justify-between gap-2">
@@ -946,7 +921,6 @@
     </div>
   </div>
 
-  <!-- 不足情報の確認状況を記録する画面（js/12 の openMissingCheck） -->
   <div id="modal-missing-check" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface max-w-lg w-full p-4 flex flex-col gap-3 max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between gap-2">
@@ -975,7 +949,6 @@
     </div>
   </div>
 
-  <!-- 看護計画の実施・評価を記録する画面（js/12 の openCareRecord） -->
   <div id="modal-care-record" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface max-w-2xl w-full p-4 flex flex-col gap-3 max-h-[92vh] overflow-y-auto">
       <div class="flex items-center justify-between gap-2">
@@ -1008,7 +981,6 @@
     </div>
   </div>
 
-  <!-- 変更点の比較（js/13 の openCompare） -->
   <div id="modal-compare" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface cmp-modal w-full p-4 flex flex-col gap-3">
       <div class="flex items-center justify-between gap-2">
@@ -1025,7 +997,6 @@
     </div>
   </div>
 
-  <!-- 提出・報告用の書き出し（js/13 の openReport） -->
   <div id="modal-report" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface rp-modal w-full p-4 flex flex-col gap-3">
       <div class="flex items-center justify-between gap-2">
@@ -1057,7 +1028,6 @@
     </div>
   </div>
 
-  <!-- 操作方法（js/05 の openHelp）。画面の説明文を短くし、詳しい使い方はここにまとめる -->
   <div id="modal-help" class="hidden fixed inset-0 z-[65] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4" onclick="if(event.target===this)closeHelp()">
     <div class="modal-surface max-w-2xl w-full p-5 flex flex-col gap-3 max-h-[88vh] overflow-y-auto" role="dialog" aria-labelledby="help-title">
       <div class="flex items-center justify-between gap-2">
@@ -1111,14 +1081,13 @@
             <li>書いた内容はまず<b>このブラウザ</b>に保存し、続けて<b>共有先（サーバー）</b>にも保存します。画面右上の表示で状態が分かります：「このブラウザに保存済み」「共有先に保存済み」「共有先への保存に失敗（押すと再送）」。</li>
             <li>共有先に保存できないときも、このブラウザには残っています。自動で送り直すほか、表示を押すとすぐ送り直します。</li>
             <li>AI（Gemini）の機能は、右上の「︙」→「API設定」でキーを入れたときだけ使えます。キーが無くても、分類（AIなし）・手直し・アセスメント・看護計画・書き出しはすべて使えます。</li>
-            <li>AIの結果は参考案です。根拠を確認し、最終判断は医療従事者が行ってください。AIに送る前に、氏名などの個人情報らしい語句は伏せ字にします。</li>
+            <li>画像OCRの読取結果は必ず原画像と照合してください。画像は送信前に個人を特定できる情報を除いてください。</li>
           </ul>
         </section>
       </div>
     </div>
   </div>
 
-  <!-- カードを分ける（js/13 の openSplitCard） -->
   <div id="modal-split" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface max-w-lg w-full p-4 flex flex-col gap-3">
       <div class="flex items-center justify-between gap-2">
@@ -1138,7 +1107,6 @@
     </div>
   </div>
 
-  <!-- 分類基準の統合（js/04 の openCriteriaIntegration） -->
   <div id="modal-integrate-criteria" class="hidden fixed inset-0 z-[67] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface ig-modal w-full p-4 flex flex-col gap-3">
       <div class="flex items-center justify-between gap-2">
@@ -1159,22 +1127,20 @@
     </div>
   </div>
 
-  <!-- 汎用ダイアログモーダル（入力・確認共通） -->
-  <div id="modal-dialog" class="hidden fixed inset-0 z-[69] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+  <div id="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" aria-describedby="dialog-message" class="hidden fixed inset-0 z-[69] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface max-w-sm w-full p-5 flex flex-col gap-4">
       <h3 id="dialog-title" class="font-display font-semibold text-sm text-[var(--ink)]"></h3>
       <p id="dialog-message" class="hidden text-xs text-[var(--ink-muted)] leading-relaxed -mt-2 whitespace-pre-line"></p>
-      <input id="dialog-input" type="text" class="field hidden">
+      <input id="dialog-input" aria-labelledby="dialog-title" type="text" class="field hidden">
       <div class="flex justify-end gap-2">
         <button id="dialog-cancel" class="btn btn-outline">キャンセル</button>
-        <!-- 3択の確認（例：分類前の文章を含めずに書き出す）でだけ表示する2つ目の選択ボタン（app.jsのopenDialogのsecondaryLabel） -->
+
         <button id="dialog-secondary" class="btn btn-outline hidden"></button>
         <button id="dialog-confirm" class="btn btn-primary">OK</button>
       </div>
     </div>
   </div>
 
-  <!-- 患者ページ一覧・検索・アーカイブ管理モーダル -->
   <div id="modal-patient-list" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface max-w-lg w-full p-5 flex flex-col gap-3">
       <div class="flex items-center justify-between border-b border-[var(--line-soft)] pb-2">
@@ -1195,9 +1161,6 @@
     </div>
   </div>
 
-  <!-- 複数選択時の一括操作バー -->
-  <!-- 「濃い色の帯＋明るいボタン」の配色。帯とボタンの色は --bar-bg・--bar-btn-bg で決める
-       （ダークモードでは白いボタンがまぶしく浮いていたので、帯より少し明るい灰色のボタンにした）。 -->
   <div id="bulk-action-bar" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[67] rounded-[var(--radius)] shadow-lg px-4 py-2.5 flex items-center flex-wrap justify-center gap-2 text-xs max-w-[95vw]" style="background:var(--bar-bg);color:var(--bar-ink);border:1px solid var(--line-strong);">
     <span id="bulk-action-count" class="font-semibold mr-1 whitespace-nowrap">0件選択中</span>
     <button onclick="bulkSetType('s')" class="btn" style="background:var(--gold);color:var(--on-fill);">→S</button>
@@ -1205,21 +1168,18 @@
     <select id="bulk-tag-select" onchange="bulkAddTag(this.value); this.value='';" class="text-[10px] rounded-[var(--radius-sm)] px-1.5 py-1.5 border-0" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;"><option value="">＋タグ追加</option></select>
     <button id="btn-bulk-merge" onclick="openMergeModal()" class="btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;" title="選択した2件以上のカードを1枚にまとめる"><i class="fa-solid fa-layer-group mr-1"></i>統合</button>
     <button onclick="bulkSetType('unnecessary')" class="btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;">不要にする</button>
-    <!-- 選択したカードだけをテキスト書き出し（修正依頼用メモ。app.jsのbuildSelectedCardsExportText参照） -->
+
     <button onclick="exportSelectedCardsText()" class="btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;" title="選択したカードだけを、元の文章の該当箇所と修正内容の記入欄付きでテキストファイル(.txt)に書き出す"><i class="fa-solid fa-file-export mr-1"></i>選択をテキスト書き出し</button>
     <button id="btn-bulk-back-to-overview" onclick="openCardOverview(true)" class="hidden btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;" title="選択を保ったまま、カード一覧に戻る"><i class="fa-solid fa-table-list mr-1"></i>一覧に戻る</button>
     <button onclick="clearSelection()" class="btn btn-ghost hover:bg-white/10" style="color:var(--bar-ink);">選択解除</button>
   </div>
 
-  <!-- カードの一覧表示（画面いっぱい）。app.jsのopenCardOverview・fitCardOverview参照。
-       画面の幅いっぱいに複数の段で並べ、すべてのカードが1画面に収まるまで文字を自動で小さくする。 -->
   <div id="modal-card-overview" class="hidden fixed inset-0 z-[66] flex flex-col" style="background:var(--paper);">
     <div class="flex items-center justify-between flex-wrap gap-x-3 gap-y-1.5 px-4 py-2 border-b border-[var(--line)] shrink-0" style="background:var(--surface);">
       <div class="flex items-center gap-3 flex-wrap text-xs text-[var(--ink)] min-w-0 flex-1">
         <span class="font-display font-semibold text-sm"><i class="fa-solid fa-table-list text-[var(--accent)] mr-1.5"></i>カード一覧</span>
         <span id="card-overview-counts" class="text-[var(--ink-muted)]"></span>
-        <!-- タグ未設定のカードの数。押すとタグ未設定のカードだけを表示する（もう一度押すとすべて表示に戻る） -->
-        <!-- 並べ方の切り替え（日時ごと／S・Oごと。app.jsのtoggleCardOverviewMode参照） -->
+
         <button id="btn-overview-mode" onclick="toggleCardOverviewMode()" class="ov-mode-toggle" title="一覧の並べ方を切り替えます"></button>
         <button id="btn-overview-untagged" onclick="toggleCardOverviewUntaggedOnly()" class="ov-untagged-filter" title="タグ未設定のカードだけを表示します"></button>
         <button id="btn-overview-selectall-untagged" onclick="selectAllUntagged()" class="ov-untagged-filter" title="タグ未設定のカードをすべて選択します"><i class="fa-regular fa-square-check"></i> 未設定を全選択</button>
@@ -1228,7 +1188,7 @@
         <span class="ov-help text-[10px] text-[var(--ink-muted)]">カードか□をクリックで選択→一覧を閉じて元の文章の該当箇所を表示（選択は保持。「一覧に戻る」で戻れます）／□を外すと選択解除（Escで閉じる）</span>
       </div>
       <div class="flex items-center gap-2 flex-wrap ml-auto">
-        <!-- 1画面に収まらないときだけ表示するページ切り替え（app.jsのfitCardOverview・changeCardOverviewPage参照。←→キーでも切り替え） -->
+
         <div id="card-overview-pager" class="ov-pager hidden">
           <button id="btn-ov-prev" onclick="changeCardOverviewPage(-1)" class="btn btn-outline text-[11px] py-1.5" title="前のページ（←キー）"><i class="fa-solid fa-chevron-left"></i> 前へ</button>
           <span id="card-overview-page-label" class="ov-page-label"></span>
@@ -1240,8 +1200,6 @@
     <div id="card-overview-body" class="card-overview-body flex-1 min-h-0 p-2"></div>
   </div>
 
-  <!-- テキスト書き出しの内容を選ぶモーダル（app.jsのaskExportOptions参照）。
-       「テキスト書き出し」「選択をテキスト書き出し」の両方で使う。前回選んだ内容を覚えておく。 -->
   <div id="modal-export-options" class="hidden fixed inset-0 z-[70] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface max-w-sm w-full p-5 flex flex-col gap-3">
       <div class="flex items-center justify-between border-b border-[var(--line-soft)] pb-2">
@@ -1266,7 +1224,6 @@
     </div>
   </div>
 
-  <!-- 複数カードの統合モーダル -->
   <div id="modal-merge" class="hidden fixed inset-0 z-[68] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface max-w-lg w-full p-5 flex flex-col gap-3" style="max-height:88vh;">
       <div class="flex items-center justify-between border-b border-[var(--line-soft)] pb-2 shrink-0">
@@ -1307,7 +1264,6 @@
     </div>
   </div>
 
-  <!-- 情報カードの不具合報告モーダル：カードの書き込みが変だと感じた時に、その内容をサイト側に送る -->
   <div id="modal-card-report" class="hidden fixed inset-0 z-[62] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface max-w-md w-full p-5 flex flex-col gap-3" style="max-height:85vh;">
       <div class="flex items-center justify-between border-b border-[var(--line-soft)] pb-2 shrink-0">
@@ -1336,26 +1292,282 @@
     </div>
   </div>
 
-  <!-- トースト通知コンテナ -->
-  <!-- 通知は右下に出す（右上だとヘッダーのボタンに重なり、消えない失敗の通知が操作の邪魔になるため） -->
   <div id="toast-container" class="toast-container fixed z-[70] flex flex-col gap-2 pointer-events-none" aria-live="polite"></div>
 
-  <!-- プログラム本体（以前の app.js を内容ごとに10ファイルに分けたもの）。この順番で読み込むこと。
-       順番は tests/app-helpers.js の APP_SCRIPT_FILES と同じにする（tests/app-files-order.test.js で確認）。 -->
-  <script src="js/01-henderson-keywords.js?v=2026-10-08.2045"></script>
-  <script src="js/02-reference-data.js?v=2026-10-08.8"></script>
-  <script src="js/03-extraction-helpers.js?v=2026-10-08.14"></script>
-  <script src="js/04-server-sync.js?v=2026-10-09.41"></script>
-  <script src="js/05-app-state-and-ui.js?v=2026-10-08.2023"></script>
-  <script src="js/06-export.js?v=2026-10-08.2103"></script>
-  <script src="js/07-classification.js?v=2026-10-08.2121"></script>
-  <script src="js/08-assessment-tools.js?v=2026-10-08.2023"></script>
-  <script src="js/09-board.js?v=2026-10-08.2121"></script>
-  <script src="js/10-reference-page-and-startup.js?v=2026-10-08.2121"></script>
-  <script src="js/11-own-assessment.js?v=2026-10-08.35"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-09.41"></script>
-  <script src="js/13-compare-and-report.js?v=2026-10-08.2121"></script>
-  <script src="js/14-drug-reference.js?v=2026-10-06.14"></script>
-  <script src="js/15-relation-map.js?v=2026-10-09.41"></script>
+  <script src="js/01-henderson-keywords.js?v=2026-10-10.znavigation17"></script>
+  <script src="js/02-reference-data.js?v=2026-10-10.znavigation17"></script>
+  <script src="js/03-extraction-helpers.js?v=2026-10-10.znavigation17"></script>
+  <script src="js/04-server-sync.js?v=2026-10-10.znavigation17"></script>
+  <script src="js/05-app-state-and-ui.js?v=2026-10-10.znavigation17"></script>
+  <script src="js/06-export.js?v=2026-10-10.znavigation17"></script>
+  <script src="js/07-classification.js?v=2026-10-10.znavigation17"></script>
+  <script src="js/08-assessment-tools.js?v=2026-10-10.znavigation17"></script>
+  <script src="js/09-board.js?v=2026-10-10.znavigation17"></script>
+  <script src="js/10-reference-page-and-startup.js?v=2026-10-10.znavigation17"></script>
+  <script src="js/11-own-assessment.js?v=2026-10-10.znavigation17"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-10.znavigation17"></script>
+  <script src="js/13-compare-and-report.js?v=2026-10-10.znavigation17"></script>
+  <script src="js/14-drug-reference.js?v=2026-10-10.znavigation17"></script>
+  <script src="js/15-relation-map.js?v=2026-10-10.znavigation19"></script>
+  <script src="clinical-knowledge/patient-quality.js?v=2026-10-10.quality1"></script>
+  <script>
+  // Local, read-only checks on the active chart. AI and network access are never used.
+  (function(){
+    'use strict';
+    const status=document.getElementById('nursing-auto-check-status');
+    const output=document.getElementById('nursing-auto-check-results');
+    const toggleWarnings=document.getElementById('nursing-toggle-warnings');
+    toggleWarnings.addEventListener('click',()=>{
+      output.hidden=!output.hidden;
+      toggleWarnings.setAttribute('aria-expanded',String(!output.hidden));
+      toggleWarnings.textContent=output.hidden?'確認事項を表示':'確認事項を閉じる';
+    });
+    const button=document.getElementById('nursing-auto-check-run');
+    const undoButton=document.getElementById('nursing-undo-text');
+    const redoButton=document.getElementById('nursing-redo-text');
+    const undoneKeys=new Set();
+    const redoByPatient=new Map();
+    function patientRedoStack(cp){const key=String(cp.id);if(!redoByPatient.has(key))redoByPatient.set(key,[]);return redoByPatient.get(key);}
+    function undoLastTextEdit(){
+      if(typeof getCurrentPatient!=='function'||typeof saveDataAndSync!=='function'||typeof touchItem!=='function'||typeof logItemEdit!=='function')return;
+      const cp=getCurrentPatient(),candidates=[];
+      if(!cp)return;
+      const redoStack=patientRedoStack(cp);
+      for(const item of cp.items||[]){
+        if(!item||item.deleted||item.aiSuggested||item.type==='unnecessary')continue;
+        for(const entry of item.editLog||[]){
+          if(entry.kind!=='text'||entry.undoOf||entry.redoOf||typeof entry.from!=='string'||typeof entry.to!=='string')continue;
+          const key=String(cp.id)+':'+String(item.id)+':'+String(entry.at);
+          if(undoneKeys.has(key)||item.text!==entry.to)continue;
+          candidates.push({item,entry,key});
+        }
+      }
+      candidates.sort((a,b)=>String(b.entry.at||'').localeCompare(String(a.entry.at||'')));
+      const target=candidates[0];
+      if(!target){status.textContent='取り消せる本文編集がありません。';return;}
+      target.item.text=target.entry.from;
+      touchItem(target.item);
+      logItemEdit(target.item,{kind:'text',from:target.entry.to,to:target.entry.from,undoOf:target.entry.at});
+      undoneKeys.add(target.key);
+      redoStack.push({patientId:String(cp.id),itemId:String(target.item.id),before:target.entry.from,after:target.entry.to,at:target.entry.at});
+      saveDataAndSync();
+      status.textContent='カードの本文編集を1件取り消しました。';
+      scan(true);
+    }
+    function redoTextEdit(){
+      if(typeof getCurrentPatient!=='function'||typeof saveDataAndSync!=='function'||typeof touchItem!=='function'||typeof logItemEdit!=='function')return;
+      const cp=getCurrentPatient();
+      if(!cp)return;
+      const redoStack=patientRedoStack(cp);
+      const entry=redoStack.pop();
+      if(!entry){status.textContent='やり直せる本文編集がありません。';return;}
+      const item=(cp.items||[]).find(x=>String(x.id)===entry.itemId);
+      if(!item||item.text!==entry.before){status.textContent='他の編集が行われたため、やり直しを中止しました。';return;}
+      item.text=entry.after;
+      touchItem(item);
+      logItemEdit(item,{kind:'text',from:entry.before,to:entry.after,redoOf:entry.at});
+      saveDataAndSync();
+      status.textContent='本文編集を1件やり直しました。';
+      scan(true);
+    }
+    undoButton.addEventListener('click',undoLastTextEdit);
+    redoButton.addEventListener('click',redoTextEdit);
+    const compareButton=document.getElementById('nursing-source-compare');
+    const comparison=document.getElementById('nursing-source-review');
+    const sourceOutput=document.getElementById('nursing-original-text');
+    const cardsOutput=document.getElementById('nursing-organized-text');
+    const sourcePrev=document.getElementById('nursing-source-prev');
+    const sourceNext=document.getElementById('nursing-source-next');
+    const sourceMatchStatus=document.getElementById('nursing-source-match-status');
+    let sourceReviewSnapshot='',activeSourceMatch=null;
+    const reviewCards=cp=>(cp.items||[]).filter(x=>x&&!x.deleted&&x.type!=='unnecessary'&&!x.aiSuggested);
+    const reviewSnapshot=cp=>JSON.stringify([cp.id,cp.sourceText,reviewCards(cp).map(x=>[x.id,x.text])]);
+    function ensureCurrentSourceReview(){
+      const current=getCurrentPatient();
+      if(current&&reviewSnapshot(current)===sourceReviewSnapshot)return true;
+      reviewSource();
+      status.textContent='患者・原文・カードが更新されたため表示を更新しました。もう一度選んでください。';
+      return false;
+    }
+    function displaySourceMatch(){
+      if(!activeSourceMatch||!ensureCurrentSourceReview())return;
+      const {original,result,position}=activeSourceMatch,[start,end]=result.ranges[position];
+      sourceOutput.replaceChildren();
+      sourceOutput.append(document.createTextNode(original.slice(0,start)));
+      const mark=document.createElement('mark');
+      mark.textContent=original.slice(start,end);
+      sourceOutput.append(mark,document.createTextNode(original.slice(end)));
+      mark.scrollIntoView({block:'nearest',behavior:'auto'});
+      sourcePrev.disabled=position===0;sourceNext.disabled=position===result.ranges.length-1;
+      sourceMatchStatus.textContent=(result.kind==='literal'?'完全一致':'空白・全半角などの表記をそろえた一致')+' '+(position+1)+'／'+result.ranges.length+'箇所。日時・前後の文脈を確認してください。';
+    }
+    sourcePrev.addEventListener('click',()=>{if(activeSourceMatch&&activeSourceMatch.position>0){activeSourceMatch.position--;displaySourceMatch();}});
+    sourceNext.addEventListener('click',()=>{if(activeSourceMatch&&activeSourceMatch.position+1<activeSourceMatch.result.ranges.length){activeSourceMatch.position++;displaySourceMatch();}});
+    function reviewSource(){
+      if(typeof getCurrentPatient!=='function')return;
+      const cp=getCurrentPatient();
+      if(!cp)return;
+      sourceReviewSnapshot=reviewSnapshot(cp);activeSourceMatch=null;
+      sourcePrev.disabled=true;sourceNext.disabled=true;sourceMatchStatus.textContent='カードを選んで原文を確認';
+      sourceOutput.textContent=String(cp.sourceText||'原文が保存されていません');
+      const sourceText=String(cp.sourceText||'');
+      const segments=sourceText.split(/\n|(?<=。)/u).map(x=>x.trim()).filter(x=>x.length>=12);
+      const cardTexts=reviewCards(cp).map(x=>String(x.text||''));
+      const unmatched=segments.filter(segment=>!cardTexts.some(card=>card.includes(segment)));
+      document.getElementById('nursing-source-coverage').textContent=
+        '原文の文節 '+segments.length+'件中、完全一致が見つからない文節 '+unmatched.length+'件。言い換えや分割による不一致も含むため、抽出漏れとは断定しません。';
+      cardsOutput.replaceChildren();
+      for(const item of reviewCards(cp)){
+        const row=document.createElement('div');
+        row.style.borderBottom='1px solid var(--line-soft)';
+        row.style.padding='6px 2px';
+        const tags=(item.hendersonIds||[]).join('、')||'未分類';
+        const label=document.createElement('button');
+        label.type='button';
+        label.className='btn btn-outline';
+        label.style.textAlign='left';
+        label.style.whiteSpace='normal';
+        label.textContent='['+tags+'] '+String(item.text||'（本文なし）');
+        label.title='クリックして元の文章内の一致箇所を探します';
+        label.dataset.cardText=String(item.text||'');
+        label.dataset.cardId=String(item.id);
+        label.addEventListener('click',()=>{
+          if(!ensureCurrentSourceReview())return;
+          const original=String(cp.sourceText||'');
+          const snippet=String(item.text||'').trim();
+          const result=findSourceExactMatches(original,snippet);
+          activeSourceMatch=null;sourcePrev.disabled=true;sourceNext.disabled=true;
+          sourceOutput.replaceChildren();
+          if(!result.ranges.length){
+            sourceOutput.textContent=original||'原文が保存されていません';
+            sourceMatchStatus.textContent='一致箇所なし';
+            status.textContent='原文と完全一致する箇所がありません。言い換えや省略がないか確認してください。';
+            return;
+          }
+          activeSourceMatch={original,result,position:0};displaySourceMatch();
+          status.textContent='選択したカードの一致箇所を表示しています。同じ文章が複数ある場合は前後の一致箇所も確認してください。';
+        });
+        row.append(label);
+        cardsOutput.append(row);
+      }
+    }
+    sourceOutput.addEventListener('mouseup',()=>{
+      if(!ensureCurrentSourceReview())return;
+      const selected=String(window.getSelection()?.toString()||'').trim();
+      if(selected.length<3)return;
+      let found=0;
+      for(const button of cardsOutput.querySelectorAll('button[data-card-text]')){
+        const matches=findSourceExactMatches(button.dataset.cardText,selected).ranges.length>0;
+        button.style.outline=matches?'2px solid var(--accent)':'';
+        if(matches){found++;if(found===1)button.scrollIntoView({block:'nearest'});}
+      }
+      status.textContent=found?'選択した原文に対応するカード候補 '+found+'件（部分一致。必ず本文を確認してください）':'選択した原文に対応するカードが見つかりません。';
+    });
+    compareButton.addEventListener('click',()=>{
+      comparison.hidden=!comparison.hidden;
+      compareButton.setAttribute('aria-expanded',String(!comparison.hidden));
+      if(!comparison.hidden)reviewSource();
+    });
+    let previous='',lastScan=0;
+    const priorCardsByPatient=new Map();
+    const pendingEvidenceByPatient=new Map();
+    function scan(force){
+      try{
+        if(!force && document.hidden)return; // Stop chart scanning in background tabs.
+        if(typeof getCurrentPatient!=='function')return;
+        const cp=getCurrentPatient();
+        if(!cp)return;
+        const items=(cp.items||[]).filter(x=>x&&!x.deleted&&x.type!=='unnecessary'&&!x.aiSuggested);
+        const plans=Object.values(cp.carePlans||{}).filter(p=>p&&!p.deleted);
+        const map=cp.relationMap;
+        const fingerprint=JSON.stringify([cp.id,cp.sourceText,items.map(i=>[i.id,i.text,i.type,i.hendersonIds,i.timestamp,i.tagNotNeeded,i.assessmentCols,i.admissionPhase,i.fieldLabel]),plans.map(p=>[p.id,p.problem,p.goalLong,p.goalShort,p.op,p.tp,p.ep,p.evidence,p.evidenceIds,p.evidenceSnapshot,p.mapEvidenceRefs,p.records]),map&&[map.nodes,map.edges]]);
+        if(!force&&fingerprint===previous)return;
+        previous=fingerprint;lastScan=Date.now();
+        if(!comparison.hidden)reviewSource();
+        const findings=[];
+        const warn=(code,message,id)=>{if(!findings.some(f=>f.code===code&&f.message===message&&f.id===id))findings.push({code,message,id});};
+        const audit=window.NursingPatientQuality.audit(cp,{isUntagged:typeof isUntaggedItem==='function'?isUntaggedItem:null,untaggedReason:typeof inferUntaggedReason==='function'?inferUntaggedReason:null});
+        for(const finding of audit.findings)warn(finding.code,finding.message,finding.id);
+        const currentCards=new Map(items.map(item=>[String(item.id),String(item.text||'')]));
+        const former=priorCardsByPatient.get(String(cp.id));
+        if(former){
+          const changed=[...currentCards].filter(([id,body])=>former.has(id)&&former.get(id)!==body).map(([id])=>id);
+          if(changed.length){
+            for(const plan of plans){
+              const evidenceRefs=[...(Array.isArray(plan.evidenceIds)?plan.evidenceIds:[]),
+                ...(Array.isArray(plan.refs)?plan.refs.filter(x=>typeof x==='string'):[])].map(String);
+              if(changed.some(id=>evidenceRefs.includes(id))){
+                const pending=pendingEvidenceByPatient.get(String(cp.id))||new Map();
+                pending.set(plan.id,JSON.stringify([plan.evidence,plan.evidenceIds,plan.evidenceSnapshot]));
+                pendingEvidenceByPatient.set(String(cp.id),pending);
+              }
+            }
+          }
+        }
+        priorCardsByPatient.set(String(cp.id),currentCards);
+        const pending=pendingEvidenceByPatient.get(String(cp.id));
+        if(pending)for(const [id,basis] of pending){
+          const plan=plans.find(p=>p.id===id);
+          if(!plan||JSON.stringify([plan.evidence,plan.evidenceIds,plan.evidenceSnapshot])!==basis){pending.delete(id);continue;}
+          warn('evidence-updated','根拠カードの文章が変更されました。看護計画の内容を再確認してください',id);
+        }
+        const seen=new Map();
+        for(const item of items){
+          const key=JSON.stringify([String(item.text||'').replace(/\s+/g,'').normalize('NFKC'),item.type,item.timestamp||'',item.admissionPhase||'']);
+          if(!String(item.text||'').trim()){warn('empty','本文が空の情報カード',item.id);continue;}
+          if(seen.has(key))warn('duplicate','同じ内容のカードが重複しています',item.id);
+          else seen.set(key,item.id);
+          // Unclassified warnings use the established tag-not-needed and background rules above.
+          if((item.hendersonIds||[]).some(n=>!Number.isInteger(Number(n))||Number(n)<1||Number(n)>14))warn('tag-range','分類番号が1～14の範囲外です',item.id);
+        }
+        const itemIds=new Set(items.map(i=>String(i.id)));
+        let previousTimestamp=null;
+        for(const item of items){
+          const raw=String(item.timestamp||'');
+          if(!/^\d{4}-\d{2}-\d{2}/.test(raw))continue;
+          const timestamp=Date.parse(raw);
+          if(!Number.isFinite(timestamp))continue;
+          if(previousTimestamp!==null&&timestamp<previousTimestamp)warn('chronology','カードの日時が前のカードより過去です。元の記録と照合してください',item.id);
+          previousTimestamp=timestamp;
+        }
+        for(const p of plans){
+          for(const id of Array.isArray(p.evidenceIds)?p.evidenceIds:[]){
+            if(!itemIds.has(String(id)))warn('broken-evidence','看護計画の根拠カードが見つかりません',p.id);
+          }
+          if(!String(p.problem||'').trim())warn('problem','看護問題名が未入力です',p.id);
+          if(!String(p.goalLong||p.goalShort||'').trim())warn('goal','看護目標が未入力です',p.id);
+          for(const type of ['op','tp','ep'])if(!(Array.isArray(p[type])&&p[type].some(v=>String(v||'').trim())))warn('plan-'+type,type.toUpperCase()+'が未入力です',p.id);
+          if(!(p.evidence||[]).length)warn('evidence','看護問題の根拠情報を確認してください',p.id);
+        }
+        if(map&&Array.isArray(map.nodes)&&Array.isArray(map.edges)){
+          const ids=new Set(map.nodes.map(n=>String(n.id)));
+          const linked=new Set();
+          for(const e of map.edges){
+            const from=String(e.from??e.source??''),to=String(e.to??e.target??'');
+            if(!ids.has(from)||!ids.has(to))warn('edge','関連図の矢印の接続先が存在しません','関連図');
+            if(from===to)warn('loop','関連図に自己循環があります','関連図');
+            linked.add(from);linked.add(to);
+          }
+          for(const n of map.nodes)if(!linked.has(String(n.id)))warn('isolated','関連図に孤立した情報があります',n.id);
+        }
+        output.replaceChildren();
+        const shown=findings.slice(0,60);
+        for(const finding of shown){
+          const div=document.createElement('div');
+          div.style.padding='5px 0';div.style.borderTop='1px solid var(--line-soft)';
+          div.textContent='要確認：'+finding.message+(finding.id?'（ID: '+String(finding.id).slice(0,60)+'）':'');
+          output.append(div);
+        }
+        status.textContent='現在の患者ページ：確認事項 '+findings.length+'件'+(findings.length>60?'（最初の60件を表示）':'')+'。データは自動変更しません。';
+        if(!findings.length)output.textContent='設定した形式チェックでは不足候補が見つかりませんでした。医学的な妥当性を保証するものではありません。';
+      }catch(err){status.textContent='点検できませんでした。再度お試しください。';console.warn('Nursing auto-check:',err);}
+    }
+    button.addEventListener('click',()=>scan(true));
+    // Changes are inspected every 5 seconds without modifying app state or sending chart data.
+    window.setInterval(()=>scan(false),5000);
+    window.addEventListener('load',()=>scan(true));
+  })();
+</script>
+
 </body>
 </html>

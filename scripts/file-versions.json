@@ -1,67 +1,67 @@
 {
   "js/01-henderson-keywords.js": {
-    "version": "2026-10-08.2045",
-    "hash": "ef240add063834b9"
+    "version": "2026-10-10.znavigation17",
+    "hash": "8e19d850b1f8b828"
   },
   "js/02-reference-data.js": {
-    "version": "2026-10-08.8",
-    "hash": "8e9bf407ad024be7"
+    "version": "2026-10-10.znavigation17",
+    "hash": "6866e1b51b42b6ca"
   },
   "js/03-extraction-helpers.js": {
-    "version": "2026-10-08.14",
-    "hash": "2ad22bff6197dcf1"
+    "version": "2026-10-10.znavigation17",
+    "hash": "6985261a5748a8d1"
   },
   "js/04-server-sync.js": {
-    "version": "2026-10-09.41",
-    "hash": "41bde4ac013cc458"
+    "version": "2026-10-10.znavigation17",
+    "hash": "48f0892e5d44452a"
   },
   "js/05-app-state-and-ui.js": {
-    "version": "2026-10-08.2023",
-    "hash": "2e7e98c4c49a7170"
+    "version": "2026-10-10.znavigation17",
+    "hash": "93943245682da83e"
   },
   "js/06-export.js": {
-    "version": "2026-10-08.2103",
-    "hash": "e750ed35a502596d"
+    "version": "2026-10-10.znavigation17",
+    "hash": "63386a564a13708d"
   },
   "js/07-classification.js": {
-    "version": "2026-10-08.2121",
-    "hash": "cc983dedc611d67c"
+    "version": "2026-10-10.znavigation17",
+    "hash": "b07fd35a2ac301d7"
   },
   "js/08-assessment-tools.js": {
-    "version": "2026-10-08.2023",
-    "hash": "619d02acfa63411b"
+    "version": "2026-10-10.znavigation17",
+    "hash": "165e17c163ce2aa4"
   },
   "js/09-board.js": {
-    "version": "2026-10-08.2121",
-    "hash": "c1a4475f1b91f690"
+    "version": "2026-10-10.znavigation17",
+    "hash": "c306f10f063bfa45"
   },
   "js/10-reference-page-and-startup.js": {
-    "version": "2026-10-08.2121",
-    "hash": "c6f10c6b83d267a9"
+    "version": "2026-10-10.znavigation17",
+    "hash": "c8d8f2645baa9a55"
   },
   "js/11-own-assessment.js": {
-    "version": "2026-10-08.35",
-    "hash": "c06ec335aeeb2961"
+    "version": "2026-10-10.znavigation17",
+    "hash": "76eb833265476104"
   },
   "js/12-missing-checks-and-care-plan.js": {
-    "version": "2026-10-09.41",
-    "hash": "251550b7ee559250"
+    "version": "2026-10-10.znavigation17",
+    "hash": "58966a4ebd905460"
   },
   "js/13-compare-and-report.js": {
-    "version": "2026-10-08.2121",
-    "hash": "1ea6689f119a2ce5"
+    "version": "2026-10-10.znavigation17",
+    "hash": "ab9bfce8677d18b3"
   },
   "js/14-drug-reference.js": {
-    "version": "2026-10-06.14",
-    "hash": "b90c3185deaf3a8c"
+    "version": "2026-10-10.znavigation17",
+    "hash": "ddd095be9f67a182"
   },
   "js/15-relation-map.js": {
-    "version": "2026-10-09.41",
-    "hash": "083c1d2630a24dd4"
+    "version": "2026-10-10.znavigation19",
+    "hash": "771c18639467581c"
   },
   "style.css": {
-    "version": "2026-10-09.41",
-    "hash": "732529884f63b289"
+    "version": "2026-10-10.znavigation18",
+    "hash": "40013e7fa7bcd82e"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",

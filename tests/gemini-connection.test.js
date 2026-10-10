@@ -1,6 +1,5 @@
 'use strict';
-// APIキーの種類の見分け・送り先とモデルの選択・エラーの日本語化（「API設定をしたのにAIが使えない」への対応）
-// 2026年から Google AI Studio のキーは「AQ.…」の新しい形式になった。AQ. も Gemini API に送り、キーはヘッダーで渡す。
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');
@@ -12,7 +11,7 @@ function memoryStorage() {
   const m = new Map();
   return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), _m: m };
 }
-// 起動時のサーバー読み込み（/api/...）は今まで通り空の答えを返し、Googleへの通信だけを模擬する
+
 function googleOnly(fn) {
   return async (url, opts) => (/googleapis\.com/.test(String(url)) ? fn(String(url), opts || {}) : { ok: true, status: 200, json: async () => [], text: async () => '' });
 }
@@ -67,7 +66,7 @@ test('モデルが使えない（提供終了）と言われたら、使える�
     if (url.includes('gemini-3.8-flash:')) return res(200, OK);
     return res(404, { error: { message: 'not found' } });
   });
-  // 提供の終わったモデルでは、認証の失敗に見える 401（理由は details の ACCESS_TOKEN_TYPE_UNSUPPORTED）が返る
+
   const app = loadApp({ localStorage: ls, fetch });
   const r = await app.testGeminiConnection(AQ);
   assert.equal(r.ok, true, r.message);
@@ -175,7 +174,7 @@ test('送り直しても混雑なら別のモデル（安定版のFlash-Lite）�
   assert.ok(calls.some(u => /gemini-3\.6-flash-lite:generateContent/.test(u)), JSON.stringify(calls));
   assert.equal(ls.getItem('gemini_model'), null, '一時的な切り替え先はモデルとして覚えない');
   assert.equal(JSON.parse(ls.getItem('gemini_busy_model')).model, 'gemini-3.6-flash-lite');
-  // 次の依頼は、混雑回避で使えたモデルに最初から送る（待たされない）
+
   calls.length = 0;
   const r2 = await app.testGeminiConnection(STUDIO);
   assert.equal(r2.ok, true);

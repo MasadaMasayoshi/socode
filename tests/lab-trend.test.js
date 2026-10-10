@@ -1,5 +1,5 @@
 'use strict';
-// 検査値の推移のページ（検査値・バイタルサインを「項目 × 日時」の表にする）の確認
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -21,7 +21,7 @@ test('バイタルサインのカードを項目ごとに分け、日ごとの�
 });
 
 test('検査の比較表（入院時→入院3日目）は基準値と比べて↑↓を付け、同じ日の時刻は時刻順に並べる（心不全の事例）', () => {
-  const src = fs.readFileSync(path.join(__dirname, 'golden', 'cases', '心不全_B氏82歳_架空.txt'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, 'fixtures', 'public-cases', 'circulation-contract.txt'), 'utf8');
   const t = app.buildLabTrendTable(cardsOf(src));
   assert.deepEqual(cell(t, 'BNP', '入院時'), ['1,250↑']);
   assert.deepEqual(cell(t, 'BNP', '入院3日目'), ['680↑']);
@@ -33,11 +33,11 @@ test('検査の比較表（入院時→入院3日目）は基準値と比べて�
   const keys = t.columns.map(c => c.key);
   assert.ok(keys.indexOf('入院1日目 14:30') < keys.indexOf('入院1日目 21:00'));
   assert.ok(keys.indexOf('入院2日目 10:00') < keys.indexOf('入院3日目 10:00'));
-  // 文の途中の値（「SpO2 94%に上昇」「K 3.4mEq/Lのため…」「歩行後SpO2 92%まで低下」）は表に入れない
+
   const spo2 = t.rows.find(r => r.key === 'SpO2');
   assert.ok(!Object.values(spo2.cells).flat().some(x => x.value === '94' || x.value === '92'));
   assert.deepEqual(cell(t, 'K', '入院3日目 11:00'), []);
-  // グループの順番：バイタルサイン → 身体計測 → 検査
+
   assert.equal(t.rows[0].group, 'バイタルサイン');
   assert.ok(t.rows.findIndex(r => r.group === '身体計測') < t.rows.findIndex(r => r.key === 'BNP'));
 });
@@ -78,7 +78,7 @@ test('画面：「検査値の推移」のタブ・ページと、記録メモ�
 const indicesOf = src => { const r = app.computeClinicalIndices(src, cardsOf(src)); return { ...r, get: k => r.indices.find(x => x.key === k) }; };
 
 test('自動計算：BMI・標準体重・普段からの体重の変化・ブリンクマン指数・純アルコール量・eGFR（心不全の事例）', () => {
-  const src = fs.readFileSync(path.join(__dirname, 'golden', 'cases', '心不全_B氏82歳_架空.txt'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, 'fixtures', 'public-cases', 'circulation-contract.txt'), 'utf8');
   const r = indicesOf(src);
   assert.equal(r.basics.age, 82);
   assert.equal(r.basics.sex, 'male');
@@ -111,7 +111,6 @@ test('自動計算：喫煙の書き方の違い・家族の年齢は使わな�
   assert.ok(indicesOf('Rくん 10歳 男児\n身長140cm、体重35kg').get('rohrer'));
 });
 
-// 2026-10-06.22：「体重 1か月で2.0kg減少」の「1」（期間）を体重の値として表に出していた
 test('検査値の推移：「体重 1か月で2.0kg減少」は体重の値（1）として読まない', () => {
   assert.equal(app.parseLabTrendEntries('体重 1か月で2.0kg減少。'), null);
   const e = app.parseLabTrendEntries('体重 52.4kg');

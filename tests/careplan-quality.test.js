@@ -1,5 +1,5 @@
 'use strict';
-// 看護計画の品質管理：重複の統合・根拠の検証・優先順位・目標・OP/TP/EP・参照・状態・自動チェック・検査値のOCR（2026-10-08.24）
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');
@@ -183,11 +183,11 @@ test('診断が変わったら、目標・OP・TP・EPも作り直す：古い�
   assert.ok(!/活動耐性|病棟のトイレまで歩け|休憩を入れながら/.test(JSON.stringify([act.goalLong, act.goalShort, act.op, act.tp, act.ep])));
   assert.match(act.goalShort, /ふらつき・息切れ・SpO2低下を認めない/);
   assert.equal(act.genKey, app.cpPlanKey(act));
-  // 古い版が作った不整合な計画（栄養のリスクなのに、回復の目標）は、自動チェックのときに作り直される
+
   const nut = app.createCarePlan(cp, mk('栄養摂取量不足リスク状態', { goalShort: '1週間後までに、食事を毎食7割以上食べられ、体重が今より減らない', op: ['摂取量を観察する'] }));
   app.refineCarePlans(cp);
   assert.ok(!/毎食7割以上/.test(nut.goalShort) && /食事再開後3日以内/.test(nut.goalShort));
-  // 自分で書き直した計画は上書きしない
+
   const mine = app.createCarePlan(cp, mk('栄養摂取量不足リスク状態', { goalShort: '食事を毎食7割以上食べられる', userEdited: true }));
   app.refineCarePlans(cp);
   assert.equal(mine.goalShort, '食事を毎食7割以上食べられる');
@@ -248,7 +248,7 @@ test('関連図：病名が「胃底部に25mm大のがんを指摘され」と�
   const fs2 = require('fs'), path2 = require('path');
   const { loadApp } = require('./app-helpers');
   const app2 = loadApp();
-  const text = fs2.readFileSync(path2.join(__dirname, 'golden/cases/胃がん_A氏58歳.txt'), 'utf8');
+  const text = fs2.readFileSync(path2.join(__dirname, 'fixtures/public-cases/gastric-contract.txt'), 'utf8');
   const items = app2.classifyTextByRules(text).map((i, k) => ({ ...i, id: `it${k}` }));
   const cp = { id: 'p1', title: 'A氏', sourceText: text, items, carePlans: {}, selectedDiagnosisIds: [], diagnosisCandidates: [] };
   const map = app2.buildRelationMapFromRecord(cp);
@@ -262,7 +262,7 @@ test('関連図：がんの手術（治療）は、手術の目的を通って�
   const fs2 = require('fs'), path2 = require('path');
   const { loadApp } = require('./app-helpers');
   const app2 = loadApp();
-  const text = fs2.readFileSync(path2.join(__dirname, 'golden/cases/胃がん_A氏58歳.txt'), 'utf8');
+  const text = fs2.readFileSync(path2.join(__dirname, 'fixtures/public-cases/gastric-contract.txt'), 'utf8');
   const items = app2.classifyTextByRules(text).map((i, k) => ({ ...i, id: `it${k}` }));
   const map = app2.buildRelationMapFromRecord({ id: 'p1', title: 'A氏', sourceText: text, items, carePlans: {}, selectedDiagnosisIds: [], diagnosisCandidates: [] });
   const dis = map.nodes.find(n => n.type === 'disease');

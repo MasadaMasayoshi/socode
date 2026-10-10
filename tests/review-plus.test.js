@@ -1,0 +1,27 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict');
+const q=require('../clinical-knowledge/review-plus.js');
+test('extraction preserves source identity and detects duplicates',()=>{const r=q.traceExtraction('入院前は自立。入院後は介助。',[{id:'a',text:'入院前は自立。'},{id:'b',text:'入院前は自立。'}]);assert.equal(r.duplicate.length,1);});
+test('chronology reports reversals',()=>assert.equal(q.chronology([{timestamp:'2026-10-10T10:00:00+09:00'},{timestamp:'2026-10-09T10:00:00+09:00'}]).length,1));
+test('assessment never invents evidence',()=>assert.ok(q.assessNarrative({interpretation:'心配'}).some(x=>x.code==='assessment-evidence')));
+test('contradictions require same metric and period',()=>assert.equal(q.contradiction([{id:1,metric:'temperature',period:'postop',value:37},{id:2,metric:'temperature',period:'postop',value:39}]).length,1));
+test('priority is only a hint',()=>assert.equal(q.problemPriority({urgency:'high'}).rankHint,3));
+test('duplicated problems detected',()=>assert.equal(q.overlappingProblems([{id:1,problem:'転倒リスク'},{id:2,problem:'転倒 リスク'}]).length,1));
+test('map-plan discrepancy found',()=>assert.equal(q.crossCheckPlan({nodes:[]},[{id:1,problem:'感染リスク'}]).length,1));
+test('goals prompt evaluation',()=>assert.equal(q.measurableGoal('改善する').length,1));
+test('lab reference requires source and revision',()=>assert.ok(q.labRanges({low:2,high:1}).length>=3));
+test('OCR risk signals visual re-check',()=>assert.ok(q.ocrRisk('WBC 8.O mg').length>0));
+test('history aggregation is deterministic',()=>assert.equal(q.ruleSuggestion([{reason:'タグ'},{reason:'タグ'}])[0].count,2));
+test('non-expert knowledge is not automatically usable',()=>assert.ok(q.applicability({status:'pending-expert-review'},{ageGroup:'adult',phase:'postop',setting:'hospital'}).length));
+test('citations deduplicate',()=>assert.equal(q.bibliography([{sources:[{url:'https://example.org',title:'A'}]},{sources:[{url:'https://example.org',title:'A'}]}]).length,1));
+test('study insights sort weak areas first',()=>assert.equal(q.learningStats([{topic:'X',correct:false},{topic:'Y',correct:true}])[0].topic,'X'));
+
+test('missing-information priority is stable and does not diagnose',()=>{
+ const x=q.missingInformation([{id:'low',urgency:'routine'},{id:'high',urgency:'immediate'}]);
+ assert.deepEqual(x.map(y=>y.id),['high','low']);
+});
+test('OP TP EP duplicate items are flagged',()=>assert.equal(q.planRepeats({op:['呼吸数測定'],tp:['呼吸数測定'],ep:[]}).length,1));
+test('multiple sources invite human review rather than assumed conflict',()=>{
+ const r=q.sourceConflicts([{id:'a',topic:'褥瘡'},{id:'b',topic:'褥瘡'}]);
+ assert.equal(r.length,1);assert.equal(r[0].reviewNeeded,true);
+});

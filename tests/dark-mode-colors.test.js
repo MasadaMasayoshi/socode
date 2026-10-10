@@ -1,5 +1,5 @@
 'use strict';
-// ダークモードで白い部品が残ったり、明るい塗りの上の白い文字が読めなくなったりしないことの確認
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

@@ -1,5 +1,5 @@
 'use strict';
-// 【レビューで発見】AIの結果の読み取り・まとめて実行・書き出し・検査値の推移の不具合の確認
+
 // （js/06・js/08・js/12・js/13）
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -13,7 +13,6 @@ const app = loadApp();
 const src = readAppSource();
 const plain = x => JSON.parse(JSON.stringify(x));
 
-// グローバルの関数を差し替えたり、画面の要素の中身を見たりしたいテスト用に、同じ順番でファイルを読み込んだ環境を作る
 function stubEl() {
   return {
     value: '', innerHTML: '', textContent: '', checked: false, disabled: false,
@@ -64,7 +63,7 @@ function loadSandbox(geminiReplies = []) {
   run(`globalThis.__toasts = []; showToast = (m, t) => { __toasts.push([t, typeof m === 'string' ? m : JSON.stringify(m)]); };`);
   return { sb, els, calls, run };
 }
-// 起動の処理（共有カルテの読み込み → 画面の読み直し）が終わるのを待つ（終わる前に試すと、後から画面が描き直される）
+
 const settle = async () => { for (let k = 0; k < 30; k++) await new Promise(r => setImmediate(r)); };
 const PATIENT_ITEMS = `[
   {id:'i1',type:'o',text:'SpO2 90%',timestamp:'入院1日目',hendersonIds:[1],assessmentCols:{1:'postadmission'}},
@@ -104,7 +103,7 @@ test('AIの看護計画の読み取り：「TPN…」「目標SpO2…」を見�
   assert.equal(plans[0].goalShort, '3日後までに痰を自己喀出できる');
   assert.deepEqual(plans[1].op, ['疼痛を観察する']);
   assert.deepEqual(plans[2].tp, ['ベッド柵を確認する']);
-  // AIの答え（マークダウン）→ 表示用HTML → 文字 → 読み取り、の流れでも同じ
+
   const html = app.formatAiResultHtml('### 要点\n- 気道浄化\n### ■非効果的気道浄化\n#### 目標\n1. 痰を出せる\n#### OP（観察計画）\n1. TPN刺入部を観察する\n### 1. ■急性疼痛\n#### OP（観察計画）\n1. NRSを観察する');
   const p2 = plain(app.parseCarePlanText(app.htmlToPlainText(html)));
   assert.deepEqual(p2.map(p => p.problem), ['非効果的気道浄化', '急性疼痛']);
@@ -119,9 +118,6 @@ test('看護診断候補の読み取り：「### ■ 診断名」「1. ■ 診�
   assert.deepEqual(names('■看護診断名：非効果的気道浄化\n根拠：x'), ['非効果的気道浄化']);
   assert.equal(app.parseDiagnosisCandidates('形式が違う答え').length, 0);
 });
-
-
-
 
 test('検査値の推移：「P 3.5 mg/dL」はリンの行にし、脈拍をリンの基準値で判定しない', () => {
   const t = app.buildLabTrendTable([
@@ -158,10 +154,6 @@ test('検査値の推移：値ごとに、そのカードの基準値→行の�
   assert.deepEqual(odd['CRP@入院3日目'], ['5'], '換算できない単位は判定しない');
 });
 
-
-
-
-
 test('書き出し（テキスト・PDF）に、自分で立てた看護計画と実施・評価の記録を載せる', () => {
   const cp = { id: 'p1', title: 'A', items: [], referenceNotes: [] };
   const plan = app.createCarePlan(cp, { problem: '急性疼痛', goalShort: 'NRS3以下', op: ['疼痛の程度'], tp: ['体位の工夫'], ep: [] });
@@ -183,7 +175,7 @@ test('印刷・PDF：保存されたAIの結果の動く部品は入れない。
   assert.equal(app.safeDomId('item_123_ab'), 'item_123_ab');
   const card = app.carePlanCardHtml({ items: [] }, { id: "p');alert(1);//", problem: 'x', relatedNeeds: [], records: [], status: 'active', op: [], tp: [], ep: [] }, 0, 1);
   assert.doesNotMatch(card, /alert\(1\)/);
-  // 印刷の見本（スマホ）でも、文書の中の動く部品を取り除いてから画面に入れる
+
   assert.match(src, /stripActivePrintContent\(parsed\.body, \{ keepSvg: !!options\.keepSvg \}\);/);
 });
 
@@ -193,4 +185,3 @@ test('手で編集した履歴：AIの分類の評価で適用した編集を、
   assert.match(app.formatEditLogEntry({ kind: 'aiReviewType', from: 'o', to: 's' }), /AIの評価で分類を変更: Oデータ → Sデータ/);
   assert.doesNotMatch(app.formatEditLogEntry({ kind: 'aiReview', from: ['a', 'b'] }), /^aiReview$/);
 });
-

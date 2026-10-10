@@ -1,5 +1,5 @@
 'use strict';
-// 看護計画は記録から自動で作る（AIなし）。手で消した計画は作り直さない
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');

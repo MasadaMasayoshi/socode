@@ -1,5 +1,5 @@
 'use strict';
-// 利用者からの指摘（患者36）の検証。適切であれば複数のタグを付けてよい。
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');

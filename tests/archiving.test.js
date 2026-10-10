@@ -1,6 +1,5 @@
 'use strict';
-// 古いログの自動整理（アーカイブ）の検証。90日より古い記録がGET .../archive側へ移り、
-// 通常の一覧(GET /api/case-log 等)には出てこなくなることを確認する。
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
@@ -26,7 +25,6 @@ test('90日より古い事例ログはrunArchiving()実行後、通常一覧か�
   const oldText = '古い事例' + uniq();
   const recentText = '最近の事例' + uniq();
 
-  // 直接daysAgoの日時を指定して記録する（atを明示的に渡せる/api/learning-eventの仕様を利用）
   const daysAgo = d => new Date(Date.now() - d * 24 * 60 * 60 * 1000).toISOString();
   await fetch(`${url}/api/learning-event`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },

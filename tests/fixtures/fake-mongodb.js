@@ -1,6 +1,5 @@
 'use strict';
-// 自動テスト用の小さな模擬MongoDB（server.js が使う操作だけ）。同じ接続先（URI）なら、別々に読み込んだ
-// server.js（＝ローカル版と公開版の2つのサーバー）が同じデータを共有する。
+
 const stores = global.__FAKE_MONGO_STORES__ || (global.__FAKE_MONGO_STORES__ = new Map());
 const clone = v => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
 function matches(doc, filter) {

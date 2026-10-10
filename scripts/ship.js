@@ -1,8 +1,8 @@
 'use strict';
-// 納品用のまとめ：前回の納品から変わったファイルだけを調べ、CRLF にそろえて出力フォルダに写し、一覧を表示する（AI が全ファイルを読み直さないため）。
-//   node scripts/ship.js <出力フォルダ>        変わったファイルを写して一覧を表示（記録も更新）
-//   node scripts/ship.js --list               一覧だけ表示（写さない・記録も更新しない）
-//   node scripts/ship.js --baseline           今の状態を「納品済み」として記録だけする
+// Copy files changed since the delivery baseline, normalizing source files to CRLF.
+// node scripts/ship.js <output>: copy changes and update the baseline.
+// node scripts/ship.js --list: list changes without writes.
+// node scripts/ship.js --baseline: record the current delivery baseline.
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -17,9 +17,9 @@ const hash = f => crypto.createHash('sha1').update(fs.readFileSync(path.join(ROO
 const now = Object.fromEntries(all.map(f => [f, hash(f)]));
 const prev = fs.existsSync(MANIFEST) ? JSON.parse(fs.readFileSync(MANIFEST, 'utf8')) : {};
 const arg = process.argv[2];
-if (arg === '--baseline') { fs.writeFileSync(MANIFEST, JSON.stringify(now, null, 1)); console.log('記録しました（' + all.length + ' ファイル）'); process.exit(0); }
+if (arg === '--baseline') { fs.writeFileSync(MANIFEST, JSON.stringify(now, null, 1)); console.log('Baseline recorded (' + all.length + ' files)'); process.exit(0); }
 const changed = all.filter(f => prev[f] !== now[f] && f !== 'scripts/.ship-manifest.json');
-if (!changed.length) { console.log('変わったファイルはありません'); process.exit(0); }
+if (!changed.length) { console.log('No changed files'); process.exit(0); }
 if (arg && arg !== '--list') {
   for (const f of changed) {
     const dst = path.join(arg, f);
@@ -29,4 +29,4 @@ if (arg && arg !== '--list') {
   }
   fs.writeFileSync(MANIFEST, JSON.stringify(now, null, 1));
 }
-console.log(changed.length + ' ファイル:\n' + changed.join('\n'));
+console.log(changed.length + ' files:\n' + changed.join('\n'));

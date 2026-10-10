@@ -83,10 +83,82 @@ test('基準値の判定・推移・呼吸機能・バイタルサイン・考�
   assert.match(t, /Hbが術前より低下しているため、手術に伴う出血や周術期の影響ではないかと考えられる/);
   assert.match(t, /WBCの上昇は術後の炎症反応によるものではないかと考えられるが、感染徴候/);
   assert.doesNotMatch(t, /感染している|正しい値は|修正しました/);
-  // 要確認の値は推移・考察に使わない（ASTの考察は、術前の値だけで出る高値の考察）
+
   assert.doesNotMatch(t, /ALTが高値/);
 });
 
 test('検査値が無い記録では評価を作らず、保存されたAIの結果があればそちらを優先する', () => {
   assert.equal(app.buildLabAssessment({ items: [{ id: 'x', type: 's', text: '食欲あり' }] }).has, false);
+});
+
+test('換算済みの実測値を原文の基準値と同じ単位で比較する', () => {
+  for (const [value, expected] of [[3, 'low'], [5, 'normal'], [9, 'high']]) {
+    for (const measurement of [`${value} ×10^3/μL`, `${value * 1000} /μL`]) {
+      const result = app.analyzeLabCard(`WBC ${measurement} (基準値: 3.3〜8.6 ×10^3/μL)`);
+      assert.equal(result.status, expected, measurement);
+      assert.equal(result.valueStd, value * 1000, '推移のための内蔵単位は維持');
+    }
+  }
+  assert.equal(app.analyzeLabCard('WBC 5000 /μL (基準値: 3.3〜8.6 mg/dL)').status, 'unknown', '換算不能な単位は判定しない');
+});
+
+test('基準値の数値が内蔵値と同じでも、記録の由来を自動承認しない', () => {
+  const builtIn = app.analyzeLabCard('AST 20 U/L');
+  assert.equal(builtIn.ref.origin, 'general');
+  const matching = app.analyzeLabCard('AST 20 U/L (基準値: 10〜40 U/L)');
+  assert.equal(matching.ref.origin, 'unverified');
+  assert.equal(matching.status, 'normal');
+  const different = app.analyzeLabCard('AST 20 U/L (基準値: 5〜35 U/L)');
+  assert.equal(different.ref.origin, 'source');
+  const result = app.buildLabAssessment({items:[card('x','AST 20 U/L (基準値: 10〜40 U/L)','入院前')]});
+  assert.match(JSON.stringify(result), /内蔵値と一致・由来未確認/);
+});
+
+test('同じ標準単位の基準値では低値・正常・高値を判定する', () => {
+  for (const [value, status] of [[8,'low'],[20,'normal'],[50,'high']]) {
+    assert.equal(app.analyzeLabCard(`AST ${value} U/L (基準値: 10〜40 U/L)`).status,status);
+  }
+});
+
+test('削除・除外・AI提案の値を判定・推移・考察の根拠にしない', () => {
+  const active = card('active','AST 20 U/L','入院前');
+  for (const extra of [{deleted:true},{type:'unnecessary'},{aiSuggested:true}]) {
+    const excluded = {...card('excluded','AST 200 U/L','入院後'),...extra};
+    const patient = {items:[active,excluded]};
+    const labs = app.analyzeLabData(patient).labs;
+    assert.deepEqual(Array.from(labs,l=>l.itemId),['active']);
+    assert.equal(app.evaluateLabFindings([excluded]).checked,0);
+    assert.equal(app.evaluateLabFindings([excluded]).findings.length,0);
+    const table = app.buildLabTrendTable([active,excluded]);
+    assert.doesNotMatch(JSON.stringify(table), /200/);
+    assert.doesNotMatch(JSON.stringify(app.buildLabAssessment(patient)), /200/);
+  }
+});
+
+test('カードを並べ替えても日付と時刻で検査推移を比較する', () => {
+  const items = [card('late','AST 200 U/L','術後2日目 12:00'),card('early','AST 50 U/L','術後1日目 09:00'),card('morning','AST 150 U/L','術後2日目 08:00')];
+  assert.deepEqual(Array.from(app.analyzeLabData({items}).labs,l=>l.itemId),['early','morning','late']);
+  assert.deepEqual(Array.from(app.analyzeLabData({items:items.slice().reverse()}).labs,l=>l.itemId),['early','morning','late']);
+  const unknown = card('unknown','AST 1000 U/L','日時不明');
+  const known = card('known','AST 20 U/L','術後1日目');
+  assert.equal(app.analyzeLabData({items:[unknown,known]}).labs.find(l=>l.itemId==='known').reasonKinds.includes('change'),false,'日付不明を前回値にしない');
+});
+
+test('異なる単位を混ぜた推移表示と日時不明の並びを誤解させない', () => {
+  const items=[card('a','WBC 5000 /μL','術前'),card('b','WBC 5 ×10^3/μL','術後1日目')];
+  const output=JSON.stringify(app.buildLabAssessment({items}));
+  assert.match(output,/5,000 → 5,000/);
+  assert.doesNotMatch(output,/5,000 → 5 /);
+  const unknown=JSON.stringify(app.buildLabAssessment({items:items.map(i=>({...i,timestamp:'日時不明'}))}));
+  assert.match(unknown,/日時の順序を確認できない/);
+  assert.doesNotMatch(unknown,/→|推移：/);
+});
+
+test('新生児の値を母親の検査判定に混ぜない', () => {
+  const child=card('child','新生児：SpO2 88%','産褥1日目');
+  const mother=card('mother','SpO2 98%','産褥1日目');
+  const result=app.analyzeLabData({items:[child,mother]});
+  assert.equal(result.vitals.length,1);
+  assert.equal(result.vitals[0].value,98);
+  assert.doesNotMatch(JSON.stringify(app.buildLabAssessment({items:[child,mother]})),/88/);
 });

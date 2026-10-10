@@ -1,6 +1,5 @@
 'use strict';
-// 学生の実習記録（行動計画・考察のある記録／ヘンダーソンの用紙／日々の記録／プロセスレコード／
-// 小児の箇条書き）のテストで見つかった不具合の修正の確認
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');

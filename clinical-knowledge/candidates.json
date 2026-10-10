@@ -1,0 +1,963 @@
+{
+  "schemaVersion": 1,
+  "description": "Literature-backed knowledge candidates with owner approval recorded. Clinical expert review remains pending; do not treat as clinically validated or use for automatic patient decisions.",
+  "claims": [
+    {
+      "id": "pressure-ulcer-risk-assessment",
+      "type": "assessment-criterion",
+      "statement": "Pressure injury prevention planning should be based on risk and skin assessment, including mobility and the capacity to reposition.",
+      "scope": "Individuals assessed for pressure ulcer risk; adult guidance and age-specific sections differ.",
+      "limitations": "Does not establish the individual's risk, diagnosis or appropriate regimen without assessment. Local policies and patient preferences matter.",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Pressure ulcers: prevention and management (CG179), recommendations 1.1.1–1.1.4 and 1.3.1",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg179/chapter/Recommendations",
+          "year": 2014
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/cg179/chapter/Recommendations",
+        "scope": "published-recommendation-text-or-official-clinical-guide",
+        "note": "CG179 1.1.1-1.1.4: risk factors include restricted mobility, poor sensation, nutrition and ability to reposition; care planning at 1.3.1. Original '1.1 and 1.3' is section-level citation.",
+        "limitations": "Only a match to source content, not independent expert review or local clinical approval."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "pressure-ulcer-skin-observation",
+      "type": "nursing-intervention",
+      "statement": "NICE recommends skin assessment by a trained healthcare professional for adults assessed to be at high pressure-ulcer risk, including pressure-area skin integrity and changes in skin colour, heat, firmness and moisture.",
+      "scope": "Adults assessed to be at high risk of pressure ulcers.",
+      "limitations": "The recommendation is not an automatic finding of tissue injury. Assess risk and local clinical instructions; does not authorize any specific treatment.",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Pressure ulcers: prevention and management (CG179), recommendation 1.1.5",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg179/chapter/Recommendations",
+          "year": 2014
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/cg179/chapter/Recommendations",
+        "scope": "published-recommendation-text-or-official-clinical-guide",
+        "note": "CG179 1.1.5: high-risk adult skin check by trained professional; includes integrity, colour, warmth, firmness and moisture.",
+        "limitations": "Only a match to source content, not independent expert review or local clinical approval."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "falls-inpatient-multifactor-assessment",
+      "type": "assessment-criterion",
+      "statement": "入院中の転倒予防では、対象者の個別の転倒関連因子を総合的に評価する。評価対象には起立・臥位血圧、認知・気分、めまい、食事・水分・体重減少などを必要に応じて含める。",
+      "scope": "NICE NG249の対象となる65歳以上、または転倒リスク因子のある50〜64歳の入院患者・施設入所者。",
+      "limitations": "年齢範囲外への一律適用はしない。患者の転倒既往や状況に応じて判断し、単一スコアで転倒を予測しない。評価項目の実施権限と施設手順に従う。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Falls: assessment and prevention in older people and in people 50 and over at higher risk (NG249), recommendations 1.1.7 and 1.2.2",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng249/chapter/Recommendations",
+          "year": 2025
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/ng249/chapter/Recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "NG249 1.1.7 and 1.2.2: inpatients receive comprehensive falls assessment; cardiovascular, cognition/mood, delirium, diet/fluids/weight, dizziness are listed.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "falls-inpatient-safe-mobility-education",
+      "type": "nursing-intervention",
+      "statement": "入院中の転倒予防教育では、病棟で安全に移動する方法、必要な介助の求め方、ナースコールやベッド操作など慣れない設備の使い方について話し合う。",
+      "scope": "NICE NG249の対象となる転倒リスク評価・管理を受ける成人入院患者。",
+      "limitations": "離床の許可や運動量を自動決定するものではない。安静度・認知機能・移動能力・医師指示・施設環境を確認する。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Falls: assessment and prevention (NG249), recommendation 1.5.2",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng249/chapter/Recommendations",
+          "year": 2025
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/ng249/chapter/Recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "NG249 1.5.2: safe movement, assistance, bed controls and call bell covered.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "surgical-site-infection-discharge-education",
+      "type": "nursing-intervention",
+      "statement": "術後創部の管理について退院時に患者・介護者へ情報提供し、手術部位感染を疑う徴候と相談先を説明する。",
+      "scope": "手術部位の創傷ケアを必要とする周術期患者と介護者。NICE NG125の患者説明に関する推奨。",
+      "limitations": "感染を確定診断する基準ではない。創部の状態・術式・退院指示・施設手順に合わせる。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Surgical site infections: prevention and treatment (NG125), recommendations 1.1.2 and 1.1.3",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng125/chapter/Recommendations",
+          "year": 2019
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/ng125/chapter/Recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "NG125 1.1.2 and 1.1.3: wound care after discharge and recognising infection/contact are included.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "who-five-moments-hand-hygiene",
+      "type": "nursing-intervention",
+      "statement": "医療従事者の手指衛生の重要な5つのタイミングは、患者に触れる前、清潔・無菌操作の前、体液曝露リスク後、患者に触れた後、患者周囲の環境に触れた後である。",
+      "scope": "医療現場におけるWHOの手指衛生指針。外来・在宅等は環境に応じた適用が必要。",
+      "limitations": "これだけで手指衛生の方法・消毒薬の適応・隔離対策すべてを網羅しない。手袋の着脱や施設感染対策の手順も確認する。",
+      "sources": [
+        {
+          "kind": "official-standard",
+          "title": "Five moments for hand hygiene",
+          "publisher": "World Health Organization",
+          "url": "https://www.who.int/publications/m/item/five-moments-for-hand-hygiene",
+          "year": 2021
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.who.int/publications/m/item/five-moments-for-hand-hygiene",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "WHO Five Moments guidance includes all five named opportunities.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "copd-exacerbation-individual-oxygen-target",
+      "type": "assessment-criterion",
+      "statement": "COPD急性増悪時に酸素を投与する場合は、対象者ごとに処方された目標酸素飽和度範囲を確認し、酸素化を評価する。",
+      "scope": "16歳以上のCOPD急性増悪患者。NICE NG115の酸素療法に関する推奨。",
+      "limitations": "全患者に同一のSpO2目標値を自動設定しない。SpO2だけでPaCO2やpHは分からないため、必要に応じ血液ガスを確認する。酸素流量変更には指示・施設手順が必要。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Chronic obstructive pulmonary disease in over 16s (NG115), recommendations 1.3.27-1.3.29",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng115/chapter/Recommendations",
+          "year": 2018
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/ng115/chapter/Recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "NG115 1.3.27: prescribe oxygen to the individualised SaO2 target range, if necessary.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "copd-exacerbation-pulse-ox-limitations",
+      "type": "assessment-criterion",
+      "statement": "COPD急性増悪時のパルスオキシメータによる測定は酸素化の評価に役立つが、PaCO2やpHは測定できない。",
+      "scope": "16歳以上のCOPD急性増悪患者における酸素化評価。",
+      "limitations": "機器装着・循環・測定誤差などの影響にも注意する。換気状態や酸塩基平衡の判断にSpO2値だけを用いない。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Chronic obstructive pulmonary disease in over 16s (NG115), recommendation 1.3.28",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng115/chapter/Recommendations",
+          "year": 2018
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/ng115/chapter/Recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "NG115 1.3.28: pulse oximetry gives no PaCO2 or pH information.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "postoperative-pain-shared-planning",
+      "type": "nursing-intervention",
+      "statement": "術後疼痛管理の選択肢は手術前から患者と話し合い、痛みの既往・患者の希望・併存疾患・年齢・臓器機能・薬剤アレルギー・退院計画等を考慮する。",
+      "scope": "成人周術期患者。NICE NG180の術前疼痛管理計画。",
+      "limitations": "特定の鎮痛薬・投与量の推奨ではない。施設の方針と処方権限に従う。看護上の説明と医学的処方を混同しない。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Perioperative care in adults (NG180), recommendation 1.6.1",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng180/chapter/Recommendations",
+          "year": 2020
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/ng180/chapter/Recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "NG180 1.6.1: preoperative shared pain plan considers preferences, clinical features, risks and discharge.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "postoperative-pain-functional-recovery",
+      "type": "assessment-criterion",
+      "statement": "術後疼痛を評価するときは痛みの強さだけでなく、咳嗽や離床などの機能回復への影響を確認する。",
+      "scope": "成人周術期患者。NICE NG180の疼痛管理の計画と機能回復に関する推奨。 本出典の1.6.10は経口オピオイド投与時の用量調整と機能回復を述べる。",
+      "limitations": "NRSの特定数値だけで鎮痛目標達成と判定しない。疼痛の原因・禁忌・安静度・鎮痛薬の副作用を個別に確認する。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Perioperative care in adults (NG180), recommendations 1.6.1 and 1.6.10",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng180/chapter/Recommendations",
+          "year": 2020
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/ng180/chapter/Recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "NG180 1.6.10: opioid dose adjustment is tied to coughing and mobilisation; NOT a broad validated postoperative pain-assessment framework.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "diabetic-foot-bilateral-examination",
+      "type": "assessment-criterion",
+      "statement": "糖尿病患者の足部リスク評価では両足を観察し、神経障害、虚血、潰瘍、胼胝、感染・炎症、変形、壊疽、シャルコー関節症の徴候を確認する。知覚検査の一部に10gモノフィラメントを用いる。",
+      "scope": "糖尿病患者の足病変リスク評価。NICE NG19の足部診察推奨。",
+      "limitations": "足に疼痛がないことだけで安全と判断しない。必要な専門診察・血流評価・紹介を代替しない。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Diabetic foot problems (NG19), recommendation 1.3.4 (updated 2023)",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng19/chapter/Recommendations",
+          "year": 2015
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/ng19/chapter/Recommendations",
+        "scope": "recommendation-text-and-number",
+        "note": "NICE NG19 1.3.4 contains bilateral examination, neuropathy (10g monofilament), ischaemia, ulceration, callus, infection/inflammation, deformity, gangrene, Charcot arthropathy.",
+        "limitations": "This checks textual correspondence only, not expert clinical approval, comprehensive evidence quality or current Japanese applicability."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "diabetic-foot-ulcer-record-size-depth-site",
+      "type": "assessment-criterion",
+      "statement": "糖尿病性足潰瘍を認めた場合は、その大きさ、深さ、部位を評価し記録する。",
+      "scope": "糖尿病性足潰瘍が確認された患者。NICE NG19の潰瘍評価。",
+      "limitations": "潰瘍の範囲や重症度の判定は画像や単一の測定値だけで確定しない。感染・虚血の診察と適切な専門的管理が必要。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Diabetic foot problems (NG19), recommendation 1.5.1 (1.5.2 concerns severity classification)",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng19/chapter/Recommendations",
+          "year": 2015
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/ng19/chapter/Recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "NG19 1.5.1: document size, depth and position of diabetic foot ulcer; 1.5.2 is severity scoring.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "nutrition-malnutrition-screening-bmi-weight-loss",
+      "type": "assessment-criterion",
+      "statement": "成人の栄養リスクのスクリーニングではBMIと意図しない体重減少の割合を評価し、摂取不足の期間や今後の摂取困難の可能性も確認する。",
+      "scope": "成人入院患者等に対するNICE CG32の低栄養スクリーニング。",
+      "limitations": "BMI単独で栄養状態を確定せず、浮腫・体液変動や測定条件を考慮する。栄養支援の必要性は個別に判断する。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Nutrition support for adults (CG32), recommendations 1.2.2 and 1.2.6",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg32/chapter/recommendations",
+          "year": 2006
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/cg32/chapter/recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "CG32 1.2.6 covers BMI, unintentional weight loss, low intake.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "nutrition-unintentional-low-intake-risk",
+      "type": "assessment-criterion",
+      "statement": "直近5日を超えてほとんど食べていない、または今後5日以上ほとんど食べられない可能性は、栄養支援の検討に関わる栄養リスクとして扱う。",
+      "scope": "成人の栄養支援の必要性を検討する場面。NICE CG32の低栄養リスク基準。",
+      "limitations": "摂取不足の情報だけで介入方法・投与量を決めない。リフィーディング症候群リスク、併存疾患、専門職評価を確認する。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Nutrition support for adults (CG32), recommendation 1.3.2",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg32/chapter/recommendations",
+          "year": 2006
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/cg32/chapter/recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "CG32 1.3.2 includes little/no intake more than 5 days or likely for next 5 days.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "fluid-iv-therapy-daily-monitoring",
+      "type": "assessment-criterion",
+      "statement": "成人の継続的な静脈輸液では、初期には少なくとも毎日、体液状態、尿素・クレアチニン・電解質、出納表を再評価し、体重は週2回測定することが推奨される。",
+      "scope": "NICE CG174の対象となる入院中で静脈輸液を継続している成人。",
+      "limitations": "輸液内容・速度・必要性を看護師が独断で変更する根拠にはならない。状態により観察頻度の増減が必要で、長期安定例は計画に従う。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Intravenous fluid therapy in adults in hospital (CG174), recommendation 1.2.4",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg174/chapter/recommendations",
+          "year": 2013
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/cg174/chapter/recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "CG174 1.2.4 requires initially daily fluid assessment, labs and balance, twice-weekly weight.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "fluid-status-history-exam-monitoring",
+      "type": "assessment-criterion",
+      "statement": "体液・電解質需要の評価では、摂取不足、口渇、異常喪失、併存疾患などの病歴に加え、血圧・脈拍・浮腫・出納・体重の推移と腎機能・電解質データを組み合わせる。",
+      "scope": "静脈輸液の必要性や体液状態を評価する成人入院患者。NICE CG174。",
+      "limitations": "単一の尿量や血圧だけで脱水・体液過剰を断定しない。評価には患者状況と診療指示が必要。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Intravenous fluid therapy in adults in hospital (CG174), recommendation 1.2.2",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg174/chapter/recommendations",
+          "year": 2013
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/cg174/chapter/recommendations",
+        "scope": "published-recommendation-text-or-official-clinical-guide",
+        "note": "CG174 1.2.2: history, clinical exam, fluid balance trends, weight and renal/electrolyte investigations.",
+        "limitations": "Only a match to source content, not independent expert review or local clinical approval."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "urinary-incontinence-bladder-diary",
+      "type": "assessment-criterion",
+      "statement": "女性の尿失禁または過活動膀胱の初期評価では、普段の生活の変化を含む最低3日間の排尿日誌を用いる。",
+      "scope": "女性の尿失禁・過活動膀胱の初期評価（NICE NG123）。",
+      "limitations": "すべての性別や排尿障害に一律に適用しない。尿閉、感染、神経因性膀胱等の評価を代替しない。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Urinary incontinence and pelvic organ prolapse in women (NG123), recommendation 1.3.13",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng123/chapter/Recommendations",
+          "year": 2019
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/ng123/chapter/Recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "NG123 1.3.13: a minimum 3-day bladder diary across normal activity variations.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "surgical-wound-dressing-aseptic-technique",
+      "type": "nursing-intervention",
+      "statement": "手術創のドレッシング交換・除去時には、無菌的なノンタッチ手技を用いることが推奨される。",
+      "scope": "手術創のドレッシングを交換または除去する場面（NICE NG125）。",
+      "limitations": "創部の状態・施設感染対策・教育訓練・処置権限を確認する。創感染があるとの診断や特定の処置薬選択は導けない。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Surgical site infections: prevention and treatment (NG125), recommendation 1.4.1",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng125/chapter/recommendations",
+          "year": 2019
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/ng125/chapter/recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "NG125 1.4.1 specifies aseptic non-touch technique.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "vte-surgery-bleeding-risk-assessment",
+      "type": "assessment-criterion",
+      "statement": "周術期・外傷患者では静脈血栓塞栓症（VTE）と出血の双方のリスクを評価し、病状変化に応じて再評価する。",
+      "scope": "16歳以上の入院患者における手術・外傷時のVTE予防評価。",
+      "limitations": "リスク評価だけで抗凝固薬や器具を開始しない。術式・禁忌・出血リスク・指示・施設で採用する評価ツールを確認する。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Venous thromboembolism in over 16s (NG89), recommendations 1.1.5, 1.1.6 and 1.1.8",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng89/chapter/recommendations",
+          "year": 2018
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/ng89/chapter/recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "NG89 1.1.5–1.1.8 cover surgical/trauma VTE and bleeding risk and reassessment.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "vte-mobilisation-and-hydration",
+      "type": "nursing-intervention",
+      "statement": "静脈血栓塞栓症の予防では、可能な限り早期の離床を促し、臨床上必要な場合を除き脱水状態を避ける。",
+      "scope": "16歳以上の手術を受ける患者などに対するNICE NG89の一般的な看護ケア。",
+      "limitations": "安静度、出血、循環動態、心不全・腎不全、術後指示や転倒リスクを確認し、全患者に一律の飲水や離床を指示しない。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Venous thromboembolism in over 16s (NG89), recommendations 1.3.14–1.3.15",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng89/chapter/recommendations",
+          "year": 2018
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/ng89/chapter/recommendations",
+        "scope": "recommendation-text-and-number",
+        "note": "NICE NG89 1.3.14 recommends mobilisation as soon as possible; 1.3.15 recommends avoiding dehydration unless clinically indicated.",
+        "limitations": "This checks textual correspondence only, not expert clinical approval, comprehensive evidence quality or current Japanese applicability."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "delirium-risk-and-acute-fluctuation",
+      "type": "assessment-criterion",
+      "statement": "せん妄リスク評価では65歳以上、認知機能障害、股関節骨折、重症疾患に留意し、数時間から数日の注意・認知・行動・活動性の変化や日内変動を観察する。",
+      "scope": "入院時および入院中にせん妄リスクがある人の評価。",
+      "limitations": "変化を確認しただけでせん妄と確定しない。原因評価と適切な評価尺度・専門的診断が必要。低活動型も見落とさない。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Delirium: prevention, diagnosis and management (CG103), recommendations 1.2.1 and 1.3.1–1.3.2",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg103/chapter/Recommendations",
+          "year": 2010
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/cg103/chapter/Recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "CG103 1.2.1 and 1.3.1 describe age, cognition, hip fracture, severe illness and acute fluctuating change.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "delirium-low-activity-screening",
+      "type": "assessment-criterion",
+      "statement": "せん妄が疑われる場合は、興奮だけでなく反応の遅さ、引きこもり、活動性や食欲の低下といった低活動型の所見にも注意する。",
+      "scope": "入院患者・長期ケアで、せん妄の可能性を示す急性の変化がある場合。",
+      "limitations": "低活動型の所見は非特異的で、単独では確定診断とならない。適切な尺度を使うことや専門職の判断が必要。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Delirium: prevention, diagnosis and management (CG103), recommendations 1.3.2 and 1.6.1–1.6.2",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg103/chapter/Recommendations",
+          "year": 2010
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/cg103/chapter/Recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "CG103 1.3.1 names slow responses, withdrawal and reduced movement/appetite; related risk assessment.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "constipation-bowel-history-record",
+      "type": "assessment-criterion",
+      "statement": "便秘の評価では排便頻度だけでなく、便の硬さ・排便困難・残便感、症状の持続期間、食事・水分・活動量・使用薬剤の変化を確認する。",
+      "scope": "成人の便秘症状の初期情報収集。",
+      "limitations": "週3回未満だけで便秘と断定しない。術後の排便異常は腸閉塞などの別疾患を除外する必要がある。",
+      "sources": [
+        {
+          "kind": "official-standard",
+          "title": "Diagnosis of Constipation; Symptoms & Causes of Constipation",
+          "publisher": "National Institute of Diabetes and Digestive and Kidney Diseases",
+          "url": "https://www.niddk.nih.gov/health-information/digestive-diseases/constipation/diagnosis",
+          "year": 2018
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.niddk.nih.gov/health-information/digestive-diseases/constipation/diagnosis",
+        "scope": "published-recommendation-text-or-official-clinical-guide",
+        "note": "NIDDK diagnosis and symptoms/causes: stool frequency/appearance, duration, diet, activity, medicines and symptoms. Residual stool feeling supported by symptoms/causes page.",
+        "limitations": "Only a match to source content, not independent expert review or local clinical approval."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "constipation-red-flag-symptoms",
+      "type": "assessment-criterion",
+      "statement": "便秘に直腸出血、持続する腹痛、排ガス不能、嘔吐、発熱、意図しない体重減少などを伴う場合は、速やかな医学的評価が必要な徴候として扱う。",
+      "scope": "便秘を訴える患者の症状確認。",
+      "limitations": "これらの症状の原因を便秘と決めつけない。特に術後の腹痛・嘔吐・排ガス不能は緊急性を考慮する。",
+      "sources": [
+        {
+          "kind": "official-standard",
+          "title": "Symptoms & Causes of Constipation",
+          "publisher": "National Institute of Diabetes and Digestive and Kidney Diseases",
+          "url": "https://www.niddk.nih.gov/health-information/digestive-diseases/constipation/symptoms-causes",
+          "year": 2018
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.niddk.nih.gov/health-information/digestive-diseases/constipation/symptoms-causes",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "NIDDK symptoms/causes names bleeding, persistent abdominal pain, no gas, vomiting, fever and unintended weight loss.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "postop-respiratory-vital-monitoring",
+      "type": "assessment-criterion",
+      "statement": "術後を含む急性期入院成人の定期的な生理学的観察では、呼吸数、酸素飽和度、心拍数、収縮期血圧、意識レベル、体温を含める。",
+      "scope": "急性期病院の成人入院患者。術後患者も含む。",
+      "limitations": "この組み合わせだけで肺炎・無気肺・呼吸不全を診断しない。測定頻度は患者の病状、施設のエスカレーション基準および診療計画に従う。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Acutely ill adults in hospital (CG50), recommendations 1.1–1.2",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg50/chapter/recommendations",
+          "year": 2007
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/cg50/chapter/recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "CG50 1.1–1.2 list routine respiratory rate, SpO2, heart rate, SBP, consciousness, temperature.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "postop-deterioration-trigger-response",
+      "type": "assessment-criterion",
+      "statement": "術後を含む入院成人で生理学的観察値の異常や臨床的懸念がある場合は、複数のバイタル指標と院内の早期警告・報告基準に基づき、観察頻度の増加と適切なチームへの連絡を判断する。",
+      "scope": "急性期病院の成人入院患者。",
+      "limitations": "閾値と対応の階層は施設ごとに決められる。単独のSpO2や呼吸数で患者の診断・治療を自動決定しない。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Acutely ill adults in hospital (CG50), recommendations 1.3–1.10",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg50/chapter/recommendations",
+          "year": 2007
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/cg50/chapter/recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "CG50 1.3 and 1.8–1.9 support escalation by observations/clinical concern and locally set thresholds.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "postop-bleeding-physiological-assessment",
+      "type": "assessment-criterion",
+      "statement": "術後出血が疑われるときは、心拍数、呼吸数、収縮期血圧、意識、酸素飽和度、体温の変化を組み合わせて全身状態を評価する。臨床状況に応じて尿量や乳酸などの追加観察も検討する。",
+      "scope": "術後に急性の状態悪化が疑われる成人入院患者。NICE CG50の急変時観察基準を術後に適用する。",
+      "limitations": "CG50は術後出血を直接診断するためのガイドラインではない。創部・排液の出血所見や診療指示など別の根拠との照合が必要。血圧が保たれていても出血を除外できない。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Acutely ill adults in hospital (CG50), recommendations 1.2 and 1.6",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg50/chapter/recommendations",
+          "year": 2007
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/cg50/chapter/recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "CG50 1.2 lists general deterioration observations; does not directly establish a postoperative-bleeding diagnostic assessment.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "postop-high-risk-recovery-area",
+      "type": "assessment-criterion",
+      "statement": "術後合併症や死亡のリスクが高い成人手術患者には、高依存度病棟、麻酔後回復室、ICUなどの専門的回復環境で術後管理を提供することが推奨される。",
+      "scope": "合併症または死亡のリスクが高い成人術後患者。",
+      "limitations": "すべての術後患者にICU管理が必要という意味ではない。管理場所の決定は医療チームの判断による。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Perioperative care in adults (NG180), recommendation 1.5.1",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/ng180/chapter/Recommendations",
+          "year": 2020
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/ng180/chapter/Recommendations",
+        "scope": "recommendation-text-and-number",
+        "note": "NICE NG180 1.5.1 recommends specialist postoperative recovery areas for patients with high risk of complications or mortality.",
+        "limitations": "This checks textual correspondence only, not expert clinical approval, comprehensive evidence quality or current Japanese applicability."
+      },
+      "reviewDue": "2027-04-10"
+    },
+    {
+      "id": "postop-clinical-concern-independent-escalation",
+      "type": "nursing-intervention",
+      "statement": "術後患者に急性の状態悪化を疑う臨床的懸念があるときは、早期警告スコアの閾値に達していなくても院内の対応・報告手順を開始する。",
+      "scope": "急性期病院の成人入院患者。",
+      "limitations": "スコアが正常でも安全を保証しない。緊急時は段階的対応を待たず院内の救急対応基準に従う。",
+      "sources": [
+        {
+          "kind": "guideline",
+          "title": "Acutely ill adults in hospital (CG50), recommendations 1.8 and 1.11",
+          "publisher": "NICE",
+          "url": "https://www.nice.org.uk/guidance/cg50/chapter/recommendations",
+          "year": 2007
+        }
+      ],
+      "lastChecked": "2026-10-10",
+      "status": "pending-expert-review",
+      "reviewer": null,
+      "ownerApproval": {
+        "status": "approved",
+        "date": "2026-10-10",
+        "source": "explicit-user-instruction"
+      },
+      "sourceVerification": {
+        "status": "source-text-matched",
+        "checkedOn": "2026-10-10",
+        "url": "https://www.nice.org.uk/guidance/cg50/chapter/recommendations",
+        "scope": "published-guideline-recommendation-text-or-official-guidance-summary",
+        "note": "CG50 1.8 states response is triggered by score OR clinical concern.",
+        "limitations": "Source wording check, not clinical expert approval or Japanese applicability review."
+      },
+      "reviewDue": "2027-04-10"
+    }
+  ]
+}

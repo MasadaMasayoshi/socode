@@ -1,5 +1,5 @@
 'use strict';
-// 利用者からの指摘（患者36・7.体温／14.学び／タグの不足）
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');

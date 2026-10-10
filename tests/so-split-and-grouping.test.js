@@ -1,9 +1,5 @@
 'use strict';
-// 利用者からの指摘（患者36のアセスメント整理シートへの助言）：
-//  1. SとOが混ざったカードは分ける（ただし同じ場面であることが分かるようにする）
-//  2. 同じ時点のバイタル・同じ時刻の処置・比較できる検査データはまとめる
-//  3. 退院後の生活についての知識不足・学びたい気持ちの発言は14.学び
-//  4. 総合アセスメント表では、同じ場面のSとOを横に並べる
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -11,14 +7,14 @@ const path = require('path');
 const { loadApp } = require('./app-helpers');
 const app = loadApp();
 const cards = text => Array.from(app.classifyTextByRules(text)).filter(c => c.type !== 'unnecessary');
-const p36 = fs.readFileSync(path.join(__dirname, 'golden', 'cases', '患者36.txt'), 'utf8');
+const p36 = fs.readFileSync(path.join(__dirname, 'fixtures', 'public-cases', 'hip-contract.txt'), 'utf8');
 const all = cards(p36);
 const find = s => all.find(c => c.text.includes(s));
 
 test('発言（S）と観察（O）が混ざったカードは同じ場面の2枚に分け、Sには何の場面か分かるよう（場面：…）を添える', () => {
-  // 利用者からの指摘：「ひとつながりの文章をOとSに分けてしまっているので、何について言及しているのか分かりにくい」
+
   const pairs = [
-    ['「あまり食欲がない」（場面：ベッドアップし、昼食摂取、半分のみ摂取、疼痛増強見られず）', 'ベッドアップし、昼食摂取、半分のみ摂取、疼痛増強見られず'], // 痛みは9にしないので、食事の観察とひとまとまりになる
+    ['「あまり食欲がない」（場面：ベッドアップし、昼食摂取、半分のみ摂取、疼痛増強見られず）', 'ベッドアップし、昼食摂取、半分のみ摂取、疼痛増強見られず'],
     ['「動いてないからお腹が張っている」（場面：排便なし(3日目なし)腸蠕動あり、排ガスあり）', '排便なし(3日目なし)腸蠕動あり、排ガスあり'],
     ['「体重をかけるのは怖い」（場面：端坐位→車いすへ移乗行う）', '端坐位→車いすへ移乗行う']
   ];
@@ -55,7 +51,7 @@ test('分けた発言に話題のタグが無ければ同じ場面の観察の�
 test('同じ時刻のバイタルは体温→血圧→脈拍→呼吸→SpO2の順に1枚にまとめる', () => {
   assert.equal(find('体温37.6度').text, '体温37.6度、血圧140/70mmHg、脈拍80回/分整、呼吸20回/分、SpO2 98%(酸素3L経鼻下)');
   assert.equal(find('体温37.6度').timestamp, '手術当日 12:00');
-  // 直前の「検温」だけのカードも、測定値と1枚にする（患者36・7.体温の指摘）
+
   assert.equal(find('体温 37.0度').text, '検温: 体温 37.0度、血圧125/70、脈拍 74回/分 整、呼吸数 17回/分、SpO2 98% (RA)', '単位の無い血圧もまとめる');
   assert.ok(!all.some(c => c.text === '検温'), '「検温」だけのカードは残らない');
   assert.ok(!all.some(c => /^脈拍 74/.test(c.text)));

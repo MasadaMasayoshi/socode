@@ -1,18 +1,6 @@
 'use strict';
-// 肺炎（市中肺炎CAP・院内肺炎HAP・医療介護関連肺炎NHCAP・誤嚥性肺炎）の看護資料の
-// 組み込みに関する検証。
+
 //
-// 【背景】利用者からアップロードいただいた「呼吸器系の解剖生理・肺炎の基礎知識・治療管理・
-// 退院支援」の資料を、既存の胃がん・大腿骨近位部骨折周術期看護資料と同じパターンで
-// 組み込んだ：
-// ①DEFAULT_NOTEBOOK_CONTENTに詳細な判断基準を追記（AI経由の分類・アセスメント・看護計画で参照）
-// ②DIAGNOSIS_TAG_HINTSに肺炎（CAP/HAP/NHCAP/誤嚥性肺炎）の診断名パターンを追加
-//   （既存の汎用パターン「肺炎|COPD|喘息|気管支炎|呼吸不全」→[1]のみに加え、より広いタグを提案）
-// ③HENDERSON_NEEDSのキーワードに酸素療法デバイス・排痰援助・誤嚥・口腔ケア・ワクチン接種等の
-//   語を追加（キーワードベースのローカル分類でも検出できるようにする）
-// ④PNEUMONIA_EXPECTED_CHECKS・detectPneumoniaMissingChecksを追加
-//   （「不足情報をAI推定」のAPIキー未設定時のローカル簡易ルールでも、代表的な観察項目の
-//   欠落を検出できるようにする。既存のGASTRIC_POSTOP_EXPECTED_CHECKS等と同じ設計）。
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -31,7 +19,7 @@ test('肺炎の診断名からは、呼吸(1)・体温(7)・感染対策(9)を�
     const ids = Array.from(detectDiagnosisTagHints(word)).sort((a, b) => a - b);
     assert.deepEqual(ids, [1, 7, 9], `「${word}」`);
   });
-  // 誤嚥性肺炎は、原因の誤嚥（2.食事）と嚥下の指導（14.学び）も付ける
+
   assert.deepEqual(Array.from(detectDiagnosisTagHints('誤嚥性肺炎')).sort((a, b) => a - b), [1, 2, 7, 9, 14]);
 });
 
@@ -40,7 +28,7 @@ test('CAP・HAP・NHCAP・VAPの略称単体でも診断名パターンに一致
   assert.ok(detectDiagnosisTagHints('HAP発症').includes(7));
   assert.ok(detectDiagnosisTagHints('NHCAPの診断').includes(9));
   assert.ok(detectDiagnosisTagHints('VAP予防').includes(1));
-  // 前後に英字が続く別の単語の一部としては一致しない（\bによる誤爆防止）
+
   const falsePositiveIds = detectDiagnosisTagHints('CAPTCHA認証');
   assert.ok(![1, 7, 9].every(id => falsePositiveIds.includes(id)), '「CAPTCHA認証」から肺炎のタグ一式が誤って提案されてはならない');
 });

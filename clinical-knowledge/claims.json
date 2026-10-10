@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "description": "Reviewed generic clinical knowledge for relation-map and nursing-plan generation. No individual patient data. An empty list means no claims have yet been approved.",
+  "claims": []
+}

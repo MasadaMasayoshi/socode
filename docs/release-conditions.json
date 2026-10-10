@@ -1,0 +1,50 @@
+{
+  "liveOcr": {
+    "status": "pending",
+    "evidence": [],
+    "missing": "Real provider OCR response and readable fictional-image accuracy check; intercepted transport is insufficient."
+  },
+  "facilityRanges": {
+    "status": "pending",
+    "evidence": [],
+    "missing": "Adopted ranges, units, methods, population and version/source."
+  },
+  "clinicalSources": {
+    "status": "pending",
+    "evidence": [],
+    "missing": "Applicable source-supported verification of graph and plan claims; independent expert review is waived."
+  },
+  "manualAccessibility": {
+    "status": "pending",
+    "evidence": [],
+    "missing": "Real-device and screen-reader workflow review beyond automated Chromium checks."
+  },
+  "reversibleOperations": {
+    "status": "partial",
+    "evidence": [
+      "docs/release-work-20261010.md"
+    ],
+    "missing": "Review remaining patient and bulk operations outside documented Undo/Redo and checkpoint scopes."
+  },
+  "curriculumCoverage": {
+    "status": "partial",
+    "evidence": [
+      "clinical-knowledge/practice.js"
+    ],
+    "missing": "Defined curriculum and verified coverage beyond the existing 36 fictional questions."
+  },
+  "releasePolicy": {
+    "mode": "public-regression-and-browser",
+    "ownerDecision": "tests-are-sufficient",
+    "acceptedOn": "2026-10-10",
+    "waivedAsPublicationPrerequisites": [
+      "liveOcr",
+      "facilityRanges",
+      "clinicalSources",
+      "manualAccessibility",
+      "reversibleOperations",
+      "curriculumCoverage"
+    ],
+    "note": "The owner explicitly accepts successful latest-code regression and real-browser tests as sufficient for publication readiness. Pending checks retain their verification status and remain follow-up work."
+  }
+}

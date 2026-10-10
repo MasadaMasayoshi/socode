@@ -1,7 +1,4 @@
 'use strict';
-// 「タグ指摘を書き出し」（タグの□に「おかしい」の印を付けて書き出す機能）は、利用者からの要望
-// （「タグ基準値再チェックとタグ指摘書き出し機能やっぱり削除してください」）により削除した。
-// 以前の印（flaggedTagIds）が残っているカードでも、書き出しに指摘欄が出ないことを確認する。
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

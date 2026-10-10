@@ -1,6 +1,5 @@
 'use strict';
-// 長い事例（心不全・121枚）で、実装されているAI機能をすべて動かして評価したときに見つかった問題の確認
-// （AIの答えは、AIがよく返す崩れた形を模擬したもの。本物のAPIキーは使わない）
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -10,7 +9,6 @@ const ROOT = path.join(__dirname, '..');
 const app = loadApp();
 const src = readAppSource();
 const plain = v => JSON.parse(JSON.stringify(v));
-const HF = fs.readFileSync(path.join(ROOT, 'tests/golden/cases/心不全_B氏82歳_架空.txt'), 'utf8');
 
 test('AIのJSON：```json の囲み・前置き・最後の余分な「,」があっても読める', () => {
   const v = app.parseAiJsonLoose('以下が不足情報です。\n```json\n[{"hendersonId":1,"text":"a"},\n{"hendersonId":2,"text":"b"},\n]\n```');
@@ -25,16 +23,14 @@ test('AIのJSON：答えが途中で切れたときは、閉じ終わった所�
   assert.equal(app.parseAiJsonLoose('説明 [JSON形式] です'), undefined);
 });
 
-
 test('看護診断候補：「■」が無く「## 1. **診断名**」「1. 診断名」の見出しで返っても候補を読める', () => {
   const a = app.parseDiagnosisCandidates('候補は次のとおりです。\n\n## 1. **心拍出量減少**\n根拠：EF 35%〔C55〕\n理由：…\n\n## 2. **活動耐性低下**\n根拠：歩行でSpO2低下\n理由：…');
   assert.deepEqual(plain(a.map(c => c.name)), ['心拍出量減少', '活動耐性低下']);
   const b = app.parseDiagnosisCandidates('1. 非効果的健康自主管理\n根拠：自己判断で中断\n理由：…');
   assert.deepEqual(plain(b.map(c => c.name)), ['非効果的健康自主管理']);
-  // 「■」の形は今までどおり
+
   assert.deepEqual(plain(app.parseDiagnosisCandidates('■ 活動耐性低下\n根拠：…').map(c => c.name)), ['活動耐性低下']);
 });
-
 
 test('看護計画の取り込み：最初の「要点」の「#1 …」を、中身の無い看護計画として取り込まない', () => {
   const text = `要点
@@ -59,16 +55,11 @@ OP（観察計画）
   const plans = app.parseCarePlanText(text);
   assert.deepEqual(plain(plans.map(p => p.problem)), ['活動耐性低下', '非効果的健康自主管理']);
   assert.equal(plans[0].op.length, 1);
-  // 「#1 …」の見出しだけで書かれた計画（要点が無い）は今までどおり読む
+
   assert.deepEqual(plain(app.parseCarePlanText('#1 転倒リスク\nOP：\n1. ふらつきを観察する').map(p => p.problem)), ['転倒リスク']);
 });
 
-
-
-test('AIの答えが途中で切れたこと（MAX_TOKENS）を知らせる・AIでの分類が読み取れないときはルールで分類したと知らせる', () => {
-  assert.match(src, /finish === 'MAX_TOKENS'/);
-  assert.match(src, /AIの答えが長すぎて、ここで途中で切れています/);
-  assert.match(src, /AIの答えを読み取れなかったため、AIなし（ルール）で分類しました/);
-  assert.match(src, /callGeminiAI\(\[\{ role: "user", parts: \[\{ text: prompt \}\] \}\], \{ json: true, quietTruncation: true \}\)/);
+test('旧AIパーサーの互換性を残しても、共通API入口は画像なしのAI分類要求を拒否する', () => {
+  assert.match(src, /if \(!hasImage \|\| options\.ocr !== true\) throw new Error\('AI機能は画像の文字認識/);
+  assert.ok(src.indexOf('if (!hasImage || options.ocr !== true) throw new Error') < src.indexOf('requestGemini(globalAppData.apiKey, body)'));
 });
-

@@ -1,7 +1,4 @@
 'use strict';
-// 利用者からの修正依頼：「入室だけで情報カードになってるのがおかしい」。
-// ・名詞だけの短い断片の結合（mergeShortFragmentCards）を、ローカル分類だけでなくAI分類の結果にも使う。
-// ・どこにもまとめられない「入室」のような移動を表す語だけのカードは不要な情報にする。
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -9,7 +6,6 @@ const { loadApp } = require('./app-helpers');
 
 const { mergeShortFragmentCards, groupClinicalPhrasesWithTimestamps } = loadApp();
 
-// AI分類の結果の形（1件ずつ返ってきた断片）を模したもの
 const aiLike = (rows) => rows.map((r, idx) => ({ text: r[1], timestamp: r[0], type: r[2] || 'o', hendersonIds: r[3] || [], isUnnecessaryBoilerplate: r[2] === 'unnecessary', isLabOrVital: false, _line: idx }));
 
 test('AI分類で「入室」「全身麻酔」が別々に返ってきても、同じ時刻の手術のカードに1枚にまとまる（タグも合わせる）', () => {
