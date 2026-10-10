@@ -54,6 +54,8 @@ jobs:
         run: node --test tests/backup-safety.test.js
       - name: Nursing deep-learning course tests
         run: node --test tests/learning-modules.test.js
+      - name: Public synthetic specification contracts
+        run: node --test tests/public-contracts.test.js
       - name: Unit regression suite
         run: npm test
 
