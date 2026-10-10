@@ -138,3 +138,33 @@ test('削除・除外・AI提案の値を判定・推移・考察の根拠にし
     assert.doesNotMatch(JSON.stringify(app.buildLabAssessment(patient)), /200/);
   }
 });
+
+
+test('カードを並べ替えても日付と時刻で検査推移を比較する', () => {
+  const items = [card('late','AST 200 U/L','術後2日目 12:00'),card('early','AST 50 U/L','術後1日目 09:00'),card('morning','AST 150 U/L','術後2日目 08:00')];
+  assert.deepEqual(Array.from(app.analyzeLabData({items}).labs,l=>l.itemId),['early','morning','late']);
+  assert.deepEqual(Array.from(app.analyzeLabData({items:items.slice().reverse()}).labs,l=>l.itemId),['early','morning','late']);
+  const unknown = card('unknown','AST 1000 U/L','日時不明');
+  const known = card('known','AST 20 U/L','術後1日目');
+  assert.equal(app.analyzeLabData({items:[unknown,known]}).labs.find(l=>l.itemId==='known').reasonKinds.includes('change'),false,'日付不明を前回値にしない');
+});
+
+
+test('異なる単位を混ぜた推移表示と日時不明の並びを誤解させない', () => {
+  const items=[card('a','WBC 5000 /μL','術前'),card('b','WBC 5 ×10^3/μL','術後1日目')];
+  const output=JSON.stringify(app.buildLabAssessment({items}));
+  assert.match(output,/5,000 → 5,000/);
+  assert.doesNotMatch(output,/5,000 → 5 /);
+  const unknown=JSON.stringify(app.buildLabAssessment({items:items.map(i=>({...i,timestamp:'日時不明'}))}));
+  assert.match(unknown,/日時の順序を確認できない/);
+  assert.doesNotMatch(unknown,/→|推移：/);
+});
+
+test('新生児の値を母親の検査判定に混ぜない', () => {
+  const child=card('child','新生児：SpO2 88%','産褥1日目');
+  const mother=card('mother','SpO2 98%','産褥1日目');
+  const result=app.analyzeLabData({items:[child,mother]});
+  assert.equal(result.vitals.length,1);
+  assert.equal(result.vitals[0].value,98);
+  assert.doesNotMatch(JSON.stringify(app.buildLabAssessment({items:[child,mother]})),/88/);
+});

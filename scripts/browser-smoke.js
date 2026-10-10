@@ -19,6 +19,16 @@ const {app}=require('../server');
    page.on('pageerror',e=>errors.push(e.message));
    await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
    await page.waitForFunction(()=>typeof getCurrentPatient==='function'&&!!getCurrentPatient());
+   const labBatch=await page.evaluate(()=>{
+    const card=(id,text,timestamp)=>({id,type:'o',text,timestamp});
+    const shuffled=[card('late','AST 200 U/L','術後2日目 12:00'),card('early','AST 50 U/L','術後1日目 09:00'),card('morning','AST 150 U/L','術後2日目 08:00')];
+    const mixed=[card('a','WBC 5000 /μL','術前'),card('b','WBC 5 ×10^3/μL','術後1日目')];
+    const text=buildLabAssessment({items:mixed}).html;
+    const unknown=buildLabAssessment({items:mixed.map(i=>({...i,timestamp:'日時不明'}))}).html;
+    const maternal=analyzeLabData({items:[card('child','新生児：SpO2 88%','産褥1日目'),card('mother','SpO2 98%','産褥1日目')]});
+    return {order:analyzeLabData({items:shuffled}).labs.map(l=>l.itemId),sameUnits:text.includes('5,000 → 5,000 /μL'),unknown:unknown.includes('日時の順序を確認できない')&&!unknown.includes('推移：'),maternal:maternal.vitals.length===1&&maternal.vitals[0].value===98};
+   });
+   assert.deepEqual(labBatch,{order:['early','morning','late'],sameUnits:true,unknown:true,maternal:true});
    const labStatuses=await page.evaluate(()=>[3,5,9].flatMap(value=>
     [`${value} ×10^3/μL`,`${value*1000} /μL`].map(measurement=>
      analyzeLabCard(`WBC ${measurement} (基準値: 3.3〜8.6 ×10^3/μL)`).status)));

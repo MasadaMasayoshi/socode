@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-10.znavigation10'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-10.znavigation11'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -154,7 +154,8 @@
     }
     // 検査値を調べる。findings＝基準値を外れた値、undetermined＝判定できなかった値、checked＝判定できた値の数
     function isActiveLabEvidence(item) {
-      return !!item && !item.deleted && !item.aiSuggested && item.type !== 'unnecessary';
+      return !!item && !item.deleted && !item.aiSuggested && item.type !== 'unnecessary' &&
+        !/^(?:児|新生児)\s*[:：]/.test(String(item.text || '').normalize('NFKC'));
     }
     function evaluateLabFindings(oItems) {
       const findings = [];
@@ -1247,7 +1248,7 @@
       });
       // 子どもの記録なら、脈拍・呼吸数は年齢の区分の目安で判定する（実習生の記録のテスト：乳児の脈拍140が「高い」になっていた）
       const ageGroup = options.ageGroup !== undefined ? options.ageGroup
-        : detectAgeGroupFromText([options.sourceText || '', ...(items || []).slice(0, 40).map(i => (i && i.text) || '')].join('\n'));
+        : detectAgeGroupFromText([options.sourceText || '', ...expanded.slice(0, 40).map(i => i.text || '')].join('\n'));
       const childGuide = ageGroup ? CHILD_VITAL_GUIDES[ageGroup] : null;
       const vitalRefText = key => {
         if (!childGuide) return LAB_TREND_VITAL_REF_TEXT[key] || '';
@@ -1752,7 +1753,17 @@
     const LAB_STATUS_LABEL = { high: '高値', low: '低値', normal: '基準範囲内', review: '要確認', unknown: '判定不可' };
     // 取り出した全部：検査値・呼吸機能・バイタルサイン・読み取れない文字列
     function analyzeLabData(cp) {
-      const items = expandCombinedLabItems((cp.items || []).filter(isActiveLabEvidence));
+      const expanded = expandCombinedLabItems((cp.items || []).filter(isActiveLabEvidence));
+      // カードの表示順ではなく、推移表と同じ日順・同日の時刻順で比較する。
+      const items = groupItemsByDay(expanded).flatMap(group => group.items.slice().sort((a, b) => {
+        const minutes = item => {
+          const clock = timestampClockPart(item.timestamp);
+          if (!clock) return -1;
+          const [h, m] = clock.split(':').map(Number);
+          return h * 60 + m;
+        };
+        return minutes(a) - minutes(b);
+      }));
       const labs = [], broken = [], resp = [], vitals = [];
       const lastValid = {};
       items.forEach(item => {
@@ -1767,10 +1778,11 @@
         if (!r) return;
         if (r.kind === 'broken') { r.phase = phase; r.itemId = item.id; broken.push(r); return; }
         // 変化の確認は、前の確認済みの値と比べる（もう一度解析して previous を渡す）
-        const withPrev = analyzeLabCard(text, lastValid[r.key] || null);
-        withPrev.phase = phase; withPrev.itemId = item.id;
+        const knownDay = dayRank(timestampDayPart(item.timestamp)) !== null;
+        const withPrev = analyzeLabCard(text, knownDay ? lastValid[r.key] || null : null);
+        withPrev.phase = phase; withPrev.itemId = item.id; withPrev.timeKnown = knownDay;
         labs.push(withPrev);
-        if (withPrev.quality === 'valid') lastValid[r.key] = { valueStd: withPrev.valueStd, phase };
+        if (knownDay && withPrev.quality === 'valid') lastValid[r.key] = { valueStd: withPrev.valueStd, phase };
       });
       // 壊れた文字列の項目名の予想：同じ単位の検査で、その時点にまだ無い項目のうち、前の値に近いもの（低い確度）
       broken.forEach(b => {
@@ -1811,15 +1823,17 @@
         const list = byKey[key];
         const std = LAB_STANDARDS[key];
         const valid = list.filter(l => l.quality === 'valid');
-        const seq = valid.map(l => labValFmt(l.value)).join(' → ');
+        const ordered = valid.every(l => l.timeKnown);
+        const seq = valid.map(l => labValFmt(l.valueStd)).join(ordered ? ' → ' : ' ／ ');
         const lines = [];
         if (valid.length) {
           const last = valid[valid.length - 1];
-          lines.push(`${key}：${seq} ${last.unit || (std ? std.unit : '')}`.trim());
+          lines.push(`${key}：${seq} ${last.stdUnit || (std ? std.unit : '')}`.trim());
           if (last.ref) lines.push(`　判定：${LAB_STATUS_LABEL[last.status]}${last.ref.text ? `（基準値 ${last.ref.text}・${last.ref.origin === 'source' ? '記録に記載された基準値（出典未確認）' : last.ref.origin === 'unverified' ? '記録の基準値（内蔵値と一致・由来未確認）' : 'アプリ内蔵の一般的な基準値（性別・年齢・施設で異なります）'}）` : ''}`);
           else lines.push(`　判定：${LAB_STATUS_LABEL[last.status]}`);
+          if (!ordered) lines.push('　日時の順序を確認できない値を含むため、数値の並びを推移として判定していません。');
           // 推移（基準値の判定とは分けて書く）
-          if (valid.length >= 2) {
+          if (ordered && valid.length >= 2) {
             const first = valid[0], pct = (last.valueStd - first.valueStd) / (first.valueStd || 1);
             const dir = pct <= -0.05 ? '低下' : pct >= 0.05 ? '上昇' : '';
             if (dir) lines.push(`　推移：${first.phase ? first.phase + 'より' : '以前より'}${dir}しています${last.status === 'normal' ? '（基準範囲内の変化）' : ''}。`);
