@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-10.zhistory3'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-10.zhistory4'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -881,6 +881,30 @@
     };
 
     // ---- 実施・評価の記録の画面 ----
+    const careRecordEditHistories=new Map();
+    function careRecordEditHistory(cp){
+      if(!careRecordEditHistories.has(cp.id))careRecordEditHistories.set(cp.id,{undo:[],redo:[]});
+      return careRecordEditHistories.get(cp.id);
+    }
+    function rememberCareRecordEdit(cp,planId,before,after){
+      if(!before || !after || JSON.stringify(before)===JSON.stringify(after))return;
+      const history=careRecordEditHistory(cp);history.redo=[];
+      // Creating a separate information card is a separate operation, not undone here.
+      if(before.responseCardId!==after.responseCardId)return;
+      history.undo.push({planId,recId:before.id,before:JSON.parse(JSON.stringify(before)),after:JSON.parse(JSON.stringify(after))});
+      if(history.undo.length>40)history.undo.shift();
+    }
+    window.undoCareRecordEdit=function(redo=false){
+      const cp=getCurrentPatient(),history=careRecordEditHistory(cp),from=redo?history.redo:history.undo,to=redo?history.undo:history.redo,entry=from[from.length-1];
+      if(!entry){showToast('戻せる実施・評価記録の編集はありません','info');return false;}
+      const record=getCarePlan(cp,entry.planId)?.records.find(r=>r.id===entry.recId&&!r.deleted);
+      if(!record || JSON.stringify(record)!==JSON.stringify(redo?entry.before:entry.after)){
+        showToast('記録が削除・更新されています。現在の内容を保持しました','warn');return false;
+      }
+      updateCareRecord(cp,entry.planId,entry.recId,JSON.parse(JSON.stringify(redo?entry.after:entry.before)));
+      from.pop();to.push(entry);if(to.length>40)to.shift();
+      commitCarePlanChange(cp);showToast(redo?'記録の編集をやり直しました':'記録の編集を元に戻しました','info');return true;
+    };
     function careRecordPlanState(p){return JSON.stringify([p.problem,p.relatedNeeds,p.goalShort,p.goalLong,p.op,p.tp,p.ep]);}
     let careRecordEditing = null; // { planId, recId }
     window.openCareRecord = function(planId, recId = null) {
@@ -929,12 +953,13 @@
         achievement: (document.querySelector('#care-record-achievement input:checked') || {}).value || ''
       };
       if (!rec.doneItems.length && !rec.doneText && !rec.response && !rec.evaluation && !rec.revision) return showToast('実施した内容・患者の反応・評価のどれかを書いてください', 'warn');
+      const beforeRecord=recId?JSON.parse(JSON.stringify(p.records.find(r=>r.id===recId))):null;
       let card = null;
       if (rec.response && document.getElementById('care-record-add-card').checked) {
         card = createOwnInfoCard(cp, { text: rec.response, type: document.getElementById('care-record-card-type').value, needs: p.relatedNeeds, at: rec.at, fieldLabel: '患者の反応' });
         rec.responseCardId = card.id;
       }
-      if (recId) updateCareRecord(cp, planId, recId, rec); else addCareRecord(cp, planId, rec);
+      if (recId) { updateCareRecord(cp, planId, recId, rec); rememberCareRecordEdit(cp,planId,beforeRecord,p.records.find(r=>r.id===recId)); } else addCareRecord(cp, planId, rec);
       closeCareRecord();
       saveDataAndSync();
       renderCarePlans();

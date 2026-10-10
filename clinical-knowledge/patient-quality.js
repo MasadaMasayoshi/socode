@@ -52,6 +52,12 @@
         if (needle.length >= 4 && !bodies.some(body=>body.includes(needle))) add('evidence-text-review','根拠の文章が現在のカードと一致しません。省略・編集・時期を確認してください',plan.id);
       }
       if (!ids.length && !array(plan.evidence).some(e=>text(e)) && !array(plan.mapEvidenceRefs).some(r=>r?.sourceType==='card' && (!r.patientId || String(r.patientId)===String(patient.id)) && byId.has(String(r.sourceId)))) add('missing-evidence','看護問題の根拠情報がありません',plan.id);
+      for(const record of array(plan.records).filter(r=>r&&!r.deleted&&r.responseCardId)){
+        const card=byId.get(String(record.responseCardId));
+        const owner=String(plan.id)+'/'+String(record.id);
+        if(!card)add('record-response-missing','実施・評価記録の患者反応カードが削除・除外されています',owner,[String(record.responseCardId)]);
+        else if(norm(record.response) && !norm(card.text).includes(norm(record.response)))add('record-response-changed','実施記録の患者反応と情報カードの文章が一致しません。編集内容を確認してください',owner,[String(record.responseCardId)]);
+      }
       const lines = new Map();
       for (const section of ['op','tp','ep']) for (const [index,line] of array(plan[section]).entries()) {
         const key = norm(line);

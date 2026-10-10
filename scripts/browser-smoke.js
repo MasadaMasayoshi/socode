@@ -71,7 +71,9 @@ const {app}=require('../server');
     document.getElementById('care-record-evaluation').value='確認済み';
     saveCareRecordUI();
     const saved=getCarePlan(cp,plan.id).records.find(r=>r.id===record.id).evaluation==='確認済み';
-    return protectedUpdate&&saved;
+    const undone=undoCareRecordEdit()&&getCarePlan(cp,plan.id).records.find(r=>r.id===record.id).evaluation==='外部更新';
+    const redone=undoCareRecordEdit(true)&&getCarePlan(cp,plan.id).records.find(r=>r.id===record.id).evaluation==='確認済み';
+    return protectedUpdate&&saved&&undone&&redone;
    });
    assert.equal(recordProtected,true);
    const recovery = await page.evaluate(() => {
