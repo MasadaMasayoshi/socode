@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-10.zhistory4'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-10.znavigation2'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -658,6 +658,41 @@
 
     // ---- 看護計画のページ ----
     const carePlanOpen = new Set();
+    // Read-only card navigation retains the originating patient and plan.
+    let carePlanEvidenceOrigin=null;
+    window.clearCarePlanEvidenceNavigation=function(){
+      carePlanEvidenceOrigin=null;
+      const bar=document.getElementById('careplan-evidence-navigation'),label=document.getElementById('careplan-evidence-origin');
+      if(bar)bar.style.display='none';if(label)label.textContent='';
+    };
+    function carePlanLinkedCardHtml(cp,p,itemId,recordId=null){
+      if(!cp||!itemId)return '';
+      const card=(cp.items||[]).find(i=>String(i.id)===String(itemId)&&!i.deleted&&i.type!=='unnecessary'&&!i.aiSuggested);
+      if(!card)return `<span class="my-asm-muted">参照先のカードがありません（削除・除外・別患者の可能性）</span>`;
+      return `<button type="button" class="btn btn-outline" style="white-space:normal;text-align:left;max-width:100%;overflow-wrap:anywhere" data-care-evidence-card="${escapeHtml(String(itemId))}" onclick="openCarePlanEvidenceCard(${jsArg(cp.id)},${jsArg(p.id)},${jsArg(itemId)},${recordId===null?'null':jsArg(recordId)})" title="この患者の情報カードを表示">情報カード：${escapeHtml(String(card.text||'（本文なし）'))}</button>`;
+    }
+    window.openCarePlanEvidenceCard=function(patientId,planId,itemId,recordId=null){
+      const cp=getCurrentPatient(),p=cp&&getCarePlan(cp,planId);
+      const owned=recordId===null?(p?.evidenceIds||[]).some(id=>String(id)===String(itemId)):(p?.records||[]).some(r=>String(r.id)===String(recordId)&&String(r.responseCardId)===String(itemId));
+      if(String(cp?.id)!==String(patientId)||!p||p.deleted||!owned){showToast('患者または計画の参照が変わりました。現在の計画から選び直してください','warn');return false;}
+      if(!jumpToBoardCard(itemId))return false;
+      carePlanEvidenceOrigin={patientId:cp.id,planId:p.id};
+      const bar=document.getElementById('careplan-evidence-navigation');
+      if(bar)bar.style.display='block';
+      const label=document.getElementById('careplan-evidence-origin');
+      if(label)label.textContent='戻り先：'+String(p.problem||'（看護問題未記入）');
+      return true;
+    };
+    window.returnToCarePlanEvidenceOrigin=function(){
+      const origin=carePlanEvidenceOrigin,cp=getCurrentPatient(),p=cp&&origin&&getCarePlan(cp,origin.planId);
+      window.clearCarePlanEvidenceNavigation();
+      if(!origin||cp?.id!==origin.patientId||!p||p.deleted){showToast('戻り先の患者または計画が変わりました。現在の画面で選び直してください','warn');return false;}
+      carePlanOpen.add(p.id);switchView('careplan',{buildPlans:false});
+      const target=document.querySelector(`[data-care-plan-id="${safeDomId(p.id)}"] .cp-title`);
+      if(target){target.scrollIntoView({block:'center',behavior:'smooth'});target.focus({preventScroll:true});}
+      return true;
+    };
+    document.getElementById('careplan-evidence-return')?.addEventListener('click',window.returnToCarePlanEvidenceOrigin);
     function renderCarePlans() {
       const wrap = document.getElementById('careplan-list');
       if (!wrap) return;
@@ -682,6 +717,7 @@
       if (changedEvidence.length) parts.push(`<div class="cp-qa cp-qa-warn"><b>根拠カードに変更があります</b><ul>${changedEvidence.map(x => `<li>${escapeHtml(x.before.text)} → ${x.after ? escapeHtml(x.after.text) : '削除・除外済み'}（日時・分類も確認してください）</li>`).join('')}</ul><button type="button" class="btn btn-outline" onclick="reviewCarePlanEvidenceUI('${pid}')">変更内容を確認して根拠を更新</button></div>`);
       if (p.note) parts.push(`<p class="cp-note">${escapeHtml(p.note)}</p>`);
       if (p.evidence && p.evidence.length) parts.push(`<div class="cp-ev"><span class="my-asm-label"><i class="fa-solid fa-diagram-project"></i> 根拠データ（関連図から）</span><div class="cpr-ev">${p.evidence.map(e => `<span>${escapeHtml(e)}</span>`).join('')}</div></div>`);
+      if(cp&&(p.evidenceIds||[]).length)parts.push(`<div class="cp-ev"><b>根拠の情報カードを確認</b><div style="display:flex;gap:6px;flex-wrap:wrap">${[...new Set(p.evidenceIds.map(String))].map(id=>carePlanLinkedCardHtml(cp,p,id)).join('')}</div><small>現在のカードを表示します。計画作成時からの変更は上の点検で確認してください。</small></div>`);
       const reasons = Array.isArray(p.reasons) ? p.reasons : [];
       if (p.reasonNeeded && !reasons.length) parts.push(`<div class="cp-reason-need"><i class="fa-solid fa-graduation-cap"></i> ${p.source === 'map' ? '関連図から取り込んだ' : p.source === 'rules' ? 'このサイトのルールで作った' : 'AIの案から取り込んだ'}看護問題です。そのまま使わず、この患者に必要な理由を記録のデータで確かめましょう <button type="button" class="my-asm-link" onclick="writeCareReasonUI('${pid}')">理由を書く</button></div>`);
       if (reasons.length) parts.push(`<div class="cp-reasons"><span class="my-asm-label"><i class="fa-solid fa-graduation-cap"></i> この患者に必要な理由</span><ul>${reasons.slice(-5).map(r => `<li>${r.about ? `<b>${escapeHtml(r.about)}</b>：` : ''}${escapeHtml(r.text)}</li>`).join('')}</ul><button type="button" class="my-asm-link" onclick="writeCareReasonUI('${pid}')">理由を足す</button></div>`);
@@ -715,8 +751,8 @@
       if (!open) return `<section class="cp-card">${head}</section>`;
       const field = (key, label, rows, placeholder) => `<label class="cp-field"><span class="my-asm-label">${label}</span><textarea class="field my-asm-text" rows="${rows}" data-cp-plan="${pid}" data-cp-field="${key}" placeholder="${escapeHtml(placeholder)}" oninput="onCarePlanInput('${pid}','${key}',this)">${escapeHtml(Array.isArray(p[key]) ? p[key].join('\n') : p[key])}</textarea></label>`;
       const needBtns = HENDERSON_NEEDS.map(nd => `<button type="button" class="cp-need-btn${p.relatedNeeds.includes(nd.id) ? ' active' : ''}" onclick="toggleCarePlanNeed('${pid}', ${nd.id})" title="${escapeHtml(nd.name)}">${nd.id}.${escapeHtml(nd.name.replace(/^\d+\.\s*/, ''))}</button>`).join('');
-      const records = p.records.slice().reverse().map(r => careRecordHtml(p, r)).join('');
-      return `<section class="cp-card open">${head}
+      const records = p.records.slice().reverse().map(r => careRecordHtml(p, r, cp)).join('');
+      return `<section class="cp-card open" data-care-plan-id="${pid}">${head}
         <div class="cp-body">
           <label class="cp-field"><span class="my-asm-label"><i class="fa-solid fa-triangle-exclamation"></i> 看護問題（看護診断）</span><input type="text" class="field my-asm-text" data-cp-plan="${pid}" data-cp-field="problem" value="${escapeHtml(p.problem)}" placeholder="例：術後の創部痛に関連した急性疼痛" oninput="onCarePlanInput('${pid}','problem',this)" onchange="onCarePlanProblemCommit('${pid}')"></label>
           ${carePlanBasisHtml(p, cp)}
@@ -735,7 +771,7 @@
         </div>
       </section>`;
     }
-    function careRecordHtml(p, r) {
+    function careRecordHtml(p, r, cp) {
       const pid = safeDomId(p.id);
       const ach = CARE_ACHIEVEMENTS.find(a => a.key === r.achievement);
       const row = (label, v) => v ? `<div class="cr-row"><b>${label}</b><p>${escapeHtml(v)}</p></div>` : '';
@@ -744,6 +780,7 @@
           <span class="cr-tools"><button type="button" class="my-asm-link" onclick="openCareRecord('${pid}','${safeDomId(r.id)}')">編集</button><button type="button" class="my-asm-link muted" onclick="deleteCareRecordUI('${pid}','${safeDomId(r.id)}')">削除</button></span></div>
         ${r.doneItems.length ? `<div class="cr-row"><b>実施した計画</b><ul>${r.doneItems.map(d => `<li>${escapeHtml(d)}</li>`).join('')}</ul></div>` : ''}
         ${row('実施内容', r.doneText)}${row('患者の反応', r.response)}${row('評価', r.evaluation)}${row('今後の方針・計画の修正', r.revision)}
+        ${r.responseCardId?`<div class="cr-row"><b>患者反応の情報カード</b>${carePlanLinkedCardHtml(cp,p,r.responseCardId,r.id)}</div>`:''}
       </div>`;
     }
     function captureCarePlanFocus() {

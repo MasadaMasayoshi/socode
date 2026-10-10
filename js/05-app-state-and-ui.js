@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-10.recovery2'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-10.znavigation2'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -1301,6 +1301,7 @@
       return lastLocalSaveOk;
     }
     function changeCurrentPatient(nextId, { saveCurrent = true } = {}) {
+      window.clearCarePlanEvidenceNavigation?.();
       // 記録メモの入力の保存待ち（下の scheduleSourceTextSave）は、ここで今の患者に保存する（①）ので取り消す。
       // 取り消さないと、切り替えた後に保存待ちが動き、切り替え先の患者の更新日時だけが進んでしまう。
       cancelSourceTextSave();
@@ -2815,7 +2816,7 @@
       if (header) document.documentElement.style.setProperty('--need-nav-top', getComputedStyle(header).position === 'sticky' ? `${Math.ceil(header.getBoundingClientRect().height) + 6}px` : '6px');
     }
     window.addEventListener('resize', updateNeedNavTop);
-    function switchView(viewName) {
+    function switchView(viewName, { buildPlans = true } = {}) {
       updateNeedNavTop();
       DOM.viewSoBoard.classList.toggle('hidden', viewName !== 'so');
       DOM.viewAssessment.classList.toggle('hidden', viewName !== 'assessment');
@@ -2830,7 +2831,7 @@
       if (viewCarePlan) viewCarePlan.classList.toggle('hidden', viewName !== 'careplan');
       const tabCarePlan = document.getElementById('tab-careplan');
       if (tabCarePlan) tabCarePlan.className = `tab-pill ${viewName === 'careplan' ? 'active' : ''}`;
-      if (viewName === 'careplan' && typeof renderCarePlans === 'function') { if (typeof autoBuildCarePlans === 'function') autoBuildCarePlans(getCurrentPatient()); renderCarePlans(); }
+      if (viewName === 'careplan' && typeof renderCarePlans === 'function') { if (buildPlans && typeof autoBuildCarePlans === 'function') autoBuildCarePlans(getCurrentPatient()); renderCarePlans(); }
       // 関連図のページ（js/15）
       document.getElementById('view-relation')?.classList.toggle('hidden', viewName !== 'relation');
       // スマホでは上の見出し（ヘッダー）が画面の3分の1ほどの高さになり、関連図の上の方を隠してしまう。
@@ -3003,14 +3004,26 @@
 
     // 総合アセスメント表のS/Oバッジから、分類ボード側の同じカードへジャンプして一瞬ハイライトする
     window.jumpToBoardCard = function(itemId) {
+      const cp=getCurrentPatient();
+      const item=(cp?.items||[]).find(i=>String(i.id)===String(itemId)&&!i.deleted&&i.type!=='unnecessary'&&!i.aiSuggested);
+      if(!item){showToast('参照先のカードは削除・除外されたか、この患者にはありません','warn');return false;}
+      boardSearchTerm='';
+      const search=document.getElementById('board-search');
+      if(search)search.value='';
+      renderSoBoard();
       switchView('so');
       requestAnimationFrame(() => {
-        const el = document.getElementById(itemId);
+        if(getCurrentPatient()?.id!==cp.id)return;
+        const current=(getCurrentPatient()?.items||[]).find(i=>String(i.id)===String(itemId)&&!i.deleted&&i.type!=='unnecessary'&&!i.aiSuggested);
+        if(!current)return;
+        const el = document.getElementById(String(itemId));
         if (!el) return;
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.setAttribute('tabindex','-1');el.focus({preventScroll:true});
         el.classList.add('card-flash');
         setTimeout(() => el.classList.remove('card-flash'), 1600);
       });
+      return true;
     };
 
     // 【レビューで発見】記録メモの入力欄は、1文字打つたびに全患者分の保存（localStorageへの書き込みと読み直し）と、

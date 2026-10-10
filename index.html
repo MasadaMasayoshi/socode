@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-10.znavigation1">
-  <meta name="app-file-versions" content="01:2026-10-08.2045,02:2026-10-08.8,03:2026-10-10.quality1,04:2026-10-09.41,05:2026-10-10.recovery2,06:2026-10-08.2103,07:2026-10-10.quality1,08:2026-10-10.quality1,09:2026-10-10.znavigation1,10:2026-10-10.recovery2,11:2026-10-10.zhistory3,12:2026-10-10.zhistory4,13:2026-10-08.2121,14:2026-10-06.14,15:2026-10-10.recovery1">
+  <meta name="app-version" content="2026-10-10.znavigation2">
+  <meta name="app-file-versions" content="01:2026-10-08.2045,02:2026-10-08.8,03:2026-10-10.quality1,04:2026-10-09.41,05:2026-10-10.znavigation2,06:2026-10-08.2103,07:2026-10-10.quality1,08:2026-10-10.quality1,09:2026-10-10.znavigation1,10:2026-10-10.recovery2,11:2026-10-10.zhistory3,12:2026-10-10.znavigation2,13:2026-10-08.2121,14:2026-10-06.14,15:2026-10-10.recovery1">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
@@ -193,6 +193,10 @@
 
     <!-- 作業の流れ（情報収集〔記録を貼る・分類・手直し〕 → アセスメント → 看護計画 → 書き出し）。次に進む所に印を付ける（js/13 の renderWorkflowSteps） -->
     <nav id="workflow-steps" class="wf-steps" aria-label="作業の流れ"></nav>
+    <div id="careplan-evidence-navigation" style="display:none;margin:8px 0" aria-label="根拠カードからの戻り先">
+      <button type="button" id="careplan-evidence-return" class="btn btn-outline">元の看護計画へ戻る</button>
+      <span id="careplan-evidence-origin" style="font-size:12px"></span>
+    </div>
     <!-- 1. 分類ボードビュー -->
     <div id="view-so-board" class="flex flex-col xl:flex-row gap-4">
       <!-- 入力エリア -->
@@ -1391,14 +1395,14 @@
   <script src="js/02-reference-data.js?v=2026-10-08.8"></script>
   <script src="js/03-extraction-helpers.js?v=2026-10-10.quality1"></script>
   <script src="js/04-server-sync.js?v=2026-10-09.41"></script>
-  <script src="js/05-app-state-and-ui.js?v=2026-10-10.recovery2"></script>
+  <script src="js/05-app-state-and-ui.js?v=2026-10-10.znavigation2"></script>
   <script src="js/06-export.js?v=2026-10-08.2103"></script>
   <script src="js/07-classification.js?v=2026-10-10.quality1"></script>
   <script src="js/08-assessment-tools.js?v=2026-10-10.quality1"></script>
   <script src="js/09-board.js?v=2026-10-10.znavigation1"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-10.recovery2"></script>
   <script src="js/11-own-assessment.js?v=2026-10-10.zhistory3"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-10.zhistory4"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-10.znavigation2"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-08.2121"></script>
   <script src="js/14-drug-reference.js?v=2026-10-06.14"></script>
   <script src="js/15-relation-map.js?v=2026-10-10.recovery1"></script>
