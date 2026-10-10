@@ -154,6 +154,17 @@ const {app}=require('../server');
    await page.keyboard.press('Escape');
    assert.equal(await page.evaluate(()=>window.__smokePreview),false);
 
+   await page.locator('#tab-assessment').click();
+   await page.evaluate(()=>selectAssessmentNeed(1));
+   await page.locator('[data-need-id="1"]').focus();
+   for (const [key,id] of [['ArrowRight','2'],['End','14'],['Home','1'],['ArrowLeft','1']]) {
+    await page.keyboard.press(key);
+    assert.equal(await page.evaluate(()=>document.activeElement.dataset.needId),id);
+    assert.equal(await page.locator(`[data-need-id="${id}"]`).getAttribute('aria-pressed'),'true');
+   }
+   await page.locator('#tab-assessment').focus();
+   await page.keyboard.press('ArrowRight');
+   assert.equal(await page.evaluate(()=>getSelectedAssessmentNeed()),1,'ナビ外の矢印キーは表示を変更しない');
    await page.locator('#tab-so-board').click();
    await page.locator('#source-text').waitFor({state:'visible'});
    assert.ok(await page.evaluate(()=>getCurrentPatient().items.length)>=before);

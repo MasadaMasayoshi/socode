@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-10.znavigation1'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-10.znavigation7'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カード → 元の文章（カルテ・看護記録入力欄）の該当箇所を探す
     // ------------------------------------------------------------------------
@@ -1285,16 +1285,16 @@
         const missingN = matching.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === 'missing' && (typeof missingCheckStatus !== 'function' || missingCheckStatus(getCurrentPatient(), i.id) === 'unchecked')).length;
         const active = Number(selected) === need.id;
         const name = need.name.replace(/^\d+\.\s*/, '');
-        return `<button class="need-nav-btn${active ? ' active' : ''}${matching.length ? '' : ' empty'}" role="tab" aria-selected="${active}" onclick="selectAssessmentNeed(${need.id})" title="${escapeHtml(need.name)}（カード${matching.length}枚${unclassified ? `・未分類${unclassified}枚` : ''}）">
+        return `<button class="need-nav-btn${active ? ' active' : ''}${matching.length ? '' : ' empty'}" data-need-id="${need.id}" aria-pressed="${active}" onclick="selectAssessmentNeed(${need.id})" title="${escapeHtml(need.name)}（カード${matching.length}枚${unclassified ? `・未分類${unclassified}枚` : ''}）">
           <span class="need-nav-no">${need.id}</span><span class="need-nav-name">${escapeHtml(name)}</span><span class="need-nav-count">${matching.length}</span>${missingN ? `<span class="need-nav-miss" title="未確認の不足情報 ${missingN}件">欠${missingN}</span>` : ''}${unclassified ? '<span class="need-nav-dot" aria-label="未分類あり"></span>' : ''}
         </button>`;
       }).join('');
       const idx = selected === 'all' ? -1 : Number(selected);
       nav.innerHTML = `
-        <button class="need-nav-step" onclick="stepAssessmentNeed(-1)" ${idx <= 1 ? 'disabled' : ''} title="前の欲求（←キー）"><i class="fa-solid fa-chevron-left"></i></button>
+        <button class="need-nav-step" onclick="stepAssessmentNeed(-1)" ${idx <= 1 ? 'disabled' : ''} aria-label="前の欲求" title="前の欲求（←キー）"><i class="fa-solid fa-chevron-left"></i></button>
         <div class="need-nav-list">${btns}</div>
-        <button class="need-nav-step" onclick="stepAssessmentNeed(1)" ${idx === -1 || idx >= 14 ? 'disabled' : ''} title="次の欲求（→キー）"><i class="fa-solid fa-chevron-right"></i></button>
-        <button class="need-nav-all${selected === 'all' ? ' active' : ''}" onclick="selectAssessmentNeed('all')" title="14項目すべてを縦に並べて表示">すべて</button>`;
+        <button class="need-nav-step" onclick="stepAssessmentNeed(1)" ${idx === -1 || idx >= 14 ? 'disabled' : ''} aria-label="次の欲求" title="次の欲求（→キー）"><i class="fa-solid fa-chevron-right"></i></button>
+        <button class="need-nav-all${selected === 'all' ? ' active' : ''}" data-need-id="all" aria-pressed="${selected === 'all'}" onclick="selectAssessmentNeed('all')" title="14項目すべてを縦に並べて表示">すべて</button>`;
     }
     window.selectAssessmentNeed = function(id) {
       try { localStorage.setItem(ASSESSMENT_NEED_KEY, String(id)); } catch (e) { /* 覚えられなくても表示は切り替える */ }
@@ -1314,14 +1314,19 @@
       selectAssessmentNeed(next);
     };
     document.addEventListener('keydown', e => {
-      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+      const nav = document.getElementById('assessment-need-nav');
+      if (!nav || !nav.contains(e.target)) return;
       const view = document.getElementById('view-assessment');
       if (!view || view.classList.contains('hidden')) return;
       if (typeof isCardOverviewOpen === 'function' && isCardOverviewOpen()) return;
       if (document.querySelector('.fixed.inset-0:not(.hidden)')) return; // ダイアログ等を開いているとき
       if (/^(?:INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '') || (e.target && e.target.isContentEditable)) return;
       e.preventDefault();
-      stepAssessmentNeed(e.key === 'ArrowLeft' ? -1 : 1);
+      if (e.key === 'Home' || e.key === 'End') selectAssessmentNeed(e.key === 'Home' ? 1 : 14);
+      else stepAssessmentNeed(e.key === 'ArrowLeft' ? -1 : 1);
+      // 再描画で元のボタンが消えるため、移動先へフォーカスを戻す。
+      nav.querySelector(`[data-need-id="${getSelectedAssessmentNeed()}"]`)?.focus();
     });
 
     function renderAssessmentCellCard(item, hId, seqLabel, isFirst, isLast, dayHeading, isEvidence = false) {

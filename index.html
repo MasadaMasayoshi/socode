@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-10.znavigation6">
-  <meta name="app-file-versions" content="01:2026-10-10.znavigation3,02:2026-10-08.8,03:2026-10-10.quality1,04:2026-10-09.41,05:2026-10-10.znavigation2,06:2026-10-08.2103,07:2026-10-10.znavigation4,08:2026-10-10.znavigation4,09:2026-10-10.znavigation1,10:2026-10-10.recovery2,11:2026-10-10.zhistory3,12:2026-10-10.znavigation6,13:2026-10-08.2121,14:2026-10-06.14,15:2026-10-10.znavigation5">
+  <meta name="app-version" content="2026-10-10.znavigation7">
+  <meta name="app-file-versions" content="01:2026-10-10.znavigation3,02:2026-10-08.8,03:2026-10-10.quality1,04:2026-10-09.41,05:2026-10-10.znavigation2,06:2026-10-08.2103,07:2026-10-10.znavigation4,08:2026-10-10.znavigation4,09:2026-10-10.znavigation7,10:2026-10-10.recovery2,11:2026-10-10.zhistory3,12:2026-10-10.znavigation6,13:2026-10-08.2121,14:2026-10-06.14,15:2026-10-10.znavigation5">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
@@ -411,7 +411,7 @@
            ◀ ▶ や ← → キーでも前後の欲求に移れる。js/09 の renderNeedNavigator・selectAssessmentNeed 参照。 -->
       <!-- 不足情報の確認状況（未確認・確認済み・該当なし）の集計と一覧（js/12 の renderMissingCheckSummary） -->
       <div id="missing-check-summary" class="mc-summary hidden"></div>
-      <div id="assessment-need-nav" class="need-nav" role="tablist" aria-label="基本的欲求の切り替え"></div>
+      <div id="assessment-need-nav" class="need-nav" role="group" aria-label="基本的欲求の切り替え"></div>
 
       <!-- 1つの項目を選んだときの並び（js/09 の renderAssessmentSingleHtml） -->
       <div id="assessment-single" class="asm-single hidden"></div>
@@ -1399,7 +1399,7 @@
   <script src="js/06-export.js?v=2026-10-08.2103"></script>
   <script src="js/07-classification.js?v=2026-10-10.znavigation4"></script>
   <script src="js/08-assessment-tools.js?v=2026-10-10.znavigation4"></script>
-  <script src="js/09-board.js?v=2026-10-10.znavigation1"></script>
+  <script src="js/09-board.js?v=2026-10-10.znavigation7"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-10.recovery2"></script>
   <script src="js/11-own-assessment.js?v=2026-10-10.zhistory3"></script>
   <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-10.znavigation6"></script>

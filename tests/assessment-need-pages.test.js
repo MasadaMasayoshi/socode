@@ -20,8 +20,10 @@ test('表の上に1〜14の切り替えボタン（前後・すべて）を置�
 });
 
 test('← →キーでも前後の欲求に移る（入力中・一覧表示中・ダイアログ表示中は動かない）', () => {
-  const key = app.slice(app.indexOf("if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;"));
+  const key = app.slice(app.indexOf("if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;"));
   assert.match(key, /view-assessment/);
+  assert.match(key, /nav.contains\(e.target\)/);
+  assert.match(key, /getSelectedAssessmentNeed\(\)\}.*focus\(\)/);
   assert.match(key, /isCardOverviewOpen\(\)/);
   assert.match(key, /INPUT\|TEXTAREA\|SELECT/);
   assert.match(key, /stepAssessmentNeed\(e\.key === 'ArrowLeft' \? -1 : 1\)/);

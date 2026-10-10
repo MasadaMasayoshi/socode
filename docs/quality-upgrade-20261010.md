@@ -1,3 +1,5 @@
+> この文書のテスト件数・未取得教材の記述は初期段階の記録です。現在の検証範囲は [公開回帰への移行記録](public-regression-migration-20261010.md)、公開判断は [公開条件](knowledge-review-release-readiness.md) を参照してください。
+
 # 品質改善 — 2026-10-10
 
 作業ブランチ: `review/nursing-classification-stage1`。公開版への反映は未実施。
