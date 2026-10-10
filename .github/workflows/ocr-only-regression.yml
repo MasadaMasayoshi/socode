@@ -32,7 +32,22 @@ jobs:
       - name: Clinical knowledge metadata audit
         run: node scripts/audit-clinical-knowledge.js
       - name: Public regression suite (archival comparator is separate)
-        run: npm test
+        run: |
+          mkdir -p validation-artifacts
+          npm test | tee validation-artifacts/regression.log
+          node scripts/write-regression-evidence.js validation-artifacts/regression.log validation-artifacts/validation-evidence.json
+      - name: Prepare isolated static release payload
+        run: node scripts/prepare-release.js "$RUNNER_TEMP/nursing-public"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: regression-validation-evidence
+          path: validation-artifacts/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: static-release-payload
+          path: ${{ runner.temp }}/nursing-public/
+          if-no-files-found: error
 
   browser-smoke:
     runs-on: ubuntu-latest

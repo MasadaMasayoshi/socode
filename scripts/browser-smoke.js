@@ -322,6 +322,8 @@ const {app}=require('../server');
    console.log(`PASS ${width}px: classification, five views, recovery and catalog revision comparison`);
    await context.close();
   }
+  const head=process.env.GITHUB_SHA || require('node:child_process').execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
+  fs.writeFileSync('browser-artifacts/validation-evidence.json',JSON.stringify({schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:7,uncaughtErrors:0,ocrTransport:'intercepted',liveOcrVerified:false},null,2)+'\n');
  } finally {
   if(browser)await browser.close();
   await new Promise(resolve=>server.close(resolve));

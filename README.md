@@ -242,3 +242,7 @@ Render・Railway・Fly.io等の無料枠は、再起動・再デプロイのた�
 - **HTTPS化**は必須です（Render等では自動で付きます）。
 - Gemini APIキーは今まで通り**利用者ごとにブラウザ内保存**です。複数の医療者が同じ画面を使う環境では、それぞれが自分のAPIキーを入力する運用になります。
 - 今回は「事例研究用途で個人情報は気にしなくてよい」という前提で、カード本文をそのまま共有・保存する設計にしています。本番の患者記録で公開運用する場合は、匿名化やアクセス制限など別途の対策を検討してください。
+
+## Publication preparation
+
+See [publication-runbook.md](docs/publication-runbook.md) for exact-commit evidence, an isolated static payload, hosting/data boundaries and rollback. CI prepares downloadable artifacts without deployment. [release-conditions.json](docs/release-conditions.json) records unresolved conditions; `scripts/check-release-readiness.js` exits unsuccessfully if evidence is missing, stale or incomplete. Independent expert review is waived; real-provider OCR and applicable source verification remain pending.

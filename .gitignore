@@ -23,3 +23,6 @@ tests/golden/expected/
 
 # 架空データのみを使うブラウザ検証の出力
 browser-artifacts/
+
+# Commit-specific validation output; never patient records.
+validation-artifacts/

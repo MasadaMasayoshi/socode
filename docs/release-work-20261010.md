@@ -52,3 +52,7 @@ The browser command requires installed Chromium. Commit-specific CI evidence is 
 ## Board recovery follow-up
 
 Board operations now offer patient-scoped Undo and Redo for card deletion, bulk removal, missing-information additions, text/type/tag changes, assessment column moves, reordering, merges and splits. Restoration rejects later card or linked assessment/plan/map changes. Canceled or rejected asynchronous dialogs do not register external updates as the user's operation. Immediate deletion-toast restoration also checks its post-deletion snapshot to avoid duplicate restoration. Automated coverage includes successive Undo/Redo, hostile patient identifiers, linked-update protection and Chromium workflow checks. Whole-patient replacement continues through import checkpoints rather than board Undo.
+
+## Publication preparation follow-up
+
+The static packaging command prepares 46 allowlisted runtime assets including vendor licenses, verifies local HTML asset references and emits SHA-256 hashes. Server code, credentials, patient storage, tests/private fixtures and developer documents are excluded. CI uploads the candidate payload without deployment, plus commit-specific public regression and browser evidence. A readiness checker refuses stale/failed/incomplete evidence or pending release conditions. The publication runbook documents hosting, shared-backend boundaries, live OCR verification and rollback. These engineering preparations do not establish the still-missing external evidence listed in `release-conditions.json`.
