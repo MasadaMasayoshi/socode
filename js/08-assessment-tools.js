@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-10.znavigation4'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-10.znavigation8'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -1699,7 +1699,12 @@
         if (valueStd === null || !r) rec.status = 'unknown';
         else {
           let cmp = valueStd;
-          if (rec.ref.origin === 'source' && rec.ref.unit && u && !sameLabUnit(rec.ref.unit, u)) { const ratio2 = labUnitRatio(u, rec.ref.unit); cmp = ratio2 ? rec.value * ratio2 : null; }
+          // valueStdは内蔵単位へ換算済み。範囲側の単位へ戻してから比較する。
+          // 実測値と原文の基準値が同じ×10^3/μLでも、5000と3.3〜8.6を比較しない。
+          if (rec.ref.unit) {
+            const ratio2 = labUnitRatio(std.unit, rec.ref.unit);
+            cmp = ratio2 ? valueStd * ratio2 : null;
+          }
           const d = cmp === null ? null : labDirection(cmp, r, rec.arrow);
           rec.status = d === null ? 'unknown' : d === 'high' ? 'high' : d === 'low' ? 'low' : 'normal';
         }

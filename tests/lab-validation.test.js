@@ -90,3 +90,15 @@ test('基準値の判定・推移・呼吸機能・バイタルサイン・考�
 test('検査値が無い記録では評価を作らず、保存されたAIの結果があればそちらを優先する', () => {
   assert.equal(app.buildLabAssessment({ items: [{ id: 'x', type: 's', text: '食欲あり' }] }).has, false);
 });
+
+
+test('換算済みの実測値を原文の基準値と同じ単位で比較する', () => {
+  for (const [value, expected] of [[3, 'low'], [5, 'normal'], [9, 'high']]) {
+    for (const measurement of [`${value} ×10^3/μL`, `${value * 1000} /μL`]) {
+      const result = app.analyzeLabCard(`WBC ${measurement} (基準値: 3.3〜8.6 ×10^3/μL)`);
+      assert.equal(result.status, expected, measurement);
+      assert.equal(result.valueStd, value * 1000, '推移のための内蔵単位は維持');
+    }
+  }
+  assert.equal(app.analyzeLabCard('WBC 5000 /μL (基準値: 3.3〜8.6 mg/dL)').status, 'unknown', '換算不能な単位は判定しない');
+});

@@ -19,6 +19,11 @@ const {app}=require('../server');
    page.on('pageerror',e=>errors.push(e.message));
    await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
    await page.waitForFunction(()=>typeof getCurrentPatient==='function'&&!!getCurrentPatient());
+   const labStatuses=await page.evaluate(()=>[3,5,9].flatMap(value=>
+    [`${value} ×10^3/μL`,`${value*1000} /μL`].map(measurement=>
+     analyzeLabCard(`WBC ${measurement} (基準値: 3.3〜8.6 ×10^3/μL)`).status)));
+   assert.deepEqual(labStatuses,['low','low','normal','normal','high','high']);
+
    await page.locator('#source-text').fill('【架空の画面検証用記録】\n体温36.8℃、脈拍72回/分。\n「昨夜はよく眠れました」と話す。');
    // Fresh browser contexts may load the fictional chart saved by an earlier
    // width from the same temporary server. Exercise the real replacement dialog.
