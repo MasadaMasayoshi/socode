@@ -35,7 +35,7 @@ const {app}=require('../server');
    await page.evaluate(()=>{
     const cp=getCurrentPatient(),base=cp.items[0];
     cp.sourceText+='\n術前：架空の照合記録：痛みなし\n術後：架空の照合記録：痛みなし';
-    cp.items.push({...base,id:'source-nav-smoke',text:'架空の照合記録:痛みなし',deleted:false,aiSuggested:false,type:'O'});
+    cp.items.push({...base,id:'source-nav-smoke',text:'架空の照合記録:痛みなし',deleted:false,aiSuggested:false,type:'o'});
     cp.items.push({...base,id:'source-deleted-smoke',text:'削除済みの架空記録',deleted:true});
    });
    await page.locator('#nursing-source-compare').click();
