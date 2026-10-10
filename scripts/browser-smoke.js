@@ -158,6 +158,46 @@ const {app}=require('../server');
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),true,`${name} must fit the viewport; tables/maps may scroll inside their containers`);
     await page.screenshot({path:`browser-artifacts/${width}-${name}.png`});
    }
+   const lineVisibility = await page.evaluate(() => {
+    const host = document.createElement('div');
+    host.className = 'rm-canvas-wrap';
+    document.body.append(host);
+    const map = {nodes: [
+      {id:'a',type:'pathophysiology',label:'A',x:0,y:100},
+      {id:'b',type:'pathophysiology',label:'B',x:500,y:100},
+      {id:'c',type:'pathophysiology',label:'C',x:250,y:0},
+      {id:'d',type:'pathophysiology',label:'D',x:250,y:300}
+    ],edges:[{id:'horizontal',source:'a',target:'b',relation:'treats'},
+      {id:'vertical',source:'c',target:'d',relation:'causes'}]};
+    const originalTheme = document.documentElement.dataset.theme;
+    const results = [];
+    for (const theme of ['light','dark']) for (const reverse of [false,true]) {
+      document.documentElement.dataset.theme = theme;
+      if (reverse) map.edges.reverse();
+      host.innerHTML = relationMapSvg(map,{interactive:true});
+      const line = host.querySelector('[data-link-id="horizontal"] .rm-link-line');
+      const vertical = host.querySelector('[data-link-id="vertical"] .rm-link-line');
+      const mask = vertical.getAttribute('mask');
+      const width = getComputedStyle(line).strokeWidth;
+      const marker = host.querySelector('#rm-tee-blue');
+      line.parentElement.classList.add('is-selected');
+      results.push({width,maskExists:!!mask && !!host.querySelector(mask.slice(4,-1)),
+        markerOverflow:getComputedStyle(marker).overflow,
+        selectedMarker:getComputedStyle(line).markerEnd.includes('rm-tee-sel')});
+      if (reverse) map.edges.reverse();
+    }
+    if (originalTheme === undefined) delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = originalTheme;
+    host.remove();
+    return results;
+   });
+   for (const result of lineVisibility) {
+    assert.equal(result.width,'2.2px');
+    assert.equal(result.maskExists,true);
+    assert.equal(result.markerOverflow,'visible');
+    assert.equal(result.selectedMarker,true);
+   }
+   console.log(`PASS ${width}px bridge clearance, treatment contrast and selected endpoints in both themes/orders`);
    const assessmentHistory=await page.evaluate(()=>{
     const cp=getCurrentPatient(),entry=ensureMyAssessment(cp,1);
     entry.interpretation='編集前';

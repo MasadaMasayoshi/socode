@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-10.znavigation17'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-10.znavigation18'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -1028,7 +1028,15 @@
 
       const isKnow = id => { const n = nodeById.get(id); return !!n && (n.added || (n.source === 'knowledge' && n.type !== 'nursing_problem')); };
 
-      return routes.map(r => {
+      // Cut the underlying vertical stroke at bridge crests, regardless of paint order.
+      const crossings = routes.flatMap(r => r.segs.flatMap(s => s.cross.map(x => ({ x, y: s.y1 - RM_BRIDGE_R }))));
+      const bounds = rmBounds(map);
+      return routes.map((r, routeIndex) => {
+        const cuts = crossings.filter(c => r.segs.some(s =>
+          Math.abs(s.x1 - s.x2) < 0.5 && Math.abs(s.x1 - c.x) < 0.5 &&
+          c.y > Math.min(s.y1, s.y2) && c.y < Math.max(s.y1, s.y2)));
+        const maskId = `rm-cross-mask-${routeIndex}`;
+        const mask = cuts.length ? `<defs><mask id="${maskId}" maskUnits="userSpaceOnUse" x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}"><rect x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}" fill="white"/>${cuts.map(c => `<circle cx="${c.x}" cy="${c.y}" r="4" fill="black"/>`).join('')}</mask></defs>` : '';
         const e = r.edge;
         const d = rmRoutePath(r);
         const treat = e.relation === 'treats';
@@ -1036,9 +1044,9 @@
         const sel = interactive && rmState.selected && rmState.selected.type === 'edge' && rmState.selected.id === e.id;
 
         const tl = treat && r.pts && r.pts.length > 1 ? `<text class="rm-treat-label" x="${Math.round((r.pts[0][0] + r.pts[1][0]) / 2) + 6}" y="${Math.round((r.pts[0][1] + r.pts[1][1]) / 2) + 3}" font-size="10" fill="#2563EB" font-weight="700">治療</text>` : '';
-        return `<g class="rm-link${treat ? ' is-treat' : ''}${sel ? ' is-selected' : ''}" data-link-id="${escapeHtml(e.id)}">
+        return `${mask}<g class="rm-link${treat ? ' is-treat' : ''}${sel ? ' is-selected' : ''}" data-link-id="${escapeHtml(e.id)}">
           ${interactive ? `<path class="rm-link-hit" d="${d}" fill="none" stroke="transparent" stroke-width="20"/>` : ''}
-          <path class="rm-link-line" d="${d}" fill="none" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#57534E'}" stroke-width="${know ? 1.1 : 1.4}"${e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} marker-end="url(#rm-${treat ? 'tee-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"/>${tl}
+          <path class="rm-link-line"${cuts.length ? ` mask="url(#${maskId})"` : ''} d="${d}" fill="none" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#57534E'}" stroke-width="${treat ? 2.2 : know ? 1.1 : 1.4}"${e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} marker-end="url(#rm-${treat ? 'tee-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"/>${tl}
         </g>`;
       }).join('');
     }
@@ -1080,7 +1088,7 @@
       const font = "'Noto Sans JP','Hiragino Kaku Gothic ProN','Hiragino Sans','Yu Gothic UI','Yu Gothic','Meiryo',sans-serif";
       const marker = (id, color) => `<marker id="${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${color}"/></marker>`;
       return `<svg xmlns="http://www.w3.org/2000/svg" class="rm-svg" viewBox="${b.x} ${b.y} ${b.w} ${b.h}" width="${Math.round(b.w * zoom)}" height="${Math.round(b.h * zoom)}" font-family="${escapeHtml(font)}" role="img" aria-label="${escapeHtml(title || '関連図')}">
-        <defs>${marker('rm-arrow', '#3F3B35')}${marker('rm-arrow-blue', '#2563EB')}${marker('rm-arrow-sel', '#C2410C')}${marker('rm-arrow-pred', RM_PRED_LINE)}<marker id="rm-tee-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M8,0 L8,10" stroke="#2563EB" stroke-width="2.6" fill="none"/></marker></defs>
+        <defs>${marker('rm-arrow', '#3F3B35')}${marker('rm-arrow-blue', '#2563EB')}${marker('rm-arrow-sel', '#C2410C')}${marker('rm-arrow-pred', RM_PRED_LINE)}<marker id="rm-tee-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" overflow="visible" orient="auto-start-reverse"><path d="M8,0 L8,10" stroke="#2563EB" stroke-width="2.6" fill="none"/></marker><marker id="rm-tee-sel" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" overflow="visible" orient="auto-start-reverse"><path d="M8,0 L8,10" stroke="#C2410C" stroke-width="2.6" fill="none"/></marker></defs>
         <rect class="rm-bg${interactive ? ' is-paper' : ''}" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${interactive ? RM_PAPER : '#FFFFFF'}"/>
         <g class="rm-headers">${rmHeadersSvg(map, b)}</g>
         <g class="rm-links">${rmEdgesSvg(map, { interactive })}</g>

@@ -1288,3 +1288,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   button, select, summary, [role="button"], .card-menu-btn { min-height: 44px; }
   button:not(.tab-pill):not(.rm-tiny), .btn, .card-menu-btn { min-width: 44px; }
 }
+
+/* Keep treatment endpoints visible and preserve their meaning when selected. */
+.rm-canvas-wrap .rm-link.is-treat.is-selected .rm-link-line { marker-end: url(#rm-tee-sel); }
+html[data-theme="dark"] .rm-canvas-wrap .rm-link.is-treat.is-selected .rm-link-line { stroke: #F59E6B; }
+html[data-theme="dark"] .rm-canvas-wrap #rm-tee-sel path { stroke: #F59E6B; }
+html[data-theme="dark"] .rm-canvas-wrap .rm-treat-label { fill: #8DB3EA; }
