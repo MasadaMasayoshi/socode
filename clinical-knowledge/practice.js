@@ -1,6 +1,7 @@
 'use strict';
 // Synthetic educational examples. No patient record or clinical decision support.
 (function(root,factory){const a=factory();if(typeof module==='object'&&module.exports)module.exports=a;if(root)root.NursingPractice=a;})(typeof window==='undefined'?null:window,function(){
+const NEED_NAMES=["呼吸", "食事", "排泄", "姿勢", "睡眠", "衣服", "体温", "清潔", "環境", "コミュニケーション", "信仰", "仕事", "余暇", "学び"];
 const cases=Object.freeze([
 {id:'practice-fall',topic:'安全・転倒',story:'架空事例：術後2日目の成人。立ち上がるとふらつきがあり、歩行時に介助が必要。入院前は独歩していた。',prompt:'入院前と入院後の状態をどのように扱いますか？',choices:['入院前・後を分けて評価し、ふらつきの時点と状況を確認する','入院後の状態を入院前にも適用する','Sデータは全てコミュニケーションに分類する'],correct:0,reason:'経過の前後を分けて情報を整理し、時点・根拠を残す。'},
 {id:'practice-ocr',topic:'OCR確認',story:'架空の検査記録のOCRが「Hb 8.O g/dL」と表示された。',prompt:'安全な次の操作は？',choices:['元画像と照らし小数点・O/0・単位を確認する','8.0と確定して自動診断する','単位を消して登録する'],correct:0,reason:'誤読の可能性があるため原画像と照合する。'},
@@ -23,7 +24,21 @@ const cases=Object.freeze([
 {"id": "practice-maternal", "topic": "対象の識別", "story": "架空事例：産褥の記録に母親と新生児のSpO2が併記されている。", "prompt": "母親の評価で必要な確認は？", "choices": ["母親と新生児の値を分け、誰の測定か確認する", "低い方を母親の値にする", "全て母親の測定値としてまとめる"], "correct": 0, "reason": "対象者の異なる情報を同じ患者の根拠に混ぜない。"},
 {"id": "practice-provenance", "topic": "基準値の由来", "story": "架空事例：記録にある基準値とアプリの内蔵目安が同じ数値だった。", "prompt": "出典の判断として適切なのは？", "choices": ["数値一致だけでは由来を断定せず出典を確認する", "同じ数値なので施設で承認済みとする", "同じ数値なので必ずアプリが追加したとする"], "correct": 0, "reason": "数値の一致と出典の確認は別の事実。"},
 {"id": "practice-undo", "topic": "変更の復元", "story": "架空事例：計画を削除した後、別の人がカードを更新している。", "prompt": "Undoで守るべきことは？", "choices": ["後続の更新を上書きせず、変更内容を確認する", "古い控えで患者全体を無条件に上書きする", "別患者の履歴から復元する"], "correct": 0, "reason": "復元は患者の一致と後続変更への保護が必要。"},
-{"id": "practice-ocr-failure", "topic": "OCR失敗", "story": "架空事例：画像の読み取りに失敗したが、入力欄には手入力の記録がある。", "prompt": "失敗時の適切な動作は？", "choices": ["元の記録を保持して失敗を知らせ、画像を選び直す", "元の記録を空にする", "空の応答を成功として保存する"], "correct": 0, "reason": "読み取り失敗は元データを書き換える理由にならない。"}
+{"id": "practice-ocr-failure", "topic": "OCR失敗", "story": "架空事例：画像の読み取りに失敗したが、入力欄には手入力の記録がある。", "prompt": "失敗時の適切な動作は？", "choices": ["元の記録を保持して失敗を知らせ、画像を選び直す", "元の記録を空にする", "空の応答を成功として保存する"], "correct": 0, "reason": "読み取り失敗は元データを書き換える理由にならない。"} ,
+{"id": "practice-need-1", "needId": 1, "topic": "欲求1：呼吸", "story": "架空事例：本人が「息苦しい」と話した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["呼吸", "食事", "体温"], "correct": 0, "reason": "この情報では「呼吸」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-2", "needId": 2, "topic": "欲求2：食事", "story": "架空事例：食事の摂取量と飲水量を記録した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["食事", "排泄", "清潔"], "correct": 0, "reason": "この情報では「食事」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-3", "needId": 3, "topic": "欲求3：排泄", "story": "架空事例：排尿と排便の回数を記録した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["排泄", "姿勢", "環境"], "correct": 0, "reason": "この情報では「排泄」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-4", "needId": 4, "topic": "欲求4：姿勢", "story": "架空事例：寝返りと歩行の介助が必要と記録した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["姿勢", "睡眠", "コミュニケーション"], "correct": 0, "reason": "この情報では「姿勢」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-5", "needId": 5, "topic": "欲求5：睡眠", "story": "架空事例：本人が「夜に眠れなかった」と話した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["睡眠", "衣服", "信仰"], "correct": 0, "reason": "この情報では「睡眠」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-6", "needId": 6, "topic": "欲求6：衣服", "story": "架空事例：着替えで袖を通すための介助を記録した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["衣服", "体温", "仕事"], "correct": 0, "reason": "この情報では「衣服」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-7", "needId": 7, "topic": "欲求7：体温", "story": "架空事例：体温の測定時刻と測定値を記録した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["体温", "清潔", "余暇"], "correct": 0, "reason": "この情報では「体温」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-8", "needId": 8, "topic": "欲求8：清潔", "story": "架空事例：洗面と口腔清潔の介助を記録した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["清潔", "環境", "学び"], "correct": 0, "reason": "この情報では「清潔」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-9", "needId": 9, "topic": "欲求9：環境", "story": "架空事例：保険の種類と利用できる社会資源を記録した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["環境", "コミュニケーション", "呼吸"], "correct": 0, "reason": "この情報では「環境」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-10", "needId": 10, "topic": "欲求10：コミュニケーション", "story": "架空事例：本人が意思を伝える方法を確認した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["コミュニケーション", "信仰", "食事"], "correct": 0, "reason": "この情報では「コミュニケーション」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-11", "needId": 11, "topic": "欲求11：信仰", "story": "架空事例：本人が大切にしている信仰を確認した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["信仰", "仕事", "排泄"], "correct": 0, "reason": "この情報では「信仰」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-12", "needId": 12, "topic": "欲求12：仕事", "story": "架空事例：本人の仕事での役割と達成感を確認した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["仕事", "余暇", "姿勢"], "correct": 0, "reason": "この情報では「仕事」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-13", "needId": 13, "topic": "欲求13：余暇", "story": "架空事例：本人が楽しみにしている余暇の活動を確認した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["余暇", "学び", "睡眠"], "correct": 0, "reason": "この情報では「余暇」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-14", "needId": 14, "topic": "欲求14：学び", "story": "架空事例：説明内容の理解と学びたいことを確認した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["学び", "呼吸", "衣服"], "correct": 0, "reason": "この情報では「学び」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"}
 ]);
 function grade(id,selected){const item=cases.find(c=>c.id===id);if(!item)throw Error('unknown practice');return {correct:item.correct===selected,answer:item.correct,reason:item.reason,topic:item.topic};}
 function chooseNext(attempts){
@@ -42,6 +57,12 @@ function chooseNext(attempts){
    return (tx.ok/tx.total)-(ty.ok/ty.total)||x.total-y.total;
  })[0];
 }
+function coverage(attempts){
+ const latest=new Map(),known=new Map(cases.map(c=>[c.id,c]));
+ for(const entry of attempts||[])if(known.has(entry?.id)&&typeof entry.correct==='boolean')latest.set(entry.id,entry.correct);
+ const count=items=>({total:items.length,answered:items.filter(c=>latest.has(c.id)).length,lastCorrect:items.filter(c=>latest.get(c.id)===true).length});
+ return {...count(cases),needs:NEED_NAMES.map((name,i)=>({id:i+1,name,...count(cases.filter(c=>c.needId===i+1))})),process:count(cases.filter(c=>!c.needId))};
+}
 function rubric(submission){const missing=[];if(!submission?.evidence)missing.push('根拠が必要です');if(!submission?.interpretation)missing.push('アセスメントの解釈が必要です');if(!submission?.plan)missing.push('看護計画が必要です');return {missing,completedFields:3-missing.length,totalFields:3,notice:'教育用の記入チェックであり臨床的な採点・診断ではありません'};}
-return {cases,grade,chooseNext,rubric};
+return {cases,grade,chooseNext,rubric,coverage};
 });

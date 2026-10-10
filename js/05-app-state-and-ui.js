@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-10.znavigation12'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-10.znavigation14'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -1698,8 +1698,10 @@
 
     document.getElementById('btn-rename-patient').addEventListener('click', async () => {
       const cp = getCurrentPatient();
+      const expected = JSON.stringify(cp);
       const newTitle = await openDialog({ title: 'ページ名を変更', inputValue: cp.title, confirmLabel: '変更する' });
       if (newTitle && newTitle.trim()) {
+        if (getCurrentPatient() !== cp || JSON.stringify(cp) !== expected) { showToast('確認中に患者やページが更新されました。名前を変更していません', 'warn'); return; }
         cp.title = newTitle.trim();
         saveDataAndSync();
         DOM.currentPatientTitle.textContent = cp.title;
@@ -1763,9 +1765,12 @@
 
     window.hardDeletePatientFromList = async function(id) {
       const target = globalAppData.patients.find(p => p.id === id);
+      if (!target) return;
+      const expected = JSON.stringify(target), currentId = globalAppData.currentPatientId;
       if (globalAppData.patients.length <= 1) return showToast('最後のページは削除できません', 'warn');
       const confirmed = await openDialog({ title: '完全に削除しますか？', message: `「${target ? target.title : ''}」のデータを完全に削除します。アーカイブと違い、この操作は元に戻せません。`, confirmLabel: '完全に削除する', danger: true });
-      if (!confirmed) return;
+      if (confirmed !== true) return;
+      if (globalAppData.currentPatientId !== currentId || globalAppData.patients.length <= 1 || globalAppData.patients.find(p => p.id === id) !== target || JSON.stringify(target) !== expected) { showToast('確認中に患者やページが更新されました。削除していません', 'warn'); return; }
       const idx = globalAppData.patients.findIndex(p => p.id === id);
       if (idx === -1) return;
       const deletingCurrent = globalAppData.currentPatientId === id;

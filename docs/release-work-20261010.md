@@ -56,3 +56,7 @@ Board operations now offer patient-scoped Undo and Redo for card deletion, bulk 
 ## Publication preparation follow-up
 
 The static packaging command prepares 46 allowlisted runtime assets including vendor licenses, verifies local HTML asset references and emits SHA-256 hashes. Server code, credentials, patient storage, tests/private fixtures and developer documents are excluded. CI uploads the candidate payload without deployment, plus commit-specific public regression and browser evidence. A readiness checker refuses stale/failed/incomplete evidence or pending release conditions. The publication runbook documents hosting, shared-backend boundaries, live OCR verification and rollback. These engineering preparations do not establish the still-missing external evidence listed in `release-conditions.json`.
+
+## Quality follow-up
+
+Page rename and permanent deletion now reject patient switches, target replacement, edits during confirmation and deletion of a newly last remaining page. The operation still requires explicit confirmation; permanent deletion is not silently converted into retained patient backups. Practice expands to 36 authored fictional questions with all 14 needs represented and distinct-question/latest-answer coverage. Local progress saving/deletion is verified and failures remain visible. The bounded curriculum is documented in `practice-curriculum.md`; a complete clinical/national-examination curriculum is not claimed. Browser checks include grading, save/reload, coverage, mobile fit and reset.

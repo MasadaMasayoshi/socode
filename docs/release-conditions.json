@@ -4,5 +4,5 @@
   "clinicalSources": {"status":"pending","evidence":[],"missing":"Applicable source-supported verification of graph and plan claims; independent expert review is waived."},
   "manualAccessibility": {"status":"pending","evidence":[],"missing":"Real-device and screen-reader workflow review beyond automated Chromium checks."},
   "reversibleOperations": {"status":"partial","evidence":["docs/release-work-20261010.md"],"missing":"Review remaining patient and bulk operations outside documented Undo/Redo and checkpoint scopes."},
-  "curriculumCoverage": {"status":"partial","evidence":["clinical-knowledge/practice.js"],"missing":"Defined curriculum and verified coverage beyond the existing 22 fictional questions."}
+  "curriculumCoverage": {"status":"partial","evidence":["clinical-knowledge/practice.js"],"missing":"Defined curriculum and verified coverage beyond the existing 36 fictional questions."}
 }
