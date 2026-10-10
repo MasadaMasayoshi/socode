@@ -14,7 +14,7 @@
     "test:quiet": "node scripts/test-quiet.js",
     "map": "node scripts/file-map.js",
     "ship": "node scripts/ship.js",
-    "test:legacy": "node --test tests/golden/legacy-classification.test.js",
+    "test:legacy": "node --test tests/golden/legacy-classification.test.js tests/golden/legacy-real-record.test.js",
     "test:public": "node scripts/run-tests.js"
   },
   "engines": {

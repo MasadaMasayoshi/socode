@@ -183,6 +183,8 @@ const {app}=require('../server');
     await page.locator('#btn-start-classify').click();
     await page.waitForFunction(()=>getCurrentPatient().items.some(i=>!i.deleted&&i.type==='s'));
     for(const name of ['assessment','careplan','labs','relation']) await page.locator('#tab-'+name).click();
+    await page.locator('[data-rm-action="build-rules"]').click();
+    await page.waitForFunction(()=>getCurrentPatient().relationMap?.nodes.length>0);
     const result=await page.evaluate(()=>{
      const cp=getCurrentPatient(),items=cp.items.filter(i=>!i.deleted),ids=new Set(items.map(i=>i.id));
      const plans=carePlanList(cp),map=cp.relationMap;

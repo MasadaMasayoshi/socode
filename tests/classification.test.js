@@ -41,8 +41,6 @@ const {
   isUnnecessaryBoilerplateText
 } = app;
 
-const REAL_RECORD_PATH = '/root/.claude/uploads/29ffc676-d59b-5748-a3df-d67a84fd21bb/00bcd98c-_______________3.txt';
-const hasRealRecord = fs.existsSync(REAL_RECORD_PATH);
 
 /**
  * 「検査値APIキー未設定時のローカル簡易分類」を、実際にapp.jsが公開している関数だけを
@@ -230,23 +228,26 @@ test('ドレーン管理・弾性ストッキングが記録済みなら、そ�
 });
 
 // ==========================================================================
-// 実際にアップロードされた記録全文での統合確認（環境にファイルが無い場合はスキップ）
+// 公開架空記録での統合確認（ファイル不足なら失敗。旧実記録はtest:legacy）
 // ==========================================================================
-test('実際の記録全文から期待通りの異常値・不足情報が検出される', { skip: !hasRealRecord && '検証用の実記録ファイルがこの環境に無いためスキップ' }, () => {
-  const docText = fs.readFileSync(REAL_RECORD_PATH, 'utf8');
-  const items = classifyLocally(docText);
+test('公開架空記録から手記述の異常値8件と不足情報が検出される', () => {
+  const docText = fs.readFileSync(path.join(__dirname,'fixtures/public-cases/gastric-lab-contract.txt'), 'utf8');
+  const items = Array.from(app.classifyTextByRules(docText));
   const oItems = items.filter(i => i.type === 'o');
 
   const findings = extractAbnormalLabFindings(oItems);
-  assert.equal(findings.length, 8, '実際の記録から期待通り8件の異常値が検出される（術前の異常3件＋術後の異常5件）');
+  assert.equal(findings.length, 8, '公開架空記録から期待通り8件の異常値が検出される（術前の異常3件＋術後の異常5件）');
+  for (const [phase,label,direction] of [['術前','ヘモグロビン','low'],['術前','CRP','high'],['術前','Alb','low'],['術後1日目','ヘモグロビン','low'],['術後1日目','CRP','high'],['術後1日目','WBC','high'],['術後1日目','Alb','low'],['術後1日目','K','low']]) {
+    assert.ok(findings.some(f=>f.timestamp===phase && f.label.includes(label) && f.direction===direction), `${phase}: ${label} ${direction}`);
+  }
   assert.ok(findings.some(f => f.label.includes('ヘモグロビン')));
   const crp = findings.find(f => f.label === 'CRP');
   assert.ok(crp && crp.direction === 'high');
 
   const missing = detectGastricPostopMissingChecks(items);
-  assert.ok(!missing.some(c => c.keywords.includes('弾性ストッキング')), '実際の記録の弾性ストッキング着用の記載により、DVT予防チェックは提案されない');
-  assert.ok(!missing.some(c => c.keywords.includes('疼痛')), '実際の記録のNRS(疼痛)記載により、疼痛管理チェックは提案されない');
-  assert.ok(missing.some(c => c.keywords.includes('せん妄')), '実際の記録に無い術後せん妄の観察記録は不足情報として検出される');
+  assert.ok(!missing.some(c => c.keywords.includes('弾性ストッキング')), '公開架空記録の弾性ストッキング着用の記載により、DVT予防チェックは提案されない');
+  assert.ok(!missing.some(c => c.keywords.includes('疼痛')), '公開架空記録のNRS(疼痛)記載により、疼痛管理チェックは提案されない');
+  assert.ok(missing.some(c => c.keywords.includes('せん妄')), '公開架空記録に無い術後せん妄の観察記録は不足情報として検出される');
 
   const tennis = findByIncludes(items, 'テニス');
   assert.ok(tennis && tennis.hendersonIds.includes(4) && tennis.hendersonIds.includes(13));
