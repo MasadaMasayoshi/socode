@@ -21,7 +21,7 @@ test('バイタルサインのカードを項目ごとに分け、日ごとの�
 });
 
 test('検査の比較表（入院時→入院3日目）は基準値と比べて↑↓を付け、同じ日の時刻は時刻順に並べる（心不全の事例）', () => {
-  const src = fs.readFileSync(path.join(__dirname, 'golden', 'cases', '心不全_B氏82歳_架空.txt'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, 'fixtures', 'public-cases', 'circulation-contract.txt'), 'utf8');
   const t = app.buildLabTrendTable(cardsOf(src));
   assert.deepEqual(cell(t, 'BNP', '入院時'), ['1,250↑']);
   assert.deepEqual(cell(t, 'BNP', '入院3日目'), ['680↑']);
@@ -78,7 +78,7 @@ test('画面：「検査値の推移」のタブ・ページと、記録メモ�
 const indicesOf = src => { const r = app.computeClinicalIndices(src, cardsOf(src)); return { ...r, get: k => r.indices.find(x => x.key === k) }; };
 
 test('自動計算：BMI・標準体重・普段からの体重の変化・ブリンクマン指数・純アルコール量・eGFR（心不全の事例）', () => {
-  const src = fs.readFileSync(path.join(__dirname, 'golden', 'cases', '心不全_B氏82歳_架空.txt'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, 'fixtures', 'public-cases', 'circulation-contract.txt'), 'utf8');
   const r = indicesOf(src);
   assert.equal(r.basics.age, 82);
   assert.equal(r.basics.sex, 'male');

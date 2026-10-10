@@ -19,19 +19,27 @@ test('①文章が消えない：「入院当日の夜は…」の文がその�
   assert.deepEqual(Array.from(c[0].hendersonIds).sort((a, b) => a - b), [1, 5]);
 });
 
-test('①7事例すべてで、元の文章の主な文がどこかのカードに残っている', () => {
-  const dir = path.join(__dirname, 'golden', 'cases');
-  const files = fs.readdirSync(dir).filter(f => /^事例\d_/.test(f));
-  assert.equal(files.length, 7);
-  files.forEach(f => {
-    const src = fs.readFileSync(path.join(dir, f), 'utf8');
+test('①公開用の架空7事例で、元の文章の主な文がどこかのカードに残っている', () => {
+  const cases = require('./public-case-helpers').loadPublicCases();
+  assert.equal(cases.length, 7);
+  cases.forEach(({id:f,text:src}) => {
     const all = cards(src).map(c => c.text).join('\n').replace(/\s/g, '');
     // 20文字以上の文（「」の外で句点まで）の言葉がカードに残っていること
     const sentences = src.split(/\r?\n/).flatMap(l => l.split(/(?<=。)(?![^「]*」)/)).map(s => s.trim())
       .filter(s => s.length >= 20 && !/^#/.test(s) && !/^[【＜]/.test(s));
+    assert.ok(sentences.length > 0, `${f}: 検証する文がない`);
     // 発言や値は取り出して並べ替えるので、文の2文字の組（漢字・かな）の6割以上がどこかに残っていればよい
     const bigrams = x => x.split(/[^ぁ-んァ-ヶ一-龠々]+/).flatMap(k => { const out = []; for (let i = 0; i + 1 < k.length; i++) out.push(k.slice(i, i + 2)); return out; });
-    const lost = sentences.filter(s => { const b = bigrams(s); return b.length && b.filter(x => all.includes(x)).length / b.length < 0.6; });
+    const lost = sentences.filter(s => {
+      if (/^血液検査[^：:]*[:：]/.test(s)) {
+        // 表の前置き語は除去される仕様。代わりに明示された数値の欠落を確認する。
+        const values = s.replace(/^血液検査[^：:]*[:：]/,'').replace(/,/g,'').match(/\d+(?:\.\d+)?/g) || [];
+        const output = all.normalize('NFKC').replace(/,/g,'');
+        return !values.length || values.some(v=>!new RegExp(`(?<![\\d.])${v.replace(/\./g,'\\.')}(?![\\d.])`).test(output));
+      }
+      const b = bigrams(s);
+      return b.length && b.filter(x => all.includes(x)).length / b.length < 0.6;
+    });
     assert.equal(lost.length, 0, `${f}: ${JSON.stringify(lost.slice(0, 5))}`);
   });
 });

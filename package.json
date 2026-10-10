@@ -13,7 +13,9 @@
     "stamp": "node scripts/stamp-version.js",
     "test:quiet": "node scripts/test-quiet.js",
     "map": "node scripts/file-map.js",
-    "ship": "node scripts/ship.js"
+    "ship": "node scripts/ship.js",
+    "test:legacy": "node --test tests/golden/legacy-classification.test.js",
+    "test:public": "node scripts/run-tests.js"
   },
   "engines": {
     "node": "20.x"

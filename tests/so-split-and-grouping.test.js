@@ -1,4 +1,5 @@
 'use strict';
+// 入力は新規の公開用仕様再現事例。旧教材との全文互換性を証明するテストではない。
 // 利用者からの指摘（患者36のアセスメント整理シートへの助言）：
 //  1. SとOが混ざったカードは分ける（ただし同じ場面であることが分かるようにする）
 //  2. 同じ時点のバイタル・同じ時刻の処置・比較できる検査データはまとめる
@@ -11,7 +12,7 @@ const path = require('path');
 const { loadApp } = require('./app-helpers');
 const app = loadApp();
 const cards = text => Array.from(app.classifyTextByRules(text)).filter(c => c.type !== 'unnecessary');
-const p36 = fs.readFileSync(path.join(__dirname, 'golden', 'cases', '患者36.txt'), 'utf8');
+const p36 = fs.readFileSync(path.join(__dirname, 'fixtures', 'public-cases', 'hip-contract.txt'), 'utf8');
 const all = cards(p36);
 const find = s => all.find(c => c.text.includes(s));
 

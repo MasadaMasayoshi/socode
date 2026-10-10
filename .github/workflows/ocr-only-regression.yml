@@ -56,7 +56,7 @@ jobs:
         run: node --test tests/learning-modules.test.js
       - name: Public synthetic specification contracts
         run: node --test tests/public-contracts.test.js
-      - name: Unit regression suite
+      - name: Public regression suite (archival comparator is separate)
         run: npm test
 
   browser-smoke:

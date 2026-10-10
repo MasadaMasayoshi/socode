@@ -11,7 +11,7 @@
     //     線は直角に曲げ、つながっていない線が交わる所には飛び越え（∩）を描く。治療は楕円・検査は（ ）・予測は破線。
     // 版1（2026-10-01）の図は、開いたときに自動で版2に直す。図の文字はすべて escapeHtml を通して SVG の <text> に入れる。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-10.recovery1'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-10.znavigation5'; // 版（scripts/stamp-version.js が書き込む）
 
     // ---- 種類 ----
     const RM_TYPES = [
@@ -128,7 +128,7 @@
     // 看護問題の補足（名前の下の小さい説明文）
     const RM_NOTE_FONT = 11.5, RM_NOTE_LINE_H = 15, RM_NOTE_GAP = 7, RM_NOTE_MAX = 60;
     // 「記録から作る」の作り方を直したら上げる。古い作り方で保存された図（source が rules のもの）は、開いたときに1度だけ作り直す
-    const RM_BUILD_VERSION = 2;
+    const RM_BUILD_VERSION = 3;
     const RM_LAYOUT_STYLE = 3; // 四角の大きさを変えたら上げる（前の大きさで並べた図は自動で並べ直す）
     const RM_COL_GAP = 80, RM_ROW_GAP = 28;
     // 列のすき間は、通る線（縦の線）の本数に合わせて広げる（少ないと狭く、多いと広く。2026-10-07.16）
@@ -1437,10 +1437,8 @@
       const cleanDx = t => String(t).normalize('NFKC').replace(/^【?(?:診断名?|病名|疾患名)】?\s*[:：]\s*/, '').replace(/[\s、,，]*[（(]?\s*(?:予定)?(?:術式|手術名?)\s*[:：][\s\S]*$/, '').trim();
       let dxLabel0 = dxText[0] ? cleanDx(dxText[0].text) : '';
       let dxHost = dxText[0] || null;
-      if (dxText[0] && !dxLabel0) {
-        const cancerItem = items.find(i => /(?:胃|大腸|結腸|直腸|肝|膵|肺|乳腺|食道|前立腺|子宮|卵巣)(?:がん|癌)/.test(String(i.text).normalize('NFKC')) && notSurgeryLine(i));
-        if (cancerItem) { dxHost = cancerItem; dxLabel0 = ((String(cancerItem.text).normalize('NFKC').match(/(?:胃|大腸|結腸|直腸|肝|膵|肺|乳腺|食道|前立腺|子宮|卵巣)(?:がん|癌)[^、。\n]{0,30}/) || [])[0] || '').trim(); }
-      }
+      // 診断欄が術式だけの場合も、治療名を疾患として重複表示しない。
+      if (/(?:全摘|切除|摘出|置換)術/.test(dxLabel0) && !/(?:がん|癌|骨折|症|病|障害|炎)/.test(dxLabel0)) dxLabel0 = '';
       // 【疾患の四角が消える対策】「診断名」という欄名が付かない書き方（文中の「診断名：胃がん」・「胃がんのため手術」など）でも、
       // 本人のがんの病名を記録の中から探して疾患の四角にする（家族歴・既往・術式の行は除く）
       if (!dxHost || !dxLabel0) {
@@ -1542,7 +1540,7 @@
         const gast = /胃/.test(dxLabel + surgery.label);
         const aim = N('dx_aim', 'pathophysiology', '手術の対象と目的：腫瘍と周囲のリンパ節を切除し、根治をめざす', { source: 'knowledge', max: 60, evidence: gast && /全摘/.test(surgery.label) ? '切除範囲は腫瘍の位置・広がりで決まる。全摘を選んだ理由は医師の説明で確認する' : '' });
         E(stage || disease, aim, 'results_in', { evidence: tnm ? '遠隔転移がなく、切除で根治をめざせる進行度' : 'がんの根治をめざす治療方針' });
-        E(surgery, aim, 'treats', { evidence: '手術の対象・目的' });
+        E(surgery, disease, 'treats', { evidence: '疾患に対する手術。切除範囲・選択理由は別の説明で確認する' });
       }
       const gastric = surgery && /胃/.test(surgery.label + dxLabel) && /全摘|切除/.test(surgery.label);
       // 薬（分類ごと。何に対する治療かが分かる薬だけ）
@@ -2492,6 +2490,8 @@
       const uniqNodes = [...new Set(nodes.values())];
       const keepIds = new Set(kept.map(p => p.id));
       uniqNodes.filter(n => n.type === 'disease').forEach(n => keepIds.add(n.id));
+      // 手術の治療矢印を疾患へ向けても、記録に対応した病期と目的の説明を残す。
+      uniqNodes.filter(n => n.key === 'dx_stage' || n.key === 'dx_aim').forEach(n => keepIds.add(n.id));
       let grew = true;
       while (grew) {
         grew = false;

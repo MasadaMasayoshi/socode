@@ -1,4 +1,5 @@
 'use strict';
+// 入力は新規の公開用仕様再現事例。旧教材との全文互換性を証明するテストではない。
 // 改善点ファイル（患者36・Gemini評価 2026/9/28）の反映の検証
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -7,7 +8,7 @@ const path = require('path');
 const { loadApp } = require('./app-helpers');
 const app = loadApp();
 const tagsOf = t => Array.from(app.detectMultipleHendersonTags(t)).sort((a, b) => a - b);
-const cards = Array.from(app.classifyTextByRules(fs.readFileSync(path.join(__dirname, 'golden', 'cases', '患者36.txt'), 'utf8')));
+const cards = Array.from(app.classifyTextByRules(fs.readFileSync(path.join(__dirname, 'fixtures', 'public-cases', 'hip-contract.txt'), 'utf8')));
 const find = s => cards.find(c => c.text.includes(s));
 
 test('1：骨折・牽引・人工骨頭・術後肢位は4と9、足背動脈の観察も9', () => {

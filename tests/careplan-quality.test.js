@@ -248,7 +248,7 @@ test('関連図：病名が「胃底部に25mm大のがんを指摘され」と�
   const fs2 = require('fs'), path2 = require('path');
   const { loadApp } = require('./app-helpers');
   const app2 = loadApp();
-  const text = fs2.readFileSync(path2.join(__dirname, 'golden/cases/胃がん_A氏58歳.txt'), 'utf8');
+  const text = fs2.readFileSync(path2.join(__dirname, 'fixtures/public-cases/gastric-contract.txt'), 'utf8');
   const items = app2.classifyTextByRules(text).map((i, k) => ({ ...i, id: `it${k}` }));
   const cp = { id: 'p1', title: 'A氏', sourceText: text, items, carePlans: {}, selectedDiagnosisIds: [], diagnosisCandidates: [] };
   const map = app2.buildRelationMapFromRecord(cp);
@@ -262,7 +262,7 @@ test('関連図：がんの手術（治療）は、手術の目的を通って�
   const fs2 = require('fs'), path2 = require('path');
   const { loadApp } = require('./app-helpers');
   const app2 = loadApp();
-  const text = fs2.readFileSync(path2.join(__dirname, 'golden/cases/胃がん_A氏58歳.txt'), 'utf8');
+  const text = fs2.readFileSync(path2.join(__dirname, 'fixtures/public-cases/gastric-contract.txt'), 'utf8');
   const items = app2.classifyTextByRules(text).map((i, k) => ({ ...i, id: `it${k}` }));
   const map = app2.buildRelationMapFromRecord({ id: 'p1', title: 'A氏', sourceText: text, items, carePlans: {}, selectedDiagnosisIds: [], diagnosisCandidates: [] });
   const dis = map.nodes.find(n => n.type === 'disease');

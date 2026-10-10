@@ -1,4 +1,5 @@
 'use strict';
+// 入力は新規の公開用仕様再現事例。旧教材との全文互換性を証明するテストではない。
 // 利用者からの指摘（患者36）：時刻だけ（[12:00]）で抽出していたため、手術当日・術後1日目・術後2日目の
 // 同じ時刻の記録が区別できなかった。日時に日（術後日数）を付け、総合アセスメント表では日ごとに区切る。
 const test = require('node:test');
@@ -8,7 +9,7 @@ const path = require('path');
 const { loadApp } = require('./app-helpers');
 const app = loadApp();
 const cards = text => Array.from(app.classifyTextByRules(text)).filter(c => c.type !== 'unnecessary');
-const p36 = fs.readFileSync(path.join(__dirname, 'golden', 'cases', '患者36.txt'), 'utf8');
+const p36 = fs.readFileSync(path.join(__dirname, 'fixtures', 'public-cases', 'hip-contract.txt'), 'utf8');
 const find = (list, s) => list.find(c => c.text.includes(s));
 
 test('時刻には日（手術当日・術後1日目・術後2日目）を付ける', () => {

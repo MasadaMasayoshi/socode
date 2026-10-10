@@ -10,7 +10,6 @@ const ROOT = path.join(__dirname, '..');
 const app = loadApp();
 const src = readAppSource();
 const plain = v => JSON.parse(JSON.stringify(v));
-const HF = fs.readFileSync(path.join(ROOT, 'tests/golden/cases/心不全_B氏82歳_架空.txt'), 'utf8');
 
 test('AIのJSON：```json の囲み・前置き・最後の余分な「,」があっても読める', () => {
   const v = app.parseAiJsonLoose('以下が不足情報です。\n```json\n[{"hendersonId":1,"text":"a"},\n{"hendersonId":2,"text":"b"},\n]\n```');
@@ -65,10 +64,7 @@ OP（観察計画）
 
 
 
-test('AIの答えが途中で切れたこと（MAX_TOKENS）を知らせる・AIでの分類が読み取れないときはルールで分類したと知らせる', () => {
-  assert.match(src, /finish === 'MAX_TOKENS'/);
-  assert.match(src, /AIの答えが長すぎて、ここで途中で切れています/);
-  assert.match(src, /AIの答えを読み取れなかったため、AIなし（ルール）で分類しました/);
-  assert.match(src, /callGeminiAI\(\[\{ role: "user", parts: \[\{ text: prompt \}\] \}\], \{ json: true, quietTruncation: true \}\)/);
+test('旧AIパーサーの互換性を残しても、共通API入口は画像なしのAI分類要求を拒否する', () => {
+  assert.match(src, /if \(!hasImage \|\| options\.ocr !== true\) throw new Error\('AI機能は画像の文字認識/);
+  assert.ok(src.indexOf('if (!hasImage || options.ocr !== true) throw new Error') < src.indexOf('requestGemini(globalAppData.apiKey, body)'));
 });
-

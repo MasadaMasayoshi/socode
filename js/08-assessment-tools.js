@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-10.quality1'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-10.znavigation4'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -1141,6 +1141,8 @@
         if (refM) rest = rest.replace(refM[0], ' ');
         const unitM = rest.match(/^\s*([^\s(（↑↓、,。]*)/);
         let unit = unitM ? unitM[1] : '';
+        // 単位に続く説明文を単位として飲み込まず、叙述中の数値は推移表へ転記しない。
+        if (/のため|ので|に上昇|に低下|まで低下|まで上昇|確認した|確認する/.test(unit)) return null;
         // 「体重 1か月で2.0kg減少」の「1」は期間（1か月）で、体重の値ではない（検査値の推移に「体重 1」と出ていた）
         if (/^(?:か月|ヶ月|ヵ月|カ月|ケ月|週|日間|日で|年|時間)/.test(unit)) return null;
         rest = rest.slice(unitM ? unitM[0].length : 0);

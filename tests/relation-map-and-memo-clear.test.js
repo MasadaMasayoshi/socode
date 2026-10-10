@@ -106,8 +106,8 @@ test('関連図：治療は楕円で「治療 → 治療の対象」、治療ご
   const surg = find(map, /^胃全摘出術/), ca = map.nodes.find(n => n.type === 'disease'), pca = find(map, /硬膜外PCA/), pain = find(map, /^創部痛/);
   assert.equal(surg.type, 'treatment');
   assert.doesNotMatch(surg.label, /全身麻酔下で|施行/);
-  // がんの手術の対象は「手術の対象と目的」の四角（病期 → 手術の対象と目的 ← 手術）。胃がんから直接の線は引かない
-  assert.ok(map.edges.some(e => e.source === surg.id && e.relation === 'treats' && /手術の対象と目的/.test(map.nodes.find(n => n.id === e.target).label)));
+  // 治療矢印は手術から疾患へ向ける。病期と手術目的の説明は別の因果線で残す。
+  assert.ok(map.edges.some(e => e.source === surg.id && e.target === ca.id && e.relation === 'treats'));
   assert.ok(map.edges.some(e => e.source === pca.id && e.target === pain.id && e.relation === 'treats'));
   assert.ok(!map.edges.some(e => map.edges.some(o => o.source === e.target && o.target === e.source)), '両向きの矢印は無い');
   const svg = app.relationMapSvg(map, {});
@@ -986,5 +986,5 @@ test('関連図：がんの手術は「精査・診断 → 病期の意味 → �
   const exam = by(/貧血を指摘.*精査/), disease = by(/^胃がん/), stage = by(/胃底部の腫瘍.*T2.*固有筋層.*N0.*M0/), aim = by(/手術の対象と目的/), surg = by(/胃全摘/);
   [exam, disease, stage, aim, surg].forEach(n => assert.ok(n));
   const has = (a, b) => map.edges.some(e => e.source === a.id && e.target === b.id);
-  assert.ok(has(exam, disease) && has(disease, stage) && has(stage, aim) && map.edges.some(e => e.source === surg.id && e.target === aim.id && e.relation === 'treats'));
+  assert.ok(has(exam, disease) && has(disease, stage) && has(stage, aim) && map.edges.some(e => e.source === surg.id && e.target === disease.id && e.relation === 'treats'));
 });

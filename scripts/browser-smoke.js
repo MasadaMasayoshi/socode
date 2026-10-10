@@ -174,6 +174,26 @@ const {app}=require('../server');
    await page.waitForFunction(()=>document.getElementById('diff-status').textContent.includes('比較できません'));
    assert.equal(await page.locator('#catalog-diff article').count(),0);
    assert.equal(await page.evaluate(()=>JSON.stringify(records)),original);
+   await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
+   await page.waitForFunction(()=>typeof createNewPatientPage==='function');
+   for (const {id,text} of require('../tests/public-case-helpers').loadPublicCases()) {
+    await page.evaluate(id=>createNewPatientPage('公開架空検証 '+id),id);
+    await page.locator('#tab-so-board').click();
+    await page.locator('#source-text').fill(text);
+    await page.locator('#btn-start-classify').click();
+    await page.waitForFunction(()=>getCurrentPatient().items.some(i=>!i.deleted&&i.type==='s'));
+    for(const name of ['assessment','careplan','labs','relation']) await page.locator('#tab-'+name).click();
+    const result=await page.evaluate(()=>{
+     const cp=getCurrentPatient(),items=cp.items.filter(i=>!i.deleted),ids=new Set(items.map(i=>i.id));
+     const plans=carePlanList(cp),map=cp.relationMap;
+     return {items:items.length,plans:plans.length,planned:plans.every(p=>p.caseId===cp.id&&p.status==='planned'&&p.records.length===0),
+      nodes:map?.nodes.length||0,refs:(map?.nodes||[]).every(n=>(n.itemIds||[]).every(id=>ids.has(id)))};
+    });
+    assert.ok(result.items>0&&result.plans>0&&result.nodes>0,`${width}px ${id}: empty workflow`);
+    assert.ok(result.planned&&result.refs,`${width}px ${id}: state or evidence ownership`);
+    if(id==='heart-failure') await page.screenshot({path:`browser-artifacts/${width}-public-long-relation.png`});
+    console.log(`PASS ${width}px public ${id}: UI classification, assessment, plans, labs and relation map`);
+   }
    assert.deepEqual(errors,[],`Uncaught browser errors at ${width}px`);
    console.log(`PASS ${width}px: classification, five views, recovery and catalog revision comparison`);
    await context.close();

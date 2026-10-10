@@ -33,15 +33,13 @@ test('F：設定で登録した語句を伏せ、同じ語句には同じ記号�
   assert.equal(app.restoreMaskedText('〈伏せ字1〉の受診歴あり。〈伏せ字 1 〉。〈伏せ字9〉', ctx), 'さくら整形外科クリニックの受診歴あり。さくら整形外科クリニック。〈伏せ字9〉');
 });
 
-test('F：これまでの事例の文章（A氏などで匿名化済み）では、臨床の内容を伏せない', () => {
-  const fs = require('fs');
-  const path = require('path');
-  const dir = path.join(__dirname, 'golden', 'cases');
-  fs.readdirSync(dir).forEach(f => {
-    const text = fs.readFileSync(path.join(dir, f), 'utf8').normalize('NFKC');
-    const { ctx } = mask(text);
-    assert.deepEqual(Array.from(ctx.originals), [], `${f} で伏せ字：${ctx.originals.join(' / ')}`);
-  });
+test('F：公開用の架空7事例では、臨床の内容を伏せない', () => {
+  const cases = require('./public-case-helpers').loadPublicCases();
+  assert.equal(cases.length, 7);
+  for (const {id,text} of cases) {
+    const {ctx} = mask(text.normalize('NFKC'));
+    assert.deepEqual(Array.from(ctx.originals), [], `${id} で臨床内容を伏せた`);
+  }
 });
 
 test('A：答えの中の〔C番号〕を、根拠のカードへのボタンにする（無い番号はそのまま）', () => {

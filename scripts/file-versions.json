@@ -24,12 +24,12 @@
     "hash": "e750ed35a502596d"
   },
   "js/07-classification.js": {
-    "version": "2026-10-10.quality1",
-    "hash": "9eba8a8e9435b6ac"
+    "version": "2026-10-10.znavigation4",
+    "hash": "04d0a7e866377f6b"
   },
   "js/08-assessment-tools.js": {
-    "version": "2026-10-10.quality1",
-    "hash": "71e427c09e5163b6"
+    "version": "2026-10-10.znavigation4",
+    "hash": "596ff3613d5a5071"
   },
   "js/09-board.js": {
     "version": "2026-10-10.znavigation1",
@@ -56,8 +56,8 @@
     "hash": "b90c3185deaf3a8c"
   },
   "js/15-relation-map.js": {
-    "version": "2026-10-10.recovery1",
-    "hash": "f0ebded89178825b"
+    "version": "2026-10-10.znavigation5",
+    "hash": "00cb660d298e4bde"
   },
   "style.css": {
     "version": "2026-10-09.41",
