@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-10.znavigation8'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-10.znavigation9'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -1677,11 +1677,11 @@
           rec.reasonKinds.push(off >= 50 ? 'digits' : 'magnitude');
         }
       }
-      // 基準値：原文にあるものを優先。内蔵の一般的な基準値と同じ文字なら「一般的な基準値」と区別する
+      // 基準値：記録の値を優先。同じ数値だけでは原文由来か自動補足かを確定できない。
       if (refM) {
         const given = refM[1].trim();
         const generic = `${std.ref}${std.unit}`.replace(/\s+/g, '') === given.replace(/\s+/g, '') || std.ref.replace(/\s+/g, '') === given.replace(/\s+/g, '');
-        rec.ref = { text: given, origin: generic ? 'general' : 'source', range: parseLabReferenceRange(given), unit: refUnitOf(given) };
+        rec.ref = { text: given, origin: generic ? 'unverified' : 'source', range: parseLabReferenceRange(given), unit: refUnitOf(given) };
       } else if (range) rec.ref = { text: `${std.ref} ${std.unit}`.trim(), origin: 'general', range, unit: std.unit };
       // 変化の確認（同じ項目の前の確認済みの値と比べる）
       if (previous && Number.isFinite(previous.valueStd) && valueStd !== null && previous.valueStd > 0 && valueStd >= 0 && !LAB_VAL_CHANGE_EXEMPT.includes(key)) {
@@ -1702,7 +1702,7 @@
           // valueStdは内蔵単位へ換算済み。範囲側の単位へ戻してから比較する。
           // 実測値と原文の基準値が同じ×10^3/μLでも、5000と3.3〜8.6を比較しない。
           if (rec.ref.unit) {
-            const ratio2 = labUnitRatio(std.unit, rec.ref.unit);
+            const ratio2 = sameLabUnit(std.unit, rec.ref.unit) ? 1 : labUnitRatio(std.unit, rec.ref.unit);
             cmp = ratio2 ? valueStd * ratio2 : null;
           }
           const d = cmp === null ? null : labDirection(cmp, r, rec.arrow);
@@ -1813,7 +1813,7 @@
         if (valid.length) {
           const last = valid[valid.length - 1];
           lines.push(`${key}：${seq} ${last.unit || (std ? std.unit : '')}`.trim());
-          if (last.ref) lines.push(`　判定：${LAB_STATUS_LABEL[last.status]}${last.ref.text ? `（基準値 ${last.ref.text}・${last.ref.origin === 'source' ? '原文の基準値' : 'アプリ内蔵の一般的な基準値（性別・年齢・施設で異なります）'}）` : ''}`);
+          if (last.ref) lines.push(`　判定：${LAB_STATUS_LABEL[last.status]}${last.ref.text ? `（基準値 ${last.ref.text}・${last.ref.origin === 'source' ? '記録に記載された基準値（出典未確認）' : last.ref.origin === 'unverified' ? '記録の基準値（内蔵値と一致・由来未確認）' : 'アプリ内蔵の一般的な基準値（性別・年齢・施設で異なります）'}）` : ''}`);
           else lines.push(`　判定：${LAB_STATUS_LABEL[last.status]}`);
           // 推移（基準値の判定とは分けて書く）
           if (valid.length >= 2) {

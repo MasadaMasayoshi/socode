@@ -23,6 +23,10 @@ const {app}=require('../server');
     [`${value} ×10^3/μL`,`${value*1000} /μL`].map(measurement=>
      analyzeLabCard(`WBC ${measurement} (基準値: 3.3〜8.6 ×10^3/μL)`).status)));
    assert.deepEqual(labStatuses,['low','low','normal','normal','high','high']);
+   assert.deepEqual(await page.evaluate(()=>[8,20,50].map(value=>
+    analyzeLabCard(`AST ${value} U/L (基準値: 10〜40 U/L)`).status)),['low','normal','high']);
+   assert.equal(await page.evaluate(()=>analyzeLabCard('AST 20 U/L (基準値: 10〜40 U/L)').ref.origin),'unverified');
+
 
    await page.locator('#source-text').fill('【架空の画面検証用記録】\n体温36.8℃、脈拍72回/分。\n「昨夜はよく眠れました」と話す。');
    // Fresh browser contexts may load the fictional chart saved by an earlier

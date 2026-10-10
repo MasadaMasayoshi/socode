@@ -102,3 +102,23 @@ test('換算済みの実測値を原文の基準値と同じ単位で比較す�
   }
   assert.equal(app.analyzeLabCard('WBC 5000 /μL (基準値: 3.3〜8.6 mg/dL)').status, 'unknown', '換算不能な単位は判定しない');
 });
+
+
+test('基準値の数値が内蔵値と同じでも、記録の由来を自動承認しない', () => {
+  const builtIn = app.analyzeLabCard('AST 20 U/L');
+  assert.equal(builtIn.ref.origin, 'general');
+  const matching = app.analyzeLabCard('AST 20 U/L (基準値: 10〜40 U/L)');
+  assert.equal(matching.ref.origin, 'unverified');
+  assert.equal(matching.status, 'normal');
+  const different = app.analyzeLabCard('AST 20 U/L (基準値: 5〜35 U/L)');
+  assert.equal(different.ref.origin, 'source');
+  const result = app.buildLabAssessment({items:[card('x','AST 20 U/L (基準値: 10〜40 U/L)','入院前')]});
+  assert.match(JSON.stringify(result), /内蔵値と一致・由来未確認/);
+});
+
+
+test('同じ標準単位の基準値では低値・正常・高値を判定する', () => {
+  for (const [value, status] of [[8,'low'],[20,'normal'],[50,'high']]) {
+    assert.equal(app.analyzeLabCard(`AST ${value} U/L (基準値: 10〜40 U/L)`).status,status);
+  }
+});
