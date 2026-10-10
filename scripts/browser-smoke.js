@@ -119,6 +119,16 @@ const {app}=require('../server');
     return {undone,redone,protectedUpdate};
    });
    assert.deepEqual(boardHistory,{undone:true,redone:true,protectedUpdate:true});
+   await page.evaluate(()=>{
+    const cp=getCurrentPatient();window.__toastUndoWrites=0;
+    showUndoToast('架空の復元確認',()=>window.__toastUndoWrites++,{patientId:cp.id});
+    cp.items.push({id:'toast-later-update',text:'架空の後続更新',type:'o'});
+   });
+   await page.locator('#toast-container button').filter({hasText:'元に戻す'}).last().click();
+   assert.equal(await page.evaluate(()=>window.__toastUndoWrites),0);
+   assert.match(await page.locator('#toast-container').innerText(),/元に戻していません/);
+   await page.evaluate(()=>{getCurrentPatient().items=getCurrentPatient().items.filter(i=>i.id!=='toast-later-update');});
+
 
    await page.locator('#nursing-source-compare').click();
    await page.evaluate(()=>{

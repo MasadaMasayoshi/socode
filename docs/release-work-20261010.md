@@ -60,3 +60,5 @@ The static packaging command prepares 46 allowlisted runtime assets including ve
 ## Quality follow-up
 
 Page rename and permanent deletion now reject patient switches, target replacement, edits during confirmation and deletion of a newly last remaining page. The operation still requires explicit confirmation; permanent deletion is not silently converted into retained patient backups. Practice expands to 36 authored fictional questions with all 14 needs represented and distinct-question/latest-answer coverage. Local progress saving/deletion is verified and failures remain visible. The bounded curriculum is documented in `practice-curriculum.md`; a complete clinical/national-examination curriculum is not claimed. Browser checks include grading, save/reload, coverage, mobile fit and reset.
+
+Immediate Undo notifications now verify patient identity and the post-operation snapshot, reject later updates/replacements/deletion, synchronize only successful restorations and ignore repeated clicks. Archive restoration uses the same ownership guard. Blocked restoration no longer emits a false success message.

@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-10.znavigation14'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-10.znavigation15'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -427,6 +427,8 @@
       if (typeof schedulePatientSync === 'function') schedulePatientSync(patientId);
     }
     function showUndoToast(message, undoFn, options = {}) {
+      const owner = options.patientId ? globalAppData.patients.find(p => p.id === options.patientId) : null;
+      const expectedOwner = owner ? JSON.stringify({ ...owner, updatedAt: undefined }) : null;
       const toast = document.createElement('div');
       toast.className = 'toast-enter p-3 rounded-[var(--radius-sm)] border text-xs font-medium flex items-center gap-3 panel-shadow';
       toast.style.cssText = 'background:var(--surface);color:var(--ink);border-color:var(--line);pointer-events:auto;';
@@ -439,10 +441,15 @@
       undoBtn.className = 'font-bold text-[var(--accent)] hover:underline whitespace-nowrap';
       undoBtn.textContent = '元に戻す';
       toast.append(undoIcon, undoText, undoBtn);
-      let dismissed = false;
+      let dismissed = false, attempted = false;
       const dismiss = () => { if (dismissed) return; dismissed = true; toast.classList.replace('toast-enter', 'toast-exit'); setTimeout(() => toast.remove(), 300); };
       undoBtn.addEventListener('click', () => {
-        undoFn();
+        if (attempted) return;
+        attempted = true;
+        if (options.patientId && (!owner || globalAppData.patients.find(p => p.id === options.patientId) !== owner || JSON.stringify({ ...owner, updatedAt: undefined }) !== expectedOwner)) {
+          dismiss(); showToast('後から追加された変更を保護するため、元に戻していません', 'warn'); return;
+        }
+        if (undoFn() === false) { dismiss(); showToast('元に戻せませんでした。現在の内容を確認してください', 'warn'); return; }
         if (options && options.patientId) markPatientChanged(options.patientId);
         saveDataAndSync();
         dismiss();
@@ -1743,7 +1750,7 @@
         if (wasCurrent) changeCurrentPatient(id); // 今表示している患者（切り替え先）を保存してから戻る
         else { savePatientsLocally(); renderPatientTabs(); }
         renderPatientListModal();
-      });
+      }, { patientId: id });
     };
 
     window.unarchivePatient = function(id) {
