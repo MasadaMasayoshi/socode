@@ -1,148 +1,36 @@
-# 残件対応と公開条件（2026-10-10）
+# Remaining work — 2026-10-10
 
-> Historical implementation and verification record. On 2026-10-10 the owner accepted successful latest-code public regression and real-browser tests as sufficient for publication readiness. The active policy is [release-conditions.json](release-conditions.json); see [publication-runbook.md](publication-runbook.md). Pending clinical/live-provider checks remain unverified follow-up work rather than publication prerequisites.
+Branch: `review/nursing-classification-stage1`. Latest evidence: [PR #1](https://github.com/MasadaMasayoshi/socode/pull/1) and [issue #2](https://github.com/MasadaMasayoshi/socode/issues/2). No merge or deployment performed.
 
-今回追加した対応：
-- ローカル保存後に読み戻した全文の一致を確認。欠落や同じ長さの別内容は保存成功にしない。
-- 看護計画の `mapEvidenceRefs`、関連図の `sourceRefs` と `itemIds` を自動点検。別患者への参照、削除・除外カードへの参照を知らせる。記録自体は変更しない。
-- 390/768/1440pxで架空記録を分類し、アセスメント・計画・検査値・関連図・参考資料を開く実Chromium検証を独立CIジョブに追加。2回のCI実行で3幅すべて成功。画面画像をCI成果物として保存。
-- 回帰比較で正解データが欠けているときに現在の出力を正解として自動作成する既存の不具合を修正。通常の検証は失敗を報告し、ファイルを書かない。明示的な `golden:update` だけが期待値を保存する。
-- 実装状況の説明を、患者画面への点検連携・本文Undo/Redo・模擬事例12問に合わせて更新。
+## Publication policy
 
-保存済みアセスメント資料の末尾から患者36の分類前原文をローカルで取得し、この事例の個別テストを実行した。元のgolden入力と同一のハッシュを確認できていないため、教材一式が復旧したとは扱わない。公開リポジトリに教材本文は追加していない。既存テストが自動生成していた期待値は削除した。
+The owner accepted successful latest-code full public regression and real-browser verification as sufficient. [release-conditions.json](release-conditions.json) records this decision without marking external checks complete. Readiness must be reevaluated after each candidate change; stale or incomplete CI never passes. See [publication runbook](publication-runbook.md).
 
-関連変更の27テストと、正解データ欠落時の書き込み防止テストは成功。教材一式を持たないCIでは全回帰を成功させられない。正解データが自動生成されていた状態での794成功という件数は、承認済み期待値との回帰確認を示さない。
+## Implemented baseline
 
-未完了：心不全・自由記述7事例などの元入力、承認済み正解JSON、施設別検査基準。胃がん原文は保存済み資料からローカル復旧したが、元のテスト教材との完全な同一性は未確認。全操作のUndo、資料改訂の意味の比較など、40項目の状態表に未完成と記した機能も残っている。2026-10-10のユーザー指示により独立した専門家レビューを公開必須条件から外す。審査未完了の状態は維持し、承認済みと偽って記録しない。
+- Content-based Henderson classification; S quotations are not automatically communication, insurance belongs to need 9, admission periods remain separate.
+- Source/card/assessment/map/plan navigation and same-patient references; changed/deleted/excluded evidence warnings and reviewed snapshot updates.
+- Verified full-content local writes; three import checkpoints, previews and confirmation race protection.
+- Patient-scoped card, assessment, map, plan and record histories; structural operations and dependent-state collision guards; ownership-safe immediate Undo.
+- Revision-protected maps with clinical metadata, bounded evidence traversal and conflict recovery.
+- Read-only knowledge export/differences, 29 source-correspondence records, zero clinical approvals.
+- Lab units/ranges, exclusions and chronological trends; OCR file validation/retry/patient ownership with mocked transport.
+- Shared modal keyboard behavior, focus restoration and touch targets.
+- 36 authored fictional practice questions covering all 14 needs; distinct/latest-answer coverage and verified local progress/reset.
+- One full public regression run plus independent browser CI; isolated 46-asset payload, licenses, hashes and evidence artifacts.
 
-main統合と公開は未実施。現行の公開仕様回帰・実ブラウザ検証と残件を確認したあとに公開可否を判断する。独立専門家レビューはユーザー指示で必須条件から除外した。
+## Follow-up evidence
 
-## 追加対応：復元と操作（同日）
+| Area | Still missing |
+| --- | --- |
+| Live OCR | Real-provider success and optical accuracy using a usable credential |
+| Facility references | Adopted ranges, units, methods, population applicability and source/version |
+| Clinical sources | Review of specific diagram/plan claims; references remain unapproved |
+| Accessibility | Comprehensive real-device and screen-reader review |
+| Reversibility | Coverage beyond implemented histories; whole-patient replacement uses checkpoints |
+| Curriculum | Targets and verified content beyond the bounded 36-question baseline |
+| Legacy compatibility | Missing historical originals and approved expected JSON; no full-card equivalence claim |
 
-- 関連図Undo/Redoは患者切替後も各患者の履歴を保持し、外部更新と履歴の破損があれば現在の図を保護する。履歴はこのページを開いている間のみ。
-- 同一IDのデータ読込前にブラウザへ最大3世代の控えを全文読み戻し確認付きで保存。保存失敗時は置換を止める。保存メニューから控えを選び、既存の検証と確認を通して読み込める。
-- 読込確認は置換対象カードの追加・削除・変更件数を表示。確認中に対象患者が更新された場合は再確認を求め、上書きしない。
-- 確認ダイアログにラベルとキーボードフォーカス循環、Esc取消を追加。
-- 復元は対象カルテの読込であり、控え取得後に追加された別のカルテを削除する操作ではない。全操作のUndoやページ再読込後の図履歴復元は未実装。
-- 関連35テスト成功。図のUndo/Redo・外部更新保護・控え保存を含む実Chromiumの3幅CIも成功。読込確認とキーボード検証もCI（run 37982135059）で3幅すべて成功。
+These items remain unverified follow-up under the owner's policy. They do not prevent the accepted test-based publication criterion, but must not be claimed complete. No current-output expectations, hidden failures or clinical approvals may be invented.
 
-## 追加対応：看護計画の項目編集履歴
-
-看護問題・目標・OP/TP/EP・状態・関連項目の手動編集に、患者別40件までのUndo/Redoを追加。続けて入力した文字は750ms以内なら1操作としてまとめる。元に戻した後に別の編集をするとRedoを破棄する。対象項目が外部更新された場合や計画が削除された場合は上書きしない。他の項目の更新はそのまま保持する。
-
-履歴はこのページを開いている間だけ保持する。計画の自動再生成・並び替え・追加・削除・実施記録全体は対象外。Undo後も自分で編集した計画として保持し、自動再生成で書き戻されないようにする。看護計画ページに日本語の操作ボタンと対象範囲の説明を表示。
-
-実際の入力ハンドラーを含む患者切替・入力のまとめ・同じ長さの外部編集・削除・別項目の保持をテストし、関連31テストが成功。実Chromium検証に看護計画のUndo/Redoと外部更新保護を追加。
-
-## 追加対応：自分のアセスメント
-
-情報の解釈・考えられる原因・今後の見通し・再評価メモに、患者と欲求ごとの40件までのUndo/Redoを追加。750ms以内の連続入力をまとめ、後続編集時にはRedoを破棄する。対象文章が外部更新された場合や項目が消えた場合は上書きしない。他の文章と根拠カード・充足判定・確定済みの評価履歴は変更しない。履歴はページを開いている間だけ保持する。
-
-入力後の遅延点検のタイマーを患者IDと欲求IDの組で管理し、患者を切り替えた後に別患者へ点検結果を描画しないよう修正。患者・欲求の隔離、連続入力、後続編集、外部更新、削除、別項目の保持、遅延点検をテストし、関連35テストが成功。実Chromium検証にもアセスメント編集のUndo/Redoと外部更新保護を追加。
-
-## 追加対応：確認中の競合と実施記録
-
-計画削除・実施記録削除・アセスメント版の復元は、確認を開いた時点の患者と対象内容を保持し、確認中に患者または対象が更新されたら操作を止める。同期で患者オブジェクトが置き換わった場合も、現在の対象を確認してから変更する。
-
-実施記録の編集画面は患者ID・計画の文章/目標/関連項目・編集対象記録の控えを保持する。保存前に照合し、患者切替や外部更新があれば情報カードの追加を含めて書き込みを止め、入力画面を保持する。新規記録は別の記録が増えただけでは阻止しない。競合保護だけでなく、更新のない記録が通常どおり保存できることも実ブラウザ検証に追加。
-
-患者IDが違うのに対象IDが同じ場合、確認中の文章更新、正常な確認、実施記録の患者切替を10テストで検証。関連28テストが成功。時刻テストのUTC固定日付の仮定も修正し、端末のローカル時刻をISOから戻す仕様を東京とEdmontonの2タイムゾーン（各9テスト）で検証した。アプリの時刻変換は変更していない。
-
-公開条件はまだ未充足。教材・承認済み期待値の不足を解決する必要がある。独立した専門家レビューはユーザー指示で公開必須条件から除外した。全操作のUndoも完成とは扱わない。
-
-## 追加対応：実施・評価記録の編集履歴と患者反応の照合
-
-既存の実施・評価記録の編集に患者別40件までのUndo/Redoを追加。対象記録が外部更新・削除された場合や計画が削除された場合は上書きしない。他の実施記録は保持する。新規記録の追加・記録削除・情報カードの追加を伴う編集は対象外と画面に明示。履歴はページを開いている間のみ。
-
-患者反応の情報カードが削除・除外された場合、または実施記録の患者反応とカード本文が食い違う場合は自動点検で知らせる。どちらの文章も自動修正しない。点検の変更検出にも記録を含める。
-
-患者切替・別記録の保持・後続編集・外部更新・記録/計画削除・別カード追加の除外・患者反応の照合を検証し、関連35テストが成功。実Chromium検証に、実施記録の保存後のUndo/Redoを追加。
-
-## 追加対応：参考資料の改訂差分
-
-資料集から保存した旧版JSONと、この画面の現行資料を比較する読み取り専用機能を追加。資料IDで対応付け、追加・削除・本文・適用範囲・注意事項・出典のURL/版情報・開発上の承認・審査者/審査状態・照合記録・確認期限の変更を表示する。資料内の未知の項目も比較する。オブジェクトのキー順や資料の並び替えのみでは変更扱いにしない。
-
-2MB超、未対応スキーマ、不正JSON、重複/空ID、不正な本文/出典は比較エラーとして表示。ファイルはサーバーへ送信せず、患者データや現行資料、承認状態へ取り込まない。差分の表示は臨床審査・専門家承認の代わりにはならない。外部資料の最新版取得や臨床的な改訂判定は未完了。
-
-比較ロジック8テストと既存資料/画面構文を含む15テストが成功。実ブラウザ検証に390/768/1440pxでの旧版比較、不正JSONのエラー表示、HTML文字列の安全な表示、現行資料の不変性を追加した。
-
-## 追加対応：原文とカードの往復照合
-
-原文照合画面で、同じ文章が複数ある場合に前/次の一致箇所へ移動できるよう追加。完全一致と空白・全半角等の表記をそろえた一致を区別して表示し、日時・前後の文脈の確認を促す。原文の選択文字からカード候補を探す際も表記差を考慮する。部分的な語句一致を抽出の正確性や臨床的な根拠の確定とは扱わない。
-
-削除・除外・AI提案カードを照合画面と原文一致率の対象から除外。患者・原文・対象カードの変更を操作前に照合し、古い画面からの操作なら更新して再選択を求める。Unicodeの補助平面文字（絵文字等）を含む原文で、正規化後の検索位置がずれる問題も修正。
-
-重複文章、全半角/空白、補助平面文字、正規化で複数文字になる文字、補足文章の不一致、完全一致優先を6テストで検証。既存原文照合/画面構文/版管理と合わせ25テストが成功。実ブラウザ検証にも重複箇所の移動、削除カード除外、操作直前の原文変更保護を追加。教材一式と他の公開条件の未充足は継続。独立専門家審査は公開必須条件から除外した。
-
-## 追加対応：看護計画・患者反応の情報カードへの移動
-
-計画のevidenceIdsに紐づくカードと、実施記録のresponseCardIdに紐づく患者反応カードに移動ボタンを追加。文字列が似ているだけのカードにはリンクを作らない。現在の患者・計画・記録の参照を操作時に再確認し、削除・除外・AI提案・別患者のカードへは移動しない。参照先がない場合はその旨を表示する。
-
-カードへ移動するとボードの検索条件を解除し、対象カードへスクロール・キーボードフォーカスを移す。描画待ちの間の患者変更も確認する。元の計画へ戻るボタンを追加し、戻る操作では自動計画生成を実行せず、計画本文や根拠を変更しない。患者切替時は戻り先を消す。
-
-計画/記録リンクの所有確認・同じIDを持つ別患者・参照変更・削除・未参照カード・戻り先削除・安全なラベル表示・計画不変性を6テストで確認。版管理と競合保護を含む19テストが成功。実ブラウザ検証へ、検索中の根拠カード移動・元の計画への復帰・患者反応カードの移動・削除後のリンク非表示を追加。臨床的な根拠の適切性はこの操作検証では確定しない。独立専門家審査は公開必須条件から除外した。
-
-## 教材復旧の進捗（2026-10-10）
-
-保存済み「患者19_看護アセスメント 5.txt」の802〜1002行から、分類前原文を変更せず抽出し、胃がん_A氏58歳.txtへローカル復旧。関連25テストが成功。原文と分類後カードを混ぜたり、OCRと思われる文字を推測で直したりしていない。旧golden入力との同一ハッシュは未確認で、承認済み正解JSONは未復旧。教材本文は公開リポジトリへ追加しない。
-
-現在の検索では、心不全B氏82歳、自由記述7事例の元教材、承認済みexpected JSONは見つかっていない。生成画像や分類済みカード・旧アプリコードを元教材や正解データの代わりにはしない。
-
-`node scripts/audit-private-fixtures.js` で必須教材の不足、事例1〜7の欠落/重複、空ファイル、正解JSONの不足/形式不正を一覧化できるよう追加。教材本文は出力せず、存在・バイト数・SHA-256のみを表示し、書き込みや正解の生成はしない。検査成功でも元教材との同一性・承認そのものを証明するわけではない。goldenの不足時メッセージも、自動生成で穴埋めする案内を出さず元ファイルの復旧を求めるよう修正。
-
-## 原本がない場合の代替検証（2026-10-10）
-
-ユーザーの「ないので別の方法」の指示に基づき、原本の提出を前提にせず、新規の公開可能な架空記録と仕様に基づく手記述の期待条件を追加した。`tests/fixtures/public-contracts/v1.json` は呼吸・術後・循環・移動・栄養・睡眠・排泄の7領域。S/O、症状発言を自動でコミュニケーションにしないこと、保険を欲求9へ分類すること、別日の同時刻の区別を検証する。LF/CRLF双方、検査数値と叙述中の数値の区別、入院前後の欄の分離も確認する。
-
-期待条件はアプリ出力を保存して作ったものではない。誤分類・情報欠落・過剰タグ・時点混同・重複を注入して検証器が失敗することもテストする。この新しい検証で「便が出ない」に排泄タグが付かない不具合を発見し、該当する明確な語句のルールを追加した。関連26テストが成功。
-
-これは旧7教材と同じ事例ではなく、旧goldenの全カード一致や臨床的な承認を証明しない。既存の全回帰コマンドと不足報告は維持し、テスト除外や現在の出力による正解の穴埋めは行っていない。旧教材の検証項目を新規の公開検証に置き換えるには、長文・表形式・関連図・計画を含めた旧テストとの対応表と追加検証が必要。公開可能という判定はまだ出さない。
-
-## 公開仕様検証への移行（2026-10-10）
-
-旧原本がないというユーザー指示に基づき、提出待ちを前提にしない方式へ移行。詳細と旧テストとの対応は [公開回帰移行記録](public-regression-migration-20261010.md)。旧教材の全カード比較は `npm run test:legacy` に保存し、不足時は失敗する。通常の `npm test` は公開された架空入力と現行仕様の回帰を実行する。両者の検証範囲をテスト開始時・CI・文書で明示する。旧互換性を回復したとは扱わない。
-
-既存の63条件を新規架空入力へ移し、7事例の抽出・匿名化・未タグ点検20テスト、長文の図・計画工程10テストが成功。足背動脈のタグ、叙述の検査値の誤転記、術式を疾患とする表示、家族歴による病名の補完を修正。がんの手術の治療矢印も手術から疾患へ向けた。実ブラウザ検証へ全7事例・3幅で別患者の入力と分類・評価・計画・検査・関連図の画面表示を追加。全公開回帰と最新CIの結果は引き続き確認する。
-
-## 追加対応：生成計画の根拠カード参照
-
-図から生成した計画では、要約した根拠文とカード本文が完全一致しないため、`mapEvidenceRefs` はあるのに情報カードへの移動用 `evidenceIds` が空になる問題を修正。図に明示された同じ患者のcard参照だけを引き継ぎ、現在のカードの本文・日時・分類を控えとして保存する。削除・除外・AI提案・不存在・別患者・assessment参照はカードIDへ変換しない。文章が似ているだけの推測リンクは作らない。
-
-参照の追加・変更時にも同じ所有確認を行う。関連19テスト成功。公開長文7件と実ブラウザ検証でも、生成計画の根拠IDが空のままでは成功としないよう強化。前段の公開用回帰は889/889成功・スキップ0、実Chromiumは7事例×3幅で成功した。今回の根拠参照修正を含む最新コミットの全回帰・CIは別途確認する。
-
-## 最新検証の確定（2026-10-10）
-
-根拠参照修正を含む `1eee3726e571939e56e97feb1708d0b856c1af6a` の公開回帰はローカル・CIとも892/892成功、失敗0・スキップ0。実Chromiumの7事例×3幅と既存の復元・履歴・照合・資料差分も成功（[run 38018122378](https://github.com/MasadaMasayoshi/socode/actions/runs/38018122378)、Node job 114112874323、browser job 114112874546）。旧比較は2件失敗として維持し、現在の出力で期待値を作成しない。失われた教材を待つ方式から公開仕様検証への移行は完了したが、旧教材との互換性を回復したという意味ではない。
-
-施設別基準・図と計画の意味の確認・全操作Undoなどの残件は完了としていない。main統合・公開は行っていない。
-
-## 欲求ナビゲーションのキーボード操作（2026-10-10）
-
-- 矢印キーによる再描画後、選択先ボタンへフォーカスを戻す。Home/Endで1/14へ移動。
-- ナビゲーション外・入力欄・ダイアログ表示中は欲求を切り替えない。
-- 対応するタブパネルがないボタン群をgroupとaria-pressedで表現し、前後ボタンに読み上げ名を追加。
-- 390/768/1440pxの実ブラウザ回帰にフォーカス保持・選択状態・ナビ外操作の検証を追加。全画面のアクセシビリティ完了を示すものではない。
-
-## 検査基準値の単位比較（2026-10-10）
-
-WBCの実測値と原文基準値がともに×10³/μLの場合、内部換算後の5000を3.3〜8.6と比較して誤って高値にする問題を修正。内部単位から基準値の単位へ換算し、比較不能なら判定不明にする。低値・正常・高値を2つの表記で検証し、3画面幅の実ブラウザにも同じ条件を追加。施設別基準値の承認や出典確認の完了を示すものではない。
-
-## 基準値の由来表示（2026-10-10）
-
-記録の基準値が内蔵値と一致するだけで内蔵由来と断定していた表示を修正。一致する場合は「由来未確認」、異なる場合も「記録に記載・出典未確認」と表示。基準値がない記録への内蔵目安と区別する。旧カードには由来情報がないため、出典の復元・承認は行わない。数値の一致は出典確認の代替にならない。
-
-## 検査値の有効根拠（2026-10-10）
-
-削除済み・不要分類・AI提案カードを検査判定、推移表、考察の全文から共通条件で除外。削除した異常値を後続判定の比較元にしない。各条件の回帰テストと3画面幅のブラウザ検証を追加。
-
-## 一括点検：時系列・単位・患者の対象（2026-10-10）
-
-- 検査判定を推移表と同じ日順・同日の時刻順で行い、表示順の変更で前回値を逆にしない。
-- 日付不明を前回値にせず、不明を含む並びから上昇・低下を断定しない。
-- 事実の推移は同じ標準単位へ換算した数値で表示し、5000/μLと5×10³/μLを誤った変化として並べない。
-- 児・新生児と明示された値を母親の判定・推移・考察から除外。削除・除外カードを年齢判定の入力に混ぜない。
-- 臨床的な因果関係、施設の採用基準値、実OCR通信、全操作Undo・全画面アクセシビリティ、教材の拡充は未完了。独立した専門家レビューの免除をこれらの完了と読み替えない。
-
-## Consolidated implementation audit
-
-See [release-work-20261010.md](release-work-20261010.md) for the current English implementation/evidence matrix. Structural plan/record recovery, confirmation race guards, shared modal focus, touch targets, OCR input recovery and 22-question education were added. The remaining live-provider, facility-source, clinical-content, comprehensive accessibility and complete-roadmap requirements are explicitly recorded there.
+[Implementation audit](release-work-20261010.md), [curriculum](practice-curriculum.md), [migration record](public-regression-migration-20261010.md) and [map contract](relation-map-contract.md) retain detailed scope. Earlier incremental reports and counts remain available in Git history.

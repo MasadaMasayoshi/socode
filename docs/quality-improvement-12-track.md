@@ -1,38 +1,20 @@
-# socode 品質改善12項目 — 実装状況と公開ゲート
+# Twelve-track quality roadmap
 
-更新: 2026-10-10。作業先: review/nursing-classification-stage1。
-本書は機能の実装段階と、未検証・未統合の箇所を分けて記録する。
+Historical roadmap, 2026-10-10. For current implementation and publication policy, see [remaining work](remaining-tasks-20261010.md) and [implementation audit](release-work-20261010.md).
 
-| # | 対象 | 今回までに実装したもの | まだ必要なもの |
-| --- | --- | --- | --- |
-| 1 | 自動テスト | node --test と GitHub Actions、非AI品質ルールテスト | CI成功履歴と実ブラウザの確認 |
-| 2 | 知識更新 | 毎週の出典URL疎通点検ワークフロー | 公式文書の本文・改訂差分取得、確認付き更新（自動上書きはしない） |
-| 3 | 適用条件 | 年齢区分・対象時点・専門家審査を警告する検査API | 疾患・妊娠・小児・検査法など詳細な構造化条件と患者別画面との結合 |
-| 4 | ヘンダーソン分類 | タグ1–14とSデータからの過剰な「コミュニケーション」分類を点検 | 既存の分類結果への画面内自動適用・実ケースに対応した回帰 |
-| 5 | 充足評価 | 入院前・入院後の独立判定と根拠必須の検査API | 既存の充足表示への統合と根拠を追跡できるUI |
-| 6 | 看護問題 | 根拠カードID不在の警告 | 患者データ・看護問題管理とのID連携 |
-| 7 | 関連図 | 孤立ノード・不正な矢印・因果根拠の簡易検査API | 既存の詳細な関連図QAとの統合。レイアウトは変更しない |
-| 8 | 看護計画 | OP/TP/EP・目標の欠落警告 | 既存計画の保存形式への適用と重複検出 |
-| 9 | 検査値 | 単位・上下限・出典の確認API | 施設基準値の版管理、検査法・年齢別範囲 |
-| 10 | OCR | 元の手入力転記文とOCR文章の差分検出 | 画像自体の読み取り正誤は目視照合が必要 |
-| 11 | 修正履歴 | 修正種別ごとの集計API | 実アプリの修正履歴との接続・匿名化と保存範囲管理 |
-| 12 | モバイルと速度 | 専用品質チェック画面のモバイル対応 | アプリ全体の画面計測・Lighthouse・実機での改善 |
+| Track | Baseline | Broader follow-up |
+| --- | --- | --- |
+| Tests | Node/public regression and real-browser CI | Exact-commit evidence for every candidate |
+| Knowledge updates | Weekly source-URL reachability | Source body/edition differences and reviewed updates |
+| Applicability | Population/time/review warnings | Structured disease, pregnancy, pediatric and method conditions |
+| Henderson | Needs 1–14, semantic S classification | Broader authored case coverage |
+| Fulfillment | Separate admission periods with evidence | Broader clinical interpretation review |
+| Problems | Evidence ID warnings and links | Clinical validation of priorities |
+| Maps | Endpoint/isolation/evidence checks, retained layout | Detailed clinical causality review |
+| Plans | Goal/OP/TP/EP missing/duplicate checks | Broader plan applicability |
+| Labs | Unit/range/source checks | Facility/method/population/version adoption |
+| OCR | Text differences and input recovery | Real image accuracy and provider verification |
+| Edit history | Summaries and patient-scoped histories | Full operation coverage and storage-scope governance |
+| Mobile/performance | Three-width browser workflows | Comprehensive device/Lighthouse/accessibility review |
 
-## セキュリティと医療安全
-- AIへの通信は画像OCRだけ。検証ルールはオフラインJavaScript。
-- `clinical-knowledge/claims.json` は専門家承認がないため空のまま。
-- 資料29件はユーザーの開発上の承認済みだが、専門家による臨床審査は未完了。
-- 知識更新監視はリンク疎通を確認するだけで、本文・版の変更検出ではない。
-- 品質チェックの手動入力画面は実際の個人患者データを入力しない試験用途。
-- サイト公開・main統合はCI合格と実ブラウザでの確認が取れるまで保留。
-
-## 動作確認
-```bash
-node --check clinical-knowledge/quality-checks.js
-node --test tests/quality-checks.test.js
-node scripts/audit-clinical-knowledge.js
-npm test
-```
-アクセス試験: `clinical-knowledge/index.html` → `checks.html`、メニューからの移動、9種類の架空JSONサンプル、読み取り/結果の表示、スマートフォン幅。
-
-**未完了項目があるため12項目全部を正式完了とは呼ばない。**
+AI communication is image-OCR only; quality rules run locally. Approved claims remain empty; 29 references have owner development approval, not clinical approval. URL reachability is not source-revision detection. Manual quality samples are fictional. The roadmap is not a declaration that all twelve areas are complete; owner-approved test-based publication readiness is a separate criterion.

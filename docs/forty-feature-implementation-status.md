@@ -1,76 +1,50 @@
-# 看護学習支援機能 40 項目・実装の棚卸し
+# Forty-feature implementation inventory
 
-更新: 2026-10-10。作業先 `review/nursing-classification-stage1`。
+Updated 2026-10-10, branch `review/nursing-classification-stage1`. AI is image-OCR only; quality checks are local rules. Warnings do not automatically change patient classifications or establish diagnoses. References remain unapproved for clinical application.
 
-## 実装方針
-- AI は画像OCRに限定。品質チェックは JavaScript の非AIルールで実行。
-- 根拠のない判定はせず、必ず「確認が必要」として出す。
-- 既存のヘンダーソン分類、看護計画、関連図の挙動を自動変更しない。
-- 本人を識別できる患者の症例は試験に使わない。
-- 29件の候補資料は専門家審査未了。患者への自動適用はしない。
+| # | Area | Current scope / limit |
+| --- | --- | --- |
+| 1 | Classification evidence | Validation helpers; not fully integrated |
+| 2 | Multiple tags | Existing rules; broader accuracy review pending |
+| 3 | Untagged analysis | Reasons and candidates; incomplete explanation coverage |
+| 4 | Timeline | Reversed-time detection; broader integration pending |
+| 5 | Duplicates | Source comparison and duplicate detection |
+| 6 | Source omissions | Candidates and manual-review warnings |
+| 7 | S/O | Semantic Henderson misuse warnings; broader accuracy review pending |
+| 8 | Edit history | Summary and improvement candidates |
+| 9 | Fulfillment evidence | Independent pre-/post-admission checks |
+| 10 | Contradictions | Same-time/item difference candidates |
+| 11 | Reference ranges | Units, bounds, provenance, version and population checks |
+| 12 | Assessment writing | Missing evidence/interpretation/prediction checks |
+| 13 | Missing-information priorities | Urgency hints integrated into patient checks |
+| 14 | State comparison | Time reversal only; broader comparison pending |
+| 15 | Evidence tracing | Same-patient source/card/map/plan navigation and stale/deleted reference detection; clinical review pending |
+| 16 | Uncertainty | Overconfident prediction warnings |
+| 17 | Problem evidence | Missing evidence-ID warnings |
+| 18 | Problem priority | Simple urgency hints; clinical validation pending |
+| 19 | Problem duplicates | Same-name detection |
+| 20 | Map causality | Isolation, endpoints and evidence checks |
+| 21 | Map evidence | Missing-reference warnings |
+| 22 | Map/plan alignment | Problem-name mismatch warnings |
+| 23 | OP/TP/EP | Missing and exact-duplicate checks integrated |
+| 24 | Measurable goals | Simple heuristics |
+| 25 | Knowledge categories | Type filters |
+| 26 | Domestic references | Four official reference links; no patient-specific approval |
+| 27 | Applicability | Missing population/time/context warnings |
+| 28 | Revision differences | Local exported/current JSON comparison; no remote latest-edition or clinical interpretation |
+| 29 | Knowledge conflicts | Multiple sources surfaced; no automatic clinical contradiction judgment |
+| 30 | Evidence level | Source type retained; research-quality grading pending |
+| 31 | Reference versions | Source year, correspondence date and review deadline |
+| 32 | Bibliography | Deduplicated source export |
+| 33 | OCR ambiguity | Confusable characters, decimals and units checks |
+| 34 | OCR comparison | Local image/transcription/OCR-text comparison; live-provider accuracy unverified |
+| 35 | Mobile | Three-width/seven-case Chromium regression; comprehensive review pending |
+| 36 | Autosave | Full readback; three import checkpoints and preview/collision guards |
+| 37 | Undo/Redo | Patient-scoped field/map/board/structural plan/record histories; not every operation |
+| 38 | Fictional practice | 36 authored questions, all 14 needs; bounded curriculum |
+| 39 | Process rubric | Missing educational input counts; no clinical grading |
+| 40 | Adaptive practice | Topic results, weaker-topic selection and verified local progress; broader curriculum pending |
 
-## 40項目の現在の状態
-凡例: **検証部品**=独立した非AI点検ロジックのみ。**既存**=以前からの基礎機能を維持。**未連携**=患者画面内で一体化していない。
+Implementation details: [release audit](release-work-20261010.md), [curriculum](practice-curriculum.md), [remaining work](remaining-tasks-20261010.md). Checks live in `quality-checks.js`, `review-plus.js`, patient modules and their tests. Manual quality input is fictional; no identifiable patients are used.
 
-| No. | 機能 | 状態 |
-|---|---|---|
-| 1 | 分類根拠表示 | 検証部品あり・患者画面未連携 |
-| 2 | 複数タグ分類 | 既存ルールあり・精度検証継続 |
-| 3 | 未分類分析 | 簡易検証あり・原因説明未完成 |
-| 4 | 時系列 | 逆転検出追加・患者画面未連携 |
-| 5 | 重複検出 | 原文比較と重複検出追加 |
-| 6 | 原文欠落 | 照合候補と人手確認警告を追加 |
-| 7 | S/O精度 | ヘンダーソン誤用警告・精度改善継続 |
-| 8 | 修正履歴 | 集計・改善候補提示ロジック追加 |
-| 9 | 充足の根拠 | 入院前/後別の点検ロジック追加 |
-| 10 | 矛盾検出 | 同時点同項目の差異候補を追加 |
-| 11 | 基準値 | 単位/上下限/出典/版・年齢条件の確認追加 |
-| 12 | アセスメント文章 | 根拠/解釈/予測の不足確認を追加 |
-| 13 | 不足情報優先度 | 緊急性に応じた確認順序の検証部品追加。患者画面の自動点検に連携 |
-| 14 | 時系列状態比較 | 時刻逆転検出のみ |
-| 15 | 根拠追跡 | 原文・カード・関連図・計画の同一患者ID参照、変更・削除検出、往復操作を実装。実患者の臨床評価は未確認 |
-| 16 | 不確実な判断 | 予測の断定リスク警告を追加 |
-| 17 | 看護問題根拠 | 根拠IDの未設定警告を追加 |
-| 18 | 問題優先度 | 緊急度の簡易ヒントのみ |
-| 19 | 問題重複 | 同一名称の重複検出追加 |
-| 20 | 関連図因果 | 孤立/端点/根拠の検証追加 |
-| 21 | 関連図根拠 | 根拠欠落の警告追加 |
-| 22 | 関連図と計画 | 名称不一致の警告追加 |
-| 23 | OP/TP/EP | 欠落点検と同じ文章の重複警告を追加。患者画面の自動点検に連携 |
-| 24 | 目標の測定可能性 | 簡易ヒューリスティクス追加 |
-| 25 | 知識区分 | 種別フィルター追加 |
-| 26 | 国内の公式資料 | 日本看護協会・日本糖尿病学会・厚労省の4つの公式参照先と閲覧画面を追加。診療上の個別承認は未実施 |
-| 27 | 知識適用条件 | 年齢/段階/状況の不足警告を追加 |
-| 28 | 改訂差分 | 保存済み資料JSONと現行資料の追加・削除・本文・出典/版・審査状態を端末内で比較。外部資料の最新版取得・臨床的な改訂審査は未完了 |
-| 29 | 知識矛盾 | 同一テーマで複数出典があることを提示。矛盾の医学的な自動判断は未完成 |
-| 30 | 根拠レベル | 出典種類は保持、研究の質の格付けは未完成 |
-| 31 | 参考資料の版 | 出典年・照合日・再点検期限を保持 |
-| 32 | 文献出力 | 出典の重複除外とテキスト保存ボタンを実装 |
-| 33 | OCR誤読 | 紛らわしい英数字・小数点・単位の点検追加 |
-| 34 | OCR原文比較 | 元画像と手入力原文・OCR文字列の並列確認画面を追加（端末内のみ、OCRそのものは未実装） |
-| 35 | スマホ最適化 | 本体の390/768/1440px・7架空事例の操作回帰を確認。全画面の視認性・アクセシビリティは未完了 |
-| 36 | 自動保存 | 全文読み戻しで保存を確認。読込前の控え3世代と、変更件数の確認・競合検出を追加 |
-| 37 | Undo/Redo | カード本文の患者別Undo/Redoと後続編集の衝突防止を実装。関連図も患者別履歴・外部更新の衝突防止・破損履歴の拒否を追加。看護計画・自己アセスメント・実施記録の項目編集にも患者別Undo/Redoを追加。全操作のUndoは未完成 |
-| 38 | 模擬事例 | 架空事例12問を使った確認テスト画面を追加。問題数の拡充は未完成 |
-| 39 | 看護過程採点 | 根拠・解釈・計画の入力欄の不足を数える教育用ルーブリックを追加。臨床的採点は未完成 |
-| 40 | 学習結果適応 | 分野別正答率集計と苦手領域の優先再出題を追加。長期保存・個別カリキュラムは未完成 |
-
-## 検証の実施状況
-- `clinical-knowledge/quality-checks.js`：基礎の非AI検査。
-- `clinical-knowledge/review-plus.js`：追加の照合・検査・学習集計。
-- `clinical-knowledge/checks.html`：架空JSONの手動点検画面。
-- `tests/review-plus.test.js` と `tests/quality-checks.test.js`：新規ルールのテスト。
-- `clinical-knowledge/practice.html` と `practice.js`：架空事例の確認問題。
-- `tests/practice.test.js`：確認問題の採点・再出題テスト。
-- `clinical-knowledge/japan.html` と `japan-official-sources.json`：国内公式文献の索引。
-- `clinical-knowledge/ocr-compare.html`：ローカル画像のOCR照合画面。
-- 本体の患者画面には自動点検を連携済み。計画の根拠カードの変更・削除を検出し、差分確認後に根拠を更新できる。
-- 保存後は読み戻した全文の一致を確認する。欠落・同じ長さの別内容は失敗扱い。
-- 390/768/1440pxの実ブラウザ検証をCIに追加。実行結果は別途確認が必要。
-- GitHub Actionsで追加テストの成功が確認されても全テスト/ブラウザの検証は別途必要。
-
-**この文書は40項目の完了を宣言するものではない。公開・main統合はテストと臨床安全性を確認してから判断する。**
-
-## Current implementation update
-
-The structural plan/record history and shared modal/touch improvements are documented in [release-work-20261010.md](release-work-20261010.md). The practice bank contains 22 fictional questions, not 12. These additions do not establish clinical approval, live-provider OCR or all-operation Undo.
+This inventory does not declare all forty roadmap areas complete. Current publication policy accepts latest-code full public regression and real-browser success; external/broader checks remain follow-up. Commit-specific evidence is in [PR #1](https://github.com/MasadaMasayoshi/socode/pull/1).

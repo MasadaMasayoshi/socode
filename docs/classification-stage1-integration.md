@@ -4,7 +4,7 @@ This branch records the proposed improvements without changing the live applicat
 
 ## Required changes to the current modular codebase
 
-The current site uses `js/01–10` modules and marks root `app.js` as unused. The earlier stage-1 patch targets an older monolithic `app.js` and **must not be copied directly over current files**.
+The current site uses `js/01–15` modules and marks root `app.js` as unused. The earlier stage-1 patch targets an older monolithic `app.js` and **must not be copied directly over current files**.
 
 1. Do not classify a patient quotation as Henderson 10 (communication) merely because it is a quotation. Classify based on its meaning.
 2. Do not automatically assign multiple Henderson needs based solely on disease names in diagnosis/history fields. Retain disease knowledge as suggestions that require evidence review.
@@ -22,4 +22,4 @@ The current site uses `js/01–10` modules and marks root `app.js` as unused. Th
 
 ## Implementation status
 
-Documentation commit only. The previously generated patch is **not yet integrated into the live modular sources**. Actual classification changes and regression tests must be adapted to `js/` modules and tested before merge.
+This is the historical integration proposal. The modular classification changes and fictional regressions have since been implemented; see `release-work-20261010.md` and `public-regression-migration-20261010.md` for current scope. The older monolithic patch remains unsuitable for direct replacement.

@@ -1,40 +1,37 @@
-# 原本のない旧教材から公開仕様検証への移行（2026-10-10）
+# Public regression migration — 2026-10-10
 
-ユーザーは旧原本が存在しないことを伝え、別の方法で進めるよう指示した。旧教材を再作成したとは扱わず、再現可能な架空入力と手記述の仕様条件に検証基盤を移す。現在の出力を正解JSONとして保存する方法は使わない。
+Historical originals are unavailable. The owner requested another approach: reproducible fictional inputs and manually authored specification expectations. Current app outputs are not saved as independent answers, and new specifications do not establish historical full-card equivalence or clinical approval.
 
-## コマンドと判定範囲
+## Commands
 
-| コマンド | 範囲 | 判定できないこと |
-|---|---|---|
-| `npm test` / `npm run test:public` | 公開リポジトリに含まれる現行仕様の回帰検証 | 失われた旧教材の全カードとの一致、臨床的承認 |
-| `npm run test:legacy` / `npm run golden` | 旧教材と旧期待JSONの全文比較 | 原本・期待値が不足する現在は失敗する。公開仕様回帰の成功に含めない |
-| `node scripts/audit-private-fixtures.js` | 旧教材の不足、形式、ハッシュの読み取り検査 | 原本の同一性や承認を保証しない |
-| `node scripts/browser-smoke.js` | 実Chromium、390/768/1440px。架空7事例を別患者で入力し、分類・評価・計画・検査・関連図を開く | 全操作の網羅、臨床内容の正解、完全なアクセシビリティ |
+| Command | Scope | Limits |
+| --- | --- | --- |
+| `npm test`, `npm run test:public` | Repository-contained current specifications | No lost-original equivalence or clinical approval |
+| `npm run test:legacy`, `npm run golden` | Original/full expected-card comparison | Fail when originals/approved answers are missing |
+| `node scripts/audit-private-fixtures.js` | Read-only presence/format/hash audit | Does not prove original identity/approval |
+| `node scripts/browser-smoke.js` | Chromium, 390/768/1440px, seven fictional workflows | Not exhaustive operations, clinical truth or complete accessibility |
 
-旧全文比較テストは削除せず `tests/golden/legacy-classification.test.js` に移動した。通常のテスト開始時とCIのステップ名に対象範囲を表示する。`test:legacy` は期待値欠落で失敗することを確認した。期待値の自動生成・欠落時の成功扱い・`continue-on-error` は追加していない。
+Legacy comparators remain in `legacy-classification.test.js` and `legacy-real-record.test.js`. Missing fixtures fail rather than skip/pass; public scope is displayed in the runner/CI. No `continue-on-error` or automatic expected-answer creation is used.
 
-## 旧検証との対応
+## Coverage mapping
 
-| 旧入力依存 | 公開用入力／検証 | 維持した条件／変更の理由 |
-|---|---|---|
-| 患者36、4テストファイル | `hip-contract.txt` | 日時、入院前後、S/Oの場面対応、バイタルの統合、処置、表形式の検査、姿勢・安全・学び。旧アサーションは維持し、テストに記載された条件を再現する短い架空入力を作成 |
-| 心不全B氏、検査推移と数値計算 | `circulation-contract.txt` | BNP・Kの推移、同日の時刻順、叙述値の除外、体重変化、BMI・標準体重・喫煙・飲酒・eGFR・BEE。Cr1.42の期待eGFR37.3は式 `194×1.42^-1.094×82^-0.287` による。旧原本の数値と同じと主張しない |
-| 胃がんA氏、関連図2テスト | `gastric-contract.txt` | 診断欄が術式だけでも本人の病変を読む、家族のがんを混同しない、治療が疾患へつながる |
-| 自由記述7事例 | `public-case-helpers.js` の明示7件 | 既存公開架空事例5件と新規の産褥・小児記録。文の保存を検証し、検査の前置き語が除去される行は数値の保存を確認。検証する文が空なら失敗 |
-| 旧匿名化／未タグ一括点検 | 同じ公開7件 | 匿名化で臨床内容を消さない。新事例では旧教材固有の「未タグはこの語句だけ」という集合を転用せず、各未タグの理由・候補・点検による不変性を確認。欲求の正解は別の手記述契約テストで確認 |
-| AI長文テストの未使用入力 | 原本読込を除去 | JSON・診断見出し・計画テキストの互換パーサー4件を維持。廃止済みAI分類の通知を求める古いアサーションを、現行OCR専用入口の拒否条件へ更新 |
-| 環境依存でスキップされていた旧実記録1件 | `gastric-lab-contract.txt` | 明示した基準値に対する術前3件・術後5件の異常値、不足情報、テニスのタグを再現。8件の項目・時点・高低を手記述で検証。元テストは `legacy-real-record.test.js` へ保存し、不足時はスキップせず失敗 |
-| 旧全カードgolden | 明示的な旧比較コマンドとして保存 | 旧期待値がないため一致は証明不能。18件の手記述契約と10件の長文工程検証に切り替えるが、旧全カード比較と同等とは主張しない |
+| Historical dependency | Public replacement | Retained contract |
+| --- | --- | --- |
+| Patient 36, four files | `hip-contract.txt` | Time/admission/S/O context, vitals, procedures, tabular labs, posture/safety/learning; retained assertions on authored input |
+| Heart failure, trends/calculation | `circulation-contract.txt` | BNP/K/time trends, narrative-value exclusion, weight/BMI/standard weight/smoking/alcohol/eGFR/BEE; eGFR 37.3 derives from `194×1.42^-1.094×82^-0.287`, not claimed original values |
+| Gastric cancer, two map tests | `gastric-contract.txt` | Own disease despite procedure-only diagnosis, exclude family disease, treatment → disease |
+| Seven free-text cases | Explicit `public-case-helpers.js` scenarios | Five existing fictional cases plus puerperal/pediatric records; nonempty preservation assertions, numeric preservation after lab prefixes |
+| Anonymization/untagged audit | Same seven public cases | Preserve clinical content; inspect candidate/reason/immutability instead of reusing original-specific untagged sets; separate authored need contracts |
+| Unused AI long-text input | Remove original read | Retain four JSON/heading/plan compatibility parser tests; replace obsolete AI-classification expectation with OCR-only rejection |
+| Previously skipped real-record case | `gastric-lab-contract.txt` | Three pre-/five post-operative abnormal labs, missing information and tennis tag; eight authored item/time/direction checks; original comparator preserved and fails if missing |
+| Full-card golden | Explicit archival command | Unprovable without approved answers; 18 authored contracts and ten long-workflow checks are not equivalent |
 
-## 新しい検証で修正した問題
+## Bugs exposed
 
-- 足背動脈の単独所見に安全・環境の欲求9が付かない問題。所見の良否は自動判定しない。
-- `K 3.4mEq/Lのため…` などの説明文を単位として取り込み、推移表に載せる問題。実測値だけの記録は残す。
-- 診断欄が術式のみの場合に手術名を疾患として表示する問題。病名の探索で家族歴から補う旧経路も除去。
-- がんの手術の治療矢印を疾患へ向ける。病期と手術目的の説明は別の線で残し、互いに矢印を引かない。
+Added need-9 handling for standalone dorsalis-pedis observations without deciding clinical normality. Excluded explanatory numeric narratives from lab trend tables while retaining measured-only records. Avoided treating surgery names/family history as the patient's disease. Directed cancer-treatment edges to disease; stage/purpose explanations remain distinct.
 
-長文工程検証は重要発言のS/O、図の参照先、別患者の根拠混入、計画の重複、未実施の状態、評価不能、手動目標の保持、外部APIを呼ばないことを確認する。計画や図の臨床的な適切性が確定したという意味ではない。
+Long workflows check important S/O quotations, map references, patient isolation, plan duplicates, unperformed/unevaluable states, manual-goal preservation and absence of external API calls. These checks do not certify clinical appropriateness.
 
-## 公開判断
+## Publication policy
 
-旧原本の提出を待つ方式は採らない。公開仕様回帰の最新コミットでの成功、実ブラウザ検証、残件の明示、用途と限界の表示、ユーザーの統合・公開判断を使う。旧比較の未確認状態は公開説明から消さない。施設別基準の確認、関連図の意味とレイアウトの残件、全操作Undoなどは完了としていない。独立専門家レビューは既存のユーザー指示により必須条件としないが、審査済みと偽らない。
+Do not wait for nonexistent originals or conceal legacy incompatibility. The owner's 2026-10-10 policy accepts latest-code full public regression and real-browser success. Facility references, clinical/source review, comprehensive accessibility, broader reversibility and curriculum remain follow-up, not fabricated completion. Independent expert review is waived as a publication prerequisite; clinical approvals remain zero. Merge/deployment remain separate owner actions. See [release policy](release-conditions.json) and [runbook](publication-runbook.md).

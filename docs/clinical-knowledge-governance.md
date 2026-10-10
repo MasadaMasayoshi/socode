@@ -1,25 +1,20 @@
-# 臨床知識の検証・更新手順
+# Clinical knowledge governance
 
-## 対象
-関連図の病態・因果関係・治療対象、看護問題の優先順位、および看護計画のOP/TP/EPの根拠となる**一般的な臨床知識**。個人患者のデータ、画面配置は対象外。
+Scope: general knowledge supporting causal maps, problem priorities and OP/TP/EP; exclude personal patient data and layout changes. Preserve existing source references, fact/inference distinctions and validation in `js/15-relation-map.js` and `js/12-missing-checks-and-care-plan.js`.
 
-## 既存機能を優先
-`js/15-relation-map.js` には根拠参照（sourceRefs）、事実と推論の区別、関連図の検証処理がある。`js/12-missing-checks-and-care-plan.js` には看護計画の根拠検証がある。これらを維持する。
+## Registry contract
 
-## 追加の標準手順
-1. **知識を登録** — `clinical-knowledge/claims.json` に汎用的な知識を1件ずつ記載。病態生理、因果関係、治療適応、看護介入、禁忌、評価基準の種類を明示。
-2. **出典を確認** — ガイドライン、査読付き論文、医学・看護学教科書、公的基準の書誌事項と公式URLを付ける。AIが生成した文章自体は出典としない。出典の本文・改訂年と主張の一致を人が確認する。
-3. **適用条件と限界** — 対象、前提、適用されない条件、禁忌や例外を明記する。疾患名だけから観察事実を捏造したり、看護問題を確定したりしない。
-4. **承認** — 妥当性を有資格の臨床専門家または適切な指導者がレビューした場合のみ `status: "approved"` と `reviewer` を付ける。確認されない知識は登録候補として管理し、検証済みと表示しない。
-5. **期限管理** — `lastReviewed` と `reviewDue` を記録。期限切れはテスト失敗。重要な新ガイドラインや安全性情報が出た場合は期限前でも見直す。
-6. **回帰テスト** — `npm test` で形式・出典・レビュー期限を確認し、`tests/` に合成事例での誤推論防止テストを追加。改訂時は従来の正しいケースが壊れないか検証する。
+1. Register individual claims in `clinical-knowledge/claims.json`, identifying pathophysiology, causation, indications, intervention, contraindication or evaluation criteria.
+2. Cite official guidelines, peer-reviewed papers, textbooks or public standards with bibliographic details and official URLs. AI text is not a source. Check the claim against source text and edition.
+3. State population, prerequisites, exclusions and limitations. A disease name does not establish observations or a current problem.
+4. Assign `status: "approved"` and `reviewer` only after documented review by a qualified clinician/instructor. Unreviewed candidates must remain labeled as such.
+5. Record `lastReviewed` and `reviewDue`; expired approvals fail validation. Recheck earlier when significant guidance changes.
+6. Run `npm test`; use fictional cases to prevent unsupported inference and preserve valid existing behavior.
 
-## 推論・判断の安全基準
-- **原文の事実**（観察された内容）と **一般的な医学知識** と **仮説・予測** を独立して扱う。
-- 知識の記載があっても、病態の直接的因果関係や現存問題を自動確定しない。根拠がなければ確認候補に留める。
-- 関連図の矢印は原因→結果、治療は治療→対象。時系列や単なる関連を因果と扱わない。
-- 看護計画の介入は問題・目標・OP/TP/EPと整合させ、禁忌・患者状態・実施者権限を確認する。出典の存在のみで個別の介入を保証しない。
-- 基準値は測定施設や対象者の条件を優先し、一般的数値を無条件に当てはめない。
+## Reasoning contract
 
-## 現時点の限界
-登録ファイルは空で、**臨床知識が承認済みになったわけではない**。今回の自動テストは登録内容の形式・期限・承認記録を検査するもので、医学的に正しいかまでは機械的に保証できない。関連図・計画生成処理が登録簿を参照する連携も未実装。2026-10-10のユーザー指示により、閲覧専用・学習支援としての公開に独立した専門家レビューを必須としない。これは承認記録の代替ではなく、未審査の表示、出典の照合、患者別の自動適用をしない仕様を維持する。上記の臨床承認済み登録の要件は、実際にその表示・登録を行う場合に適用する。
+Keep source facts, general knowledge and hypotheses separate. Knowledge alone does not establish causation or a current patient problem. Arrows mean cause → effect or treatment → target; chronology/association alone is not causation. Plans must align problems, goals and OP/TP/EP with contraindications, patient state and operator authority. Source existence does not validate a patient intervention. Facility, population and measurement-method ranges take precedence over generic values.
+
+## Current limits
+
+The approved registry is empty; generation does not consume it. Automated checks validate metadata, expiry and review records, not clinical truth. The owner waived independent review as a publication prerequisite on 2026-10-10 and subsequently accepted successful regression/browser tests. This does not create approval records: references remain read-only and cannot become automatic patient recommendations. Registry approval requirements still apply whenever material is labeled clinically approved.

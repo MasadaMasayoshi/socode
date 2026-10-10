@@ -1,8 +1,8 @@
 'use strict';
-// 納品用のまとめ：前回の納品から変わったファイルだけを調べ、CRLF にそろえて出力フォルダに写し、一覧を表示する（AI が全ファイルを読み直さないため）。
-//   node scripts/ship.js <出力フォルダ>        変わったファイルを写して一覧を表示（記録も更新）
-//   node scripts/ship.js --list               一覧だけ表示（写さない・記録も更新しない）
-//   node scripts/ship.js --baseline           今の状態を「納品済み」として記録だけする
+// Copy files changed since the delivery baseline, normalizing source files to CRLF.
+// node scripts/ship.js <output>: copy changes and update the baseline.
+// node scripts/ship.js --list: list changes without writes.
+// node scripts/ship.js --baseline: record the current delivery baseline.
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');

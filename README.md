@@ -1,248 +1,73 @@
-# 看護アセスメント支援システム
+# Nursing assessment support
 
-## ファイル構成
+Japanese learning-support app with a shared Node/Express backend. AI is limited to image OCR; classification, assessment, plans and diagrams use local rules. Reference material is not clinical approval.
 
-```
-webapp/
-├── index.html              画面の骨組み（js/01〜13 をこの順番で読み込む）
-├── style.css                デザイン（色・フォント・レイアウト）
-├── js/                      画面の動作（以前の app.js を内容ごとに分けたもの。順番を入れ替えないこと）
-│   ├── 01-henderson-keywords.js      ヘンダーソン14項目とタグ付けのキーワード一覧（看護の視点で確認・修正するのはここ）
-│   ├── 02-reference-data.js          例文・基準ノートの初期値・検査値の基準値表
-│   ├── 03-extraction-helpers.js      検査値カードの抽出・入院前／入院後の判定などの補助処理
-│   ├── 04-server-sync.js             サーバーとのやりとり（共有学習・カルテの共有保存など）
-│   ├── 05-app-state-and-ui.js        アプリ全体の状態・画面部品・学習データ管理画面・AI呼び出し
-│   ├── 06-export.js                  書き出し（テキスト・Word・PDF・選択したカード・総合アセスメント表）
-│   ├── 07-classification.js          分類（タグの判定・追加キーワード・文章からカードへの切り分け・「分類開始」）
-│   ├── 08-assessment-tools.js        BMI等の自動算出・検査値の評価・不足情報の推定・一覧表示
-│   ├── 09-board.js                   分類ボード（元の文章の該当箇所・カードの選択・一括操作・統合）
-│   ├── 10-reference-page-and-startup.js  参考データのページと起動時の処理・版の確認
-│   ├── 11-own-assessment.js          自分のアセスメント（14項目ごとの解釈・原因・見通し、根拠のカード、確定と再評価）
-│   ├── 12-missing-checks-and-care-plan.js  不足情報の確認状況・看護計画の編集と実施・評価の記録
-│   └── 13-compare-and-report.js      変更点の比較（記録した時点と今のカード）・提出用の書き出し（SOAP・実習記録の様式）
-├── vendor/                  ネットに頼らず画面を表示するための同梱物
-│   ├── tailwind.css                  画面の部品（Tailwind CSS。`npm run build:css` で作り直す）
-│   └── fontawesome/                  アイコン（Font Awesome 6.4.0）
-├── server.js                共有学習用バックエンド（Node.js / Express）
-├── scripts/
-│   ├── golden.js                     分類結果の自動チェック（`npm run golden`）
-│   ├── stamp-version.js              版の書き込み（`npm run stamp`）
-│   └── move-to-dev-folder.ps1        OneDrive の外（C:\dev\socode）へコピーするスクリプト
-├── tests/                    自動テスト（`npm test`で実行。詳しくは「自動テスト」の章を参照）
-│   └── golden/                       分類結果の自動チェック用（cases＝事例の文章、expected＝正しい分類結果）
-└── data/                     サーバーの保存先（MongoDBを使わない場合。URLからは開けない）
-    ├── learning-dict.json         共有学習の現在の結果
-    ├── case-log.json              いつ・何が・どう変わったかの生ログ
-    ├── patients.json              患者カルテ本体（複数端末で共有）
-    ├── extraction-criteria.json   AI抽出・分類基準への追加の要望
-    ├── custom-tag-rules.json      追加キーワード（学習データ管理の「追加キーワード」タブ）
-    ├── card-reports.json          情報カードの不具合報告
-    └── *-archive.json             90日より古いログの退避先
-```
+## Develop
 
-## 置き場所は1か所に（OneDrive の外がおすすめ）
+Use Node 20. Run `npm ci`, then `npm start`; open `http://localhost:3000`. Directly opening `index.html` supports local use but cannot persist shared learning or synchronize patients. Keep one working checkout; `scripts/move-to-dev-folder.ps1` can copy a Windows checkout outside OneDrive, including private files. Verify the copy before removing anything.
 
-同じプログラムを2つのフォルダに置いていると、どちらが最新か分からなくなります。また OneDrive の同期で、直したファイルが古い版に戻ることがありました（2026年9月、socode の app.js で発生）。
+## Code map
 
-1. socode フォルダで PowerShell を開き、`powershell -ExecutionPolicy Bypass -File scripts\move-to-dev-folder.ps1` を実行すると、`C:\dev\socode` にまるごとコピーされます（.env・.git・data も含む）。
-2. `C:\dev\socode` で `npm.cmd start` を実行し、動くことを確かめます。
-3. GitHub Desktop を使っている場合は、「File → Add local repository」で `C:\dev\socode` を追加します。
-4. 問題なければ、以後は `C:\dev\socode` だけを使います（OneDrive 側の socode・新しいフォルダーは、確認のうえ自分で片付けてください）。
+| Path | Responsibility |
+| --- | --- |
+| `index.html`, `style.css` | Japanese interface and styling |
+| `js/01–03` | Henderson vocabulary, reference data, extraction helpers |
+| `js/04–05` | Server synchronization, state, UI, shared learning |
+| `js/06–10` | Exports, classification, assessment tools, board, startup/OCR |
+| `js/11–15` | Own assessment, care plans/records, comparison/history, semantic rules, relation map |
+| `clinical-knowledge/` | Read-only references, quality checks, fictional practice |
+| `server.js` | Shared persistence and API |
+| `vendor/` | Bundled CSS/icons and licenses |
+| `scripts/`, `tests/` | Maintenance, packaging, regression and browser checks |
 
-**版の確認**：画面のいちばん下に「版」が出ます。js の10ファイルのどれかが古い版に戻っていると、画面の上に赤い警告が出ます（`scripts/stamp-version.js`）。
+Preserve script order in HTML. Root `app.js` is archival, not the active app. Use `npm run map`, then search `scripts/FILE-MAP.md` for symbols and read only the relevant lines. See [AGENTS.md](AGENTS.md) for editing conventions.
 
-## 分類結果の自動チェック（ゴールデンテスト）
+## Data and synchronization
 
-これまでの患者さんの文章（`tests/golden/cases/`）を今のプログラムで分類し、保存してある正しい分類結果（`tests/golden/expected/`）と比べます。分類のルールを直したときに、直すつもりの無かったカードまで変わっていないかを確かめるためのものです。
+Shared research data deliberately includes raw card text, S/O type, Henderson tags, columns and edit history; it is not automatically anonymized. Do not remove this owner-selected sharing behavior. Patient records and learned classification patterns are separate:
 
-```bash
-npm run golden          # 変わったカードだけを日本語で表示（npm test にも含まれる）
-npm run golden:update   # 変わった内容が意図どおりなら、今の結果を新しい正しい分類結果として保存
-```
+- `learning-dict.json`: preferred type/columns/tags and votes. Learned values precede headings and fixed rules. Automatic creation does not vote; deliberate user corrections do. Text edits carry learned values to the new text. Merges combine votes, retain source entries and exclude deliberately removed tags. Shared learning is server-backed; offline changes are session-only.
+- `case-log.json`: timestamped edits; `extraction-log.json`: original text at each classification. Current `sourceText` retains only the latest source.
+- `patients.json`: records keyed by patient ID. Per-patient PUT avoids replacing other patients. Cards merge by edit time; deletion tombstones last three days. Non-card fields follow record update time. Archive changes a flag; permanent deletion also deletes the server record.
+- Patient data autosaves, debounces text input, merges on startup and synchronizes on exit. Local saves verify full readback; imports use three checkpoints and confirmation guards. Selected tabs are session-local.
+- `custom-tag-rules.json`, `extraction-criteria.json`, `card-reports.json`: shared rules, requests and reports. Requests/reference notes do not automatically change local classification or invoke AI. Report items are grouped by tab session. Logs older than 90 days move to archive files.
 
-事例を増やすときは、元の文章を `tests/golden/cases/名前.txt` に置いて `npm run golden:update` を実行します。事例の文章は個人が特定できない形（A氏など）にしてください。GitHub を公開設定にしている場合は、事例の文章も公開される点に注意してください。
+Board and assessment views redraw from the same saved data. Undo histories are patient-scoped and reject later conflicting edits; imports use checkpoints. See [release implementation audit](docs/release-work-20261010.md) for scope and limits.
 
-## 追加キーワード・ルール見直し候補（学習データ管理）
+## API
 
-- **追加キーワード**タブ：プログラムを直さずに、「このキーワードを含むときはこのタグを付ける／付けない」を登録できます（全員で共有。次に「分類開始」したときから反映）。
-- **ルール見直し候補**タブ：全患者のカードの手直し（外したタグ・付けたタグ・S/Oの変更）を集計し、よく直されるキーワードを一覧にします。「このキーワードでは付けない」でそのまま追加キーワードに登録でき、「テキストで書き出し」で一覧をファイルにできます。
+| Methods | Path | Purpose |
+| --- | --- | --- |
+| GET | `/api/learning-dict` | Learned patterns |
+| POST | `/api/learning-event` | Record deliberate edits and extraction/merge events |
+| GET | `/api/case-log`, `/api/extraction-log`, `/api/card-reports` | Shared histories/reports |
+| POST | `/api/extraction-log`, `/api/card-reports` | Add source snapshots/reports |
+| GET | `/api/patients` | Patient records |
+| PUT, DELETE | `/api/patients/:id` | Save/delete one patient |
+| POST | `/api/patients/sync` | Bulk exit synchronization |
+| GET | `/api/patients/:id/relation-map` | Revision-protected map read |
+| GET, POST | `/api/extraction-criteria` | Shared requests |
+| DELETE | `/api/extraction-criteria/:id` | Remove a request |
+| POST | `/api/presence/heartbeat`, `/api/presence/leave` | In-memory tab presence |
+| GET | `/api/case-log/archive`, `/api/extraction-log/archive`, `/api/card-reports/archive` | Older logs |
 
-## 「共有学習」の設計（事例研究向け）
+Presence counts tabs, not people (20-second heartbeat, 45-second expiry). Server payload/rate limits and field truncation remain enforced; reports allow at most 200 items per session record. Export supports text, Word/PDF, selected cards, assessment tables and practice reports.
 
-個人情報の遮断は行わない前提でよいとのことでしたので、カードの**本文・S/O分類・ヘンダーソンタグ付け・どの欄(未分類/入院前/入院後/不足情報)に割り振られたか・どう編集されたか**を、そのまま全利用者で共有する構成にしています。
-
-- `data/learning-dict.json`：文章ごとの「現在の学習結果」（`preferredType` / `preferredCols` / `preferredHendersonIds` / `typeVotes` / `hendersonVotes`）。次に同じ文章が出てきたとき、①この学習結果 → ②見出しラベル → ③固定ルール、の優先順位で自動分類・自動タグ付けに使われます。学習内容はブラウザ（localStorage）には保存されず、このファイルだけに保存されます。ページを開いた時に自動でこのファイルの内容をすべて読み込み、分類・タグ付け・削除などの変更のたびに自動でこのファイルへ反映されます（都度新しいファイルを作ることはしません）。サーバーを起動していない状態（`index.html`を直接開いた場合）では、このファイルに触れられないため学習内容はその場限りになります。
-- **同じ編集の重複を「票」として集計**：新規の自動振り分け（`create`）は学習には数えず、ユーザーが実際に分類・タグ付けを選び直した場合だけ `typeVotes` / `hendersonVotes` に加算されます（例：同じ文章に「S」を2回選ぶと `typeVotes: { s: 2 }`）。次回の自動振り分けでは、この票が最も多い値（`pickTopVote`）を優先度が最も高いものとして採用するため、①新規の自動振り分けよりユーザーの編集が優先され、②編集の中でも選ばれた回数（×の数）が多いものほど優先されます。「学習データ管理」画面の一覧・変更履歴にも、この票数が「×2」のように表示されます。
-- `data/case-log.json`：いつ・どのカードに・どんな変更（分類変更/タグ追加・削除/欄の変更/テキスト編集/新規抽出）が起きたかを積み上げる生ログです。事例研究でそのまま時系列の分析対象にできます。`GET /api/case-log` で取得できます（そのままJSONとして保存・Pythonなどで読み込んで分析できます）。
-- カードのテキストを編集した場合は、`before → after` の書き換えとして記録され、編集前の学習内容（S/O・タグ・欄・票数）が編集後のテキストへ引き継がれます。
-
-## 患者カルテ本体の共有保存（複数端末での共有）
-
-学習データ（分類パターン）だけでなく、**患者カルテ本体**（分類ボード・総合アセスメント表の中身、および分類の抽出元になったカルテ本文=`sourceText`）も、`data/patients.json`にサーバー保存され、複数端末・複数ブラウザで共有されます。日勤で入力した患者カルテを、夜勤の別のパソコンから開いても同じ内容が見られます。
-
-- `data/patients.json`：患者IDをキーにしたオブジェクト（`{ [患者ID]: 患者データ }`）。患者データには`items`（カード一覧）・`sourceText`（抽出元のカルテ本文）・`title`・`archived`・`updatedAt`・各種AI分析結果などが含まれます。
-- **患者単位で読み書き**：全患者をまるごと置き換えるのではなく、変更のあった患者だけを`PUT /api/patients/:id`で保存します。これにより、複数人が別々の患者を同時に編集していても互いのデータを消し合いません。
-- **同じ患者をほぼ同時に編集した場合のカード単位マージ**：以前は患者カルテを「まるごと」保存する方式だったため、2つの端末がほぼ同時に同じ患者のカードを編集すると、後から届いた保存が先に届いた保存の内容（相手だけが知っている新しいカード等）をまるごと上書きして消してしまうことがありました。現在はサーバー側でカード一覧(items)をカード単位でマージします。片方の端末しか知らないカードは、削除の記録（3日間だけ有効）が無い限り両方とも残り、同じカードが両方で編集されていた場合はカードごとの書き換え時刻が新しい方を採用します。カードの削除・「元に戻す」もこの仕組みに対応しています（タイトル・カルテ本文などカード以外の項目は、従来通り更新日時が新しい保存がまるごと採用されます）。
-- **自動保存のタイミング**：カードの追加・分類・タグ付け・カルテ本文の入力など、変更のたびに自動保存されます（入力中は少し待ってまとめて送るため、通信回数を抑えています）。ページを開いた時には自動でサーバーから最新のカルテ一覧を取得し、このブラウザ内のカルテとマージします（同じ患者IDがある場合は更新日時が新しい方を採用）。ページを閉じる際にもまとめて同期する保険を掛けています。
-- **完全削除**は`DELETE /api/patients/:id`でサーバー側からも削除されます（アーカイブは削除ではなく`archived`フラグの更新のみのため、他端末にも「アーカイブ済み」として同期されます）。
-- どのページを表示中か（現在選択中のタブ）は端末ごとの個人的な画面状態のため、これまで通りブラウザのタブ単位（sessionStorage）で管理され、共有はされません。
-- サーバーを起動していない状態（`index.html`を直接開いた場合）や通信できない場合は、これまで通りこのブラウザ内だけで動作し、他端末とは共有されません。
-
-### API一覧
-
-| メソッド | パス | 内容 |
-|---|---|---|
-| GET | `/api/learning-dict` | 共有学習辞書を取得 |
-| POST | `/api/learning-event` | 分類・タグ付け・欄変更・編集・新規抽出・カード統合のいずれかを記録 |
-| GET | `/api/case-log` | 生の変更ログを取得（研究用） |
-| GET | `/api/patients` | 共有されている患者カルテを全件取得 |
-| PUT | `/api/patients/:id` | 1人分の患者カルテを保存（作成・更新の両方を兼ねる） |
-| DELETE | `/api/patients/:id` | 患者カルテを完全に削除 |
-| POST | `/api/patients/sync` | ページを閉じる際などの一括同期（保険用） |
-| POST | `/api/presence/heartbeat` | タブの生存報告。現在の同時接続人数を返す |
-| POST | `/api/presence/leave` | タブを閉じる際の即時退出通知 |
-| GET | `/api/extraction-criteria` | AI抽出・分類基準への追加の要望を全件取得 |
-| POST | `/api/extraction-criteria` | 追加の要望を1件登録 |
-| DELETE | `/api/extraction-criteria/:id` | 追加の要望を1件削除 |
-| GET | `/api/extraction-log` | 「分類開始」を押すたびの抽出前の文章の履歴を全件取得 |
-| POST | `/api/extraction-log` | 抽出前の文章を1件記録（分類開始のたびに自動送信） |
-| GET | `/api/card-reports` | 情報カードの不具合報告を全件取得 |
-| POST | `/api/card-reports` | 不具合報告を1件記録（同じブラウザタブからの複数件は1人分の投稿にまとめる） |
-| GET | `/api/case-log/archive` | 90日より古くなり退避された事例ログを取得（研究用） |
-| GET | `/api/extraction-log/archive` | 90日より古くなり退避された抽出前の文章履歴を取得 |
-| GET | `/api/card-reports/archive` | 90日より古くなり退避された情報カードの報告を取得 |
-
-## AIの抽出・分類基準への「追加の要望」（複数端末で共有）
-
-AIによる自動抽出・分類の根拠になっている「NotebookLM基準ノート」自体はコード内に固定されており編集できませんが、現場で「こういう場合はこう抽出・分類してほしい」という要望が出た際に、コードを触らずに**画面（設定モーダル）から追加**できるようにしてあります。
-
-- 追加した要望は`data/extraction-criteria.json`にサーバー保存され、`data/patients.json`等と同様に**全利用者・全端末で共有**されます。
-- 設定モーダル（歯車アイコン→「API設定」）内の「抽出・分類基準への追加の要望」欄から、自由記述で追加・削除できます。設定モーダルを開くたびにサーバーから最新の一覧を取得し直すため、他の人が追加した要望もすぐに反映されます。
-- ここに追加した内容は、以下のAI機能すべてのプロンプトに、NotebookLM基準ノートに続けて自動的に追記されます（コードの変更は不要です）。
-  - カルテ・記録テキストからのカード抽出（「分類開始」ボタン、Gemini APIキー設定時の高精度抽出）
-  - 検査値AI総合評価
-  - 不足情報のAI推定
-- Gemini APIキーが未設定の場合は簡易ルールでの分類にフォールバックするため、この追加要望はAI（Gemini）を使う機能にのみ反映されます。
-
-## 抽出前の文章の履歴（複数端末で共有）
-
-患者カルテ本体（`data/patients.json`）の`sourceText`は、その患者の**最新の1回分だけ**を保持する仕組みのため、新しい記録を貼り付けて「分類開始」を押すと、それ以前に何を貼り付けて抽出していたのかは`sourceText`上からは分からなくなります。これとは別に、「分類開始」を押すたびに、その時点で入力欄にあった**抽出前の生の文章**をそのまま`data/extraction-log.json`に追記していく履歴を用意しました。
-
-- 「分類開始」ボタン（NotebookLM高精度抽出・簡易ルールのどちらの場合も）を押すたびに、入力欄の文章・どの患者向けか・何件のカードとして抽出されたかを1件の履歴として自動送信・保存します。
-- 「学習データ管理」→「抽出前の文章」タブから、患者名や本文の一部で検索しながら、過去に貼り付けた文章をそのまま閲覧できます（事例ログと同様、閲覧のみで削除機能はありません）。
-- サーバーを起動していない状態（`index.html`を直接開いた場合）では、この履歴には保存されません。
-
-## 情報カードの不具合報告（複数端末で共有）
-
-分類ボードの各情報カード右上に旗アイコンの「報告」ボタンがあり、「このカードの書き込みが変だ」と感じた時に、カードの内容とコメント（任意）をサイト側へ送れます。
-
-- 送った内容は`data/card-reports.json`にサーバー保存され、**全利用者・全端末で共有**されます。
-- **同じ人の投稿としてまとめる**：ブラウザのタブごとに割り振られる識別子（sessionStorage、同時接続人数の仕組みと同様にタブを閉じるまで保持）を使い、同じタブから2件目・3件目の報告を送っても新しいレコードは作られず、既存の1件のレコード（`items`配列）に追記されます。ページを閉じてタブを開き直すと、次の報告からは新しい1件として扱われます。
-- 「学習データ管理」→「情報カードの報告」タブから、患者名・カード本文・コメントで検索しながら一覧を閲覧できます（事例ログ等と同様、閲覧のみで削除機能はありません）。
-- 同タブ内の「AIで要約」ボタンを押すと、寄せられた報告全体をGemini APIに渡し、不具合のパターンごとに「どう直すべきか」を1行ずつの修正指示としてまとめます。各行には「基準に追加」ボタンが付いており、押すとその行がそのまま「抽出・分類基準への追加の要望」（`data/extraction-criteria.json`）に1件登録され、既存の抽出・分類プロンプトに反映されます（Gemini APIキーが設定・未設定のいずれの場合も報告自体は送信・記録できますが、要約機能の利用にはAPIキーの設定が必要です）。
-- サーバーを起動していない状態（`index.html`を直接開いた場合）では、報告は送信・保存されません。
-
-## 古いログの自動整理（アーカイブ）
-
-事例ログ・抽出前の文章履歴・情報カードの報告は運用が長くなるほど際限なく増えていくため、**90日より古い記録は自動的に別ファイル（`*-archive.json`）へ退避**する仕組みを入れています。
-
-- サーバー起動時、および24時間ごとに、各記録の日時（事例ログ・抽出前の文章履歴は`at`、情報カードの報告は`updatedAt`）を見て90日を超えているものだけを本体ファイルから取り除き、対応する`*-archive.json`へ追記します（90日ちょうどはまだ移動されません）。
-- 通常の閲覧画面（「学習データ管理」の各タブ）には直近90日分だけが表示されます。退避済みの記録は消えたわけではなく、`GET /api/case-log/archive`・`GET /api/extraction-log/archive`・`GET /api/card-reports/archive`からいつでも取得できます（研究等で全期間のデータが必要な場合はこちらを使ってください）。
-- 移動対象が無い回は何もファイルへ書き込みません。
-
-## Word / PDFでの書き出し
-
-これまでの`.txt`でのプレーンテキスト書き出しに代えて、見出し・箇条書き付きの整形された文書として書き出せるようにしました。
-
-- **Word書き出し**：見出し・区切り線などの書式を保った`.doc`ファイル（WordのHTML読み込み形式）が自動ダウンロードされます。Microsoft WordやGoogleドキュメントでそのまま開けます（正式なOOXML形式の`.docx`ではありませんが、両ソフトともHTMLベースの`.doc`をそのまま開いて再保存できます）。
-- **PDF書き出し**：同じ内容を新しいタブに開き、ブラウザの印刷ダイアログを自動で呼び出します。印刷先（送信先）で「PDFに保存」を選ぶとPDFとして保存できます（ポップアップブロックが有効な場合はタブが開けないことがあるため、その場合はブラウザ側の設定を確認してください）。
-- 書き出される内容自体（検査データ評価・S/Oデータ・ヘンダーソン14項目別アセスメントなど）は、これまでの`.txt`書き出しと同じ構成です。
-
-## スパム・大量送信への対策
-
-この仕組みには認証機能が無く、誰でもAPIへ直接送信できてしまうため、データを書き込む系のAPI（情報カードの報告・事例ログ・抽出前の文章履歴・抽出/分類基準への要望・患者カルテ保存など）に、以下の簡易的な防御を入れています（第三者ライブラリは使わず標準機能のみで実装。通常のブラウザ操作では上限に達しない程度に余裕を持たせています）。
-
-- **IPアドレスごとのレート制限**：一定時間内の送信回数に上限を設け、超えた場合は`429`（送信過多）を返します。用途に応じて上限は異なります（例：`/api/card-reports`は1分あたり20件、カード操作のたびに送られる`/api/learning-event`は1分あたり300件など）。
-- **文字数の上限**：情報カードの報告・抽出前の文章履歴・抽出/分類基準への要望について、1件あたりの文字数に上限を設け、超えた分は切り詰めて保存します（例：カードの報告内容は2000文字、コメントは1000文字まで）。
-- **同一セッションからの報告件数の上限**：情報カードの報告は同じブラウザタブから送ると1つのレコードにまとめられますが、1レコードあたり200件を超える追記は拒否されます。
-
-## 追加機能（学習・分類/記録の質/使い勝手/分析研究）
-
-- **複数カードの統合**：分類ボードでカードを2件以上選択（Ctrl/Cmdクリックで複数選択、または各カード左上のチェックボックスのタップ。スマホ・タブレットなどCtrl/Cmdキーが無い環境ではチェックボックスを使います）すると出てくる一括操作バーの「統合」ボタンから、選んだカードを1枚にまとめられます。統合後の内容（本文）・分類（未分類/S/O）・ヘンダーソンタグはモーダル上で編集してから確定できます（本文は元カードのつなぎ合わせが初期値ですが自由に書き換え可能、タグは統合元の和集合が初期値）。統合元カードは削除され、統合後の1枚に置き換わります（「元に戻す」で取り消し可能）。統合という操作自体もそのまま共有学習に記録され、統合元それぞれが持っていた学習結果（票）は合算されたうえで統合後の文章の学習結果に引き継がれ、さらにここで確定した分類・タグにも新たに票が1つ加わります（統合の際にあえて外したタグの票は、統合後の文章には引き継ぎません）。統合元自体の学習内容は、他のカードで同じ文章がそのまま使われる可能性を考慮して消さずに残ります。
-- **検査値と単位が別カードに分かれる不具合を修正**：カルテ本文に「WBC 11200/μL」のように検査値のすぐ後ろへ単位まで直接書かれていると、以前は単位部分（"/μL"等）が値の抽出から漏れて別の小さなカードとして残ってしまうことがありました。各検査項目の抽出パターンに、その項目の単位（LAB_STANDARDSに登録済みのもの）を「あれば続けて拾う」形で含めるようにし、単位が書かれていてもいなくても値と同じ1枚のカードにまとまるよう修正しました。あわせて、基準値は登録されているのに抽出パターンに含まれていなかった「Cl（塩素）」も抽出できるようにしています。
-- **表記ゆれの吸収**：完全一致する学習内容が無い場合、文字の並び（bigram）の類似度が82%以上の学習済み文章を探し、その分類・タグを採用します（句読点や細かい言い回しの違いを吸収）。
-- **信頼度の低い自動分類の可視化**：カードに小さなバッジを表示します。「類似」＝表記ゆれ一致から採用、「?」＝票が同数で確信度が低い、「仮」＝学習データが無く固定ルールで仮に分類、のいずれか。人がカードを一度でも編集する（S/O変更・タグ追加削除）とバッジは消えます。
-- **学習データ管理での票数の手動修正**：「学習データ管理」→「現在の学習内容」の各チップに＋／−ボタンがあり、S/O・タグごとの票数を手動で増減できます（誤学習を直接訂正する用途）。タグは票の無いものも選択肢から追加できます。
-- **看護計画（ケアプラン）の自動生成**：「AI分析ツール」→「看護計画を自動生成」で、ヘンダーソン別アセスメント内容（提案済みの看護診断があればそれも参考に）から、看護問題ごとにOP（観察計画）・TP（援助計画）・EP（教育計画）の叩き台をAIが作成します。結果はDocs書き出しにも含まれます。
-- **ダークモード**：ヘッダーの月アイコンで切り替えます。設定はブラウザに保存され、次回起動時も同じ表示になります（画面表示の個人設定であり、学習データではありません）。
-- **ダークモードでの一括操作バーの視認性を修正**：カードを選択すると出てくる下部の一括操作バー（→S/→O/統合/不要にする等）は「濃い色の帯＋白いボタン」の配色で固定表示する意図の部分でしたが、テーマで反転する色（var(--ink)）を使っていたため、ダークモードでは帯の背景・ボタンの文字が薄い色同士になり見えにくくなっていました。テーマに関わらず常に同じ配色（濃い帯・白いボタン）になるよう固定色を指定するよう修正しました。
-- **基本欲求の行の名称を簡潔な一語表記に変更**：総合アセスメント表・タグ・AI分析結果などで表示されるヘンダーソン14項目の名称を、「1. 正常な呼吸をする」のような番号付きの説明文から、「呼吸」「食事」「排泄」「姿勢」「睡眠」「衣服」「体温」「清潔」「環境」「コミュニケーション」「信仰」「仕事」「余暇」「学び」という簡潔な一語表記に統一しました（行番号は別途表示されるため名称側には含めていません）。
-- **事例ログ（case-log.json）のビューア**：「学習データ管理」→「事例ログ（研究用）」タブで、いつ・何が・どう変わったかの生ログを検索・操作種別で絞り込みながら閲覧できます（全体の操作種別ごとの件数も表示）。研究用にそのままJSONを取り出したい場合は`GET /api/case-log`を使ってください。
-- **同時接続人数の表示**：ヘッダーに「〇人が接続中」と表示されます。各タブが20秒おきにサーバーへ生存報告（ハートビート）を送り、45秒応答が無いタブは切断とみなして数から外れます（タブを閉じた際は即座に退出を通知するため、実際にはもっと早く反映されます）。同じ人が複数タブ・複数端末で開いている場合はその分だけ数えられる、簡易的な目安です。学習データ等と違いファイルには保存されず、サーバーのメモリ上でのみ管理されます。
-- **総合アセスメント表でのカード並べ替えをワンクリック化**：各欄（未分類/入院前/入院後/不足情報）内のカードには、ドラッグ＆ドロップに加えて上下矢印ボタンを用意しました。矢印ボタンを押すと、同じ欄の中で1つ上／下のカードと表示順を入れ替えます（一番上/一番下のカードでは押せないボタンが薄く表示されます）。タッチ操作でのドラッグ＆ドロップが難しい環境でも並べ替えしやすくするための機能です。
-- **カード選択中のタグ追加で一括操作バーが開いたままになる不具合を修正**：分類ボードでカードを選択した状態のまま、その同じカードの「＋タグ追加」ドロップダウンからタグを設定すると、以前は下部の一括操作バー（→S/→O/統合等）が閉じずに残ってしまうことがありました。カード自身のドロップダウンからのタグ追加は「そのカード1枚に対する完結した操作」とみなし、追加後にそのカードの選択を自動的に解除するよう修正しました（複数選択中に他のカードも選んでいた場合、そちらの選択は残ります。同じタグ付けを複数枚へ連続して行う数字キーショートカットの動作は変更していません）。
-
-## 分類ボード ⇔ 総合アセスメント表の同期
-
-カードの追加・削除・S/O分類・不要判定・ヘンダーソンタグの追加削除・欄の変更・テキスト編集は、すべて同じ保存処理(`saveDataAndSync`)を通るようにしてあり、**分類ボードと総合アセスメント表は常に同じデータから毎回再描画**されます。分類ボードでカードをS/Oに振り分けたり不要判定にすると、総合アセスメント表側の該当ヘンダーソン項目・S/Oバッジ・欄も同じ操作のタイミングで更新されます（タブを切り替えても再取得のような遅延はありません）。
-
-## ローカルで動かす
+## Verify and package
 
 ```bash
-cd webapp
-npm install
-npm start
-```
-
-`http://localhost:3000` を開くと動作します（Expressが静的ファイルとAPIの両方を配信します）。
-
-サーバーを起動しなくても `index.html` を直接ブラウザで開けば動きますが、その場合は共有学習部分が通信エラーになります。学習内容はブラウザには保存されない設計のため、その場合の学習内容はその場限り（画面を離れる・更新すると失われる）になります（コンソールに警告が出るだけで、アプリ自体は問題なく使えます）。
-
-## 自動テスト
-
-サーバー側（`server.js`）の主要なロジックに対して、Node.js標準の[`node --test`](https://nodejs.org/api/test.html)を使った自動テストを`tests/`フォルダに用意しています。追加の第三者ライブラリは不要です（`express`さえ`npm install`済みであれば動きます）。
-
-```bash
-cd webapp
-npm install   # まだの場合
 npm test
+node scripts/audit-clinical-knowledge.js
+node scripts/browser-smoke.js
+node scripts/prepare-release.js /tmp/socode-release
 ```
 
-テストは以下を実際にサーバーを一時的なポートで起動して検証します（本番の`data/`フォルダは一切触らず、テストごとに専用の一時フォルダを使います）。
+Browser checks require Playwright/Chromium. Public tests use authored fictional specifications; server tests use isolated temporary storage. Missing legacy originals/approved answers remain failures under `npm run test:legacy` or `npm run golden`; public success does not establish historical full-card equivalence. Never generate expected answers from current output to fill missing fixtures. `golden:update` is an explicit maintenance command, not independent approval.
 
-- `tests/merge-patient-record.test.js` … 同時編集時のカード単位マージ（複数端末がほぼ同時に同じ患者を編集しても、互いの新しいカードを消し合わないこと）
-- `tests/rate-limit-and-utils.test.js` … スパム・大量送信への防御（レート制限・文字数上限）や、票の集計・日付しきい値判定などの細かいロジック
-- `tests/archiving.test.js` … 90日より古いログの自動整理（アーカイブ）
-- `tests/api.test.js` … 患者カルテ保存・学習イベント・情報カードの報告・抽出基準の追加削除など、主要なAPIエンドポイントの一通りの動作確認
+After runtime asset changes, use `npm run stamp -- <version>` to update changed asset fingerprints/cache versions. Use `npm run build:css` for bundled Tailwind CSS. `npm run ship -- --list` lists delivery changes; inspect before copying.
 
-新しい機能・修正を加えた際は、可能な範囲でここにもテストを追加することを推奨します。
+## Hosting and publication
 
-## 公開（デプロイ）する場合
+GitHub source hosting alone does not run Express. A Node host runs `npm ci` and `npm start`. JSON persistence needs durable disk; set `MONGODB_URI` to use MongoDB on ephemeral hosts. Keep credentials and `data/` private, use HTTPS, and configure database access for the chosen host. Gemini credentials are user-local in the browser; shared patient data is a separate backend boundary.
 
-GitHubにソースコードを置くだけでは、他の人がブラウザで開ける「動いているアプリ」にはなりません（GitHub自体はコードを見せる場所で、Expressサーバーは動きません）。実際に動くURLをクラスメイトや先生と共有するには、Node.jsが動くホスティングにデプロイする必要があります。
-
-### 無料構成：Render + MongoDB Atlas（推奨）
-
-Render・Railway・Fly.io等の無料枠は、再起動・再デプロイのたびにディスクの中身が消える前提のため、`data/*.json`のファイル保存のままだと「共有学習」等のデータがいつか消えてしまいます。そこで、保存先だけをMongoDB Atlasの無料枠（M0クラスタ、期限なしでずっと無料・512MB）に切り替えられるようにしてあります。
-
-1. **MongoDB Atlasで無料クラスタを作る**（https://www.mongodb.com/ でアカウント作成 → 無料のM0クラスタを作成）。「Database Access」でユーザー名・パスワードを設定し、「Network Access」で `0.0.0.0/0`（どこからでも接続可）を許可してから、「Connect」→ドライバ「Node.js」を選んで接続文字列（`mongodb+srv://...`）をコピーする。
-2. **Renderでこのリポジトリを接続する**（https://render.com/ でアカウント作成 → New → Web Service → GitHubリポジトリを選択）。Build Command は空欄（自動で`npm install`が実行されます）、Start Command は `npm start`。
-3. **Renderの環境変数（Environment）に `MONGODB_URI` を追加**し、値に手順1でコピーした接続文字列を貼り付ける（`<password>`の部分は実際のパスワードに置き換える）。これを設定するだけで、`server.js`は自動的に保存先をMongoDBへ切り替えます（未設定時はこれまで通りローカルのJSONファイルを使うので、ローカル開発・自動テストへの影響はありません）。
-4. デプロイ完了後に表示されるURL（`https://xxxxx.onrender.com`のような形）が、みんなに共有できるURLです。
-
-無料枠は15分操作が無いとスリープし、次にアクセスした人が最初だけ1分程度待ちますが、それ以外は無料でフル機能（共有学習・カルテ共有・分類基準・NotebookLM基準ノート等）が動きます。
-
-### その他のホスティング
-
-- **自前のVPS等**：`npm install --production` → `npm start`（`pm2` 等でプロセス管理することを推奨）。ディスクが永続する環境であれば、`MONGODB_URI`を設定せずこれまで通り`data/*.json`のままでも問題ありません。
-
-### 本番運用に向けて、あわせて検討してほしいこと
-
-- **`data/*.json`はファイルベースの簡易保存です。** 無料ホスティングではディスクが再起動で消えるため、上記のMongoDB Atlas（`MONGODB_URI`環境変数）への切り替えを推奨します。アクセスが増えてMongoDB Atlasの無料枠（512MB）を超える場合は、有料プランへの変更や別のDBサービスへの置き換えを検討してください（保存処理は`server.js`の`persist` / `loadFromMongo`にまとまっています）。
-- **HTTPS化**は必須です（Render等では自動で付きます）。
-- Gemini APIキーは今まで通り**利用者ごとにブラウザ内保存**です。複数の医療者が同じ画面を使う環境では、それぞれが自分のAPIキーを入力する運用になります。
-- 今回は「事例研究用途で個人情報は気にしなくてよい」という前提で、カード本文をそのまま共有・保存する設計にしています。本番の患者記録で公開運用する場合は、匿名化やアクセス制限など別途の対策を検討してください。
-
-## Publication preparation
-
-See [publication-runbook.md](docs/publication-runbook.md) for exact-commit evidence, an isolated static payload, hosting/data boundaries and rollback. CI prepares downloadable artifacts without deployment. [release-conditions.json](docs/release-conditions.json) records unresolved conditions; `scripts/check-release-readiness.js` exits unsuccessfully if evidence is missing, stale or incomplete. Independent expert review is waived; real-provider OCR and applicable source verification remain pending.
+[Publication runbook](docs/publication-runbook.md) describes the isolated static payload, evidence and rollback. CI packages assets without deploying. The owner accepted latest-code full public regression and real-browser success as sufficient on 2026-10-10; [release policy](docs/release-conditions.json) preserves pending external checks as follow-up. Expert approval remains zero, live OCR remains unverified, and neither merge nor publication has been performed. Current commit-specific evidence is in [PR #1](https://github.com/MasadaMasayoshi/socode/pull/1).
