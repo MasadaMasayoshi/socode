@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-10.znavigation9'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-10.znavigation10'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // BMI・ブリンクマン指数の自動算出
     // ------------------------------------------------------------------------
@@ -153,11 +153,14 @@
       return canon(a) === canon(b);
     }
     // 検査値を調べる。findings＝基準値を外れた値、undetermined＝判定できなかった値、checked＝判定できた値の数
+    function isActiveLabEvidence(item) {
+      return !!item && !item.deleted && !item.aiSuggested && item.type !== 'unnecessary';
+    }
     function evaluateLabFindings(oItems) {
       const findings = [];
       const undetermined = [];
       let checked = 0;
-      expandCombinedLabItems(oItems).forEach(item => {
+      expandCombinedLabItems((oItems || []).filter(isActiveLabEvidence)).forEach(item => {
         const text = String(item.text || '').normalize('NFKC');
         if (/基準値/.test(text)) {
           const m = LAB_REF_CARD_REGEX.exec(text);
@@ -1209,7 +1212,7 @@
     function buildLabTrendTable(items, options = {}) {
       const includeVitals = options.includeVitals !== false;
       // 「児：」の付いたカード（母性の記録の新生児の値）は、受け持ちの患者（母親）の表に入れない
-      const expanded = expandCombinedLabItems((items || []).filter(i => i && i.type !== 'unnecessary' && !/^(?:児|新生児)\s*[:：]/.test(String(i.text || '').normalize('NFKC'))));
+      const expanded = expandCombinedLabItems((items || []).filter(i => isActiveLabEvidence(i) && !/^(?:児|新生児)\s*[:：]/.test(String(i.text || '').normalize('NFKC'))));
       const parsed = [];
       expanded.forEach(item => {
         const entries = parseLabTrendEntries(item.text);
@@ -1749,7 +1752,7 @@
     const LAB_STATUS_LABEL = { high: '高値', low: '低値', normal: '基準範囲内', review: '要確認', unknown: '判定不可' };
     // 取り出した全部：検査値・呼吸機能・バイタルサイン・読み取れない文字列
     function analyzeLabData(cp) {
-      const items = expandCombinedLabItems((cp.items || []).filter(i => i.type !== 'unnecessary'));
+      const items = expandCombinedLabItems((cp.items || []).filter(isActiveLabEvidence));
       const labs = [], broken = [], resp = [], vitals = [];
       const lastValid = {};
       items.forEach(item => {
@@ -1793,7 +1796,7 @@
     // 事実と、考察・予測を分けて文章にする
     function buildLabAssessment(cp) {
       const { labs, broken, resp, vitals } = analyzeLabData(cp);
-      const allText = (cp.items || []).filter(i => i.type !== 'unnecessary').map(i => String(i.text || '')).join('\n').normalize('NFKC');
+      const allText = (cp.items || []).filter(isActiveLabEvidence).map(i => String(i.text || '')).join('\n').normalize('NFKC');
       const ctx = {
         surgery: /術後|手術|術式|全摘|切除|開腹|腹腔鏡|オペ/.test(allText), fasting: /絶飲食|絶食|禁食|NPO/.test(allText),
         bleeding: /出血|血性|ドレーン/.test(allText), infection: /発熱|膿|発赤|腫脹|熱感|排膿|悪寒|感染徴候/.test(allText), smoking: /喫煙|煙草|タバコ|ブリンクマン/.test(allText),

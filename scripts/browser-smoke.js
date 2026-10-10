@@ -26,6 +26,16 @@ const {app}=require('../server');
    assert.deepEqual(await page.evaluate(()=>[8,20,50].map(value=>
     analyzeLabCard(`AST ${value} U/L (基準値: 10〜40 U/L)`).status)),['low','normal','high']);
    assert.equal(await page.evaluate(()=>analyzeLabCard('AST 20 U/L (基準値: 10〜40 U/L)').ref.origin),'unverified');
+   assert.equal(await page.evaluate(()=>{
+    const active={id:'lab-active',type:'o',text:'AST 20 U/L',timestamp:'入院前'};
+    return [{deleted:true},{type:'unnecessary'},{aiSuggested:true}].every(flags=>{
+     const excluded={...active,id:'lab-excluded',text:'AST 200 U/L',...flags};
+     return analyzeLabData({items:[active,excluded]}).labs.length===1 &&
+      !JSON.stringify(buildLabTrendTable([active,excluded])).includes('200') &&
+      !JSON.stringify(buildLabAssessment({items:[active,excluded]})).includes('200');
+    });
+   }),true);
+
 
 
    await page.locator('#source-text').fill('【架空の画面検証用記録】\n体温36.8℃、脈拍72回/分。\n「昨夜はよく眠れました」と話す。');

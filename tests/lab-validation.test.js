@@ -122,3 +122,19 @@ test('同じ標準単位の基準値では低値・正常・高値を判定す�
     assert.equal(app.analyzeLabCard(`AST ${value} U/L (基準値: 10〜40 U/L)`).status,status);
   }
 });
+
+
+test('削除・除外・AI提案の値を判定・推移・考察の根拠にしない', () => {
+  const active = card('active','AST 20 U/L','入院前');
+  for (const extra of [{deleted:true},{type:'unnecessary'},{aiSuggested:true}]) {
+    const excluded = {...card('excluded','AST 200 U/L','入院後'),...extra};
+    const patient = {items:[active,excluded]};
+    const labs = app.analyzeLabData(patient).labs;
+    assert.deepEqual(Array.from(labs,l=>l.itemId),['active']);
+    assert.equal(app.evaluateLabFindings([excluded]).checked,0);
+    assert.equal(app.evaluateLabFindings([excluded]).findings.length,0);
+    const table = app.buildLabTrendTable([active,excluded]);
+    assert.doesNotMatch(JSON.stringify(table), /200/);
+    assert.doesNotMatch(JSON.stringify(app.buildLabAssessment(patient)), /200/);
+  }
+});
