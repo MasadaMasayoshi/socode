@@ -70,3 +70,7 @@
 - GitHub Actionsで追加テストの成功が確認されても全テスト/ブラウザの検証は別途必要。
 
 **この文書は40項目の完了を宣言するものではない。公開・main統合はテストと臨床安全性を確認してから判断する。**
+
+## Current implementation update
+
+The structural plan/record history and shared modal/touch improvements are documented in [release-work-20261010.md](release-work-20261010.md). The practice bank contains 22 fictional questions, not 12. These additions do not establish clinical approval, live-provider OCR or all-operation Undo.

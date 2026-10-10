@@ -50,3 +50,7 @@ npm test
 ## 現行の確認範囲
 
 原文往復、根拠カードの同一患者参照、バックアップ復元、編集履歴、資料差分、7架空事例の5画面操作、欲求ナビのフォーカス保持、検査単位・除外条件・時系列を実ブラウザ回帰へ追加。コミットごとの最新成功証拠は [PR #1](https://github.com/MasadaMasayoshi/socode/pull/1) に記録する。これは上記の手動全画面点検や実OCR通信の完了とは異なる。
+
+## Current evidence requirements
+
+The consolidated English [release implementation audit](release-work-20261010.md) distinguishes implemented recovery/accessibility/OCR input safeguards from live-provider OCR, facility-adopted ranges and comprehensive review. Mocked OCR transport must never be counted as live-provider verification. Independent expert review remains waived; approval counts remain unchanged.

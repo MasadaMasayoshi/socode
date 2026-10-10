@@ -1295,3 +1295,12 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
 .rm-text-view li { margin: .75rem 0; padding: .5rem; border-bottom: 1px solid #d6d3d1; }
 .rm-text-view p { margin: .35rem 0; overflow-wrap: anywhere; }
 .rm-text-view button:focus-visible { outline: 3px solid #7c3aed; outline-offset: 3px; }
+
+/* Shared keyboard focus and touch targets across application views. */
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [role="button"]:focus-visible {
+  outline: 3px solid var(--accent); outline-offset: 3px;
+}
+@media (pointer: coarse) {
+  button, select, summary, [role="button"], .card-menu-btn { min-height: 44px; }
+  button:not(.tab-pill):not(.rm-tiny), .btn, .card-menu-btn { min-width: 44px; }
+}

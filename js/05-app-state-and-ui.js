@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-10.znavigation2'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-10.znavigation12'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カードの不具合報告：カードごとの「報告」ボタンから送る内容を、
     // 同じブラウザタブ（＝ページを閉じるまで）の間は同じsessionIdで送ることで、
@@ -195,6 +195,54 @@
       e.stopPropagation();
       closeModalByEscape(modal);
     }, true);
+    // Shared keyboard containment for all modal surfaces. Dedicated dialogs keep their own handlers.
+    if (typeof MutationObserver !== 'undefined') {
+      let trackedModal = null;
+      let lastFocused = document.activeElement;
+      const modalReturnTargets = new WeakMap();
+      const modalFocusable = modal => Array.from(modal.querySelectorAll(
+        'button:not([disabled]), input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), select:not([disabled]), a[href], [tabindex="0"]'
+      )).filter(el => el.getClientRects().length && !el.closest('[inert]'));
+      const syncModalFocus = () => {
+        const next = topmostOpenModal();
+        if (next === trackedModal) return;
+        const previous = trackedModal;
+        trackedModal = next;
+        if (previous) {
+          const target = modalReturnTargets.get(previous);
+          if (target && target.isConnected && target.getClientRects().length && (!next || next.contains(target))) target.focus();
+        }
+        if (next) {
+          if (!modalReturnTargets.has(next) || !previous) modalReturnTargets.set(next, lastFocused);
+          next.setAttribute('role', 'dialog');
+          next.setAttribute('aria-modal', 'true');
+          if (!next.hasAttribute('aria-label') && !next.hasAttribute('aria-labelledby')) {
+            const title = next.querySelector('h1,h2,h3');
+            next.setAttribute('aria-label', title?.textContent.trim() || '入力・確認');
+          }
+          if (!next.contains(document.activeElement)) (modalFocusable(next)[0] || next).focus();
+        }
+      };
+      document.addEventListener('focusin', event => {
+        const next = topmostOpenModal();
+        if (next && next !== trackedModal) modalReturnTargets.set(next, lastFocused);
+        syncModalFocus();
+        lastFocused = event.target;
+      });
+      new MutationObserver(syncModalFocus).observe(document.body, {subtree:true, attributes:true, attributeFilter:['class']});
+      document.addEventListener('keydown', event => {
+        if (event.key !== 'Tab') return;
+        const modal = topmostOpenModal();
+        if (!modal || modal.id === 'modal-dialog' || modal.id === 'modal-api-required') return;
+        const focusable = modalFocusable(modal);
+        if (!focusable.length) { event.preventDefault(); return; }
+        const first = focusable[0], last = focusable[focusable.length - 1];
+        if (!modal.contains(document.activeElement) || (event.shiftKey && document.activeElement === first) || (!event.shiftKey && document.activeElement === last)) {
+          event.preventDefault();
+          (event.shiftKey ? last : first).focus();
+        }
+      }, true);
+    }
     // 文字の書体（明朝＝Noto Serif JP が既定／ゴシック）。このブラウザに覚えておく
     function currentAppFont() { return document.documentElement.getAttribute('data-font') === 'gothic' ? 'gothic' : 'serif'; }
     function setAppFont(font) {

@@ -140,3 +140,7 @@ WBCの実測値と原文基準値がともに×10³/μLの場合、内部換算�
 - 事実の推移は同じ標準単位へ換算した数値で表示し、5000/μLと5×10³/μLを誤った変化として並べない。
 - 児・新生児と明示された値を母親の判定・推移・考察から除外。削除・除外カードを年齢判定の入力に混ぜない。
 - 臨床的な因果関係、施設の採用基準値、実OCR通信、全操作Undo・全画面アクセシビリティ、教材の拡充は未完了。独立した専門家レビューの免除をこれらの完了と読み替えない。
+
+## Consolidated implementation audit
+
+See [release-work-20261010.md](release-work-20261010.md) for the current English implementation/evidence matrix. Structural plan/record recovery, confirmation race guards, shared modal focus, touch targets, OCR input recovery and 22-question education were added. The remaining live-provider, facility-source, clinical-content, comprehensive accessibility and complete-roadmap requirements are explicitly recorded there.

@@ -14,11 +14,38 @@ const {app}=require('../server');
   browser=await chromium.launch();
   fs.mkdirSync('browser-artifacts',{recursive:true});
   for(const width of [390,768,1440]){
-   const context=await browser.newContext({viewport:{width,height:900}});
+   const context=await browser.newContext({viewport:{width,height:900},hasTouch:width<768});
    const page=await context.newPage(),errors=[];
    page.on('pageerror',e=>errors.push(e.message));
    await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
    await page.waitForFunction(()=>typeof getCurrentPatient==='function'&&!!getCurrentPatient());
+   // Exercise the real file-input/OCR UI with an intercepted transport; this is not live-provider verification.
+   let ocrRequests=0;
+   await page.route('https://generativelanguage.googleapis.com/**', async route=>{
+    const body=route.request().postDataJSON();
+    assert.equal(body.contents.length,1);
+    assert.equal(body.contents[0].parts.length,2);
+    assert.equal(body.contents[0].parts.filter(p=>p.inline_data).length,1);
+    ocrRequests++;
+    await route.fulfill({json:{candidates:[{content:{parts:[{text:'架空OCR通信検証'}]},finishReason:'STOP'}]}});
+   });
+   await page.evaluate(()=>{globalAppData.apiKey='AIza-fictitious-browser-test-key';});
+   const image={name:'fictional.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXioAAAAASUVORK5CYII=','base64')};
+   await page.locator('#ocr-file-input').setInputFiles(image);
+   await page.locator('#modal-dialog').waitFor({state:'visible'});
+   await page.locator('#dialog-confirm').click();
+   await page.waitForFunction(()=>document.getElementById('source-text').value.includes('架空OCR通信検証'));
+   const firstOcr=await page.locator('#source-text').inputValue();
+   await page.locator('#ocr-file-input').setInputFiles(image);
+   await page.waitForFunction(first=>document.getElementById('source-text').value.length>first,firstOcr.length);
+   assert.equal(ocrRequests,2,'selecting the same image retries the real UI');
+   const beforeInvalid=await page.locator('#source-text').inputValue();
+   await page.locator('#ocr-file-input').setInputFiles({name:'invalid.pdf',mimeType:'application/pdf',buffer:Buffer.from('fictional invalid input')});
+   assert.equal(await page.locator('#source-text').inputValue(),beforeInvalid);
+   assert.equal(ocrRequests,2);
+   await page.evaluate(()=>{globalAppData.apiKey='';});
+   await page.unroute('https://generativelanguage.googleapis.com/**');
+
    const labBatch=await page.evaluate(()=>{
     const card=(id,text,timestamp)=>({id,type:'o',text,timestamp});
     const shuffled=[card('late','AST 200 U/L','術後2日目 12:00'),card('early','AST 50 U/L','術後1日目 09:00'),card('morning','AST 150 U/L','術後2日目 08:00')];
@@ -108,6 +135,7 @@ const {app}=require('../server');
    for(const name of ['assessment','careplan','labs','relation','reference']){
     await page.locator('#tab-'+name).click();
     await page.locator('#view-'+name).waitFor({state:'visible'});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),true,`${name} must fit the viewport; tables/maps may scroll inside their containers`);
     await page.screenshot({path:`browser-artifacts/${width}-${name}.png`});
    }
    const assessmentHistory=await page.evaluate(()=>{
@@ -158,6 +186,47 @@ const {app}=require('../server');
     return protectedUpdate&&saved&&undone&&redone;
    });
    assert.equal(recordProtected,true);
+   await page.evaluate(()=>switchView('careplan',{buildPlans:false}));
+   const beforeOperation=await page.evaluate(()=>careOperationSnapshot(getCurrentPatient()));
+   await page.evaluate(()=>addCarePlanUI());
+   assert.equal(await page.evaluate(()=>undoCareOperation()),true);
+   assert.equal(await page.evaluate(()=>careOperationSnapshot(getCurrentPatient())),beforeOperation);
+   assert.equal(await page.evaluate(()=>undoCareOperation(true)),true);
+   const planToDelete=await page.evaluate(()=>carePlanList(getCurrentPatient()).at(-1).id);
+   const deleting=page.evaluate(id=>deleteCarePlanUI(id),planToDelete);
+   await page.locator('#modal-dialog').waitFor({state:'visible'});
+   await page.locator('#dialog-confirm').click();
+   await deleting;
+   assert.equal(await page.evaluate(()=>undoCareOperation()),true);
+   assert.equal(await page.evaluate(id=>!!getCarePlan(getCurrentPatient(),id),planToDelete),true);
+   assert.equal(await page.evaluate(()=>undoCareOperation(true)),true);
+   await page.locator('#tab-careplan').focus();
+   await page.evaluate(()=>document.getElementById('modal-settings').classList.remove('hidden'));
+   await page.locator('#modal-settings').waitFor({state:'visible'});
+   await page.locator('#btn-save-settings').focus();
+   await page.keyboard.press('Tab');
+   assert.equal(await page.evaluate(()=>document.getElementById('modal-settings').contains(document.activeElement)),true);
+   await page.keyboard.press('Shift+Tab');
+   assert.equal(await page.evaluate(()=>document.getElementById('modal-settings').contains(document.activeElement)),true);
+   await page.keyboard.press('Escape');
+   await page.locator('#modal-settings').waitFor({state:'hidden'});
+   await page.waitForFunction(()=>document.activeElement.id==='tab-careplan');
+   const modalIds=await page.evaluate(()=>Array.from(document.querySelectorAll('[id^="modal-"].fixed.inset-0')).map(el=>el.id).filter(id=>!['modal-dialog','modal-api-required'].includes(id)));
+   for(const modalId of modalIds) {
+    await page.locator('#tab-careplan').focus();
+    await page.evaluate(id=>document.getElementById(id).classList.remove('hidden'),modalId);
+    await page.waitForFunction(id=>document.getElementById(id).contains(document.activeElement),modalId);
+    assert.equal(await page.locator('#'+modalId).getAttribute('aria-modal'),'true');
+    for(const key of ['Tab','Shift+Tab']) {
+     await page.keyboard.press(key);
+     assert.equal(await page.evaluate(id=>document.getElementById(id).contains(document.activeElement),modalId),true,modalId);
+    }
+    await page.keyboard.press('Escape');
+    await page.locator('#'+modalId).waitFor({state:'hidden'});
+    await page.waitForFunction(()=>document.activeElement.id==='tab-careplan');
+   }
+
+
    const recovery = await page.evaluate(() => {
     const cp=getCurrentPatient();
     rmCommit(cp,{version:2,nodes:[{id:'smoke-node',type:'assessment',label:'架空の検証',x:50,y:50,itemIds:[]}],edges:[]},{pushUndo:true});

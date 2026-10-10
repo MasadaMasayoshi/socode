@@ -16,8 +16,8 @@
     "hash": "41bde4ac013cc458"
   },
   "js/05-app-state-and-ui.js": {
-    "version": "2026-10-10.znavigation2",
-    "hash": "e32c670c1cae89ce"
+    "version": "2026-10-10.znavigation12",
+    "hash": "3fd5f05b5aae4be0"
   },
   "js/06-export.js": {
     "version": "2026-10-08.2103",
@@ -36,16 +36,16 @@
     "hash": "bf9b27764b572c2f"
   },
   "js/10-reference-page-and-startup.js": {
-    "version": "2026-10-10.recovery2",
-    "hash": "469ad31b3d4e4a7e"
+    "version": "2026-10-10.znavigation12",
+    "hash": "ce63481d92071716"
   },
   "js/11-own-assessment.js": {
     "version": "2026-10-10.zhistory3",
     "hash": "2f6bd1cc832c65fd"
   },
   "js/12-missing-checks-and-care-plan.js": {
-    "version": "2026-10-10.znavigation6",
-    "hash": "b641cc63482767d7"
+    "version": "2026-10-10.znavigation12",
+    "hash": "3c66b5fff208aec4"
   },
   "js/13-compare-and-report.js": {
     "version": "2026-10-08.2121",
@@ -60,8 +60,8 @@
     "hash": "00cb660d298e4bde"
   },
   "style.css": {
-    "version": "2026-10-09.41",
-    "hash": "732529884f63b289"
+    "version": "2026-10-10.znavigation12",
+    "hash": "fe637556ee0f16d6"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",

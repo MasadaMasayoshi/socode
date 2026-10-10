@@ -4,7 +4,7 @@
     // ③看護計画の編集・実施・評価：看護問題ごとに目標・OP/TP/EPを書き、日々の実施内容・患者の反応・目標の達成状況・
     //   評価・計画の修正を記録する（「看護計画」のページ）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-10.znavigation6'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-10.znavigation12'; // 版（scripts/stamp-version.js が書き込む）
 
     // 日時を、カードの日時欄と同じ書き方（「9月29日 14:05」）にする
     function formatCardTimestamp(value) {
@@ -806,6 +806,46 @@
       if (rerender) renderCarePlans();
     }
 
+    // Structural operations include response cards; later edits must never be overwritten.
+    const careOperationHistories = new Map();
+    function careOperationSnapshot(cp) {
+      return JSON.stringify({carePlans: cp.carePlans || {}, items: cp.items || [], dependencies: {myAssessments: cp.myAssessments || {}, missingChecks: cp.missingChecks || {}, relationMap: cp.relationMap || null}});
+    }
+    function rememberCareOperation(cp, before) {
+      const after = careOperationSnapshot(cp);
+      if (before === after) return;
+      const history = careOperationHistories.get(cp.id) || {undo: [], redo: []};
+      history.undo.push({before, after});
+      if (history.undo.length > 40) history.undo.shift();
+      history.redo = [];
+      careOperationHistories.set(cp.id, history);
+    }
+    function careOperationStillCurrent(cp, snapshot) {
+      if (getCurrentPatient()?.id === cp.id && careOperationSnapshot(cp) === snapshot) return true;
+      showToast('確認中に患者・計画・根拠が更新されました。変更を適用せず現在の内容を保持しました', 'warn');
+      return false;
+    }
+    window.undoCareOperation = function(redo = false) {
+      const cp = getCurrentPatient();
+      const history = careOperationHistories.get(cp.id);
+      const from = history && (redo ? history.redo : history.undo);
+      const entry = from && from[from.length - 1];
+      if (!entry) { showToast('戻せる計画・記録の操作はありません', 'info'); return false; }
+      if (careOperationSnapshot(cp) !== (redo ? entry.before : entry.after)) {
+        showToast('計画やカードに後続の変更があります。現在の内容を保護するため変更しません', 'warn');
+        return false;
+      }
+      const restored = JSON.parse(redo ? entry.after : entry.before);
+      cp.carePlans = restored.carePlans;
+      cp.items = restored.items;
+      from.pop();
+      (redo ? history.undo : history.redo).push(entry);
+      saveDataAndSync();
+      renderCarePlans();
+      showToast(redo ? '計画・記録の操作をやり直しました' : '計画・記録の操作を元に戻しました', 'info');
+      return true;
+    };
+
     const carePlanFieldHistories = new Map();
     const carePlanUndoFields = new Set(['problem','goalShort','goalLong','op','tp','ep','status','relatedNeeds','reason']);
     const cpHistoryClone = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
@@ -858,19 +898,23 @@
     // 看護問題の名前を書き換え終えたとき：自分で目標などを書いていない計画は、新しい問題に合わせて作り直す
     window.onCarePlanProblemCommit = function(id) {
       const cp = getCurrentPatient();
+      const operationBefore = careOperationSnapshot(cp);
       const p = getCarePlan(cp, id);
       if (!p) return;
       if (!p.userEdited) { applyCarePlanValidation(cp, p); if (!p.goalShort && !p.op.length || cpPlanIncoherent(p) || p.genKey !== cpPlanKey(p)) regenerateCarePlanSections(cp, p); }
       refineCarePlans(cp);
+      rememberCareOperation(cp, operationBefore);
       commitCarePlanChange(cp, true);
       if (p.userEdited) showToast('看護問題が変わりました。目標・OP/TP/EPが古い問題のままになっていないか確認し、必要なら「この問題で作り直す」を押してください', 'info', 7000);
     };
     window.regenerateCarePlanUI = function(id) {
       const cp = getCurrentPatient();
+      const operationBefore = careOperationSnapshot(cp);
       const p = getCarePlan(cp, id);
       if (!p) return;
       regenerateCarePlanSections(cp, p);
       refineCarePlans(cp);
+      rememberCareOperation(cp, operationBefore);
       commitCarePlanChange(cp, true);
       showToast('この看護問題に合わせて、目標・OP/TP/EPを作り直しました', 'success');
     };
@@ -892,12 +936,15 @@
     };
     window.moveCarePlanUI = function(id, dir) {
       const cp = getCurrentPatient();
-      if (moveCarePlan(cp, id, dir)) commitCarePlanChange(cp);
+      const operationBefore = careOperationSnapshot(cp);
+      if (moveCarePlan(cp, id, dir)) { rememberCareOperation(cp, operationBefore); commitCarePlanChange(cp); }
     };
     window.addCarePlanUI = function() {
       const cp = getCurrentPatient();
+      const operationBefore = careOperationSnapshot(cp);
       const p = createCarePlan(cp, {});
       carePlanOpen.add(p.id);
+      rememberCareOperation(cp, operationBefore);
       commitCarePlanChange(cp);
       setTimeout(() => { const el = document.querySelector(`[data-cp-plan="${p.id}"][data-cp-field="problem"]`); if (el) el.focus(); }, 30);
     };
@@ -910,7 +957,9 @@
       if (ok !== true) return;
       const current=getCurrentPatient();
       if(current?.id!==cp.id || JSON.stringify(getCarePlan(current,id))!==expected){showToast('確認中に患者または計画が更新されました。削除せず、現在の内容を保持しました','warn');return;}
+      const operationBefore = careOperationSnapshot(current);
       deleteCarePlan(current, id);
+      rememberCareOperation(current, operationBefore);
       commitCarePlanChange(current);
       showToast('看護計画を消しました', 'info');
     };
@@ -996,6 +1045,7 @@
         achievement: (document.querySelector('#care-record-achievement input:checked') || {}).value || ''
       };
       if (!rec.doneItems.length && !rec.doneText && !rec.response && !rec.evaluation && !rec.revision) return showToast('実施した内容・患者の反応・評価のどれかを書いてください', 'warn');
+      const operationBefore = careOperationSnapshot(cp);
       const beforeRecord=recId?JSON.parse(JSON.stringify(p.records.find(r=>r.id===recId))):null;
       let card = null;
       if (rec.response && document.getElementById('care-record-add-card').checked) {
@@ -1003,6 +1053,7 @@
         rec.responseCardId = card.id;
       }
       if (recId) { updateCareRecord(cp, planId, recId, rec); rememberCareRecordEdit(cp,planId,beforeRecord,p.records.find(r=>r.id===recId)); } else addCareRecord(cp, planId, rec);
+      rememberCareOperation(cp, operationBefore);
       closeCareRecord();
       saveDataAndSync();
       renderCarePlans();
@@ -1016,7 +1067,8 @@
       if (ok !== true) return;
       const current=getCurrentPatient(),latest=getCarePlan(current,planId)?.records.find(r=>r.id===recId&&!r.deleted);
       if(current?.id!==cp.id || JSON.stringify(latest)!==expected){showToast('確認中に患者または記録が更新されました。削除していません','warn');return;}
-      if (deleteCareRecord(current, planId, recId)) commitCarePlanChange(current);
+      const operationBefore = careOperationSnapshot(current);
+      if (deleteCareRecord(current, planId, recId)) { rememberCareOperation(current, operationBefore); commitCarePlanChange(current); }
     };
 
 
@@ -1909,18 +1961,22 @@
     }
     window.buildCarePlansByRulesUI = function() {
       const cp = getCurrentPatient();
+      const operationBefore = careOperationSnapshot(cp);
       if (!(cp.items || []).some(i => i.type !== 'unnecessary')) return showToast('カードがありません。先に「分類開始」で分類してください', 'warn');
       const { fresh, withModel } = buildCarePlansByRules(cp);
       if (!fresh.length) return showToast('作れる看護問題が記録から見つからないか、すべて看護計画にあります', 'info');
+      rememberCareOperation(cp, operationBefore);
       commitCarePlanChange(cp);
       showToast(`看護計画を${fresh.length}件作りました（うち${withModel}件に目標・OP/TP/EPの手本を入れました）。この患者に合うか確かめて、理由を書いて直してください`, 'success', 7000);
     };
     window.importCarePlansFromMapUI = function() {
       const cp = getCurrentPatient();
+      const operationBefore = careOperationSnapshot(cp);
       if (!cp.relationMap) return showToast('関連図がまだありません。「関連図」のページで作ってから取り込んでください', 'warn', 6000);
       const fresh = importCarePlansFromMap(cp);
       if (!fresh.length) return showToast('関連図の看護問題は、すべて看護計画にあります', 'info');
       fresh.forEach(p => carePlanOpen.add(p.id));
+      rememberCareOperation(cp, operationBefore);
       commitCarePlanChange(cp);
       showToast(`関連図から看護問題を${fresh.length}件取り込みました（根拠データつき）。目標・OP/TP/EPはこの患者に合わせて書きましょう`, 'success', 6000);
     };
@@ -1940,35 +1996,44 @@
     }
     window.writeCareReasonUI = async function(id) {
       const cp = getCurrentPatient();
+      const operationBefore = careOperationSnapshot(cp);
       const p = getCarePlan(cp, id);
       if (!p) return;
       const t = await askCareReason(`「${p.problem || '（無題）'}」がこの患者に必要な理由`, '');
       if (!t) return;
+      if (!careOperationStillCurrent(cp, operationBefore)) return;
       addCareReason(p, t, 'この看護問題');
+      rememberCareOperation(cp, operationBefore);
       commitCarePlanChange(cp);
     };
     // チェックの提案を使う：目標の例（自分で直してから入れる）・OPの不足（理由を書いてから足す）
     window.useGoalExampleUI = async function(id) {
       const cp = getCurrentPatient();
+      const operationBefore = careOperationSnapshot(cp);
       const p = getCarePlan(cp, id);
       if (!p) return;
       const r = reviewCarePlan(cp, p);
       const ex = (r.items.find(i => i.key === 'goal') || {}).example || r.goalExample;
       const v = await openDialog({ title: '短期目標を書き直す', message: '例は、この患者の記録の値を使った「書き方の見本」です。そのまま使わず、期限・数値・患者の状態をこの患者に合わせて直してください。\n「いつまでに」「患者が」「どうなる」「何をもって達成と判断するか」', inputValue: ex, placeholder: '例：2日後までに、安静時の創部痛がNRS5からNRS3以下となり、苦痛なく休息できる', confirmLabel: '短期目標にする' });
       if (v === null || v === undefined || !String(v).trim()) return;
+      let goalReason = '';
       if (String(v).trim() === ex) {
         const ok = await openDialog({ title: '例のままですが、よいですか？', message: '期限や数値が、この患者に合っているか確かめましたか？（例のまま使うときは、理由を書きます）', confirmLabel: '理由を書いて使う', secondaryLabel: '直す' });
         if (ok !== true) return;
         const why = await askCareReason('この目標にした理由', ex);
         if (!why) return;
-        addCareReason(p, why, '短期目標');
+        goalReason = why;
       }
+      if (!careOperationStillCurrent(cp, operationBefore)) return;
+      if (goalReason) addCareReason(p, goalReason, '短期目標');
       updateCarePlan(cp, id, { goalShort: String(v).trim() });
+      rememberCareOperation(cp, operationBefore);
       commitCarePlanChange(cp);
       showToast('短期目標を書き直しました', 'success');
     };
     window.addMissingOpUI = async function(id, idx) {
       const cp = getCurrentPatient();
+      const operationBefore = careOperationSnapshot(cp);
       const p = getCarePlan(cp, id);
       if (!p) return;
       const r = reviewCarePlan(cp, p);
@@ -1976,14 +2041,17 @@
       if (!label) return;
       const why = await askCareReason('OPに足す理由', `${label}を観察する`);
       if (!why) return;
+      if (!careOperationStillCurrent(cp, operationBefore)) return;
       updateCarePlan(cp, id, { op: [...p.op, `${label}を観察する`] });
       addCareReason(p, why, `OP：${label}`);
+      rememberCareOperation(cp, operationBefore);
       commitCarePlanChange(cp);
     };
 
     // 手本を、空欄のところだけ入れる（書いてある所は変えない）。入れたあとは「この患者に必要な理由」を書いてもらう
     window.applyCareModelUI = function(id) {
       const cp = getCurrentPatient();
+      const operationBefore = careOperationSnapshot(cp);
       const p = getCarePlan(cp, id);
       if (!p) return;
       const m = reviewCarePlan(cp, p).model;
@@ -1994,16 +2062,19 @@
       ['op', 'tp', 'ep'].forEach(k => { if (!p[k].length && m[k] && m[k].length) patch[k] = [...m[k]]; });
       if (!Object.keys(patch).length) return showToast('空欄がないので、手本は入れませんでした（書いてある内容はそのままです）', 'info');
       updateCarePlan(cp, id, { ...patch, reasonNeeded: true });
+      rememberCareOperation(cp, operationBefore);
       commitCarePlanChange(cp);
       showToast('手本を空欄に入れました。この患者に合うか確かめて、直してください', 'success');
     };
     window.moveTpToOpUI = function(id, idx) {
       const cp = getCurrentPatient();
+      const operationBefore = careOperationSnapshot(cp);
       const p = getCarePlan(cp, id);
       if (!p) return;
       const line = cpObservationLines(p.tp)[idx];
       if (!line) return;
       updateCarePlan(cp, id, { tp: p.tp.filter(l => l !== line), op: p.op.includes(line) ? p.op : [...p.op, line] });
+      rememberCareOperation(cp, operationBefore);
       commitCarePlanChange(cp);
     };
 

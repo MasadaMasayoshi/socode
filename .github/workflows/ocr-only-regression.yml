@@ -10,6 +10,7 @@ on:
       - 'clinical-knowledge/**'
       - 'scripts/audit-clinical-knowledge.js'
       - 'index.html'
+      - 'style.css'
       - 'scripts/**'
       - 'package*.json'
       - '.github/workflows/ocr-only-regression.yml'
@@ -25,37 +26,11 @@ jobs:
           node-version: '20'
       - name: Install locked dependencies
         run: npm ci
-      - name: Verify source versions and migration tests
-        run: node --test tests/app-files-order.test.js tests/ocr-only-policy.test.js tests/remove-ai-classification.test.js tests/disable-ai-plan-import.test.js
       - name: JavaScript syntax check
         run: |
           for f in js/*.js tests/*.test.js; do node --check "$f"; done
       - name: Clinical knowledge metadata audit
         run: node scripts/audit-clinical-knowledge.js
-      - name: Clinical knowledge review tests
-        run: node --test tests/clinical-knowledge.test.js
-      - name: Offline nursing quality rule tests
-        run: node --test tests/quality-checks.test.js
-      - name: Additional nursing review checks
-        run: node --test tests/review-plus.test.js
-      - name: Synthetic nursing practice tests
-        run: node --test tests/practice.test.js
-      - name: Japanese official source directory test
-        run: node --test tests/japanese-sources.test.js
-      - name: Local OCR comparison smoke tests
-        run: node --test tests/ocr-image-review.test.js
-      - name: HTML embedded script syntax checks
-        run: node --test tests/clinical-ui-syntax.test.js
-      - name: Integrated automatic nursing quality checks
-        run: node --test tests/auto-quality-integrated.test.js
-      - name: Nursing evidence traceability audit tests
-        run: node --test tests/evidence-audit.test.js
-      - name: Patient backup import safety tests
-        run: node --test tests/backup-safety.test.js
-      - name: Nursing deep-learning course tests
-        run: node --test tests/learning-modules.test.js
-      - name: Public synthetic specification contracts
-        run: node --test tests/public-contracts.test.js
       - name: Public regression suite (archival comparator is separate)
         run: npm test
 

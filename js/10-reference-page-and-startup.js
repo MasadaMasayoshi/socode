@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-10-10.recovery2'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-10-10.znavigation12'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 参考データ ページ：看護基準・院内プロトコル等をユーザーが自由に登録・編集できる。
     // 「不足情報をAI推定」の判断材料としても使われる（evaluateMissingInfoAI 参照）。
@@ -418,15 +418,22 @@
     ocrDropzone.addEventListener('dragover', e => { e.preventDefault(); ocrDropzone.classList.add('drag-over'); });
     ocrDropzone.addEventListener('dragleave', () => ocrDropzone.classList.remove('drag-over'));
     ocrDropzone.addEventListener('drop', e => { e.preventDefault(); ocrDropzone.classList.remove('drag-over'); if(e.dataTransfer.files[0]) doOcr(e.dataTransfer.files[0]); });
-    ocrFileInput.addEventListener('change', e => { if(e.target.files[0]) doOcr(e.target.files[0]); });
+    ocrFileInput.addEventListener('change', e => { const file = e.target.files[0]; e.target.value = ''; if (file) doOcr(file); });
 
     async function doOcr(file) {
+      // Validate before opening credentials or reading an image; retain the initiating patient.
+      if (!file || !/^image\/(?:jpeg|png|webp|gif)$/i.test(file.type || '')) return showToast('JPEG・PNG・WebP・GIFの画像を選んでください', 'warn');
+      if (!file.size || file.size > 10 * 1024 * 1024) return showToast('画像は空でない10MB以下のファイルを選んでください', 'warn');
+      const ocrPatientId = getCurrentPatient().id;
       if (!(await requireApiKey('写真の文字起こし'))) return;
       document.getElementById('ocr-status').classList.remove('hidden');
       const reader = new FileReader();
       // 【レビューで発見】文字起こしは数秒〜かかるため、その間に別の患者に切り替えると、以前は結果が
       // 切り替えた先の患者の入力欄に足されていた。頼んだときの患者に足す（その患者を表示中なら入力欄にも）。
-      const ocrPatientId = getCurrentPatient().id;
+      reader.onerror = reader.onabort = () => {
+        document.getElementById('ocr-status').classList.add('hidden');
+        showToast('画像を読み込めませんでした。元の記録は変更していません。画像を選び直してください', 'error');
+      };
       reader.onload = async e => {
         try {
           const ocrText = await callGeminiAI([{ parts: [{ text: "画像に含まれるカルテ記載や検査データ結果（WBC, CRP, Hb, クレアチニン等）を正確に文字起こししてください。" }, { inline_data: { mime_type: file.type || "image/jpeg", data: e.target.result.split(',')[1] } }] }], { ocr: true });
