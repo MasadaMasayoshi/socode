@@ -32,6 +32,26 @@ const {app}=require('../server');
    }
    await page.waitForFunction(()=>getCurrentPatient().items.some(x=>!x.deleted));
    const before=await page.evaluate(()=>getCurrentPatient().items.length);
+   await page.evaluate(()=>{
+    const cp=getCurrentPatient(),base=cp.items[0];
+    cp.sourceText+='\n術前：架空の照合記録：痛みなし\n術後：架空の照合記録：痛みなし';
+    cp.items.push({...base,id:'source-nav-smoke',text:'架空の照合記録:痛みなし',deleted:false,aiSuggested:false,type:'O'});
+    cp.items.push({...base,id:'source-deleted-smoke',text:'削除済みの架空記録',deleted:true});
+   });
+   await page.locator('#nursing-source-compare').click();
+   await page.locator('#nursing-organized-text button[data-card-id="source-nav-smoke"]').click();
+   assert.match(await page.locator('#nursing-source-match-status').innerText(),/表記をそろえた一致 1／2/);
+   assert.equal(await page.locator('#nursing-original-text mark').innerText(),'架空の照合記録：痛みなし');
+   assert.equal(await page.locator('#nursing-organized-text button[data-card-id="source-deleted-smoke"]').count(),0);
+   await page.locator('#nursing-source-next').click();
+   assert.match(await page.locator('#nursing-source-match-status').innerText(),/2／2/);
+   await page.locator('#nursing-source-prev').click();
+   await page.evaluate(()=>{getCurrentPatient().sourceText+='\n架空の外部更新';});
+   await page.locator('#nursing-source-next').click();
+   assert.equal(await page.locator('#nursing-original-text mark').count(),0);
+   assert.match(await page.locator('#nursing-auto-check-status').innerText(),/更新されたため表示を更新/);
+   await page.screenshot({path:`browser-artifacts/${width}-source-navigation.png`});
+   await page.locator('#nursing-source-compare').click();
    for(const name of ['assessment','careplan','labs','relation','reference']){
     await page.locator('#tab-'+name).click();
     await page.locator('#view-'+name).waitFor({state:'visible'});

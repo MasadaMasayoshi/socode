@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-10.zhistory4">
-  <meta name="app-file-versions" content="01:2026-10-08.2045,02:2026-10-08.8,03:2026-10-10.quality1,04:2026-10-09.41,05:2026-10-10.recovery2,06:2026-10-08.2103,07:2026-10-10.quality1,08:2026-10-10.quality1,09:2026-10-08.2121,10:2026-10-10.recovery2,11:2026-10-10.zhistory3,12:2026-10-10.zhistory4,13:2026-10-08.2121,14:2026-10-06.14,15:2026-10-10.recovery1">
+  <meta name="app-version" content="2026-10-10.znavigation1">
+  <meta name="app-file-versions" content="01:2026-10-08.2045,02:2026-10-08.8,03:2026-10-10.quality1,04:2026-10-09.41,05:2026-10-10.recovery2,06:2026-10-08.2103,07:2026-10-10.quality1,08:2026-10-10.quality1,09:2026-10-10.znavigation1,10:2026-10-10.recovery2,11:2026-10-10.zhistory3,12:2026-10-10.zhistory4,13:2026-10-08.2121,14:2026-10-06.14,15:2026-10-10.recovery1">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
@@ -179,6 +179,11 @@
       <div id="nursing-source-review" hidden style="border-top:1px solid var(--line);padding-top:10px">
         <p style="font-size:12px;color:var(--ink-muted)">原文と情報カードを並べて確認します。個人情報を含む文章はこの画面から送信されません。原文からの省略・言い換えは手動で確認してください。</p>
         <p id="nursing-source-coverage" style="font-size:12px" role="status"></p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <button type="button" id="nursing-source-prev" class="btn btn-outline" disabled>前の一致箇所</button>
+          <button type="button" id="nursing-source-next" class="btn btn-outline" disabled>次の一致箇所</button>
+          <span id="nursing-source-match-status" role="status" aria-live="polite">カードを選んで原文を確認</span>
+        </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px">
           <div><strong>元の文章</strong><pre id="nursing-original-text" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:420px;overflow:auto;padding:8px;border:1px solid var(--line);font-size:12px"></pre></div>
           <div><strong>整理後のカード</strong><div id="nursing-organized-text" style="max-height:420px;overflow:auto;padding:8px;border:1px solid var(--line);font-size:12px"></div></div>
@@ -1390,7 +1395,7 @@
   <script src="js/06-export.js?v=2026-10-08.2103"></script>
   <script src="js/07-classification.js?v=2026-10-10.quality1"></script>
   <script src="js/08-assessment-tools.js?v=2026-10-10.quality1"></script>
-  <script src="js/09-board.js?v=2026-10-08.2121"></script>
+  <script src="js/09-board.js?v=2026-10-10.znavigation1"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-10.recovery2"></script>
   <script src="js/11-own-assessment.js?v=2026-10-10.zhistory3"></script>
   <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-10.zhistory4"></script>
@@ -1464,20 +1469,48 @@
     const comparison=document.getElementById('nursing-source-review');
     const sourceOutput=document.getElementById('nursing-original-text');
     const cardsOutput=document.getElementById('nursing-organized-text');
+    const sourcePrev=document.getElementById('nursing-source-prev');
+    const sourceNext=document.getElementById('nursing-source-next');
+    const sourceMatchStatus=document.getElementById('nursing-source-match-status');
+    let sourceReviewSnapshot='',activeSourceMatch=null;
+    const reviewCards=cp=>(cp.items||[]).filter(x=>x&&!x.deleted&&x.type!=='unnecessary'&&!x.aiSuggested);
+    const reviewSnapshot=cp=>JSON.stringify([cp.id,cp.sourceText,reviewCards(cp).map(x=>[x.id,x.text])]);
+    function ensureCurrentSourceReview(){
+      const current=getCurrentPatient();
+      if(current&&reviewSnapshot(current)===sourceReviewSnapshot)return true;
+      reviewSource();
+      status.textContent='患者・原文・カードが更新されたため表示を更新しました。もう一度選んでください。';
+      return false;
+    }
+    function displaySourceMatch(){
+      if(!activeSourceMatch||!ensureCurrentSourceReview())return;
+      const {original,result,position}=activeSourceMatch,[start,end]=result.ranges[position];
+      sourceOutput.replaceChildren();
+      sourceOutput.append(document.createTextNode(original.slice(0,start)));
+      const mark=document.createElement('mark');
+      mark.textContent=original.slice(start,end);
+      sourceOutput.append(mark,document.createTextNode(original.slice(end)));
+      mark.scrollIntoView({block:'nearest',behavior:'auto'});
+      sourcePrev.disabled=position===0;sourceNext.disabled=position===result.ranges.length-1;
+      sourceMatchStatus.textContent=(result.kind==='literal'?'完全一致':'空白・全半角などの表記をそろえた一致')+' '+(position+1)+'／'+result.ranges.length+'箇所。日時・前後の文脈を確認してください。';
+    }
+    sourcePrev.addEventListener('click',()=>{if(activeSourceMatch&&activeSourceMatch.position>0){activeSourceMatch.position--;displaySourceMatch();}});
+    sourceNext.addEventListener('click',()=>{if(activeSourceMatch&&activeSourceMatch.position+1<activeSourceMatch.result.ranges.length){activeSourceMatch.position++;displaySourceMatch();}});
     function reviewSource(){
       if(typeof getCurrentPatient!=='function')return;
       const cp=getCurrentPatient();
       if(!cp)return;
+      sourceReviewSnapshot=reviewSnapshot(cp);activeSourceMatch=null;
+      sourcePrev.disabled=true;sourceNext.disabled=true;sourceMatchStatus.textContent='カードを選んで原文を確認';
       sourceOutput.textContent=String(cp.sourceText||'原文が保存されていません');
       const sourceText=String(cp.sourceText||'');
       const segments=sourceText.split(/\n|(?<=。)/u).map(x=>x.trim()).filter(x=>x.length>=12);
-      const cardTexts=(cp.items||[]).filter(x=>x&&x.type!=='unnecessary').map(x=>String(x.text||''));
+      const cardTexts=reviewCards(cp).map(x=>String(x.text||''));
       const unmatched=segments.filter(segment=>!cardTexts.some(card=>card.includes(segment)));
       document.getElementById('nursing-source-coverage').textContent=
         '原文の文節 '+segments.length+'件中、完全一致が見つからない文節 '+unmatched.length+'件。言い換えや分割による不一致も含むため、抽出漏れとは断定しません。';
       cardsOutput.replaceChildren();
-      for(const item of cp.items||[]){
-        if(!item||item.type==='unnecessary')continue;
+      for(const item of reviewCards(cp)){
         const row=document.createElement('div');
         row.style.borderBottom='1px solid var(--line-soft)';
         row.style.padding='6px 2px';
@@ -1490,33 +1523,34 @@
         label.textContent='['+tags+'] '+String(item.text||'（本文なし）');
         label.title='クリックして元の文章内の一致箇所を探します';
         label.dataset.cardText=String(item.text||'');
+        label.dataset.cardId=String(item.id);
         label.addEventListener('click',()=>{
+          if(!ensureCurrentSourceReview())return;
           const original=String(cp.sourceText||'');
           const snippet=String(item.text||'').trim();
-          const start=snippet?original.indexOf(snippet):-1;
+          const result=findSourceExactMatches(original,snippet);
+          activeSourceMatch=null;sourcePrev.disabled=true;sourceNext.disabled=true;
           sourceOutput.replaceChildren();
-          if(start<0){
+          if(!result.ranges.length){
             sourceOutput.textContent=original||'原文が保存されていません';
+            sourceMatchStatus.textContent='一致箇所なし';
             status.textContent='原文と完全一致する箇所がありません。言い換えや省略がないか確認してください。';
             return;
           }
-          sourceOutput.append(document.createTextNode(original.slice(0,start)));
-          const mark=document.createElement('mark');
-          mark.textContent=original.slice(start,start+snippet.length);
-          sourceOutput.append(mark,document.createTextNode(original.slice(start+snippet.length)));
-          mark.scrollIntoView({block:'center',behavior:'auto'});
-          status.textContent='選択したカードに完全一致する原文を表示しています。';
+          activeSourceMatch={original,result,position:0};displaySourceMatch();
+          status.textContent='選択したカードの一致箇所を表示しています。同じ文章が複数ある場合は前後の一致箇所も確認してください。';
         });
         row.append(label);
         cardsOutput.append(row);
       }
     }
     sourceOutput.addEventListener('mouseup',()=>{
+      if(!ensureCurrentSourceReview())return;
       const selected=String(window.getSelection()?.toString()||'').trim();
       if(selected.length<3)return;
       let found=0;
       for(const button of cardsOutput.querySelectorAll('button[data-card-text]')){
-        const matches=button.dataset.cardText.includes(selected);
+        const matches=findSourceExactMatches(button.dataset.cardText,selected).ranges.length>0;
         button.style.outline=matches?'2px solid var(--accent)':'';
         if(matches){found++;if(found===1)button.scrollIntoView({block:'nearest'});}
       }

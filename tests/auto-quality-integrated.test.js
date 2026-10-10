@@ -29,7 +29,7 @@ test('real patient source and organized cards can be inspected side-by-side with
 });
 
 test('clicking a classified card highlights only an exact source match',()=>{
- assert.match(html,/original\.indexOf\(snippet\)/);
+ assert.match(html,/findSourceExactMatches\(original,snippet\)/);
  assert.match(html,/document\.createElement\('mark'\)/);
  assert.match(html,/mark\.textContent=/);
  assert.match(html,/完全一致する箇所がありません/);
@@ -40,7 +40,7 @@ test('clicking a classified card highlights only an exact source match',()=>{
 test('text selection in source highlights candidate cards without changing the data',()=>{
  assert.match(html,/sourceOutput\.addEventListener\('mouseup'/);
  assert.match(html,/window\.getSelection\(\)/);
- assert.match(html,/dataset\.cardText\.includes\(selected\)/);
+ assert.match(html,/findSourceExactMatches\(button\.dataset\.cardText,selected\)/);
  assert.match(html,/候補/);
  const script=html.match(/<script>(\s*\/\/ Local, read-only checks[\s\S]*?)<\/script>/);
  assert.ok(script);assert.doesNotThrow(()=>new vm.Script(script[1]));

@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-08.2121'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-10.znavigation1'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カード → 元の文章（カルテ・看護記録入力欄）の該当箇所を探す
     // ------------------------------------------------------------------------
@@ -33,8 +33,11 @@
         for (const c of n) {
           if (/\s/.test(c)) continue;
           norm += c;
-          starts.push(i);
-          ends.push(i + ch.length);
+          // indexOf uses UTF-16 offsets, including both halves of emoji.
+          for (let unit = 0; unit < c.length; unit++) {
+            starts.push(i);
+            ends.push(i + ch.length);
+          }
         }
         i += ch.length;
       }
@@ -46,6 +49,16 @@
       let idx = haystack.indexOf(needle);
       while (idx !== -1) { found.push(idx); idx = haystack.indexOf(needle, idx + 1); }
       return found;
+    }
+    function findSourceExactMatches(source, cardText) {
+      source=String(source||'');cardText=String(cardText||'').trim();
+      if(cardText.length<2)return {kind:'none',ranges:[]};
+      const literal=findAllOccurrences(source,cardText);
+      if(literal.length)return {kind:'literal',ranges:literal.map(start=>[start,start+cardText.length])};
+      const index=buildSourceMatchIndex(source),needle=normalizeForSourceMatch(cardText).replace(/\s+/g,'');
+      if(needle.length<2)return {kind:'none',ranges:[]};
+      const ranges=findAllOccurrences(index.norm,needle).map(start=>[index.starts[start],index.ends[start+needle.length-1]]);
+      return {kind:ranges.length?'normalized':'none',ranges};
     }
     function findSourceHighlightRanges(source, cardText) {
       if (!source || !cardText) return [];
