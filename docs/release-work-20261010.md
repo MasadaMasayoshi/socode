@@ -48,3 +48,7 @@ node scripts/browser-smoke.js
 ```
 
 The browser command requires installed Chromium. Commit-specific CI evidence is recorded in PR #1 and issue #2. A passing count does not resolve the evidence requirements above.
+
+## Board recovery follow-up
+
+Board operations now offer patient-scoped Undo and Redo for card deletion, bulk removal, missing-information additions, text/type/tag changes, assessment column moves, reordering, merges and splits. Restoration rejects later card or linked assessment/plan/map changes. Canceled or rejected asynchronous dialogs do not register external updates as the user's operation. Immediate deletion-toast restoration also checks its post-deletion snapshot to avoid duplicate restoration. Automated coverage includes successive Undo/Redo, hostile patient identifiers, linked-update protection and Chromium workflow checks. Whole-patient replacement continues through import checkpoints rather than board Undo.

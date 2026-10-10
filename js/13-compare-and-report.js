@@ -5,7 +5,7 @@
     //   （コピー・テキストファイル・印刷／PDF）。
     // （js/10 の起動の処理より後に読み込む。最後に総合アセスメント表などを描き直す）
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-08.2121'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-10.znavigation13'; // 版（scripts/stamp-version.js が書き込む）
 
     // ==========================================================================
     // ④ 記録した時点（cp.checkpoints[ID] = { id, label, kind, at, updatedAt, items:[カードの写し] }。
@@ -494,44 +494,67 @@
     //                   ②カードを分ける（1枚のカードを改行の所で複数のカードに分ける）
     // ==========================================================================
     const UNDO_MAX = 30;
-    const undoStacks = {}; // 患者ID → [{ label, items(JSON), at }]
+    const undoStacks = Object.create(null);
+    const redoStacks = Object.create(null);
     function itemsSnapshot(cp) { return JSON.stringify(cp.items || []); }
-    function pushUndo(patientId, before, label) {
+    // Restoration updates synchronization timestamps; content and linked state must still match.
+    function boardHistoryExpected(cp) {
+      return JSON.stringify({items:(cp.items || []).map(item => ({...item, _touchedAt:undefined})),
+        dependencies:{carePlans:cp.carePlans || {},myAssessments:cp.myAssessments || {},missingChecks:cp.missingChecks || {},relationMap:cp.relationMap || null}});
+    }
+    function pushUndo(patientId, before, label, target) {
+      const cp = target || globalAppData.patients.find(p => p.id === patientId);
+      if (!cp || cp.id !== patientId) return false;
       const st = undoStacks[patientId] || (undoStacks[patientId] = []);
-      st.push({ label, items: before, at: Date.now() });
+      st.push({label, items:before, after:itemsSnapshot(cp), expected:boardHistoryExpected(cp), at:Date.now()});
       if (st.length > UNDO_MAX) st.shift();
+      redoStacks[patientId] = [];
       renderUndoButton();
+      return true;
     }
     function undoLabel(patientId) {
       const st = undoStacks[patientId] || [];
       return st.length ? st[st.length - 1].label : '';
     }
-    function undoLast(cp) {
-      const st = undoStacks[cp.id] || [];
-      const last = st.pop();
+    function undoLast(cp, redo = false) {
+      const st = (redo ? redoStacks : undoStacks)[cp.id] || [];
+      const last = st[st.length - 1];
       if (!last) return null;
-      const restored = JSON.parse(last.items);
+      if (boardHistoryExpected(cp) !== last.expected) {
+        showToast('カードや根拠に後続の変更があります。現在の内容を保護するため変更しません', 'warn');
+        return null;
+      }
+      const restored = JSON.parse(redo ? last.after : last.items);
       const keep = new Set(restored.map(i => i.id));
       (cp.items || []).forEach(i => { if (!keep.has(i.id)) markItemDeleted(cp, i.id); });
       restored.forEach(i => { touchItem(i); if (typeof unmarkItemDeleted === 'function') unmarkItemDeleted(cp, i.id); });
       cp.items = restored;
+      st.pop();
+      const to = (redo ? undoStacks : redoStacks)[cp.id] || ((redo ? undoStacks : redoStacks)[cp.id] = []);
+      to.push({...last, expected:boardHistoryExpected(cp)});
+      // Earlier entries retain their content preimages; only synchronization timestamps are ignored.
       return last;
     }
     function renderUndoButton() {
-      const btn = document.getElementById('btn-undo');
-      if (!btn) return;
-      const label = undoLabel(getCurrentPatient().id);
-      btn.disabled = !label;
-      btn.title = label ? `「${label}」を元に戻す（Ctrl+Z）` : '元に戻せる操作はありません';
-    }
-    window.undoLastEdit = function() {
       const cp = getCurrentPatient();
-      const last = undoLast(cp);
-      if (!last) return showToast('元に戻せる操作はありません', 'info');
+      const btn = document.getElementById('btn-undo');
+      if (btn) {
+        const label = undoLabel(cp.id);
+        btn.disabled = !label;
+        btn.title = label ? `「${label}」を元に戻す（Ctrl+Z）` : '元に戻せる操作はありません';
+      }
+      const redo = document.getElementById('btn-redo');
+      if (redo) redo.disabled = !(redoStacks[cp.id] || []).length;
+    }
+    window.undoLastEdit = function(redo = false) {
+      const cp = getCurrentPatient();
+      const last = undoLast(cp, redo);
+      if (!last) return false;
       if (typeof selectedCardIds !== 'undefined') selectedCardIds.clear();
       saveDataAndSync();
       renderUndoButton();
-      showToast(`「${last.label}」を元に戻しました`, 'success');
+      showToast(`「${last.label}」を${redo ? 'やり直しました' : '元に戻しました'}`, 'success');
+      return true;
     };
     function wrapUndoable(name, label) {
       const orig = window[name];
@@ -544,7 +567,7 @@
           const p = globalAppData.patients.find(x => x.id === cp.id);
           if (p && itemsSnapshot(p) !== before) pushUndo(cp.id, before, typeof label === 'function' ? label(...args) : label);
         };
-        if (res && typeof res.then === 'function') res.then(finish, finish); else finish();
+        if (res && typeof res.then === 'function') res.then(value => { if (value !== false) finish(); }, () => {}); else if (res !== false) finish();
         return res;
       };
       wrapped.__undoable = true;
@@ -553,6 +576,9 @@
     const TYPE_LABEL_JA = { s: 'Sに移す', o: 'Oに移す', unclassified: '未分類に戻す', unnecessary: '不要にする' };
     wrapUndoable('setItemType', (id, type) => TYPE_LABEL_JA[type] || '分類の変更');
     wrapUndoable('bulkSetType', type => `まとめて${TYPE_LABEL_JA[type] || '分類の変更'}`);
+    wrapUndoable('deleteItem', () => 'カードの削除');
+    wrapUndoable('clearUnnecessary', () => '不要カードの消去');
+    wrapUndoable('saveMissingInfo', () => '不足情報カードの追加');
     wrapUndoable('bulkAddTag', () => 'まとめてタグを付ける');
     wrapUndoable('addHendersonTag', () => 'タグを付ける');
     wrapUndoable('removeHendersonTag', () => 'タグを外す');
@@ -571,13 +597,15 @@
       }, 0); }, true);
     })();
     document.addEventListener('keydown', e => {
-      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || String(e.key).toLowerCase() !== 'z') return;
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || !['z','y'].includes(String(e.key).toLowerCase())) return;
+      const redo = e.shiftKey || String(e.key).toLowerCase() === 'y';
+      if (['view-relation', 'view-careplan'].some(id => { const view = document.getElementById(id); return view && !view.classList.contains('hidden'); })) return;
       const t = document.activeElement;
       if (t && (/^(?:INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return; // 文字を打っている所では、ブラウザの「元に戻す」に任せる
       if (document.querySelector('.fixed.inset-0:not(.hidden)')) return;
-      if (!undoLabel(getCurrentPatient().id)) return;
+      if (redo ? !(redoStacks[getCurrentPatient().id] || []).length : !undoLabel(getCurrentPatient().id)) return;
       e.preventDefault();
-      window.undoLastEdit();
+      window.undoLastEdit(redo);
     });
 
     // カードを分ける：改行の所で分け、1行目は元のカード（ID・学習の記録を引き継ぐ）、2行目からは新しいカード。

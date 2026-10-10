@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-10.znavigation12">
-  <meta name="app-file-versions" content="01:2026-10-10.znavigation3,02:2026-10-08.8,03:2026-10-10.quality1,04:2026-10-09.41,05:2026-10-10.znavigation12,06:2026-10-08.2103,07:2026-10-10.znavigation4,08:2026-10-10.znavigation11,09:2026-10-10.znavigation7,10:2026-10-10.znavigation12,11:2026-10-10.zhistory3,12:2026-10-10.znavigation12,13:2026-10-08.2121,14:2026-10-06.14,15:2026-10-10.znavigation5">
+  <meta name="app-version" content="2026-10-10.znavigation13">
+  <meta name="app-file-versions" content="01:2026-10-10.znavigation3,02:2026-10-08.8,03:2026-10-10.quality1,04:2026-10-09.41,05:2026-10-10.znavigation12,06:2026-10-08.2103,07:2026-10-10.znavigation4,08:2026-10-10.znavigation11,09:2026-10-10.znavigation13,10:2026-10-10.znavigation12,11:2026-10-10.zhistory3,12:2026-10-10.znavigation12,13:2026-10-10.znavigation13,14:2026-10-06.14,15:2026-10-10.znavigation5">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
@@ -277,6 +277,7 @@
           <button id="btn-undo" onclick="undoLastEdit()" class="btn btn-outline text-[11px] py-1.5 whitespace-nowrap" disabled title="元に戻せる操作はありません">
             <i class="fa-solid fa-rotate-left"></i> 元に戻す
           </button>
+          <button id="btn-redo" onclick="undoLastEdit(true)" class="btn btn-outline text-[11px] py-1.5 whitespace-nowrap" disabled title="やり直す（Ctrl+Shift+Z）">やり直す</button>
           <!-- 記録した時点と今のカードを比べる（js/13 の openCompare） -->
           <button id="btn-open-compare" onclick="openCompare()" class="btn btn-outline text-[11px] py-1.5 whitespace-nowrap" title="記録した時点（分類し直す前・画面を開いたとき・手で記録したとき）と今のカードを比べ、追加・変更・削除したカードを表示します">
             <i class="fa-solid fa-code-compare"></i> 変更点の比較
@@ -1401,11 +1402,11 @@
   <script src="js/06-export.js?v=2026-10-08.2103"></script>
   <script src="js/07-classification.js?v=2026-10-10.znavigation4"></script>
   <script src="js/08-assessment-tools.js?v=2026-10-10.znavigation11"></script>
-  <script src="js/09-board.js?v=2026-10-10.znavigation7"></script>
+  <script src="js/09-board.js?v=2026-10-10.znavigation13"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-10.znavigation12"></script>
   <script src="js/11-own-assessment.js?v=2026-10-10.zhistory3"></script>
   <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-10.znavigation12"></script>
-  <script src="js/13-compare-and-report.js?v=2026-10-08.2121"></script>
+  <script src="js/13-compare-and-report.js?v=2026-10-10.znavigation13"></script>
   <script src="js/14-drug-reference.js?v=2026-10-06.14"></script>
   <script src="js/15-relation-map.js?v=2026-10-10.znavigation5"></script>
   <script src="clinical-knowledge/patient-quality.js?v=2026-10-10.quality1"></script>

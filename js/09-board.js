@@ -3,7 +3,7 @@
     // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
     // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-10.znavigation7'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-10.znavigation13'; // 版（scripts/stamp-version.js が書き込む）
     // ==========================================================================
     // 情報カード → 元の文章（カルテ・看護記録入力欄）の該当箇所を探す
     // ------------------------------------------------------------------------
@@ -772,13 +772,16 @@
     });
 
     window.editItemText = async function(id) {
-      const item = getCurrentPatient().items.find(i => i.id === id);
+      const cp = getCurrentPatient();
+      const item = cp.items.find(i => i.id === id);
       if (!item) return;
+      const expected = JSON.stringify(cp.items);
       const oldText = item.text;
       const newText = await openDialog({ title: 'カードの内容を編集', inputValue: item.text, confirmLabel: '更新する' });
       // 【レビューで発見】以前は代入を条件の中で行っていたため、空（や「。」だけ）で確定すると、元の文章が
       // 消えたまま保存もされず残っていた。空になるときは何も変えずに知らせる（消したいときは「消去」を使う）。
-      if (newText === null) return;
+      if (newText === null) return false;
+      if (getCurrentPatient().id !== cp.id || JSON.stringify(cp.items) !== expected) { showToast('確認中に患者やカードが更新されました。変更していません', 'warn'); return false; }
       const cleaned = cleanExtractedPhrase(newText);
       if (!cleaned) { showToast('空の内容にはできません。カードを消すときは「消去」を使ってください', 'warn'); return; }
       item.text = cleaned;
@@ -1083,9 +1086,10 @@
       const patId = cp.id;
       selectedCardIds.delete(id);
       saveDataAndSync();
+      const undoExpected = JSON.stringify(cp.items);
       showUndoToast('カードを削除しました', () => {
         const p = globalAppData.patients.find(x => x.id === patId);
-        if (p) {
+        if (p && JSON.stringify(p.items) === undoExpected) {
           touchItem(removed); // 「元に戻す」＝この端末が今このカードを復元したという印を残す
           unmarkItemDeleted(p, id);
           p.items.splice(Math.min(idx, p.items.length), 0, removed);
@@ -1097,16 +1101,19 @@
       const cp = getCurrentPatient();
       const removed = cp.items.filter(i => i.type === 'unnecessary');
       if (removed.length === 0) return showToast('不要な情報はありません', 'info');
+      const expected = JSON.stringify(cp.items);
       // 消す前に、何枚消えるか・元に戻せる時間を明示する
       const ok = await openDialog({ title: `不要な情報を${removed.length}枚消去しますか？`, message: `「不必要な情報」にあるカード${removed.length}枚を、このカルテから消します。消した直後に出る「元に戻す」を押せば戻せます。`, confirmLabel: `${removed.length}枚を消去`, danger: true });
-      if (ok !== true) return;
+      if (ok !== true) return false;
+      if (getCurrentPatient().id !== cp.id || JSON.stringify(cp.items) !== expected) { showToast('確認中に患者やカードが更新されました。削除していません', 'warn'); return false; }
       cp.items = cp.items.filter(i => i.type !== 'unnecessary');
       removed.forEach(i => markItemDeleted(cp, i.id));
       const patId = cp.id;
       saveDataAndSync();
+      const undoExpected = JSON.stringify(cp.items);
       showUndoToast(`不要な情報を${removed.length}件消去しました`, () => {
         const p = globalAppData.patients.find(x => x.id === patId);
-        if (p) {
+        if (p && JSON.stringify(p.items) === undoExpected) {
           removed.forEach(i => { touchItem(i); unmarkItemDeleted(p, i.id); });
           p.items.push(...removed);
         }

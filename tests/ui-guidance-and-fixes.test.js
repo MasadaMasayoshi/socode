@@ -87,7 +87,7 @@ test('手直し：カードを分ける（1行目は元のカード・日時と�
   assert.deepEqual(clone(cp.items.map(i => [i.text, i.timestamp, i.hendersonIds])), [['疼痛NRS4。', '術後1日目', [9]], ['創部に発赤なし。', '術後1日目', [9]]]);
   assert.equal(cp.items[0].id, 'a');
   assert.equal(app.splitCardIntoParts(cp, 'a', ['1行だけ']), null, '1行だけでは分けない');
-  app.pushUndo('P', before, 'カードを分ける');
+  app.pushUndo('P', before, 'カードを分ける', cp);
   const last = app.undoLast(cp);
   assert.equal(last.label, 'カードを分ける');
   assert.deepEqual(clone(cp.items.map(i => i.text)), ['疼痛NRS4。創部に発赤なし。']);

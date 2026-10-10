@@ -107,6 +107,19 @@ const {app}=require('../server');
    assert.equal(await page.locator('#nursing-original-text mark').count(),0);
    assert.match(await page.locator('#nursing-auto-check-status').innerText(),/更新されたため表示を更新/);
    await page.screenshot({path:`browser-artifacts/${width}-source-navigation.png`});
+   const boardHistory = await page.evaluate(()=>{
+    const cp=getCurrentPatient(),card=cp.items.find(i=>i.id==='source-nav-smoke');
+    const before=JSON.stringify(cp.items),original=card.text;
+    card.text='架空のカード履歴確認';pushUndo(cp.id,before,'本文の編集');
+    const undone=undoLastEdit()&&cp.items.find(i=>i.id===card.id).text===original;
+    const redone=undoLastEdit(true)&&cp.items.find(i=>i.id===card.id).text==='架空のカード履歴確認';
+    cp.items.find(i=>i.id===card.id).text='架空の外部更新';
+    const protectedUpdate=undoLastEdit()===false;
+    cp.items.find(i=>i.id===card.id).text=original;
+    return {undone,redone,protectedUpdate};
+   });
+   assert.deepEqual(boardHistory,{undone:true,redone:true,protectedUpdate:true});
+
    await page.locator('#nursing-source-compare').click();
    await page.evaluate(()=>{
     const cp=getCurrentPatient(),plan=createCarePlan(cp,{problem:'架空の根拠確認計画'});
