@@ -16,6 +16,7 @@ h1{font-size:1.6rem}h2{font-size:1.12rem;margin:0 0 8px}h3{font-size:1rem}
 small,.muted{color:#526174} .meta{font-size:.9rem;margin:8px 0}
 ul{margin:8px 0 0;padding-left:22px}button{font:inherit}
 #status{padding:10px 0}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}summary{cursor:pointer}
 </style>
 </head>
 <body>
@@ -38,8 +39,17 @@ ul{margin:8px 0 0;padding-left:22px}button{font:inherit}
 <select id="review-filter"><option value="all">すべて</option><option value="matched">出典本文を照合済み</option><option value="pending">出典本文が未照合</option></select>
 <button id="download-catalog" type="button" disabled>資料をJSONで保存</button> <button id="download-bibliography" type="button" disabled>参考文献一覧を保存</button></p>
 <p id="status" role="status" aria-live="polite">資料を読み込んでいます…</p>
+<section aria-labelledby="diff-heading">
+<h2 id="diff-heading">保存済み資料との改訂差分</h2>
+<p>旧版として保存した資料JSONを選ぶと、この画面の現行資料と比較します。旧版→現行版の順に表示します。外部サイトの最新版確認や臨床的な妥当性の審査は行いません。選択したファイルは送信・取り込み・保存されません。</p>
+<label for="compare-catalog">旧版の資料JSON（2MB以内）</label>
+<input id="compare-catalog" type="file" accept=".json,application/json" disabled>
+<p id="diff-status" role="status" aria-live="polite">現行資料の読み込み後に比較できます。</p>
+<div id="catalog-diff"></div>
+</section>
 <div id="entries"></div>
 </main>
+<script src="catalog-diff.js"></script>
 <script>
 'use strict';
 const entries = document.getElementById('entries');
@@ -49,7 +59,37 @@ const reviewFilter = document.getElementById('review-filter');
 const categoryFilter = document.getElementById('category-filter');
 const downloadCatalog = document.getElementById('download-catalog');
 const downloadBibliography = document.getElementById('download-bibliography');
+const compareCatalog = document.getElementById('compare-catalog');
+const diffStatus = document.getElementById('diff-status');
+const diffEntries = document.getElementById('catalog-diff');
+let comparisonSequence = 0;
 let records = [];
+compareCatalog.addEventListener('change',async()=>{
+  const sequence=++comparisonSequence,file=compareCatalog.files[0];
+  diffEntries.replaceChildren();
+  if(!file){diffStatus.textContent='旧版の資料JSONを選んでください。';return;}
+  diffStatus.textContent='比較しています…';
+  try{
+    if(file.size>CatalogDiff.MAX_BYTES) throw new Error('比較ファイルは2MB以内のJSONを選んでください。');
+    const previous=CatalogDiff.parse(await file.text());
+    if(sequence!==comparisonSequence)return;
+    const result=CatalogDiff.compare(previous,{schemaVersion:1,claims:records});
+    diffStatus.textContent='旧版→現行版：追加 '+result.added+'件／削除 '+result.removed+'件／変更 '+result.changed+'件／変更なし '+result.unchanged+'件。承認状態は変更しません。';
+    for(const change of result.changes){
+      const article=document.createElement('article'),heading=document.createElement('h3');
+      heading.textContent=({added:'追加',removed:'削除',changed:'変更'}[change.kind])+'：'+change.id;
+      article.append(heading);
+      if(change.kind!=='changed')line(article,'pre','資料全体：\n',CatalogDiff.format(change.after||change.before));
+      for(const field of change.fields){
+        const details=document.createElement('details'),summary=document.createElement('summary');
+        summary.textContent=field.label;details.append(summary);
+        line(details,'pre','旧版：\n',field.before);line(details,'pre','現行版：\n',field.after);
+        article.append(details);
+      }
+      diffEntries.append(article);
+    }
+  }catch(error){if(sequence===comparisonSequence)diffStatus.textContent='比較できません：'+error.message;}
+});
 function line(parent, tag, label, value) {
   const el = document.createElement(tag);
   const strong = document.createElement('strong');
@@ -127,7 +167,7 @@ downloadCatalog.addEventListener('click', () => {
 });
 fetch('./candidates.json', {cache:'no-store'})
   .then(r => { if(!r.ok) throw new Error('資料取得エラー'); return r.json(); })
-  .then(data => { if(!Array.isArray(data.claims)) throw new Error('資料形式エラー'); records = data.claims; downloadCatalog.disabled = false; downloadBibliography.disabled = false; render(); })
+  .then(data => { CatalogDiff.compare(data,data); records = data.claims; downloadCatalog.disabled = false; downloadBibliography.disabled = false; compareCatalog.disabled=false; diffStatus.textContent='旧版の資料JSONを選んでください。'; render(); })
   .catch(() => {status.textContent = '資料を読み込めませんでした。接続状態を確認してください。';});
 </script>
 </body></html>

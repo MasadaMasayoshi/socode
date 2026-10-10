@@ -104,8 +104,25 @@ const {app}=require('../server');
    await page.locator('#tab-so-board').click();
    await page.locator('#source-text').waitFor({state:'visible'});
    assert.ok(await page.evaluate(()=>getCurrentPatient().items.length)>=before);
+   await page.goto(`http://127.0.0.1:${server.address().port}/clinical-knowledge/`,{waitUntil:'networkidle'});
+   await page.locator('#compare-catalog:not([disabled])').waitFor();
+   const original=await page.evaluate(()=>JSON.stringify(records));
+   const previous=JSON.parse(original);
+   previous[0].statement='<img src=x onerror="window.__unsafe=true"> 架空の旧版';
+   previous[0].sources[0].version='架空の旧版番号';
+   await page.locator('#compare-catalog').setInputFiles({name:'old-catalog.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({schemaVersion:1,claims:previous}))});
+   await page.waitForFunction(()=>document.getElementById('diff-status').textContent.includes('変更 1件'));
+   assert.equal(await page.locator('#catalog-diff img').count(),0);
+   assert.match(await page.locator('#catalog-diff').textContent(),/架空の旧版番号/);
+   assert.equal(await page.evaluate(()=>JSON.stringify(records)),original);
+   await page.locator('#catalog-diff details').first().locator('summary').click();
+   await page.screenshot({path:`browser-artifacts/${width}-catalog-diff.png`});
+   await page.locator('#compare-catalog').setInputFiles({name:'bad.json',mimeType:'application/json',buffer:Buffer.from('{')});
+   await page.waitForFunction(()=>document.getElementById('diff-status').textContent.includes('比較できません'));
+   assert.equal(await page.locator('#catalog-diff article').count(),0);
+   assert.equal(await page.evaluate(()=>JSON.stringify(records)),original);
    assert.deepEqual(errors,[],`Uncaught browser errors at ${width}px`);
-   console.log(`PASS ${width}px: classification, five views and recovery`);
+   console.log(`PASS ${width}px: classification, five views, recovery and catalog revision comparison`);
    await context.close();
   }
  } finally {
