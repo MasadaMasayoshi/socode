@@ -1,5 +1,7 @@
 # 看護知識29件：出典照合と先行10工程（2026-10-10）
 
+> Historical implementation and verification record. On 2026-10-10 the owner accepted successful latest-code public regression and real-browser tests as sufficient for publication readiness. The active policy is [release-conditions.json](release-conditions.json); see [publication-runbook.md](publication-runbook.md). Pending clinical/live-provider checks remain unverified follow-up work rather than publication prerequisites.
+
 ## 結果と限界
 - 候補件数：29。公開ガイドライン／公的資料との本文対応の照合記録を全件に追加した。
 - ユーザーによる開発上の承認：29。臨床専門家による正式な審査：**0**。

@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
   <!-- このプログラムの版。scripts/stamp-version.js が書き込み、起動時に js/01〜10 の版とそろっているかを確かめる -->
-  <meta name="app-version" content="2026-10-10.znavigation15">
+  <meta name="app-version" content="2026-10-10.znavigation16">
   <meta name="app-file-versions" content="01:2026-10-10.znavigation3,02:2026-10-08.8,03:2026-10-10.quality1,04:2026-10-09.41,05:2026-10-10.znavigation15,06:2026-10-08.2103,07:2026-10-10.znavigation4,08:2026-10-10.znavigation11,09:2026-10-10.znavigation13,10:2026-10-10.znavigation12,11:2026-10-10.zhistory3,12:2026-10-10.znavigation12,13:2026-10-10.znavigation13,14:2026-10-06.14,15:2026-10-10.znavigation5">
   <!-- アイコン（Font Awesome 6.4.0）。以前はネット（cdnjs）から読み込んでいたが、ネットが不安定でも
        アイコンが消えないよう、アプリに同梱したものを使う（改善提案7。vendor/fontawesome/LICENSE.txt） -->
@@ -734,14 +734,14 @@
       </div>
 
       <!-- 学習傾向レポート：同じ文言への同じ修正が繰り返されて確立した傾向（computeLearningTrendRows）
-           を可視化する。以前はAIへの指示文に自動で織り込まれるだけで見る場所が無かった。 -->
+           を可視化する。Shared correction trends are displayed for inspection. -->
       <div id="admin-panel-trends" class="hidden flex-col gap-3" style="flex:1; min-height:0;">
         <div class="flex items-center justify-between gap-2 shrink-0">
           <input type="text" id="admin-trends-search" class="field flex-1" placeholder="学習傾向を検索（本文）...">
           <span id="admin-trends-count" class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap"></span>
         </div>
         <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
-          <i class="fa-solid fa-circle-info"></i> 同じ文言への同じ修正（分類・タグ）が2回以上繰り返されたものを、確立度（合計回数）の高い順に表示します。得票の多い上位のみがAIへの指示に反映されます（閲覧のみで削除機能はありません）。
+          <i class="fa-solid fa-circle-info"></i> 同じ文言への同じ修正（分類・タグ）が2回以上繰り返されたものを、確立度（合計回数）の高い順に表示します。修正傾向を確認するための参考表示です。分類結果は原文と照らして確認してください（閲覧のみで削除機能はありません）。
         </p>
         <div id="admin-trends-list" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:200px;"></div>
       </div>
@@ -811,7 +811,7 @@
             </span>
           </div>
           <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed">
-            <i class="fa-solid fa-circle-info"></i> ルールに基づく分類・検査値評価と、手動の看護過程の検証に利用する基準ノートです。内容は全利用者・全端末に共有されます。これまでの学習データ（S/O・タグの修正）から繰り返し確認された傾向は、保存内容と自動的に統合されてAIへの指示に反映されるため、ここに書き足す必要はありません。
+            <i class="fa-solid fa-circle-info"></i> ルールに基づく分類・検査値評価と、手動の看護過程の検証に利用する基準ノートです。内容は全利用者・全端末に共有されます。記載した文章は確認用の資料です。自然文を保存するだけで自動分類のルールが更新されるわけではありません。分類結果を原文・基準資料と照らして確認してください。
           </p>
           <!-- 保存されている基準ノートが統合版より前の版のときだけ出す（js/04 の renderNotebookContentEditor） -->
           <div id="notebook-upgrade-notice" class="hidden flex items-center justify-between gap-2 text-[11px] rounded-[var(--radius-sm)] px-2.5 py-1.5" style="background:var(--gold-soft);border:1px solid var(--line);">
@@ -823,7 +823,7 @@
         <div class="border-t border-[var(--line-soft)] pt-3 flex flex-col gap-1.5" style="flex:1; min-height:200px;">
           <p class="text-[11px] font-semibold text-[var(--ink)] shrink-0">追加の分類基準（現場からの要望）</p>
           <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
-            <i class="fa-solid fa-circle-info"></i> 基準ノート本体とは別に、コードを直接編集せずに追加できる分類ルールです。内容は全利用者・全端末に共有されます。
+            <i class="fa-solid fa-circle-info"></i> 基準ノート本体とは別に、分類時に確認する要望を保存できます。文章を追加するだけで自動分類のルールが更新されるわけではありません。内容は全利用者・全端末に共有されます。
           </p>
           <div id="list-extra-criteria" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:150px;"></div>
           <div class="flex gap-1 items-end shrink-0">
@@ -834,11 +834,11 @@
 
         <!-- 参照元リンク：NotebookLM等の外部の参照元を「名前＋リンク」として登録する。
              NotebookLMには個人が使える公開APIが無いため内容の自動取得はできず、内容は
-             コピー＆ペーストで貼り付ける方式（貼り付けた内容だけがAIの分類に反映される）。 -->
+             Reference text is pasted manually; it does not invoke AI classification. -->
         <div class="border-t border-[var(--line-soft)] pt-3 flex flex-col gap-1.5" style="flex:1; min-height:200px;">
           <p class="text-[11px] font-semibold text-[var(--ink)] shrink-0">参照元リンク（NotebookLM等）</p>
           <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed shrink-0">
-            <i class="fa-solid fa-circle-info"></i> NotebookLMには個人が使える公開APIが無く、リンクを貼るだけでの内容の自動取得はできません。名前とリンクを登録し、内容はNotebookLM等からコピーしてここに貼り付けてください（貼り付けた内容が、基準ノート本体・追加の分類基準と同様にAIの分類に反映されます。内容が未貼付でもリンク自体は一覧に残ります）。内容は全利用者・全端末に共有されます。
+            <i class="fa-solid fa-circle-info"></i> リンク先の内容は自動取得しません。名前とリンクを登録し、確認に必要な資料を手動で貼り付けてください。資料は原文や分類結果との照合に使い、貼り付けただけで自動分類のルールは更新されません。内容は全利用者・全端末に共有されます。
           </p>
           <div id="list-reference-sources" class="flex flex-col gap-1.5 overflow-y-auto pr-1 border border-[var(--line-soft)] rounded-[var(--radius)] p-2" style="flex:1; min-height:150px;"></div>
           <div class="flex flex-col gap-1 shrink-0">

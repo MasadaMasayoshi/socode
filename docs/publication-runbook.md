@@ -2,7 +2,7 @@
 
 ## Prepared release scope
 
-The development branch is `review/nursing-classification-stage1`; PR #1 contains the candidate. Preparing an artifact does not merge, publish, enable shared access or establish clinical validity. Independent expert review is waived by the owner; source correctness is not waived. Use fictional, de-identified educational observations for verification. Never put credentials, patient exports or historical private fixtures in the public payload.
+The development branch is `review/nursing-classification-stage1`; PR #1 contains the candidate. Preparing an artifact does not merge, publish, enable shared access or establish clinical validity. On 2026-10-10 the owner accepted successful latest-code public regression and real-browser tests as sufficient for publication readiness. Independent expert review is also waived. Pending source/live-provider checks remain unverified follow-up work, not clinical approvals. Use fictional, de-identified educational observations for verification. Never put credentials, patient exports or historical private fixtures in the public payload.
 
 ## Required evidence
 
@@ -14,7 +14,7 @@ Download both evidence JSON files and run:
 node scripts/check-release-readiness.js CANDIDATE_SHA regression.json browser.json docs/release-conditions.json
 ```
 
-Exit status 1 means publication requirements remain unmet. Every pending condition includes the exact missing evidence. Complete a condition only after recording a review/test report; do not replace it with a passing count or current-output expected answers. The checker verifies completeness and commit identity, not the truth of externally supplied reports. Current conditions remain pending/partial.
+Exit status 1 means the active publication policy is unmet. The owner explicitly chose the test-based policy on 2026-10-10: complete successful public regression and real-browser evidence for the exact candidate commit are required. Old/failed/incomplete evidence still blocks publication. Pending live OCR, facility, clinical-source, manual accessibility and broader roadmap checks keep their original statuses as follow-up work. They are not relabeled verified or approved. Without a recorded owner policy the checker retains the previous strict requirements.
 
 For live OCR, use a readable fictional image and a valid owner-configured Gemini credential through the existing image-input consent flow. Compare the response with a separately transcribed expected text. Record the candidate SHA, model, date and differences; do not record the credential. Check success, retry and failure recovery. A key connection test alone is insufficient.
 

@@ -1,5 +1,7 @@
 # 残件対応と公開条件（2026-10-10）
 
+> Historical implementation and verification record. On 2026-10-10 the owner accepted successful latest-code public regression and real-browser tests as sufficient for publication readiness. The active policy is [release-conditions.json](release-conditions.json); see [publication-runbook.md](publication-runbook.md). Pending clinical/live-provider checks remain unverified follow-up work rather than publication prerequisites.
+
 今回追加した対応：
 - ローカル保存後に読み戻した全文の一致を確認。欠落や同じ長さの別内容は保存成功にしない。
 - 看護計画の `mapEvidenceRefs`、関連図の `sourceRefs` と `itemIds` を自動点検。別患者への参照、削除・除外カードへの参照を知らせる。記録自体は変更しない。

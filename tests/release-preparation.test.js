@@ -21,5 +21,16 @@ test('release decision requires latest-head evidence and every recorded release 
  assert.equal(evaluate('b'.repeat(40),regression,browser,conditions).ready,false);
  assert.equal(evaluate(head,regression,{...browser,widths:[1440]},conditions).ready,false);
  for(const name of REQUIRED)assert.equal(evaluate(head,regression,browser,{...conditions,[name]:{status:'pending',evidence:[]}}).ready,false,name);
- assert.equal(evaluate(head,regression,browser,require('../docs/release-conditions.json')).ready,false);
+ const recorded=require('../docs/release-conditions.json');
+ assert.equal(evaluate(head,regression,browser,{...recorded,releasePolicy:undefined}).ready,false);
+});
+
+test('explicit owner test-only policy preserves pending statuses while requiring complete current tests',()=>{
+ const head='c'.repeat(40),regression={schemaVersion:1,head,kind:'public-regression',status:'passed',summary:{tests:926,pass:926,fail:0,cancelled:0,skipped:0,todo:0}},browser={schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:7,uncaughtErrors:0};
+ const conditions=require('../docs/release-conditions.json'),result=evaluate(head,regression,browser,conditions);
+ assert.equal(result.ready,true);assert.equal(result.followUp.length,6);assert.equal(conditions.liveOcr.status,'pending');
+ assert.equal(evaluate('d'.repeat(40),regression,browser,conditions).ready,false);
+ assert.equal(evaluate(head,{...regression,summary:{...regression.summary,skipped:1}},browser,conditions).ready,false);
+ assert.equal(evaluate(head,regression,{...browser,status:'failed'},conditions).ready,false);
+ assert.equal(evaluate(head,regression,browser,{...conditions,releasePolicy:{...conditions.releasePolicy,ownerDecision:''}}).ready,false);
 });
