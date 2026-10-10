@@ -101,7 +101,9 @@ function formatReport(results) {
   results.forEach(r => out.push(`${r.diff.length ? '×' : '○'} ${r.name}（${r.cards}枚）${r.created ? ' … 正しい分類結果を新しく保存しました' : r.diff.length ? ` … ${r.diff.length}か所 変わりました` : ''}`));
   changed.forEach(r => { out.push('', `【${r.name}】`, ...r.diff); });
   if (changed.length) {
-    out.push('', '変わった内容が意図どおり（直したかった所）なら npm run golden:update で新しい正しい分類結果として保存してください。',
+    if(results.some(r=>r.missingExpected))out.push('', '不足した正解データは、元の承認済みファイルから復旧してください。現在の分類結果を生成して穴埋めしないでください。');
+    else out.push('', '変わった内容を元教材と照合し、正解として承認された場合だけ npm run golden:update で保存してください。');
+    out.push(
       '意図していない変更なら、プログラムの修正が別のカードに影響しています。');
   }
   return out.join('\n');
