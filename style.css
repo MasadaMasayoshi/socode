@@ -344,31 +344,12 @@
     .ai-steps-arrow { color: var(--ink-muted); font-size: 9px; }
     .ai-step, .ai-tool { display: inline-flex; align-items: center; gap: .35rem; padding: .3rem .6rem; min-height: 30px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-weight: 600; line-height: 1.2; white-space: nowrap; }
     .ai-step:hover, .ai-tool:hover { border-color: var(--accent); color: var(--accent-dark); }
-    .ai-step:focus-visible, .ai-tool:focus-visible, .ai-results-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .ai-step:focus-visible, .ai-tool:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
     .ai-step.done, .ai-tool.done { border-color: var(--accent-line); color: var(--accent-dark); }
     .ai-step.done > .fa-check, .ai-tool.done > .fa-check { color: var(--accent); }
     .ai-step.next { border: 1.5px solid var(--accent); background: var(--accent-soft); color: var(--accent-dark); }
     .ai-step-status { font-weight: 500; font-size: 10px; color: var(--ink-muted); }
     .ai-tool i { color: var(--ink-muted); font-size: 10.5px; }
-
-    .ai-results:not(:has(.ai-panel:not(.hidden):not(.ai-tab-hidden))) { display: none; }
-    .ai-results { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
-    .ai-results-bar { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem; padding: .35rem .6rem; }
-    .ai-results-title { font-size: 11px; font-weight: 700; color: var(--ink); display: inline-flex; align-items: center; gap: .3rem; margin-right: .2rem; }
-    .ai-results-title i { color: var(--accent); }
-    .ai-results-tabs { display: flex; flex-wrap: wrap; gap: .3rem; }
-    .ai-results-tab { font-size: 11px; font-weight: 600; padding: .2rem .65rem; border-radius: 999px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); }
-    .ai-results-tab:hover { border-color: var(--accent); }
-    .ai-results-tab.active { background: var(--accent); border-color: var(--accent); color: var(--on-fill); }
-    .ai-results-close { margin-left: auto; font-size: 10.5px; font-weight: 700; color: var(--ink-muted); padding: .15rem .5rem; border-radius: var(--radius-sm); }
-    .ai-results-close:hover { color: var(--ink); background: var(--paper); }
-    .ai-results .ai-panel { background: transparent !important; border: none !important; border-top: 1px solid var(--line-soft) !important; border-radius: 0 !important; padding: .55rem .6rem .6rem !important; }
-    .ai-results .ai-panel.ai-tab-hidden { display: none !important; }
-    .ai-results .ai-panel-head { display: none; }
-    .ai-results .ai-panel .ai-panel-body { display: block; max-height: 55vh; overflow: auto; }
-    .ai-results .ai-panel .ai-note { display: block; }
-    .ai-results .ai-panel .dx-actions { display: flex; }
-
 
     .dx-hint { font-size: 11px; color: var(--ink-muted); margin-bottom: .4rem; }
     .dx-candidate { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: .45rem .6rem; margin-bottom: .4rem; background: var(--surface); }
@@ -1300,15 +1281,26 @@ html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow-sel path { fill: #F59E6
 .manual-review-heading { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px; }
 
 /* Verdicts stay outside the assessment card rows. */
-.assessment-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; align-items: start; }
-.assessment-data { min-width: 0; }
-.assessment-status { grid-row: 1; padding: .8rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); }
+/* Assessment judgments occupy a separate section after the information cards. */
+.assessment-layout { display: flex; flex-direction: column; gap: 1rem; }
+.assessment-data { min-width: 0; width: 100%; }
+.assessment-status { width: 100%; padding: .8rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); }
 .assessment-status > h3 { margin: 0 0 .5rem; font-size: 14px; font-weight: 700; }
-.suf-status-need + .suf-status-need { margin-top: .7rem; padding-top: .7rem; border-top: 1px solid var(--line-soft); }
+#assessment-status-content { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: .8rem; }
 .suf-status-need h4 { margin: 0 0 .3rem; font-size: 12px; line-height: 1.5; }
 .suf-status-group { position: relative; display: flex; flex-wrap: wrap; gap: .3rem .6rem; }
-@media (min-width: 1024px) { .assessment-layout { grid-template-columns: minmax(0, 1fr) 280px; } .assessment-status { grid-row: auto; } }
-@media print { .assessment-layout { display: block; } .assessment-status { margin-top: 1rem; } }
+.utility-dialog { width: min(480px, calc(100vw - 24px)); max-height: 85dvh; margin: auto; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); overflow: auto; }
+.utility-dialog::backdrop { background: rgba(0,0,0,.35); }
+.utility-dialog p { margin: 0 0 1rem; font-size: 12px; }
+.data-tools-actions { display: grid; gap: .6rem; }
+.settings-surface { max-height: 85dvh; overflow: auto; }
+.settings-action { display: flex; align-items: center; gap: .5rem; text-align: left; font-size: 13px; padding: .6rem 0; border-bottom: 1px solid var(--line-soft); }
+.settings-action span { margin-left: auto; font-size: 11px; color: var(--ink-muted); }
+.settings-detail { font-size: 12px; }
+.settings-detail > summary { cursor: pointer; padding: .6rem 0; font-weight: 600; }
+.lab-evaluation { padding: .8rem; border: 1px solid var(--line); border-radius: var(--radius); }
+.lab-evaluation > summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+#lab-evaluation-content { margin-top: .6rem; font-size: 12px; line-height: 1.8; }
 .suf-phase-block.suf-inline { display: inline-block; margin: 0; padding: 0; border: 0; background: transparent !important; }
 .suf-inline .suf-phase-head { gap: .25rem; min-height: 30px; border-radius: var(--radius-sm); }
 .suf-inline .suf-phase-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

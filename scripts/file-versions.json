@@ -16,8 +16,8 @@
     "hash": "48f0892e5d44452a"
   },
   "js/05-app-state-and-ui.js": {
-    "version": "2026-10-11.desktop-arrows",
-    "hash": "d0804d11d3bd608f"
+    "version": "2026-10-11.status-simple9",
+    "hash": "18c6c72b4de7b9e0"
   },
   "js/06-export.js": {
     "version": "2026-10-11.status-panel8",
@@ -28,8 +28,8 @@
     "hash": "b07fd35a2ac301d7"
   },
   "js/08-assessment-tools.js": {
-    "version": "2026-10-10.znavigation17",
-    "hash": "165e17c163ce2aa4"
+    "version": "2026-10-11.status-simple9",
+    "hash": "e898c80b72b9e323"
   },
   "js/09-board.js": {
     "version": "2026-10-11.status-panel8",
@@ -60,8 +60,8 @@
     "hash": "1a639bbd51203441"
   },
   "style.css": {
-    "version": "2026-10-11.status-panel8",
-    "hash": "0d6541696c561828"
+    "version": "2026-10-11.status-simple9",
+    "hash": "7bc0ac503de9f63b"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",

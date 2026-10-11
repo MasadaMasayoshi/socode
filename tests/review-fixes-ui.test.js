@@ -177,10 +177,11 @@ test('②sanitizeStoredHtml：DOMParser の無い環境では、タグを外し�
 test('②保存されたAIの結果は、表示の前に sanitizeStoredHtml を通す（js/05 の患者の切り替え・js/11 の助言）', async () => {
   const src05 = fs.readFileSync(path.join(ROOT, 'js/05-app-state-and-ui.js'), 'utf8');
   const src11 = fs.readFileSync(path.join(ROOT, 'js/11-own-assessment.js'), 'utf8');
-  ['labEvaluationResult', 'contradictionResult', 'timelineResult', 'carePlanResult'].forEach(f => {
-    assert.match(src05, new RegExp(`innerHTML = sanitizeStoredHtml\\(cp\\.${f}\\)`), f);
-    assert.doesNotMatch(src05, new RegExp(`innerHTML = cp\\.${f}`), f);
-  });
+  assert.match(src05, /innerHTML = sanitizeStoredHtml\(cp\.labEvaluationResult\)/);
+  assert.doesNotMatch(src05, /innerHTML = cp\.labEvaluationResult/);
+  for (const field of ['contradictionResult', 'timelineResult', 'carePlanResult']) {
+    assert.doesNotMatch(src05, new RegExp(`innerHTML = .*cp\\.${field}`), 'retired results are not rendered');
+  }
   assert.match(src11, /\$\{sanitizeStoredHtml\(e\.aiFeedback\)\}/);
   const env = await readyEnv();
   withPatients(env, [{ ...P('A', '患者A', ''), labEvaluationResult: '<img src=x onerror="alert(1)">結果' }], 'A');

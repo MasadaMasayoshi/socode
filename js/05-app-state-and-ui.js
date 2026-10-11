@@ -2,7 +2,7 @@
 // Confirmations and Undo verify the captured patient/target; local writes require full readback.
 // AI transport accepts image OCR only; classification and clinical generation stay local.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-11.desktop-arrows'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-11.status-simple9'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -686,7 +686,7 @@
       if (globalAppData.apiKey) return Promise.resolve('ok');
       const modal = document.getElementById('modal-api-required');
       if (!modal || !modal.querySelector) {
-        showToast(`「${featureName}」はAIを使います。右上の「︙」→「API設定」でGemini APIキーを設定してください`, 'warn');
+        showToast(`「${featureName}」はAIを使います。右上の「︙」→「設定」→「画像の読み取り設定」でGemini APIキーを設定してください`, 'warn');
         return Promise.resolve(false);
       }
       document.getElementById('api-required-feature').textContent = `「${featureName}」はAI（Gemini）を使います。まだAPIキーが設定されていません。次の手順で設定してください。`;
@@ -1042,7 +1042,7 @@
     let lastGeminiModelUsed = null;
     async function requestGemini(rawKey, body) {
       const key = normalizeApiKey(rawKey);
-      if (!key) throw new Error('APIキーが設定されていません。右上の︙→「API設定」でキーを保存してください。');
+      if (!key) throw new Error('APIキーが設定されていません。右上の︙→「設定」→「画像の読み取り設定」でキーを保存してください。');
       const kind = detectApiKeyKind(key).kind;
       if (kind === 'oauth') throw new Error('入力されているのはAPIキーではなく一時的なアクセストークン（ya29.…）です。Google AI Studio の「Get API key」でAPIキーを作って貼ってください。');
       const order = geminiEndpointOrder(key);
@@ -1389,19 +1389,7 @@
       if (!cp.labEvaluationResult && typeof window.refreshLabAssessmentPanel === 'function') window.refreshLabAssessmentPanel();
       DOM.currentPatientTitle.textContent = cp.title;
 
-      const contradictionPanel = document.getElementById('contradiction-panel');
-      if (cp.contradictionResult) { contradictionPanel.classList.remove('hidden'); document.getElementById('contradiction-content').innerHTML = sanitizeStoredHtml(cp.contradictionResult); }
-      else { contradictionPanel.classList.add('hidden'); document.getElementById('contradiction-content').innerHTML = ''; }
-
-      if (typeof renderDiagnosisPanel === 'function') renderDiagnosisPanel(cp);
-      if (typeof renderAiSteps === 'function') renderAiSteps(cp);
-      const timelinePanel = document.getElementById('timeline-panel');
-      if (cp.timelineResult) { timelinePanel.classList.remove('hidden'); document.getElementById('timeline-content').innerHTML = sanitizeStoredHtml(cp.timelineResult); }
-      else { timelinePanel.classList.add('hidden'); document.getElementById('timeline-content').innerHTML = ''; }
-      const carePlanPanel = document.getElementById('careplan-panel');
-      if (cp.carePlanResult) { carePlanPanel.classList.remove('hidden'); document.getElementById('careplan-content').innerHTML = sanitizeStoredHtml(cp.carePlanResult); }
-      else { carePlanPanel.classList.add('hidden'); document.getElementById('careplan-content').innerHTML = ''; }
-      if (typeof refreshAiResults === 'function') refreshAiResults(false);
+      document.getElementById('lab-evaluation-panel')?.removeAttribute('open');
 
       if (typeof onPatientViewReloaded === 'function') onPatientViewReloaded(cp);
       if (typeof onRelationMapPatientReloaded === 'function') onRelationMapPatientReloaded(cp);
@@ -2665,92 +2653,6 @@
       sourcePaneManual = sourcePaneManual === 'wide' ? null : 'wide';
       updateSourcePaneLayout();
     };
-
-    const aiPanelOpen = new Set();
-    function aiPanelSummaryText(body) {
-
-      const key = body && body.querySelector ? body.querySelector('.ai-key li') : null;
-      if (key && key.textContent && key.textContent.trim()) {
-        const k = key.textContent.replace(/\s+/g, ' ').replace(/〔[^〕]*〕/g, '').trim();
-        return k.length > 70 ? `${k.slice(0, 70)}…` : k;
-      }
-      const text = String((body && body.textContent) || '').replace(/\s+/g, ' ').trim();
-      if (!text) return '';
-      const first = text.split(/(?<=。)|(?=・)|(?=■)/)[0] || text;
-      return first.length > 70 ? `${first.slice(0, 70)}…` : first;
-    }
-    function refreshAiPanel(panel) {
-      if (!panel || !panel.querySelector) return;
-      const body = panel.querySelector('.ai-panel-body');
-      const head = panel.querySelector('.ai-panel-head');
-      const sum = panel.querySelector('.ai-panel-summary');
-      const toggle = panel.querySelector('.ai-panel-toggle');
-      const open = aiPanelOpen.has(panel.id);
-      panel.classList.toggle('is-open', open);
-      if (head) head.setAttribute('aria-expanded', String(open));
-      if (sum) sum.textContent = open ? '' : aiPanelSummaryText(body);
-      if (toggle) toggle.textContent = open ? '閉じる' : '詳細を開く';
-    }
-    window.toggleAiPanel = function(btn) {
-      const panel = btn.closest('.ai-panel');
-      if (!panel) return;
-      if (aiPanelOpen.has(panel.id)) aiPanelOpen.delete(panel.id); else aiPanelOpen.add(panel.id);
-      refreshAiPanel(panel);
-    };
-
-    const AI_RESULT_TABS = [
-      { panel: 'lab-evaluation-panel', label: '検査値の評価' }
-    ];
-    let aiResultsActive = null;
-    function refreshAiResults(keepActive = true) {
-      const box = document.getElementById('ai-results');
-      const tabs = document.getElementById('ai-results-tabs');
-      if (!box || !tabs) return;
-      const avail = AI_RESULT_TABS.filter(t => { const p = document.getElementById(t.panel); return p && !p.classList.contains('hidden'); });
-      if (!keepActive || !avail.some(t => t.panel === aiResultsActive)) aiResultsActive = null;
-      if (box.classList.contains('hidden') !== !avail.length) box.classList.toggle('hidden', !avail.length);
-      tabs.innerHTML = avail.map(t => {
-        const body = document.getElementById(t.panel).querySelector('.ai-panel-body');
-        const running = !!(body && body.querySelector && body.querySelector('.fa-spinner'));
-        const active = t.panel === aiResultsActive;
-        return `<button type="button" role="tab" class="ai-results-tab${active ? ' active' : ''}" aria-selected="${active}" onclick="showAiResult('${t.panel}')">${running ? '<i class="fa-solid fa-spinner fa-spin"></i> ' : ''}${t.label}</button>`;
-      }).join('');
-      AI_RESULT_TABS.forEach(t => {
-        const p = document.getElementById(t.panel);
-        if (!p) return;
-        const hide = t.panel !== aiResultsActive;
-        if (p.classList.contains('ai-tab-hidden') !== hide) p.classList.toggle('ai-tab-hidden', hide);
-      });
-      document.getElementById('ai-results-close')?.classList.toggle('hidden', !aiResultsActive);
-      if (typeof renderAiSteps === 'function') renderAiSteps(getCurrentPatient());
-    }
-    window.showAiResult = function(panelId) {
-      aiResultsActive = panelId && panelId !== aiResultsActive ? panelId : null;
-      refreshAiResults();
-    };
-    (() => {
-      if (typeof MutationObserver === 'undefined' || !document.querySelectorAll) return;
-      document.querySelectorAll('.ai-panel').forEach(panel => {
-        const body = panel.querySelector('.ai-panel-body');
-        if (!body) return;
-        let wasHidden = panel.classList.contains('hidden');
-        new MutationObserver(() => {
-
-          if (body.querySelector('.fa-spinner')) { aiPanelOpen.add(panel.id); aiResultsActive = panel.id; }
-          refreshAiPanel(panel);
-          refreshAiResults();
-        }).observe(body, { childList: true, subtree: true, characterData: true });
-
-        new MutationObserver(() => {
-          const nowHidden = panel.classList.contains('hidden');
-          if (nowHidden === wasHidden) return;
-          wasHidden = nowHidden;
-          refreshAiResults();
-        }).observe(panel, { attributes: true, attributeFilter: ['class'] });
-        refreshAiPanel(panel);
-      });
-      refreshAiResults(false);
-    })();
 
     window.openHelp = function(section = 'flow') {
       const modal = document.getElementById('modal-help');
