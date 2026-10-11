@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-12.usability-context23'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-12.usability-context24'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -118,7 +118,7 @@
 
     const RM_NOTE_FONT = 11.5, RM_NOTE_LINE_H = 15, RM_NOTE_GAP = 7, RM_NOTE_MAX = 60;
 
-    const RM_BUILD_VERSION = 4;
+    const RM_BUILD_VERSION = 5;
     const RM_LAYOUT_STYLE = 6;
     const RM_COL_GAP = 80, RM_ROW_GAP = 36;
 
@@ -1218,7 +1218,7 @@
 
       const seenLabel = new Map();
       map.nodes.forEach(n => {
-        const k = `${rmNormLabel(n.label)}`;
+        const k = ['patient_fact', 'symptom', 'lab'].includes(n.type) ? String(n.label).normalize('NFKC').replace(/[\s、。・,()（）「」:：]/g, '') : rmNormLabel(n.label);
         if (k.length < 2) return;
         if (seenLabel.has(k)) add('warn', 'duplicate', `同じ内容の四角が2つあります：「${name(n)}」。1つの四角から枝分かれさせてください`, { nodeIds: [seenLabel.get(k), n.id], fix: 'merge-duplicate' });
         else seenLabel.set(k, n.id);
@@ -1383,6 +1383,20 @@
       const excluded = new Set(((cp && cp.items) || []).filter(i => i.deleted || i.type === 'unnecessary').map(i => clinicalCardDuplicateKey(i.text, i.timestamp)));
       const sourceRecords = cp.sourceText ? groupClinicalPhrasesWithTimestamps(String(cp.sourceText).normalize('NFKC')).filter(i => !i.isUnnecessaryBoilerplate && !excluded.has(clinicalCardDuplicateKey(i.text, i.timestamp))) : [];
       const clinicalRecords = [...items, ...sourceRecords.filter(i => !items.some(o => clinicalCardDuplicateKey(o.text, o.timestamp) === clinicalCardDuplicateKey(i.text, i.timestamp)))];
+      // Project background clauses without changing the saved clinical cards.
+      const compactSource = String(cp.sourceText || '').normalize('NFKC').replace(/\s/g, '');
+      const backgroundRecords = clinicalRecords.flatMap(i => {
+        const original = String(i.text), at = compactSource.indexOf(original.normalize('NFKC').replace(/\s/g, ''));
+        const headings = at >= 0 ? [...compactSource.slice(0, at).matchAll(/【([^】]+)】/g)] : [];
+        const heading = original.match(/^【([^】]+)】/)?.[1] || headings.at(-1)?.[1] || '';
+        const fieldLabel = i.fieldLabel || (/メディカルヒストリー|現病歴|ファミリーヒストリー|家族歴/.test(heading) ? heading : null);
+        const parts = original.replace(/(?=【[^】]+】)/g, '\n').split(/(?<=。)|\n/).map(t => t.trim()).filter(Boolean);
+        const allFamily = parts.every(t => /家族歴|ファミリーヒストリー|がん家系|癌家系|(?:祖父|祖母|父|母|兄|姉|弟|妹|親族)[^。\n]{0,24}(?:がん|癌)/.test(t));
+        const project = /がん|癌|腫瘍/.test(original) && !/[「」]/.test(original) || (original.match(/【[^】]+】/g) || []).length > 1;
+        const projected = parts.length > 1 && !allFamily && project ? parts : [original];
+        return projected.map(text => text === original && fieldLabel === i.fieldLabel ? i : ({ ...i, text, fieldLabel, originItem: i, evidenceText: original }));
+      });
+      const evidenceKey = text => String(text).normalize('NFKC').replace(/【[^】]+】/g, '').replace(/^(?:家族歴|嗜好品|生活歴|既往歴|病理結果)\s*[:：]\s*/, '').replace(/[\s。]/g, '');
       const all = [cp.sourceText || '', ...items.map(i => i.text)].join('\n').normalize('NFKC');
       const nodes = new Map();
       const edges = [];
@@ -1390,7 +1404,7 @@
       const sourceHistoryNodes = new WeakSet();
       const N = (key, type, label, o = {}) => {
         if (nodes.has(key)) return nodes.get(key);
-        const srcItems = (o.items || []).filter(Boolean);
+        const srcItems = (o.items || []).filter(Boolean).map(i => i.originItem || i);
         if (!o.distinctEvidence && srcItems.length === 1 && ['patient_fact', 'symptom'].includes(type) && byItem.has(srcItems[0])) {
           const ex = byItem.get(srcItems[0]);
           // Reuse source background without replacing an established clinical model's wording.
@@ -1404,6 +1418,23 @@
         if (o.sourceHistory) sourceHistoryNodes.add(n);
         nodes.set(key, n);
         if (srcItems.length === 1 && ['patient_fact', 'symptom'].includes(type)) byItem.set(srcItems[0], n);
+        return n;
+      };
+      const backgroundFacts = new Map();
+      const B = (key, it, label, canonical = evidenceKey(it.text), options = {}) => {
+        const groupKey = `${key}:${canonical}`;
+        let n = backgroundFacts.get(groupKey);
+        if (!n) {
+          n = N(`background_${backgroundFacts.size}`, 'patient_fact', label, { items: [it], max: 90, distinctEvidence: true, sourceHistory: true, ...options });
+          n.evidence = ''; backgroundFacts.set(groupKey, n);
+        }
+        const evidence = it.evidenceText || it.text;
+        const entry = `[${it.timestamp || '日時不明'}] ${evidence}`;
+        const entries = n.evidence ? n.evidence.split('\n\n') : [];
+        if (!entries.includes(entry)) { entries.push(entry); n.evidence = entries.join('\n\n'); }
+        n.itemIds = [...new Set([...n.itemIds, ...[it.id].filter(Boolean)])];
+        const phase = rmPhaseOfItems([it]);
+        if (phase !== null) n.phase = n.phase == null ? phase : Math.min(n.phase, phase);
         return n;
       };
       const E = (a, b, relation = 'causes', o = {}) => {
@@ -1507,22 +1538,18 @@
       const disease = dxHost && dxLabel0 ? N('disease', 'disease', dxLabel0, { items: [dxHost] }) : null;
       const dxLabel = disease ? disease.label : '';
 
-      const smokeItem = clinicalRecords.find(i => !/家族歴/.test(`${i.fieldLabel || ''}${i.text}`) && !rmIsFamilySpeech(i.text) && rmPositiveMatch(/喫煙|タバコ|たばこ|煙草/, i.text) && !/非喫煙|喫煙[^\n]{0,4}(?:なし|無)|吸わない/.test(String(i.text).normalize('NFKC')));
-      const smoke = smokeItem ? N('smoke', 'patient_fact', short(smokeItem, 90), { items: [smokeItem], evidence: smokeItem.text, max: 90 }) : null;
+      const smokeItem = backgroundRecords.find(i => !/家族歴/.test(`${i.fieldLabel || ''}${i.text}`) && !rmIsFamilySpeech(i.text) && rmPositiveMatch(/喫煙|タバコ|たばこ|煙草/, i.text) && !/非喫煙|喫煙[^\n]{0,4}(?:なし|無)|吸わない/.test(String(i.text).normalize('NFKC')));
+      const smoke = smokeItem ? B('smoking', smokeItem, short(smokeItem, 90), evidenceKey(short(smokeItem, 500))) : null;
       if (disease) {
-        const factorRecords = clinicalRecords;
+        const factorRecords = backgroundRecords;
         RM_DISEASE_FACTORS.forEach((f, k) => {
           if (!f.disease.test(dxLabel)) return;
-          const seenFactors = new Set();
           f.factor.source.split('|').forEach(pattern => {
             const matchRe = new RegExp(pattern);
             factorRecords.filter(i => i !== dxText[0] && !/家族歴/.test(`${i.fieldLabel || ''}${i.text}`) && !rmIsFamilySpeech(i.text) && rmPositiveMatch(matchRe, i.text)).forEach((it, index) => {
               const match = rmPositiveMatch(matchRe, it.text);
-              const recordKey = clinicalCardDuplicateKey(it.text, it.timestamp);
-              if (seenFactors.has(recordKey)) return;
-              seenFactors.add(recordKey);
               const phrase = String(it.text).split(/[。\n]/).find(s => rmPositiveMatch(matchRe, s)) || it.text;
-              const fact = /喫煙|タバコ|たばこ/.test(match[0]) && it === smokeItem ? smoke : N(`factor_${k}_${pattern}_${index}`, 'patient_fact', phrase.replace(/^[^:：]{1,8}[:：]\s*/, ''), { items: [it], max: 70, evidence: it.text, distinctEvidence: true });
+              const fact = B(/喫煙|タバコ|たばこ/.test(match[0]) ? 'smoking' : 'factor', it, phrase.replace(/^[^:：]{1,8}[:：]\s*/, ''), evidenceKey(phrase));
               const mid = N(`factor_mid_${k}`, 'pathophysiology', f.mid, { source: 'knowledge' });
               E(fact, mid, 'contributes_to', { evidence: `原文の要因：${it.text}` });
               E(mid, disease, 'contributes_to', { evidence: '発症に関係する要因（この患者で原因と断定はしない）' });
@@ -1533,28 +1560,29 @@
       const familyHistoryRecord = i => /家族歴|ファミリーヒストリー|がん家系|癌家系/.test(`${i.fieldLabel || ''}${i.text}`) || /(?:祖父|祖母|父|母|兄|姉|弟|妹|親族)[^。\n]{0,24}(?:がん|癌)/.test(i.text);
       const patientHistory = i => !familyHistoryRecord(i) && !/既往歴/.test(i.fieldLabel || '') && !/^既往歴/.test(String(i.text)) && !rmIsFamilySpeech(i.text);
       const tumorSizeRe = /(?:腫瘍|腫瘤|病変|がん|癌)[^。\n]{0,18}?\d+(?:\.\d+)?\s*(?:mm|cm)(?!Hg|H2O)|\d+(?:\.\d+)?\s*(?:mm|cm)(?!Hg|H2O)[^。\n]{0,10}?(?:腫瘍|腫瘤|病変|がん|癌)/i;
-      const tumorRecords = disease ? clinicalRecords.filter(i => patientHistory(i) && rmPositiveMatch(/腫瘍|腫瘤|病変|がん|癌/, String(i.text).replace(/^[^:：\n]{1,18}[:：]\s*/, '')) && tumorSizeRe.test(String(i.text).normalize('NFKC'))) : [];
+      const tumorRecords = disease ? backgroundRecords.filter(i => patientHistory(i) && rmPositiveMatch(/腫瘍|腫瘤|病変|がん|癌/, String(i.text).replace(/^[^:：\n]{1,18}[:：]\s*/, '')) && tumorSizeRe.test(String(i.text).normalize('NFKC'))) : [];
       if (disease) {
-        const historyRecords = clinicalRecords.filter(i => i !== dxHost && patientHistory(i) && (/現病歴|メディカルヒストリー|病理結果|病理所見|病期|進行度/.test(`${i.fieldLabel || ''}${i.text}`) || /健診|検診|精査|生検|内視鏡|受診/.test(i.text)));
+        const historyRecords = backgroundRecords.filter(i => i !== dxHost && patientHistory(i) && !/[「」]/.test(i.text) && (/現病歴|メディカルヒストリー|病理結果|病理所見|病期|進行度/.test(`${i.fieldLabel || ''}${i.text}`) || /健診|検診|精査|生検|内視鏡|受診/.test(i.text)));
         const details = [...new Set([...tumorRecords, ...historyRecords])];
-        const seen = new Set();
-        details.forEach((it, index) => {
-          const key = clinicalCardDuplicateKey(it.text, it.timestamp);
-          if (seen.has(key)) return;
-          seen.add(key);
-          const finding = N(`dx_record_${index}`, 'patient_fact', rmShorten(it.text, 90), { items: [it], evidence: it.text, max: 90, distinctEvidence: true, sourceHistory: true });
+        details.forEach(it => {
+          const t = String(it.text).normalize('NFKC');
+          const site = (t.match(/胃底部|噴門部|胃体部|幽門部|前庭部/) || [])[0];
+          const size = (t.match(/\d+(?:\.\d+)?\s*(?:mm|cm)(?!Hg|H2O)/i) || [])[0];
+          const singleTumor = tumorRecords.includes(it) && site && size && !/多発|複数|[2-9]個/.test(t);
+          const pathology = /病理結果|病理所見/.test(`${it.fieldLabel || ''}${it.text}`);
+          const canonical = singleTumor ? `${site}:${size.replace(/\s/g, '')}` : pathology ? `${it.timestamp || ''}:${evidenceKey(t).replace(/([TNPHM])O(?=\b|[TNPHM]|$)/g, '$10')}` : evidenceKey(it.text);
+          const label = singleTumor ? `${site}の腫瘍（${size.replace(/\s/g, '')}）` : rmShorten(it.text, 90);
+          const finding = B(singleTumor ? 'tumor' : pathology ? 'pathology' : 'history', it, label, canonical);
+          if (singleTumor && /限局潰瘍型/.test(t)) finding.label = `${site}の限局潰瘍型腫瘍（${size.replace(/\s/g, '')}）`;
+          if (pathology && new Set(finding.evidence.split('\n\n').map(e => evidenceKey(e.replace(/^\[[^\]]*\] /, '')))).size > 1) finding.label = '病理結果（原文の表記差あり・要確認）';
           E(finding, disease, 'supports', { evidence: '原文に記録された疾患の所見・診断までの経過（発症原因とは断定しない）' });
         });
       }
       if (disease && /がん|癌/.test(dxLabel0)) {
-        const familyRecords = clinicalRecords.filter(i => familyHistoryRecord(i) && rmPositiveMatch(/がん|癌/, i.text));
-        const seenFamily = new Set();
-        familyRecords.forEach((it, index) => {
-          const key = clinicalCardDuplicateKey(it.text, it.timestamp);
-          if (seenFamily.has(key)) return;
-          seenFamily.add(key);
+        const familyRecords = backgroundRecords.filter(i => familyHistoryRecord(i) && rmPositiveMatch(/がん|癌/, i.text));
+        familyRecords.forEach(it => {
           const label = /^家族歴/.test(it.text) ? rmShorten(it.text, 90) : `家族歴：${rmShorten(it.text, 84)}`;
-          const family = N(`family_history_${index}`, 'patient_fact', label, { items: [it], evidence: it.text, max: 90, distinctEvidence: true });
+          const family = B('family', it, label);
           E(family, disease, 'related_to', { evidence: '原文にある家族のがんの記録。本人の診断・発症原因・遺伝性を断定せず、背景情報として確認する' });
         });
       }
@@ -1581,7 +1609,7 @@
         const where = (dxDetails.match(/(胃底部|噴門部?|胃体部|幽門部?|前庭部|上行結腸|下行結腸|S状結腸|直腸[^\s、,]{0,3}|[^\s、,（(]{1,4}部)/) || [])[1] || '';
         const size = (dxDetails.match(/(\d+(?:\.\d+)?)\s*(?:mm|cm)/) || [])[0] || '';
         if (examItem) {
-          const recordedExam = [...nodes.values()].find(n => n.type === 'patient_fact' && n.evidence === examItem.text);
+          const recordedExam = [...nodes.values()].find(n => n.type === 'patient_fact' && n.evidence.includes(examItem.text));
           if (!recordedExam) E(N('dx_exam', 'patient_fact', short(examItem, 90), { items: [examItem], evidence: examItem.text, max: 90 }), disease, 'supports', { evidence: '原文に記録された検査・診断までの経過' });
         }
         const tName = { 1: '粘膜〜粘膜下層まで', 2: '固有筋層まで', 3: '漿膜下層まで', 4: '漿膜・他の臓器まで' };
