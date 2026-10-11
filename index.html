@@ -6,15 +6,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="2026-10-11.slim-arrows3">
-  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-10.znavigation17,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-11.desktop-arrows,06:2026-10-11.desktop-arrows,07:2026-10-10.znavigation17,08:2026-10-10.znavigation17,09:2026-10-10.znavigation17,10:2026-10-10.znavigation17,11:2026-10-10.znavigation17,12:2026-10-10.znavigation17,13:2026-10-10.znavigation17,14:2026-10-10.znavigation17,15:2026-10-11.slim-arrows3">
+  <meta name="app-version" content="2026-10-11.quiet-plans4">
+  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-10.znavigation17,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-11.desktop-arrows,06:2026-10-11.desktop-arrows,07:2026-10-10.znavigation17,08:2026-10-10.znavigation17,09:2026-10-10.znavigation17,10:2026-10-10.znavigation17,11:2026-10-10.znavigation17,12:2026-10-11.quiet-plans4,13:2026-10-10.znavigation17,14:2026-10-10.znavigation17,15:2026-10-11.quiet-plans4">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=2026-10-11.slim-arrows3">
+  <link rel="stylesheet" href="style.css?v=2026-10-11.quiet-plans4">
 
   <link rel="stylesheet" href="vendor/tailwind.css?v=2026-10-06.14">
   <script>
@@ -426,27 +426,12 @@
           <button type="button" class="btn btn-outline text-[11px] py-1.5 rm-bridge-btn" data-rm-action="toggle-added" data-rm-needs-map aria-pressed="false" title="矢印の間に補った過程（紫の「＋補足」）のあり・なしを切り替えます。補足が無いときは、医学知識で補います"><i class="fa-solid fa-eye-slash"></i> ＋補足：なし</button>
         </div>
         <div class="rm-group rm-group-sep" aria-label="編集">
-          <label class="sr-only" for="rm-add-kind">追加する四角の種類</label>
-          <select id="rm-add-kind" class="field text-[11px] py-1 rm-add-kind" title="追加する四角の種類">
-            <option value="patient_fact">患者情報・背景</option>
-            <option value="disease">疾患</option>
-            <option value="pathophysiology" selected>病態生理（現象・状態）</option>
-            <option value="symptom">症状・徴候</option>
-            <option value="lab">検査データ</option>
-            <option value="vital">バイタルサイン</option>
-            <option value="medication">薬剤</option>
-            <option value="assessment">アセスメント</option>
-            <option value="treatment">治療・処置（楕円）</option>
-            <option value="future_risk">今後のリスク（予測）</option>
-            <option value="nursing_problem">看護問題</option>
-          </select>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="add"><i class="fa-solid fa-plus"></i> 追加</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="import-clinical" data-rm-needs-map>薬剤・アセスメントを取り込む</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="toggle-text" aria-pressed="false" aria-controls="rm-text-view" data-rm-needs-map>関連図を一覧で表示</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5 rm-icon-btn" data-rm-action="undo" title="ひとつ前の状態に戻します（Ctrl+Z）" aria-label="元に戻す"><i class="fa-solid fa-rotate-left"></i></button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5 rm-icon-btn" data-rm-action="redo" title="元に戻した操作をやり直します（Ctrl+Y）" aria-label="やり直す"><i class="fa-solid fa-rotate-right"></i></button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="relayout" data-rm-needs-map title="左から右へ因果と時系列の順に並べ直し、看護問題を右端（重要なものほど上）にそろえます"><i class="fa-solid fa-table-cells"></i> 並べ直す</button>
-          <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="check" data-rm-needs-map title="浮島・重複・矢印の向き・事実と予測・看護問題の根拠などを確かめます"><i class="fa-solid fa-list-check"></i> チェック</button>
         </div>
         <div class="rm-group rm-group-end" aria-label="見る・出す">
 
@@ -468,7 +453,6 @@
       <div id="rm-selection-bar" class="rm-selbar" aria-live="polite"></div>
       <button type="button" id="rm-conflict-button" class="btn btn-outline hidden" data-rm-action="resolve-conflict">最新の図を確認</button>
       <button type="button" id="rm-backup-button" class="btn btn-outline hidden" data-rm-action="export-conflict-backup">競合時の図の控えを保存</button>
-      <div id="rm-check" class="rm-check hidden" aria-live="polite"></div>
       <div id="rm-empty" class="rm-empty">
         <i class="fa-solid fa-diagram-project"></i>
         <p><b>まだ関連図がありません。</b></p>
@@ -1306,10 +1290,10 @@
   <script src="js/09-board.js?v=2026-10-10.znavigation17"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-10.znavigation17"></script>
   <script src="js/11-own-assessment.js?v=2026-10-10.znavigation17"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-10.znavigation17"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-11.quiet-plans4"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-10.znavigation17"></script>
   <script src="js/14-drug-reference.js?v=2026-10-10.znavigation17"></script>
-  <script src="js/15-relation-map.js?v=2026-10-11.slim-arrows3"></script>
+  <script src="js/15-relation-map.js?v=2026-10-11.quiet-plans4"></script>
   <script>
   // Manual source comparison and reversible text edits on the active chart.
   (function(){
