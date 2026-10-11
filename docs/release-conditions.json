@@ -45,6 +45,17 @@
       "reversibleOperations",
       "curriculumCoverage"
     ],
-    "note": "The owner explicitly accepts successful latest-code regression and real-browser tests as sufficient for publication readiness. Pending checks retain their verification status and remain follow-up work."
+    "note": "The owner explicitly accepts successful latest-code regression and real-browser tests as sufficient for publication readiness. Pending checks retain their verification status and remain follow-up work.",
+    "publicationAuthorization": {
+      "mode": "automatic-after-checks",
+      "authorizedOn": "2026-10-11",
+      "scope": "owner-requested project changes",
+      "confirmationRequired": false,
+      "requiredEvidence": [
+        "public regression on the latest candidate commit",
+        "real-browser checks on the same candidate commit"
+      ],
+      "deployment": "merge to main, then verify successful GitHub Pages deployment"
+    }
   }
 }

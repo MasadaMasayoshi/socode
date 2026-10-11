@@ -5,6 +5,8 @@ on:
       - 'review/nursing-classification-stage1'
   pull_request:
     paths:
+      - 'AGENTS.md'
+      - 'docs/release-conditions.json'
       - 'js/**'
       - 'tests/**'
       - 'clinical-knowledge/**'
