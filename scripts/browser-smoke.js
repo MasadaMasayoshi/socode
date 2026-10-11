@@ -15,10 +15,27 @@ const {app}=require('../server');
   fs.mkdirSync('browser-artifacts',{recursive:true});
   for(const width of [390,768,1440]){
    const context=await browser.newContext({viewport:{width,height:900},hasTouch:width<768});
+   await context.addInitScript(() => localStorage.setItem('nursing_font', 'serif'));
    const page=await context.newPage(),errors=[];
    page.on('pageerror',e=>errors.push(e.message));
    await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
    await page.waitForFunction(()=>typeof getCurrentPatient==='function'&&!!getCurrentPatient());
+   const fontCheck = await page.evaluate(() => {
+    const family = getComputedStyle(document.body).fontFamily;
+    const defaultLabel = document.getElementById('font-current-label').textContent;
+    const persistedDefault = localStorage.getItem('nursing_font_v2');
+    setAppFont('gothic');
+    toggleAppFont();
+    const explicitSerif = localStorage.getItem('nursing_font_v2') === 'serif' && getComputedStyle(document.body).fontFamily.includes('Noto Serif');
+    localStorage.removeItem('nursing_font_v2');
+    document.documentElement.removeAttribute('data-font');
+    updateAppFontLabel();
+    return {family, defaultLabel, persistedDefault, explicitSerif};
+   });
+   assert.ok(fontCheck.family.includes(width >= 1024 ? 'IBM Plex Sans JP' : 'Noto Serif'));
+   assert.equal(fontCheck.defaultLabel, width >= 1024 ? 'ゴシック' : '明朝');
+   assert.equal(fontCheck.persistedDefault, null);
+   assert.equal(fontCheck.explicitSerif, true);
    // Exercise the real file-input/OCR UI with an intercepted transport; this is not live-provider verification.
    let ocrRequests=0;
    await page.route('https://generativelanguage.googleapis.com/**', async route=>{
@@ -85,6 +102,9 @@ const {app}=require('../server');
     await page.locator('#modal-dialog').waitFor({state:'hidden'});
    }
    await page.waitForFunction(()=>getCurrentPatient().items.some(x=>!x.deleted));
+   const cardFont = await page.locator('.rec-card .card-text').first().evaluate(el => getComputedStyle(el).fontSize);
+   assert.equal(cardFont, width >= 1024 ? '14px' : '11.2px');
+   await page.screenshot({path:`browser-artifacts/${width}-reading-font.png`});
    const before=await page.evaluate(()=>getCurrentPatient().items.length);
    await page.evaluate(()=>{
     const cp=getCurrentPatient(),base=cp.items[0];
@@ -161,6 +181,8 @@ const {app}=require('../server');
    const lineVisibility = await page.evaluate(() => {
     const host = document.createElement('div');
     host.className = 'rm-canvas-wrap';
+    host.id = 'smoke-line-visibility';
+    host.style.cssText = 'position:fixed;top:100px;left:10px;width:calc(100vw - 20px);max-width:800px;height:320px;z-index:100';
     document.body.append(host);
     const map = {nodes: [
       {id:'a',type:'pathophysiology',label:'A',x:0,y:100},
@@ -169,34 +191,54 @@ const {app}=require('../server');
       {id:'d',type:'pathophysiology',label:'D',x:250,y:300}
     ],edges:[{id:'horizontal',source:'a',target:'b',relation:'treats'},
       {id:'vertical',source:'c',target:'d',relation:'causes'}]};
+    window.__visibilityMap = map;
     const originalTheme = document.documentElement.dataset.theme;
     const results = [];
-    for (const theme of ['light','dark']) for (const reverse of [false,true]) {
+    for (const theme of ['light','dark']) for (const reverse of [false,true]) for (const zoom of [.25,.55,1,2]) {
       document.documentElement.dataset.theme = theme;
       if (reverse) map.edges.reverse();
-      host.innerHTML = relationMapSvg(map,{interactive:true});
+      host.innerHTML = relationMapSvg(map,{interactive:true,zoom});
       const line = host.querySelector('[data-link-id="horizontal"] .rm-link-line');
       const vertical = host.querySelector('[data-link-id="vertical"] .rm-link-line');
       const mask = vertical.getAttribute('mask');
       const width = getComputedStyle(line).strokeWidth;
-      const marker = host.querySelector('#rm-tee-blue');
+      const marker = host.querySelector('.rm-marker-tee-blue');
       line.parentElement.classList.add('is-selected');
+      const selectedId = getComputedStyle(line).markerEnd.match(/#([^)"]+)/)[1];
+      const selectedMarker = host.querySelector(`[id="${selectedId}"]`);
       results.push({width,maskExists:!!mask && !!host.querySelector(mask.slice(4,-1)),
+        vectorEffect:getComputedStyle(line).vectorEffect,
+        endpointSize:marker.markerWidth.baseVal.value * zoom,
         markerOverflow:getComputedStyle(marker).overflow,
-        selectedMarker:getComputedStyle(line).markerEnd.includes('rm-tee-sel')});
+        selectedMarker:!!selectedMarker && selectedMarker.classList.contains('rm-marker-tee-sel')});
       if (reverse) map.edges.reverse();
     }
     if (originalTheme === undefined) delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = originalTheme;
-    host.remove();
+    host.innerHTML = relationMapSvg(map, {interactive:true, zoom:.55});
     return results;
    });
    for (const result of lineVisibility) {
-    assert.equal(result.width,'2.2px');
+    assert.equal(result.width,'3px');
+    assert.equal(result.vectorEffect,'non-scaling-stroke');
+    assert.ok(Math.abs(result.endpointSize - 14) < .001);
     assert.equal(result.maskExists,true);
     assert.equal(result.markerOverflow,'visible');
     assert.equal(result.selectedMarker,true);
    }
+   for (const theme of ['light','dark']) {
+    const prior = await page.evaluate(theme => {
+      const prior = document.documentElement.dataset.theme;
+      document.documentElement.dataset.theme = theme;
+      return prior;
+    }, theme);
+    await page.locator('#smoke-line-visibility').screenshot({path:`browser-artifacts/${width}-arrow-fit-${theme}.png`});
+    await page.evaluate(prior => {
+      if (prior === undefined) delete document.documentElement.dataset.theme;
+      else document.documentElement.dataset.theme = prior;
+    }, prior);
+   }
+   await page.evaluate(() => { document.getElementById('smoke-line-visibility').remove(); delete window.__visibilityMap; });
    console.log(`PASS ${width}px bridge clearance, treatment contrast and selected endpoints in both themes/orders`);
    const assessmentHistory=await page.evaluate(()=>{
     const cp=getCurrentPatient(),entry=ensureMyAssessment(cp,1);

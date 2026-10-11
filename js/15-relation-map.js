@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-10.znavigation19'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-11.desktop-arrows'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -128,7 +128,7 @@
 
     const RM_PAPER = '#F5F3EE';
 
-    const RM_PRED_LINE = '#A8A29E', RM_PRED_TEXT = '#6B655C';
+    const RM_PRED_LINE = '#716B62', RM_PRED_TEXT = '#6B655C';
 
     function rmCharWidth(ch) { return /[\u0000-\u00ff\uff61-\uff9f]/.test(ch) ? 0.56 : 1; }
     function rmWrapText(text, maxEm = 13, maxLines = 6) {
@@ -1023,7 +1023,7 @@
       return { x: x1 - pad, y: y1 - pad - top, w: x2 - x1 + pad * 2, h: y2 - y1 + pad * 2 + top };
     }
     let rmMaskSequence = 0;
-    function rmEdgesSvg(map, { interactive }) {
+    function rmEdgesSvg(map, { interactive, screen = interactive, markerPrefix, zoom = 1 }) {
       const maskPrefix = `rm-cross-mask-${++rmMaskSequence}`;
       const { routes } = rmRouteEdges(map);
       const nodeById = new Map(map.nodes.map(n => [n.id, n]));
@@ -1038,7 +1038,8 @@
           Math.abs(s.x1 - s.x2) < 0.5 && Math.abs(s.x1 - c.x) < 0.5 &&
           c.y > Math.min(s.y1, s.y2) && c.y < Math.max(s.y1, s.y2)));
         const maskId = `${maskPrefix}-${routeIndex}`;
-        const mask = cuts.length ? `<defs><mask id="${maskId}" maskUnits="userSpaceOnUse" x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}"><rect x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}" fill="white"/>${cuts.map(c => `<circle cx="${c.x}" cy="${c.y}" r="4" fill="black"/>`).join('')}</mask></defs>` : '';
+        const clearance = screen ? Math.max(4, 4 / zoom) : 4;
+        const mask = cuts.length ? `<defs><mask id="${maskId}" maskUnits="userSpaceOnUse" x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}"><rect x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}" fill="white"/>${cuts.map(c => `<circle cx="${c.x}" cy="${c.y}" r="${clearance}" fill="black"/>`).join('')}</mask></defs>` : '';
         const e = r.edge;
         const d = rmRoutePath(r);
         const treat = e.relation === 'treats';
@@ -1048,7 +1049,7 @@
         const tl = treat && r.pts && r.pts.length > 1 ? `<text class="rm-treat-label" x="${Math.round((r.pts[0][0] + r.pts[1][0]) / 2) + 6}" y="${Math.round((r.pts[0][1] + r.pts[1][1]) / 2) + 3}" font-size="10" fill="#2563EB" font-weight="700">治療</text>` : '';
         return `${mask}<g class="rm-link${treat ? ' is-treat' : ''}${sel ? ' is-selected' : ''}" data-link-id="${escapeHtml(e.id)}">
           ${interactive ? `<path class="rm-link-hit" d="${d}" fill="none" stroke="transparent" stroke-width="20"/>` : ''}
-          <path class="rm-link-line"${cuts.length ? ` mask="url(#${maskId})"` : ''} d="${d}" fill="none" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#57534E'}" stroke-width="${treat ? 2.2 : know ? 1.1 : 1.4}"${e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} marker-end="url(#rm-${treat ? 'tee-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"/>${tl}
+          <path class="rm-link-line"${cuts.length ? ` mask="url(#${maskId})"` : ''} d="${d}" fill="none" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#3F3B35'}" stroke-width="${treat ? 3 : 2.4}"${screen ? ' vector-effect="non-scaling-stroke"' : ''}${e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} marker-end="url(#${markerPrefix}-${treat ? 'tee-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"/>${tl}
         </g>`;
       }).join('');
     }
@@ -1084,16 +1085,21 @@
     function rmHeadersSvg(map, b) {
       return [].map(h => `<g class="rm-header"><rect x="${h.x1}" y="${b.y + 6}" width="${Math.max(10, h.x2 - h.x1)}" height="28" rx="3" fill="#ECEAE4"/><text x="${(h.x1 + h.x2) / 2}" y="${b.y + 25}" text-anchor="middle" font-size="14" font-weight="700" fill="#3F3B35">${escapeHtml(h.label)}</text></g>`).join('');
     }
-    function relationMapSvg(map, { interactive = false, zoom = 1, title = '' } = {}) {
+    let rmMarkerSequence = 0;
+    function relationMapSvg(map, { interactive = false, screen = interactive, zoom = 1, title = '' } = {}) {
       const b = rmBounds(map);
+      zoom = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+      const markerPrefix = `rm-marker-${++rmMarkerSequence}`;
+      // Keep endpoints readable at fit zoom; each SVG owns its marker references.
+      const markerScale = screen ? 1 / zoom : 1;
 
       const font = "'Noto Sans JP','Hiragino Kaku Gothic ProN','Hiragino Sans','Yu Gothic UI','Yu Gothic','Meiryo',sans-serif";
-      const marker = (id, color) => `<marker id="${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${color}"/></marker>`;
-      return `<svg xmlns="http://www.w3.org/2000/svg" class="rm-svg" viewBox="${b.x} ${b.y} ${b.w} ${b.h}" width="${Math.round(b.w * zoom)}" height="${Math.round(b.h * zoom)}" font-family="${escapeHtml(font)}" role="img" aria-label="${escapeHtml(title || '関連図')}">
-        <defs>${marker('rm-arrow', '#3F3B35')}${marker('rm-arrow-blue', '#2563EB')}${marker('rm-arrow-sel', '#C2410C')}${marker('rm-arrow-pred', RM_PRED_LINE)}<marker id="rm-tee-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" overflow="visible" orient="auto-start-reverse"><path d="M8,0 L8,10" stroke="#2563EB" stroke-width="2.6" fill="none"/></marker><marker id="rm-tee-sel" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" overflow="visible" orient="auto-start-reverse"><path d="M8,0 L8,10" stroke="#C2410C" stroke-width="2.6" fill="none"/></marker></defs>
+      const marker = (kind, color, tee = false) => `<marker id="${markerPrefix}-${kind}" class="rm-marker-${kind}" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="${(tee ? 14 : 12) * markerScale}" markerHeight="${(tee ? 14 : 12) * markerScale}" overflow="visible" orient="auto-start-reverse">${tee ? `<path d="M8,0 L8,10" stroke="${color}" stroke-width="2.2" fill="none"/>` : `<path d="M0,0 L10,5 L0,10 z" fill="${color}"/>`}</marker>`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" class="rm-svg" data-marker-prefix="${markerPrefix}" style="--rm-arrow-selected: url(#${markerPrefix}-arrow-sel); --rm-tee-selected: url(#${markerPrefix}-tee-sel)" viewBox="${b.x} ${b.y} ${b.w} ${b.h}" width="${Math.round(b.w * zoom)}" height="${Math.round(b.h * zoom)}" font-family="${escapeHtml(font)}" role="img" aria-label="${escapeHtml(title || '関連図')}">
+        <defs>${marker('arrow', '#3F3B35')}${marker('arrow-sel', '#C2410C')}${marker('arrow-pred', RM_PRED_LINE)}${marker('tee-blue', '#2563EB', true)}${marker('tee-sel', '#C2410C', true)}</defs>
         <rect class="rm-bg${interactive ? ' is-paper' : ''}" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${interactive ? RM_PAPER : '#FFFFFF'}"/>
         <g class="rm-headers">${rmHeadersSvg(map, b)}</g>
-        <g class="rm-links">${rmEdgesSvg(map, { interactive })}</g>
+        <g class="rm-links">${rmEdgesSvg(map, { interactive, screen, markerPrefix, zoom })}</g>
         <g class="rm-nodes">${map.nodes.map(n => rmNodeSvg(n, { interactive })).join('')}</g>
       </svg>`;
     }
@@ -2714,7 +2720,7 @@
         const focusSub = has && rmState.focusProblem ? rmProblemSubmap(map, rmState.focusProblem) : null;
         if (has && rmState.focusProblem && !focusSub) rmState.focusProblem = null;
         view.classList.toggle('rm-focus-view', !!focusSub);
-        wrap.innerHTML = has ? `<div class="rm-stage">${focusSub ? relationMapSvg(focusSub, { interactive: false, zoom: rmState.zoom, title: `${cp.title || ''}の関連図（看護問題ごと）` }).replace('<svg ', '<svg data-focus="1" class="rm-svg rm-svg-focus" ').replace('class="rm-svg" ', '') : relationMapSvg(map, { interactive: true, zoom: rmState.zoom, title: `${cp.title || ''}の関連図` })}</div>` : '';
+        wrap.innerHTML = has ? `<div class="rm-stage">${focusSub ? relationMapSvg(focusSub, { interactive: false, screen: true, zoom: rmState.zoom, title: `${cp.title || ''}の関連図（看護問題ごと）` }).replace('<svg ', '<svg data-focus="1" class="rm-svg rm-svg-focus" ').replace('class="rm-svg" ', '') : relationMapSvg(map, { interactive: true, zoom: rmState.zoom, title: `${cp.title || ''}の関連図` })}</div>` : '';
         if (has && fresh) rmScrollToMapStart(wrap);
         else { wrap.scrollLeft = keep.left; wrap.scrollTop = keep.top; }
         wrap.classList.toggle('is-connecting', !!rmState.connectFrom);
@@ -2819,7 +2825,7 @@
     }
     function rmRenderEdgesOnly(map) {
       const g = document.querySelector('#rm-canvas-wrap .rm-links');
-      if (g) g.innerHTML = rmEdgesSvg(map, { interactive: true });
+      if (g) g.innerHTML = rmEdgesSvg(map, { interactive: true, markerPrefix: g.closest('svg').dataset.markerPrefix, zoom: rmState.zoom });
     }
     function rmRenderToolbarState() {
       const set = (act, dis) => { const b = document.querySelector(`[data-rm-action="${act}"]`); if (b) b.disabled = dis; };

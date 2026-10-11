@@ -6,15 +6,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="2026-10-11.export-instructions">
-  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-10.znavigation17,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-10.znavigation17,06:2026-10-11.export-instructions,07:2026-10-10.znavigation17,08:2026-10-10.znavigation17,09:2026-10-10.znavigation17,10:2026-10-10.znavigation17,11:2026-10-10.znavigation17,12:2026-10-10.znavigation17,13:2026-10-10.znavigation17,14:2026-10-10.znavigation17,15:2026-10-10.znavigation19">
+  <meta name="app-version" content="2026-10-11.desktop-arrows">
+  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-10.znavigation17,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-11.desktop-arrows,06:2026-10-11.desktop-arrows,07:2026-10-10.znavigation17,08:2026-10-10.znavigation17,09:2026-10-10.znavigation17,10:2026-10-10.znavigation17,11:2026-10-10.znavigation17,12:2026-10-10.znavigation17,13:2026-10-10.znavigation17,14:2026-10-10.znavigation17,15:2026-10-11.desktop-arrows">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=2026-10-10.znavigation18">
+  <link rel="stylesheet" href="style.css?v=2026-10-11.desktop-arrows">
 
   <link rel="stylesheet" href="vendor/tailwind.css?v=2026-10-06.14">
   <script>
@@ -26,7 +26,9 @@
           document.documentElement.setAttribute('data-theme', saved);
         }
 
-        if (localStorage.getItem('nursing_font') === 'gothic') document.documentElement.setAttribute('data-font', 'gothic');
+        var font = localStorage.getItem('nursing_font_v2');
+        if (font === 'serif' || font === 'gothic') document.documentElement.setAttribute('data-font', font);
+        else if (localStorage.getItem('nursing_font') === 'gothic') document.documentElement.setAttribute('data-font', 'gothic');
       } catch (e) {   }
     })();
 </script>
@@ -98,7 +100,7 @@
             </label>
             <div class="hdr-menu-sep"></div>
             <button id="btn-toggle-font" class="hdr-menu-item" role="menuitem" onclick="toggleAppFont()">
-              <i class="fa-solid fa-font"></i><span>文字の書体：<b id="font-current-label">明朝</b><small>押すと明朝（Noto Serif JP）とゴシックを切り替え</small></span>
+              <i class="fa-solid fa-font"></i><span>文字の書体：<b id="font-current-label">明朝</b><small>明朝（Noto Serif JP）とゴシック（IBM Plex Sans JP）を切り替え。初期表示はPCがゴシック、スマホが明朝。</small></span>
             </button>
             <button type="button" class="hdr-menu-item" role="menuitem" onclick="openDrugInfo(null)">
               <i class="fa-solid fa-capsules"></i><span>薬の情報<small>記録に出てくる薬・名前で探す</small></span>
@@ -1298,8 +1300,8 @@
   <script src="js/02-reference-data.js?v=2026-10-10.znavigation17"></script>
   <script src="js/03-extraction-helpers.js?v=2026-10-10.znavigation17"></script>
   <script src="js/04-server-sync.js?v=2026-10-10.znavigation17"></script>
-  <script src="js/05-app-state-and-ui.js?v=2026-10-10.znavigation17"></script>
-  <script src="js/06-export.js?v=2026-10-11.export-instructions"></script>
+  <script src="js/05-app-state-and-ui.js?v=2026-10-11.desktop-arrows"></script>
+  <script src="js/06-export.js?v=2026-10-11.desktop-arrows"></script>
   <script src="js/07-classification.js?v=2026-10-10.znavigation17"></script>
   <script src="js/08-assessment-tools.js?v=2026-10-10.znavigation17"></script>
   <script src="js/09-board.js?v=2026-10-10.znavigation17"></script>
@@ -1308,7 +1310,7 @@
   <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-10.znavigation17"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-10.znavigation17"></script>
   <script src="js/14-drug-reference.js?v=2026-10-10.znavigation17"></script>
-  <script src="js/15-relation-map.js?v=2026-10-10.znavigation19"></script>
+  <script src="js/15-relation-map.js?v=2026-10-11.desktop-arrows"></script>
   <script src="clinical-knowledge/patient-quality.js?v=2026-10-10.quality1"></script>
   <script>
   // Local, read-only checks on the active chart. AI and network access are never used.
