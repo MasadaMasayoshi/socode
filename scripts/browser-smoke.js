@@ -79,6 +79,8 @@ const {app}=require('../server');
    assert.equal(await page.locator('#ocr-status').isVisible(),true);
    assert.match(await page.locator('#ocr-status').innerText(),/2 \/ 3枚.*page-2-failed\.png/);
    await page.locator('#ocr-status').screenshot({path:`browser-artifacts/${width}-partial-ocr-status.png`});
+   await page.locator('#toast-container .toast-error').getByRole('button',{name:'閉じる',exact:true}).click();
+   await page.locator('#toast-container .toast-error').waitFor({state:'detached'});
    await page.locator('#ocr-file-input').setInputFiles({...image,name:'page-2-failed.png'});
    await page.waitForFunction(()=>!document.getElementById('ocr-file-input').disabled&&document.getElementById('source-text').value.includes('架空OCR通信検証9'));
    assert.equal(await page.locator('#ocr-status').isVisible(),false);
