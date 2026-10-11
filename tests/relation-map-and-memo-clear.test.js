@@ -518,14 +518,14 @@ test('関連図：最新のガイドラインを根拠にした「＋補足」�
   [hf, asp, copd, colon].forEach(m => assert.ok(m.nodes.length <= 70, String(m.nodes.length)));
 });
 
-test('関連図：全画面ボタンがあり、Esc・ほかのページへの切り替えで元に戻る／上の説明書きを消し、＋補足のボタンは「記録から作る」の横／左クリック＋ホイールで拡大・縮小', () => {
+test('Relation map retains fullscreen and zoom controls while supplemental display moves into the menu', () => {
   const view = html.slice(html.indexOf('<div id="view-relation"'), html.indexOf('<div id="view-reference"'));
   assert.match(view, /data-rm-action="fullscreen"/);
   assert.doesNotMatch(view, /事実を並べた図ではなく/);
   assert.doesNotMatch(view, /自動で作った図はたたき台です/, '下の注意書きも消した（v.26）');
   assert.match(src, /const leftHeld = \(\(e\.buttons & 1\) === 1 \|\| mouseLeftDown\) && !rmState\.drag;/, 'パソコンは左クリック＋ホイールで拡大・縮小');
-  const order = [...view.matchAll(/data-rm-action="([\w-]+)"/g)].map(m => m[1]);
-  assert.equal(order.indexOf('toggle-added'), order.indexOf('build-rules') + 1, order.join(','));
+  const secondary = view.slice(view.indexOf('<div id="rm-more"'), view.indexOf('<div class="rm-canvas-frame"'));
+  assert.match(secondary, /data-rm-action="toggle-added"/);
   assert.match(src, /else if \(act === 'fullscreen'\) rmSetFullscreen\(\);/);
   assert.match(src, /if \(viewName !== 'relation' && typeof window\.rmSetFullscreen === 'function'\) window\.rmSetFullscreen\(false\);/);
   assert.match(css, /#view-relation\.rm-fullscreen \.rm-canvas-wrap \{ position: fixed; inset: 0; z-index: 50;/, '広げるのは図の枠だけ');
