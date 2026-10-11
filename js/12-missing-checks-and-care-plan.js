@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-11.status-panel8'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-11.status-visible10'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -340,85 +340,10 @@
       }
       return cp.untaggedReviews[untaggedTextKey(item.text)];
     }
-    function untaggedStatusLabel(r) {
-      if (!r) return '未確認';
-      return { accept: '理由を了承済み', assign: 'タグ付け済み', none: 'タグ不要（確認済み）', source: '原本確認待ち' }[r.decision] || '確認済み';
-    }
-    function untaggedReviewRowHtml(cp, item) {
-      const inf = inferUntaggedReason(item, cp), r = untaggedReviewOf(cp, item);
-      const cand = inf.candidates.length ? inf.candidates.map(h => `${h}.${hendersonNameOf(h).replace(/^\d+\.\s*/, '')}`).join('・') : 'なし';
-      const id = jsArg(item.id);
-      const opts = HENDERSON_NEEDS.map(n => `<option value="${n.id}">${n.id}. ${escapeHtml(n.name)}</option>`).join('');
-      const parts = inf.parts.length ? `<div class="ut-parts">${inf.parts.map(p => `<div>・${escapeHtml(p.text)} <span class="my-asm-muted">→ ${p.tagIds.map(h => hendersonNameOf(h).replace(/^\d+\.\s*/, '')).join('・')}</span></div>`).join('')}</div>` : '';
-      return `<li class="ut-item ut-${r ? 'done' : 'open'}">
-        <div class="ut-line"><span class="ut-kind ut-k-${inf.kind}">${escapeHtml(inf.kindLabel)}</span><span class="mc-text">${escapeHtml(item.text)}</span><span class="ut-status">${escapeHtml(untaggedStatusLabel(r))}</span></div>
-        <div class="ut-meta">原文：${escapeHtml(item.text.slice(0, 60))}／タグ：未設定／推定理由：${escapeHtml(inf.reason)}／推定の確からしさ：${inf.confidence}／分類候補：${escapeHtml(cand)}／確認事項：${escapeHtml(inf.checks.join('・') || '—')}</div>${parts}
-        <div class="ut-actions">
-          <button type="button" class="mc-filter" onclick="untaggedAction(${id},'accept')">理由を了承</button>
-          ${inf.candidates.length ? `<button type="button" class="mc-filter" onclick="untaggedAction(${id},'assign')">候補のタグを付ける</button>` : ''}
-          ${inf.parts.length ? `<button type="button" class="mc-filter" onclick="untaggedSplit(${id})">分けてタグを付ける</button>` : ''}
-          <select class="field ut-sel" onchange="untaggedAssignOther(${id}, this)"><option value="">別の項目を選ぶ</option>${opts}</select>
-          <button type="button" class="mc-filter" onclick="untaggedAction(${id},'none')">タグ不要にする</button>
-          <button type="button" class="mc-filter" onclick="untaggedAction(${id},'source')">原本確認を依頼</button>
-        </div></li>`;
-    }
-    function untaggedCountNotNeeded(cp) { return untaggedReviewItems(cp).filter(i => i.tagNotNeeded).length; }
-    function untaggedContextCandidates(cp) {
-      return untaggedReviewItems(cp).filter(i => !untaggedReviewOf(cp, i)).map(i => ({ item: i, inf: inferUntaggedReason(i, cp) })).filter(x => x.inf.fromContext && x.inf.candidates.length);
-    }
-    function untaggedContextCandidateCount(cp) { return untaggedContextCandidates(cp).length; }
-    window.untaggedApplyAllCandidates = function() {
-      const cp = getCurrentPatient();
-      const list = untaggedContextCandidates(cp);
-      list.forEach(x => setUntaggedReview(cp, x.item.id, { decision: 'assign', tagIds: x.inf.candidates }));
-      saveDataAndSync(); renderMissingCheckSummary(cp);
-      showToast(`${list.length}枚に、前後の記録から読み取れたタグを付けました（取り消しは各カードのタグの×）`, 'success');
-    };
-    let untaggedListOpen = false;
     function untaggedSectionHtml(cp) {
-      const c = untaggedReviewCounts(cp);
-      if (!c.total) return '';
-      const list = untaggedListOpen ? `<ul class="mc-list ut-list">${untaggedReviewItems(cp).map(i => untaggedReviewRowHtml(cp, i)).join('')}</ul>` : '';
-      return `<div class="mc-summary-head"><span class="mc-summary-title"><i class="fa-solid fa-tag"></i> ヘンダーソンタグ未設定の理由</span>
-        <button type="button" class="mc-filter mc-unchecked${untaggedListOpen ? ' active' : ''}" onclick="toggleUntaggedList()">未確認 <b>${c.open}</b></button>
-        <button type="button" class="mc-filter mc-checked" onclick="toggleUntaggedList()">確認済み <b>${c.done}</b></button>
-        <button type="button" class="mc-filter" onclick="selectAllUntagged()" title="タグ未設定のカードをすべて選択します（選択後、下の帯の「＋タグ追加」などでまとめて操作できます）"><i class="fa-regular fa-square-check"></i> 未設定を全選択 <b>${c.total - untaggedCountNotNeeded(cp)}</b></button>
-        <button type="button" class="mc-filter" onclick="selectAllReviewTargets()" title="手で編集したカード（統合・分割を含む）とタグ未設定のカードをすべて選択します"><i class="fa-regular fa-square-check"></i> 編集済み＋未設定を選択</button>
-        <button type="button" class="mc-filter" onclick="exportReviewRequestText()" title="問題の説明と直し方つきでテキストに書き出します"><i class="fa-solid fa-file-export"></i> 修正依頼を書き出す</button>
-        ${untaggedContextCandidateCount(cp) ? `<button type="button" class="mc-filter" onclick="untaggedApplyAllCandidates()" title="前後の記録から影響先が読み取れたカードに、候補のタグをまとめて付けます">前後の記録から候補をまとめて付ける <b>${untaggedContextCandidateCount(cp)}</b></button>` : ''}
-        ${untaggedListOpen ? '<button type="button" class="my-asm-link" onclick="toggleUntaggedList()">一覧を閉じる</button>' : ''}</div>${list}`;
+      if (!reviewRequestTargets(cp).length) return '';
+      return `<div class="flex justify-end"><button type="button" class="btn btn-outline text-[11px]" onclick="exportReviewRequestText()" title="編集したカードとタグ未設定のカードを、分類基準の修正指示つきで書き出します"><i class="fa-solid fa-file-export"></i> 修正依頼を書き出す</button></div>`;
     }
-    window.toggleUntaggedList = function() { untaggedListOpen = !untaggedListOpen; renderMissingCheckSummary(getCurrentPatient()); };
-    window.untaggedAction = function(itemId, decision) {
-      const cp = getCurrentPatient(), item = cp.items.find(i => i.id === itemId);
-      if (!item) return;
-      const inf = inferUntaggedReason(item, cp);
-      setUntaggedReview(cp, itemId, { decision, tagIds: decision === 'assign' ? inf.candidates : [] });
-      saveDataAndSync(); renderMissingCheckSummary(cp);
-      showToast(decision === 'source' ? '原本確認が必要として記録しました（原文はそのままです）' : '記録しました', 'success');
-    };
-    window.untaggedAssignOther = function(itemId, sel) {
-      const h = parseInt(sel.value, 10); if (!h) return;
-      const cp = getCurrentPatient();
-      setUntaggedReview(cp, itemId, { decision: 'assign', tagIds: [h] });
-      saveDataAndSync(); renderMissingCheckSummary(cp);
-      showToast('タグを付けました', 'success');
-    };
-    window.untaggedSplit = function(itemId) {
-      const cp = getCurrentPatient(), item = cp.items.find(i => i.id === itemId);
-      if (!item) return;
-      const inf = inferUntaggedReason(item);
-      const segs = item.text.split(/(?<=[。\n；;])/).map(s => s.trim()).filter(Boolean);
-      const res = splitCardIntoParts(cp, itemId, segs);
-      if (!res) return showToast('分けられませんでした', 'warn');
-      res.forEach(c => {
-        const ids = typeof detectMultipleHendersonTags === 'function' ? Array.from(detectMultipleHendersonTags(c.text)) : [];
-        c.hendersonIds = ids; c.assessmentCols = {}; ids.forEach(h => { c.assessmentCols[h] = 'unclassified'; });
-        c.predictionSource = 'auto'; touchItem(c);
-      });
-      saveDataAndSync(); renderMissingCheckSummary(cp);
-      showToast(`${res.length}枚に分けて、内容ごとにタグを付けました`, 'success');
-    };
 
     // ==========================================================================
 

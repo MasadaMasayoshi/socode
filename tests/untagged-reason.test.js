@@ -77,3 +77,13 @@ test('review-request export lists edited (incl. merge/split) and untagged cards 
   assert.match(t, /統合：/); assert.match(t, /分割または短縮/); assert.match(t, /Fix checks:/); assert.match(t, /タグ未設定/);
   assert.match(t, /書き出し 3枚/); assert.ok(!t.includes('カードの内容: 食事は全量摂取'));
 });
+
+test('Review summary offers export without review counters or bulk selection controls', () => {
+  const app = loadApp();
+  const cp = { items: [mk(app, '創痛がある。')] };
+  const html = app.untaggedSectionHtml(cp);
+  assert.match(html, /exportReviewRequestText/);
+  assert.equal((html.match(/<button/g) || []).length, 1);
+  assert.ok(!/未確認|確認済み|全選択|selectAll|toggleUntaggedList|<select/.test(html));
+  assert.equal(app.untaggedSectionHtml({ items: [] }), '');
+});

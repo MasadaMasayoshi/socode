@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-11.status-panel8'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-11.status-visible10'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -990,7 +990,7 @@
       if (typeof sufficiencyPhaseHtml !== 'function') return '';
       const phases = sufficiencyUiPhases(cp);
       return HENDERSON_NEEDS.filter(need => selectedNeed === 'all' || need.id === Number(selectedNeed)).map(need =>
-        `<section class="suf-status-need"><h4>${escapeHtml(need.name)}</h4><div class="suf-status-group">${phases.map(phase => sufficiencyPhaseHtml(cp, need.id, phase.key, { inline: true })).join('')}</div>${sufficiencyReasonHtml(cp, need.id)}</section>`
+        `<section class="suf-status-need"><h4>${escapeHtml(need.name)}</h4><div class="suf-status-group">${phases.map(phase => sufficiencyPhaseHtml(cp, need.id, phase.key)).join('')}</div>${sufficiencyReasonHtml(cp, need.id)}</section>`
       ).join('');
     }
 
