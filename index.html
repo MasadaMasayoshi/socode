@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="2026-10-11.usability-context19">
-  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-11.usability-context15,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-11.usability-context19,06:2026-10-11.usability-context16,07:2026-10-11.usability-context16,08:2026-10-11.usability-context12,09:2026-10-11.usability-context17,10:2026-10-11.usability-context19,11:2026-10-11.usability-context13,12:2026-10-11.usability-context13,13:2026-10-11.usability-context12,14:2026-10-10.znavigation17,15:2026-10-11.usability-context17">
+  <meta name="app-version" content="2026-10-12.usability-context20">
+  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-11.usability-context15,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-11.usability-context19,06:2026-10-11.usability-context16,07:2026-10-11.usability-context16,08:2026-10-11.usability-context12,09:2026-10-11.usability-context17,10:2026-10-11.usability-context19,11:2026-10-11.usability-context13,12:2026-10-12.usability-context20,13:2026-10-11.usability-context12,14:2026-10-10.znavigation17,15:2026-10-11.usability-context17">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -350,7 +350,7 @@
           <span id="careplan-import-info" class="text-[11px] text-[var(--ink-muted)]"></span>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="buildCarePlansByRulesUI()" title="記録から看護問題を見つけ、目標・OP/TP/EPの手本つきで看護計画を作ります"><i class="fa-solid fa-list-check"></i> 記録から計画を作る</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="importCarePlansFromMapUI()" title="関連図の看護問題を、根拠データ（関連図でその問題へたどれる記録の事実）つきで取り込みます"><i class="fa-solid fa-diagram-project"></i> 関連図から取り込む</button>
-          <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="openCarePlanSetReview()" title="全ての計画を横断して、重複・補完・不足を記録を基に確認します"><i class="fa-solid fa-layer-group"></i> 全計画をまとめて評価</button>
+          <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="openCarePlanSetReview()" aria-label="全計画をまとめて評価" title="全ての計画を横断して、重複・補完・不足を記録を基に確認します"><i class="fa-solid fa-layer-group" aria-hidden="true"></i> 全計画をまとめて評価</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="printCarePlans()" title="看護計画と実施・評価の記録を、A4縦の印刷用の形で印刷・PDF保存します"><i class="fa-solid fa-file-pdf"></i> 印刷 / PDF</button>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="exportCarePlansText()" title="看護計画と実施・評価の記録をテキストファイルで保存します"><i class="fa-solid fa-file-lines"></i> テキスト</button>
           <button type="button" class="btn btn-primary text-[11px] py-1.5" onclick="addCarePlanUI()"><i class="fa-solid fa-plus"></i> 看護計画を追加</button>
@@ -1251,7 +1251,7 @@
   <script src="js/09-board.js?v=2026-10-11.usability-context17"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-11.usability-context19"></script>
   <script src="js/11-own-assessment.js?v=2026-10-11.usability-context13"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-11.usability-context13"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-12.usability-context20"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-11.usability-context12"></script>
   <script src="js/14-drug-reference.js?v=2026-10-10.znavigation17"></script>
   <script src="js/15-relation-map.js?v=2026-10-11.usability-context17"></script>
