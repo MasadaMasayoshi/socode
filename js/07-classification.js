@@ -2,7 +2,7 @@
 // Learned corrections precede headings and fixed rules; automatic creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-11.usability-context12'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-11.usability-context16'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -2361,6 +2361,39 @@
     function clinicalCardDuplicateKey(text, timestamp) {
       return `${String(timestamp || '日時不明').normalize('NFKC').replace(/\s+/g, '')}\u0000${String(text || '').normalize('NFKC').replace(/\s+/g, '').replace(/[。．.]+$/, '')}`;
     }
+    function savedUntaggedProtection(item, cp) {
+      if (item.deleted || item.type === 'unnecessary' || item.aiSuggested) return '更新対象外のカード';
+      if (item.tagNotNeeded) return 'タグ不要の指定';
+      if ((item.editLog || []).length || item.predictionSource === 'confirmed') return '手で編集・確認した分類';
+      if (item.predictionSource && item.predictionSource !== 'rule') return '学習結果による分類';
+      if (typeof untaggedReviewOf !== 'function' && Object.keys(cp?.untaggedReviews || {}).length) return 'レビューの読込待ち';
+      const review = typeof untaggedReviewOf === 'function' ? untaggedReviewOf(cp, item) : null;
+      if (review && ['none', 'accept', 'assign'].includes(review.decision)) return '了承済みのレビュー';
+      return '';
+    }
+    // Reuse complete source context; append runs may omit every surrounding duplicate card.
+    function refreshSavedUntaggedCards(cp, sourceText = cp?.sourceText, now = new Date().toISOString()) {
+      if (!cp || !String(sourceText || '').trim()) return 0;
+      const targets = (cp.items || []).filter(i => !(i.hendersonIds || []).length && !savedUntaggedProtection(i, cp));
+      if (!targets.length) return 0;
+      const originals = new Map(classifyTextByRules(sourceText).map(i => [clinicalCardDuplicateKey(i.text, i.timestamp), i]));
+      let updated = 0;
+      targets.forEach(item => {
+        const original = originals.get(clinicalCardDuplicateKey(item.text, item.timestamp));
+        if (!original || original.type === 'unnecessary' || !original.hendersonIds.length) return;
+        item.hendersonIds = original.hendersonIds.slice();
+        item.patientBackground = null;
+        item.assessmentCols = { ...(item.assessmentCols || {}) };
+        item.hendersonIds.forEach(id => {
+          if (!item.assessmentCols[id]) item.assessmentCols[id] = inferAssessmentColumn(item.fieldLabel, item.timestamp, item.admissionPhase) || 'unclassified';
+        });
+        if (original.contextTagEvidence) item.contextTagEvidence = original.contextTagEvidence.map(e => ({ ...e }));
+        item.ruleTagUpdatedAt = now;
+        item._touchedAt = now;
+        updated++;
+      });
+      return updated;
+    }
     function classifyTextByRules(text) {
       const src = (text || '').trim().normalize('NFKC');
       const out = [];
@@ -2419,9 +2452,9 @@
         const answer = await openDialog({
           title: '今あるカードをどうしますか？',
           message: `この患者には既に${cp.items.length}枚のカードがあります。\n` +
-            `「置き換えて分類」：今のカードを消してから分類し直します。古い分類結果が残らないので、分類ルールの修正後はこちらがおすすめです。` +
+            `「置き換えて分類」：今のカードを消してから分類し直します。` +
             (editedCount ? `（うち${editedCount}枚は手で編集・確認したカードです。置き換えると本文の手直しは消えますが、S/O・タグの学習結果は次の分類に引き継がれます）` : '') +
-            `\n「追加して分類」：今のカードを残したまま、新しく見つかった分だけ追加します。`,
+            `\n「追加して分類」：今のカードを残し、新しく見つかった分を追加します。手で編集していない自動分類カードのタグ付与漏れも、原文と最新ルールを照合して更新します。`,
           confirmLabel: '置き換えて分類',
           secondaryLabel: '追加して分類'
         });
@@ -2477,8 +2510,14 @@
       }));
       applySceneTagInheritance(addedThisRun);
       applyPainContextTags(addedThisRun, cp);
+      const updatedCount = refreshSavedUntaggedCards(cp, text);
       if (typeof applyUntaggedReviews === 'function') applyUntaggedReviews(cp);
       addedThisRun.forEach(item => reportLearningEvent(item.text, 'create', { type: item.type, hendersonIds: item.hendersonIds, assessmentCols: item.assessmentCols, fieldLabel: item.fieldLabel, predictionSource: item.predictionSource, fuzzyMatchedText: fuzzyMatches.get(item.id) }));
       saveDataAndSync();
-      showToast(`${addedCount}件のデータを分類・カード化しました`, 'success');
+      showToast(`${addedCount}件のデータを分類・カード化しました${updatedCount ? `／${updatedCount}枚のタグを更新しました` : ''}`, 'success');
+    });
+
+    // Initial patient rendering can precede the review module; retry after all scripts load.
+    window.addEventListener('load', () => {
+      if (refreshSavedUntaggedCards(getCurrentPatient())) saveDataAndSync();
     });
