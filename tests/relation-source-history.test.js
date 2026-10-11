@@ -118,3 +118,14 @@ test('No diagnostic sequence is invented from unrelated symptoms or negative scr
   const map=app.buildRelationMapFromRecord(patient(source));assert.equal(map.edges.filter(e=>/^診断までの経過：/.test(e.evidence)).length,0);
  }
 });
+
+test('Pathology values connect to the recorded postoperative stage without resolving OCR ambiguity', () => {
+ const cp=patient('診断名：胃がん\n胃全摘術を施行。\n手術当日\n【病理結果】T2 N0 P0 H0 M0、Stage IB\n【病理結果】T2 NO PO HO M0\n術後1日目：創部痛 NRS2。');
+ const map=app.buildRelationMapFromRecord(cp),path=map.nodes.find(n=>/^病理結果/.test(n.label)),stage=map.nodes.find(n=>/病理病期/.test(n.label)),disease=map.nodes.find(n=>n.type==='disease'),surgery=map.nodes.find(n=>n.type==='treatment'&&/胃全摘/.test(n.label));
+ assert.match(path.label,/T2.*N0\/NO.*P0\/PO.*H0\/HO.*M0/);assert.match(path.label,/要確認/);assert.match(stage.label,/術後.*Stage IB.*原文/);assert.equal(stage.source,'record');assert.ok(linked(map,path,stage,'supports'));assert.ok(linked(map,stage,disease,'supports'));assert.ok(linked(map,surgery,path,'related_to'));
+ assert.ok(!linked(map,path,surgery,'causes'));assert.ok(!linked(map,stage,surgery,'causes'));assert.ok(!map.nodes.some(n=>/N0：リンパ節転移なし/.test(n.label)));
+ const pain=map.nodes.find(n=>n.type==='nursing_problem'&&/痛/.test(n.label)),focused=app.rmProblemSubmap(map,pain.id);[path,stage].forEach(n=>assert.ok(focused.nodes.some(x=>x.id===n.id)));
+ const restored=app.normalizeRelationMap(JSON.parse(JSON.stringify(map)));assert.equal(restored.nodes.find(n=>n.id===path.id).evidence,path.evidence);
+ const other=patient('診断名：胃がん\n胃全摘術を施行。');other.items.push({id:'path',type:'o',text:'【病理結果】T2 N0 M0',timestamp:'手術当日'},{id:'stage-other-day',type:'o',text:'Stage III',timestamp:'術後3日目'});
+ assert.ok(!app.buildRelationMapFromRecord(other).nodes.some(n=>/病理病期/.test(n.label)));
+});
