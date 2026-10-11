@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-11.usability-context12'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-11.usability-context15'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -664,7 +664,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       return out;
     }
     function correctionRequestInstructionsText() {
-      return '\n[Developer instructions]\nCompare source, surrounding records and edit history. Separate automatic processing from manual edits; reproduce card splits/merges and tag additions/removals from the source. Determine intended behavior vs bugs; report evidence, cause and fix. Mark unverifiable causes 『確認不能』; do not present guesses as facts. Generalize rules to similar records, not one patient. Preserve source/Japanese clinical text and approved『タグ不要』/『理由を了承』decisions. Classify Henderson needs by meaning, not S/O; assess pre/post admission separately. Honor requested corrections. Check extraction (js/03), keywords (js/01), context/tag rules (js/07). Update the classification criteria in 学習データ管理 → 分類基準 (including the reference notebook in js/02) to reflect the confirmed corrections from this request; keep the criteria and implemented rules consistent for similar records. For each confirmed rule, document the condition, a positive example and a counterexample (such as a different time or an unrelated event), remove superseded contradictory criteria, and advance the notebook version. Run relevant tests; never derive expected answers from app output or hide missing fixtures.\n';
+      return '\n[Developer instructions]\nCompare source, surrounding records and edit history. Separate automatic processing from manual edits; reproduce card splits/merges and tag additions/removals from the source. Determine intended behavior vs bugs; report evidence, cause and fix. Mark unverifiable causes 『確認不能』; do not present guesses as facts. Generalize rules to similar records, not one patient. Preserve source/Japanese clinical text and approved『タグ不要』/『理由を了承』decisions. Classify Henderson needs by meaning, not S/O; assess pre/post admission separately. Honor requested corrections. Check extraction (js/03), keywords (js/01), context/tag rules (js/07). Update the classification criteria in 学習データ管理 → 分類基準 (including the reference notebook in js/02) to reflect the confirmed corrections from this request; keep the criteria and implemented rules consistent for similar records. For each confirmed rule, document the condition, a positive example and a counterexample (such as a different time or an unrelated event), remove superseded contradictory criteria, and advance the notebook version. Verify fresh classification, existing saved cards after reload, and append classification with duplicate cards. Correct missing tags on untouched automatic cards without replacing card IDs, text, S/O, assessments or plans; preserve manual edits, learned decisions and approved exclusions. Include runtime/rule versions, saved prediction source, current-rule output and observed differences; mark unobserved browser/cache/learning causes 『確認不能』. Run relevant tests; never derive expected answers from app output or hide missing fixtures.\n';
     }
     function buildSelectedCardsExportText(cp, selectedIds, sourceText, includeSourceText = true, includeAssessment = false) {
       const ids = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);
@@ -830,6 +830,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const editedN = items.filter(isEditedCard).length;
       let out = `修正依頼：${cp.title}（手で編集したカード ${editedN}件・タグ未設定のカード ${untaggedN}件／書き出し ${items.length}枚）\n`;
       out += `出力日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
+      out += `分類プログラム版: ${window.APP_FILE_VERSIONS?.['07'] || '確認不能'}／分類基準版: ${NOTEBOOK_CONTENT_VERSION_MARK}\n`;
       out += correctionRequestInstructionsText();
       out += '【依頼の要点】\nタグ未設定のカードは、本文だけで判断せず、添付した原文全体と同じ場面の前後を読み直してください。影響先が確認できるものは根拠を示してタグを付けるルールに修正してください。昨日と本日、安静時と動作時を区別し、根拠が不足するものは必要な確認事項を示してください。今回の変更を分類基準にも反映してください。\n';
       out += 'Edited/untagged cards are review targets, not proof of bugs. Untagged may mean intentional exclusion, insufficient evidence or a rule gap.\n';
@@ -842,13 +843,18 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         if (untagged) {
           const inf = typeof inferUntaggedReason === 'function' ? inferUntaggedReason(i, cp) : null;
           const original = originalItems.find(o => o.timestamp === i.timestamp && rewriteNorm(o.text) === rewriteNorm(i.text));
+          const protection = savedUntaggedProtection(i, cp);
+          out += `保存済みの分類経路: ${i.predictionSource || '記録なし'}／自動タグ更新: ${protection ? `対象外（${protection}）` : '対象'}\n`;
+          out += `原文を最新ルールで再分類したタグ: ${original ? (original.hendersonIds.length ? original.hendersonIds.map(h => hendersonNameOf(h)).join('・') : 'なし（この記録だけでは分類の根拠が不足する場合があります）') : '確認不能（本文と日時が一致する原文カードなし）'}\n`;
+          if (original?.hendersonIds.length && !protection) out += '確認できた差分: 最新ルールではタグが付きますが、保存済みカードには反映されていません。既存カードの更新経路を確認してください。\n';
+          if (inf && protection) Object.assign(inf, { kind: 'none', kindLabel: '保存済みの判断を保持', reason: `${protection}を保持しています。最新ルールとの差だけで誤りと決めつけず、意図を確認してください。`, candidates: [], checks: ['利用者の編集・学習・レビューの意図を確認し、了承済みの判断を自動で上書きしないでください'] });
           const evidence = original ? painContextTagEvidence(originalItems, original) : [];
           if (original) {
             const sourceIndex = originalItems.indexOf(original);
             const context = originalItems.filter((o, n) => o !== original && o.type !== 'unnecessary' && o.timestamp === original.timestamp && Math.abs(n - sourceIndex) <= 4);
             if (context.length) out += `原文から再抽出した周辺記録（${original.timestamp}）:\n${context.map(o => `  ・${o.text}`).join('\n')}\n`;
           }
-          if (inf && evidence.length && !(i.editLog || []).some(e => e.kind === 'tagRemove')) {
+          if (inf && evidence.length && !protection) {
             Object.assign(inf, { kind: 'classify', kindLabel: '原文の文脈から分類可能', confidence: '中', candidates: evidence.map(e => e.id), reason: 'カード本文には影響先がなくても、同じ場面の原文に影響が明記されています。', checks: ['以下の原文の根拠を用いてタグ付与漏れを再現し、文脈を読む分類ルールを修正してください'] });
             out += `原文から確認できるタグの根拠:\n${evidence.map(e => `  ・${hendersonNameOf(e.id)}：［${e.timestamp}］${e.evidence}`).join('\n')}\n`;
             request = `同じ場面の原文を根拠に${evidence.map(e => hendersonNameOf(e.id)).join('・')}を付けてください。本文だけの判定でタグが落ちないよう分類ルールと分類基準を修正してください。`;

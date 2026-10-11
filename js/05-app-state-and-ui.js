@@ -2,7 +2,7 @@
 // Confirmations and Undo verify the captured patient/target; local writes require full readback.
 // AI transport accepts image OCR only; classification and clinical generation stay local.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-11.usability-context12'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-11.usability-context15'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -1379,6 +1379,7 @@
     function loadLocalState() {
       const cp = getCurrentPatient();
       DOM.sourceText.value = cp.sourceText || '';
+      if (typeof refreshSavedUntaggedCards === 'function' && refreshSavedUntaggedCards(cp)) persistData();
 
       if (highlightedSourceItemId != null) clearSourceHighlight(false);
 

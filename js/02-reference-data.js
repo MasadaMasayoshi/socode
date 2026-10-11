@@ -1,6 +1,6 @@
 // Japanese source examples and reference data. Generic ranges are not facility-approved values.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = '2026-10-11.usability-context12'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = '2026-10-11.usability-context15'; // Version stamp (scripts/stamp-version.js)
 
     const SAMPLE_CASES = [
  {
@@ -57,10 +57,10 @@
 [検査データ] WBC 11200, CRP 3.8, Hb 10.2, Cre 1.1, Na 136, K 4.2
 [14:30] 「少し呼吸が楽になった」と話すが、再度体温を測定すると38.2℃に上昇していた。`;
 
-    const NOTEBOOK_CONTENT_VERSION_MARK = '統合版 2026-10-11';
+    const NOTEBOOK_CONTENT_VERSION_MARK = '統合版 2026-10-11 改訂2';
 
-    const NOTEBOOK_PREVIOUS_LINE_HASHES = new Set('1rxx1s8 1n972mt 1rxzhk1 1n972mt 3oggz7 11wepfp 1ueyf9x 49fyid cktp9v 1dx8rnt 4w69aw 18yrges mz6kpv 1fxl9vm vjjqph 1na1m5x 1mm3a6p 1eegg6z xov1zd 1r2aecs 1p9asa7 ipot7j 1re2huh 33sjwu 12z0tmf lrdwgc vdcow1 31eneq 11mb2w6 t10hoq 1etsd7m 5ubyuq q42z2q 1t8xbsy 1kpypia 15hvkni 1bwlid2 ilejiw mpf6r2 1eecsip 1dkakkm 1pr7cs9 1n4b44k 2z4yug kq8d8l 1t9q52t 1cxtfpk 1bmvzo4 wf9ste 1oyarzj 1p16g52 w1hdma 1epkp3w 1g1elw8 sro6mi 13ezb12 lnvozy 12fz4ir 1uuozg2 q2k5k8 1hrhr2n 1t9nghh f1917k e0crkw j1e8d8 13rhc30 1v2xzr2 yvgn6 1qx5h46 1757o1c u83int 1nv6687 9mp1bz wrr5dv ku3lll 1284hc6 e7jic3 tu4uvg fh8e14 wk4h4o dcef5v 1tw2zb2 wfnv68 pklg0t qnr0pb 1vbrse1 ehxm2 1brwjir u319zs 1ixcp78 i4h9b 53jp4n 13njjnz 1ele74r rwuu7w cfb5kk 1niyy9p 16zgdvq 1ovb3z5 coq3bu 24dwyi 1n5xhmq ukofp0 7qvde7 1yik6ad 117e71n v54305 1d7f6u1 1c83oe0 mc5a21 4vbu7g 188wc9g ylmgxf 39187t 3yqc7v 18qsxyi 1jfl61m 19is9nl sys0jh kda9kl oi98bw 4r9yru 1nh8in0 1i94xy8 1jcmgts wjqlw9 70311g 8wukdb d73drk ysxln2 1rt8zfd rsm75j 1cy71mw 1fc2gx8 1l1dvb3 1cftclx 1epae2b 1og289u 1r8z4jp 1vk21a0 lxc9rb 14yvj9r 1bwwj4w tap586 18tgtnq 1q8n2f0 1i8sp26 1nq8mbd 1y0ddgx 1jhhrn4 1gebsqw 1ox9pmi 1p54mi5 1mh1isl njedxy w8a1pd 1a2daya 4utfxf 1cbq5a1 1vdl8io r6dyzq 1exn90y 1bocpt1 1eay80t a26n4w 1ioy22v p7xddp qtyt3m 1ecvr13 1v6ppoi 4ufv81 18oigbx 1wl1wn0 1b73s34 11avgj6 jmk6zs 90bjpt 1ch9u22 id8wik evf7p2 13i7uer w8fsyw a7uumx fevad0 tyi7ix 31f5lu ll25l5 31eqak y4dgky 1fi3pcw j4nwbp 6wnqsb pbvlhf 157ghfe 2byund lo14bk 1hitvg3 1suzyfg 1kamx2z 1bdsrow ouqo9 zj2m3c mayvhv 2e67kq 1m7v4xj 14224h9 13vzf13 t7hukc 17fmocm gqq9d3 1wilov6'.split(' '));
-    const DEFAULT_NOTEBOOK_CONTENT = `【看護アセスメント 基準ノート（統合版 2026-10-11）】
+    const NOTEBOOK_PREVIOUS_LINE_HASHES = new Set('1rxx1s8 1n972mt 1rxzhk1 1n972mt 3oggz7 11wepfp 1ueyf9x 49fyid cktp9v 1dx8rnt 4w69aw 18yrges mz6kpv 1fxl9vm vjjqph 1na1m5x 1mm3a6p 1eegg6z xov1zd 1r2aecs 1p9asa7 ipot7j 1re2huh 33sjwu 12z0tmf lrdwgc vdcow1 31eneq 11mb2w6 t10hoq 1etsd7m 5ubyuq q42z2q 1t8xbsy 1kpypia 15hvkni 1bwlid2 ilejiw mpf6r2 1eecsip 1dkakkm 1pr7cs9 1n4b44k 2z4yug kq8d8l 1t9q52t 1cxtfpk 1bmvzo4 wf9ste 1oyarzj 1p16g52 w1hdma 1epkp3w 1g1elw8 sro6mi 13ezb12 lnvozy 12fz4ir 1uuozg2 q2k5k8 1hrhr2n 1t9nghh f1917k e0crkw j1e8d8 13rhc30 1v2xzr2 yvgn6 1qx5h46 1757o1c u83int 1nv6687 9mp1bz wrr5dv ku3lll 1284hc6 e7jic3 tu4uvg fh8e14 wk4h4o dcef5v 1tw2zb2 wfnv68 pklg0t qnr0pb 1vbrse1 ehxm2 1brwjir u319zs 1ixcp78 i4h9b 53jp4n 13njjnz 1ele74r rwuu7w cfb5kk 1niyy9p 16zgdvq 1ovb3z5 coq3bu 24dwyi 1n5xhmq ukofp0 7qvde7 1yik6ad 117e71n v54305 1d7f6u1 1c83oe0 mc5a21 4vbu7g 188wc9g ylmgxf 39187t 3yqc7v 18qsxyi 1jfl61m 19is9nl sys0jh kda9kl oi98bw 4r9yru 1nh8in0 1i94xy8 1jcmgts wjqlw9 70311g 8wukdb d73drk ysxln2 1rt8zfd rsm75j 1cy71mw 1fc2gx8 1l1dvb3 1cftclx 1epae2b 1og289u 1r8z4jp 1vk21a0 lxc9rb 14yvj9r 1bwwj4w tap586 18tgtnq 1q8n2f0 1i8sp26 1nq8mbd 1y0ddgx 1jhhrn4 1gebsqw 1ox9pmi 1p54mi5 1mh1isl njedxy w8a1pd 1a2daya 4utfxf 1cbq5a1 1vdl8io r6dyzq 1exn90y 1bocpt1 1eay80t a26n4w 1ioy22v p7xddp qtyt3m 1ecvr13 1v6ppoi 4ufv81 18oigbx 1wl1wn0 1b73s34 11avgj6 jmk6zs 90bjpt 1ch9u22 id8wik evf7p2 13i7uer w8fsyw a7uumx fevad0 tyi7ix 31f5lu ll25l5 31eqak y4dgky 1fi3pcw j4nwbp 6wnqsb pbvlhf 157ghfe 2byund lo14bk 1hitvg3 1suzyfg 1kamx2z 1bdsrow ouqo9 zj2m3c mayvhv 2e67kq 1m7v4xj 14224h9 13vzf13 t7hukc 17fmocm gqq9d3 1wilov6 1g1elw8 p7xddp id8wik'.split(' '));
+    const DEFAULT_NOTEBOOK_CONTENT = `【看護アセスメント 基準ノート（統合版 2026-10-11 改訂2）】
 このノートは、記録の分類・検査値の評価・不足情報の確認・看護問題・看護計画の基準です。確認できた修正を具体例とともに反映し、アプリで実装した分類ルールと揃えています。「学習データ管理」→「分類基準」タブで確認・編集できます。
 判断の優先順位：①第1〜4章の分類・タグ付けのルール ②第6〜7章の疾患別の判断基準 ③学習データの傾向。迷ったときは、1つの情報に複数のタグを付けてよい。
 
@@ -126,7 +126,7 @@
 6. 適切な衣類を選び着脱する：体力=衣生活のセルフケア能力、衣類の選択基準と清潔保持／意思力=衣生活への認識／知識=衣生活管理の知識
 7. 体温を生理的範囲内に維持する：体力=体温、発熱・悪寒、炎症所見(WBC,CRP)、衣類・寝具の選択、活動要因、環境要因(気温,湿度,すきま風)／意思力=体温調節への認識／知識=体温調節の知識
 8. 身体を清潔に保ち皮膚を保護する：体力=皮膚・毛髪・爪・口腔等の清潔状態、身だしなみ、セルフケア能力／意思力=清潔保持への認識／知識=清潔保持管理の知識
-9. 環境の危険を避け他者を傷害しない：体力=環境の状態・安全性(住居,段差)、転倒転落・事故・暴力の有無、疼痛、創部・感染、ドレーン・点滴等のライン類、血栓予防、標準予防策の実施状況、家族・支援体制／意思力=安全性への認識／知識=環境維持・安全管理の知識
+9. 環境の危険を避け他者を傷害しない：体力=環境の状態・安全性(住居,段差)、転倒転落・事故・暴力の有無、感染予防、ドレーン・点滴等のライン類、血栓予防、標準予防策の実施状況、家族・支援体制／意思力=安全性への認識／知識=環境維持・安全管理の知識
 10. コミュニケーションで感情等を表現する：体力=言語・聴覚視覚等の伝達機能、感情/欲求/自己概念/自尊感情の状態、認知・見当識、他者との人間関係／意思力=自分の感情理解や他者理解への認識／知識=伝達機能・感情理解の知識
 11. 信仰に従って礼拝する：体力=信仰する宗教、価値観、生活習慣・規則(禁忌,輸血拒否等)／意思力=信仰・価値観への認識／知識=信仰保持の知識
 12. 達成感をもたらす仕事をする：体力=患者本人の職業・役割、達成感、周囲の理解や評価／意思力=役割・活動への認識／知識=役割維持の知識
@@ -219,6 +219,9 @@
 ・昨日の疼痛を、本日の「トイレ移動可」の原因として扱わない。安静時の値と荷重時の変化は別の情報として保持し、同じ場面の比較値として使う場合も測定条件を変えない。別時刻のリハビリや、近くにある正常な食事・排尿だけを理由にタグを付けない。
 ・硬膜外麻酔の抜去だけでは欲求への影響を決めつけない。抜去後の所見まで読み直し、原文に影響が書かれているか確認する。
 ・「アレルギーなし」は9.環境に分類する。「食物アレルギーなし」「薬剤アレルギーなし」も同じとし、アレルギーという単語だけで1.呼吸には分類しない。
+■ 保存済みカードへの分類ルールの反映
+・分類ルールの修正は新規分類だけでなく、保存済みの未設定カードにも反映する。原文全体を読み直し、本文と日時が一致する自動分類カードに根拠のあるタグを補う。例：「アレルギーなし」の保存済みカードに9を付ける。
+・手で編集・確認した分類、学習結果、タグ不要・了承済みレビューは自動更新しない。別時刻の所見を根拠にした更新もしない。ID・本文・S/O・手書きアセスメント・看護計画を保持し、追加分類では重複カードを増やさない。
 ■ よくある誤った分類と正しい考え方
 1) 単語の見た目だけで1項目だけに振り分ける（例：「トイレまで歩くのが大変」を4.姿勢だけにする）→排泄に伴う移動・安楽・プライバシーの視点で3.排泄にも付ける。
 2) O情報に看護師の解釈・判断を混ぜる（例：「食事量が少ないため栄養障害がある」）→収集段階では「食事残量5割」のような客観的事実・発言だけを記載し、解釈はアセスメント文中で行う。
@@ -274,7 +277,7 @@
 ■ 体位・罨法
 ファウラー位・半坐位は横隔膜の圧迫を防いで換気を増やし無気肺を予防し、創部痛を和らげ、上半身挙上30〜45度で消化液の逆流を防ぐ。側臥位は体位ドレナージによる排痰と腹腔内ドレーンの排出を促し、ビルロートII法等の吻合後は食後左側臥位で逆流症状を和らげる。咳嗽時は創部・ドレーン固定部を抱え込む（手押し固定）。温罨法は腸蠕動の促進に有効だが、術直後の急性出血期・腹膜炎・創部感染では禁忌。冷罨法は局所の炎症・腫脹の軽減に用い、Shivering（身震い）に注意する。
 ■ ヘンダーソン14項目との主な対応
-1.呼吸＝無気肺・肺炎・循環動態・麻酔管理／2.食事＝ダンピング症候群・逆流性食道炎・栄養状態・胃切除後の食事指導／3.排泄＝麻痺性イレウス・腸蠕動・排ガス・尿道カテーテル・下剤／4.姿勢＝早期離床・ファウラー位・体位ドレナージ・抱え込み姿勢／7.体温＝術後発熱・感染徴候／9.環境＝創部感染・縫合不全・膵液漏・ドレーン管理・自己抜去防止・疼痛・DVT予防（弾性ストッキング・IPC）／10.コミュニケーション＝術後せん妄・不安の表出／14.学び＝食事指導・退院指導の理解。
+1.呼吸＝無気肺・肺炎・循環動態・麻酔管理／2.食事＝ダンピング症候群・逆流性食道炎・栄養状態・胃切除後の食事指導／3.排泄＝麻痺性イレウス・腸蠕動・排ガス・尿道カテーテル・下剤／4.姿勢＝早期離床・ファウラー位・体位ドレナージ・抱え込み姿勢／7.体温＝術後発熱・感染徴候／9.環境＝感染予防・ドレーン管理・自己抜去防止・DVT予防（弾性ストッキング・IPC）／10.コミュニケーション＝術後せん妄・不安の表出／14.学び＝食事指導・退院指導の理解。
 
 【7-2 大腿骨近位部骨折（頸部骨折・転子部骨折／人工骨頭置換術・骨接合術）周術期】
 （出典：利用者アップロード資料「大腿骨近位部骨折の解剖・基礎知識・周術期看護」）
@@ -289,7 +292,7 @@
 ■ リハビリテーションと退院支援
 術後早期からの離床と段階的荷重（足関節ポンプ運動・大腿四頭筋セッティング→端坐位・起立訓練→平行棒内歩行→歩行器・T字杖歩行）で廃用症候群・肺炎・DVT・認知機能低下を防ぐ。多職種チーム（整形外科医・老年病医・看護師・理学療法士・作業療法士・社会福祉士・管理栄養士・薬剤師等）と地域連携パスで在宅復帰を支援する。退院前の家屋評価（手すり・段差解消・補高便座・介護ベッド・自助具）、骨折リエゾンサービス（FLS）による骨粗鬆症治療薬（ビスホスホネート製剤等）の開始・継続で二次骨折を予防する。
 ■ ヘンダーソン14項目との主な対応
-1.呼吸＝PTE（突然の呼吸困難・SpO2低下）・循環動態・麻酔管理／2.食事＝低栄養（Alb・BMI。せん妄の要因）／3.排泄＝尿道カテーテル・早期抜去・トイレ動作／4.姿勢＝良肢位・禁忌肢位・脱臼予防・外転枕・牽引・早期離床・移乗・段階的荷重・リハビリテーション／9.環境＝疼痛（ペインスケール）・創部（SSI・発赤・熱感・腫脹）・ドレーン管理・カットアウト・DVT予防（弾性ストッキング・フットポンプ・Homans徴候）・転倒予防／10.コミュニケーション＝術後せん妄・荷重や歩行への不安・恐怖の表出／14.学び＝脱臼予防の日常生活指導・骨粗鬆症治療の理解・二次骨折予防（FLS）。
+1.呼吸＝PTE（突然の呼吸困難・SpO2低下）・循環動態・麻酔管理／2.食事＝低栄養（Alb・BMI。せん妄の要因）／3.排泄＝尿道カテーテル・早期抜去・トイレ動作／4.姿勢＝良肢位・禁忌肢位・脱臼予防・外転枕・牽引・早期離床・移乗・段階的荷重・リハビリテーション／9.環境＝感染予防・ドレーン管理・DVT予防（弾性ストッキング・フットポンプ・Homans徴候）・転倒予防／10.コミュニケーション＝術後せん妄・荷重や歩行への不安・恐怖の表出／14.学び＝脱臼予防の日常生活指導・骨粗鬆症治療の理解・二次骨折予防（FLS）。
 
 【7-3 肺炎（市中肺炎CAP・院内肺炎HAP・医療介護関連肺炎NHCAP・誤嚥性肺炎）】
 （出典：利用者アップロード資料「呼吸器系の解剖生理・肺炎の基礎知識・治療管理・退院支援」）

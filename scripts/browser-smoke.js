@@ -424,6 +424,35 @@ const {app}=require('../server');
    assert.equal(await page.evaluate(()=>JSON.stringify(records)),original);
    await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
    await page.waitForFunction(()=>typeof createNewPatientPage==='function');
+   const savedTagSource='入院前\nアレルギー：なし\n食物アレルギー：なし\n術後1日目\n8:00 回診\n硬膜外麻酔抜去\n10:00\n「痛みのため昨晩は眠れなかった」\n「こんなに痛くちゃ動けないし」\n創痛がある。\nレスキューでロキソプロフェン60mg 1錠内服する。\n14:00\nペインスケール「3」（安静時）\n14:45 RH\n荷重をかけ、疼痛増強 ペインスケール2→6へ';
+   await page.evaluate(source=>{
+    createNewPatientPage('保存済みタグ更新の架空検証');
+    const cp=getCurrentPatient();cp.sourceText=source;DOM.sourceText.value=source;
+    const card=(id,text,timestamp,extra={})=>({id,text,timestamp,type:'o',hendersonIds:[],assessmentCols:{},predictionSource:'rule',...extra});
+    cp.items=[card('allergy','アレルギー: なし','入院前'),card('pain','創痛がある。','術後1日目 10:00'),
+     card('rescue','レスキューでロキソプロフェン60mg 1錠内服する。','術後1日目 10:00'),
+     card('epidural','回診: 硬膜外麻酔抜去','術後1日目 8:00'),card('resting','ペインスケール「3」(安静時)','術後1日目 14:00'),
+     card('manual','食物アレルギー: なし','入院前',{predictionSource:'confirmed',editLog:[{kind:'tagRemove',hId:9}]})];
+    cp.myAssessments={existing:{text:'手書き評価'}};
+    cp.carePlans={saved:{id:'saved',problem:'架空計画',op:[],tp:[],ep:[],relatedNeeds:[],records:[],evidenceIds:['pain']}};
+    saveDataAndSync();
+   },savedTagSource);
+   await page.reload({waitUntil:'networkidle'});
+   await page.waitForFunction(()=>getCurrentPatient().items.find(i=>i.id==='pain')?.hendersonIds.includes(5));
+   const restoredTags=await page.evaluate(()=>{
+    const cp=getCurrentPatient();
+    const stored=JSON.parse(localStorage.getItem('nursing_patients_data')).patients.find(p=>p.id===cp.id);
+    return {tags:cp.items.map(i=>[i.id,i.hendersonIds]),persisted:stored.items.find(i=>i.id==='pain').hendersonIds,
+     assessment:cp.myAssessments.existing.text,plan:cp.carePlans.saved.evidenceIds};
+   });
+   assert.deepEqual(restoredTags,{tags:[['allergy',[9]],['pain',[4,5]],['rescue',[4,5]],['epidural',[]],['resting',[]],['manual',[]]],persisted:[4,5],assessment:'手書き評価',plan:['pain']});
+   await page.evaluate(()=>{const pain=getCurrentPatient().items.find(i=>i.id==='pain');pain.hendersonIds=[];delete pain.contextTagEvidence;saveDataAndSync();});
+   await page.locator('#tab-so-board').click();
+   await page.locator('#btn-start-classify').click();
+   await page.locator('#modal-dialog').waitFor({state:'visible'});
+   await page.locator('#dialog-secondary').click();
+   await page.waitForFunction(()=>getCurrentPatient().items.find(i=>i.id==='pain').hendersonIds.includes(5));
+   assert.deepEqual(await page.evaluate(()=>getCurrentPatient().items.filter(i=>i.text==='創痛がある。').map(i=>({id:i.id,tags:i.hendersonIds}))),[{id:'pain',tags:[4,5]}]);
    await page.evaluate(()=>createNewPatientPage('カード単位の架空検証'));
    await page.locator('#tab-so-board').click();
    const episodeSource='氏名：A氏 76歳 女性\n入院日：2026年6月8日\n睡眠：7時間程度（寝つきはよい）現在は痛みのため眠れていない\n術後1日目\n8:00 回診\n酸素OFF、硬膜外麻酔抜去、フットポンプOFF\n14:45 RH\n理学療法士によるリハビリ開始\nマッサージと関節可動域訓練開始「動かし始めは痛いけど、大丈夫」と本人\n本日、PTとともにベッド上でセッティング・SLR・足関節ROMの訓練実施。';
