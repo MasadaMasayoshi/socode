@@ -107,7 +107,7 @@ test('関連図：治療は楕円で「治療 → 治療の対象」、治療ご
   assert.ok(!map.edges.some(e => map.edges.some(o => o.source === e.target && o.target === e.source)), '両向きの矢印は無い');
   const svg = app.relationMapSvg(map, {});
   assert.match(svg, /<ellipse class="rm-box"/);
-  assert.match(svg, /stroke="#2563EB"[^>]*marker-end="url\(#rm-marker-\d+-tee-blue\)"/);
+  assert.match(svg, /stroke="#2563EB"[^>]*marker-end="url\(#rm-marker-\d+-arrow-blue\)"/);
   assert.match(svg, /（WBC 11600\/μL↑）/);
 });
 
@@ -679,13 +679,13 @@ test('関連図：操作は 作る｜編集｜見る・出す にまとめ、拡
   assert.match(live, /class="rm-node[^"]* is-pred"/);
 });
 
-test('関連図の評価への対応：治療の線の先は「┤」・線が四角の後ろを通らない・検査は矢印の途中に置かない・転倒と脱臼は別・推論を強くしすぎない', () => {
+test('関連図の評価への対応：治療の線の先は矢印・線が四角の後ろを通らない・検査は矢印の途中に置かない・転倒と脱臼は別・推論を強くしすぎない', () => {
 
   const gas = caseMap('gastric_postop');
   const svg = app.relationMapSvg(gas, {});
-  assert.match(svg, /<marker id="rm-marker-\d+-tee-blue"/);
+  assert.match(svg, /<marker id="rm-marker-\d+-arrow-blue"/);
   assert.doesNotMatch(svg, /url\(#rm-arrow-blue\)/);
-  assert.match(src, /治療 ┤ 治療の対象（抑える・和らげる）/);
+  assert.match(src, /治療 → 治療の対象（抑える・和らげる）/);
 
   ['gastric_postop', 'hip_fracture', 'heart_failure_long', 'aspiration_pneumonia'].forEach(name => {
     const m = caseMap(name);

@@ -56,12 +56,12 @@
     "hash": "ddd095be9f67a182"
   },
   "js/15-relation-map.js": {
-    "version": "2026-10-11.desktop-arrows",
-    "hash": "4cb187d58605ed42"
+    "version": "2026-10-11.visible-arrows2",
+    "hash": "78f9a47b923b05d7"
   },
   "style.css": {
-    "version": "2026-10-11.desktop-arrows",
-    "hash": "4dd1c029508390d5"
+    "version": "2026-10-11.visible-arrows2",
+    "hash": "1213f61f3bc5e256"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",

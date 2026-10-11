@@ -9,7 +9,7 @@ function evaluate(head,regression,browser,conditions){
  }
  const summary=regression?.summary;
  if(!summary?.tests||summary.pass!==summary.tests||['fail','cancelled','skipped','todo'].some(k=>summary[k]!==0))blockers.push('regression: incomplete test summary');
- if(![390,768,1440].every(w=>browser?.widths?.includes(w))||browser?.scenarioCount!==7||browser?.uncaughtErrors!==0)blockers.push('browser: incomplete workflow coverage');
+ if(![390,768,1440].every(w=>browser?.widths?.includes(w))||!Number.isInteger(browser?.scenarioCount)||browser.scenarioCount<8||browser?.uncaughtErrors!==0)blockers.push('browser: incomplete workflow coverage');
  const policy=conditions?.releasePolicy;
  const accepted=policy?.mode==='public-regression-and-browser'&&policy.ownerDecision==='tests-are-sufficient'&&/^\d{4}-\d{2}-\d{2}$/.test(policy.acceptedOn||'');
  if(policy&&!accepted)blockers.push('Invalid or unrecorded owner release policy');
