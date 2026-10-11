@@ -1294,9 +1294,7 @@
       redoStack.push({patientId:String(cp.id),itemId:String(target.item.id),before:target.entry.from,after:target.entry.to,at:target.entry.at});
       saveDataAndSync();
       status.textContent='カードの本文編集を1件取り消しました。';
-      comparison.hidden=false;
-      compareButton.setAttribute('aria-expanded','true');
-      reviewSource();
+      if(!comparison.hidden)reviewSource();
     }
     function redoTextEdit(){
       if(typeof getCurrentPatient!=='function'||typeof saveDataAndSync!=='function'||typeof touchItem!=='function'||typeof logItemEdit!=='function')return;
@@ -1408,7 +1406,9 @@
       status.textContent=found?'選択した原文に対応するカード候補 '+found+'件（部分一致。必ず本文を確認してください）':'選択した原文に対応するカードが見つかりません。';
     });
     window.openNursingManualReview=()=>{
-      if(!comparison.hidden)reviewSource();
+      comparison.hidden=false;
+      compareButton.setAttribute('aria-expanded','true');
+      reviewSource();
       document.getElementById('nursing-manual-review').showModal();
     };
     compareButton.addEventListener('click',()=>{
