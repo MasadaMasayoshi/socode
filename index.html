@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="2026-10-12.usability-context20">
-  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-11.usability-context15,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-11.usability-context19,06:2026-10-11.usability-context16,07:2026-10-11.usability-context16,08:2026-10-11.usability-context12,09:2026-10-11.usability-context17,10:2026-10-11.usability-context19,11:2026-10-11.usability-context13,12:2026-10-12.usability-context20,13:2026-10-11.usability-context12,14:2026-10-10.znavigation17,15:2026-10-11.usability-context17">
+  <meta name="app-version" content="2026-10-12.usability-context21">
+  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-11.usability-context15,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-12.usability-context21,06:2026-10-12.usability-context21,07:2026-10-11.usability-context16,08:2026-10-11.usability-context12,09:2026-10-12.usability-context21,10:2026-10-11.usability-context19,11:2026-10-11.usability-context13,12:2026-10-12.usability-context20,13:2026-10-12.usability-context21,14:2026-10-10.znavigation17,15:2026-10-11.usability-context17">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1009,6 +1009,8 @@
       </div>
       <p class="text-[11px] text-[var(--ink-muted)] leading-relaxed">分けたい所で改行してください。1行が1枚のカードになります。日時・タグ・S/O は元のカードと同じになり、分けた後にそれぞれ直せます。</p>
       <textarea id="split-text" rows="6" class="field resize-y" oninput="updateSplitPreview()"></textarea>
+      <label class="text-xs" for="split-reason">分ける理由（任意・修正依頼に含めます）</label>
+      <textarea id="split-reason" rows="2" class="field resize-y" placeholder="未入力の場合は「理由未記録」と書き出します"></textarea>
       <div class="flex flex-wrap items-center justify-between gap-2">
         <button type="button" class="my-asm-link" onclick="splitAtSentences()"><i class="fa-solid fa-wand-magic-sparkles"></i> 文（「。」）の区切りで改行する</button>
         <span id="split-count" class="text-[11px] text-[var(--ink-muted)]"></span>
@@ -1096,7 +1098,7 @@
         <button id="btn-overview-mode" onclick="toggleCardOverviewMode()" class="ov-mode-toggle" title="一覧の並べ方を切り替えます"></button>
         <button id="btn-overview-untagged" onclick="toggleCardOverviewUntaggedOnly()" class="ov-untagged-filter" title="タグ未設定のカードだけを表示します"></button>
         <button id="btn-overview-selectall-untagged" onclick="selectAllUntagged()" class="ov-untagged-filter" title="タグ未設定のカードをすべて選択します"><i class="fa-regular fa-square-check"></i> 未設定を全選択</button>
-        <button id="btn-overview-select-review" onclick="selectAllReviewTargets()" class="ov-untagged-filter" title="手で編集したカード（統合・分割を含む）とタグ未設定のカードをすべて選択します"><i class="fa-regular fa-square-check"></i> 編集済み＋未設定を選択</button>
+        <button id="btn-overview-select-review" onclick="selectAllReviewTargets()" class="ov-untagged-filter" title="手で編集したカード（統合・分割を含む）・タグ未設定・不必要のカードをすべて選択します"><i class="fa-regular fa-square-check"></i> 修正依頼の対象を選択</button>
         <span class="ov-help text-[10px] text-[var(--ink-muted)]">カードか□をクリックで選択→一覧を閉じて元の文章の該当箇所を表示（選択は保持。「一覧に戻る」で戻れます）／□を外すと選択解除（Escで閉じる）</span>
       </div>
       <div class="flex items-center gap-2 flex-wrap ml-auto">
@@ -1152,6 +1154,8 @@
         <div class="mb-3">
           <label class="block text-xs font-medium text-[var(--ink)] mb-1">統合後の内容（編集できます）</label>
           <textarea id="merge-text" rows="4" class="field resize-none"></textarea>
+          <label class="block text-xs mt-2 mb-1" for="merge-reason">統合する理由（任意・修正依頼に含めます）</label>
+          <textarea id="merge-reason" rows="2" class="field resize-y" placeholder="未入力の場合は「理由未記録」と書き出します"></textarea>
         </div>
         <div class="mb-3">
           <label class="block text-xs font-medium text-[var(--ink)] mb-1">分類</label>
@@ -1244,15 +1248,15 @@
   <script src="js/02-reference-data.js?v=2026-10-11.usability-context15"></script>
   <script src="js/03-extraction-helpers.js?v=2026-10-10.znavigation17"></script>
   <script src="js/04-server-sync.js?v=2026-10-10.znavigation17"></script>
-  <script src="js/05-app-state-and-ui.js?v=2026-10-11.usability-context19"></script>
-  <script src="js/06-export.js?v=2026-10-11.usability-context16"></script>
+  <script src="js/05-app-state-and-ui.js?v=2026-10-12.usability-context21"></script>
+  <script src="js/06-export.js?v=2026-10-12.usability-context21"></script>
   <script src="js/07-classification.js?v=2026-10-11.usability-context16"></script>
   <script src="js/08-assessment-tools.js?v=2026-10-11.usability-context12"></script>
-  <script src="js/09-board.js?v=2026-10-11.usability-context17"></script>
+  <script src="js/09-board.js?v=2026-10-12.usability-context21"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-11.usability-context19"></script>
   <script src="js/11-own-assessment.js?v=2026-10-11.usability-context13"></script>
   <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-12.usability-context20"></script>
-  <script src="js/13-compare-and-report.js?v=2026-10-11.usability-context12"></script>
+  <script src="js/13-compare-and-report.js?v=2026-10-12.usability-context21"></script>
   <script src="js/14-drug-reference.js?v=2026-10-10.znavigation17"></script>
   <script src="js/15-relation-map.js?v=2026-10-11.usability-context17"></script>
   <script>

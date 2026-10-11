@@ -2,7 +2,7 @@
 // Confirmations and Undo verify the captured patient/target; local writes require full readback.
 // AI transport accepts image OCR only; classification and clinical generation stay local.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-11.usability-context19'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-12.usability-context21'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -1216,7 +1216,7 @@
     function logItemEdit(item, entry) {
       if (!item) return;
       const log = Array.isArray(item.editLog) ? item.editLog.slice() : [];
-      log.push({ at: new Date().toISOString(), ...entry });
+      log.push({ at: new Date().toISOString(), actor: 'user', reason: null, ...entry });
       item.editLog = log.slice(-30);
     }
     function markItemDeleted(cp, itemId) {

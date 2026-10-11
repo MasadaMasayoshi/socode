@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-11.usability-context12'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-12.usability-context21'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -596,7 +596,7 @@
       window.undoLastEdit(redo);
     });
 
-    function splitCardIntoParts(cp, id, parts) {
+    function splitCardIntoParts(cp, id, parts, reason = '') {
       const idx = cp.items.findIndex(i => i.id === id);
       if (idx === -1) return null;
       let texts = parts.map(t => cleanExtractedPhrase(t)).filter(Boolean);
@@ -606,14 +606,20 @@
       const src = cp.items[idx];
       const before = src.text;
       src.text = texts[0];
-      logItemEdit(src, { kind: 'text', from: before, to: src.text });
+      const sourceCards = [JSON.parse(JSON.stringify(src))];
+      sourceCards[0].text = before;
+      const operationId = `split_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const entry = { kind: 'split', actor: 'user', operationId, from: before, parts: texts.slice(), sourceCards, reason: reason.trim() || null };
+      logItemEdit(src, { ...entry, to: src.text });
       touchItem(src);
       const added = texts.slice(1).map(text => {
-        const c = { ...JSON.parse(JSON.stringify(src)), id: `item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, text, editLog: [{ at: new Date().toISOString(), kind: 'text', from: before, to: text }] };
+        const c = { ...JSON.parse(JSON.stringify(src)), id: `item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, text, editLog: [{ at: new Date().toISOString(), ...entry, to: text }] };
         delete c.sceneId;
         touchItem(c);
         return c;
       });
+      const resultIds = [src, ...added].map(i => i.id);
+      [src, ...added].forEach(i => { i.editLog[i.editLog.length - 1].resultIds = resultIds.slice(); });
       cp.items.splice(idx + 1, 0, ...added);
       return [src, ...added];
     }
@@ -624,6 +630,7 @@
       splitEditingId = id;
       const ta = document.getElementById('split-text');
       ta.value = item.text;
+      document.getElementById('split-reason').value = '';
       updateSplitPreview();
       document.getElementById('modal-split').classList.remove('hidden');
       setTimeout(() => { ta.focus(); }, 30);
@@ -648,7 +655,7 @@
       const cp = getCurrentPatient();
       const before = itemsSnapshot(cp);
       const parts = document.getElementById('split-text').value.split(/\n+/);
-      const res = splitCardIntoParts(cp, splitEditingId, parts);
+      const res = splitCardIntoParts(cp, splitEditingId, parts, document.getElementById('split-reason').value);
       if (!res) return showToast('分けたい所で改行してください（2行以上）', 'warn');
       pushUndo(cp.id, before, 'カードを分ける');
       closeSplitCard();
