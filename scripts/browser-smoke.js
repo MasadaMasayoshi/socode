@@ -641,6 +641,8 @@ const {app}=require('../server');
      if(width===1440) await page.locator('#assessment-layout').screenshot({path:`browser-artifacts/${width}-assessment-layout.png`});
      const postop=status.locator('[data-suf-phase="postop"]');
      for (const phase of ['pre','preop','postop']) assert.equal(await status.locator(`[data-suf-phase="${phase}"] .suf-phase-why`).isVisible(),true,'Every phase shows its evidence without opening a disclosure');
+     assert.match(await status.locator('[data-suf-phase="pre"] .suf-phase-why p').innerText(), /O-1（入院前：普段は呼吸困難なし）により、呼吸は満たされているため、充足。/);
+     assert.match(await postop.locator('.suf-phase-why p').innerText(), /O-3（術後1日目：.*により、呼吸が現在は十分に満たされていない状態と判断し、未充足。/);
      await page.evaluate(()=>renderAssessmentTable());
      assert.equal(await postop.locator('.suf-phase-why').isVisible(),true,'Evidence remains visible after refresh');
      await page.keyboard.press('Escape');
