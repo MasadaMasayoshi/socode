@@ -1335,6 +1335,8 @@ html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow-sel path { fill: #F59E6
 .board-menu-panel button:hover:not([disabled]) { background: var(--paper); }
 .board-menu-panel button[disabled] { opacity: .45; cursor: not-allowed; }
 .rm-toolbar { position: relative; }
+.rm-toolbar #rm-problems { left: auto; right: 0; }
+.rm-toolbar #rm-more { left: auto; right: 0; width: min(320px, calc(100vw - 48px)); }
 .rm-toolbar .rm-more .rm-group { display: grid; grid-template-columns: 1fr; gap: 2px; padding: 0 0 6px; border: 0; border-bottom: 1px solid var(--line-soft); width: 100%; }
 .rm-toolbar .rm-more .rm-more-item { min-height: 40px; flex-shrink: 0; }
 .rm-toolbar .rm-more .rm-bridge-btn.is-on { background: var(--surface); color: var(--accent-dark); }

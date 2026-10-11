@@ -561,6 +561,15 @@ const {app}=require('../server');
     }
     await page.locator('[data-rm-action="build-rules"]').click();
     await page.waitForFunction(()=>getCurrentPatient().relationMap?.nodes.length>0);
+    if(id==='gastric-arrows') {
+     await page.locator('.rm-toolbar [data-rm-action="toggle-more"]').click();
+     await page.locator('[data-rm-action="toggle-text"]').click();
+     assert.equal(await page.locator('#rm-text-view').isVisible(),true);
+     assert.equal(await page.locator('#rm-more').isVisible(),false);
+     await page.locator('.rm-toolbar [data-rm-action="toggle-more"]').click();
+     await page.locator('[data-rm-action="toggle-text"]').click();
+     assert.equal(await page.locator('#rm-text-view').isVisible(),false);
+    }
     const result=await page.evaluate(()=>{
      const cp=getCurrentPatient(),items=cp.items.filter(i=>!i.deleted),ids=new Set(items.map(i=>i.id));
      const plans=carePlanList(cp),map=cp.relationMap;
@@ -686,6 +695,8 @@ const {app}=require('../server');
       await page.locator('#rm-selection-bar [data-rm-action="focus-all"]').click();
      }
      await page.locator('.rm-prob-menu [data-rm-action="toggle-problems"]').click();
+     const problemPopup=await page.locator('#rm-problems').boundingBox();
+     assert.ok(problemPopup.x>=0&&problemPopup.x+problemPopup.width<=width,`${width}px: nursing-problem menu fits viewport`);
      for(const problem of problems.slice(0,2))await page.locator(`#rm-problems [data-node-id="${problem}"]`).click();
      assert.equal(await page.locator('#rm-problems [aria-pressed="true"]').count(),2);
      await page.locator('#rm-problems [data-rm-action="focus-apply"]').click();
