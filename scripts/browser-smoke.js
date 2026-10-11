@@ -591,7 +591,8 @@ const {app}=require('../server');
     if(id==='gastric-arrows') {
      const problems=await page.evaluate(()=>getCurrentPatient().relationMap.nodes.filter(n=>n.type==='nursing_problem').map(n=>n.id));
      assert.ok(problems.length>=3);
-     const background=await page.locator('#rm-canvas-wrap svg').evaluate(el=>getComputedStyle(el).backgroundColor);
+     const background=await page.locator('#rm-canvas-wrap svg').evaluate(el=>({paper:getComputedStyle(el.querySelector('.rm-bg')).fill,canvas:getComputedStyle(el.closest('.rm-canvas-wrap')).backgroundColor}));
+     assert.equal(background.paper,background.canvas);
      await page.locator('.rm-prob-menu [data-rm-action="toggle-problems"]').click();
      for(const problem of problems.slice(0,2))await page.locator(`#rm-problems [data-node-id="${problem}"]`).click();
      assert.equal(await page.locator('#rm-problems [aria-pressed="true"]').count(),2);
@@ -599,7 +600,7 @@ const {app}=require('../server');
      const selected=await page.evaluate(()=>Array.from(document.querySelectorAll('#rm-canvas-wrap .rm-node[data-node-id]')).map(el=>el.dataset.nodeId));
      for(const problem of problems.slice(0,2))assert.ok(selected.includes(problem));
      for(const problem of problems.slice(2))assert.ok(!selected.includes(problem));
-     assert.equal(await page.locator('#rm-canvas-wrap svg').evaluate(el=>getComputedStyle(el).backgroundColor),background);
+     assert.deepEqual(await page.locator('#rm-canvas-wrap svg').evaluate(el=>({paper:getComputedStyle(el.querySelector('.rm-bg')).fill,canvas:getComputedStyle(el.closest('.rm-canvas-wrap')).backgroundColor})),background);
      const closure=await page.evaluate(()=>{
       const map=getCurrentPatient().relationMap,ids=new Set(Array.from(document.querySelectorAll('#rm-canvas-wrap .rm-node[data-node-id]')).map(el=>el.dataset.nodeId));
       return map.edges.filter(e=>ids.has(e.target)&&map.nodes.find(n=>n.id===e.source)?.type!=='nursing_problem').every(e=>ids.has(e.source));

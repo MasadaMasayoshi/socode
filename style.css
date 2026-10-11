@@ -1047,8 +1047,9 @@
     #view-relation.rm-fullscreen .rm-selbar { position: fixed; left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); z-index: 52; box-shadow: 0 4px 14px rgba(0,0,0,.12); }
     #view-relation.rm-fullscreen .rm-selbar:has(> .rm-sel-hint:only-child) { display: none; }
     body.rm-fs-open { overflow: hidden; }
-    .rm-canvas-wrap { position: relative; overflow: auto; height: min(72vh, 820px); min-height: 320px; border: 1px solid var(--line); border-radius: var(--radius); background-color: var(--surface);
-      background-image: radial-gradient(var(--line-soft) 1px, transparent 1px); background-size: 18px 18px; -webkit-overflow-scrolling: touch; }
+    .rm-canvas-wrap { position: relative; overflow: auto; height: min(72vh, 820px); min-height: 320px; border: 1px solid var(--line); border-radius: var(--radius); background-color: #F5F3EE;
+      -webkit-overflow-scrolling: touch; }
+    html[data-theme="dark"] .rm-canvas-wrap { background-color: #171512; }
     .rm-canvas-wrap:focus { outline: none; }
 
     .rm-stage { display: inline-block; padding: min(28vh, 220px) min(28vw, 320px); vertical-align: top; }
