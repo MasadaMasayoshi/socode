@@ -13,7 +13,7 @@ test('non-image Gemini requests are rejected at common entry point', () => {
 });
 test('AI analysis results remain hidden, non-AI checks and OCR remain available', () => {
   const source = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-  assert.match(source, /id="ai-steps" class="ai-steps"/);
+  assert.doesNotMatch(source, /id="ai-steps"/);
   assert.match(source, /id="ai-results" class="ai-results hidden"/);
   assert.match(source, /id="ocr-dropzone"/);
 });

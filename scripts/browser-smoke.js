@@ -93,6 +93,7 @@ const {app}=require('../server');
    await page.locator('#source-text').fill('【架空の画面検証用記録】\n体温36.8℃、脈拍72回/分。\n「昨夜はよく眠れました」と話す。');
    // Fresh browser contexts may load the fictional chart saved by an earlier
    // width from the same temporary server. Exercise the real replacement dialog.
+   assert.equal(await page.locator('#ai-steps').count(),0);
    assert.equal(await page.locator('#nursing-auto-check').count(),0);
    assert.equal(await page.locator('#nursing-manual-review').isVisible(),false);
    assert.equal(await page.locator('main #nursing-manual-review').count(),0);
@@ -442,14 +443,30 @@ const {app}=require('../server');
      });
      for (const column of ['.asm-col-pre','.asm-col-post']) {
       const section=page.locator('#assessment-single '+column);
-      assert.equal(await section.locator('.suf-phase-block').count(),column==='.asm-col-pre'?1:2);
+      assert.equal(await section.locator('.asm-col-title .suf-inline').count(),column==='.asm-col-pre'?1:2);
+      assert.equal(await section.locator('.suf-inline[open]').count(),0);
+      assert.equal(await section.locator('.asm-col-title').evaluate(head=>{
+       const label=head.querySelector('span').getBoundingClientRect(),cy=label.y+label.height/2;
+       return Array.from(head.querySelectorAll('summary')).every(el=>{
+        const r=el.getBoundingClientRect();return Math.abs(r.y+r.height/2-cy)<2;
+       });
+      }),true,'Phase verdicts share the column-title line');
       assert.equal(await section.evaluate(el=>{
        const last=Array.from(el.querySelectorAll('.suf-phase-block')).at(-1),card=el.querySelector('.asc-card');
        return !!card && !!(last.compareDocumentPosition(card)&Node.DOCUMENT_POSITION_FOLLOWING);
       }),true,'Each phase verdict precedes its evidence cards');
      }
      await page.locator('#toast-container').evaluate(el=>el.replaceChildren());
-     await page.screenshot({path:`browser-artifacts/${width}-sufficiency-top.png`});
+     await page.locator('#assessment-single .asm-center').screenshot({path:`browser-artifacts/${width}-sufficiency-inline.png`});
+     const postop=page.locator('#assessment-single [data-suf-phase="postop"]');
+     await postop.locator('summary').click();
+     assert.equal(await postop.locator('.suf-phase-why').isVisible(),true);
+     const beforeCard=await page.locator('#assessment-single .asm-col-post .asc-card').first().boundingBox();
+     await page.locator('#assessment-single .asm-center').screenshot({path:`browser-artifacts/${width}-sufficiency-evidence.png`});
+     await page.keyboard.press('Escape');
+     assert.equal(await postop.getAttribute('open'),null);
+     const afterCard=await page.locator('#assessment-single .asm-col-post .asc-card').first().boundingBox();
+     assert.equal(beforeCard.y,afterCard.y,'Evidence does not shift the cards');
      await page.evaluate(()=>selectAssessmentNeed('all'));
      assert.equal(await page.locator('#assessment-tbody tr:not(.my-asm-row)').first().evaluate(row=>{
       return [row.cells[2],row.cells[3]].every(cell=>{
