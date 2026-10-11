@@ -3273,6 +3273,7 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
       svg.setAttribute('width', Math.round(vb.width * rmState.zoom));
       svg.setAttribute('height', Math.round(vb.height * rmState.zoom));
       svg.querySelectorAll('marker').forEach(marker => { marker.setAttribute('markerWidth', 8 / rmState.zoom); marker.setAttribute('markerHeight', 8 / rmState.zoom); });
+      svg.querySelectorAll('.rm-bridge-clearance').forEach(path => path.setAttribute('stroke-width', 3.2 / rmState.zoom));
       wrap.scrollLeft = left + mx * rmState.zoom - (clientX - wr.left);
       wrap.scrollTop = top + my * rmState.zoom - (clientY - wr.top);
     }
@@ -3522,9 +3523,10 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
       wrap.addEventListener('scroll', rmHideCtx, { passive: true });
 
       document.addEventListener('click', e => {
-        if (rmState.moreOpen && !(e.target.closest && e.target.closest('#rm-more, [data-rm-action="toggle-more"]'))) rmSetMoreOpen(false);
+        const inside = selector => e.composedPath().some(node => node.matches?.(selector));
+        if (rmState.moreOpen && !inside('#rm-more, [data-rm-action="toggle-more"]')) rmSetMoreOpen(false);
         if (!rmState.problemsOpen) return;
-        if (e.target.closest && e.target.closest('#rm-problems, [data-rm-action="toggle-problems"]')) return;
+        if (inside('#rm-problems, [data-rm-action="toggle-problems"]')) return;
         rmSetProblemsOpen(false);
       });
       document.addEventListener('keydown', e => {

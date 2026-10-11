@@ -577,6 +577,15 @@ const {app}=require('../server');
       },zoom);
       await page.locator('#toast-container').evaluate(el=>el.replaceChildren());
       await page.locator('#rm-canvas-wrap').screenshot({path:`browser-artifacts/${width}-gastric-arrows-${zoom}.png`});
+      await page.evaluate(zoom=>{
+       const wrap=document.getElementById('rm-canvas-wrap'),bounds=wrap.getBoundingClientRect();
+       const next=zoom===2?1.5:2;
+       rmZoomAt(next,bounds.left+bounds.width/2,bounds.top+bounds.height/2);
+       const svg=wrap.querySelector('svg');
+       if([...svg.querySelectorAll('marker')].some(m=>Math.abs(Number(m.getAttribute('markerWidth'))*rmState.zoom-8)>.01))throw Error('Live zoom changes arrow size');
+       if([...svg.querySelectorAll('.rm-bridge-clearance')].some(p=>Math.abs(Number(p.getAttribute('stroke-width'))*rmState.zoom-3.2)>.01))throw Error('Live zoom changes crossing clearance');
+      },zoom);
+
      }
     }
     if(id==='gastric-arrows') {
