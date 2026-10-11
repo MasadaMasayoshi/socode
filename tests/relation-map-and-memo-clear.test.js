@@ -716,7 +716,7 @@ test('関連図の評価への対応：治療の線の先は矢印・線が四�
   assert.doesNotMatch(src, /非効果的気道浄化（無気肺・肺炎のリスク状態）/);
 });
 
-test('スマホ：見出しのボタンを小さく・保存の状態は折り返す（横にはみ出さない）／関連図は長押しでメニュー・最初は疾患を上下のまん中に', () => {
+test('Mobile controls wrap, long press opens editing, and map navigation starts at a predictable edge', () => {
   const mob = css.slice(css.lastIndexOf('@media (max-width: 639px)'));
   assert.match(mob, /@media \(max-width: 639px\) \{/);
   assert.match(mob, /#save-status \{ white-space: normal; min-width: 0;/);
@@ -724,7 +724,8 @@ test('スマホ：見出しのボタンを小さく・保存の状態は折り�
   assert.match(mob, /\.rm-group-sep \{ padding-left: 0; border-left: 0; \}/);
   assert.match(src, /const longPress = \{ timer: 0, fired: false, sx: 0, sy: 0 \};/);
   assert.match(src, /longPress\.fired = true;\s*rmShowCtx\(\{ target: tgt, clientX: cx, clientY: cy \}\);/);
-  assert.match(src, /const dis = wrap\.querySelector\('\.rm-node\[data-kind="disease"\]'\);/);
+  assert.match(html, /data-rm-action="map-start"/);
+  assert.doesNotMatch(src, /const dis = wrap\.querySelector\('\.rm-node\[data-kind="disease"\]'\);/);
   assert.doesNotMatch(src, /rmShowCheck/);
   assert.doesNotMatch(html, /id="rm-add-kind"|data-rm-action="check"|id="rm-check"/);
 });

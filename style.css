@@ -1048,7 +1048,7 @@
 
     .rm-stage { display: inline-block; padding: 24px; vertical-align: top; }
     .rm-canvas-wrap { touch-action: none; cursor: grab; }
-    .rm-canvas-wrap svg { display: block; outline: 1px solid var(--line); outline-offset: 6px; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+    .rm-canvas-wrap svg { display: block; touch-action: none; cursor: grab; outline: 1px solid var(--line); outline-offset: 6px; user-select: none; -webkit-user-select: none; }
     .rm-canvas-wrap.is-panning, .rm-canvas-wrap.is-panning * { cursor: grabbing !important; }
     .rm-canvas-wrap .rm-node { cursor: grab; touch-action: none; }
     .rm-canvas-wrap .rm-node:active { cursor: grabbing; }
