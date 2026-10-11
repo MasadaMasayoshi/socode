@@ -143,7 +143,7 @@ const {app}=require('../server');
    assert.ok(reviewButton.y>=classifyButton.y+classifyButton.height);
    await page.locator('#btn-manual-review').locator('..').screenshot({path:`browser-artifacts/${width}-source-actions.png`});
    await page.locator('#btn-manual-review').click();
-   await page.locator('#nursing-source-compare').click();
+   assert.equal(await page.locator('#nursing-source-review').isVisible(),true);
    await page.locator('#nursing-organized-text button[data-card-id="source-nav-smoke"]').click();
    assert.match(await page.locator('#nursing-source-match-status').innerText(),/表記をそろえた一致 1／2/);
    assert.equal(await page.locator('#nursing-original-text mark').innerText(),'架空の照合記録：痛みなし');
@@ -601,6 +601,20 @@ const {app}=require('../server');
      await page.waitForFunction(()=>window.__exports.some(e=>e.type==='image/png'));
      await page.locator('.rm-prob-menu [data-rm-action="toggle-problems"]').click();
      await page.locator('#rm-problems [data-rm-action="focus-all"]').click();
+     if(width===1440){
+      const dragged=page.locator('#rm-canvas-wrap .rm-node').first();
+      await dragged.scrollIntoViewIfNeeded();
+      const box=await dragged.boundingBox();
+      await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
+      await page.mouse.down();
+      await page.mouse.move(box.x+box.width/2+35,box.y+box.height/2+20,{steps:3});
+      await page.waitForFunction(()=>document.getElementById('rm-canvas-wrap').classList.contains('is-dragging'));
+      assert.equal(await page.locator('#rm-canvas-wrap .rm-link-line').evaluateAll(lines=>lines.every(line=>!/(?:NaN|undefined|Infinity)/.test(line.getAttribute('d')))),true);
+      await page.mouse.up();
+      assert.equal(await page.locator('#rm-canvas-wrap').evaluate(el=>el.classList.contains('is-dragging')),false);
+      await page.evaluate(()=>rmUndoRedo(false));
+     }
+
     }
     if(id==='heart-failure') await page.screenshot({path:`browser-artifacts/${width}-public-long-relation.png`});
     console.log(`PASS ${width}px public ${id}: UI classification, assessment, plans, labs and relation map`);

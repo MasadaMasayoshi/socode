@@ -5,6 +5,19 @@ const { loadApp } = require('./app-helpers');
 const app = loadApp();
 const plain = x => JSON.parse(JSON.stringify(x));
 
+test('Drag preview routes retain finite coordinates and meet their source and target boxes', () => {
+  const map={nodes:[{id:'a',type:'patient_fact',label:'A',x:20,y:50},{id:'b',type:'patient_fact',label:'B',x:500,y:200}],edges:[{id:'forward',source:'a',target:'b'},{id:'backward',source:'b',target:'a'}]};
+  const routes=app.rmDragRoutes(map);
+  assert.equal(routes.length,2);
+  for(const route of routes){
+    assert.ok(route.pts.flat().every(Number.isFinite));
+    const source=app.rmRect(map.nodes.find(n=>n.id===route.edge.source));
+    const target=app.rmRect(map.nodes.find(n=>n.id===route.edge.target));
+    assert.ok([source.x1,source.x2].includes(route.pts[0][0]));
+    assert.ok([target.x1,target.x2].includes(route.pts.at(-1)[0]));
+  }
+});
+
 function branchingMap() {
   const types = { factor:'patient_fact', disease:'disease', treatment:'treatment', after:'patient_fact', p1:'nursing_problem', other:'patient_fact', p2:'nursing_problem', isolated:'patient_fact', p3:'nursing_problem' };
   const links = [['factor','disease'],['disease','treatment'],['treatment','after'],['after','p1'],['treatment','disease','treats'],['disease','other'],['other','p2'],['isolated','p3']];
