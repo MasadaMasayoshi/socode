@@ -313,7 +313,7 @@ test('関連図の見やすさ：一体感（帯の色分けなし・疾患は�
   });
   assert.match(svg, / Q-?\d/, '曲がり角を丸める');
   assert.match(src, /svg\.classList\.toggle\('rm-focus', path\.size > 0\)/);
-  assert.match(css, /\.rm-svg\.rm-focus \.rm-node:not\(\.is-path\) \{ opacity: \.22; \}/);
+  assert.doesNotMatch(css, /\.rm-svg\.rm-focus \.rm-(?:node|link):not\(\.is-path\)/);
   map.nodes.filter(n => n.type === 'symptom' && n.itemIds.length).forEach(n => assert.ok(n.label.length <= 40, n.label));
   assert.ok(!map.nodes.some(n => /^\d{1,2}:\d{2}/.test(n.label)), '時刻は四角に入れない');
 });
@@ -354,7 +354,7 @@ test('関連図の読みやすさ：文字14pxのゴシック体・作った直�
   assert.match(svg, /font-size="14"[^>]*fill="#1C1917"/);
   assert.match(svg, /font-family="[^"]*Noto Sans JP[^"]*sans-serif"/);
   assert.match(css, /\.rm-svg text, \.rm-svg tspan \{ font-family: 'Noto Sans JP'[^}]*sans-serif; \}/, 'ページ全体の明朝体より優先');
-  assert.match(src, /factor === 'fit' \? 0\.25 : wrap\.clientWidth < 600 \? 0\.55 : 0\.85/, 'パソコンは85%、スマホの幅は55%より小さくしない');
+  assert.match(src, /factor === 'fit' \? 0\.25 : 0\.9/, 'Automatic views keep at least 90% scale; explicit overview can fit the whole map');
   assert.match(html, /data-rm-action="zoom-100"/);
   assert.match(src, /m\.layoutStyle !== RM_LAYOUT_STYLE\) layoutRelationMap\(m\)/);
   const old = app.normalizeRelationMap({ version: 2, nodes: [{ id: 'a', type: 'symptom', label: 'x', x: 0, y: 0 }], edges: [] });
@@ -652,7 +652,7 @@ test('関連図：矢印の向きを逆にする（並べ直して左向きを�
   const svg = app.relationMapSvg(caseMap('gastric_postop'), {});
   assert.ok(!/<text class="rm-text"(?![^>]*text-anchor="middle")/.test(svg), '文字はまん中ぞろえ');
   assert.match(src, /<div class="rm-stage">\$\{focusSub \? relationMapSvg\(focusSub/);
-  assert.match(css, /\.rm-stage \{ display: inline-block; padding: min\(28vh, 220px\) min\(28vw, 320px\);/);
+  assert.match(css, /\.rm-stage \{ display: inline-block; padding: 24px;/);
   assert.ok(html.indexOf('id="tab-careplan"') < html.indexOf('id="tab-labs"'), '看護計画のタブが先');
   assert.ok(html.indexOf('id="tab-labs"') < html.indexOf('id="tab-relation"'));
 });
@@ -667,11 +667,11 @@ test('関連図：操作は 作る｜編集｜見る・出す にまとめ、拡
   assert.match(view, /class="rm-zoom-pad"[\s\S]*?data-rm-action="zoom-in"[\s\S]*?data-rm-action="zoom-out"[\s\S]*?data-rm-action="zoom-fit"[\s\S]*?data-rm-action="zoom-100"/);
   assert.match(css, /\.rm-zoom-pad \{ position: absolute; right: 18px; bottom: 18px;/);
   assert.match(src, /else if \(act === 'toggle-more'\)/);
-  assert.match(src, /<details class="rm-help"><summary>四角や矢印（線）を押す・右クリック（スマホは長押し）すると、編集できます/, '案内は1行（くわしくは開いたときだけ）');
+  assert.match(src, /<details class="rm-help"><summary>看護問題を押すと、その問題の流れだけを表示します/, '案内は1行（くわしくは開いたときだけ）');
 
   const map = caseMap('gastric_postop');
   const live = app.relationMapSvg(map, { interactive: true });
-  assert.match(live, /<rect class="rm-bg is-paper"[^>]*fill="#F5F3EE"/);
+  assert.match(live, /<rect class="rm-bg is-paper"[^>]*fill="#FFFFFF"/);
   assert.match(app.relationMapSvg(map, {}), /<rect class="rm-bg"[^>]*fill="#FFFFFF"/, '印刷・画像は白');
   const pe = map.edges.find(e => e.predicted);
   assert.ok(pe);
@@ -716,7 +716,7 @@ test('関連図の評価への対応：治療の線の先は矢印・線が四�
   assert.doesNotMatch(src, /非効果的気道浄化（無気肺・肺炎のリスク状態）/);
 });
 
-test('スマホ：見出しのボタンを小さく・保存の状態は折り返す（横にはみ出さない）／関連図は長押しでメニュー・最初は疾患を上下のまん中に', () => {
+test('Mobile controls wrap, long press opens editing, and map navigation starts at a predictable edge', () => {
   const mob = css.slice(css.lastIndexOf('@media (max-width: 639px)'));
   assert.match(mob, /@media \(max-width: 639px\) \{/);
   assert.match(mob, /#save-status \{ white-space: normal; min-width: 0;/);
@@ -724,7 +724,8 @@ test('スマホ：見出しのボタンを小さく・保存の状態は折り�
   assert.match(mob, /\.rm-group-sep \{ padding-left: 0; border-left: 0; \}/);
   assert.match(src, /const longPress = \{ timer: 0, fired: false, sx: 0, sy: 0 \};/);
   assert.match(src, /longPress\.fired = true;\s*rmShowCtx\(\{ target: tgt, clientX: cx, clientY: cy \}\);/);
-  assert.match(src, /const dis = wrap\.querySelector\('\.rm-node\[data-kind="disease"\]'\);/);
+  assert.match(html, /data-rm-action="map-start"/);
+  assert.doesNotMatch(src, /const dis = wrap\.querySelector\('\.rm-node\[data-kind="disease"\]'\);/);
   assert.doesNotMatch(src, /rmShowCheck/);
   assert.doesNotMatch(html, /id="rm-add-kind"|data-rm-action="check"|id="rm-check"/);
 });

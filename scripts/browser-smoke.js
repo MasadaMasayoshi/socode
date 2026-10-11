@@ -593,6 +593,33 @@ const {app}=require('../server');
      assert.ok(problems.length>=3);
      const background=await page.locator('#rm-canvas-wrap svg').evaluate(el=>({paper:getComputedStyle(el.querySelector('.rm-bg')).fill,canvas:getComputedStyle(el.closest('.rm-canvas-wrap')).backgroundColor}));
      assert.equal(background.paper,background.canvas);
+     assert.equal(background.paper,'rgb(255, 255, 255)');
+     // Reproduce direct node selection, rather than testing only the problem menu.
+     const problemNode=page.locator(`#rm-canvas-wrap .rm-node[data-node-id="${problems[0]}"]`);
+     await problemNode.scrollIntoViewIfNeeded();
+     if(width<768)await problemNode.tap();else await problemNode.click();
+     const direct=await page.evaluate(()=>({
+      focus:rmState.focusProblem,
+      nodes:Array.from(document.querySelectorAll('#rm-canvas-wrap .rm-node')).map(el=>({id:el.dataset.nodeId,opacity:getComputedStyle(el).opacity})),
+      legacy:document.querySelector('#rm-canvas-wrap svg').classList.contains('rm-focus')
+     }));
+     assert.deepEqual(direct.focus,[problems[0]]);
+     assert.ok(await page.evaluate(()=>rmState.zoom>=0.9),'Automatic selection must keep text readable');
+     assert.equal(direct.legacy,false);
+     assert.ok(direct.nodes.every(n=>n.opacity==='1'),'Direct problem selection must not fade source evidence');
+     assert.deepEqual(direct.nodes.filter(n=>problems.includes(n.id)).map(n=>n.id),[problems[0]]);
+     assert.equal(await page.evaluate(()=>{
+      const map=getCurrentPatient().relationMap,ids=new Set(Array.from(document.querySelectorAll('#rm-canvas-wrap .rm-node')).map(el=>el.dataset.nodeId));
+      return map.edges.filter(e=>ids.has(e.target)&&map.nodes.find(n=>n.id===e.source)?.type!=='nursing_problem').every(e=>ids.has(e.source))&&map.edges.filter(e=>ids.has(e.source)&&e.relation==='treats'&&['disease','symptom','pathophysiology'].includes(map.nodes.find(n=>n.id===e.target)?.type)).every(e=>ids.has(e.target));
+     }),true,'Direct selection preserves factors, disease and treatment indications');
+     await page.locator('#rm-canvas-wrap').screenshot({path:`browser-artifacts/${width}-direct-problem.png`});
+     await page.locator('#rm-selection-bar [data-rm-action="focus-all"]').click();
+     if(width===1440){
+      await page.locator(`#rm-canvas-wrap .rm-node[data-node-id="${problems[0]}"]`).focus();
+      await page.keyboard.press('Enter');
+      assert.deepEqual(await page.evaluate(()=>rmState.focusProblem),[problems[0]]);
+      await page.locator('#rm-selection-bar [data-rm-action="focus-all"]').click();
+     }
      await page.locator('.rm-prob-menu [data-rm-action="toggle-problems"]').click();
      for(const problem of problems.slice(0,2))await page.locator(`#rm-problems [data-node-id="${problem}"]`).click();
      assert.equal(await page.locator('#rm-problems [aria-pressed="true"]').count(),2);
@@ -612,6 +639,19 @@ const {app}=require('../server');
      await page.locator('.rm-prob-menu [data-rm-action="toggle-problems"]').click();
      await page.locator('#rm-problems [data-rm-action="focus-all"]').click();
      if(width===1440){
+      const wrap=page.locator('#rm-canvas-wrap');
+      await wrap.evaluate(el=>{el.scrollLeft=0;el.scrollTop=0;});
+      const area=await wrap.boundingBox();
+      await page.mouse.move(area.x+12,area.y+12);
+      await page.mouse.down();
+      await page.mouse.move(area.x-23,area.y-23,{steps:3});
+      await page.mouse.up();
+      assert.ok(await wrap.evaluate(el=>el.scrollLeft>0&&el.scrollTop>0),'The outer whitespace must support dragging');
+      const previousZoom=await page.evaluate(()=>rmState.zoom);
+      await page.locator('.rm-zoom-pad [data-rm-action="map-start"]').click();
+      assert.equal(await page.evaluate(()=>rmState.zoom),previousZoom);
+      const position=await wrap.evaluate(el=>{const area=el.getBoundingClientRect(),svg=el.querySelector('svg').getBoundingClientRect();return {x:svg.left-area.left,y:svg.top-area.top};});
+      assert.ok(position.x>=6&&position.x<=12&&position.y>=6&&position.y<=12,'Return to diagram aligns the visible paper edge');
       const dragged=page.locator('#rm-canvas-wrap .rm-node').first();
       await dragged.scrollIntoViewIfNeeded();
       const box=await dragged.boundingBox();

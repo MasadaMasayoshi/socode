@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-11.usability-context12'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-11.usability-context13'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -119,14 +119,14 @@
     const RM_NOTE_FONT = 11.5, RM_NOTE_LINE_H = 15, RM_NOTE_GAP = 7, RM_NOTE_MAX = 60;
 
     const RM_BUILD_VERSION = 3;
-    const RM_LAYOUT_STYLE = 5;
-    const RM_COL_GAP = 80, RM_ROW_GAP = 28;
+    const RM_LAYOUT_STYLE = 6;
+    const RM_COL_GAP = 80, RM_ROW_GAP = 36;
 
-    const RM_COL_GAP_MIN = 54, RM_COL_GAP_MAX = 110, RM_COL_GAP_PER_LINE = 5, RM_COL_GAP_BASE = 44;
+    const RM_COL_GAP_MIN = 80, RM_COL_GAP_MAX = 140, RM_COL_GAP_PER_LINE = 8, RM_COL_GAP_BASE = 60;
     const RM_MAX_NODES = 70, RM_MAX_EDGES = 160, RM_TEXT_MAX = 120, RM_UNDO_MAX = 40;
     const RM_BRIDGE_R = 6;
 
-    const RM_PAPER = '#F5F3EE';
+    const RM_PAPER = '#FFFFFF';
 
     const RM_PRED_LINE = '#716B62', RM_PRED_TEXT = '#6B655C';
 
@@ -511,7 +511,7 @@
     }
     const RM_ATTACH_GAP = 0;
 
-    const RM_STACK_MAX = 3, RM_STACK_GAP = 30;
+    const RM_STACK_MAX = 3, RM_STACK_GAP = 36;
 
     function rmLabAttachments(map) {
       const byId = new Map(map.nodes.map(n => [n.id, n]));
@@ -2963,6 +2963,11 @@
       wrap.querySelectorAll('.rm-link').forEach(g => g.classList.toggle('is-path', pathEdges.has(g.dataset.linkId)));
     }
     function rmSelect(sel) { rmState.selected = sel; rmApplySelectionClasses(); rmRenderSelectionBar(); }
+    function rmFocusProblems(ids) {
+      rmState.focusProblem = ids && ids.length ? [...new Set(ids)] : null;
+      rmState.selected = null; rmState.connectFrom = null; rmState.lastTap = null;
+      renderRelationMap(); rmZoom('fit-readable');
+    }
     function rmBtn(act, html, cls = 'btn-outline') { return `<button type="button" class="btn ${cls} text-[11px] py-1" data-rm-action="${act}">${html}</button>`; }
     function rmRenderSelectionBar() {
       const bar = document.getElementById('rm-selection-bar');
@@ -2980,7 +2985,7 @@
         return;
       }
 
-      if (!map || !sel) { bar.innerHTML = '<span class="rm-sel-hint"><details class="rm-help"><summary>四角や矢印（線）を押す・右クリック（スマホは長押し）すると、編集できます（何もない所で右クリック・長押しすると追加） <span class="rm-help-more">操作のしかた</span></summary><div>四角を押すと、文字の編集・種類・事実／予測・矢印でつなぐ・削除ができます（2回続けて押すと文字の編集）。矢印（線）を押すと、<b>向きを逆にする</b>・種類・事実／予測・「なぜ？」が選べます。<br><b>図を動かす</b>：何もない所をドラッグ（スマホは指でスワイプ）。<b>拡大・縮小</b>：右下の ＋・－、2本指で広げる・つまむ、または左クリックを押したまま（または Ctrl を押しながら）ホイール。スマホで四角を動かすときは、一度タップして選んでからドラッグします。</div></details></span>'; return; }
+      if (!map || !sel) { bar.innerHTML = '<span class="rm-sel-hint"><details class="rm-help"><summary>看護問題を押すと、その問題の流れだけを表示します。編集は右クリック（スマホは長押し）。複数選択は「看護問題」から <span class="rm-help-more">操作のしかた</span></summary><div>看護問題を押すと、発症要因・疾患・治療を含む流れを表示します。看護問題を編集するには右クリック（スマホは長押し）してください。その他の四角を押すと、文字の編集・種類・事実／予測・矢印でつなぐ・削除ができます（2回続けて押すと文字の編集）。矢印（線）を押すと、<b>向きを逆にする</b>・種類・事実／予測・「なぜ？」が選べます。<br><b>図を動かす</b>：何もない所をドラッグ（スマホは指でスワイプ）。<b>拡大・縮小</b>：右下の ＋・－、2本指で広げる・つまむ、または左クリックを押したまま（または Ctrl を押しながら）ホイール。スマホで四角を動かすときは、一度タップして選んでからドラッグします。</div></details></span>'; return; }
       if (sel.type === 'node') {
         const n = rmNodeById(map, sel.id);
         if (!n) { rmState.selected = null; return rmRenderSelectionBar(); }
@@ -3123,7 +3128,7 @@
         const wrap = document.getElementById('rm-canvas-wrap');
         const map = rmMap();
 
-        if (wrap && map && map.nodes.length) { const b = rmBounds((rmState.focusProblem && rmProblemSubmap(map, rmState.focusProblem)) || map); rmState.zoom = Math.max(factor === 'fit' ? 0.25 : wrap.clientWidth < 600 ? 0.55 : 0.85, Math.min(1.2, Math.min((wrap.clientWidth - 8) / b.w, (wrap.clientHeight - 8) / b.h))); }
+        if (wrap && map && map.nodes.length) { const b = rmBounds((rmState.focusProblem && rmProblemSubmap(map, rmState.focusProblem)) || map); rmState.zoom = Math.max(factor === 'fit' ? 0.25 : 0.9, Math.min(1.2, Math.min((wrap.clientWidth - 8) / b.w, (wrap.clientHeight - 8) / b.h))); }
         else rmState.zoom = 1;
       } else rmState.zoom = Math.max(0.25, Math.min(2, Math.round(rmState.zoom * factor * 100) / 100));
       renderRelationMap();
@@ -3139,10 +3144,6 @@
       wrap.scrollLeft = Math.max(0, r.left - wr.left + wrap.scrollLeft - dx);
       wrap.scrollTop = Math.max(0, r.top - wr.top + wrap.scrollTop - dy);
 
-      if (!center && svg.clientHeight > wrap.clientHeight) {
-        const dis = wrap.querySelector('.rm-node[data-kind="disease"]');
-        if (dis) { const d = dis.getBoundingClientRect(); wrap.scrollTop = Math.max(0, wrap.scrollTop + (d.top + d.height / 2) - (wr.top + wrap.clientHeight / 2)); }
-      }
     }
 
     async function rmClearAll() {
@@ -3332,6 +3333,7 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
         else if (act === 'zoom-in') rmZoom(1.2);
         else if (act === 'zoom-out') rmZoom(1 / 1.2);
         else if (act === 'zoom-fit') rmZoom('fit');
+        else if (act === 'map-start') rmScrollToMapStart(document.getElementById('rm-canvas-wrap'));
         else if (act === 'zoom-100') { rmState.zoom = 1; renderRelationMap(); }
         else if (act === 'bridge') rmBridgeAll();
         else if (act === 'toggle-added') rmToggleAdded();
@@ -3345,12 +3347,10 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
           const ids = new Set(Array.isArray(rmState.focusProblem) ? rmState.focusProblem : rmState.focusProblem ? [rmState.focusProblem] : []);
           const id = btn.dataset.nodeId;
           if (ids.has(id)) ids.delete(id); else ids.add(id);
-          rmState.focusProblem = ids.size ? [...ids] : null;
-          rmState.selected = null; rmState.connectFrom = null;
-          renderRelationMap(); rmZoom('fit');
+          rmFocusProblems([...ids]);
         }
-        else if (act === 'focus-apply') { rmSetProblemsOpen(false); renderRelationMap(); rmZoom('fit'); }
-        else if (act === 'focus-all') { rmSetProblemsOpen(false); rmState.focusProblem = null; renderRelationMap(); rmZoom('fit'); }
+        else if (act === 'focus-apply') { rmSetProblemsOpen(false); renderRelationMap(); rmZoom('fit-readable'); }
+        else if (act === 'focus-all') { rmSetProblemsOpen(false); rmFocusProblems(null); }
         else if (act === 'png') { rmSetMoreOpen(false); rmSavePng(); }
         else if (act === 'clear') { rmSetMoreOpen(false); rmClearAll(); }
         else if (!sel) return;
@@ -3395,6 +3395,9 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
       const longPress = { timer: 0, fired: false, sx: 0, sy: 0 };
       const nodeTap = id => {
         if (rmState.connectFrom) { rmConnectTo(id); return; }
+        if (rmNodeById(rmMap(), id)?.type === 'nursing_problem') {
+          rmSetProblemsOpen(false); rmFocusProblems([id]); return;
+        }
 
         const now = Date.now();
         const last = rmState.lastTap;
@@ -3410,7 +3413,7 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
       };
       wrap.addEventListener('pointerdown', e => {
         if (e.button !== undefined && e.button !== 0) return;
-        if (!e.target.closest('svg')) return;
+        if (!wrap.querySelector('svg')) return;
         pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
         try { wrap.setPointerCapture(e.pointerId); } catch (err) {   }
         if (pointers.size === 2) { startPinch(); e.preventDefault(); return; }
@@ -3557,6 +3560,7 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           if (rmState.connectFrom) rmConnectTo(id);
+          else if (rmNodeById(rmMap(), id)?.type === 'nursing_problem') { rmSetProblemsOpen(false); rmFocusProblems([id]); }
           else if (rmState.selected && rmState.selected.type === 'node' && rmState.selected.id === id) rmEditNodeText(id);
           else rmSelect({ type: 'node', id });
           refocus();

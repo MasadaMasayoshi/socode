@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-11.usability-context12'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-11.usability-context13'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -425,11 +425,15 @@
       const v = phaseVerdictOf(cp, needId, phaseKey);
       const a = ruleSufficiencyFor(cp)[needId][phaseKey] || {};
       const labels = myEvidenceLabels(cp, needId);
-      const ev = (a.evidence || []).filter(id => labels[id]).map(id => `<button type="button" class="suf-evidence-chip" onclick="jumpToBoardCard(${jsArg(id)})" title="${escapeHtml(labels[id])}">${escapeHtml(labels[id].match(/^[SO]-\d+/)?.[0] || labels[id])}</button>`).join('');
+      const ev = [...new Set(a.evidence || [])].filter(id => labels[id]).map(id => `<button type="button" class="suf-evidence-chip" onclick="jumpToBoardCard(${jsArg(id)})" title="${escapeHtml(labels[id])}">${escapeHtml(labels[id].match(/^[SO]-\d+/)?.[0] || labels[id])}</button>`).join('');
       const icon = v === 'met' ? 'fa-circle-check' : v === 'unmet' ? 'fa-triangle-exclamation' : v === 'conflict' ? 'fa-scale-unbalanced' : 'fa-circle-question';
 
       const head = `<span class="suf-phase-name">${ph.label}</span><span class="suf-badge suf-${v}"><i class="fa-solid ${icon}"></i> ${SUFFICIENCY_LABELS[v]}</span>`;
-      const reason = a.reason || a.need || 'この時期の記録が少なく、判断に必要な情報がありません。';
+      const quotes = new Set();
+      const reason = String(a.reason || a.need || 'この時期の記録が少なく、判断に必要な情報がありません。').replace(/「[^」]*」/g, quote => {
+        if (quotes.has(quote)) return '';
+        quotes.add(quote); return quote;
+      });
       const why = `<div class="suf-phase-why"><span class="suf-reason-label">判定理由</span><p>${escapeHtml(reason)}</p>${ev ? `<div class="suf-ev"><span>根拠カード</span>${ev}</div>` : ''}</div>`;
       return `<section class="suf-phase-block suf-expanded suf-b-${v}" data-suf-phase="${phaseKey}"><div class="suf-phase-head">${head}</div>${why}</section>`;
     }
