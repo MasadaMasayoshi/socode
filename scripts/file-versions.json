@@ -16,8 +16,8 @@
     "hash": "48f0892e5d44452a"
   },
   "js/05-app-state-and-ui.js": {
-    "version": "2026-10-11.usability-context15",
-    "hash": "1485dde0aefa8191"
+    "version": "2026-10-11.usability-context19",
+    "hash": "13e09c2be9e7249f"
   },
   "js/06-export.js": {
     "version": "2026-10-11.usability-context16",
@@ -36,8 +36,8 @@
     "hash": "546ddd792970db8b"
   },
   "js/10-reference-page-and-startup.js": {
-    "version": "2026-10-11.usability-context15",
-    "hash": "97e16dc0e64d0472"
+    "version": "2026-10-11.usability-context19",
+    "hash": "2d1521f41abf3086"
   },
   "js/11-own-assessment.js": {
     "version": "2026-10-11.usability-context13",
@@ -60,8 +60,8 @@
     "hash": "86f0a3a48813c11b"
   },
   "style.css": {
-    "version": "2026-10-11.usability-context18",
-    "hash": "70eceec0b9919f54"
+    "version": "2026-10-11.usability-context19",
+    "hash": "9dc784848f97f92e"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",

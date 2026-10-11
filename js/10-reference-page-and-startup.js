@@ -1,7 +1,7 @@
 // Startup, references and image OCR. Validate image MIME/size; capture patient before async prompts.
 // Reference notes are not automatic classification rules; file versions detect mixed/reverted assets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-10-11.usability-context15'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-10-11.usability-context19'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -400,17 +400,27 @@
       ocrBatchBusy = true;
       ocrFileInput.disabled = true;
       let completed = 0;
+      const failed = [];
+      const status = document.getElementById('ocr-status');
+      const statusText = document.getElementById('ocr-status-text');
       try {
         if (!(await requireApiKey('写真の文字起こし'))) return;
+        status.classList.remove('hidden');
         for (let i = 0; i < valid.length; i++) {
-          document.getElementById('ocr-status-text').textContent = `${i + 1} / ${valid.length}枚目を読み取り中：${valid[i].name || ''}`;
+          statusText.textContent = `${i + 1} / ${valid.length}枚目を読み取り中：${valid[i].name || ''}`;
           if (await doOcr(valid[i], { patientId, skipCredentials: true, batch: true })) completed++;
+          else failed.push(valid[i].name || `${i + 1}枚目`);
+        }
+        if (failed.length) {
+          const target = globalAppData.patients.find(p => p.id === patientId);
+          const label = getCurrentPatient().id === patientId ? '' : `「${target?.title || '読み取りを開始した患者'}」：`;
+          statusText.textContent = `${label}${completed} / ${valid.length}枚を読み取りました。読み取れなかった画像：${failed.join('、')}。この画像だけを選び直し、追記後は原画像の順に文章を並べてください`;
         }
         showToast(`${completed} / ${valid.length}枚の読み取りが完了しました。原画像と記録メモを照合してください`, completed === valid.length ? 'success' : 'warn');
       } finally {
         ocrBatchBusy = false;
         ocrFileInput.disabled = false;
-        document.getElementById('ocr-status').classList.add('hidden');
+        status.classList.toggle('hidden', !failed.length);
       }
     }
     async function doOcr(file, options = {}) {

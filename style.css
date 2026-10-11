@@ -422,13 +422,14 @@
 
 
     .source-editor { display: flex; flex-direction: column; gap: .35rem; }
+    #ocr-status { overflow-wrap: anywhere; }
     .source-editor-bar { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
     .source-editor-title { font-size: 11px; font-weight: 600; color: var(--ink-muted); display: inline-flex; align-items: center; gap: .35rem; }
     .source-editor-count { font-weight: 500; }
     .source-fs-btn { display: inline-flex; align-items: center; gap: .3rem; font-size: 11px; font-weight: 600; color: var(--accent); padding: .2rem .5rem; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); }
     .source-fs-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
     .source-fs-only { display: none; }
-    .source-editor.is-fullscreen { position: fixed; inset: 0; width: 100%; height: 100dvh; min-height: 0; overflow: hidden; box-sizing: border-box; z-index: 100; background: var(--paper); padding: 16px max(16px, calc((100vw - 1100px) / 2)); gap: .6rem; }
+    .source-editor.is-fullscreen { position: fixed; top: var(--source-viewport-top, 0); left: var(--source-viewport-left, 0); width: var(--source-viewport-width, 100%); height: var(--source-viewport-height, 100dvh); min-height: 0; overflow: hidden; box-sizing: border-box; z-index: 100; background: var(--paper); padding: 16px max(16px, calc((100vw - 1100px) / 2)); gap: .6rem; }
     .source-editor.is-fullscreen .source-editor-title { font-size: 14px; color: var(--ink); }
     .source-editor.is-fullscreen .source-fs-only { display: inline-flex; }
     .source-editor.is-fullscreen #source-text, .source-editor.is-fullscreen #source-highlight-view { flex: 1; min-height: 0; height: auto !important; max-height: none; overflow: auto; font-size: 15px; line-height: 1.9; padding: 1rem 1.2rem; }

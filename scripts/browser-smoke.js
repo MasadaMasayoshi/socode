@@ -37,13 +37,17 @@ const {app}=require('../server');
    assert.equal(fontCheck.persistedDefault, null);
    assert.equal(fontCheck.explicitSerif, true);
    // Exercise the real file-input/OCR UI with an intercepted transport; this is not live-provider verification.
-   let ocrRequests=0;
+   let ocrRequests=0,failOcrRequest=0;
    await page.route('https://generativelanguage.googleapis.com/**', async route=>{
     const body=route.request().postDataJSON();
     assert.equal(body.contents.length,1);
     assert.equal(body.contents[0].parts.length,2);
     assert.equal(body.contents[0].parts.filter(p=>p.inline_data).length,1);
     ocrRequests++;
+    if(ocrRequests===failOcrRequest){
+     await route.fulfill({status:400,json:{error:{message:'Fictional unreadable image',code:400}}});
+     return;
+    }
     await route.fulfill({json:{candidates:[{content:{parts:[{text:`架空OCR通信検証${ocrRequests}`}]},finishReason:'STOP'}]}});
    });
    await page.evaluate(()=>{globalAppData.apiKey='AIza-fictitious-browser-test-key';});
@@ -65,6 +69,22 @@ const {app}=require('../server');
    await page.locator('#ocr-file-input').setInputFiles({name:'invalid.pdf',mimeType:'application/pdf',buffer:Buffer.from('fictional invalid input')});
    assert.equal(await page.locator('#source-text').inputValue(),beforeInvalid);
    assert.equal(ocrRequests,5);
+   failOcrRequest=7;
+   await page.locator('#ocr-file-input').setInputFiles([{...image,name:'page-1.png'},{...image,name:'page-2-failed.png'},{...image,name:'page-3.png'}]);
+   await page.waitForFunction(()=>!document.getElementById('ocr-file-input').disabled&&document.getElementById('source-text').value.includes('架空OCR通信検証8'));
+   const partialText=await page.locator('#source-text').inputValue();
+   assert.ok(partialText.startsWith(beforeInvalid),'Existing memo remains intact during a partial image failure');
+   assert.ok(partialText.indexOf('架空OCR通信検証6')<partialText.indexOf('架空OCR通信検証8'));
+   assert.ok(!partialText.includes('架空OCR通信検証7'));
+   assert.equal(await page.locator('#ocr-status').isVisible(),true);
+   assert.match(await page.locator('#ocr-status').innerText(),/2 \/ 3枚.*page-2-failed\.png/);
+   await page.locator('#ocr-status').screenshot({path:`browser-artifacts/${width}-partial-ocr-status.png`});
+   await page.locator('#toast-container .toast-error').getByRole('button',{name:'閉じる',exact:true}).click();
+   await page.locator('#toast-container .toast-error').waitFor({state:'detached'});
+   await page.locator('#ocr-file-input').setInputFiles({...image,name:'page-2-failed.png'});
+   await page.waitForFunction(()=>!document.getElementById('ocr-file-input').disabled&&document.getElementById('source-text').value.includes('架空OCR通信検証9'));
+   assert.equal(await page.locator('#ocr-status').isVisible(),false);
+   assert.equal((await page.locator('#source-text').inputValue()).split('架空OCR通信検証6').length-1,1,'Retrying only the failed image does not reimport successful images');
    await page.evaluate(()=>{globalAppData.apiKey='';});
    await page.unroute('https://generativelanguage.googleapis.com/**');
 
@@ -500,6 +520,21 @@ const {app}=require('../server');
    const fullBox=await page.locator('#source-editor').boundingBox();
    assert.ok(Math.abs(fullBox.x)<1&&Math.abs(fullBox.y)<1&&Math.abs(fullBox.width-width)<1&&Math.abs(fullBox.height-900)<1);
    assert.equal(await page.evaluate(()=>document.getElementById('source-editor').parentNode===document.body),true);
+   await page.evaluate(()=>{
+    const viewport=window.visualViewport;
+    Object.defineProperties(viewport,{height:{configurable:true,value:480},offsetTop:{configurable:true,value:24}});
+    viewport.dispatchEvent(new Event('resize'));
+   });
+   const visibleEditor=await page.locator('#source-editor').boundingBox();
+   assert.ok(Math.abs(visibleEditor.y-24)<1&&Math.abs(visibleEditor.height-480)<1,'Fullscreen memo follows the visible viewport when the keyboard reduces it');
+   const visibleText=await page.locator('#source-text').boundingBox();
+   const returnButton=await page.locator('#btn-source-fullscreen').boundingBox();
+   assert.ok(visibleText.y+visibleText.height<=504&&returnButton.y>=24&&returnButton.y+returnButton.height<=504,'Memo and return controls remain inside the visible area');
+   await page.locator('#source-editor').screenshot({path:`browser-artifacts/${width}-memo-reduced-viewport.png`});
+   await page.evaluate(()=>{
+    delete window.visualViewport.height;delete window.visualViewport.offsetTop;
+    window.visualViewport.dispatchEvent(new Event('resize'));
+   });
    await page.keyboard.press('Escape');
    assert.equal(await page.evaluate(()=>document.getElementById('source-editor').parentNode===document.body),false);
    await page.locator('#btn-manual-review').click();
