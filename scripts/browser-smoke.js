@@ -917,14 +917,15 @@ const {app}=require('../server');
    const consolidated=await page.evaluate(()=>{
     createNewPatientPage('背景情報の重複検証');
     const cp=getCurrentPatient();
-    cp.sourceText='診断名：胃がん\n【メディカルヒストリー】がん家系なので検診を欠かさない。半年前から胃のむかつきがある。精密検査で胃底部に25mmの腫瘍。\n【ファミリーヒストリー】祖母は胃がん。\n【胃カメラ】胃底部に25mmの腫瘍。\n胃全摘術を施行。\n術後1日目：創部痛 NRS2。';
+    cp.sourceText='診断名：胃がん\n【メディカルヒストリー】がん家系なので検診を欠かさない。半年前から胃のむかつきがある。2か月前の検診で貧血を指摘された。精密検査で胃底部に25mmの腫瘍。\n【ファミリーヒストリー】祖母は胃がん。\n【胃カメラ】胃底部に25mmの腫瘍。\n胃全摘術を施行。\n術後1日目：創部痛 NRS2。';
     cp.sourceText+='\n入院1日目\n14:00 「麻酔科で説明してもらった。手術の合併症があるんだね。怖いね」と話す。';
+    cp.sourceText+='\n手術当日\n【病理結果】T2 N0 P0 H0 M0、Stage IB\n【病理結果】T2 NO PO HO M0';
     cp.items=classifyTextByRules(cp.sourceText).map((i,k)=>({...i,id:'background-'+k}));
     cp.relationMap=buildRelationMapFromRecord(cp);saveDataAndSync();
     const map=cp.relationMap,tumors=map.nodes.filter(n=>/腫瘍.*25mm/.test(n.label)),family=map.nodes.filter(n=>/^家族歴/.test(n.label)),pain=map.nodes.find(n=>n.type==='nursing_problem'&&/痛/.test(n.label));
-    return {fear:map.nodes.find(n=>/不安の言動/.test(n.label)).label,anxiety:map.nodes.find(n=>n.type==='nursing_problem'&&/不安/.test(n.label)).label,tumors:tumors.length,refs:tumors[0].itemIds.length,mixed:family.some(n=>/むかつき|25mm/.test(n.label)),focused:rmProblemSubmap(map,pain.id).nodes.some(n=>n.id===tumors[0].id),label:tumors[0].label,evidence:tumors[0].evidence};
+    return {pathology:map.nodes.find(n=>/^病理結果/.test(n.label)).label,stage:map.nodes.find(n=>/病理病期/.test(n.label)).label,history:map.edges.filter(e=>/^診断までの経過：/.test(e.evidence)).map(e=>e.relation),fear:map.nodes.find(n=>/不安の言動/.test(n.label)).label,anxiety:map.nodes.find(n=>n.type==='nursing_problem'&&/不安/.test(n.label)).label,tumors:tumors.length,refs:tumors[0].itemIds.length,mixed:family.some(n=>/むかつき|25mm/.test(n.label)),focused:rmProblemSubmap(map,pain.id).nodes.some(n=>n.id===tumors[0].id),label:tumors[0].label,evidence:tumors[0].evidence};
    });
-   assert.equal(consolidated.tumors,1);assert.ok(consolidated.refs>=2);assert.match(consolidated.evidence,/胃カメラ/);assert.match(consolidated.label,/胃カメラで確認/);assert.match(consolidated.fear,/麻酔科.*手術の合併症/);assert.match(consolidated.anxiety,/手術の合併症/);assert.equal(consolidated.mixed,false);assert.equal(consolidated.focused,true);
+   assert.match(consolidated.pathology,/T2.*N0\/NO/);assert.match(consolidated.stage,/術後.*Stage IB/);assert.deepEqual(consolidated.history,['related_to','related_to']);assert.equal(consolidated.tumors,1);assert.ok(consolidated.refs>=2);assert.match(consolidated.evidence,/胃カメラ/);assert.match(consolidated.label,/胃カメラで確認/);assert.match(consolidated.fear,/麻酔科.*手術の合併症/);assert.match(consolidated.anxiety,/手術の合併症/);assert.equal(consolidated.mixed,false);assert.equal(consolidated.focused,true);
    await page.reload({waitUntil:'networkidle'});
    await page.waitForFunction(()=>!!getCurrentPatient()?.relationMap);
    assert.equal(await page.evaluate(()=>getCurrentPatient().relationMap.nodes.find(n=>/腫瘍.*25mm/.test(n.label)).evidence),consolidated.evidence);

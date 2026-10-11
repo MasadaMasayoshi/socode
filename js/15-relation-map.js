@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-12.usability-context25'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-12.usability-context26'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -118,7 +118,7 @@
 
     const RM_NOTE_FONT = 11.5, RM_NOTE_LINE_H = 15, RM_NOTE_GAP = 7, RM_NOTE_MAX = 60;
 
-    const RM_BUILD_VERSION = 6;
+    const RM_BUILD_VERSION = 7;
     const RM_LAYOUT_STYLE = 6;
     const RM_COL_GAP = 80, RM_ROW_GAP = 36;
 
@@ -318,7 +318,7 @@
         nodes.push({
           id, type, label,
           ...rmClinicalFields({ ...n, type, label }),
-          evidence: String(n.evidence || '').slice(0, 200),
+          evidence: String(n.evidence || ''),
           observed: v1 ? true : n.observed !== false,
           source: ['record', 'knowledge', 'user', 'plan', 'ai'].includes(n.source) ? n.source : (v1 ? 'user' : 'record'),
           added: !v1 && n.added === true,
@@ -351,7 +351,7 @@
         if (pairs.has(pk)) return;
         pairs.add(pk);
         const edgeId = rmSafeId(e.id);
-        edges.push({ id: edgeId && !edges.some(x => x.id === edgeId) ? edgeId : rmNewId('e'), source, target, relation, predicted: !!e.predicted, certainty: Object.hasOwn(RM_CERTAINTIES, e.certainty) ? e.certainty : 'uncertain', origin: ['manual', 'rule', 'import', 'ai', 'migration'].includes(e.origin) ? e.origin : 'migration', evidence: String(e.evidence || '').slice(0, 200) });
+        edges.push({ id: edgeId && !edges.some(x => x.id === edgeId) ? edgeId : rmNewId('e'), source, target, relation, predicted: !!e.predicted, certainty: Object.hasOwn(RM_CERTAINTIES, e.certainty) ? e.certainty : 'uncertain', origin: ['manual', 'rule', 'import', 'ai', 'migration'].includes(e.origin) ? e.origin : 'migration', evidence: String(e.evidence || '') });
       });
       const map = { version: 2, nodes, edges: edges.slice(0, RM_MAX_EDGES), bands: Array.isArray(raw.bands) && !v1 ? raw.bands.filter(b => b && Number.isFinite(b.y1) && Number.isFinite(b.y2)).slice(0, 12).map(b => ({ y1: b.y1, y2: b.y2, p: Number(b.p) || 0 })) : [], headers: Array.isArray(raw.headers) && !v1 ? raw.headers.filter(h => h && Number.isFinite(h.x1) && Number.isFinite(h.x2)).slice(0, 8).map(h => ({ x1: h.x1, x2: h.x2, label: String(h.label || '').slice(0, 30) })) : [],
         source: String(raw.source || 'manual'), layoutStyle: Number(raw.layoutStyle) || 1, buildVersion: Number(raw.buildVersion) || 0,
@@ -1105,10 +1105,12 @@
         const know = !treat && !e.predicted && (isKnow(e.source) || isKnow(e.target));
         const sel = interactive && rmState.selected && rmState.selected.type === 'edge' && rmState.selected.id === e.id;
 
+        const history = e.relation === 'related_to' && /^診断までの経過：/.test(e.evidence || '');
         const tl = treat && r.pts && r.pts.length > 1 ? `<text class="rm-treat-label" x="${Math.round((r.pts[0][0] + r.pts[1][0]) / 2) + 6}" y="${Math.round((r.pts[0][1] + r.pts[1][1]) / 2) + 3}" font-size="10" fill="#2563EB" font-weight="700">治療</text>` : '';
+        const hl = history && r.pts && r.pts.length > 1 ? `<text class="rm-history-label" x="${Math.round((r.pts[0][0] + r.pts[1][0]) / 2) + 6}" y="${Math.round((r.pts[0][1] + r.pts[1][1]) / 2) + 3}" font-size="10" fill="#6B6458" font-weight="700">経過</text>` : '';
         return `${mask}<g class="rm-link${treat ? ' is-treat' : ''}${sel ? ' is-selected' : ''}" data-link-id="${escapeHtml(e.id)}">
           ${interactive ? `<path class="rm-link-hit" d="${d}" fill="none" stroke="transparent" stroke-width="20"/>` : ''}
-          <path class="rm-link-line"${cuts.length ? ` mask="url(#${maskId})"` : ''} d="${d}" fill="none" opacity="0.65" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#3F3B35'}" stroke-width="1.5"${screen ? ' vector-effect="non-scaling-stroke"' : ''}${e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} marker-end="url(#${markerPrefix}-${treat ? 'arrow-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"/>${tl}
+          <path class="rm-link-line"${cuts.length ? ` mask="url(#${maskId})"` : ''} d="${d}" fill="none" opacity="0.65" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#3F3B35'}" stroke-width="1.5"${screen ? ' vector-effect="non-scaling-stroke"' : ''}${e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} marker-end="url(#${markerPrefix}-${treat ? 'arrow-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"/>${tl}${hl}
         </g>`;
       }).join('');
     }
@@ -1560,10 +1562,12 @@
       const familyHistoryRecord = i => /家族歴|ファミリーヒストリー|がん家系|癌家系/.test(`${i.fieldLabel || ''}${i.text}`) || /(?:祖父|祖母|父|母|兄|姉|弟|妹|親族)[^。\n]{0,24}(?:がん|癌)/.test(i.text);
       const patientHistory = i => !familyHistoryRecord(i) && !/既往歴/.test(i.fieldLabel || '') && !/^既往歴/.test(String(i.text)) && !rmIsFamilySpeech(i.text);
       const tumorSizeRe = /(?:腫瘍|腫瘤|病変|がん|癌)[^。\n]{0,18}?\d+(?:\.\d+)?\s*(?:mm|cm)(?!Hg|H2O)|\d+(?:\.\d+)?\s*(?:mm|cm)(?!Hg|H2O)[^。\n]{0,10}?(?:腫瘍|腫瘤|病変|がん|癌)/i;
+      const recordedPathology = [];
       const tumorRecords = disease ? backgroundRecords.filter(i => patientHistory(i) && rmPositiveMatch(/腫瘍|腫瘤|病変|がん|癌/, String(i.text).replace(/^[^:：\n]{1,18}[:：]\s*/, '')) && tumorSizeRe.test(String(i.text).normalize('NFKC'))) : [];
       if (disease) {
         const historyRecords = backgroundRecords.filter(i => i !== dxHost && patientHistory(i) && !/[「」]/.test(i.text) && (/現病歴|メディカルヒストリー|病理結果|病理所見|病期|進行度/.test(`${i.fieldLabel || ''}${i.text}`) || /健診|検診|精査|生検|内視鏡|受診/.test(i.text)));
         const details = [...new Set([...tumorRecords, ...historyRecords])];
+        const diagnosticHistory = [];
         details.forEach(it => {
           const t = String(it.text).normalize('NFKC');
           const site = (t.match(/胃底部|噴門部|胃体部|幽門部|前庭部/) || [])[0];
@@ -1578,9 +1582,36 @@
             const exam = /胃カメラ/.test(finding.evidence) ? '胃カメラ' : /内視鏡/.test(finding.evidence) ? '内視鏡' : /精密検査/.test(finding.evidence) ? '精密検査' : '';
             if (exam) finding.label = `${exam}で確認：${site}の腫瘍（${size.replace(/\s/g, '')}）`;
           }
-          if (pathology && new Set(finding.evidence.split('\n\n').map(e => evidenceKey(e.replace(/^\[[^\]]*\] /, '')))).size > 1) finding.label = '病理結果（原文の表記差あり・要確認）';
+          if (pathology) {
+            const codes = ['T', 'N', 'P', 'H', 'M'].map(prefix => [...new Set((finding.evidence.match(new RegExp(`\\b${prefix}[0-9O]+`, 'g')) || []))].join('/')).filter(Boolean);
+            const differs = new Set(finding.evidence.split('\n\n').map(e => evidenceKey(e.replace(/^\[[^\]]*\] /, '')))).size > 1;
+            finding.label = `病理結果：${codes.length ? codes.join('・') : rmShorten(it.text.replace(/^【[^】]+】/, ''), 70)}${differs ? '（原文の表記差あり・要確認）' : ''}`;
+            if (!recordedPathology.some(h => h.node === finding)) recordedPathology.push({ node: finding, item: it });
+          }
+          diagnosticHistory.push({ item: it, node: finding, tumor: !!singleTumor });
           E(finding, disease, 'supports', { evidence: '原文に記録された疾患の所見・診断までの経過（発症原因とは断定しない）' });
         });
+        // Connect only the sequence explicitly recorded together in a medical history.
+        // NCC: stomach discomfort is nonspecific; examination findings support diagnosis.
+        if (/胃がん|胃癌/.test(dxLabel0)) {
+          const contexts = new Set(diagnosticHistory.map(h => h.item.evidenceText || h.item.text));
+          contexts.forEach(context => {
+            if (!/(?:半年前|\d+\s*(?:か月|ヶ月|カ月|月)前)/.test(context)) return;
+            const entries = diagnosticHistory.filter(h => (h.item.evidenceText || h.item.text) === context);
+            const discomfort = entries.find(h => rmPositiveMatch(/胃[^。]{0,10}(?:むかつき|不快感|違和感)|吐き気|胸やけ/, h.item.text));
+            const screening = entries.find(h => /検診|健診/.test(h.item.text) && rmPositiveMatch(/貧血/, h.item.text));
+            const lesion = entries.find(h => h.tumor && /精密検査|精査|内視鏡|胃カメラ/.test(h.item.text));
+            if (!discomfort || !screening || !lesion || new Set([discomfort.node, screening.node, lesion.node]).size !== 3) return;
+            if (!(context.indexOf(discomfort.item.text) < context.indexOf(screening.item.text) && context.indexOf(screening.item.text) < context.indexOf(lesion.item.text))) return;
+            [discomfort, screening].forEach(h => {
+              for (let j = edges.length - 1; j >= 0; j--) if (edges[j].source === h.node.id && edges[j].target === disease.id && edges[j].relation === 'supports') edges.splice(j, 1);
+            });
+            discomfort.node.label = `${rmShorten(discomfort.item.text, 70)}（診断前の症状）`;
+            const source = '参考：国立がん研究センター https://ganjoho.jp/public/cancer/stomach/about.html';
+            E(discomfort.node, screening.node, 'related_to', { noBridge: true, evidence: `診断までの経過：原文では胃の症状の後に検診で貧血を指摘。症状が貧血を起こしたとは断定しない。${source}` });
+            E(screening.node, lesion.node, 'related_to', { noBridge: true, evidence: '診断までの経過：同じ現病歴に検診の貧血と続く精密検査の所見が記録されている。出血源や生検結果は補わない。参考：https://ganjoho.jp/public/cancer/stomach/diagnosis.html' });
+          });
+        }
       }
       if (disease && /がん|癌/.test(dxLabel0)) {
         const familyRecords = backgroundRecords.filter(i => familyHistoryRecord(i) && rmPositiveMatch(/がん|癌/, i.text));
@@ -1636,6 +1667,18 @@
           E(history, surgery, 'related_to', { evidence: '原文の既往歴と今回の治療部位が共通する記録。治療の選択理由や発症原因とは断定しない' });
         });
       }
+      if (disease && /胃がん|胃癌/.test(dxLabel0)) recordedPathology.forEach((h, index) => {
+        const stageItem = clinicalRecords.find(i => (i.timestamp || '') === (h.item.timestamp || '') && /^(?:【病理結果】[^。]*?[,、]\s*)?Stage\s*[IVX]+[ABC]?\b/i.test(String(i.text).normalize('NFKC').trim()));
+        const stageText = stageItem?.text || h.node.evidence;
+        const stageCode = String(stageText).normalize('NFKC').match(/Stage\s*([IVX]+[ABC]?)\b/i)?.[1];
+        if (!stageCode) return;
+        const postoperative = /手術当日|術後/.test(h.item.timestamp || '');
+        const stage = N(`recorded_pathology_stage_${index}`, 'pathophysiology', `${postoperative ? '術後の' : ''}病理病期：Stage ${stageCode}（原文）`, { source: 'record', items: [stageItem || h.item], max: 80, evidence: [h.node.evidence, stageItem?.text].filter(Boolean).join('\n\n') });
+        for (let j = edges.length - 1; j >= 0; j--) if (edges[j].source === h.node.id && edges[j].target === disease.id && edges[j].relation === 'supports') edges.splice(j, 1);
+        E(h.node, stage, 'supports', { noBridge: true, evidence: '原文に記録された病理結果と病理病期。N0/NOなどの表記差は未確定のまま保持し、病期を再計算しない。参考：https://ganjoho.jp/public/cancer/stomach/treatment.html' });
+        E(stage, disease, 'supports', { noBridge: true, evidence: '記録された胃がんの病理評価。術後の結果を術前の手術選択理由に置き換えない。' });
+        if (postoperative && surgery) E(surgery, h.node, 'related_to', { noBridge: true, evidence: '手術後の病理評価として関連づける。原文にない術前の病期や治療判断を補わない。参考：https://ganjoho.jp/public/cancer/stomach/treatment.html' });
+      });
       const gastric = surgery && /胃/.test(surgery.label + dxLabel) && /全摘|切除/.test(surgery.label);
 
       const drugs = typeof findDrugsInText === 'function' ? findDrugsInText(all).map(x => x.drug) : [];
