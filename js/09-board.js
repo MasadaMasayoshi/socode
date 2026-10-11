@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-11.usability-context17'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-12.usability-context21'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -368,7 +368,7 @@
     window.selectAllReviewTargets = function() {
       const cp = getCurrentPatient();
       const ids = reviewRequestTargets(cp).map(i => i.id);
-      if (!ids.length) return showToast('対象のカード（手で編集したカード・タグ未設定のカード）はありません', 'success');
+      if (!ids.length) return showToast('対象のカード（手で編集したカード・タグ未設定・不必要のカード）はありません', 'success');
       ids.forEach(id => selectedCardIds.add(id));
       renderSoBoard();
       if (typeof refreshCardOverview === 'function' && document.getElementById('modal-card-overview') && !document.getElementById('modal-card-overview').classList.contains('hidden')) refreshCardOverview();
@@ -574,6 +574,7 @@
       ).join('');
 
       document.getElementById('merge-text').value = joinTextsForMerge(mergeSourceItems);
+      document.getElementById('merge-reason').value = '';
 
       const typeCounts = {};
       mergeSourceItems.forEach(i => { if (i.type !== 'unnecessary') typeCounts[i.type] = (typeCounts[i.type] || 0) + 1; });
@@ -624,7 +625,7 @@
 
       const mergedItem = {
         id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-        editLog: [{ at: new Date().toISOString(), kind: 'merge', from: sourceTexts.slice() }],
+        editLog: [{ at: new Date().toISOString(), kind: 'merge', actor: 'user', from: sourceTexts.slice(), sourceCards: JSON.parse(JSON.stringify(mergeSourceItems)), reason: document.getElementById('merge-reason').value.trim() || null }],
         text: mergedText,
         timestamp: timestampCandidate || '日時不明',
         type: finalType,
@@ -635,6 +636,8 @@
         predictionSource: 'confirmed'
       };
 
+      mergedItem.editLog[0].resultIds = [mergedItem.id];
+      mergedItem.editLog[0].to = mergedText;
       const combined = combineLearnedEntriesForMerge(sourceTexts);
       if (finalType !== 'unnecessary') combined.typeVotes[finalType] = (combined.typeVotes[finalType] || 0) + 1;
       const finalHendersonVotes = {};

@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-11.usability-context16'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-12.usability-context21'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -606,6 +606,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
           case 'type': return `分類を変更: ${EDIT_LOG_TYPE_LABELS[e.from] || e.from || '未設定'} → ${EDIT_LOG_TYPE_LABELS[e.to] || e.to}`;
           case 'tagAdd': return `タグを追加: ${hendersonNameOf(e.hId)}`;
           case 'tagRemove': return `タグを削除: ${hendersonNameOf(e.hId)}`;
+          case 'split': return `カードを分割: 「${e.from}」→${(e.parts || []).map(t => `「${t}」`).join(' ／ ')}（このカード: 「${e.to}」）`;
           case 'merge': return `${(e.from || []).length}枚のカードを統合: ${(e.from || []).map(t => `「${t}」`).join('＋')}`;
 
           case 'aiReviewTags': return `AIの評価でタグを変更: ${tagNamesForLog(e.from)} → ${tagNamesForLog(e.to)}`;
@@ -615,7 +616,11 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
           default: return e.kind || '不明な編集';
         }
       })();
-      return when ? `${when} ${body}` : body;
+      const reason = typeof e.reason === 'string' && e.reason.trim() ? e.reason : '理由未記録（調査してください）';
+      const provenance = e.actor === 'user' ? '手編集' : e.actor === 'automatic' ? '自動処理' : '処理主体の明示記録なし';
+      const links = Array.isArray(e.sourceCards) ? `／元カード・履歴: ${JSON.stringify(e.sourceCards)}` : '';
+      const results = Array.isArray(e.resultIds) ? `／変更後カードID: ${e.resultIds.join('・')}` : '';
+      return `${when ? when + ' ' : ''}${body}／処理主体: ${provenance}／編集理由: ${reason}${e.ruleId ? `／処理ルール: ${e.ruleId}` : ''}${links}${results}`;
     }
 
     function buildCardsReportText(cp, items, sourceText, headline, includeSourceText = true, assessmentText = null, instructions = '') {
@@ -634,6 +639,8 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         const excerpt = sourceExcerptForCard(sourceText, i.text);
         out += `\n■ ${idx + 1}件目\n`;
         out += `${meta}\n`;
+        out += `カードID: ${i.id || '記録なし'}／保存済みの分類経路: ${i.predictionSource || '記録なし'}\n`;
+        out += '自動処理の理由・ルール: 記録なし（差分や分類経路だけでは原因を断定できません。原文で再現して調査してください）\n';
         out += `カードの内容: ${i.text}\n`;
         if (Array.isArray(i.contextTagEvidence) && i.contextTagEvidence.length) {
           out += `タグを付けた根拠（原文の文脈）:\n${i.contextTagEvidence.map(e => `  ・${hendersonNameOf(e.id)}：［${e.timestamp}］${e.evidence}`).join('\n')}\n`;
@@ -641,9 +648,10 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         out += `元の文章: ${excerpt || '（元の文章の中に見つかりませんでした）'}\n`;
         const edits = Array.isArray(i.editLog) ? i.editLog : [];
 
-        const firstTextEdit = edits.find(e => e.kind === 'text' && typeof e.from === 'string');
+        const firstTextEdit = edits.find(e => ['text', 'split'].includes(e.kind) && typeof e.from === 'string');
         const textBeforeManualEdits = firstTextEdit ? firstTextEdit.from : i.text;
         const rewrite = describeAutoRewrite(sourceText, textBeforeManualEdits, { ...i, text: textBeforeManualEdits }, cp.items || []);
+        out += '書き換えの判定方法: 原文との比較による推定（実行時の処理記録ではありません）\n';
         if (rewrite) out += `アプリによる書き換え: ${rewrite.length ? rewrite.join('、') : 'なし（元の文章のまま）'}\n`;
         if (edits.length) {
           out += `手で編集した履歴:\n`;
@@ -664,7 +672,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       return out;
     }
     function correctionRequestInstructionsText() {
-      return '\n[Developer instructions]\nCompare source, surrounding records and edit history. Separate automatic processing from manual edits; reproduce card splits/merges and tag additions/removals from the source. Determine intended behavior vs bugs; report evidence, cause and fix. Mark unverifiable causes 『確認不能』; do not present guesses as facts. Generalize rules to similar records, not one patient. Preserve source/Japanese clinical text and approved『タグ不要』/『理由を了承』decisions. Classify Henderson needs by meaning, not S/O; assess pre/post admission separately. Honor requested corrections. Check extraction (js/03), keywords (js/01), context/tag rules (js/07). Update the classification criteria in 学習データ管理 → 分類基準 (including the reference notebook in js/02) to reflect the confirmed corrections from this request; keep the criteria and implemented rules consistent for similar records. For each confirmed rule, document the condition, a positive example and a counterexample (such as a different time or an unrelated event), remove superseded contradictory criteria, and advance the notebook version. Verify fresh classification, existing saved cards after reload, and append classification with duplicate cards. Correct missing tags on untouched automatic cards without replacing card IDs, text, S/O, assessments or plans; preserve manual edits, learned decisions and approved exclusions. Include runtime/rule versions, saved prediction source, current-rule output and observed differences; mark unobserved browser/cache/learning causes 『確認不能』. Run relevant tests; never derive expected answers from app output or hide missing fixtures.\n';
+      return '\n[Developer instructions]\nCompare source, surrounding records and edit history. Separate automatic processing from manual edits; reproduce card splits/merges and tag additions/removals from the source. Determine intended behavior vs bugs; report evidence, cause and fix. Mark unverifiable causes 『確認不能』; do not present guesses as facts. Generalize rules to similar records, not one patient. Preserve source/Japanese clinical text and approved『タグ不要』/『理由を了承』decisions. Classify Henderson needs by meaning, not S/O; assess pre/post admission separately. Honor requested corrections. Check extraction (js/03), keywords (js/01), context/tag rules (js/07). Update the classification criteria in 学習データ管理 → 分類基準 (including the reference notebook in js/02) to reflect the confirmed corrections from this request; keep the criteria and implemented rules consistent for similar records. For each confirmed rule, document the condition, a positive example and a counterexample (such as a different time or an unrelated event), remove superseded contradictory criteria, and advance the notebook version. Verify fresh classification, existing saved cards after reload, and append classification with duplicate cards. Correct missing tags on untouched automatic cards without replacing card IDs, text, S/O, assessments or plans; preserve manual edits, learned decisions and approved exclusions. Include runtime/rule versions, saved prediction source, current-rule output and observed differences; mark unobserved browser/cache/learning causes 『確認不能』. Run relevant tests; never derive expected answers from app output or hide missing fixtures. Investigate why each card was classified as unnecessary, left untagged or excluded: identify the recorded actor, responsible rule and decision reason; compare original/surrounding records and reproduce the decision. Explicit split/merge records show actions, not proof of their justification. Use source/result card IDs and preserved histories to trace changes. If the reason or rule was not recorded, state 『理由未記録』/『確認不能』 and investigate; never infer motive from a text diff. Validate exclusions against the source, fix confirmed errors and update both classification rules and criteria with positive/counterexamples. An explicit correction request may challenge an approved exclusion; review it without silently overwriting it or automatically restoring every excluded card.\n';
     }
     function buildSelectedCardsExportText(cp, selectedIds, sourceText, includeSourceText = true, includeAssessment = false) {
       const ids = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);
@@ -805,22 +813,23 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     }
     function reviewRequestTargets(cp) {
       const items = cp.items || [];
-      return items.filter(i => !i.deleted && i.type !== 'unnecessary' && (isEditedCard(i) || (typeof isUntaggedItem === 'function' && isUntaggedItem(i))));
+      return items.filter(i => !i.deleted && (i.type === 'unnecessary' || isEditedCard(i) || (typeof isUntaggedItem === 'function' && isUntaggedItem(i))));
     }
     function describeEditHistoryForRequest(i) {
       const log = Array.isArray(i.editLog) ? i.editLog.filter(e => e && e.kind !== 'create') : [];
       const lines = [];
       const merges = log.filter(e => e.kind === 'merge');
+      log.filter(e => e.kind === 'split').forEach(e => lines.push(`分割（操作記録）：${formatEditLogEntry(e)}`));
       const textEdits = log.filter(e => e.kind === 'text');
       const tagEdits = log.filter(e => e.kind === 'tagAdd' || e.kind === 'tagRemove');
       merges.forEach(e => lines.push(`統合：${(Array.isArray(e.from) ? e.from : [e.from]).filter(Boolean).map(t => `「${String(t).slice(0, 60)}」`).join(' ＋ ')} を1枚にした`));
 
       textEdits.forEach(e => {
-        if (typeof e.from === 'string' && typeof e.to === 'string' && e.from.length > e.to.length && e.from.includes(e.to.slice(0, Math.min(8, e.to.length)))) lines.push(`分割または短縮：「${e.from.slice(0, 80)}」→「${e.to.slice(0, 80)}」`);
+        if (typeof e.from === 'string' && typeof e.to === 'string' && e.from.length > e.to.length && e.from.includes(e.to.slice(0, Math.min(8, e.to.length)))) lines.push(`分割または短縮（本文差分からの推定・分割操作かは確認不能）：「${e.from.slice(0, 80)}」→「${e.to.slice(0, 80)}」`);
         else lines.push(`本文の編集：「${String(e.from).slice(0, 80)}」→「${String(e.to).slice(0, 80)}」`);
       });
       if (tagEdits.length) lines.push(`タグの手直し：${tagEdits.map(e => formatEditLogEntry(e)).join('、')}`);
-      const others = log.filter(e => !['merge', 'text', 'tagAdd', 'tagRemove'].includes(e.kind));
+      const others = log.filter(e => !['split', 'merge', 'text', 'tagAdd', 'tagRemove'].includes(e.kind));
       if (others.length) lines.push(`その他の編集：${others.map(e => formatEditLogEntry(e)).join('、')}`);
       return lines;
     }
@@ -828,19 +837,24 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const items = reviewRequestTargets(cp);
       const untaggedN = items.filter(i => typeof isUntaggedItem === 'function' && isUntaggedItem(i)).length;
       const editedN = items.filter(isEditedCard).length;
-      let out = `修正依頼：${cp.title}（手で編集したカード ${editedN}件・タグ未設定のカード ${untaggedN}件／書き出し ${items.length}枚）\n`;
+      const unnecessaryN = items.filter(i => i.type === 'unnecessary').length;
+      let out = `修正依頼：${cp.title}（手で編集したカード ${editedN}件・タグ未設定のカード ${untaggedN}件・不必要のカード ${unnecessaryN}件／書き出し ${items.length}枚）\n`;
       out += `出力日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
       out += `分類プログラム版: ${window.APP_FILE_VERSIONS?.['07'] || '確認不能'}／分類基準版: ${NOTEBOOK_CONTENT_VERSION_MARK}\n`;
       out += correctionRequestInstructionsText();
       out += '【依頼の要点】\nタグ未設定のカードは、本文だけで判断せず、添付した原文全体と同じ場面の前後を読み直してください。影響先が確認できるものは根拠を示してタグを付けるルールに修正してください。昨日と本日、安静時と動作時を区別し、根拠が不足するものは必要な確認事項を示してください。今回の変更を分類基準にも反映してください。\n';
+      out += '不必要に分類されたカードも調査対象です。除外した理由と処理ルール・手編集を確認し、妥当なら根拠を示し、誤りなら分類処理と分類基準を修正してください。理由の記録がなければ「理由未記録」と明示してください。\n';
       out += 'Edited/untagged cards are review targets, not proof of bugs. Untagged may mean intentional exclusion, insufficient evidence or a rule gap.\n';
       const originalItems = sourceText && sourceText.trim() && typeof classifyTextByRules === 'function' ? classifyTextByRules(sourceText) : [];
       items.forEach((i, idx) => {
         const edited = isEditedCard(i), untagged = typeof isUntaggedItem === 'function' && isUntaggedItem(i);
-        const kinds = [edited ? '手で編集済み' : null, untagged ? 'タグ未設定' : null].filter(Boolean).join('＋');
+        const kinds = [i.type === 'unnecessary' ? '不必要に分類' : null, edited ? '手で編集済み' : null, untagged ? 'タグ未設定' : null].filter(Boolean).join('＋');
         out += `\n────────────────────────\n■ ${idx + 1}件目　問題の種類: ${kinds}\n`;
         let request = '原文・編集履歴と分類結果を比較し、確認できた誤りを同じ種類の記録でも直るよう修正してください。';
-        if (untagged) {
+        if (i.type === 'unnecessary') {
+          request = 'なぜ不必要に分類されたか、原文・前後の記録・編集履歴と該当ルールを照合して再現してください。理由未記録ならその旨を示し、除外の妥当性を判断してください。確認できた誤りだけを分類処理と分類基準で修正してください。';
+        }
+        if (untagged && i.type !== 'unnecessary') {
           const inf = typeof inferUntaggedReason === 'function' ? inferUntaggedReason(i, cp) : null;
           const original = originalItems.find(o => o.timestamp === i.timestamp && rewriteNorm(o.text) === rewriteNorm(i.text));
           const protection = savedUntaggedProtection(i, cp);
@@ -885,7 +899,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     window.exportReviewRequestText = async function() {
       const cp = getCurrentPatient();
       const targets = reviewRequestTargets(cp);
-      if (!targets.length) return showToast('書き出す対象（手で編集したカード・タグ未設定のカード）はありません', 'success');
+      if (!targets.length) return showToast('書き出す対象（手で編集したカード・タグ未設定・不必要のカード）はありません', 'success');
       const text = buildReviewRequestText(cp, DOM.sourceText.value || cp.sourceText || '', true);
       const safeTitle = (cp.title || 'カルテ').replace(/[\\/:*?"<>|]/g, '_');
       const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
