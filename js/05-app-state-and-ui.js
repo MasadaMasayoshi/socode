@@ -2,7 +2,7 @@
 // Confirmations and Undo verify the captured patient/target; local writes require full readback.
 // AI transport accepts image OCR only; classification and clinical generation stay local.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-11.usability-context15'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-11.usability-context19'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -2613,6 +2613,17 @@
       if (el) el.textContent = DOM.sourceText.value ? `（${DOM.sourceText.value.length.toLocaleString()}文字）` : '';
     }
     let sourceFullscreenAnchor = null;
+    function fitSourceFullscreenViewport() {
+      const box = document.getElementById('source-editor');
+      const viewport = window.visualViewport;
+      if (!box?.classList.contains('is-fullscreen') || !viewport) return;
+      box.style.setProperty('--source-viewport-height', `${viewport.height}px`);
+      box.style.setProperty('--source-viewport-width', `${viewport.width}px`);
+      box.style.setProperty('--source-viewport-top', `${viewport.offsetTop}px`);
+      box.style.setProperty('--source-viewport-left', `${viewport.offsetLeft}px`);
+    }
+    window.visualViewport?.addEventListener('resize', fitSourceFullscreenViewport);
+    window.visualViewport?.addEventListener('scroll', fitSourceFullscreenViewport);
     window.toggleSourceFullscreen = function(force) {
       const box = document.getElementById('source-editor');
       if (!box) return;
@@ -2629,6 +2640,8 @@
       }
       box.classList.toggle('is-fullscreen', on);
       document.body.classList.toggle('source-fullscreen-open', on);
+      if (on) fitSourceFullscreenViewport();
+      else ['height', 'width', 'top', 'left'].forEach(key => box.style.removeProperty(`--source-viewport-${key}`));
       const btn = document.getElementById('btn-source-fullscreen');
       if (btn) {
         btn.innerHTML = on ? '<i class="fa-solid fa-compress"></i><span>元に戻す</span>' : '<i class="fa-solid fa-expand"></i><span>全画面</span>';
