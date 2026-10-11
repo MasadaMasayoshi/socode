@@ -2,7 +2,7 @@
 // Learned corrections precede headings and fixed rules; automatic creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-10.znavigation17'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-11.timeline-cards11'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -260,6 +260,14 @@
       if (tags.has(9) && NOT_ENV_REGEX.test(text) && !ENV_EVIDENCE_REGEX.test(text)) tags.delete(9);
       custom.add.forEach(r => { if (text.includes(r.keyword)) r.hendersonIds.forEach(h => tags.add(h)); });
       const out = Array.from(tags);
+      // A physical report or treatment-effect speculation is not communication evidence.
+      // Keep explicit emotions, support needs and communication ability separately.
+      if (out.includes(10) && out.some(h => [1, 2, 3, 4, 5, 6, 7, 8].includes(h)) &&
+        patientQuotes && !custom.add.some(r => text.includes(r.keyword) && r.hendersonIds.includes(10)) &&
+        !QUOTE_EMOTION_WORD_REGEX.test(patientQuotes) && !COMM_ABILITY_REGEX.test(patientQuotes) &&
+        !/緊張|迷惑|遠慮|気兼ね|申し訳|頼れ|頼り|お願い|してほしい|したい|なりたい|といい|いいんだけど|寂|悲|イライラ|恥|悔|嬉|うれし|楽しみ|ありがと|すみません|嫌|いや|困|悩|落ち込|不満/.test(patientQuotes)) {
+        out.splice(out.indexOf(10), 1);
+      }
       if (learnFirst && out.includes(14)) return [14, ...out.filter(h => h !== 14)];
 
       if (learnAdded && out.length > 1 && out.includes(14)) return [...out.filter(h => h !== 14), 14];
@@ -2141,15 +2149,71 @@
       }
 
       extracted.forEach(it => { if (!it.isUnnecessaryBoilerplate && isOcrNoiseText((it.text || '').trim())) it.isUnnecessaryBoilerplate = true; });
+      splitHistoricalCurrentStatements(extracted, text);
       mergeSameTimeVitals(extracted);
       mergeVitalCheckHeadings(extracted);
       groupComparisonLabTables(extracted);
+      splitIndependentCareChanges(extracted);
+      mergeClinicalEpisodeCards(extracted);
       attachStaffQuestions(extracted);
       splitFamilySpeechSentences(extracted);
       splitMixedSubjectiveObjective(extracted);
       mergeDanglingObservations(extracted);
       extracted.forEach(item => { delete item._line; delete item._lab; });
       return extracted;
+    }
+
+    function splitHistoricalCurrentStatements(list, source) {
+      const admitted = /入院日|入院時の(?:状況|様子)|入院となった/.test(source);
+      for (let i = 0; i < list.length; i++) {
+        const it = list[i];
+        if (it.isUnnecessaryBoilerplate || it.timestamp !== '入院前' || !labelPrimaryNeeds(it.text)) continue;
+        const m = it.text.match(/^(.+?)[。\s]*(現在は|今は)(.+)$/);
+        if (!m) continue;
+        const label = it.text.match(/^([^:：]+)[:：]/)?.[1];
+        list.splice(i, 1,
+          { ...it, text: cleanExtractedPhrase(m[1]), admissionPhase: 'preadmission' },
+          { ...it, text: cleanExtractedPhrase(`${label}: ${m[2]}${m[3]}`), timestamp: admitted ? '入院時' : '現在（日時不明）', admissionPhase: admitted ? 'postadmission' : 'unknown' });
+        i++;
+      }
+    }
+
+    function splitIndependentCareChanges(list) {
+      const domain = t => /酸素/.test(t) ? 'oxygen' : /硬膜外/.test(t) ? 'analgesia' : /フットポンプ/.test(t) ? 'compression' : null;
+      for (let i = 0; i < list.length; i++) {
+        const it = list[i], m = it.text.match(/^(回診[:：]\s*)?(.*)$/);
+        if (it.isUnnecessaryBoilerplate || !m) continue;
+        const parts = m[2].split(/[、,]/).map(p => p.trim()).filter(Boolean);
+        if (parts.length < 2 || parts.some(p => !domain(p) || !/(?:OFF|ON|中止|終了|抜去|開始|装着)$/.test(p)) || new Set(parts.map(domain)).size < 2) continue;
+        list.splice(i, 1, ...parts.map(text => ({ ...it, text: (m[1] || '') + text })));
+        i += parts.length - 1;
+      }
+    }
+
+    function mergeClinicalEpisodeCards(list) {
+      const domain = t => {
+        if (/膀胱|カテーテル|排尿|排便|尿量|医師.*説明|主治医.*説明|明日|予定|翌日|今後/.test(t)) return null;
+        if (/リハビリ|(?:^|\s|:)RH\b|可動域|ROM|SLR|荷重|移乗|立位保持|歩行訓練|セッティング|体重(?:を)?かけ|動かし始め/.test(t)) return 'rehab';
+        if (/創部|ガーゼ/.test(t) && !PAIN_TEXT_REGEX.test(t)) return 'wound';
+        if (/呼吸困難|肺Air|排痰|痰の性状/.test(t)) return 'respiratory';
+        if (/一人暮らし|長男|次男|別世帯|同町内/.test(t) && !/キーパーソン|援助者|「|頼れ|迷惑/.test(t)) return 'household';
+        if (/足背動脈|知覚異常|冷感|しびれ|感覚異常/.test(t)) return 'peripheral';
+        return null;
+      };
+      for (let i = 1; i < list.length;) {
+        const prev = list[i - 1], cur = list[i], topic = domain(prev.text);
+        const sameTopic = topic && (domain(cur.text) === topic || topic === 'rehab' && PAIN_SCORE_REGEX.test(cur.text));
+        const adjacent = prev._line !== undefined && cur._line !== undefined && cur._line >= prev._line && cur._line - prev._line <= 2;
+        const safe = sameTopic && adjacent && prev.timestamp === cur.timestamp && (/\d{1,2}:\d{2}/.test(cur.timestamp) || topic === 'household' && cur.timestamp === '入院前') &&
+          prev.admissionPhase === cur.admissionPhase && prev.needHint === cur.needHint &&
+          !prev.isUnnecessaryBoilerplate && !cur.isUnnecessaryBoilerplate && !prev.isLabOrVital && !cur.isLabOrVital &&
+          (!prev.fieldLabel || topic === 'household' && prev.fieldLabel === '家族関係') && !cur.fieldLabel && !PATIENT_EDUCATION_REGEX.test(cur.text) &&
+          prev.text.length + cur.text.length <= 600;
+        if (!safe) { i++; continue; }
+        prev.text = cleanExtractedPhrase(prev.text.replace(/[、\s]+$/, '') + (/。$/.test(prev.text) ? '' : /(?:ず|あるも)$/.test(prev.text) ? '、' : '。') + cur.text);
+        prev._line = cur._line;
+        list.splice(i, 1);
+      }
     }
 
     const S_QUOTE_REGEX = /["「][^"「」]*[ぁ-んァ-ヶ一-龠々][^"「」]*["」]/;
@@ -2208,7 +2272,7 @@
       let predictedType = predictLocalItemType(chunk, cleanedText, userLearned);
 
       if (chunk.soRole && !hasLearnedSignal(userLearned)) predictedType = chunk.soRole;
-      return { detectedHIds, predictedType };
+      return { detectedHIds: hasLearnedSignal(userLearned) ? detectedHIds : hendersonRelevanceFilter(cleanedText, detectedHIds), predictedType };
     }
 
     function isHeadingOnlyChunk(chunk, cleanedText) {
