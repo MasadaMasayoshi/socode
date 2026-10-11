@@ -1,15 +1,6 @@
 'use strict';
-// 「患者背景（基本情報／医学情報）」の検証。
+
 //
-// 【背景】利用者からの要望：「タグ未設定」のまま残ってしまうカードの中には、氏名・性別・
-// 血液型・病期(Stage)・病理結果・臨時指示のように、そもそもヘンダーソンの14の基本的欲求
-// のどれにも自然には当てはまらない内容が一定数ある。これらを「タグ未設定」という要対応の
-// 警告のまま放置するのではなく、「患者背景」という独立した受け皿（ヘンダーソンタグの
-// 一覧・総合アセスメント表とは完全に別枠）に振り分け、さらに氏名・性別等の属人的な
-// 「基本情報」と、血液型・病期・治療方針等の臨床的な「医学情報」の2つに分ける。
-// classifyPatientBackground()は、「他のどのヘンダーソンタグにも一致しなかった場合の
-// 最後の受け皿」として、カード作成時・「タグ・基準値を再チェック」実行時の両方から呼ばれる
-// 純粋な振り分け関数で、ここではその判定基準を検証する。
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -36,19 +27,10 @@ test('見出しラベルが無い場合（血液型・病期・OCR破損等）�
 });
 
 test('PATIENT_BACKGROUND_BASIC_FIELD_LABELSに登録された見出しラベルの一覧が想定通り（回帰確認）', () => {
-  // 「学歴」「アレルギー」は、出力シートで患者背景（基本情報）として一本化する改善
-  // （利用者からの指摘：家族構成・学歴・生活習慣・アレルギーの有無等が本来「患者背景」に
-  // まとまっているべきなのに、出力シートの客観的情報(Oデータ)欄に埋もれていた）の一環で
-  // 新たに見出しラベルとして追加し、氏名・性別・生活歴・入院日と同じ「基本情報」に分類する。
+
   assert.deepEqual(Array.from(PATIENT_BACKGROUND_BASIC_FIELD_LABELS).sort(), ['入院日', 'アレルギー', '学歴', '性別', '氏名', '生活歴'].sort());
 });
 
-// isUntaggedItemは、カードの赤枠・「タグ未設定」警告表示を決める中心的な判定関数。
-// 患者背景に振り分けられたカードは、意図的にヘンダーソンタグが無いカードのため、
-// 「要対応の警告」を出してはならない（利用者からの報告：患者背景に振り分けたつもりの
-// カードにまで赤い警告が出ていては本来の目的を果たせない）。
-// 【変更】患者背景の列・表示は廃止したため、患者背景の目印が付いたカードでもタグが無ければ「タグ未設定」として
-// 警告する（利用者からの指摘：「タグが未設定のものがわかりにくい」）。
 test('isUntaggedItem: 患者背景の目印が付いたカードでも、タグが無ければ「タグ未設定」の警告対象になる', () => {
   const item = { type: 'o', hendersonIds: [], patientBackground: '医学情報' };
   assert.equal(isUntaggedItem(item), true);
@@ -64,16 +46,8 @@ test('isUntaggedItem: 「不要」判定済みのカードは患者背景の有�
   assert.equal(isUntaggedItem({ type: 'unnecessary', hendersonIds: [], patientBackground: '医学情報' }), false);
 });
 
-// 実際にどのヘンダーソンタグにも一致しない実例（利用者からの報告事例）で、
-// suggestHendersonTagsForTextが空配列を返すこと（＝患者背景の受け皿に振り分けられる前提条件）
-// を確認する。
-// 【変更】「患者背景」の区分は廃止済みで、タグ未設定のまま残ると利用者が困る（「タグ未設定のものがなぜそうなって
-// いるのか考えて修正して」）。病期（Stage）・病理結果は、病状の理解（14）・治療の環境（9）の情報として9・14を付ける。
-// 血液型だけは引き続きどの項目にも当たらない。
 test('血液型はヘンダーソンタグが提案されず、病期・病理結果は学び(14)にしない（疾患の分類。タグ不要の理由として示す）', () => {
-  // Array.fromで包むのは、app.jsをvmサンドボックス内で実行しているため（サンドボックス側の
-  // Arrayとテスト側のArrayが別レルムになり、空配列同士でも参照が異なるとdeepStrictEqualが
-  // 失敗することがある。他のテストファイルの既存の書き方に合わせる）。
+
   assert.deepEqual(Array.from(suggestHendersonTagsForText('【血液型】 A型', null, undefined)), []);
   assert.deepEqual(Array.from(suggestHendersonTagsForText('Stage 1B', null, undefined)).sort(), []);
   assert.deepEqual(Array.from(suggestHendersonTagsForText('【病理結果】T2 NO PO HO MO', null, undefined)).sort(), []);

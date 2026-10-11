@@ -1,11 +1,7 @@
-    // 看護アセスメント支援システム：02-reference-data.js（全10ファイルのうち 2 番目）
-    // 例文（SAMPLE_TEXT）・NotebookLM基準ノートの初期値・検査値の基準値表（LAB_STANDARDS）などのデータ。
-    // index.html の <script> で 01〜10 の順に読み込み、1つのプログラムとして動きます
-    // （順番を入れ替えないでください。以前の app.js を内容ごとに分けたものです）。
+// Japanese source examples and reference data. Generic ranges are not facility-approved values.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = '2026-10-08.8'; // 版（scripts/stamp-version.js が書き込む）
-    // 【テスト用の事例】「各ページの確認のたびに事例を打ち込むのが面倒」という要望から、記録メモの下のプルダウンで選べるようにした。
-    // （中身は tests/fixtures/relation-map の事例。患者さんのデータではなく、作った架空の事例）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = '2026-10-10.znavigation17'; // Version stamp (scripts/stamp-version.js)
+
     const SAMPLE_CASES = [
  {
   "label": "胃がん術後（A氏・短）",
@@ -61,22 +57,8 @@
 [検査データ] WBC 11200, CRP 3.8, Hb 10.2, Cre 1.1, Na 136, K 4.2
 [14:30] 「少し呼吸が楽になった」と話すが、再度体温を測定すると38.2℃に上昇していた。`;
 
-    // 基準ノート本体の初期値（統合版 2026-09-28）。利用者からの依頼「基準ノートを統合して一新してください」により、
-    // 以前の版（基準表の14項目、胃がん・大腿骨近位部骨折・肺炎の各資料、分類の実践ガイド、記録のプロット集を
-    // 継ぎ足してきたもの）を、①カードの作り方 ②S/O判定 ③14項目の判定基準 ④タグ付けのルール ⑤アセスメントの
-    // 考え方 ⑥周術期の共通基準 ⑦疾患別の基準 ⑧記録・計画の型 の8章に整理し直した。重複していた周術期の
-    // 共通事項（ドレーン・尿道カテーテル・疼痛・DVT/PTE・せん妄）は第6章にまとめ、これまでに利用者が指摘した
-    // タグの修正（高血圧は1にしない、肺炎の病名は1・7・9、症状を訴える発言は10にしない、DVT予防は9、等）を
-    // ルール分類（js/07・js/03）と同じ内容で第4章に書いた。ルール分類を直したときは、ここも合わせて直すこと。
-    // 版の印（NOTEBOOK_CONTENT_VERSION_MARK）が入っていない保存済みのノートは古い版とみなし、分類基準タブで
-    // 「統合版に置き換える」を案内する（js/04 の renderNotebookContentEditor）。
-    // 【統合版 2026-09-30】利用者からの依頼「分類基準を統合してください」により、2026-09-28 版のあとに直した
-    // ルール分類（学生の記録の書式・Day形式・表の貼り付け・検査値の単位の換算と判定・タグの修正など）と、
-    // 自分のアセスメント・不足情報の確認・看護計画の記録の考え方を、各章に書き足した。
-    // 共有されている基準ノートに利用者が書き足した分と、「追加の分類基準」は、分類基準タブの「分類基準を統合」
-    // （js/04 の buildIntegratedNotebook）で、この版の該当する章に入れ直せる。
     const NOTEBOOK_CONTENT_VERSION_MARK = '統合版 2026-09-30';
-    // 以前の版（統合版 2026-09-28）の各行の目印。共有の基準ノートのうち、利用者が書き足した行を見分けるのに使う
+
     const NOTEBOOK_PREVIOUS_LINE_HASHES = new Set('1rxzhk1 1n972mt 3oggz7 11wepfp 1ueyf9x 49fyid cktp9v 1dx8rnt 4w69aw 18yrges mz6kpv 1fxl9vm vjjqph 1na1m5x 1mm3a6p 1eegg6z xov1zd 1r2aecs 1p9asa7 ipot7j 1re2huh 33sjwu 12z0tmf lrdwgc vdcow1 31eneq 11mb2w6 t10hoq 1etsd7m 5ubyuq q42z2q 1t8xbsy 1kpypia 15hvkni 1bwlid2 ilejiw mpf6r2 1eecsip 1dkakkm 1pr7cs9 1n4b44k 2z4yug kq8d8l 1t9q52t 1cxtfpk 1bmvzo4 wf9ste 1oyarzj 1p16g52 w1hdma 1epkp3w 1g1elw8 sro6mi 13ezb12 lnvozy 12fz4ir 1uuozg2 q2k5k8 1hrhr2n 1t9nghh f1917k e0crkw j1e8d8 13rhc30 1v2xzr2 yvgn6 1qx5h46 1757o1c u83int 1nv6687 9mp1bz wrr5dv ku3lll 1284hc6 e7jic3 tu4uvg fh8e14 wk4h4o dcef5v 1tw2zb2 wfnv68 pklg0t qnr0pb 1vbrse1 ehxm2 1brwjir u319zs 1ixcp78 i4h9b 53jp4n 13njjnz 1ele74r rwuu7w cfb5kk 1niyy9p 16zgdvq 1ovb3z5 coq3bu 24dwyi 1n5xhmq ukofp0 7qvde7 1yik6ad 117e71n v54305 1d7f6u1 1c83oe0 mc5a21 4vbu7g 188wc9g ylmgxf 39187t 3yqc7v 18qsxyi 1jfl61m 19is9nl sys0jh kda9kl oi98bw 4r9yru 1nh8in0 1i94xy8 1jcmgts wjqlw9 70311g 8wukdb d73drk ysxln2 1rt8zfd rsm75j 1cy71mw 1fc2gx8 1l1dvb3 1cftclx 1epae2b 1og289u 1r8z4jp 1vk21a0 lxc9rb 14yvj9r 1bwwj4w tap586 18tgtnq 1q8n2f0 1i8sp26 1nq8mbd 1y0ddgx 1jhhrn4 1gebsqw 1ox9pmi 1p54mi5 1mh1isl njedxy w8a1pd 1a2daya 4utfxf 1cbq5a1 1vdl8io r6dyzq 1exn90y 1bocpt1 1eay80t a26n4w 1ioy22v p7xddp qtyt3m 1ecvr13 1v6ppoi 4ufv81 18oigbx 1wl1wn0 1b73s34 11avgj6 jmk6zs 90bjpt 1ch9u22 id8wik evf7p2 13i7uer w8fsyw a7uumx fevad0 tyi7ix 31f5lu ll25l5 31eqak y4dgky 1fi3pcw j4nwbp 6wnqsb pbvlhf 157ghfe 2byund lo14bk 1hitvg3 1suzyfg 1kamx2z 1bdsrow ouqo9 zj2m3c mayvhv 2e67kq 1m7v4xj 14224h9 13vzf13 t7hukc 17fmocm gqq9d3 1wilov6'.split(' '));
     const DEFAULT_NOTEBOOK_CONTENT = `【看護アセスメント 基準ノート（統合版 2026-09-30）】
 このノートは、AIによる分類（「分類開始」で「AIありで分類」を選んだとき）・検査値AI総合評価・不足情報の推定・看護診断候補・看護計画の根拠です。これまでに利用者が指摘したタグ・分類の修正をすべて反映し、アプリのルールによる分類（AIなし）と同じ基準で判断できるように整理しています。「学習データ管理」→「分類基準」タブから編集できます。
@@ -360,33 +342,20 @@ SOAP：S（患者の発言）／O（バイタル・検査・観察事実）／A�
       "BNP": { unit: "pg/mL", ref: "18.4以下" },
       "PT-INR": { unit: "", ref: "0.9〜1.1" },
       "HbA1c": { unit: "%", ref: "4.6〜6.2" },
-      // TP（総蛋白）・Alb（アルブミン）・γGTPは、AST/ALT等と並んで肝機能・栄養状態の
-      // 血液検査でよく登場する項目だが、これまで登録が無く、表形式で貼り付けた際に
-      // 項目名だけのカードが値と結合されずに残ってしまっていた（利用者からの指摘：
-      // 「検査値をしっかり分類するように」）。
+
       "TP": { unit: "g/dL", ref: "6.6〜8.1" },
       "Alb": { unit: "g/dL", ref: "3.8〜5.2" },
-      // γGTPは男女で基準値が分かれることが多いが、Hb等の既存項目と同様にこの一覧では
-      // 性別を分けない大まかな目安の範囲として扱う（既存のHb等と同じ簡略化の考え方）。
+
       "γGTP": { unit: "U/L", ref: "9〜50" },
-      // Ht（ヘマトクリット）・PT（プロトロンビン時間）も同様に血液検査でよく登場するが
-      // 未登録だったため、項目名だけのカードが値と結合されずに残ってしまっていた
-      // （利用者からのスクリーンショット報告：「Ht(ヘマトクリット)」「PT(プロトロンビン時間)」が
-      // 値の無いカードとして、対応する値「41.8%」等は項目名の無い別のカードとして残っていた）。
+
       "Ht": { unit: "%", ref: "35〜50" },
-      // PTは秒数で報告されることが多いが、施設によっては活性%やINRで報告されることもある
-      // （INR表記は既存のPT-INRで別途対応済み）。ここでは最も一般的な秒数表記を対象とする。
+
       "PT": { unit: "秒", ref: "10〜13" },
-      // ALP・T-Bil・血糖・アミラーゼも肝機能・膵機能・糖代謝の血液検査でよく登場するが
-      // 未登録だったため、同様に項目名だけのカードが値と結合されずに残ってしまっていた
-      // （利用者からのアップロード文書で判明）。血糖・アミラーゼは英語略語ではなく日本語で
-      // 書かれることが一般的なため、既存のDダイマーと同様に日本語のままキーとして登録する。
+
       "ALP": { unit: "U/L", ref: "38〜113" },
       "T-Bil": { unit: "mg/dL", ref: "0.2〜1.2" },
       "血糖": { unit: "mg/dL", ref: "70〜109" },
       "アミラーゼ": { unit: "U/L", ref: "40〜130" },
-      // 「Cr」はクレアチニンの略称で「Cre」とどちらも実際の記録で使われるが、これまで「Cre」
-      // しか登録がなく、「Cr」単独表記の項目名の行が値と結合されずに残ってしまっていた
-      // （利用者からのアップロード文書で発覚）。基準値は既存の「Cre」と同じ。
+
       "Cr": { unit: "mg/dL", ref: "0.6〜1.1" }
     };

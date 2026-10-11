@@ -1,28 +1,12 @@
-    // 看護アセスメント支援システム：11-own-assessment.js（全11ファイルのうち 11 番目）
-    // 自分で書くアセスメント：ヘンダーソン14項目ごとに「情報の解釈」「考えられる原因」「今後の見通し」を書き、
-    // 根拠にしたS/Oカードを紐付ける。「確定」するたびに版として履歴に残し、そのあとに増えた情報・変わった根拠を
-    // 知らせて「再評価」できるようにする。
-    // （js/10 の起動の処理より後に読み込むため、最後に総合アセスメント表を描き直す）
+// Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
+// Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-08.35'; // 版（scripts/stamp-version.js が書き込む）
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-10.znavigation17'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
-    // データの形（患者ごと。cp.myAssessments[欲求の番号]）
+
     // ------------------------------------------------------------------------
-    //   interpretation / cause / outlook : 情報の解釈・考えられる原因・今後の見通し（書きかけも含む今の内容）
-    //   evidenceIds    : 根拠にしたカードのID（並びは選んだ順）
-    //   evidenceCache  : 根拠にしたカードの本文の控え（カードが消されても何を根拠にしていたか分かるように）
-    //   sufficiency    : この欲求が「met（充足）」「unmet（未充足）」か、'' は未判定（総合アセスメント表の見出しで選ぶ）
-    //   sufficiencyPre / sufficiencyPost : 入院前・入院後の充足・未充足（By も同じ形：sufficiencyPreBy / sufficiencyPostBy）
-    //   sufficiencyBy  : 'user'（自分で選んだ）／'ai'（AIが入れた。AIの再判定で入れ替わる）
-    //   aiSufficiency  : AIの判定 {verdict(met/unmet/unknown), reason, evidence:[カードID], need, at}
-    //   revisionNote   : 再評価で変えたこと（任意。確定すると履歴に移る）
-    //   acknowledged   : 「確認した（根拠にしない）」と押したカード {ID: そのときの本文}
-    //   history        : 確定した版 [{version, confirmedAt, interpretation, cause, outlook, revisionNote,
-    //                     evidence:[{id,type,text,label,removed}], knownItemIds}]（最大30版）
-    //   aiFeedback / aiFeedbackAt : AIの助言（参考）
-    //   updatedAt      : 最後に書き換えた日時（複数の端末で同時に書いたときは、欲求ごとに新しい方を使う。
-    //                    server.js の mergeKeyedRecords・js/05 の mergeKeyedRecordsClient）
+
     // ==========================================================================
     const MY_ASSESSMENT_FIELDS = [
       { key: 'interpretation', label: '情報の解釈', icon: 'fa-magnifying-glass',
@@ -58,18 +42,18 @@
       const h = e && Array.isArray(e.history) ? e.history : [];
       return h.length ? h[h.length - 1] : null;
     }
-    // この欲求のカード（不要以外）と、そのうち実際の記録（「不足情報」欄以外）
+
     function myNeedItems(cp, needId) {
       return (cp.items || []).filter(i => i.type !== 'unnecessary' && (i.hendersonIds || []).includes(needId));
     }
     function myNeedRecordItems(cp, needId) {
       return myNeedItems(cp, needId).filter(i => (i.assessmentCols?.[needId] || 'unclassified') !== 'missing');
     }
-    // 総合アセスメント表と同じ番号（S-1・O-2）
+
     function myEvidenceLabels(cp, needId) {
       return assessmentSeqLabels(myNeedItems(cp, needId), needId);
     }
-    // 根拠のカード1枚の表示用の情報（カードが消された・不要にされたときは控えの本文を使う）
+
     function describeMyEvidence(cp, needId, id, labels, e) {
       const item = (cp.items || []).find(i => i.id === id);
       const cache = (e && e.evidenceCache && e.evidenceCache[id]) || {};
@@ -86,7 +70,6 @@
       return id => (order.has(id) ? order.get(id) : 100000 + (pos.has(id) ? pos.get(id) : 100000));
     }
 
-    // 根拠のカードを足す・外す（本文の控えも取っておく）
     function linkMyEvidenceIds(cp, needId, ids, now = new Date().toISOString()) {
       const e = ensureMyAssessment(cp, needId);
       const labels = myEvidenceLabels(cp, needId);
@@ -124,11 +107,6 @@
       return { added, removed: removed.length };
     }
 
-    // 前回確定した版と比べた、今の状態
-    //   dirty            : 確定したあとに書き換えた（または一度も確定していない書きかけがある）
-    //   newItems         : 前回の確定のあとにこの欲求に増えたカード（根拠にした・「確認した」を押したものは除く）
-    //   changedEvidence  : 前回の確定のあとに本文が変わった根拠のカード
-    //   removedEvidence  : 根拠にしているのに、消された・不要にされたカード
     function myAssessmentStatus(cp, needId) {
       const e = getMyAssessment(cp, needId);
       const last = lastConfirmedMyAssessment(e);
@@ -161,7 +139,6 @@
       return st.version > 0 && (st.newItems.length + st.changedEvidence.length + st.removedEvidence.length) > 0;
     }
 
-    // 「確定」：今の内容を1つの版として履歴に残す（2回目からは「再評価」）
     function confirmMyAssessmentEntry(cp, needId, now = new Date().toISOString()) {
       const e = ensureMyAssessment(cp, needId);
       if (!MY_ASSESSMENT_FIELDS.some(f => e[f.key].trim()) && e.evidenceIds.length === 0) return null;
@@ -186,7 +163,7 @@
       e.updatedAt = now;
       return entry;
     }
-    // 履歴の版の内容を、今の書きかけに戻す（確定はしない）
+
     function restoreMyAssessmentFromHistory(cp, needId, version, now = new Date().toISOString()) {
       const e = ensureMyAssessment(cp, needId);
       const h = e.history.find(x => x.version === version);
@@ -201,7 +178,7 @@
       e.updatedAt = now;
       return true;
     }
-    // 版どうしで変わった所（履歴の表示用）
+
     function diffMyAssessmentVersions(prev, cur) {
       const changedFields = MY_ASSESSMENT_FIELDS.filter(f => String((prev && prev[f.key]) || '') !== String(cur[f.key] || '')).map(f => f.label);
       const prevIds = new Set(((prev && prev.evidence) || []).map(x => x.id));
@@ -213,9 +190,6 @@
       };
     }
 
-    // 書いた内容の見直し（AIなし）：抜けやすい所を知らせる
-    //   level: 'warn'（直した方がよい）/ 'info'（見直すとよい）/ 'ok'
-    //   itemId があるものは「根拠に加える」ボタンを出す
     function reviewMyAssessment(cp, needId) {
       const e = getMyAssessment(cp, needId);
       const hints = [];
@@ -242,7 +216,7 @@
           hints.push({ level: 'info', text: types.has('s') ? '根拠がSデータ（患者の言葉）だけです。観察・検査（Oデータ）も合わせると解釈に説得力が出ます。' : '根拠がOデータ（観察・検査）だけです。患者の言葉（Sデータ）も合わせると、本人の受け止めも踏まえた解釈になります。' });
         }
       }
-      // 本文に書いた S-1・O-2 が根拠に入っているか
+
       const labelToId = new Map(Object.entries(labels).map(([id, l]) => [l, id]));
       const text = MY_ASSESSMENT_FIELDS.map(f => (e[f.key] || '')).join('\n');
       const cited = Array.from(new Set((text.normalize('NFKC').match(/[SO]\s*-\s*\d{1,3}/g) || []).map(s => s.replace(/\s+/g, ''))));
@@ -251,7 +225,7 @@
         if (id && !evIds.has(id)) hints.push({ level: 'info', text: `本文に書いた ${l}「${shortText(byId.get(id)?.text, 24)}」が根拠のカードに入っていません。`, itemId: id });
         else if (!id) hints.push({ level: 'info', text: `本文の ${l} はこの項目の表にありません（番号は表のカードの並びで変わります）。` });
       });
-      // 基準値を外れた検査値の見落とし
+
       records.filter(i => i.type === 'o' && !evIds.has(i.id)).forEach(i => {
         let r = null;
         try { r = evaluateLabFindings([i]); } catch (err) { r = null; }
@@ -284,7 +258,6 @@
       return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
 
-    // AIの指示文・書き出し用：自分のアセスメントを文章にする（書いてある項目だけ）
     function buildMyAssessmentsText(cp, { withEvidence = true } = {}) {
       return HENDERSON_NEEDS.map(need => {
         const e = getMyAssessment(cp, need.id);
@@ -301,16 +274,13 @@
     }
 
     // ==========================================================================
-    // 画面：総合アセスメント表の各欲求の行の下に「自分のアセスメント」の行を出す（js/09 の renderAssessmentTable から呼ぶ）
+
     // ==========================================================================
-    // 「すべて」を表示しているときは、書いていない項目は1行にたたむ（開いた項目は覚えておく）
+
     const myAsmExpandedInAll = new Set();
-    // 【自分のアセスメントを毎回挟まない】利用者からの指摘：「総合アセスメント表のページに毎回『自分のアセスメント』が
-    // 挟まっているのがうざい」。既定では、表（「すべて」）の各欲求の間には出さず、1つの欲求のページでも下に1行だけ
-    // （押すと開く）にする。右上の「自分のアセスメント」ボタンで、常に表示する形に切り替えられる（このブラウザに覚える）。
-    // 2026-10-06.15：利用者からの要望「表示か非表示だけでいい」で、「1行だけ」をやめ「表示／非表示」の2つにした。
+
     let myAsmAlwaysShown = false;
-    try { myAsmAlwaysShown = localStorage.getItem('nursing_my_asm_show') === 'on'; } catch (e) { /* 覚えられなくても動く */ }
+    try { myAsmAlwaysShown = localStorage.getItem('nursing_my_asm_show') === 'on'; } catch (e) {   }
     function myAssessmentAlwaysShown() { return myAsmAlwaysShown; }
     function updateMyAsmShowButton() {
       const btn = document.getElementById('btn-my-asm-show');
@@ -323,7 +293,7 @@
     }
     window.toggleMyAssessmentShown = function() {
       myAsmAlwaysShown = !myAsmAlwaysShown;
-      try { localStorage.setItem('nursing_my_asm_show', myAsmAlwaysShown ? 'on' : 'off'); } catch (e) { /* 覚えられなくても動く */ }
+      try { localStorage.setItem('nursing_my_asm_show', myAsmAlwaysShown ? 'on' : 'off'); } catch (e) {   }
       updateMyAsmShowButton();
       renderAssessmentTable();
     };
@@ -331,20 +301,18 @@
     const myAsmReviewOpen = new Set();
 
     // ==========================================================================
-    // 充足・未充足：14項目ごとに「充足／未充足／未判定」を選ぶ（総合アセスメント表の各項目の見出しに出す。
-    // 「自分のアセスメント」を非表示にしていても選べる）。結論を最初に明言する（参考データの「充足・未充足の判断」）ための印。
+
     // ==========================================================================
     const SUFFICIENCY_LABELS = { met: '充足', unmet: '未充足', conflict: '判定保留', unknown: '情報不足' };
-    // 入院前・入院後・全体（総合）の3つについて、それぞれ充足／未充足を持つ。
-    //   pre ：入院前（発症・入院の前の状態）／post：入院後（入院・手術・治療のあとの状態）／all：全体
+
     const SUFFICIENCY_PHASES = [
       { key: 'pre', label: '入院前', field: 'sufficiencyPre', by: 'sufficiencyPreBy' },
       { key: 'post', label: '入院後', field: 'sufficiencyPost', by: 'sufficiencyPostBy' },
       { key: 'all', label: '全体', field: 'sufficiency', by: 'sufficiencyBy' }
     ];
-    // 画面・書き出しには「入院前」「入院後」を分けて出す（利用者の要望。全体は内部の集計とAIの評価だけに使う）
+
     const SUFFICIENCY_UI_PHASES = SUFFICIENCY_PHASES.filter(p => p.key !== 'all');
-    // 手術の記録がある患者では「入院後」を「術前」「術後」に分けて出す（総合アセスメント表の充足・未充足）
+
     const SUFFICIENCY_SURG_PHASES = [{ key: 'preop', label: '術前' }, { key: 'postop', label: '術後' }];
     function surgPhaseOf(i) {
       const ts = String(i.timestamp || '').normalize('NFKC');
@@ -354,19 +322,19 @@
       if (/術前|手術前|入院時|入院日|入院当日/.test(ts) || /^[【\[]?術前/.test(head)) return 'pre';
       return '';
     }
-    function isSurgicalPatient(cp) { return (cp.items || []).some(i => i.type !== 'unnecessary' && surgPhaseOf(i) === 'post'); }
+    function isSurgicalPatient(cp) { return (cp.items || []).some(i => i && !i.deleted && !i.aiSuggested && i.type !== 'unnecessary' && surgPhaseOf(i) === 'post'); }
     function sufficiencyUiPhases(cp) {
       const base = SUFFICIENCY_UI_PHASES;
       return cp && isSurgicalPatient(cp) ? [base[0], ...SUFFICIENCY_SURG_PHASES] : base;
     }
     function sufficiencyPhase(key) { return SUFFICIENCY_PHASES.find(p => p.key === key) || SUFFICIENCY_PHASES[2]; }
-    // 充足・未充足はサイトが決める（記録の言葉と看護の基準だけ。AIなし）。利用者が選ぶ欄は無い
+
     const sufficiencyCache = { sig: '', res: null, cp: null };
     function ruleSufficiencyFor(cp) {
-      const sig = (cp.items || []).map(i => `${i.id}|${i.type}|${String(i.text || '').length}|${(i.hendersonIds || []).join(',')}|${JSON.stringify(i.assessmentCols || {})}`).join(';');
+      const sig = JSON.stringify((cp.items || []).map(i => [i.id, i.type, i.text, i.hendersonIds, i.assessmentCols, i.timestamp, i.fieldLabel, i.admissionPhase, i.assessmentColumn, i.deleted, i.aiSuggested]));
       if (sufficiencyCache.cp === cp && sufficiencyCache.sig === sig && sufficiencyCache.res) return sufficiencyCache.res;
       let res = {};
-      try { res = judgeSufficiencyByRules(cp); } catch (err) { console.warn('充足・未充足の判定に失敗しました:', err); }
+      try { res = judgeSufficiencyByRules(cp); } catch (err) { console.warn('Fulfillment evaluation failed:', err); }
       sufficiencyCache.cp = cp; sufficiencyCache.sig = sig; sufficiencyCache.res = res;
       return res;
     }
@@ -375,20 +343,18 @@
       const v = r && r[phase] && r[phase].verdict;
       return v === 'met' || v === 'unmet' ? v : '';
     }
-    // 記録が足りない欄も「情報不足」と明示して出す（空欄にしない）ので、カードが1枚でもあれば、どの欲求にも結果がある
+
     function sufficiencyHasVerdict(cp, needId) {
       return (cp.items || []).some(i => i.type !== 'unnecessary') && !!ruleSufficiencyFor(cp)[needId];
     }
-    // 書き出し・印刷用の短い文：「入院前：充足／入院後：未充足／全体：未充足」（選んである所だけ）
-    // 教員の指導：「充足or未充足と言い切る」「何のリスクが考えられるかまで書く」。欲求ごとの、満たされないときに考えられる主なリスク
+
     const SUFFICIENCY_RISKS = {
       1: '誤嚥・無気肺・肺炎などの呼吸器合併症', 2: '低栄養・脱水・創傷治癒の遅れ', 3: '便秘・尿閉・腸閉塞（イレウス）', 4: '廃用症候群・深部静脈血栓症・転倒',
       5: '睡眠不足による疼痛の増強・せん妄', 6: '更衣困難による皮膚トラブル・保温不足', 7: '感染による発熱・体温調節の乱れ', 8: '感染・皮膚トラブル（褥瘡）',
       9: '転倒・転落・感染・事故', 10: '不安の増強・ニーズの把握の遅れ', 11: '精神的な苦痛の増強', 12: '役割の喪失・自己効力感の低下', 13: '気分転換の不足・活動意欲の低下',
       14: '自己管理の不足・退院後の合併症（脱臼・再発など）'
     };
-    // 【判定を5つの面に分けて示す】充足・未充足の1語だけにせず、①現在の状況 ②自立度・介助 ③症状・制限 ④起こりうる合併症（確定ではない）
-    // ⑤根拠の確かさ、を別々に書く（リスクや処置だけで判定が決まらないように）
+
     function sufficiencyDimensions(cp, needId, phase) {
       const r = ruleSufficiencyFor(cp)[needId];
       const a = r && r[phase];
@@ -418,8 +384,7 @@
       if (!a || !a.verdict) return '';
       const need = HENDERSON_NEEDS.find(n => n.id === needId);
       const name = need ? need.name.replace(/^\d+\.\s*/, '') : '';
-      // 根拠は「O-1により」のように、総合アセスメント表の通し番号（S-1・O-1）で示す（番号が引けないときは記録の言葉）
-      // 番号だけでは何のカードか分からないので、「O-3（術後1日目：SpO2 95%）」のように、時期と内容の一部を添える
+
       const byId = new Map((cp.items || []).map(i => [i.id, i]));
       const labs = (a.evidence || []).slice(0, 3).map(id => {
         const lb = (labelMap || {})[id]; if (!lb) return '';
@@ -431,7 +396,7 @@
       const by = labs.length ? `${labs.join('・')}により` : `${a.reason}より`;
       if (a.verdict === 'met') return `${by}、${name}は満たされているため、充足。`;
       if (a.verdict === 'unmet') {
-        // 9.環境は、直接の根拠がある危険だけを書く（不安や痛みだけから、転倒と感染の両方を推測しない）
+
         let risk = SUFFICIENCY_RISKS[needId] || '合併症';
         if (needId === 9) {
           const rs = [];
@@ -439,20 +404,20 @@
           if (/ドレーン|チューブ|創部|ガーゼ|刺入部|挿入部|発赤|発熱|排膿|感染/.test(a.reason)) rs.push('感染');
           risk = rs.join('・');
         }
-        // 判定は「いま満たされているか」で決める。起こりうる合併症は、判定の理由ではなく、予防のために観察する別の項目として書く
+
         return risk ? `${by}、${name}が現在は十分に満たされていない状態と判断し、未充足。（起こりうる合併症：${risk}。確定ではなく、予防のための観察対象）` : `${by}、環境面の問題があるため、未充足。`;
       }
       if (a.verdict === 'conflict' && a.restriction) return `${labs.length ? labs.join('・') + 'により、' : ''}治療上の制限（${String(a.reason).replace(/（.*$/, '')}）が確認できるが、制限や処置そのものは充足・未充足を決めないため、実際の自立度・介助の必要・症状を確認する必要があり、判定保留。`;
       if (a.verdict === 'conflict') return `${labs.length ? `${labs.join('・')}により、充足を示す記録と未充足を示す記録が並んでおり` : `${a.reason}が並んでおり`}、どちらとも決められないため、判定保留。`;
       return a.need ? `${a.need}ため、情報不足。` : '記録が少なく判断できないため、情報不足。';
     }
-    // 期間ごとの判定の表示用：met / unmet / conflict / unknown
+
     function phaseVerdictOf(cp, needId, phaseKey) {
       const r = ruleSufficiencyFor(cp)[needId];
       const v = r && r[phaseKey] && r[phaseKey].verdict;
       return v === 'met' || v === 'unmet' || v === 'conflict' ? v : 'unknown';
     }
-    // 入院前・入院後それぞれの区画の中に出す判定（バッジ＋判定根拠＋根拠カードの番号）。カードが1枚も無い患者には出さない
+
     function sufficiencyPhaseHtml(cp, needId, phaseKey) {
       if (!sufficiencyHasVerdict(cp, needId)) return '';
       const ph = sufficiencyUiPhases(cp).find(p => p.key === phaseKey);
@@ -462,11 +427,11 @@
       const labels = myEvidenceLabels(cp, needId);
       const ev = (a.evidence || []).map(id => labels[id]).filter(Boolean).join('・');
       const icon = v === 'met' ? 'fa-circle-check' : v === 'unmet' ? 'fa-triangle-exclamation' : v === 'conflict' ? 'fa-scale-unbalanced' : 'fa-circle-question';
-      // 見出し行（期間名＋大きな判定バッジ）は常に見せ、判定根拠は押して開く（未充足・判定保留は最初から開く）
+
       const open = v === 'unmet' || v === 'conflict' ? ' open' : '';
       return `<details class="suf-phase-block suf-b-${v}" data-suf-phase="${phaseKey}"${open}><summary class="suf-phase-head"><span class="suf-phase-name">${ph.label}</span><span class="suf-badge suf-${v}"><i class="fa-solid ${icon}"></i> ${SUFFICIENCY_LABELS[v]}</span><span class="suf-more">根拠</span></summary><div class="suf-phase-why">${escapeHtml(sufficiencySentence(cp, needId, phaseKey))}${ev ? `<span class="suf-ev">根拠カード：${escapeHtml(ev)}</span>` : ''}</div></details>`;
     }
-    // 項目名の下に出す一覧（期間ごとの判定だけを小さく並べる。表を見渡すとき用）
+
     function sufficiencyMiniHtml(cp, needId) {
       if (!sufficiencyHasVerdict(cp, needId)) return '';
       const rows = sufficiencyUiPhases(cp).map(ph => {
@@ -475,7 +440,7 @@
       }).join('');
       return `<div class="suf-mini-wrap" aria-label="充足状況の一覧">${rows}</div>`;
     }
-    // 書き出し用：期間ごとの判定と根拠を1つの文にする
+
     function sufficiencyPhaseText(cp, needId, phaseKey) {
       if (!sufficiencyHasVerdict(cp, needId)) return '';
       return `判定：${SUFFICIENCY_LABELS[phaseVerdictOf(cp, needId, phaseKey)]}／判定根拠：${sufficiencySentence(cp, needId, phaseKey)}`;
@@ -492,7 +457,7 @@
       }).join('');
       return `<div class="suf-ctl" role="group" aria-label="充足・未充足">${rows}</div>`;
     }
-    // 見出し（各項目の上）に、入院前・入院後それぞれの判定と、「O-1により、…のため充足」の形の根拠を出す
+
     function sufficiencyHeaderHtml(cp, needId) {
       if (!sufficiencyHasVerdict(cp, needId)) return '';
       const labels = myEvidenceLabels(cp, needId);
@@ -566,8 +531,7 @@
           <input type="text" class="field my-asm-text" data-my-asm-need="${needId}" data-my-asm-field="revisionNote" value="${escapeHtml((e && e.revisionNote) || '')}" placeholder="例：排便があり腹部膨満が消えたため、便秘の状態は改善したと判断を変えた" oninput="onMyAssessmentInput(${needId}, 'revisionNote', this)">
         </label>` : '';
       const confirmLabel = st.version > 0 ? `再評価として確定（第${st.version + 1}版）` : '評価を確定（第1版）';
-      // 【レビューで発見】AIの助言は患者の記録にHTMLのまま保存され、共有先・ファイルから届いたものも表示するため、
-      // 表示の前に sanitizeStoredHtml（js/05）で動く部品を取り除く（根拠のカードのIDを入れるボタンは jsArg で書く）。
+
       const ai = e && e.aiFeedback ? `
         <div class="my-asm-ai">
           <div class="my-asm-ai-head"><span><i class="fa-solid fa-wand-magic-sparkles"></i> AIの助言（参考）${e.aiFeedbackAt ? `・${escapeHtml(formatMyDateTime(e.aiFeedbackAt))}` : ''}</span><button type="button" class="my-asm-link" onclick="clearMyAssessmentAi(${needId})">閉じる</button></div>
@@ -581,6 +545,8 @@
           ${isAllMode ? `<button type="button" class="my-asm-toggle" onclick="toggleMyAssessment(${needId})" aria-expanded="true"><i class="fa-solid fa-chevron-down"></i> <i class="fa-solid fa-user-pen"></i> 自分のアセスメント</button>` : `<span class="my-asm-title"><i class="fa-solid fa-user-pen"></i> 自分のアセスメント<small>${need.id}. ${escapeHtml(needName)}</small></span>`}
           <span id="my-asm-state-${needId}" class="my-asm-state">${stateHtml}</span>
           <span class="my-asm-tools">
+            <button type="button" class="btn btn-outline my-asm-btn" onclick="undoMyAssessmentEdit(${needId},false)" title="この欲求の文章編集を元に戻す（この画面を開いている間）">元に戻す</button>
+            <button type="button" class="btn btn-outline my-asm-btn" onclick="undoMyAssessmentEdit(${needId},true)">やり直す</button>
             ${historyCount ? `<button type="button" class="btn btn-outline my-asm-btn" onclick="toggleMyAssessmentHistory(${needId})" aria-expanded="${myAsmHistoryOpen.has(needId)}"><i class="fa-solid fa-clock-rotate-left"></i> 評価の履歴（${historyCount}）</button>` : ''}
           </span>
         </div>
@@ -620,7 +586,6 @@
       return `<div class="my-asm-label"><i class="fa-solid fa-list-check"></i> 見直しのポイント（AIなし）</div><ul>${hints.map(h => `<li class="my-hint my-hint-${h.level}"><i class="fa-solid ${icon[h.level]}"></i><span>${escapeHtml(h.text)}</span>${h.itemId ? `<button type="button" class="my-asm-link" onclick="linkMyEvidence(${needId}, ${jsArg(h.itemId)})">根拠に加える</button>` : ''}</li>`).join('')}</ul>`;
     }
 
-    // 再評価のお知らせ：前回の確定のあとに増えた情報・変わった根拠を並べ、その場で根拠に加えられるようにする
     function myAssessmentReviewHtml(cp, needId, st, labels, review) {
       const e = getMyAssessment(cp, needId);
       const last = lastConfirmedMyAssessment(e);
@@ -673,10 +638,9 @@
     }
 
     // ==========================================================================
-    // 画面の操作
+
     // ==========================================================================
-    // 書いたそばからデータに入れ、保存（この端末＋サーバー）は少し待ってまとめて行う。
-    // 表を描き直さないので、書いている途中で入力欄がリセットされない。
+
     const myAsmSaveTimers = {};
     function saveMyAssessmentsSoon(patientId, delay = 700) {
       if (myAsmSaveTimers[patientId]) clearTimeout(myAsmSaveTimers[patientId]);
@@ -690,7 +654,7 @@
       schedulePatientSync(patientId);
       if (getCurrentPatient().id === patientId) { updateSaveStatus('saving'); updateCurrentPatientMeta(); }
     }
-    // 保存を待っている分があれば、すぐに保存する（患者の切り替え・ページを閉じる前）
+
     function flushMyAssessmentSaves() {
       Object.keys(myAsmSaveTimers).forEach(id => { clearTimeout(myAsmSaveTimers[id]); delete myAsmSaveTimers[id]; saveMyAssessmentsNow(id); });
     }
@@ -702,17 +666,49 @@
       const ck = document.getElementById(`my-asm-check-${needId}`);
       if (ck) ck.innerHTML = myAssessmentCheckHtml(cp, needId);
     }
+    const myAssessmentEditHistories = new Map();
+    function myAssessmentEditHistory(cp, needId) {
+      if(!myAssessmentEditHistories.has(cp.id)) myAssessmentEditHistories.set(cp.id,new Map());
+      const needs=myAssessmentEditHistories.get(cp.id);
+      if(!needs.has(needId)) needs.set(needId,{undo:[],redo:[]});
+      return needs.get(needId);
+    }
+    function rememberMyAssessmentEdit(cp,needId,field,before,after) {
+      if(!['interpretation','cause','outlook','revisionNote'].includes(field) || before===after)return;
+      const history=myAssessmentEditHistory(cp,needId),last=history.undo[history.undo.length-1],now=Date.now();
+      if(last && last.field===field && last.after===before && now-last.at<750){last.after=after;last.at=now;}
+      else history.undo.push({field,before,after,at:now});
+      if(history.undo.length>40)history.undo.shift();history.redo=[];
+    }
+    window.undoMyAssessmentEdit = function(needId,redo=false) {
+      const cp=getCurrentPatient(),history=myAssessmentEditHistory(cp,needId),from=redo?history.redo:history.undo,to=redo?history.undo:history.redo,entry=from[from.length-1];
+      if(!entry){showToast('戻せるアセスメントの編集はありません','info');return false;}
+      const e=getMyAssessment(cp,needId);
+      if(!e || String(e[entry.field]||'')!==(redo?entry.before:entry.after)){
+        showToast('アセスメントが削除・更新されています。現在の内容を保持しました','warn');return false;
+      }
+      e[entry.field]=redo?entry.after:entry.before;e.updatedAt=new Date().toISOString();
+      from.pop();to.push(entry);if(to.length>40)to.shift();
+      commitMyAssessmentChange(cp);
+      showToast(redo?'アセスメントの編集をやり直しました':'アセスメントの編集を元に戻しました','info');return true;
+    };
     const myAsmCheckTimers = {};
     window.onMyAssessmentInput = function(needId, field, el) {
       const cp = getCurrentPatient();
       const e = ensureMyAssessment(cp, needId);
+      rememberMyAssessmentEdit(cp,needId,field,String(e[field]||''),el.value);
       e[field] = el.value;
       e.updatedAt = new Date().toISOString();
       saveMyAssessmentsSoon(cp.id);
-      if (myAsmCheckTimers[needId]) clearTimeout(myAsmCheckTimers[needId]);
-      myAsmCheckTimers[needId] = setTimeout(() => { delete myAsmCheckTimers[needId]; refreshMyAssessmentSideInfo(getCurrentPatient(), needId); }, 500);
+      const timerKey=JSON.stringify([cp.id,needId]);
+      if (myAsmCheckTimers[timerKey]) clearTimeout(myAsmCheckTimers[timerKey]);
+      myAsmCheckTimers[timerKey] = setTimeout(() => {
+        delete myAsmCheckTimers[timerKey];
+        const current=getCurrentPatient();
+        if(current?.id===cp.id)refreshMyAssessmentSideInfo(current, needId);
+      }, 500);
     };
-    // 表を描き直すとき、書いている途中の入力欄のカーソルの位置を保つ（js/09 の renderAssessmentTable から呼ぶ）
+
     function captureMyAssessmentFocus() {
       const a = document.activeElement;
       if (!a || !a.dataset || !a.dataset.myAsmField) return null;
@@ -723,7 +719,7 @@
       const el = document.querySelector(`[data-my-asm-need="${f.need}"][data-my-asm-field="${f.field}"]`);
       if (!el || typeof el.focus !== 'function') return;
       el.focus();
-      try { el.setSelectionRange(f.start, f.end); el.scrollTop = f.scroll; } catch (err) { /* 位置を戻せなくても入力は続けられる */ }
+      try { el.setSelectionRange(f.start, f.end); el.scrollTop = f.scroll; } catch (err) {   }
     }
     function rerenderMyAssessment() {
       renderAssessmentTable();
@@ -755,7 +751,7 @@
       const cp = getCurrentPatient();
       if (unlinkMyEvidenceId(cp, needId, itemId)) commitMyAssessmentChange(cp);
     };
-    // 総合アセスメント表のカードの「根拠」ボタン：根拠に入っていれば外し、無ければ加える
+
     window.toggleMyEvidence = function(needId, itemId) {
       const e = getMyAssessment(getCurrentPatient(), needId);
       if (e && (e.evidenceIds || []).includes(itemId)) window.unlinkMyEvidence(needId, itemId);
@@ -789,11 +785,13 @@
       showToast(entry.version > 1 ? `再評価として第${entry.version}版を確定しました` : '評価を確定しました（第1版）。あとで情報が増えたら、ここでお知らせします', 'success');
     };
     window.restoreMyAssessmentVersion = async function(needId, version) {
+      const cp=getCurrentPatient(),expected=JSON.stringify(getMyAssessment(cp,needId));
       const ok = await openDialog({ title: `第${version}版の内容に戻しますか？`, message: '今の書きかけの文章と根拠のカードが、その版の内容に置き換わります（確定はしません）。', confirmLabel: '戻す' });
       if (ok !== true) return;
-      const cp = getCurrentPatient();
-      if (restoreMyAssessmentFromHistory(cp, needId, version)) {
-        commitMyAssessmentChange(cp);
+      const current=getCurrentPatient();
+      if(current?.id!==cp.id || JSON.stringify(getMyAssessment(current,needId))!==expected){showToast('確認中に患者またはアセスメントが更新されました。現在の内容を保持しました','warn');return;}
+      if (restoreMyAssessmentFromHistory(current, needId, version)) {
+        commitMyAssessmentChange(current);
         showToast(`第${version}版の内容を書きかけに写しました`, 'info');
       }
     };
@@ -805,7 +803,7 @@
       e.updatedAt = new Date().toISOString();
       commitMyAssessmentChange(cp);
     };
-    // 根拠のカードを、総合アセスメント表の中で光らせる（その欲求の行が隠れていれば表示を切り替える）
+
     window.flashAssessmentCard = function(itemId, needId) {
       const cp = getCurrentPatient();
       const item = (cp.items || []).find(i => i.id === itemId);
@@ -818,7 +816,6 @@
       setTimeout(() => el.classList.remove('card-flash'), 1600);
     };
 
-    // ---- 根拠のカードを選ぶ画面 ----
     let evidencePicker = null; // { needId, selected:Set }
     window.openEvidencePicker = function(needId) {
       const cp = getCurrentPatient();
@@ -837,7 +834,7 @@
       evidencePicker = null;
       document.getElementById('modal-evidence-picker').classList.add('hidden');
     };
-    // 選べるカードの一覧：この欲求のカード（表と同じ順・同じ番号）。「ほかの項目のカードも表示」でS/Oすべて
+
     function evidencePickerCandidates(cp, needId, { includeOthers = false, query = '' } = {}) {
       const labels = myEvidenceLabels(cp, needId);
       const own = assessmentDisplayOrder(myNeedRecordItems(cp, needId));
@@ -849,12 +846,7 @@
         ...others.filter(match).map(i => ({ item: i, label: i.type === 's' ? 'S' : 'O', own: false }))
       ];
     }
-    // 【見やすさの改善】利用者から「根拠のカードを選ぶとき、多すぎて見づらい」。
-    //   ・日ごとにまとめて、たためるようにする（最初は、選んだカード・おすすめのカードがある日と最後の日だけ開く）
-    //   ・S／O／選んだカードだけ、で絞り込む
-    //   ・本文は2行までにして、残りはマウスを重ねると全文
-    //   ・選んだカードは上にまとめて表示し、そこから外せる
-    //   ・本文に書いた番号（S-1など）のカードと、基準値を外れた検査値のカードに「おすすめ」の印
+
     function evidencePickerRecommended(cp, needId) {
       const out = new Map();
       const e = getMyAssessment(cp, needId);
@@ -895,7 +887,7 @@
         filters.innerHTML = b('all', 'すべて', all.length) + b('s', 'Sだけ', count(c => c.item.type === 's')) + b('o', 'Oだけ', count(c => c.item.type === 'o'))
           + (rec.size ? b('recommended', '<i class="fa-solid fa-star"></i> おすすめ', count(c => rec.has(c.item.id))) : '') + b('selected', '選んだカード', count(c => sel.has(c.item.id)));
       }
-      // 選んだカード（上にまとめて表示・ここから外せる）
+
       const chosen = document.getElementById('evidence-picker-selected');
       if (chosen) {
         const byId = new Map(all.map(c => [c.item.id, c]));
@@ -913,7 +905,7 @@
         updateEvidencePickerCount();
         return;
       }
-      // 日ごとにまとめる（ほかの項目のカードは最後にまとめる）
+
       const groups = [];
       const own = list.filter(c => c.own), others = list.filter(c => !c.own);
       groupItemsByDay(own.map(c => c.item)).forEach(g => groups.push({ day: g.day || '日時不明', items: g.items.map(i => own.find(c => c.item.id === i.id)) }));
@@ -946,7 +938,7 @@
     window.toggleEvidencePickerItem = function(id, on, rerender = false) {
       if (!evidencePicker) return;
       if (on) evidencePicker.selected.add(id); else evidencePicker.selected.delete(id);
-      // 印を付けた行の色・上の「選んだカード」・日ごとの選択数を描き直す（開いている日・スクロールの位置は保つ）
+
       const wrap = document.getElementById('evidence-picker-list');
       const top = wrap ? wrap.scrollTop : 0;
       renderEvidencePickerList();
@@ -961,7 +953,7 @@
       if (!evidencePicker) return;
       const cp = getCurrentPatient();
       const { needId, selected } = evidencePicker;
-      // 選び直した結果の並び：前からあったものは元の順、足したものは表の順
+
       const e = ensureMyAssessment(cp, needId);
       const ids = [...e.evidenceIds.filter(id => selected.has(id)), ...Array.from(selected).filter(id => !e.evidenceIds.includes(id))];
       setMyEvidenceIds(cp, needId, ids);
@@ -969,11 +961,6 @@
       commitMyAssessmentChange(cp);
     };
 
-
-    // ---- AIによる充足・未充足の判定（14項目まとめて） ----
-    // 【方針】判断はS/Oの根拠があるものだけ（根拠のカードが無い・原文に無い番号なら「判定できない」に落とす）。
-    // 利用者が自分で選んだ項目（sufficiencyBy='user'）は上書きしない。AIが決めた項目は sufficiencyBy='ai' の印を付け、
-    // 理由と根拠のカードを見出しの下に出す。利用者が押し直せば 'user' になる。
     function sufficiencyReferenceText() {
       let t = '';
       try { t = buildEffectiveNotebookContent(); } catch (err) { t = ''; }
@@ -996,7 +983,7 @@
         verdict = verdict === 'met' || /^充足/.test(verdict) ? 'met' : verdict === 'unmet' || /未充足/.test(verdict) ? 'unmet' : 'unknown';
         const evidence = (Array.isArray(n.evidence) ? n.evidence : []).map(c => (String(c).match(/C\s*\d{1,4}/i) || [''])[0].replace(/\s+/g, '').toUpperCase())
           .map(c => ev.byCode.get(c)).filter(c => c && mineIds.has(c.id)).map(c => c.id);
-        if (verdict !== 'unknown' && !evidence.length) verdict = 'unknown'; // 根拠のカードが出せない判断は採用しない
+        if (verdict !== 'unknown' && !evidence.length) verdict = 'unknown';
         return { verdict, reason: String(n.reason || '').trim(), evidence: Array.from(new Set(evidence)), need: String(n.need || '').trim(), agree: typeof n.agree === 'boolean' ? n.agree : null };
       };
       (Array.isArray(obj.needs) ? obj.needs : []).forEach(n => {
@@ -1005,7 +992,7 @@
         const mineIds = new Set((cp.items || []).filter(i => i.type !== 'unnecessary' && (i.hendersonIds || []).includes(id)).map(i => i.id));
         const r = {};
         SUFFICIENCY_PHASES.forEach(ph => {
-          // 以前の形（verdict が項目の直下にある）は「全体」として読む
+
           const src = n[ph.key] || (ph.key === 'all' && n.verdict ? n : null);
           const one = cleanOne(src, id, mineIds);
           if (one) r[ph.key] = one;
@@ -1014,7 +1001,7 @@
       });
       return out;
     }
-    // 結果を各項目に入れる。利用者が自分で選んだ欄は上書きしない。戻り値は {set, kept, unknown}（欄の数）
+
     function applySufficiencyResult(cp, result, now = new Date().toISOString(), source = 'ai') {
       let set = 0, kept = 0, unknown = 0;
       HENDERSON_NEEDS.forEach(need => {
@@ -1038,7 +1025,7 @@
     function hasRuleSufficiency(cp) {
       return (cp.items || []).some(i => i.type !== 'unnecessary');
     }
-    // AIの評価：ルールの判定は書き換えない。AIが賛成か反対か・AIの判断・理由を、各項目に添える
+
     function applySufficiencyReview(cp, result, now = new Date().toISOString()) {
       let agree = 0, disagree = 0;
       HENDERSON_NEEDS.forEach(need => {
@@ -1079,20 +1066,13 @@
     }
     let sufficiencyAiRunning = false;
 
-
-    // ---- 充足・未充足をAIなしで判定する（記録の言葉と、看護で決まっている基準だけを使う） ----
-    // 考え方：カードの文を1文ずつ見て、「基準から外れる・援助が必要」を示す言葉（未充足）と「自力でできている・基準内」を示す言葉（充足）を探す。
-    // 否定（「痛みの訴えなし」「障害なし」）は反対の意味にする。未充足の面が1つでもあれば未充足（援助が必要な面を優先）。どちらも無ければ「判定できない」。
     const SUF_NEG_AFTER = '(?:[^、。,]{0,6})(?:なし|ない|無|訴えず|みられず|見られず|認めず|なく|ありません)';
     const SUF_UNMET_CUES = ['痛み|疼痛|創痛|痛い|NRS\\s*[:：]?\\s*[3-9]|ペインスケール\\s*[「:：]?\\s*[3-9]', '眠れ[なず]|不眠|睡眠(?:不足|障害)|寝つけ', '全介助|要介助|介助(?:が必要|を要|にて|で)|見守りが必要|できない|困難|不可|禁止|制限', '不安|怖い|恐怖|心配|戸惑|情けない|申し訳', '食欲(?:低下|不振|がない|ない)|摂取量(?:半分|減)|半分のみ|おなかすかない|嘔気|嘔吐', '排便(?:なし|なく)|便秘|下痢|腹部膨満|お腹が張', 'べたべた|べたつき|気持ちが悪い|汚れ|悪臭|掻痒', '発赤|腫脹|熱感|発熱|排膿|浮腫|褥瘡', '呼吸困難(?:感)?(?:あり|を訴)|息苦しい|息切れ|チアノーゼ|喘鳴|SpO2\\s*[:：]?\\s*(?:[0-8]\\d|9[0-3])\\s*%', '転倒|ふらつき|不安定|せん妄|不穏|混乱|拒否', '体温[^\\d。、]{0,3}3[89]|3[89](?:\\.\\d)?\\s*度', '[↑↓]', '(?:旅行|趣味|外出|散歩|余暇)[^。]{0,20}(?:したい|できず|できない|行けない|行きたい)|早く治して', '(?:わから|分から)ない|教えて(?:ほしい|欲しい|ください)|大丈夫(?:か|なの|でしょうか)|ずれ(?:たり)?しないか|気を付け(?:れば|ること)', '仕事[^。]{0,10}(?:できない|できず|休)|復職[^。]{0,10}(?:不安|心配|難)|働けな', '体重[^。、]{0,8}(?:減|低下)|[0-9.]+\\s*kg\\s*(?:減|低下)|やせ|朝食[^。、]{0,6}(?:抜|食べない|とらない|欠食|ほとんど食べ)|欠食|野菜嫌い|嫌い|苦手|外食|早食い|偏食|短時間で済ま|早く食べ', '難聴|聞こえ(?:にくい|ない|が悪)|聴力(?:低下|障害)|(?:説明|話|内容)[^。、]{0,8}(?:ほとんど|あまり)?伝わ(?:らない|りにくい)|意思疎通(?:が)?(?:困難|難しい|図れ(?:ない|ず))|失語|構音障害'];
     const SUF_MET_CUES = ['自立|自力|自分で|一人で|問題なし|良好|清明|規則的|正常|普通食|常食|整|障害なし|異常なし|理解(?:力)?(?:あり|良好)|前向き|頑張|楽しみ|きれい好き', '睡眠[^\\d。、]{0,3}[6-9](?:\\s*[~〜～-]\\s*[6-9])?\\s*時間|眠れた|よく眠れ', '食欲(?:良好|あり)|全量摂取|摂取量\\s*(?:良好|十分)', 'SpO2\\s*[:：]?\\s*(?:9[4-9]|100)\\s*%', 'ペインスケール\\s*[「:：]?\\s*[0-2]|NRS\\s*[:：]?\\s*[0-2](?!\\d)|痛みなし|疼痛なし', '体温[^\\d。、]{0,3}(?:3[67]|35\\.[5-9])', '排便\\s*[:：]?\\s*\\d\\s*回/日|排尿\\s*[:：]?\\s*\\d+\\s*回/日', '呼吸困難感(?:の)?訴えなし|肺Air入り(?:が)?良好', '意思疎通(?:は)?(?:良好|可能|図れ)|言葉にで|希望を(?:伝え|話)|質問(?:が)?でき|ナースコール[^。]{0,6}(?:使用|押|できる)|コミュニケーション[^。]{0,6}(?:良好|障害なし)', '理解(?:力)?(?:が)?良好|現状認識(?:が)?良好|理解できて|理解している', '(?:旅行|趣味|友人|外出)[^。]{0,12}(?:楽しむ|楽しん|行って|している)', '信仰[^。]{0,8}なし|宗教[^。]{0,8}なし|特別な宗教', '(?:RR|呼吸数)[^\\d。、]{0,3}(?:1[2-9]|20)(?!\\d)|%(?:VC|肺活量)\\s*(?:[89]\\d|1\\d\\d)|胸部[^。、]{0,8}(?:明らかな)?(?:異常|病変)[^。、]{0,4}(?:なし|認めず|ない)|禁煙|呼吸困難(?:感)?(?:は)?(?:なし|ない|無)', '趣味|テニス|ゴルフ|ジム|ウォーキング|ジョギング|旅行|友人[^。]{0,6}(?:会|食事)'];
-    // 言葉の種類ごとに、関係する欲求の番号（null＝どの欲求でも）。痛みは動く・休む・清潔など広く、体温は体温調節だけ、のように限る
+
     const SUF_UNMET_SCOPE = [[4, 5, 6, 8, 13, 14], [5], null, [13, 14], [2, 3], [3], [8], [7, 8], [1], [4, 9, 10, 13, 14], [7], null, [13], [14], [12], [2], [10]];
     const SUF_MET_SCOPE = [null, [5], [2], [1], [4, 5, 6, 8, 10, 12, 13, 14], [7], [3], [1], [10], [14], [13], [11], [1], [13]];
-    // 根拠として使えるかの確認（言葉だけで充足にしない）：
-    //  ・発言や疑問・不安の言い方（「自分でできるかな？」「大丈夫？」「分かりました」）は、できている証拠にしない
-    //  ・ドレーン・挿入部・創部の所見は、排泄や姿勢などの充足の根拠にしない（清潔・体温の根拠にだけ使う）
-    //  ・排泄・姿勢の充足は、その欲求に関する言葉（排便・排尿・歩行・ADLなど）がある記載だけを根拠にする
+
     const SUF_UNCERTAIN = /[？?]|かな$|かも|だっけ|だよね|んですね|でしょうか|ですか|分かりました|わかりました|大丈夫|問題ない|できる(?:かな|と思|はず)/;
     const SUF_DEVICE_SITE = /挿入部|刺入部|ドレーン|ルート|チューブ|カテーテル|ライン|創部|ガーゼ/;
     const SUF_MET_DOMAIN = { 3: /排便|排尿|排泄|便|尿|トイレ|下痢|便秘|ガス|腸蠕動|オムツ|ポータブル|ADL/, 4: /歩行|移動|ADL|体位|寝返|離床|立位|座位|起き上|筋力|ふらつき|歩く|運動|テニス|スポーツ|自立/, 2: /食|摂取|嚥下|咀嚼|栄養|水分|飲/ };
@@ -1106,7 +1086,7 @@
     function sufficiencyClauseVerdict(clause, needId, opts) {
       const speech = !!(opts && opts.speech);
       const t = String(clause || '').normalize('NFKC');
-      // 12.仕事・達成感は、仕事・役割・達成感に関する言葉が無い記載（動作の自立など）では決めない（教員・利用者の指摘：情報が弱いときは判定保留）
+
       if (needId === 12 && !/仕事|職|復職|達成|役割|家事|意欲|生きがい|就労|勤務|主婦/.test(t)) return { v: '', hit: '' };
       const metOk = sufficiencyMetAllowed(t, needId, speech);
       let unmet = '', met = '';
@@ -1119,7 +1099,7 @@
         if (negated) { if (metOk) met = met || m[0]; continue; }
         unmet = m[0]; break;
       }
-      // 自立してできている記載（「自立」「自力」）に、好みや気持ちの言葉（「毎日入らないと気持ちが悪い」）が添えられているだけなら、満たされていると見る
+
       if (unmet && metOk && /自立|自力/.test(t) && !/全介助|要介助|介助|できない|困難|不可|禁止|制限|見守り/.test(t) && /気持ち|不安|心配|戸惑|申し訳|情けない/.test(unmet)) return { v: 'met', hit: '自立' };
       if (unmet) return { v: 'unmet', hit: unmet };
       if (met) return { v: 'met', hit: met };
@@ -1130,25 +1110,25 @@
     const SUF_SEVERE = /難聴|伝わらない|全介助|要介助|できない|不可|禁止|不眠|眠れ[なず]|転倒|せん妄|不穏|チアノーゼ|呼吸困難(?:感)?(?:あり|を訴)|息苦しい|SpO2/;
     const SUF_MILD = /やや|軽度|少量|わずか|軽い|軽度/;
     function sufficiencyCardVerdict(item, needId, phase) {
-      // 信仰：「記載なし・不明」は情報が無いだけなので、充足とも未充足とも決めない（情報不足）
+
       if (needId === 11 && /記載なし|情報なし|不明|未確認|聴取(?:して)?(?:い)?ない|確認(?:でき|して)ない/.test(String(item.text || '').normalize('NFKC'))) return { v: '', hit: '', clause: '' };
       const parts = String(item.text || '').normalize('NFKC').split(/[。\n、,，]|\s{2,}|(?<=[)）])/).map(s => s.trim()).filter(Boolean);
       let met = null, unmet = null;
-      // 「」の発言のカードは、本人の気持ちや質問であって、できている証拠ではない
+
       const speech = /[「」]/.test(String(item.text || ''));
       for (const p of parts) {
-        // 入院前の評価では、「現在は痛みのため眠れていない」のように今の状態を述べた節は入院後の情報なので使わない
+
         if (phase === 'pre' && /^(?:現在|今回|今は|入院後|術後)/.test(p)) continue;
         const r = sufficiencyClauseVerdict(p, needId, { speech });
         if (r.v === 'unmet') {
-          // 「やや〜」「軽度」や検査値の矢印だけは、問題の重さが小さいので数えない（正常な所見が十分あれば充足と見る）
+
           if (SUF_MILD.test(p) || /^[↑↓]$/.test(r.hit)) continue;
           if (!unmet) unmet = { v: 'unmet', hit: r.hit, clause: p, severe: SUF_SEVERE.test(p) };
           else if (SUF_SEVERE.test(p)) unmet.severe = true;
         }
         if (r.v === 'met' && !met) met = { v: 'met', hit: r.hit, clause: p };
       }
-      // コミュニケーション：本人が気持ち・疑問・要望を言葉にして伝えられている発言は、「伝える力がある」根拠になる（発言のカードが10に入っているのは、この種類のもの）
+
       if (!unmet && !met && needId === 10 && speech) {
         const q = (String(item.text || '').match(/「[^」]{4,}」/) || [String(item.text || '')])[0];
         met = { v: 'met', hit: '発言', clause: q.slice(0, 30) };
@@ -1158,14 +1138,13 @@
     function placeByDate(i) {
       return typeof inferAssessmentColumn === 'function' ? inferAssessmentColumn(i.fieldLabel, i.timestamp, null) : null;
     }
-    // 治療のための制限（絶飲食・留置カテーテル・床上安静）や、術後の直接の所見は、「治療が代わりに満たしている」だけで、その欲求を通常の方法では満たせていない状態。
-    // 入院後の判定では、古い正常所見（術前の「朝食全量摂取」など）より、今も続いている制限・所見を優先する（あとで解除された記載があれば、制限は終わったと見る）
+
     const SUF_STATE_RULES = [
       { need: 2, re: /絶飲食|禁飲食|絶食|飲水(?:も)?禁止|禁食|NPO/, lift: /(?:絶飲食|絶食|禁飲食|NPO)[^。、]{0,4}解除|(?:食事|飲水|経口摂取|水分)[^。、]{0,4}(?:開始|再開)|流動食|五分粥|全粥|粥食|全量摂取|[0-9]割摂取/, label: '術後の絶飲食（治療のため、通常の食事・水分摂取ができていない）',
-        // 短時間（○時間）の絶食で、補液などの補給の計画・実施があり、不足の所見が無いときは、絶食の指示だけで未充足にしない
+
         exempt: (hit, all) => hit.every(t => /(?:絶食|絶飲食|禁飲食|NPO)[^。、]{0,4}[0-9]+\s*時間|術前|前日/.test(t)) && /補液|輸液|補給|点滴|水分(?:補給|摂取)(?:の)?(?:予定|計画)/.test(all) && !/不足|低下|脱水|減少|摂取(?:でき|困難)|悪心|嘔/.test(all) },
       { need: 3, re: /留置カテーテル|膀胱留置|尿道留置|バルーンカテーテル|尿道バルーン|尿道カテーテル|導尿/, lift: /(?:カテーテル|バルーン)[^。、]{0,4}(?:抜去|抜い|除去)|自尿|自排尿/, label: '膀胱留置カテーテル（排尿を管に頼っており、通常の排泄を自力で満たせていない）',
-        // カテーテルがあっても尿の排出が良好で、閉塞・混濁・血尿などの問題が無ければ、排泄の機能は保たれている（自力排泄かどうかとは別に見る）
+
         exempt: (hit, all) => /流出(?:は)?(?:良好|あり)|尿量[^。、]{0,8}(?:良好|十分|[0-9]{3,}\s*m[lL])/.test(all) && !/閉塞|流出(?:不良|なし|不|悪)|尿量(?:減少|少な)|乏尿|無尿|血尿|混濁|膀胱刺激|疼痛|痛み/.test(all) },
       { need: 4, re: /床上安静|ベッド上安静|絶対安静|ベッド安静/, lift: /安静(?:度)?[^。、]{0,4}(?:解除|拡大|フリー)|歩行(?:が)?可能|自力歩行|室内歩行|トイレ歩行|病棟歩行|離床(?:した|でき|を開始|開始)/, label: '術後の床上安静（治療のため、動くこと・姿勢を保つことが制限されている）' }
     ];
@@ -1174,9 +1153,7 @@
       const post = items.filter(i => !isPre(i) && !/[「」]/.test(String(i.text || '')));
       const nz = x => String(x || '').normalize('NFKC');
       const idx = new Map(items.map((i, n) => [i, n]));
-      // 【治療上の制限は、それだけでは未充足にしない】絶飲食・留置カテーテル・床上安静などは医師の指示・治療であり、その欲求が満たされていないとは限らない
-      // （補液で栄養・水分は補われている、カテーテルで排尿は管理されている、など）。実際の自立度・介助の必要・症状の記録で判断するため、
-      // 他に実際の問題を示す記録があるときはその判定を残し、無いときは「判定保留」にして確認を促す
+
       const set = (needId, reason, ev, direct) => {
         const r = res[needId]; if (!r) return;
         const evIds = ev.slice(0, 5).map(i => i.id);
@@ -1194,14 +1171,14 @@
         const hit = post.filter(i => rule.re.test(nz(i.text)));
         if (!hit.length) return;
         const lastAt = Math.max(...hit.map(i => idx.get(i)));
-        // あとで解除・再開の記載があれば、制限は終わったので上書きしない
+
         if (post.some(i => idx.get(i) > lastAt && rule.lift.test(nz(i.text)))) return;
         if (rule.exempt && rule.exempt(hit.map(i => nz(i.text)), post.map(i => nz(i.text)).join(' '))) return;
         set(rule.need, rule.label, hit);
       });
-      // 呼吸：術後の直接の所見（酸素・湿性咳嗽・浅い呼吸・顔色）を最優先の根拠にする。訓練の成績（ボールが維持できない）は根拠の中心にしない
+
       const found = [], evs = [];
-      // 酸素の使用だけは治療の記載なので、呼吸困難が無く酸素化が保たれている（SpO2 94%以上）ときは、問題の根拠にしない（自立度・補助の有無とは別に評価する）
+
       const allPost = post.map(i => nz(i.text)).join(' ');
       const stable = /呼吸困難(?:感)?(?:の訴え)?(?:は)?(?:なし|ない|無)|訴えなし/.test(allPost) && /SpO2\s*[:：]?\s*(?:9[4-9]|100)/.test(allPost);
       const OXY_ONLY = /^(?:酸素|O2)/;
@@ -1209,22 +1186,19 @@
       if (found.length) set(1, `術後の直接の所見（${found.slice(0, 5).join('・')}）`, evs, true);
     }
     function judgeSufficiencyByRules(cp) {
-      // 現病歴・診断名・既往歴などは、受傷の経緯や病名の記載で、その欲求が満たされているかを示す記録ではないので判定に使わない
+
       const HISTORY_LABELS = ['現病歴', '診断名', '既往歴', '手術術式', '氏名', '年齢', '性別', '感染症'];
-      const items = (cp.items || []).filter(i => i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i) && !HISTORY_LABELS.includes(i.fieldLabel));
+      const items = (cp.items || []).filter(i => i && !i.deleted && !i.aiSuggested && i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i) && !HISTORY_LABELS.includes(i.fieldLabel));
       const out = {};
       const surgical = isSurgicalPatient(cp);
       HENDERSON_NEEDS.forEach(need => {
         const mine = items.filter(i => (i.hendersonIds || []).includes(need.id));
         const colOf = i => (i.assessmentCols && i.assessmentCols[need.id]) || 'unclassified';
-        // 日時が読み取れているカードは「未分類」にせず、日時から入院前／入院後に振り分ける
+
         const effCol = i => { const x = colOf(i); return x === 'unclassified' ? (placeByDate(i) || x) : x; };
-        // 「問題を示す言葉が1つでもあれば未充足」ではなく、正常な所見と問題の所見を比べて、その欲求が満たされているかを見る：
-        //   ・重い問題（全介助・できない・不眠・転倒など）が1つでもあれば未充足
-        //   ・それ以外は、問題のカードの数が正常なカードの数の半分以上なら未充足、そうでなければ充足
-        //   ・正常も問題も読み取れなければ「判定保留」（無理に決めない）。信仰は、問題の記載が無ければ充足とする
+
         const judge = (cards, label, phaseKey) => {
-          // 術前の記録は、入院前の基準になる状態（できていること＝充足の根拠）としては入院前で、問題の記載は入院後で見る
+
           const rs = cards.map(i => {
             let r = sufficiencyCardVerdict(i, need.id, phaseKey);
             if (isPreop(i) && ((phaseKey === 'pre' && r.v === 'unmet') || (phaseKey === 'post' && r.v === 'met'))) r = { v: '', hit: '', clause: '' };
@@ -1232,7 +1206,7 @@
           });
           const um = rs.filter(x => x.r.v === 'unmet'), mt = rs.filter(x => x.r.v === 'met');
           const short = x => { const c = x.r.clause.slice(0, 30); return /^「.*」$/.test(c) ? c : `「${c}」`; };
-          // 充足を示す記録と未充足を示す記録が同じ数だけあり、重い問題も無いときは、どちらとも決めずに「判定保留」にする
+
           if (um.length && mt.length && um.length === mt.length && !um.some(x => x.r.severe)) return { verdict: 'conflict', reason: `充足を示す${mt.slice(0, 2).map(short).join('')}と、未充足を示す${um.slice(0, 2).map(short).join('')}`, evidence: [...mt.slice(0, 3), ...um.slice(0, 3)].map(x => x.i.id), need: '' };
           if (um.length && (um.some(x => x.r.severe) || um.length * 2 >= mt.length)) return { verdict: 'unmet', reason: `${um.slice(0, 3).map(short).join('')}`, evidence: um.slice(0, 5).map(x => x.i.id), need: '' };
           if (mt.length) return { verdict: 'met', reason: `${mt.slice(0, 3).map(short).join('')}`, evidence: mt.slice(0, 5).map(x => x.i.id), need: '' };
@@ -1240,8 +1214,8 @@
           return { verdict: 'unknown', reason: '', evidence: [], need: cards.length ? `${label}の記録が少なく、満たされているか判断できない` : `${label}の記録がない` };
         };
         const res = {};
-        // 術前（手術前の基準になる状態）の記録は、充足の判定では入院前の側で見る（表の欄は入院後のまま）
-        const isPreop = () => false; // 術前・手術前日などは入院後（入院前／入院後の2つに分ける）
+
+        const isPreop = () => false;
         const phases = { pre: ['入院前', (c, i) => c === 'preadmission' || (c === 'postadmission' && isPreop(i))], post: ['入院後', c => c === 'postadmission'], all: ['全体', c => c !== 'missing'] };
         if (surgical) {
           phases.preop = ['術前', (c, i) => c === 'postadmission' && surgPhaseOf(i) === 'pre'];
@@ -1250,7 +1224,7 @@
         Object.keys(phases).forEach(k => { res[k] = judge(mine.filter(i => phases[k][1](effCol(i), i)), phases[k][0], k === 'preop' ? 'pre' : k === 'postop' ? 'post' : k); });
         out[need.id] = res;
       });
-      try { sufficiencyStateOverrides(items, out, i => /^入院前/.test(String(i.timestamp || '')) || (Object.values(i.assessmentCols || {}).length > 0 && Object.values(i.assessmentCols).every(c => c === 'preadmission'))); } catch (e) { console.warn('制限の確認に失敗:', e); }
+      try { sufficiencyStateOverrides(items, out, i => /^入院前/.test(String(i.timestamp || '')) || (Object.values(i.assessmentCols || {}).length > 0 && Object.values(i.assessmentCols).every(c => c === 'preadmission'))); } catch (e) { console.warn('Restriction check failed:', e); }
       return out;
     }
     window.runSufficiencyRules = function() {
@@ -1261,7 +1235,6 @@
       showToast(`AIなしで判定しました：${r.set}欄に入れました` + (r.kept ? `／自分で選んだ${r.kept}欄はそのまま` : '') + (r.unknown ? `／${r.unknown}欄は記録が足りず判定できません` : '') + '。根拠の言葉を見て、自分で直してください', 'success', 8000);
     };
 
-    // ---- 印刷・書き出し用（js/06 から呼ぶ） ----
     function buildMyAssessmentsPrintHtml(cp, startNo) {
       const rows = HENDERSON_NEEDS.map(need => {
         const e = getMyAssessment(cp, need.id);
@@ -1280,8 +1253,8 @@
     }
 
     updateMyAsmShowButton();
-    // 起動時：js/10 の起動の処理で一度描いた表を、自分のアセスメントの行つきで描き直す
-    try { renderAssessmentTable(); } catch (err) { console.warn('総合アセスメント表を描き直せませんでした:', err); }
+
+    try { renderAssessmentTable(); } catch (err) { console.warn('Assessment render failed:', err); }
 
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {

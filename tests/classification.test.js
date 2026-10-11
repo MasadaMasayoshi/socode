@@ -1,16 +1,8 @@
 'use strict';
-// app.js の分類ロジック（記録テキストからのカード抽出・S/O判定・ヘンダーソンタグ付与）の
-// 自動テスト。
+
 //
-// app.js は module.exports で実際の分類関数をそのまま公開しているため
-// (tests/app-helpers.js 参照)、ここではロジックを手作業で複製せず、実際にブラウザで
-// 動くのと同一の関数を直接呼び出して検証する。これにより「テスト専用コードが本体の
-// 修正から取り残されて意味の無いテストになる」という重複・乖離リスクを避けている。
+
 //
-// このセッションで実際にユーザーから報告・指摘された不具合（診断名の卵巣嚢腫タグ抜け、
-// テニス等スポーツ記載のタグ付け漏れ、キーパーソン・年齢カードの二重ラベル表示、
-// 検査値AI評価が英語表記の項目名にしか反応しない問題、胃がん術後の不足情報推定 等）を
-// 回帰テストとして固定化する。
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -41,32 +33,19 @@ const {
   isUnnecessaryBoilerplateText
 } = app;
 
-const REAL_RECORD_PATH = '/root/.claude/uploads/29ffc676-d59b-5748-a3df-d67a84fd21bb/00bcd98c-_______________3.txt';
-const hasRealRecord = fs.existsSync(REAL_RECORD_PATH);
-
-/**
- * 「検査値APIキー未設定時のローカル簡易分類」を、実際にapp.jsが公開している関数だけを
- * 組み合わせて再現する薄いテスト用ヘルパー。btn-start-classifyのクリックハンドラ内で
- * 行われているのと同じ呼び出し順序（groupClinicalPhrasesWithTimestamps → タグ検出 →
- * predictLocalItemType）をなぞっているだけで、各関数自体の判定ロジックには一切手を
- * 加えていない。
- */
 function classifyLocally(text) {
   return groupClinicalPhrasesWithTimestamps(text)
     .filter(chunk => !chunk.isUnnecessaryBoilerplate)
     .map(chunk => {
       const cleanedText = chunk.text;
       const tagIds = new Set(detectMultipleHendersonTags(cleanedText));
-      // 本体（btn-start-classifyのローカル分類経路）と同様に、検査値・バイタルサインには
-      // 原則2(食事：栄養・代謝状態)タグも補う（このヘルパーが本体の挙動を省略していると
-      // classifyLocallyでの検証結果が実際の画面表示と食い違ってしまうため、本体の判定条件
-      // <chunk.isLabOrVital || LAB_ITEM_NAME_REGEX.test(...)>をそのまま揃える）。
+
       if (chunk.isLabOrVital || LAB_ITEM_NAME_REGEX.test(cleanedText)) tagIds.add(2);
       if (chunk.fieldLabel) {
         fieldLabelHintTags(chunk.fieldLabel, cleanedText).forEach(id => tagIds.add(id));
       }
       const type = predictLocalItemType(chunk, cleanedText, null);
-      // 比較できる検査データの表をまとめたカードは、本体と同じく時点ごとの値（labRows）も持つ
+
       return { text: cleanedText, timestamp: chunk.timestamp, type, hendersonIds: Array.from(tagIds), fieldLabel: chunk.fieldLabel || null, ...(chunk.labRows ? { labRows: chunk.labRows } : {}) };
     });
 }
@@ -76,8 +55,7 @@ function findByIncludes(items, needle) {
 }
 
 // ==========================================================================
-// Request L: 診断・検査結果・指示・処置内容はOデータとして分類され、
-// スポーツ等の客観的な記載には姿勢(4)・余暇(13)タグが付与される
+
 // ==========================================================================
 test('診断・検査結果、スポーツの記載、医療従事者の指示・処置内容がOデータとして分類される', () => {
   const sampleText = `知的能力・身体的ならびに身体的能力
@@ -137,7 +115,7 @@ test('HENDERSON_NEEDS の姿勢(4)・余暇(13)キーワードにスポーツ関
 });
 
 // ==========================================================================
-// Request O: 診断名「卵巣嚢腫」の誤字修正、キーパーソン・受け持つまでの経過は環境(9)
+
 // ==========================================================================
 test('診断名「卵巣嚢腫」に4(姿勢)タグが付与される（誤字「卵巣嚴腫」修正の回帰確認）', () => {
   const tagIds = detectDiagnosisTagHints('53歳 卵巣嚢腫');
@@ -151,13 +129,10 @@ test('キーパーソン・受け持つまでの経過のキーワードが9(環
 });
 
 // ==========================================================================
-// Request N, P: 年齢は環境・姿勢タグ、二重ラベル（章タイトルの重複付与）の防止
+
 // ==========================================================================
 test('「年齢」フィールドラベルの初期提案タグに4(姿勢)・9(環境)が含まれる', () => {
-  // FIELD_LABEL_DEFAULT_TAGS は vm サンドボックス内(別レルム)で作られた配列のため、
-  // Array.from() でこのテストファイルのレルムの配列に変換してから比較する
-  // （そのまま deepEqual すると、値は同じでも realm が異なるため一致しないと判定される）。
-  // 患者36の指摘で4.姿勢は外した（「氏名・76歳・血液型」は4には明らかに不要）
+
   assert.deepEqual(Array.from(FIELD_LABEL_DEFAULT_TAGS['年齢']).sort(), [9]);
 });
 
@@ -178,7 +153,7 @@ test('fieldLabelバッジを持つカードには章タイトルの前置きが�
 });
 
 // ==========================================================================
-// Request M: 検査値AI評価 - 日本語名や表形式でも異常値を検出できる（英語表記の決め打ちに限定されない）
+
 // ==========================================================================
 test('基準値付きの検査値カードから、日本語名・英語名を問わず異常値が検出される', () => {
   const oItems = [
@@ -202,7 +177,7 @@ test('基準値の無い一文形式でも英語表記の検査値が検出さ�
 });
 
 // ==========================================================================
-// Request Q: AIの不足情報推定 - 胃がん周術期の判断基準に基づくチェック
+
 // ==========================================================================
 test('胃がん以外の患者では術後観察の不足チェックは行われない', () => {
   const items = [{ text: '診断名: 市中肺炎の疑い' }, { text: '既往歴: 高血圧症' }];
@@ -230,31 +205,33 @@ test('ドレーン管理・弾性ストッキングが記録済みなら、そ�
 });
 
 // ==========================================================================
-// 実際にアップロードされた記録全文での統合確認（環境にファイルが無い場合はスキップ）
+
 // ==========================================================================
-test('実際の記録全文から期待通りの異常値・不足情報が検出される', { skip: !hasRealRecord && '検証用の実記録ファイルがこの環境に無いためスキップ' }, () => {
-  const docText = fs.readFileSync(REAL_RECORD_PATH, 'utf8');
-  const items = classifyLocally(docText);
+test('公開架空記録から手記述の異常値8件と不足情報が検出される', () => {
+  const docText = fs.readFileSync(path.join(__dirname,'fixtures/public-cases/gastric-lab-contract.txt'), 'utf8');
+  const items = Array.from(app.classifyTextByRules(docText));
   const oItems = items.filter(i => i.type === 'o');
 
   const findings = extractAbnormalLabFindings(oItems);
-  assert.equal(findings.length, 8, '実際の記録から期待通り8件の異常値が検出される（術前の異常3件＋術後の異常5件）');
+  assert.equal(findings.length, 8, '公開架空記録から期待通り8件の異常値が検出される（術前の異常3件＋術後の異常5件）');
+  for (const [phase,label,direction] of [['術前','ヘモグロビン','low'],['術前','CRP','high'],['術前','Alb','low'],['術後1日目','ヘモグロビン','low'],['術後1日目','CRP','high'],['術後1日目','WBC','high'],['術後1日目','Alb','low'],['術後1日目','K','low']]) {
+    assert.ok(findings.some(f=>f.timestamp===phase && f.label.includes(label) && f.direction===direction), `${phase}: ${label} ${direction}`);
+  }
   assert.ok(findings.some(f => f.label.includes('ヘモグロビン')));
   const crp = findings.find(f => f.label === 'CRP');
   assert.ok(crp && crp.direction === 'high');
 
   const missing = detectGastricPostopMissingChecks(items);
-  assert.ok(!missing.some(c => c.keywords.includes('弾性ストッキング')), '実際の記録の弾性ストッキング着用の記載により、DVT予防チェックは提案されない');
-  assert.ok(!missing.some(c => c.keywords.includes('疼痛')), '実際の記録のNRS(疼痛)記載により、疼痛管理チェックは提案されない');
-  assert.ok(missing.some(c => c.keywords.includes('せん妄')), '実際の記録に無い術後せん妄の観察記録は不足情報として検出される');
+  assert.ok(!missing.some(c => c.keywords.includes('弾性ストッキング')), '公開架空記録の弾性ストッキング着用の記載により、DVT予防チェックは提案されない');
+  assert.ok(!missing.some(c => c.keywords.includes('疼痛')), '公開架空記録のNRS(疼痛)記載により、疼痛管理チェックは提案されない');
+  assert.ok(missing.some(c => c.keywords.includes('せん妄')), '公開架空記録に無い術後せん妄の観察記録は不足情報として検出される');
 
   const tennis = findByIncludes(items, 'テニス');
   assert.ok(tennis && tennis.hendersonIds.includes(4) && tennis.hendersonIds.includes(13));
 });
 
 // ==========================================================================
-// Request S: 「感染症: 無」のような一語の状態語カードで見出しの文脈が失われる問題、
-// 「人間関係は環境」タグの付け先修正、卵巣嚢腫は排泄・姿勢の両方に該当
+
 // ==========================================================================
 test('「無」のような一語の状態語だけの本文には見出し語が本文にも残る（バッジだけに頼らない）', () => {
   assert.equal(isBareStatusWord('無'), true);
@@ -299,8 +276,7 @@ test('他の卵巣・子宮系疾患は引き続き4(姿勢)のみが初期提�
 });
 
 // ==========================================================================
-// Request T: 読点だけでつながれた無関係な看護行為（シャワー浴、弾性ストッキング着用）が
-// 1枚のカードにまとめられてしまう問題
+
 // ==========================================================================
 test('読点で区切られた、ひらがなを含まない短い行為名の列挙は別々のカードに分割される', () => {
   const parts = splitIndependentActionPhrases('シャワー浴、弾性ストッキング着用');
@@ -326,9 +302,7 @@ test('「治療方針・治療内容等」セクション内の「シャワー�
 });
 
 // ==========================================================================
-// Request U: 「創部：出血なし。」だけでは、周術期記録に複数存在しうる創（腹部の手術創・
-// 吻合部・ドレーン刺入部等）のうちどれを指すか分からなくなる問題（利用者に確認の上、
-// 単独の「創部」は腹部の手術創であることを明示する対応で合意）
+
 // ==========================================================================
 test('単独の「創部」見出しは、腹部の手術創であることが本文にも明示される', () => {
   assert.equal(cleanExtractedPhrase('創部：出血なし。'), '腹部創部（手術創）：出血なし。');
@@ -348,13 +322,7 @@ test('実際の記録の「創部：出血なし。」が明確化され、ド�
 });
 
 // ==========================================================================
-// Request V: 学習データ管理（カルテスナップショット）で他の利用者が作成したページを見ると、
-// 「氏名」「年齢」「性別」という見出し語だけで、実際の値が全く無いカードが並んでしまう問題。
-// 「氏名 年齢 性別」のような表形式の見出し行から、対応する値を見つけられなかった場合に
-// 見出し語だけがそのままカードのtextとして残ってしまうことが原因（AI経由・ローカル経由の
-// いずれの分類でも起こりうるため、isBareFieldHeaderOnlyで両経路とも一律に除外する）。
-// 併せて、これまで「性別」がFIELD_LABELSに未登録だったため、氏名・年齢と違って見出しとして
-// 構造化されずにいた点も登録して統一した。
+
 // ==========================================================================
 test('「性別」がFIELD_LABELSに氏名・年齢と同様の基本情報項目として登録されている', () => {
   const genderField = FIELD_LABELS.find(f => f.key === '性別');
@@ -392,13 +360,7 @@ test('氏名・年齢・性別に実際の値がある場合は、それぞれ�
 });
 
 // ==========================================================================
-// Request W: 血液検査の表を貼り付けた際、「WBC(白血球数)」「AST(GOT)」のように英語略語に
-// 日本語名・別名が括弧書きで添えられている項目名の行が、直後の数値行と結合されず、
-// 項目名だけの意味の無いカードになってしまう問題（利用者のスクリーンショット報告：
-// 「TP」「WBC(白血球数)」「RBC(赤血球数)」「Hb(ヘモグロビン)」「Plt(血小板数)」
-// 「AST(GOT)」「ALT(GPT)」「γGTP」「Alb」が値の無いカードとして並んでいた）。
-// あわせて、TP（総蛋白）・Alb（アルブミン）・γGTPがこれまでLAB_STANDARDSに未登録で、
-// 単独行の検査値としても認識できていなかった点も登録して統一した。
+
 // ==========================================================================
 test('項目名に括弧書きの別名が付いた検査値の表（項目名の行→数値の行）が、値を含む1枚のカードに正しく結合される', () => {
   const text = [
@@ -413,10 +375,7 @@ test('項目名に括弧書きの別名が付いた検査値の表（項目名�
     'Alb', '3.9g/dL'
   ].join('\n');
   const items = classifyLocally(text);
-  // 【原因と修正】以前は単位が既に書かれている検査値には基準値が補われなかったが、項目名の
-  // 直後に括弧書きの別名が挟まっているケースを含め、LAB_STANDARDSに登録済みの基準値を
-  // 常に反映するよう修正した（利用者からの報告：RBC・Hb等に基準値が付かない）。
-  // 括弧書きの別名はそのまま残し、基準値だけを追記する。
+
   assert.ok(findByIncludes(items, 'TP 6.8 g/dL (基準値: 6.6〜8.1 g/dL)'), 'TPが値と結合され基準値が補われる');
   assert.ok(findByIncludes(items, 'WBC(白血球数) 8200 /μL (基準値: 4,000〜9,000 /μL)'), '括弧書きの別名付きWBCが値と結合され基準値が補われる');
   assert.ok(findByIncludes(items, 'RBC(赤血球数) 450 ×10^4/μL (基準値: 400〜550 ×10^4/μL)'), '括弧書きの別名付きRBCが値と結合され基準値が補われる');
@@ -426,17 +385,13 @@ test('項目名に括弧書きの別名が付いた検査値の表（項目名�
   assert.ok(findByIncludes(items, 'ALT(GPT) 32 U/L (基準値: 5〜45 U/L)'), '括弧書きの別名付きALTが値と結合され基準値が補われる');
   assert.ok(findByIncludes(items, 'γGTP 45 U/L (基準値: 9〜50 U/L)'), 'γGTPが値と結合され基準値が補われる');
   assert.ok(findByIncludes(items, 'Alb 3.9 g/dL (基準値: 3.8〜5.2 g/dL)'), 'Albが値と結合され基準値が補われる');
-  // 見出し語だけ・値だけの中身の無いカードが残っていないことを確認する
+
   ['TP', 'WBC(白血球数)', 'RBC(赤血球数)', 'Hb(ヘモグロビン)', 'Plt(血小板数)', 'AST(GOT)', 'ALT(GPT)', 'γGTP', 'Alb']
     .forEach(bareKey => assert.ok(!items.some(i => i.text === bareKey), `「${bareKey}」だけの中身の無いカードが残っていない`));
 });
 
 test('TP・Alb・γGTPは同じ行に値が書かれた形式でも1枚のカードとして抽出される（回帰確認）', () => {
-  // 【追記】項目名と数値の間に区切り文字（空白・コロン等）が無い「TP6.8g/dL」のような表記も、
-  // formatLabValueStringの区切り文字の要求を0文字以上に緩めた修正（利用者からの報告：
-  // WBC11600・Plt23・Na140mEq/L等に基準値が付かない）により、基準値まで補われた1枚の
-  // カードとして抽出されるようになった（以前は基準値が付かないまま「TP6.8g/dL」の形で
-  // 残っていた。1枚のカードとして分断されずに残ること自体は変わらない）。
+
   const items = classifyLocally('検査データ\nTP6.8g/dL、Alb3.9g/dL、γGTP45U/L');
   assert.ok(findByIncludes(items, 'TP 6.8 g/dL (基準値: 6.6〜8.1 g/dL)'));
   assert.ok(findByIncludes(items, 'Alb 3.9 g/dL (基準値: 3.8〜5.2 g/dL)'));
@@ -457,14 +412,7 @@ test('PT-INRはPTの追加後も引き続き正しく抽出される（前方一
 });
 
 // ==========================================================================
-// Request X: 実際にアップロードされた実習記録で見つかった2つの不具合。
-// (1)「①手術前日指示」「③手術当日術後指示」のような丸数字＋見出し語だけの行
-//    （NFKC正規化で「1手術前日指示」等になる）が、直後の【点滴】【食事】等の箇条書きの
-//    内容を伴わないまま、それ自体が意味の無いカードになってしまっていた。
-// (2)「【点滴】なし【内服】眠前薬1/2本」のように、見出し＋本文が同じ行にあるにも関わらず、
-//    行頭の「【点滴】」が誤って除去され、「なし」だけが残って何についての「なし」か
-//    分からなくなってしまっていた（利用者からの指摘：「学習データ管理からほかのユーザーが
-//    作成したページを閲覧すると…」の調査で発覚。過去の「感染症：無」の問題と同種）。
+
 // ==========================================================================
 test('丸数字（NFKC正規化後は半角数字）＋見出し語だけの行は、直後の箇条書きに続く時系列マーカーとして扱われ、見出し行自体はカード化されない', () => {
   const text = '1手術前日指示\n【点滴】なし【内服】眠前薬1/2本\n【食事】常食、21:00以降絶飲食';
@@ -499,18 +447,9 @@ test('マーカー除去後に見出しの続きだけが残る場合は引き�
 });
 
 // ==========================================================================
-// Request Y: タグ未設定の情報カードの見直しと適切なタグの付与
+
 // ------------------------------------------------------------------------
-// 実際にアップロードされた実習記録（胃全摘術・A氏58歳男性の事例）を
-// groupClinicalPhrasesWithTimestamps/classifyLocallyに通したところ、多数の
-// 「⚠タグ未設定」カードが見つかった。原因は主に3種類：
-// ①見出しラベル（【保険】等）と値が別々の行に分かれている記録形式で、見出し行が
-//   単純に破棄され、値の行が見出しの文脈（＝タグの手がかり）を失っていた。
-// ②検査値の表形式の結合（BARE_LAB_KEY_REGEX／BARE_LAB_VALUE_REGEX）が、実際の
-//   OCR由来の表記ゆれ（小文字dl、mEa/L、万u/L、｛｝→NFKC後の半角{}等）に対応できず
-//   結合に失敗し、項目名の無い値だけのカードが残っていた。
-// ③ヘンダーソン14項目のキーワード辞書に、記録で実際に使われる語（食生活・ADL・自立・
-//   検温・安静・顔色等）が登録されていなかった。
+
 // ==========================================================================
 test('「氏名・年齢・性別・】」のような複合見出し行は、次の行の値カードに引き継がれ、氏名・年齢・性別単独の意味の無いカードは残らない', () => {
   const items = classifyLocally('氏名・年齢・性別・】\nA氏・58歳、男性');
@@ -518,7 +457,7 @@ test('「氏名・年齢・性別・】」のような複合見出し行は、�
   const demographic = findByIncludes(items, 'A氏');
   assert.ok(demographic, '氏名・年齢・性別の値の行はカードとして残る');
   assert.equal(demographic.fieldLabel, '年齢', '複合見出しのうち初期提案タグを持つ「年齢」がfieldLabelとして選ばれる');
-  // 患者36の指摘で4.姿勢は外した（「氏名・76歳・血液型」は4には明らかに不要）
+
   assert.deepEqual(Array.from(demographic.hendersonIds), [9], '「年齢」の初期提案タグ（9環境）が付与される');
 });
 
@@ -535,7 +474,7 @@ test('OCRで閉じ括弧が丸括弧になっている「【診断)」のよう�
   const diagnosis = findByIncludes(items, '腹腔鏡下胃全摘術');
   assert.ok(diagnosis, '診断名の値の行が抽出される');
   assert.equal(diagnosis.fieldLabel, '診断名', '「診断」は「診断名」の別名として認識される');
-  assert.ok(diagnosis.hendersonIds.includes(1) && diagnosis.hendersonIds.includes(9), '胃がん（胃全摘）の診断名ヒントから複数タグが推測される');
+  assert.equal(fieldLabelHintTags('診断名', diagnosis.text).length, 0, '診断名だけを理由に複数のヘンダーソン項目を確定しない');
 });
 
 test('既往歴の「胆結石」（「胆石症」の別表記）にも診断名ヒントのタグが付与される', () => {
@@ -543,7 +482,7 @@ test('既往歴の「胆結石」（「胆石症」の別表記）にも診断�
   const history = findByIncludes(items, '胆結石');
   assert.ok(history, '既往歴カードが抽出される');
   assert.equal(history.fieldLabel, '既往歴');
-  assert.ok(history.hendersonIds.includes(2), '「胆結石」からも「胆石症」と同様に2(食事)タグが推測される');
+  assert.equal(fieldLabelHintTags('既往歴', history.text).length, 0, '既往歴の疾患名だけを食事の所見として確定しない');
 });
 
 test('山括弧だけの区切り見出し行（＜バイタルサイン)等、OCRで閉じ括弧が丸括弧になっている場合を含む）は不要な情報として除外される', () => {
@@ -563,10 +502,7 @@ test('検査値の項目名と実測値が別の行に分かれた表形式で�
   );
   const wbc = findByIncludes(items, '5880');
   assert.ok(wbc && wbc.text.startsWith('WBC'), '半角化された波括弧「{}」でも項目名「WBC」と値が結合される');
-  // 【原因と修正】以前は単位が既に書かれている検査値には基準値が補われなかったが、
-  // LAB_STANDARDSに登録済みの基準値を常に反映するよう修正した（利用者からの報告）。
-  // そのため、単位の表記ゆれ（小文字dl・万u/L・mEa/L等）はformatLabValueStringが
-  // LAB_STANDARDSの正しい単位・基準値で置き換えるため、探す文字列は数値部分のみとする。
+
   const hb = findByIncludes(items, '13.5');
   assert.ok(hb && hb.text.startsWith('Hb') && hb.text.includes('(基準値: 11.5〜16.5 g/dL)'), '値の単位が小文字「g/dl」でも項目名「Hb」と結合され基準値が補われる');
   const plt = findByIncludes(items, '28.7');
@@ -611,16 +547,9 @@ test('「食生活」「ADL」「自立」「顔色」「蒼白」等、実際�
 });
 
 // ==========================================================================
-// タグ未設定・S/O未分類カードの原因調査（利用者からアップロードされた実際のカルテ
-// カード一覧の報告）で見つかった不具合の回帰テスト
+
 // ==========================================================================
 
-// 【背景】このアプリのS/O判定の基本方針（DEFAULT_NOTEBOOK_CONTENTの【S/O判定】節）は、
-// 「患者本人の直接の発言・訴えの手がかりがある文章だけをSデータとし、それ以外の実習記録の
-// 文章は原則すべてOデータとする」というもの。しかしpredictLocalItemTypeの最終フォールバックは
-// 誤って"unclassified"になっていたため、見出しラベルも無く、発言の引用符や「訴え・発言・話す」
-// の語も無い、ごく普通の観察記録の文章（既往歴の説明文等）が、本来"o"であるべきなのに
-// "unclassified"（未分類）のまま残ってしまっていた。デフォルト値を"o"に修正した。
 test('predictLocalItemType: 発言の手がかりが無い普通の記録文はSでもOでもなく"unclassified"にはならず、既定で"o"になる（利用者からの報告事例）', () => {
   const text = '53歳の時に胆結石を指摘されていたが、症状がないため経過観察中';
   assert.equal(predictLocalItemType({}, text, undefined), 'o', '発言の手がかりが無い記録文の既定値はOデータ（"unclassified"という第3の状態は無いはず）');
@@ -631,10 +560,6 @@ test('predictLocalItemType: 引用符や「話す」等の手がかりがある�
   assert.equal(predictLocalItemType({}, '夜間眠れないと訴える', undefined), 's');
 });
 
-// 【背景】5列の血液検査表（項目｜種類｜基準値｜A氏｜正常・異常）のように、患者を匿名化した
-// 「A氏」1文字表記がそのまま実測値列の見出しとして使われている場合、既存の「検査項目」
-// 「基準値」等のキーワードを前提とした不要判定ルールには一致せず、単体では意味を持たない
-// 「A氏」だけのカードがタグ未設定・分類未設定のまま残っていた。
 test('isUnnecessaryBoilerplateText: 検査表の列見出しとして使われる「A氏」等の1文字＋氏の表記は不要判定される（利用者からの報告事例）', () => {
   assert.equal(isUnnecessaryBoilerplateText('A氏'), true);
   assert.equal(isUnnecessaryBoilerplateText('B氏'), true);
@@ -644,12 +569,20 @@ test('isUnnecessaryBoilerplateText: 「◯◯さん」等の通常の患者呼�
   assert.equal(isUnnecessaryBoilerplateText('田中さん'), false);
 });
 
-// 【背景】HENDERSON_NEEDSのキーワード辞書に、実際の記録でよく使われる表記が漏れていた：
-// 「Homans徴候」の片仮名表記「ホーマンズ徴候」、PCA（自己調節鎮痛法）の正式名称、および
-// そのOCR誤読（鎮痛→頭痛）による「自己調節頭痛法」。
 test('detectMultipleHendersonTags: 「ホーマンズ徴候」「自己調節鎮痛法」（OCR誤読の「自己調節頭痛法」含む）から1(呼吸・循環)タグが検出される（利用者からの報告事例）', () => {
-  // 【変更】ホーマンズ徴候（DVTの観察）は利用者からの指摘により9(環境)に移した
+
   assert.ok(detectMultipleHendersonTags('ホーマンズ徴候陰性').includes(9));
   assert.ok(detectMultipleHendersonTags('自己調節鎮痛法を使用').includes(1));
   assert.ok(detectMultipleHendersonTags('自己調節頭痛法を使用').includes(1), 'OCR誤読表記でも検出される');
+});
+
+test('疾患名の候補知識は維持し、診断・既往歴ラベルでは自動確定しない', () => {
+  assert.ok(detectDiagnosisTagHints('胃がん').length > 0);
+  assert.equal(fieldLabelHintTags('診断名', '胃がん').length, 0);
+  assert.equal(fieldLabelHintTags('既往歴', '胆結石を指摘された').length, 0);
+  assert.deepEqual(Array.from(fieldLabelHintTags('保険', '社会保険')), [9]);
+});
+test('単なる引用ではコミュニケーションのタグを自動付与しない', () => {
+  assert.ok(!detectMultipleHendersonTags('「あまり食欲がない」').includes(10));
+  assert.ok(detectMultipleHendersonTags('「不安です」').includes(10));
 });

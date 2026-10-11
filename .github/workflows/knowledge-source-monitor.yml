@@ -1,0 +1,18 @@
+name: Clinical knowledge source availability
+on:
+  schedule:
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
+jobs:
+  monitor-links:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check knowledge metadata
+        run: node scripts/audit-clinical-knowledge.js
+      - name: Check remote reference URLs
+        run: node scripts/check-knowledge-source-links.js

@@ -1,7 +1,5 @@
 'use strict';
-// 主要なAPIエンドポイントのHTTP結合テスト。
-// 実際にサーバー(server.jsがエクスポートするExpressアプリ)を一時的なポートで起動し、
-// 本物のHTTPリクエストを送って検証する（本番のdata/フォルダとは別の一時フォルダを使う）。
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
@@ -21,7 +19,6 @@ test.after(async () => {
   await stopServer(server);
 });
 
-// テストごとに一意なIDを使い、他のテストケースと状態が衝突しないようにする
 const uniq = () => crypto.randomBytes(6).toString('hex');
 
 test('患者カルテ: 新規保存したカルテがGET /api/patientsに反映される', async () => {
@@ -46,7 +43,6 @@ test('患者カルテ: 同時編集時、片方しか知らないカードが消
   const t0 = new Date();
   const iso = (offsetMs) => new Date(t0.getTime() + offsetMs).toISOString();
 
-  // 端末Aが先に保存（カードXを追加）
   const fromA = {
     id, title: '同時編集テスト', updatedAt: iso(1000),
     items: [{ id: 'itemX', text: 'Aが追加したカード', type: 's', _touchedAt: iso(1000) }],
@@ -54,10 +50,9 @@ test('患者カルテ: 同時編集時、片方しか知らないカードが消
   };
   await fetch(`${url}/api/patients/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fromA) });
 
-  // 端末Bは、Aの追加を知らない（items配列にitemXが無い）まま、患者データを保存する
   const fromB = {
     id, title: '同時編集テスト', updatedAt: iso(2000),
-    items: [], // Aが追加したitemXを知らない
+    items: [],
     deletedItemIds: []
   };
   const res = await fetch(`${url}/api/patients/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fromB) });
@@ -111,7 +106,7 @@ test('情報カードの報告: cardTextが無いと400、送ると記録され�
 
 test('情報カードの報告: 極端に長い本文は上限の文字数に切り詰められて保存される', async () => {
   const sessionId = 'session_long_' + uniq();
-  const longText = 'x'.repeat(5000); // 上限(2000文字)より長い
+  const longText = 'x'.repeat(5000);
   await fetch(`${url}/api/card-reports`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ sessionId, cardText: longText })
@@ -144,7 +139,6 @@ test('参照元リンク: 初回起動時、以前から基準ノート本体に
   assert.ok(defaultEntry, '初期登録されたNotebookLMリンクが一覧に含まれる');
   assert.equal(defaultEntry.url, 'https://notebook.google.com/notebook/7015c97f-8d93-419e-9871-a6e6f2b00b44/preview', '基準ノート本体に元々書かれていたリンクと一致する');
 
-  // 通常の参照元と全く同じPUT/DELETEで編集・削除できることを確認する（特別扱いではない）
   const putRes = await fetch(`${url}/api/reference-sources/${defaultEntry.id}`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ title: '編集後のタイトル', url: defaultEntry.url, content: '貼り付けた内容' })
@@ -229,9 +223,6 @@ test('参照元リンク: title/urlが無いと400、追加・一覧取得・編
   assert.ok(!afterDel.some(r => r.id === entry.id), '削除した参照元は一覧から消える');
 });
 
-// 「分類前の文章」履歴（抽出前の文章ビューア）は、同じ内容がカルテスナップショットに
-// 保存されるようになったため廃止した（利用者からの要望：「学習データ管理の分類前文章はいりません」）。
-// 古いエンドポイントが残っていないことを確認する。
 test('抽出前の文章履歴のエンドポイントは廃止されている', async () => {
   const getRes = await fetch(`${url}/api/extraction-log`);
   assert.equal(getRes.status, 404, 'GET /api/extraction-logはもう存在しない');
@@ -242,13 +233,10 @@ test('抽出前の文章履歴のエンドポイントは廃止されている',
   assert.equal(postRes.status, 404, 'POST /api/extraction-logももう存在しない');
 });
 
-// カルテスナップショットは「保存されない」報告があった不具合の対策として、保存の都度
-// バイト数上限で古いものから間引くようにした（詳細はserver.jsのPATIENT_SNAPSHOT_MAX_BYTES参照）。
-// 上限を大きく超える量を送っても、常に最新の記録が残り、一覧取得が壊れないことを確認する。
 test('カルテスナップショット: サイズ上限を超えても最新の記録は残り、一覧取得は壊れない', async () => {
   const patientId = 'p_' + uniq();
-  // 1回で6MB前後になるよう、大きめのsourceTextを持つ患者を複数含めて何度か送る
-  const bigSourceText = 'あ'.repeat(50000); // サーバー側で50000文字にcapされる上限そのもの
+
+  const bigSourceText = 'あ'.repeat(50000);
   for (let i = 0; i < 8; i++) {
     const res = await fetch(`${url}/api/patient-snapshot`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

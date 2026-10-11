@@ -1,5 +1,5 @@
 'use strict';
-// 改善点ファイル（患者21）への対応：①発言の途中で行が分かれたとき ②見出し（担当看護師より・本人より）の発言者の引き継ぎ ③ガーゼ汚染なし→9
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');
@@ -33,12 +33,12 @@ test('ガーゼ汚染の観察は創部の語が無くても9.環境。感染の
   const c = app.classifyTextByRules('術後2日目\n8:00 回診\n\n創部 軽度腫脹と熱感あるが、発赤・出血・排膿なし\n\nガーゼ汚染なし\n\n10:00 検温\n\nガーゼ汚染なし');
   const g = c.filter(x => /ガーゼ汚染なし/.test(x.text));
   assert.ok(g.length >= 1);
-  g.forEach(x => assert.ok(!(x.hendersonIds || []).includes(9), x.text)); // 創部・ガーゼの所見は9.環境にしない（利用者の指摘）
+  g.forEach(x => assert.ok(!(x.hendersonIds || []).includes(9), x.text));
 });
 
 test('「事例紹介＞」の見出しは不要、「動くと痛い」の主訴は4も付く、保険は9のまま', () => {
   const c = app.classifyTextByRules('事例紹介＞\n氏名: A氏\n保険: 国民健康保険\n主訴: じっとしていると痛くないが、動くと右足が痛い');
   assert.ok(c.find(x => /^事例紹介/.test(x.text)).type === 'unnecessary');
-  assert.equal(JSON.stringify(c.find(x => /動くと右足/.test(x.text)).hendersonIds), "[4]"); // 痛みは9.環境にしない
+  assert.equal(JSON.stringify(c.find(x => /動くと右足/.test(x.text)).hendersonIds), "[4]");
   assert.ok(c.find(x => /国民健康保険/.test(x.text)).hendersonIds.includes(9));
 });

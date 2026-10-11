@@ -1,6 +1,5 @@
 'use strict';
-// 利用者からの指摘（患者36・4.姿勢の欄）：「牽引、安静、荷重、ROM、移乗、歩行訓練は適切。一方『氏名・76歳・血液型』は
-// 明らかに不要。診断名などは背景情報として置くなら可だが、主タグにはしなくてよい」
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -8,7 +7,7 @@ const path = require('path');
 const { loadApp } = require('./app-helpers');
 const app = loadApp();
 
-const P36 = fs.readFileSync(path.join(__dirname, 'golden', 'cases', '患者36.txt'), 'utf8');
+const P36 = fs.readFileSync(path.join(__dirname, 'fixtures', 'public-cases', 'hip-contract.txt'), 'utf8');
 const cards = Array.from(app.classifyTextByRules(P36));
 
 test('「氏名・76歳・血液型」のカードは4.姿勢にしない', () => {

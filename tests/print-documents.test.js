@@ -1,9 +1,5 @@
 'use strict';
-// 印刷・PDFの文書の検証（利用者からの要望：「印刷pdfでもっと見やすくpdf化するように。サイト上での
-// 編集ボタンとかいりませんよね」）。
-//  ・「印刷 / PDF」＝総合アセスメント表（A4横）、「PDF書き出し」＝記録整理シート（A4縦）
-//  ・どちらも画面の操作ボタン（未・前・後・欠、上下、編集、追加）を含まない
-//  ・番号（S-1・O-1）は画面の総合アセスメント表と同じ付け方
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');

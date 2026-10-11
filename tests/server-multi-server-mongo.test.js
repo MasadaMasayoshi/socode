@@ -1,7 +1,5 @@
 'use strict';
-// 複数のサーバー（ローカル版と公開版）が同じMongoDBを使うときの不具合の再現と修正の確認（模擬DBを使う）
-//  ・以前は各サーバーが手元の全患者を1つの文書に上書き保存し、一方が登録した患者をもう一方が消していた
-//  ・患者1人＝1文書にし、DBから読み直してマージ・版（rev）で更新の競合を見つける
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
@@ -16,8 +14,8 @@ function loadServerInstance() {
   return require('../server.js');
 }
 const fakeMongo = require('./fixtures/fake-mongodb.js');
-const serverA = loadServerInstance(); // ローカル版
-const serverB = loadServerInstance(); // 公開版（別のプロセスと同じく、手元のデータは別）
+const serverA = loadServerInstance();
+const serverB = loadServerInstance();
 let httpA, httpB, urlA, urlB;
 test.before(async () => {
   httpA = await startEphemeralServer(serverA.app); urlA = baseUrl(httpA);
@@ -90,7 +88,6 @@ test('以前の形式（全患者を1つの文書に保存）からの移行：�
   assert.equal(old2.rev, 5, '既にある患者は上書きしない');
 });
 
-// ---- 患者以外の共有データ（学習データ・事例ログ・報告・スナップショット・基準） ----
 const post = (url, p, body) => fetch(`${url}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
 test('学習データ・事例ログ：別々のサーバーで同時に学習しても、両方の票とログが残る', async () => {
@@ -125,13 +122,13 @@ test('カードの報告・スナップショット・追加の基準：2台か�
   assert.deepEqual(snaps.map(s => s.clientId).sort(), ['cA', 'cB']);
   const crit = await (await fetch(`${urlA}/api/extraction-criteria`)).json();
   assert.deepEqual(crit.map(c => c.text).sort(), ['Aの基準', 'Bの基準']);
-  // もう一方のサーバーで追加した基準も、編集・削除できる（手元に無くても最新を読み直す）
+
   const idB = crit.find(c => c.text === 'Bの基準').id;
   const put2 = await fetch(`${urlA}/api/extraction-criteria/${idB}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: 'Bの基準（Aで直した）' }) });
   assert.equal(put2.status, 200);
   const crit2 = await (await fetch(`${urlB}/api/extraction-criteria`)).json();
   assert.ok(crit2.some(c => c.text === 'Bの基準（Aで直した）'));
-  // 同じセッションの2件目の報告は、別のサーバーに届いても同じまとまりに入る
+
   await post(urlB, '/api/card-reports', { sessionId: 'sA', cardText: 'Aの2件目' });
   const reports2 = await (await fetch(`${urlA}/api/card-reports`)).json();
   assert.equal(reports2.find(r => r.sessionId === 'sA').items.length, 2);

@@ -1,7 +1,4 @@
 'use strict';
-// コードレビューで見つかった分類（js/03・js/07）の不具合の回帰テスト。
-// どれも「元の文章の文・数値が消える」「値が壊れる」「日時がずれる」「患者の情報が不要になる」ものなので、
-// 実際に不具合が起きていた入力をそのまま使って、直った状態を固定する。
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -61,7 +58,7 @@ test('検査値ではない語（1hr・PT 2単位・TP1）を検査値として�
   assert.ok(find(c2, /PT 2単位実施/));
   const c3 = classify('TP1 清拭を実施する');
   assert.ok(!c3.some(c => /g\/dL/.test(c.text)));
-  // 本物の検査値はこれまで通り
+
   assert.ok(find(classify('TP 6.8 g/dL'), /^TP 6\.8 g\/dL \(基準値/));
   assert.ok(find(classify('HR 110回/分'), /^HR 110回\/分$/));
 });
@@ -84,7 +81,7 @@ test('「2026/10/05 10:00」「10/6(火) 10:00」「10/7 14:00」「翌朝6:00�
   assert.equal(find(cards, /歩行訓練開始/).timestamp, '10月7日 14:00');
   const c2 = classify('10月3日\n21:00 入眠。\n翌朝6:00 「ぐっすり眠れた」と笑顔。');
   assert.equal(find(c2, /ぐっすり/).timestamp, '10月4日 6:00');
-  // 分数は日付にしない
+
   assert.ok(find(classify('1/2量摂取。'), /1\/2量摂取/));
 });
 
@@ -110,7 +107,7 @@ test('見出しの次の行が数値の幅で始まっても、見出しの行�
 test('既往歴「病名（◯歳）」の列挙で、病名と年齢の組がずれない', () => {
   const cards = classify('既往歴：高血圧（60歳）、糖尿病（65歳）、脳梗塞（70歳）');
   assert.deepEqual(cards.map(c => c.text), ['高血圧(60歳)', '糖尿病(65歳)', '脳梗塞(70歳)']);
-  // 年齢が前に書かれた形はこれまで通り
+
   const cards2 = classify('既往歴：53歳 卵巣嚢腫、50歳代 胆石症 (症状がないため経過観察中)');
   assert.deepEqual(cards2.map(c => c.text), ['53歳 卵巣嚢腫', '50歳代 胆石症 (症状がないため経過観察中)']);
 });
@@ -145,7 +142,7 @@ test('前に分類した別の患者（子ども・骨折）の状態が、後�
   app.classifyTextByRules('患児 3歳 女児 右大腿骨骨折で入院。');
   assert.match(app.cleanExtractedPhrase('WBC 12000/μL'), /基準値/);
   assert.equal(app.cleanExtractedPhrase('創部：発赤なし'), '腹部創部（手術創）：発赤なし');
-  // 分類している文章の中では、これまで通り子どもの記録として扱う
+
   assert.ok(find(classify('患児 3歳 女児\nWBC 12000/μL'), /^WBC 12000 \/μL$/));
 });
 

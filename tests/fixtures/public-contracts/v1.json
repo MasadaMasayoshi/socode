@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "provenance": "新規作成した架空記録。旧教材の復元ではない。期待値は入力の明示情報と既存の分類仕様から手で記述し、アプリ出力から生成しない。臨床承認済み正解ではない。",
+  "cases": [
+    {"id":"respiration","input":"入院1日目\n9:00\n「息苦しい」と話す。\n体温38.2℃","checks":[{"contains":"息苦しい","type":"s","includeTags":[1],"excludeTags":[10],"timestamp":"入院1日目 9:00"},{"contains":"38.2","type":"o","includeTags":[7]}]},
+    {"id":"postoperative","input":"術後1日目\n12:00\n創部痛あり\n術後2日目\n12:00\n創部痛なし","checks":[{"contains":"創部痛あり","type":"o","timestamp":"術後1日目 12:00"},{"contains":"創部痛なし","type":"o","timestamp":"術後2日目 12:00"}]},
+    {"id":"circulation","input":"入院2日目\n6:00\n体重66.5kg\n血圧158/92mmHg","checks":[{"contains":"66.5","type":"o","timestamp":"入院2日目 6:00"},{"contains":"158/92","type":"o","includeTags":[1]}]},
+    {"id":"mobility","input":"入院1日目\n10:00\n「動くと右足が痛い」と話す。\n保険：国民健康保険","checks":[{"contains":"動くと右足が痛い","type":"s","includeTags":[4],"excludeTags":[10]},{"contains":"国民健康保険","type":"o","includeTags":[9]}]},
+    {"id":"nutrition","input":"入院1日目\n8:00\n「食欲がない」と話す。\n食事：全量摂取","checks":[{"contains":"食欲がない","type":"s","includeTags":[2],"excludeTags":[10]},{"contains":"全量摂取","type":"o","includeTags":[2]}]},
+    {"id":"sleep","input":"入院1日目\n7:00\n「昨夜は眠れなかった」と話す。\n体温36.8℃","checks":[{"contains":"眠れなかった","type":"s","includeTags":[5],"excludeTags":[10]},{"contains":"36.8","type":"o","includeTags":[7]}]},
+    {"id":"elimination","input":"入院1日目\n8:00\n「便が出ない」と話す。\n尿量1200mL","checks":[{"contains":"便が出ない","type":"s","includeTags":[3],"excludeTags":[10]},{"contains":"1200","type":"o","includeTags":[3]}]}
+  ]
+}

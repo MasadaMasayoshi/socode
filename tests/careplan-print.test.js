@@ -1,5 +1,5 @@
 'use strict';
-// 看護計画の印刷・PDF書き出し（実施・評価の記録も含む）
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');

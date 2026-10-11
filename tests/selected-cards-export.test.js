@@ -1,7 +1,4 @@
 'use strict';
-// 選択したカードだけのテキスト書き出し（修正依頼メモ）の検証。
-// 利用者からの要望：「修正してほしいところだけをテキスト書き出ししたいので、情報カードを複数選択した後、
-// 選択した情報だけテキスト書き出しする機能を作ってください」。
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

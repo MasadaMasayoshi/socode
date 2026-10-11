@@ -1,0 +1,27 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>OCR照合｜socode</title><style>body{max-width:1100px;margin:auto;padding:16px;font:16px/1.6 system-ui,sans-serif;color:#243044;background:#f8fafc}h1{font-size:1.5rem}label{display:block;margin-top:10px;font-weight:600}input,textarea,button{font:inherit;padding:8px}textarea{box-sizing:border-box;width:100%;min-height:220px;border:1px solid #94a3b8;border-radius:8px}img{max-width:100%;max-height:60vh;object-fit:contain}button{border:1px solid #64748b;border-radius:8px;background:white;cursor:pointer}button:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid #2563eb}.columns{display:grid;grid-template-columns:1fr 1fr;gap:14px}.panel{background:#fff;border:1px solid #d4dce7;padding:12px;border-radius:10px;overflow:auto}pre{white-space:pre-wrap;word-break:break-word}@media(max-width:720px){.columns{grid-template-columns:1fr}textarea{min-height:140px}}</style></head><body><a href="index.html">← 看護知識資料集</a>
+<h1>OCRと画像の照合</h1><p>元画像と読み取り結果を横に並べ、転記した元文との数値・文字の差を確認する試験画面です。**画像のOCR処理そのものは行いません。** 画像・文字列は端末内で表示するだけで、保存や外部送信をしません。実患者の個人情報を含む画像は使用しないでください。</p>
+<label for="file">確認する画像（JPEG/PNG/WebP）</label><input id="file" type="file" accept="image/jpeg,image/png,image/webp">
+<div class="columns"><section class="panel"><h2>元画像</h2><img id="image" alt="選択した照合用画像"><p id="image-status">画像未選択</p></section><section class="panel"><h2>文字列の比較</h2>
+<label for="source">元画像を見て手入力した原文</label><textarea id="source" placeholder="例：Hb 8.0 g/dL"></textarea>
+<label for="ocr">OCR結果</label><textarea id="ocr" placeholder="例：Hb 8.O g/dL"></textarea>
+<button id="compare" type="button">文字列と数値を比較</button><button id="erase" type="button">入力を消去</button><pre id="output" role="status" aria-live="polite"></pre></section></div>
+<script src="quality-checks.js"></script><script src="review-plus.js"></script><script>'use strict';
+const $=id=>document.getElementById(id);let imageUrl=null;
+$('file').addEventListener('change',()=>{
+ if(imageUrl){URL.revokeObjectURL(imageUrl);imageUrl=null;}
+ const file=$('file').files?.[0];$('image').removeAttribute('src');
+ if(!file){$('image-status').textContent='画像未選択';return;}
+ if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>15*1024*1024){$('image-status').textContent='対応形式または15MB以下の画像を選んでください';return;}
+ imageUrl=URL.createObjectURL(file);$('image').src=imageUrl;$('image-status').textContent='ローカル画像を表示中';
+});
+function nums(s){return (s.match(/[+-]?(?:\d+\.\d+|\d+)/g)||[]);}
+$('compare').addEventListener('click',()=>{
+ const original=$('source').value,ocr=$('ocr').value;
+ const issues=window.NursingQualityChecks.ocr(original,ocr).concat(window.NursingReviewPlus.ocrRisk(ocr));
+ const a=nums(original),b=nums(ocr);
+ if(JSON.stringify(a)!==JSON.stringify(b))issues.push({code:'number-mismatch',message:'数値の個数・順序・表記に違いがあります。原画像を確認してください',evidence:{manual:a,ocr:b}});
+ $('output').textContent=JSON.stringify({warnings:issues},null,2);
+});
+$('erase').addEventListener('click',()=>{$('source').value='';$('ocr').value='';$('output').textContent='';$('file').value='';$('image').removeAttribute('src');if(imageUrl)URL.revokeObjectURL(imageUrl);imageUrl=null;$('image-status').textContent='画像未選択';});
+window.addEventListener('pagehide',()=>{if(imageUrl)URL.revokeObjectURL(imageUrl);});
+</script></body></html>

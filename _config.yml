@@ -1,0 +1,17 @@
+# Publish runtime assets; keep development and test files out of Pages.
+exclude:
+  - AGENTS.md
+  - README.md
+  - app.js
+  - docs
+  - scripts
+  - tests
+  - server.js
+  - package.json
+  - package-lock.json
+  - tailwind.config.js
+  - tailwind.input.css
+  - 引き継ぎメモ.md
+  - node_modules
+  - browser-artifacts
+  - validation-artifacts

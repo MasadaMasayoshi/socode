@@ -1,7 +1,4 @@
 'use strict';
-// 「タグ未設定」になっていたカード（患者38・患者34）の原因ごとの回帰テスト。
-// 利用者からの要望：「タグ未設定がなぜ起こっているのかと修正をお願いします。ガーゼ汚染なしの前後の
-// つながりをしっかり見てください」。
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -35,8 +32,8 @@ test('予定表の列見出し（術後1日目〜術後4〜5日目・退院目�
 test('「ガーゼ汚染なし」は前の行（創部の観察）の続きとして1枚になり、タグ（9.環境）が付く', () => {
   const c = cards(['8:00 回診', '創部 軽度腫脹と熱感あるが、発赤・出血・排膿なし', 'ガーゼ汚染なし'].join('\n'));
   const wound = c.find(x => x.text.includes('ガーゼ汚染なし'));
-  assert.ok(wound, 'ガーゼ汚染なしのカードは残る'); // 9.環境にしないので前の行とはまとまらなくてよい
-  assert.ok(!detectMultipleHendersonTags(wound.text).includes(9)); // 創部の所見は9.環境にしない（利用者の指摘）
+  assert.ok(wound, 'ガーゼ汚染なしのカードは残る');
+  assert.ok(!detectMultipleHendersonTags(wound.text).includes(9));
 });
 
 test('前の行が離れている・日時が違う・検査値の場合は、続きとしてまとめない（誤結合の防止）', () => {

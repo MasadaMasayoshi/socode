@@ -1,19 +1,23 @@
 {
   "name": "nursing-assessment-support",
   "version": "1.0.0",
-  "description": "看護アセスメント支援システム（共有学習バックエンド付き）",
+  "description": "Nursing assessment support with a shared learning backend",
   "private": true,
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test",
+    "test": "node scripts/test-quiet.js",
     "golden": "node scripts/golden.js",
     "golden:update": "node scripts/golden.js --update",
     "build:css": "npx tailwindcss@3.4.17 -c tailwind.config.js -i tailwind.input.css -o vendor/tailwind.css --minify",
     "stamp": "node scripts/stamp-version.js",
     "test:quiet": "node scripts/test-quiet.js",
     "map": "node scripts/file-map.js",
-    "ship": "node scripts/ship.js"
+    "ship": "node scripts/ship.js",
+    "test:legacy": "node --test tests/golden/legacy-classification.test.js tests/golden/legacy-real-record.test.js",
+    "test:public": "node scripts/test-quiet.js",
+    "test:verbose": "node scripts/run-tests.js",
+    "context": "node scripts/context.js"
   },
   "engines": {
     "node": "20.x"

@@ -1,8 +1,5 @@
 'use strict';
-// 利用者からの見直しの一覧への対応の確認
-//  ・文言（AIの注意書き・検査値の簡易チェック・モデルの表記・保存先と状態）
-//  ・通知（成功は短く消える／失敗は×を押すまで残る／入力の不足は注意）
-//  ・手直し（元に戻す・カードを分ける）、作業の流れ、AIの結果が別の患者の画面に出ない
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -72,7 +69,7 @@ test('通知：成功は数秒で消える／失敗は×を押すまで残り、
   const err = container.children[container.children.length - 1];
   assert.ok(err.children.some(c => c.className === 'toast-close'), '×（閉じる）がある');
   assert.equal(err.attr_role, 'alert');
-  // 失敗の通知には、次にすることの行（detail）が付いている
+
   const failures = src.match(/showToast\(\[[^\]]*?できませんでした[^\]]*?\{ text: [^\]]+\], 'error'\)/g) || [];
   assert.ok(failures.length >= 10, `失敗の通知に次にすること（${failures.length}件）`);
   assert.doesNotMatch(src, /showToast\('(?:内容|名前|文章|キーワード)を入力してください', 'error'\)/, '入力の不足は error ではなく warn');
@@ -87,14 +84,13 @@ test('手直し：カードを分ける（1行目は元のカード・日時と�
   assert.deepEqual(clone(cp.items.map(i => [i.text, i.timestamp, i.hendersonIds])), [['疼痛NRS4。', '術後1日目', [9]], ['創部に発赤なし。', '術後1日目', [9]]]);
   assert.equal(cp.items[0].id, 'a');
   assert.equal(app.splitCardIntoParts(cp, 'a', ['1行だけ']), null, '1行だけでは分けない');
-  app.pushUndo('P', before, 'カードを分ける');
+  app.pushUndo('P', before, 'カードを分ける', cp);
   const last = app.undoLast(cp);
   assert.equal(last.label, 'カードを分ける');
   assert.deepEqual(clone(cp.items.map(i => i.text)), ['疼痛NRS4。創部に発赤なし。']);
   assert.ok(cp.deletedItemIds.some(t => t.id === res[1].id), '分けて増えたカードは削除の印を付ける（別の端末で復活させない）');
   assert.equal(app.undoLast(cp), null);
 });
-
 
 test('作業の流れ：次に進む所に印（情報収集 → アセスメント → 看護計画 → 書き出し。記録を貼る・分類・手直しは「情報収集」に1つ）', () => {
   const app = loadApp();

@@ -1,9 +1,5 @@
 'use strict';
-// 基準ノートの統合版（利用者からの依頼：「基準ノートを統合して一新してください」）の検証。
-//  ・8章の構成で、版の印が入っている
-//  ・これまでに利用者が指摘したタグの修正が、ルール分類と同じ内容で書かれている
-//  ・古い版の矛盾した記述（DVT予防を1.呼吸とする等）が残っていない
-//  ・学習データ管理の「追加キーワード」もAIへの指示文に入る
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');

@@ -1,6 +1,5 @@
 'use strict';
-// 新しい長文事例（SOAP形式の緩和ケア・略語の多いCOPD・表と聞き取りの認知症＋骨折）のテストで
-// 見つかった不具合の修正の確認
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');

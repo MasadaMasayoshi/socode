@@ -1,0 +1,75 @@
+name: OCR-only regression checks
+on:
+  push:
+    branches:
+      - 'review/nursing-classification-stage1'
+  pull_request:
+    paths:
+      - 'js/**'
+      - 'tests/**'
+      - 'clinical-knowledge/**'
+      - 'scripts/audit-clinical-knowledge.js'
+      - 'index.html'
+      - 'style.css'
+      - 'scripts/**'
+      - 'package*.json'
+      - '.github/workflows/ocr-only-regression.yml'
+  workflow_dispatch:
+jobs:
+  node-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install locked dependencies
+        run: npm ci
+      - name: JavaScript syntax check
+        run: |
+          for f in js/*.js tests/*.test.js; do node --check "$f"; done
+      - name: Clinical knowledge metadata audit
+        run: node scripts/audit-clinical-knowledge.js
+      - name: Public regression suite (archival comparator is separate)
+        shell: bash
+        env:
+          SOCODE_TEST_LOG: validation-artifacts/full.log
+        run: |
+          mkdir -p validation-artifacts
+          npm test | tee validation-artifacts/regression.log
+          node scripts/write-regression-evidence.js validation-artifacts/regression.log validation-artifacts/validation-evidence.json
+      - name: Prepare isolated static release payload
+        run: node scripts/prepare-release.js "$RUNNER_TEMP/nursing-public"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: regression-validation-evidence
+          path: validation-artifacts/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: static-release-payload
+          path: ${{ runner.temp }}/nursing-public/
+          if-no-files-found: error
+
+  browser-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - name: Install pinned browser test runner
+        run: npm install --no-save --package-lock=false playwright@1.62.1
+      - run: npx playwright install --with-deps chromium
+      - name: Desktop and mobile browser checks
+        run: node scripts/browser-smoke.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-smoke-screenshots
+          path: browser-artifacts/
+          if-no-files-found: ignore

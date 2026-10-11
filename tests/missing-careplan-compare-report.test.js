@@ -1,5 +1,5 @@
 'use strict';
-// ②不足情報の確認状況 ③看護計画の編集・実施・評価 ④変更点の比較 ⑤提出用の書き出し（js/12・js/13）
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');
@@ -23,14 +23,14 @@ test('②不足情報：未確認・確認済み・該当なしを記録し、�
   const app = loadApp();
   const cp = patient();
   assert.deepEqual(clone(app.missingCheckCounts(cp)), { unchecked: 2, checked: 0, na: 0, total: 2 });
-  const r = app.setMissingCheck(cp, 'm1', { status: 'checked', method: '本人に聞いた', result: '普段は2日に1回', checkedAt: '2026-09-29T05:00:00.000Z', addCard: true, cardType: 's' });
+  const r = app.setMissingCheck(cp, 'm1', { status: 'checked', method: '本人に聞いた', result: '普段は2日に1回', checkedAt: new Date(2026, 8, 29, 14, 0).toISOString(), addCard: true, cardType: 's' });
   assert.equal(r.check.status, 'checked');
   assert.equal(r.card.text, '普段は2日に1回（本人に聞いた）');
   assert.equal(r.card.type, 's');
   assert.deepEqual(clone(r.card.hendersonIds), [3]);
   assert.equal(r.card.assessmentCols[3], 'postadmission');
   assert.equal(r.card.fieldLabel, '確認結果');
-  assert.match(r.card.timestamp, /^9月29日 \d{1,2}:00$/);
+  assert.equal(r.card.timestamp, '9月29日 14:00');
   const again = app.setMissingCheck(cp, 'm1', { status: 'checked', method: '本人に聞いた', result: '普段は毎日', addCard: true, cardType: 's' });
   assert.equal(again.card.id, r.card.id, '同じカードを書き換える');
   assert.equal(cp.items.filter(i => i.fieldLabel === '確認結果').length, 1);
@@ -77,7 +77,7 @@ test('③看護計画：作成・書き換え・優先順位の入れ替え・�
   assert.doesNotMatch(html, /<img src=x/);
 });
 
-test('③AIの看護計画の文章を、看護問題・目標・OP/TP/EPに読み取って取り込む（同じ看護問題は二重にしない）', () => {
+test('③旧形式の計画文章は解析できても、廃止したAI自動取り込みは許可しない', () => {
   const app = loadApp();
   const plans = app.parseCarePlanText('看護計画です。\n**■#1 術後の創部痛に関連した急性疼痛**\n目標：3日以内に疼痛がNRS3以下になる〔S 痛い〕\nOP（観察計画）\n・疼痛の部位・程度\n・鎮痛薬の効果\nTP：\n1. 体位の工夫\nEP\n- 痛みを伝えるよう説明する\n\n■便秘リスク状態\n長期目標：退院まで排便が保たれる\nO-P: 排便の有無\n');
   assert.equal(plans.length, 2);
@@ -86,21 +86,18 @@ test('③AIの看護計画の文章を、看護問題・目標・OP/TP/EPに読�
   assert.deepEqual(clone(plans[1].op), ['排便の有無']);
   const cp = patient();
   cp.carePlanResult = '<b>■術後の創部痛に関連した急性疼痛</b><br>目標：NRS3以下<br>OP<br>・疼痛の程度';
-  assert.equal(app.importCarePlans(cp, 'ai').length, 1);
-  assert.equal(app.importCarePlans(cp, 'ai').length, 0, '同じ看護問題は取り込まない');
-  const p = app.carePlanList(cp)[0];
-  assert.ok(Array.isArray(p.relatedNeeds), '疼痛だけでは9.環境にしない');
-  assert.ok(!p.relatedNeeds.includes(9), `疼痛→9.環境にしない ${JSON.stringify(p.relatedNeeds)}`);
+  assert.equal(app.importCarePlans(cp, 'ai').length, 0, 'AI由来の看護計画は取り込まない');
+  assert.equal(app.carePlanList(cp).length, 0, '旧AIデータを看護計画に混入させない');
   cp.diagnosisCandidates = [{ id: 'd1', name: '便秘' }, { id: 'd2', name: '転倒転落リスク状態' }];
   cp.selectedDiagnosisIds = ['d2'];
-  assert.deepEqual(clone(app.importCarePlans(cp, 'dx').map(x => x.problem)), ['転倒転落リスク状態']);
+  assert.deepEqual(clone(app.importCarePlans(cp, 'dx').map(x => x.problem)), [], '旧AI診断からの自動取り込みも廃止');
 });
 
 test('④変更点の比較：同じIDどうし、分類し直してIDが変わったカードは本文で対応させ、追加・変更・削除を出す', () => {
   const app = loadApp();
   const cp = patient();
   const c = app.createCheckpoint(cp, { label: '提出前', kind: 'manual' }, '2026-09-29T00:00:00.000Z');
-  // 今のカード：o1 の本文を変えた・s1 をO にした・o2 を消した・分類し直して f1 のIDが変わった・新しいカード
+
   cp.items.find(i => i.id === 'o1').text = '術後より排便なし（2日間）';
   const s1 = cp.items.find(i => i.id === 's1'); s1.type = 'o'; s1.hendersonIds = [3, 10]; s1.assessmentCols = { 3: 'missing', 10: 'postadmission' };
   cp.items = cp.items.filter(i => i.id !== 'o2');
@@ -113,7 +110,7 @@ test('④変更点の比較：同じIDどうし、分類し直してIDが変わ�
   const byId = Object.fromEntries(d.changed.map(x => [x.after.id, x.changes.map(ch => ch.label)]));
   assert.deepEqual(clone(byId), { s1: ['分類', 'タグ', '欄（3.排泄）'], o1: ['本文'] });
   assert.match(app.inlineTextDiffHtml('術後より排便なし', '術後より排便なし（2日間）'), /^術後より排便なし<ins>（2日間）<\/ins>$/);
-  // 消したカードを元に戻す
+
   assert.ok(app.restoreCardFromCheckpoint(cp, c.id, 'o2'));
   assert.equal(app.diffCards(c.items, cp.items).removed.length, 0);
 });
@@ -160,12 +157,12 @@ test('⑤SOAP形式：看護問題ごとに S・O・A・P、項目と順番を�
   const txt = app.reportToText(cp, r);
   assert.match(txt, /■ #1 便秘（3\.排泄）\nS：\n　\[術後1日目\] 「お腹が張る感じがする」\nO：\n　\[術後1日目\] 術後より排便なし\nA：\n　【3\.排泄】\n　情報の解釈：便秘の状態にある\n　根拠：S-1・O-1\n　評価（[^）]+）：排便あり\nP：\n　短期目標：2日以内に排便がある\n　OP1\. 排便の有無\n　TP1\. 腹部マッサージ\n　計画の修正（[^）]+）：TP1を終了/);
   assert.doesNotMatch(txt, /普段の排便の間隔/, '不足情報の欄のカードはOに入れない');
-  // 項目と順番を選ぶ：A・S だけ、Aを先に
+
   const layout = [{ key: 'A', on: true }, { key: 'S', on: true }, { key: 'O', on: false }, { key: 'P', on: false }, { key: 'I', on: false }, { key: 'E', on: true }];
   const t2 = app.reportToText(cp, app.buildReport(cp, { format: 'soap', layout }));
   assert.match(t2, /A：[\s\S]*S：[\s\S]*E：\n　【[^】]+】目標：達成　排便あり/);
   assert.doesNotMatch(t2, /^O：/m);
-  // 日で絞る
+
   const days = app.reportDayOptions(cp);
   assert.ok(days.includes('術後1日目') && days.includes('術後2日目'));
   const t3 = app.reportToText(cp, app.buildReport(cp, { format: 'soap', day: '術後2日目' }));

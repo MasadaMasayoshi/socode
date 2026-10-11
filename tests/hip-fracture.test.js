@@ -1,16 +1,6 @@
 'use strict';
-// 大腿骨近位部骨折（頸部骨折・転子部骨折／人工骨頭置換術BHA・骨接合術）の周術期看護資料の
-// 組み込みに関する検証。
+
 //
-// 【背景】利用者からアップロードいただいた「大腿骨近位部骨折の解剖・基礎知識・周術期看護」の
-// 資料を、既存の胃がん周術期看護資料と同じパターンで組み込んだ：
-// ①DEFAULT_NOTEBOOK_CONTENTに詳細な判断基準を追記（AI経由の分類・アセスメント・看護計画で参照）
-// ②DIAGNOSIS_TAG_HINTSに大腿骨近位部骨折の診断名パターンを追加（初期タグ提案を広げる）
-// ③HENDERSON_NEEDSのキーワードに脱臼予防・DVT予防装具・せん妄タイプ等の語を追加
-//   （キーワードベースのローカル分類でも検出できるようにする）
-// ④HIP_FRACTURE_POSTOP_EXPECTED_CHECKS・detectHipFracturePostopMissingChecksを追加
-//   （「不足情報をAI推定」のAPIキー未設定時のローカル簡易ルールでも、代表的な術後観察項目の
-//   欠落を検出できるようにする。既存のGASTRIC_POSTOP_EXPECTED_CHECKSと同じ設計）。
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -24,8 +14,6 @@ const {
   detectHipFracturePostopMissingChecks
 } = app;
 
-// 患者36の指摘で、診断名のカードは4.姿勢・9.環境（1.呼吸・10は付けない）にした。その後の指摘で14.学びも外した
-// （「診断名そのものを『学び』にするのは弱い」）
 test('大腿骨近位部骨折・頸部骨折・転子部骨折・BHA・THAの診断名から初期タグ4・9が提案される', () => {
   ['大腿骨近位部骨折', '大腿骨頸部骨折', '大腿骨転子部骨折', '人工骨頭置換術', '人工股関節全置換術'].forEach(word => {
     const ids = detectDiagnosisTagHints(word);
@@ -36,7 +24,7 @@ test('大腿骨近位部骨折・頸部骨折・転子部骨折・BHA・THAの�
 test('BHA・THAの略称単体でも診断名パターンに一致する（単語境界で誤爆しない）', () => {
   assert.ok(detectDiagnosisTagHints('BHA施行後').includes(4));
   assert.ok(detectDiagnosisTagHints('THAの適応').includes(4));
-  // 前後に英字が続く別の単語の一部としては一致しない（\bによる誤爆防止）
+
   assert.equal(detectDiagnosisTagHints('ALPHA値を確認').length, 0);
 });
 
@@ -46,8 +34,6 @@ test('脱臼予防（禁忌肢位）関連のキーワードから4(姿勢)タ�
   });
 });
 
-// 【変更】以前は1(呼吸)としていたが、利用者からの指摘（患者38：「弾性ストッキング着用し、フットポンプ装着」
-// 「ホーマンズ徴候みられず」は血栓予防・DVTの観察なので9.環境の危険を避ける）により9(環境)に移した。
 test('DVT予防の装具・徴候から9(環境)タグが検出され、1(呼吸)にはならない', () => {
   ['フットポンプを装着', '間欠的空気圧迫装置を使用', 'Homans徴候なし', '腓腹部に把握痛あり'].forEach(text => {
     const tags = detectMultipleHendersonTags(text);

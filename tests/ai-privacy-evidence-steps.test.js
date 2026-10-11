@@ -1,8 +1,5 @@
 'use strict';
-// AI機能の改善（F・A・D）の検証。
-//  F：AIに送る前に、個人情報らしい語句を〈伏せ字N〉にし、AIの答えでは元の語句に戻す。
-//  A：AIに渡すカードに〔C番号〕を付け、答えの中の番号を「根拠のカード」ボタンにする。
-//  D：看護診断候補を1件ずつ選べる形に分け、「①不足情報 → ②看護診断候補 → ③看護計画」の進み具合を出す。
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');
@@ -33,15 +30,13 @@ test('F：設定で登録した語句を伏せ、同じ語句には同じ記号�
   assert.equal(app.restoreMaskedText('〈伏せ字1〉の受診歴あり。〈伏せ字 1 〉。〈伏せ字9〉', ctx), 'さくら整形外科クリニックの受診歴あり。さくら整形外科クリニック。〈伏せ字9〉');
 });
 
-test('F：これまでの事例の文章（A氏などで匿名化済み）では、臨床の内容を伏せない', () => {
-  const fs = require('fs');
-  const path = require('path');
-  const dir = path.join(__dirname, 'golden', 'cases');
-  fs.readdirSync(dir).forEach(f => {
-    const text = fs.readFileSync(path.join(dir, f), 'utf8').normalize('NFKC');
-    const { ctx } = mask(text);
-    assert.deepEqual(Array.from(ctx.originals), [], `${f} で伏せ字：${ctx.originals.join(' / ')}`);
-  });
+test('F：公開用の架空7事例では、臨床の内容を伏せない', () => {
+  const cases = require('./public-case-helpers').loadPublicCases();
+  assert.equal(cases.length, 7);
+  for (const {id,text} of cases) {
+    const {ctx} = mask(text.normalize('NFKC'));
+    assert.deepEqual(Array.from(ctx.originals), [], `${id} で臨床内容を伏せた`);
+  }
 });
 
 test('A：答えの中の〔C番号〕を、根拠のカードへのボタンにする（無い番号はそのまま）', () => {
@@ -49,7 +44,7 @@ test('A：答えの中の〔C番号〕を、根拠のカードへのボタンに
   const ev = app.buildEvidenceIndex(items);
   const html = app.formatAiResultHtml('発言〔C1〕と記録〔C2〕が食い違う。〔C1、C2〕参照。〔C9〕は無い。SpO2 <90%', undefined, ev);
   assert.equal((html.match(/class="ai-evidence-chip/g) || []).length, 4);
-  // 【レビューで発見】IDは onclick の文字列ではなく data-evidence-id に入れる（js/05 の document のクリックで移動）
+
   assert.match(html, /data-evidence-id="item_a"/);
   assert.doesNotMatch(html, /onclick=/);
   assert.match(html, /〔S 「痛くて眠れない」〕/);

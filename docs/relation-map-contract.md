@@ -1,35 +1,25 @@
-# 関連図の臨床情報と保存の契約
+# Relation-map data and persistence contract
 
-添付の関連図調査レポートを実コードと照合し、既存のSVG描画と患者同期を維持して拡張した。レポートが未確認としていたコードはこのリポジトリに存在する。
+Preserve existing SVG rendering, patient synchronization, `cp.relationMap.version: 2`, node `type/label/x/y/itemIds` and edge `source/target/relation`. Clinical extensions use `schemaVersion: "1.0.0"`. Reject other-patient/unknown-schema imports without altering stored data; opening an older rule-version map does not regenerate it.
 
-## データ
+## Clinical metadata
 
-既存の `cp.relationMap.version: 2` とノードの `type/label/x/y/itemIds`、矢印の `source/target/relation` を保持する。臨床情報の追加形式は `schemaVersion: "1.0.0"`。別患者の図と未知のスキーマは読み込まず、元のデータを保持する。以前のルール版で作った図も、開いただけでは再生成しない。
+Add `vital`, `medication`, `assessment` to the existing eight types. Nodes retain `epistemicStatus` (observed/reported/assessed/inferred/predicted/planned), certainty, origin, effective time and `sourceRefs: {sourceType: "card" | "assessment", sourceId, patientId}`. Preserve relative time; never invent an absolute timestamp.
 
-種類は既存8種類に `vital`、`medication`、`assessment` を追加した。ノードに `epistemicStatus`（observed/reported/assessed/inferred/predicted/planned）、`certainty`、`origin`、`effectiveTime`、`sourceRefs` を保持する。根拠参照は `{sourceType: "card" | "assessment", sourceId, patientId}`。時刻が入院日などの相対表記なら、その表記を保持し、存在しない絶対日時を推測しない。
+Observations use `{name, value, unit}`; medication uses `{name, eventType}` with order/administered/reported/stopped/unknown. A drug name without explicit administration remains unknown. Inferences are not source facts; future risks are predicted. Record generation enriches related nodes; standalone import can add medication/assessment nodes without fabricating causal edges. Preserve extracted units/times and flag isolated nodes.
 
-測定値は `observation: {name, value, unit}`、薬剤は `medication: {name, eventType}`。薬剤状態は order/administered/reported/stopped/unknown。記録に実投与の記述がない薬名だけの情報は unknown とする。推論や補足を記録の事実へ変換しない。未来リスクは predicted とする。
+## Evidence and interaction
 
-「記録から作る」は関連のある既存の薬剤・測定ノードを拡張する。「薬剤・アセスメントを取り込む」は記録から独立した項目を追加できるが、記録にない因果の矢印は作らない。未接続の項目はチェックで確認する。単位と時刻は既存抽出器が提供する範囲で保持する。処方・投与の判定は薬名付近の明示表現だけを使い、判定できないものは利用者が確認する。
+Traverse support/cause/influence edges for evidence, excluding contradiction, chronology and mere association. Track visited IDs to terminate cycles. Exclude deleted/other-patient cards from plan evidence; carry IDs into `mapEvidenceRefs` and retain legacy text evidence. List/edit views show node state/time/evidence and edge meaning. Screen/print/PNG identify inferred, predicted and planned content. Bidirectional interactions prompt review rather than automatic deletion.
 
-## 根拠と操作
+## Conflicts
 
-支持・因果・影響の矢印から根拠をたどる。反証、時間順序、単なる関連は支持の根拠にしない。循環する図でも訪問済みIDを管理して終了する。別患者・削除済みカードは看護計画の根拠参照に取り込まない。看護計画の `mapEvidenceRefs` に参照IDを引き継ぐ。古い文字列の根拠も互換性のため保持する。
+Existing patient PUT/bulk sync owns persistence. Server-managed `relationMapRevision` is checked inside serialized JSON writes or MongoDB CAS. GET `/api/patients/:id/relation-map` returns map/revision and strong `ETag: "relation-map-N"`. PUT uses `If-Match`; stale revisions return 412. Body revision checks also protect older clients and exit synchronization.
 
-「関連図を一覧で表示」でノードの状態・時刻・根拠と、矢印の意味を読み、項目・矢印を選んで編集できる。画面、印刷、PNGで推論・予測・予定を文字で区別する。相互作用の矢印は確認を促し、自動では削除しない。
+Keep conflicting local maps unsaved. Before accepting the latest server map, verify a localStorage checkpoint; abort replacement if saving fails. Retain multiple checkpoints and JSON export.
 
-## 保存競合
+## Verification and limits
 
-保存単位は既存の患者PUTと一括同期のまま。サーバーが患者の `relationMapRevision` を管理し、図を変更するときにクライアントの基準版と比較する。ローカルJSONの直列保存とMongoDBの既存CASの内側で検査するため、別サーバーと一括同期も古い図を上書きできない。
+`relation-map-clinical.test.js` covers metadata round trips, epistemic states, cycles, ownership, escaping and imports. `relation-map-conflict.test.js` covers actual HTTP concurrency, bulk sync, damaged references and replacement. Existing plan/map/MongoDB checks remain.
 
-`GET /api/patients/:id/relation-map` は `{relationMap, relationMapRevision}` と強い `ETag: "relation-map-N"` を返す。画面の患者PUTは `If-Match` を送り、版が違えば412となる。本文の版も検査するため、ヘッダーのない旧クライアントや終了時の一括同期でも、更新済みの図を古い内容で置き換える操作は拒否する。
-
-競合すると手元の図を未保存として保持する。「最新の図を確認」で同意して読み込む前に、ブラウザのlocalStorageへ控えを保存する。控えを保存できなければ置き換えない。複数回の控えを保持し、「競合時の図の控えを保存」からJSONとして取得できる。
-
-## 検証と今後の作業
-
-`tests/relation-map-clinical.test.js` は臨床情報の往復、推論・予測、循環、患者の隔離、文字列のエスケープ、薬剤・アセスメント取り込みを検証する。`tests/relation-map-conflict.test.js` は同時保存、一括同期、破損参照、事例置換を実HTTPで検証する。既存の関連図・看護計画・同期・MongoDBテストも維持する。
-
-元の事例と期待値はGit管理対象外なので、`tests/golden/cases` と `tests/golden/expected` がないチェックアウトでは13件の既存テストが失敗し、実記録を使う1件がスキップされる。架空の事例で置き換えたり、失敗を隠す設定はしない。
-
-レポートのCytoscape置換、認証・患者ごとの認可、監査要件、FHIR交換、薬剤の構造化した用量・経路・頻度、観察の基準範囲、完全な臨床レビューは未実装の提案。既存描画を維持した今回の変更は、これらの完了を意味しない。添付内の参照IDだけでは外部出典を再確認できないため、法令の版・日付やライブラリサイズは未検証の断定としてコードに組み込んでいない。
+Historical fixture status is documented in [migration](public-regression-migration-20261010.md); missing legacy originals are not silently replaced. Proposed renderer replacement, patient authorization, audit requirements, FHIR, structured dose/route/frequency, facility ranges and complete clinical review are not implemented by this extension. Unverifiable attachment reference IDs are not treated as verified laws, dates or library-size facts.

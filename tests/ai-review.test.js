@@ -1,5 +1,5 @@
 'use strict';
-// 「AIで分類を評価」は v.28 で削除した。消えたままであることだけを確かめる。
+
 const test = require('node:test');
 const assert = require('node:assert');
 const { loadApp } = require('./app-helpers');

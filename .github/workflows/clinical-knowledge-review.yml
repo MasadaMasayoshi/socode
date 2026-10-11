@@ -1,0 +1,21 @@
+name: Clinical knowledge review gate
+on:
+  pull_request:
+    paths:
+      - 'clinical-knowledge/**'
+      - 'tests/clinical-knowledge.test.js'
+      - 'js/12-missing-checks-and-care-plan.js'
+      - 'js/15-relation-map.js'
+  schedule:
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
+jobs:
+  validate-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate clinical knowledge source and review dates
+        run: node --test tests/clinical-knowledge.test.js

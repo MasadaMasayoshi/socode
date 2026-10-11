@@ -1,5 +1,5 @@
 'use strict';
-// 片方にしか無い項目の取り込み（fillMissingFields）の検証。server.jsから関数だけ取り出して確かめる
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

@@ -1,7 +1,5 @@
 'use strict';
-// サーバー（JSONファイル保存）の不具合の再現と修正の確認
-//  ・ファイルの書き込みに失敗しても 200 / ok:true を返していた → 500 / ok:false を返し、失敗した変更は残さない
-//  ・完全に削除した患者が、別の端末からの古い同期で復活していた → 削除の記録を残し、古い同期を断る
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
@@ -26,7 +24,7 @@ test('保存障害：ファイルの書き込みに失敗したら 500 / ok:fals
   assert.match(body.error, /保存に失敗/);
   const all = await (await fetch(`${url}/api/patients`)).json();
   assert.ok(!all[id], '保存できなかった変更はサーバーの手元にも残さない');
-  // 直ったら、同じ内容を送り直せば保存できる
+
   server.setWriteFileImplForTest(null);
   const retry = await put(id, patient(id, [{ id: 'c1', text: 'カード' }]));
   assert.equal(retry.status, 200);
@@ -46,7 +44,7 @@ test('完全削除：削除した患者に古い同期（PUT・一括同期）�
   assert.equal((await put(id, patient(id, [{ id: 'c1', text: '古いカード' }]))).status, 200);
   const del = await fetch(`${url}/api/patients/${id}`, { method: 'DELETE' });
   assert.equal(del.status, 200);
-  // 削除を知らない別の端末が、古いカルテを保存・一括同期してくる
+
   const stale = await put(id, { ...patient(id, [{ id: 'c1', text: '古いカード' }]), updatedAt: new Date(Date.now() + 60000).toISOString() });
   assert.equal(stale.status, 410);
   assert.equal((await stale.json()).deleted, true);

@@ -1,11 +1,5 @@
 'use strict';
-// 利用者からの要望：「一覧表示の時に選択すると一度一覧が閉じて元文章が見えるようにする、
-// ただし選択している状態は保持されるように」。
-//  ・一覧のカードのクリック／チェックで selectCardFromOverview を呼ぶ（一覧を閉じて元の文章の該当箇所を表示）。
-//  ・選択は追加するだけで、それまでの選択は消さない（clear しない）。
-//  ・「一覧に戻る」ボタン（元の文章の帯・一括操作の帯）で同じ状態の一覧に戻れる。
-//  ・一覧を Esc で閉じたときに、分類ボード側の Esc（選択の全解除）まで動かない。
-// DOM を使う処理のため、ここではソースの配線を確認する（画面の動きはブラウザで確認済み）。
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -22,7 +16,7 @@ const fnBody = name => {
 
 test('一覧のカードのクリック・チェックは selectCardFromOverview を呼ぶ（ボードへの移動だけではない）', () => {
   const build = app.slice(app.indexOf('function buildCardOverviewHtml'), app.indexOf('function fitCardOverview'));
-  // 【レビューで発見】IDは safeDomId を通してから onclick に入れる
+
   assert.match(build, /onclick="selectCardFromOverview\('\$\{safeDomId\(i\.id\)\}', true\)"/);
   assert.match(build, /onchange="selectCardFromOverview\('\$\{safeDomId\(i\.id\)\}', this\.checked\)"/);
   assert.doesNotMatch(build, /closeCardOverview\(\); jumpToBoardCard/);
@@ -48,7 +42,6 @@ test('一覧を Esc で閉じても選択は解除されない', () => {
   assert.match(esc, /e\.stopImmediatePropagation\(\);\s*closeCardOverview\(\);/);
 });
 
-// 利用者からの要望：「一覧表示したときにすべて見れないので全部が映らない場合はページ切り替えで見れるようにしてください」
 test('最小の文字でも1画面に収まらないときはページに分け、前へ／次へ（←→キー）で切り替える', () => {
   assert.match(html, /id="card-overview-pager" class="ov-pager hidden"/);
   assert.match(html, /id="btn-ov-prev" onclick="changeCardOverviewPage\(-1\)"/);

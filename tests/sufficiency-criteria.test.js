@@ -1,5 +1,5 @@
 'use strict';
-// ヘンダーソン14項目 充足・未充足判定基準（汎用版）の回帰テスト A〜J
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');

@@ -1,37 +1,29 @@
-﻿# 看護アセスメント支援システムを OneDrive の外（既定は C:\dev\socode）へまるごとコピーするスクリプト
-# （改善提案3：置き場所を1か所にして、OneDrive の同期で古いファイルに戻るのを防ぐ）。
-#
-# 使い方：socode フォルダで PowerShell を開き、次を実行します。
-#   powershell -ExecutionPolicy Bypass -File scripts\move-to-dev-folder.ps1
-# 別の場所にしたいとき：
-#   powershell -ExecutionPolicy Bypass -File scripts\move-to-dev-folder.ps1 -Destination D:\work\socode
-#
-# コピーするだけで、元のフォルダは消しません（動作を確かめてから、ご自身で片付けてください）。
+﻿# Copy the entire checkout outside OneDrive; never delete the source.
+# Includes .git, .env, data and node_modules. Verify before removing an old copy.
+# Usage: powershell -ExecutionPolicy Bypass -File scripts\move-to-dev-folder.ps1 [-Destination PATH]
 param([string]$Destination = "C:\dev\socode")
 $ErrorActionPreference = "Stop"
 $Source = Split-Path -Parent $PSScriptRoot
 
-Write-Host "コピー元: $Source"
-Write-Host "コピー先: $Destination"
+Write-Host "Source: $Source"
+Write-Host "Destination: $Destination"
 
 if (-not (Test-Path (Join-Path $Source "js\01-henderson-keywords.js"))) {
-  Write-Host "コピー元が看護アセスメント支援システムのフォルダではありません（js\01-henderson-keywords.js が見つかりません）。" -ForegroundColor Red
+  Write-Host "Invalid checkout: js\01-henderson-keywords.js is missing." -ForegroundColor Red
   exit 1
 }
 if (Test-Path $Destination) {
-  Write-Host "コピー先のフォルダが既にあります。中身を確かめるか、-Destination で別の場所を指定してください。" -ForegroundColor Red
+  Write-Host "Destination exists; inspect it or choose another -Destination." -ForegroundColor Red
   exit 1
 }
 
 New-Item -ItemType Directory -Path $Destination -Force | Out-Null
-# /E：空のフォルダも含めてすべて（.git・.env・data・node_modules も含む）
 robocopy $Source $Destination /E /COPY:DAT /R:2 /W:2 /NFL /NDL /NP /NJH /NJS | Out-Null
 if ($LASTEXITCODE -ge 8) {
-  Write-Host "コピーに失敗しました（robocopy の終了コード $LASTEXITCODE）。" -ForegroundColor Red
+  Write-Host "Copy failed; robocopy exit $LASTEXITCODE." -ForegroundColor Red
   exit 1
 }
 
-# 主なファイルが同じ大きさでコピーされたかを確かめる
 $files = @("index.html", "style.css", "server.js", "package.json", ".env", "vendor\tailwind.css") +
   (Get-ChildItem (Join-Path $Source "js") -Filter *.js | ForEach-Object { "js\" + $_.Name })
 $bad = @()
@@ -43,14 +35,14 @@ foreach ($f in $files) {
   }
 }
 if ($bad.Count -gt 0) {
-  Write-Host ("コピーが一致しないファイルがあります: " + ($bad -join ", ")) -ForegroundColor Red
+  Write-Host ("Copy verification failed: " + ($bad -join ", ")) -ForegroundColor Red
   exit 1
 }
 
 Write-Host ""
-Write-Host "コピーが終わりました。" -ForegroundColor Green
-Write-Host "次の手順："
+Write-Host "Copy complete." -ForegroundColor Green
+Write-Host "Next:"
 Write-Host "  1. cd $Destination"
-Write-Host "  2. npm.cmd start  （動くことを確かめる。画面のいちばん下の「版」も確認）"
-Write-Host "  3. GitHub Desktop を使っている場合は「File → Add local repository」で $Destination を追加"
-Write-Host "  4. 以後は $Destination だけを使う（OneDrive 側の socode・新しいフォルダーは、確認のうえ片付ける）"
+Write-Host "  2. npm.cmd start  (verify startup and footer version)"
+Write-Host "  3. GitHub Desktop: File -> Add local repository -> $Destination"
+Write-Host "  4. Use only $Destination; verify before removing old copies."

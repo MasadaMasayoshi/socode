@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "description": "Official Japanese medical and nursing reference entry points. Directory only: not expert-reviewed clinical rules and not used for automatic patient decisions.",
+  "lastReviewed": "2026-10-10",
+  "items": [
+    {
+      "id": "jna-nursing-records",
+      "title": "看護記録に関する指針",
+      "publisher": "日本看護協会",
+      "year": 2018,
+      "topics": [
+        "看護記録",
+        "看護過程"
+      ],
+      "url": "https://www.nurse.or.jp/nursing/home/publication/pdf/guideline/nursing_record.pdf",
+      "notes": "原文確認用の参考資料。個別の看護問題の自動判定には使わない。"
+    },
+    {
+      "id": "jds-diabetes-2024",
+      "title": "糖尿病診療ガイドライン2024",
+      "publisher": "日本糖尿病学会",
+      "year": 2024,
+      "topics": [
+        "糖尿病",
+        "足病変"
+      ],
+      "url": "https://www.jds.or.jp/modules/publication/index.php?content_id=40",
+      "notes": "PDFの公開範囲・正誤表を確認すること。"
+    },
+    {
+      "id": "mhlw-patient-safety",
+      "title": "法令・通知等（医療安全対策）",
+      "publisher": "厚生労働省",
+      "year": 2026,
+      "topics": [
+        "医療安全",
+        "制度"
+      ],
+      "url": "https://www.mhlw.go.jp/stf/newpage_03125.html",
+      "notes": "更新される索引ページ。個別通知の施行日・適用範囲を確認すること。"
+    },
+    {
+      "id": "mhlw-safety-explain",
+      "title": "医療安全施策にかかる説明資料",
+      "publisher": "厚生労働省",
+      "year": 2026,
+      "topics": [
+        "医療安全",
+        "医療事故"
+      ],
+      "url": "https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/newpage_75097.html",
+      "notes": "施策概要・資料リンク。個別処置の根拠として直接適用しない。"
+    }
+  ]
+}

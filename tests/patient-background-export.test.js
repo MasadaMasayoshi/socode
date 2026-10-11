@@ -1,21 +1,6 @@
 'use strict';
-// 出力シート（Word・PDF書き出し／プレーンテキスト書き出し）における、年齢・既往歴・
-// 診断名・家族構成・職業・保険等の「基本情報」の扱いの検証。
+
 //
-// 【経緯】
-// 一度は、見出しラベル（FIELD_LABELS）付きの項目やヘンダーソン14項目のどれにも一致
-// しなかった患者背景フォールバック項目（item.patientBackground）を「2. 患者背景」という
-// 独立したセクションにまとめる形にしていたが、利用者からの指摘：看護記録の原則では、
-// 年齢・既往歴・診断名・家族構成・職業・保険等のカルテ・アナムネ由来の基本情報も、
-// 患者本人の発言でない限りすべて客観的事実（Oデータ）であり、「患者背景」というS/Oの
-// どちらでもない第三の区分を作るべきではない。
-// このため「2. 患者背景」という独立セクションは廃止し、見出しラベル付きの項目も他の
-// 項目と同様にtype（s/o/unclassified）でそのままS/O/未分類の一覧に含めるように戻した
-// （=このセクションが無かった頃の構成に戻した）。見出しラベルがあれば、行頭に
-// 「[見出し語]」が付いた状態でS/Oデータの一覧の中にそのまま並ぶ
-// （例：「・[家族構成] 夫、長男と同居」がOデータの一覧の中に現れる）。
-// セクション番号は「2. 患者背景」が無くなった分、1つずつ繰り上がっている
-// （1.検査データ → 2.Sデータ → 3.Oデータ → 4.未分類 → 5.ヘンダーソン14項目別 → 6〜10.AI分析等）。
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -28,9 +13,6 @@ const {
   buildExportPlainText, normalizeFieldLabelHeadingWord
 } = app;
 
-// btn-start-classifyのローカル分類経路（本体コード）と同じ呼び出し順序・同じ条件で
-// patientBackgroundまで含めて再現する検証用ヘルパー（classification.test.jsのclassifyLocally
-// はpatientBackgroundを計算しないため、ここでは別に用意する）。
 function classifyLocallyFull(text) {
   return groupClinicalPhrasesWithTimestamps(text)
     .filter(chunk => !chunk.isUnnecessaryBoilerplate)

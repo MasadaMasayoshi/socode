@@ -1,0 +1,68 @@
+'use strict';
+// Synthetic educational examples. No patient record or clinical decision support.
+(function(root,factory){const a=factory();if(typeof module==='object'&&module.exports)module.exports=a;if(root)root.NursingPractice=a;})(typeof window==='undefined'?null:window,function(){
+const NEED_NAMES=["呼吸", "食事", "排泄", "姿勢", "睡眠", "衣服", "体温", "清潔", "環境", "コミュニケーション", "信仰", "仕事", "余暇", "学び"];
+const cases=Object.freeze([
+{id:'practice-fall',topic:'安全・転倒',story:'架空事例：術後2日目の成人。立ち上がるとふらつきがあり、歩行時に介助が必要。入院前は独歩していた。',prompt:'入院前と入院後の状態をどのように扱いますか？',choices:['入院前・後を分けて評価し、ふらつきの時点と状況を確認する','入院後の状態を入院前にも適用する','Sデータは全てコミュニケーションに分類する'],correct:0,reason:'経過の前後を分けて情報を整理し、時点・根拠を残す。'},
+{id:'practice-ocr',topic:'OCR確認',story:'架空の検査記録のOCRが「Hb 8.O g/dL」と表示された。',prompt:'安全な次の操作は？',choices:['元画像と照らし小数点・O/0・単位を確認する','8.0と確定して自動診断する','単位を消して登録する'],correct:0,reason:'誤読の可能性があるため原画像と照合する。'},
+{id:'practice-plan',topic:'看護計画',story:'架空事例：看護問題の根拠カードは未登録。計画のOPだけが入力されている。',prompt:'まず何を点検しますか？',choices:['根拠の対応とTP・EP・目標の不足を確認する','必要な介入を自動で確定する','根拠なしで問題を断定する'],correct:0,reason:'教育用の不足チェックは可能だが、患者別の治療・看護判断は自動確定しない。'},
+{id:'practice-map',topic:'関連図',story:'架空の関連図で矢印が二重向きになり、孤立した病態ノードがある。',prompt:'関連図の点検として適切なのは？',choices:['因果の方向と根拠、孤立ノードを確認する','すべての矢印を双方向にする','事実と予測の区別をなくす'],correct:0,reason:'矢印の向きと根拠を見直し、将来の予測は事実と区別する。'},
+{"id":"practice-so","topic":"S/O分類","story":"架空事例：患者が「夜中に何度も目が覚めました」と発言した。","prompt":"まず情報カードの内容をどう整理しますか？","choices":["発言した内容をSデータとして記録し、睡眠という内容で分類を検討する","Sデータなので必ずコミュニケーションに分類する","発言をOデータとして記録する"],"correct":0,"reason":"S/Oの区別と、ヘンダーソンの分類先は別の判断。発言でも内容が睡眠なら睡眠に関係する。"},
+{"id":"practice-period","topic":"充足・未充足","story":"架空事例：入院前は自力で着衣できたが、入院後は更衣に手助けが必要になった。","prompt":"時期ごとの整理として妥当なのは？","choices":["入院前・入院後を独立して扱い、援助の有無と根拠を記す","入院後が未充足なら入院前も一括して未充足とする","入院前の記録を消してしまう"],"correct":0,"reason":"充足・未充足は入院前と入院後を分け、自立度と支援の必要性を資料に基づいて検討する。"},
+{"id":"practice-uncertainty","topic":"根拠と予測","story":"架空事例：痛みの報告はあるが、将来の合併症を裏づける情報は記録されていない。","prompt":"アセスメントの書き方として妥当なのは？","choices":["確認できた所見と、可能性の段階にとどまる予測を分けて記録する","病態を確定したと断言する","所見を削除し予測のみを書く"],"correct":0,"reason":"事実・解釈・予測を区別し、判断が難しいことは不確実性として示す。"},
+{"id":"practice-labs","topic":"検査値","story":"架空事例：血液検査の数値と単位はあるが、施設の基準値が示されていない。","prompt":"比較の前に必要なことは？","choices":["施設・測定法・対象集団に合った基準値と出典を確認する","どの施設でも同じ基準値を仮定する","基準値なしで異常と断定する"],"correct":0,"reason":"基準値は出典・測定法・対象によって異なり得るため、先に適用条件を確認する。"},
+{"id":"practice-references","topic":"参考文献","story":"架空事例：看護ケアの説明資料が2つあり、推奨番号が食い違っている。","prompt":"次に行う作業として適切なのは？","choices":["双方の最新版と原文を照合し、違いを記録する","古い資料だけを使い続ける","新しい方を無条件で正しいと扱う"],"correct":0,"reason":"原文・改訂状況・適用条件を確認して、どの推奨の違いか明らかにする。"},
+{"id":"practice-discharge","topic":"看護計画","story":"架空事例：退院後の生活に関する長期目標が「理解する」だけになっている。","prompt":"目標の改善に必要なのは？","choices":["いつ何をどの方法で確認できるか、評価可能な表現にする","「理解する」を繰り返して書く","目標の期限や評価方法は省く"],"correct":0,"reason":"目標は期限と行動・理解の確認方法を具体化すると評価しやすくなる。"},
+{"id":"practice-evidence","topic":"根拠追跡","story":"架空事例：看護計画が参照するカードを削除したため、根拠IDが見つからない。","prompt":"安全な対処は？","choices":["計画の根拠を再確認し、別の記録で確認できるか調べる","新しい根拠を捏造して補う","警告を無視して承認する"],"correct":0,"reason":"根拠リンクが壊れているときは記録を確認し、根拠のない判断を行わない。"},
+{"id":"practice-pain","topic":"実施・評価","story":"架空事例：計画のTPは実施したが、患者の反応がまだ記録されていない。","prompt":"看護過程の継続として必要なのは？","choices":["実施した内容と患者の反応・目標達成状況を確認して記録する","TPを実施しただけで目標達成とみなす","評価欄を自動で「達成」にする"],"correct":0,"reason":"援助を実施した事実と、結果・反応・評価は分けて記録する。"},
+{"id":"practice-preop","topic":"周術期の経過","story":"架空事例：術前の記録と術後1日目の記録が混在している。","prompt":"時系列の整理として適切なのは？","choices":["術前と術後を区別し、各所見の日時を明らかにする","術後の値を術前の値として扱う","同じ日の記録だと仮定してまとめる"],"correct":0,"reason":"術前と術後の違い、日時・測定条件を整理してから変化を比較する。"},
+{"id":"practice-original","topic":"情報抽出","story":"架空事例：元文に「夜間に2回起きた」とあるが、カードは「夜間に起きた」となっている。","prompt":"抽出品質を点検する際は？","choices":["回数2回が失われていることを確認し、原文に沿って修正する","意味が似ているので数値の欠落を無視する","新しい回数を推測して追加する"],"correct":0,"reason":"数値・日時・程度は看護データの意味に関わるため、原文から漏らさず記録する。"},
+{"id": "practice-patient", "topic": "患者の取り違え", "story": "架空事例：原文の確認中に別の患者のページへ切り替えた。", "prompt": "根拠カードへ移動するときの確認は？", "choices": ["現在の患者と根拠カードの患者IDが一致するか確認する", "同じ文章なら別患者のカードを使う", "最初に見つかったカードを使う"], "correct": 0, "reason": "文章の類似だけでは患者の一致を確認できない。"},
+{"id": "practice-deleted", "topic": "削除した根拠", "story": "架空事例：根拠に使った検査カードを不要として除外した。", "prompt": "除外後の評価で必要なのは？", "choices": ["除外した値が判定・推移・考察に残っていないか確認する", "削除した値を最新値として使う", "削除カードを自動で復活させる"], "correct": 0, "reason": "除外した情報を現在の根拠として扱わない。"},
+{"id": "practice-units", "topic": "単位の比較", "story": "架空事例：架空の同一検査に5000/μLと5×10³/μLという記録がある。", "prompt": "推移を比較する方法は？", "choices": ["同じ単位に換算してから比較する", "5000から5へ減少したとみなす", "単位を無視して大小だけ比較する"], "correct": 0, "reason": "数値の大小は単位と合わせて比較する。"},
+{"id": "practice-unknown-time", "topic": "日時不明", "story": "架空事例：同じ検査項目の値が複数あるが、一部は測定日が不明。", "prompt": "推移の扱いとして適切なのは？", "choices": ["日時を確認し、不明な値の順序から増減を断定しない", "カードの上下だけで前回値を決める", "不明な値に最新の日付を付ける"], "correct": 0, "reason": "表示順は測定順の証拠ではない。"},
+{"id": "practice-maternal", "topic": "対象の識別", "story": "架空事例：産褥の記録に母親と新生児のSpO2が併記されている。", "prompt": "母親の評価で必要な確認は？", "choices": ["母親と新生児の値を分け、誰の測定か確認する", "低い方を母親の値にする", "全て母親の測定値としてまとめる"], "correct": 0, "reason": "対象者の異なる情報を同じ患者の根拠に混ぜない。"},
+{"id": "practice-provenance", "topic": "基準値の由来", "story": "架空事例：記録にある基準値とアプリの内蔵目安が同じ数値だった。", "prompt": "出典の判断として適切なのは？", "choices": ["数値一致だけでは由来を断定せず出典を確認する", "同じ数値なので施設で承認済みとする", "同じ数値なので必ずアプリが追加したとする"], "correct": 0, "reason": "数値の一致と出典の確認は別の事実。"},
+{"id": "practice-undo", "topic": "変更の復元", "story": "架空事例：計画を削除した後、別の人がカードを更新している。", "prompt": "Undoで守るべきことは？", "choices": ["後続の更新を上書きせず、変更内容を確認する", "古い控えで患者全体を無条件に上書きする", "別患者の履歴から復元する"], "correct": 0, "reason": "復元は患者の一致と後続変更への保護が必要。"},
+{"id": "practice-ocr-failure", "topic": "OCR失敗", "story": "架空事例：画像の読み取りに失敗したが、入力欄には手入力の記録がある。", "prompt": "失敗時の適切な動作は？", "choices": ["元の記録を保持して失敗を知らせ、画像を選び直す", "元の記録を空にする", "空の応答を成功として保存する"], "correct": 0, "reason": "読み取り失敗は元データを書き換える理由にならない。"} ,
+{"id": "practice-need-1", "needId": 1, "topic": "欲求1：呼吸", "story": "架空事例：本人が「息苦しい」と話した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["呼吸", "食事", "体温"], "correct": 0, "reason": "この情報では「呼吸」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-2", "needId": 2, "topic": "欲求2：食事", "story": "架空事例：食事の摂取量と飲水量を記録した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["食事", "排泄", "清潔"], "correct": 0, "reason": "この情報では「食事」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-3", "needId": 3, "topic": "欲求3：排泄", "story": "架空事例：排尿と排便の回数を記録した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["排泄", "姿勢", "環境"], "correct": 0, "reason": "この情報では「排泄」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-4", "needId": 4, "topic": "欲求4：姿勢", "story": "架空事例：寝返りと歩行の介助が必要と記録した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["姿勢", "睡眠", "コミュニケーション"], "correct": 0, "reason": "この情報では「姿勢」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-5", "needId": 5, "topic": "欲求5：睡眠", "story": "架空事例：本人が「夜に眠れなかった」と話した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["睡眠", "衣服", "信仰"], "correct": 0, "reason": "この情報では「睡眠」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-6", "needId": 6, "topic": "欲求6：衣服", "story": "架空事例：着替えで袖を通すための介助を記録した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["衣服", "体温", "仕事"], "correct": 0, "reason": "この情報では「衣服」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-7", "needId": 7, "topic": "欲求7：体温", "story": "架空事例：体温の測定時刻と測定値を記録した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["体温", "清潔", "余暇"], "correct": 0, "reason": "この情報では「体温」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-8", "needId": 8, "topic": "欲求8：清潔", "story": "架空事例：洗面と口腔清潔の介助を記録した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["清潔", "環境", "学び"], "correct": 0, "reason": "この情報では「清潔」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-9", "needId": 9, "topic": "欲求9：環境", "story": "架空事例：保険の種類と利用できる社会資源を記録した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["環境", "コミュニケーション", "呼吸"], "correct": 0, "reason": "この情報では「環境」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-10", "needId": 10, "topic": "欲求10：コミュニケーション", "story": "架空事例：本人が意思を伝える方法を確認した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["コミュニケーション", "信仰", "食事"], "correct": 0, "reason": "この情報では「コミュニケーション」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-11", "needId": 11, "topic": "欲求11：信仰", "story": "架空事例：本人が大切にしている信仰を確認した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["信仰", "仕事", "排泄"], "correct": 0, "reason": "この情報では「信仰」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-12", "needId": 12, "topic": "欲求12：仕事", "story": "架空事例：本人の仕事での役割と達成感を確認した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["仕事", "余暇", "姿勢"], "correct": 0, "reason": "この情報では「仕事」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-13", "needId": 13, "topic": "欲求13：余暇", "story": "架空事例：本人が楽しみにしている余暇の活動を確認した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["余暇", "学び", "睡眠"], "correct": 0, "reason": "この情報では「余暇」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"},
+{"id": "practice-need-14", "needId": 14, "topic": "欲求14：学び", "story": "架空事例：説明内容の理解と学びたいことを確認した。", "prompt": "この情報の内容から、まず確認する基本的欲求は？", "choices": ["学び", "呼吸", "衣服"], "correct": 0, "reason": "この情報では「学び」の内容を確認する。S/Oの形式だけで分類せず、時点・文脈と他の欲求との関連も確認する。"}
+]);
+function grade(id,selected){const item=cases.find(c=>c.id===id);if(!item)throw Error('unknown practice');return {correct:item.correct===selected,answer:item.correct,reason:item.reason,topic:item.topic};}
+function chooseNext(attempts){
+ const byId=new Map(),byTopic=new Map();
+ for(const entry of attempts||[]){
+   if(entry.id){const x=byId.get(entry.id)||{ok:0,total:0};x.total++;if(entry.correct===true)x.ok++;byId.set(entry.id,x);}
+   const t=byTopic.get(entry.topic)||{ok:0,total:0};t.total++;if(entry.correct===true)t.ok++;byTopic.set(entry.topic,t);
+ }
+ // Present each fictitious question before repetition; then prioritize the weakest topic.
+ return [...cases].sort((a,b)=>{
+   const x=byId.get(a.id)||{ok:0,total:0},y=byId.get(b.id)||{ok:0,total:0};
+   if(x.total===0&&y.total>0)return -1;
+   if(y.total===0&&x.total>0)return 1;
+   if(x.total===0&&y.total===0)return 0;
+   const tx=byTopic.get(a.topic)||{ok:0,total:0},ty=byTopic.get(b.topic)||{ok:0,total:0};
+   return (tx.ok/tx.total)-(ty.ok/ty.total)||x.total-y.total;
+ })[0];
+}
+function coverage(attempts){
+ const latest=new Map(),known=new Map(cases.map(c=>[c.id,c]));
+ for(const entry of attempts||[])if(known.has(entry?.id)&&typeof entry.correct==='boolean')latest.set(entry.id,entry.correct);
+ const count=items=>({total:items.length,answered:items.filter(c=>latest.has(c.id)).length,lastCorrect:items.filter(c=>latest.get(c.id)===true).length});
+ return {...count(cases),needs:NEED_NAMES.map((name,i)=>({id:i+1,name,...count(cases.filter(c=>c.needId===i+1))})),process:count(cases.filter(c=>!c.needId))};
+}
+function rubric(submission){const missing=[];if(!submission?.evidence)missing.push('根拠が必要です');if(!submission?.interpretation)missing.push('アセスメントの解釈が必要です');if(!submission?.plan)missing.push('看護計画が必要です');return {missing,completedFields:3-missing.length,totalFields:3,notice:'教育用の記入チェックであり臨床的な採点・診断ではありません'};}
+return {cases,grade,chooseNext,rubric,coverage};
+});

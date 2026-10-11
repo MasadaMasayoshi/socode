@@ -1,9 +1,5 @@
 'use strict';
-// 患者の切り替え・保存の通信・通知の表示の不具合の再現と修正の確認
-//  ①患者Aをアーカイブ／新規作成／切り替えたとき、別の患者の本文にAの本文が入らない
-//  ②保存の通信中に編集・追加・削除したカードが、遅れて返ったサーバーの応答で元に戻らない
-//  ③保存に失敗したら「未保存」のまま残して送り直す。別の端末で完全に削除された患者は復活させない
-//  ④通知（トースト）に患者名を出してもHTMLとして解釈しない
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');
@@ -58,13 +54,12 @@ test('①切り替え：切り替え前の本文は元の患者に、入力欄�
 
 test('①完全削除と同じ切り替え（今の患者を保存しない）：削除した患者の本文が残りの患者に入らない', () => {
   const { h, st } = setup();
-  st.patients = st.patients.filter(p => p.id !== 'A'); // Aを削除した直後
+  st.patients = st.patients.filter(p => p.id !== 'A');
   h.changeCurrentPatient('B', { saveCurrent: false });
   assert.equal(find(st, 'B').sourceText, 'Bの本文');
   assert.equal(h.DOM.sourceText.value, 'Bの本文');
 });
 
-// サーバーへの保存（PUT）の応答を、テストの好きなときに返せるようにする
 function deferredFetch() {
   const calls = [];
   const fetch = (url, opts = {}) => {
@@ -86,12 +81,12 @@ test('②保存の通信中に編集・追加・削除したカードは、遅�
   A.items = [{ id: 'c1', type: 'o', text: '体温37.0' }, { id: 'c2', type: 'o', text: '消す予定のカード' }, { id: 'c3', type: 'o', text: 'そのままのカード' }];
   const sending = h.syncPatientToServer('A');
   assert.equal(calls.length, 1);
-  // 通信中の編集
+
   A.items[0] = { ...A.items[0], text: '体温37.8（通信中に編集）' };
   A.items = A.items.filter(i => i.id !== 'c2');
   A.items.push({ id: 'c4', type: 'o', text: '通信中に追加したカード' });
   h.schedulePatientSync('A');
-  // サーバーの応答は送った時点の内容＋別の端末が足したカード
+
   calls[0].resolve(reply(200, { ok: true, patient: { ...calls[0].body, items: [...calls[0].body.items, { id: 'x9', type: 'o', text: '別の端末のカード' }] } }));
   await sending;
   const texts = A.items.map(i => i.text);
@@ -110,7 +105,7 @@ test('②通信中に編集が無ければ、サーバーの結果をそのま�
   A.items = [{ id: 'c1', type: 'o', text: '元' }];
   h.schedulePatientSync('A');
   const first = h.syncPatientToServer('A');
-  h.syncPatientToServer('A'); // 通信中にもう一度 → 待たされる
+  h.syncPatientToServer('A');
   assert.equal(calls.length, 1, '通信中は2本目を送らない');
   calls[0].resolve(reply(200, { ok: true, patient: { ...calls[0].body, items: [{ id: 'c1', type: 'o', text: '元' }, { id: 'x1', type: 'o', text: '他端末' }] } }));
   await first;
@@ -132,7 +127,7 @@ test('③保存に失敗（500・ok:false）したら未保存のまま残し、
   assert.ok(h.unsyncedPatientIds.has('A'));
   assert.ok(timers.some(t => t.ms === 3000), '3秒後に送り直す');
   const p2 = h.syncPatientToServer('A');
-  calls[1].resolve(reply(200, { ok: false, error: 'disk full' })); // 200でも ok:false は失敗
+  calls[1].resolve(reply(200, { ok: false, error: 'disk full' }));
   await p2;
   assert.ok(h.unsyncedPatientIds.has('A'));
   assert.ok(timers.some(t => t.ms === 10000), '次は10秒後');
@@ -151,7 +146,7 @@ test('③別の端末で完全に削除された患者（410）は、この端�
   assert.ok(!st.patients.some(p => p.id === 'B'));
   assert.ok(h.deletedPatientIds.has('B'));
   assert.equal(h.DOM.sourceText.value, 'Aの本文（編集中）', '表示中の患者Aはそのまま');
-  // 削除した患者は、もう送らない
+
   h.schedulePatientSync('B');
   await h.syncPatientToServer('B');
   assert.equal(calls.length, 1);

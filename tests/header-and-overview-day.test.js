@@ -1,7 +1,5 @@
 'use strict';
-// 利用者からの要望：
-//  1. 「UIがごちゃごちゃしすぎている」→ ヘッダーは「書き出し」と「︙」メニューにまとめる（ボタンのidはそのまま）
-//  2. 「一覧表示後も日時で分かりやすく区切られたほうがいい」→ カード一覧は既定で日時ごとの帯で区切る
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -23,7 +21,6 @@ test('ヘッダー：テキスト書き出し・PDF書き出し・ダークモ�
   assert.match(app, /function closeHeaderMenus/);
 });
 
-// 利用者からの要望：「左上のカルテページが増えるたびにごちゃごちゃする」
 test('カルテの切り替えは今のカルテの名前のボタン1つ＋一覧（検索・新しいページ・すべてのページ）', () => {
   const header = html.slice(html.indexOf('<header'), html.indexOf('</header>'));
   const menu = header.slice(header.indexOf('id="patient-menu"'), header.indexOf('<!-- 【UIの見直し】'));

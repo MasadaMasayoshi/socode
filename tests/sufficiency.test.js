@@ -1,5 +1,5 @@
 'use strict';
-// 総合アセスメント表：14項目ごとの充足・未充足（入院前・入院後・全体）
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');
@@ -54,7 +54,7 @@ test('入院前／入院後を分けて判定し、正常所見が十分ある�
   assert.equal(app.getSufficiency(cp, 13, 'pre'), 'met');
   assert.equal(app.getSufficiency(cp, 13, 'post'), 'unmet');
   assert.equal(app.getSufficiency(cp, 11, 'pre'), 'met');
-  assert.equal(app.getSufficiency(cp, 12, 'post'), ''); // 情報不足は情報不足
+  assert.equal(app.getSufficiency(cp, 12, 'post'), '');
   assert.match(app.sufficiencyTextOf(cp, 13), /入院前：充足／術前：情報不足／術後：未充足/);
 });
 
@@ -106,7 +106,7 @@ test('今の状態を優先し、言葉だけでは充足にしない：絶飲�
     mk('k', 'ADL:全て自立', '入院前', [4], 'preadmission')
   ] };
   assert.equal(app.getSufficiency(cp, 2, 'pre'), 'unmet');
-  // 治療上の制限（絶飲食・留置カテーテル・床上安静）は、それだけでは未充足にしない（判定保留にして、自立度・症状の確認を促す）
+
   assert.equal(app.phaseVerdictOf(cp, 2, 'post'), 'conflict');
   assert.equal(app.getSufficiency(cp, 2, 'post'), '');
   assert.equal(app.getSufficiency(cp, 3, 'pre'), 'met');
@@ -116,14 +116,14 @@ test('今の状態を優先し、言葉だけでは充足にしない：絶飲�
   assert.equal(app.getSufficiency(cp, 1, 'post'), 'unmet');
   assert.match(app.judgeSufficiencyByRules(cp)[1].post.reason, /酸素|湿性咳嗽/);
   assert.doesNotMatch(app.judgeSufficiencyByRules(cp)[1].post.reason, /ボール/);
-  // 絶飲食のあとに食事の再開が書かれていれば、制限は終わったと見る
+
   cp.items.push(mk('l', '流動食を開始、全量摂取', '術後2日目', [2], 'postadmission'));
   assert.notEqual(app.getSufficiency(cp, 2, 'post'), 'unmet');
-  // 「できる」「大丈夫」「分かりました」の発言・疑問は、できている証拠にしない
+
   assert.equal(app.sufficiencyCardVerdict({ text: '「痛かったら、これ、自分でできるかな？」と話す' }, 4).v, '');
   assert.equal(app.sufficiencyCardVerdict({ text: '挿入部を数えると「分かりました」と話す' }, 3).v, '');
   assert.equal(app.sufficiencyCardVerdict({ text: '挿入部異常なし' }, 3).v, '');
-  // 記録が無い欲求は「情報不足」と明示して出す
+
   assert.equal(app.sufficiencyTextOf(cp, 6), '入院前：情報不足／術前：情報不足／術後：情報不足');
 });
 
