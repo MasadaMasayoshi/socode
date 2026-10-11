@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-10.znavigation17'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-11.status-simple9'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -194,7 +194,7 @@
         const rule = buildLabAssessment(cp);
         if (rule.has) {
           DOM.labEvalContent.innerHTML = rule.html;
-          if (typeof refreshAiResults === 'function') refreshAiResults(true);
+
           showToast('検査値の評価を表示しました（AIなし）。要確認の値は原本で確かめてください', 'success');
           return;
         }
@@ -1767,5 +1767,5 @@
       const html = labAssessmentHtmlFor(cp);
       if (DOM.labEvalContent.innerHTML !== html) DOM.labEvalContent.innerHTML = html;
       const hide = !html;
-      if (panel.classList.contains('hidden') !== hide) { panel.classList.toggle('hidden', hide); if (typeof refreshAiResults === 'function') refreshAiResults(true); }
+      if (panel.classList.contains('hidden') !== hide) panel.classList.toggle('hidden', hide);
     };

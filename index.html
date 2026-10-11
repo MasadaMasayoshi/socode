@@ -6,15 +6,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="2026-10-11.status-panel8">
-  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-10.znavigation17,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-11.desktop-arrows,06:2026-10-11.status-panel8,07:2026-10-10.znavigation17,08:2026-10-10.znavigation17,09:2026-10-11.status-panel8,10:2026-10-10.znavigation17,11:2026-10-11.status-inline7,12:2026-10-11.status-panel8,13:2026-10-10.znavigation17,14:2026-10-10.znavigation17,15:2026-10-11.quiet-plans4">
+  <meta name="app-version" content="2026-10-11.status-simple9">
+  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-10.znavigation17,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-11.status-simple9,06:2026-10-11.status-panel8,07:2026-10-10.znavigation17,08:2026-10-11.status-simple9,09:2026-10-11.status-panel8,10:2026-10-10.znavigation17,11:2026-10-11.status-inline7,12:2026-10-11.status-panel8,13:2026-10-10.znavigation17,14:2026-10-10.znavigation17,15:2026-10-11.quiet-plans4">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=2026-10-11.status-panel8">
+  <link rel="stylesheet" href="style.css?v=2026-10-11.status-simple9">
 
   <link rel="stylesheet" href="vendor/tailwind.css?v=2026-10-06.14">
   <script>
@@ -84,38 +84,18 @@
           <i class="fa-solid fa-moon"></i>
         </button>
         <div class="hdr-menu-wrap">
-          <button class="icon-btn-lg" data-menu-toggle="more-menu" aria-haspopup="true" aria-expanded="false" title="保存・読込・API設定・学習データ管理">
+          <button class="icon-btn-lg" data-menu-toggle="more-menu" aria-haspopup="true" aria-expanded="false" title="原文・保存・設定" aria-label="その他の操作">
             <i class="fa-solid fa-ellipsis-vertical"></i>
           </button>
           <div id="more-menu" class="hdr-menu hidden" role="menu">
             <button type="button" id="btn-manual-review" class="hdr-menu-item" role="menuitem" onclick="openNursingManualReview()">
-              <i class="fa-solid fa-file-lines"></i><span>原文確認・本文編集<small>原文の照合・本文編集の取り消し</small></span>
+              <i class="fa-solid fa-file-lines"></i><span>原文を確認・編集</span>
             </button>
-            <button id="btn-save-data" class="hdr-menu-item" role="menuitem">
-              <i class="fa-solid fa-floppy-disk"></i><span>データをファイルに保存<small>.json（バックアップ）</small></span>
+            <button type="button" id="btn-data-tools" class="hdr-menu-item" role="menuitem" onclick="document.getElementById('data-tools').showModal()">
+              <i class="fa-solid fa-floppy-disk"></i><span>保存・復元</span>
             </button>
-            <button type="button" class="hdr-menu-item" role="menuitem" onclick="restoreImportCheckpoint()">
-              <i class="fa-solid fa-clock-rotate-left"></i><span>読込前の控えを読み込む<small>置換する内容を確認して復元</small></span>
-            </button>
-            <label for="input-load-data" class="hdr-menu-item cursor-pointer" role="menuitem">
-              <i class="fa-solid fa-folder-open"></i><span>ファイルから読込<small>保存した .json</small></span>
-              <input type="file" id="input-load-data" accept=".json" class="hidden">
-            </label>
-            <div class="hdr-menu-sep"></div>
-            <button id="btn-toggle-font" class="hdr-menu-item" role="menuitem" onclick="toggleAppFont()">
-              <i class="fa-solid fa-font"></i><span>文字の書体：<b id="font-current-label">明朝</b><small>明朝（Noto Serif JP）とゴシック（IBM Plex Sans JP）を切り替え。初期表示はPCがゴシック、スマホが明朝。</small></span>
-            </button>
-            <button type="button" class="hdr-menu-item" role="menuitem" onclick="openDrugInfo(null)">
-              <i class="fa-solid fa-capsules"></i><span>薬の情報<small>記録に出てくる薬・名前で探す</small></span>
-            </button>
-            <a href="clinical-knowledge/index.html" target="_blank" rel="noopener noreferrer" class="hdr-menu-item" role="menuitem" title="承認記録のある看護知識候補と根拠資料を閲覧">
-              <i class="fa-solid fa-book-medical"></i><span>看護知識資料集<small>29件の出典・適用条件・注意事項</small></span>
-            </a>
             <button id="btn-open-settings" class="hdr-menu-item" role="menuitem">
-              <i class="fa-solid fa-gear"></i><span>API設定</span>
-            </button>
-            <button id="btn-open-admin" class="hdr-menu-item" role="menuitem" title="学習内容・データの管理（パスワードが必要です）">
-              <i class="fa-solid fa-user-shield"></i><span>学習データ管理<small>パスワードが必要です</small></span>
+              <i class="fa-solid fa-gear"></i><span>設定</span>
             </button>
           </div>
         </div>
@@ -308,41 +288,6 @@
         </div>
       </div>
 
-      <div id="ai-results" class="ai-results hidden">
-        <div id="ai-results-tabs" hidden></div>
-
-      <div id="lab-evaluation-panel" class="ai-panel hidden bg-[var(--accent-soft)] border border-[var(--accent-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
-        <button type="button" class="ai-panel-head" onclick="toggleAiPanel(this)" aria-expanded="false" style="color:var(--accent-dark);"><i class="fa-solid fa-microscope"></i><span class="ai-panel-title">検査データ臨床評価</span><span class="ai-panel-summary"></span><span class="ai-panel-toggle">詳細を開く</span></button>
-        <div id="lab-evaluation-content" class="ai-panel-body text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--accent-line)] min-h-[50px]">
-        </div>
-        <details class="ai-note"><summary><i class="fa-solid fa-circle-info"></i> AIの参考案です。根拠を確認し、最終判断は医療従事者が行ってください</summary><p>AIや簡易チェックの結果は臨床判断の代替にはなりません。基準値は施設・検査法で異なることがあります。最終評価は必ず医療従事者が行ってください。</p></details>
-      </div>
-
-      <div id="contradiction-panel" class="ai-panel hidden bg-[var(--gold-soft)] border border-[var(--gold-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
-        <button type="button" class="ai-panel-head" onclick="toggleAiPanel(this)" aria-expanded="false" style="color:var(--gold);"><i class="fa-solid fa-triangle-exclamation"></i><span class="ai-panel-title">S/O矛盾チェック（AI）</span><span class="ai-panel-summary"></span><span class="ai-panel-toggle">詳細を開く</span></button>
-        <div id="contradiction-content" class="ai-panel-body text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--gold-line)] min-h-[40px]"></div>
-        <details class="ai-note"><summary><i class="fa-solid fa-circle-info"></i> AIの参考案です。根拠を確認し、最終判断は医療従事者が行ってください</summary><p>指摘は、記録の中の食い違いに気づくきっかけとして使ってください。実際に食い違っているかは、元の記録と患者さんの状態で確かめてください。</p></details>
-      </div>
-
-      <div id="diagnosis-panel" class="ai-panel hidden bg-[var(--slate-soft)] border border-[var(--slate-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
-        <button type="button" class="ai-panel-head" onclick="toggleAiPanel(this)" aria-expanded="false" style="color:var(--slate);"><i class="fa-solid fa-clipboard-list"></i><span class="ai-panel-title">看護診断候補（AI）</span><span class="ai-panel-summary"></span><span class="ai-panel-toggle">詳細を開く</span></button>
-        <div id="diagnosis-content" class="ai-panel-body text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--slate-line)] min-h-[40px]"></div>
-        <details class="ai-note"><summary><i class="fa-solid fa-circle-info"></i> AIの参考案です。根拠を確認し、最終判断は医療従事者が行ってください</summary><p>看護診断の決定・優先順位付けは、自分のアセスメントと根拠をもとに行ってください。</p></details>
-      </div>
-
-      <div id="timeline-panel" class="ai-panel hidden bg-[var(--accent-soft)] border border-[var(--accent-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
-        <button type="button" class="ai-panel-head" onclick="toggleAiPanel(this)" aria-expanded="false" style="color:var(--accent-dark);"><i class="fa-solid fa-clock-rotate-left"></i><span class="ai-panel-title">経時変化サマリー（AI）</span><span class="ai-panel-summary"></span><span class="ai-panel-toggle">詳細を開く</span></button>
-        <div id="timeline-content" class="ai-panel-body text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--accent-line)] min-h-[40px]"></div>
-        <details class="ai-note"><summary><i class="fa-solid fa-circle-info"></i> AIの参考案です。根拠を確認し、最終判断は医療従事者が行ってください</summary><p>まとめに抜けや読み違いがないか、元のカードと照らし合わせて確かめてください。</p></details>
-      </div>
-
-      <div id="careplan-panel" class="ai-panel hidden bg-[var(--brick-soft)] border border-[var(--brick-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
-        <button type="button" class="ai-panel-head" onclick="toggleAiPanel(this)" aria-expanded="false" style="color:var(--brick);"><i class="fa-solid fa-notes-medical"></i><span class="ai-panel-title">看護計画の叩き台（AI）</span><span class="ai-panel-summary"></span><span class="ai-panel-toggle">詳細を開く</span></button>
-        <div id="careplan-content" class="ai-panel-body text-xs text-[var(--ink)] leading-relaxed bg-[var(--surface)] p-3 rounded-[var(--radius-sm)] border border-[var(--brick-line)] min-h-[40px]"></div>
-        <details class="ai-note"><summary><i class="fa-solid fa-circle-info"></i> AIの参考案です。根拠を確認し、最終判断は医療従事者が行ってください</summary><p>個別性を踏まえて書き直し、「看護計画」タブで自分の計画として管理してください（「AIの結果から取り込む」で取り込めます）。</p></details>
-      </div>
-      </div><!-- /ai-results -->
-
       <div id="missing-check-summary" class="mc-summary hidden"></div>
       <div id="assessment-need-nav" class="need-nav" role="group" aria-label="基本的欲求の切り替え"></div>
 
@@ -384,6 +329,10 @@
       </div>
       <p class="text-[11px] text-[var(--ink-muted)] leading-relaxed">分類したカードから、検査値とバイタルサインを日時ごとに並べています。<span class="lt-legend lt-high">↑</span>は基準より高い値、<span class="lt-legend lt-low">↓</span>は低い値です（バイタルサインは一般的な目安で判定）。値を押すと、分類ボードの元のカードを表示します。</p>
       <div id="clinical-indices" class="clinical-indices hidden"></div>
+      <details id="lab-evaluation-panel" class="lab-evaluation hidden">
+        <summary>検査値の評価</summary>
+        <div id="lab-evaluation-content"></div>
+      </details>
       <div id="lab-trend-table-wrap" class="lab-trend-wrap"></div>
     </div>
 
@@ -498,6 +447,7 @@
           <button type="button" class="btn btn-outline" onclick="openDrugInfo(null)" title="記録に出てくる薬の情報（分類・使い道・看護で観ること）と、最新の添付文書へのリンク">
             <i class="fa-solid fa-capsules"></i> 薬の情報
           </button>
+          <a href="clinical-knowledge/index.html" target="_blank" rel="noopener noreferrer" class="btn btn-outline">看護知識資料集</a>
           <button id="btn-reference-ocr" class="btn btn-outline">
             <i class="fa-solid fa-camera"></i> 画像から読み込む
             <input type="file" id="reference-ocr-input" accept="image/*" class="hidden">
@@ -806,13 +756,16 @@
   </div>
 
   <div id="modal-settings" class="hidden fixed inset-0 z-[60] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
-    <div class="modal-surface max-w-md w-full p-5 flex flex-col gap-4">
+    <div class="modal-surface settings-surface max-w-md w-full p-5 flex flex-col gap-4">
       <div class="flex items-center justify-between border-b border-[var(--line-soft)] pb-2">
         <h3 class="font-display font-semibold text-sm text-[var(--ink)] flex items-center">
           <i class="fa-solid fa-key text-[var(--accent)] mr-2 text-xs"></i> 設定
         </h3>
         <button id="btn-close-settings" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
       </div>
+      <button type="button" id="btn-toggle-font" class="settings-action" onclick="toggleAppFont()">書体 <b id="font-current-label">明朝</b> <span>切り替え</span></button>
+      <button type="button" id="btn-open-admin" class="settings-action" onclick="document.getElementById('modal-settings').classList.add('hidden')">学習データ管理 <span>パスワードが必要です</span></button>
+      <details id="settings-ocr" class="settings-detail"><summary>画像の読み取り設定</summary>
       <div>
         <label class="block text-xs font-medium text-[var(--ink)] mb-1">Gemini API Key</label>
         <input type="password" id="input-api-key" class="field font-mono mb-1" placeholder="AQ.… または AIza…" autocomplete="off" spellcheck="false">
@@ -838,13 +791,10 @@
         <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed mt-1">AIに送る前に、ここの語句と、氏名・学籍番号・病院名・電話番号・「〇〇さん」などの個人情報らしい語句を自動で〈伏せ字〉にします。AIの答えは元の語句に戻して表示します。ここの語句はこのブラウザだけに保存されます。</p>
         <button type="button" onclick="previewAiMasking()" class="btn btn-outline text-[11px] py-1 mt-1.5"><i class="fa-solid fa-eye"></i> 今の文章で伏せ字を確認</button>
       </div>
-      <div class="border-t border-[var(--line-soft)] pt-3">
-        <p class="text-[10px] text-[var(--ink-muted)]"><i class="fa-solid fa-circle-info"></i> 分類基準への追加の要望は、「学習データ管理」画面（パスワード保護）の「分類基準」タブから追加・編集できます。</p>
-      </div>
-      <div class="border-t border-[var(--line-soft)] pt-3">
-        <label class="block text-xs font-medium text-[var(--brick)] mb-1">学習データのリセット</label>
+      </details>
+      <details class="settings-detail"><summary>学習内容のリセット</summary>
         <button onclick="resetLearningData()" class="btn btn-danger-ghost border border-[var(--brick-soft)]">このブラウザの学習内容を消去</button>
-      </div>
+      </details>
       <div class="flex justify-end gap-2 pt-2 border-t border-[var(--line-soft)] mt-2">
         <button id="btn-save-settings" class="btn btn-primary">保存</button>
       </div>
@@ -1045,7 +995,7 @@
           <ul>
             <li>書いた内容はまず<b>このブラウザ</b>に保存し、続けて<b>共有先（サーバー）</b>にも保存します。画面右上の表示で状態が分かります：「このブラウザに保存済み」「共有先に保存済み」「共有先への保存に失敗（押すと再送）」。</li>
             <li>共有先に保存できないときも、このブラウザには残っています。自動で送り直すほか、表示を押すとすぐ送り直します。</li>
-            <li>AI（Gemini）の機能は、右上の「︙」→「API設定」でキーを入れたときだけ使えます。キーが無くても、分類（AIなし）・手直し・アセスメント・看護計画・書き出しはすべて使えます。</li>
+            <li>AI（Gemini）の機能は、右上の「︙」→「設定」→「画像の読み取り設定」でキーを入れたときだけ使えます。キーが無くても、分類（AIなし）・手直し・アセスメント・看護計画・書き出しはすべて使えます。</li>
             <li>画像OCRの読取結果は必ず原画像と照合してください。画像は送信前に個人を特定できる情報を除いてください。</li>
           </ul>
         </section>
@@ -1259,6 +1209,17 @@
 
   <div id="toast-container" class="toast-container fixed z-[70] flex flex-col gap-2 pointer-events-none" aria-live="polite"></div>
 
+    <dialog id="data-tools" class="utility-dialog" aria-labelledby="data-tools-title">
+      <div class="manual-review-heading"><strong id="data-tools-title">保存・復元</strong><button type="button" class="btn btn-outline" onclick="this.closest('dialog').close()">閉じる</button></div>
+      <p>データをファイルに保存し、必要なときに読み込めます。</p>
+      <div class="data-tools-actions">
+        <button type="button" id="btn-save-data" class="btn btn-primary" onclick="this.closest('dialog').close()">ファイルに保存</button>
+        <button type="button" id="btn-load-data" class="btn btn-outline" onclick="this.closest('dialog').close(); document.getElementById('input-load-data').click()">ファイルを読み込む</button>
+        <button type="button" id="btn-restore-import" class="btn btn-outline" onclick="this.closest('dialog').close(); restoreImportCheckpoint()">読込前の状態に戻す</button>
+      </div>
+      <input type="file" id="input-load-data" accept=".json" hidden>
+    </dialog>
+
     <dialog id="nursing-manual-review" aria-labelledby="nursing-manual-review-title">
       <div class="manual-review-heading"><strong id="nursing-manual-review-title">原文確認・本文編集</strong><button type="button" class="btn btn-outline" onclick="this.closest('dialog').close()">閉じる</button></div>
       <div style="display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap">
@@ -1286,10 +1247,10 @@
   <script src="js/02-reference-data.js?v=2026-10-10.znavigation17"></script>
   <script src="js/03-extraction-helpers.js?v=2026-10-10.znavigation17"></script>
   <script src="js/04-server-sync.js?v=2026-10-10.znavigation17"></script>
-  <script src="js/05-app-state-and-ui.js?v=2026-10-11.desktop-arrows"></script>
+  <script src="js/05-app-state-and-ui.js?v=2026-10-11.status-simple9"></script>
   <script src="js/06-export.js?v=2026-10-11.status-panel8"></script>
   <script src="js/07-classification.js?v=2026-10-10.znavigation17"></script>
-  <script src="js/08-assessment-tools.js?v=2026-10-10.znavigation17"></script>
+  <script src="js/08-assessment-tools.js?v=2026-10-11.status-simple9"></script>
   <script src="js/09-board.js?v=2026-10-11.status-panel8"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-10.znavigation17"></script>
   <script src="js/11-own-assessment.js?v=2026-10-11.status-inline7"></script>

@@ -14,7 +14,7 @@ test('non-image Gemini requests are rejected at common entry point', () => {
 test('AI analysis results remain hidden, non-AI checks and OCR remain available', () => {
   const source = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.doesNotMatch(source, /id="ai-steps"/);
-  assert.match(source, /id="ai-results" class="ai-results hidden"/);
+  assert.doesNotMatch(source, /id="ai-results(?:-tabs)?"/);
   assert.match(source, /id="ocr-dropzone"/);
 });
 
@@ -24,12 +24,11 @@ test('rules-based laboratory results can display, former AI results cannot', () 
   const root = path.join(__dirname, '..');
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   const source = fs.readFileSync(path.join(root, 'js/05-app-state-and-ui.js'), 'utf8');
-  assert.ok(html.includes('id="ai-results" class="ai-results hidden"'));
-  assert.ok(!html.includes('id="ai-results" class="ai-results hidden" hidden'));
-  const tabs = source.split('const AI_RESULT_TABS = [')[1].split('];')[0];
-  assert.ok(tabs.includes("'lab-evaluation-panel'"));
+  assert.match(html, /<details id="lab-evaluation-panel" class="lab-evaluation hidden">/);
+  assert.ok(html.indexOf('id="lab-evaluation-panel"') > html.indexOf('id="view-labs"'));
+  assert.doesNotMatch(source, /AI_RESULT_TABS|aiResultsActive|showAiResult|refreshAiResults/);
   for (const panel of ['contradiction-panel', 'diagnosis-panel', 'timeline-panel', 'careplan-panel']) {
-    assert.ok(!tabs.includes("'" + panel + "'"), 'obsolete AI tab must not reappear: ' + panel);
+    assert.ok(!html.includes('id="' + panel + '"'), 'obsolete AI panel must not reappear: ' + panel);
   }
 });
 
