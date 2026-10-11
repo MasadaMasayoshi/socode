@@ -1,7 +1,7 @@
 // Startup, references and image OCR. Validate image MIME/size; capture patient before async prompts.
 // Reference notes are not automatic classification rules; file versions detect mixed/reverted assets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-10-10.znavigation17'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-10-11.usability-context12'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -107,16 +107,10 @@
       reader.readAsDataURL(file);
     }
 
-    document.getElementById('btn-save-data').addEventListener('click', () => {
+    document.getElementById('btn-save-data').addEventListener('click', async () => {
       saveDataAndSync();
-      const a = document.createElement('a');
-
       const backup = { schemaVersion: 1, exportedAt: new Date().toISOString(), patients: globalAppData.patients, currentPatientId: globalAppData.currentPatientId, learningUserDict: globalAppData.learningUserDict };
-      a.href = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
-      a.download = `nursing_assessment_all_patients_${Date.now()}.json`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-      showToast('全患者データを保存しました', 'success');
+      if (await downloadTextBlob(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }), `nursing_assessment_all_patients_${Date.now()}.json`)) showToast('全患者データを保存しました', 'success');
     });
 
     // ==========================================================================
@@ -255,13 +249,7 @@
           showToast('読込前の控えを保存できません。容量を確認してください。今のカルテは置き換えていません', 'warn');
           return false;
         }
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' }));
-        link.download = 'nursing_before_import_' + Date.now() + '.json';
-        document.body.append(link);
-        link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+        if (!(await downloadTextBlob(new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' }), 'nursing_before_import_' + Date.now() + '.json'))) return false;
         showToast('置換前のバックアップを保存してください', 'warn');
       }
       const byId = new Map(data.patients.map(p => [p.id, p]));
@@ -385,7 +373,7 @@
         confirmLabel: '消去する', danger: true, secondaryLabel: '書き出してから消去'
       });
       if (choice !== true && choice !== 'secondary') return;
-      if (choice === 'secondary' && !exportLearningData()) return;
+      if (choice === 'secondary' && !(await exportLearningData())) return;
       const old = globalAppData.learningUserDict;
       globalAppData.learningUserDict = {};
       saveDataAndSync();
@@ -398,44 +386,76 @@
     ocrDropzone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ocrFileInput.click(); } });
     ocrDropzone.addEventListener('dragover', e => { e.preventDefault(); ocrDropzone.classList.add('drag-over'); });
     ocrDropzone.addEventListener('dragleave', () => ocrDropzone.classList.remove('drag-over'));
-    ocrDropzone.addEventListener('drop', e => { e.preventDefault(); ocrDropzone.classList.remove('drag-over'); if(e.dataTransfer.files[0]) doOcr(e.dataTransfer.files[0]); });
-    ocrFileInput.addEventListener('change', e => { const file = e.target.files[0]; e.target.value = ''; if (file) doOcr(file); });
+    ocrDropzone.addEventListener('drop', e => { e.preventDefault(); ocrDropzone.classList.remove('drag-over'); doOcrBatch(Array.from(e.dataTransfer.files)); });
+    ocrFileInput.addEventListener('change', e => { const files = Array.from(e.target.files); e.target.value = ''; doOcrBatch(files); });
 
-    async function doOcr(file) {
-      // Validate before opening credentials or reading an image; retain the initiating patient.
+    let ocrBatchBusy = false;
+    async function doOcrBatch(files) {
+      if (!files.length) return;
+      if (ocrBatchBusy) return showToast('画像の読み取りが終わるまでお待ちください', 'info');
+      const valid = files.filter(f => /^image\/(?:jpeg|png|webp|gif)$/i.test(f.type || '') && f.size > 0 && f.size <= 10 * 1024 * 1024);
+      if (!valid.length) return showToast('10MB以下のJPEG・PNG・WebP・GIFの画像を選んでください', 'warn');
+      if (valid.length !== files.length) showToast('形式・サイズに対応していない画像を除いて読み取ります', 'warn');
+      const patientId = getCurrentPatient().id;
+      ocrBatchBusy = true;
+      ocrFileInput.disabled = true;
+      let completed = 0;
+      try {
+        if (!(await requireApiKey('写真の文字起こし'))) return;
+        for (let i = 0; i < valid.length; i++) {
+          document.getElementById('ocr-status-text').textContent = `${i + 1} / ${valid.length}枚目を読み取り中：${valid[i].name || ''}`;
+          if (await doOcr(valid[i], { patientId, skipCredentials: true, batch: true })) completed++;
+        }
+        showToast(`${completed} / ${valid.length}枚の読み取りが完了しました。原画像と記録メモを照合してください`, completed === valid.length ? 'success' : 'warn');
+      } finally {
+        ocrBatchBusy = false;
+        ocrFileInput.disabled = false;
+        document.getElementById('ocr-status').classList.add('hidden');
+      }
+    }
+    async function doOcr(file, options = {}) {
+      // Validate before credentials and retain the patient across all asynchronous steps.
       if (!file || !/^image\/(?:jpeg|png|webp|gif)$/i.test(file.type || '')) return showToast('JPEG・PNG・WebP・GIFの画像を選んでください', 'warn');
       if (!file.size || file.size > 10 * 1024 * 1024) return showToast('画像は空でない10MB以下のファイルを選んでください', 'warn');
-      const ocrPatientId = getCurrentPatient().id;
-      if (!(await requireApiKey('写真の文字起こし'))) return;
+      const ocrPatientId = options.patientId || getCurrentPatient().id;
+      if (!options.skipCredentials && !(await requireApiKey('写真の文字起こし'))) return false;
       document.getElementById('ocr-status').classList.remove('hidden');
-      const reader = new FileReader();
-
-      reader.onerror = reader.onabort = () => {
-        document.getElementById('ocr-status').classList.add('hidden');
-        showToast('画像を読み込めませんでした。元の記録は変更していません。画像を選び直してください', 'error');
-      };
-      reader.onload = async e => {
-        try {
-          const ocrText = await callGeminiAI([{ parts: [{ text: "Transcribe all clinical notes and laboratory results in the image verbatim, in their original language. Return text only." }, { inline_data: { mime_type: file.type || "image/jpeg", data: e.target.result.split(',')[1] } }] }], { ocr: true });
-          if (!ocrText) throw new Error('文字起こし結果が空でした');
-          const target = globalAppData.patients.find(p => p.id === ocrPatientId);
-          if (!target) throw new Error('文字起こしを頼んだ患者が見つかりません（削除された可能性があります）');
-          if (getCurrentPatient().id === ocrPatientId) {
-            DOM.sourceText.value += (DOM.sourceText.value ? '\n' : '') + ocrText;
-          } else {
-            target.sourceText = (target.sourceText || '') + (target.sourceText ? '\n' : '') + ocrText;
-            target.updatedAt = new Date().toISOString();
-            if (typeof schedulePatientSync === 'function') schedulePatientSync(target.id);
-            showToast(`文字起こしの結果を「${target.title || '頼んだ患者'}」の入力欄に足しました`, 'info');
+      return new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onerror = reader.onabort = () => {
+          showToast('画像を読み込めませんでした。元の記録は変更していません。画像を選び直してください', 'error');
+          if (!options.batch) document.getElementById('ocr-status').classList.add('hidden');
+          resolve(false);
+        };
+        reader.onload = async e => {
+          try {
+            const ocrText = await callGeminiAI([{ parts: [{ text: "Transcribe all clinical notes and laboratory results in the image verbatim, in their original language. Return text only." }, { inline_data: { mime_type: file.type || "image/jpeg", data: e.target.result.split(',')[1] } }] }], { ocr: true });
+            if (!ocrText) throw new Error('文字起こし結果が空でした');
+            const target = globalAppData.patients.find(p => p.id === ocrPatientId);
+            if (!target) throw new Error('文字起こしを頼んだ患者が見つかりません（削除された可能性があります）');
+            if (getCurrentPatient().id === ocrPatientId) {
+              DOM.sourceText.value += (DOM.sourceText.value ? '\n' : '') + ocrText;
+            } else {
+              target.sourceText = (target.sourceText || '') + (target.sourceText ? '\n' : '') + ocrText;
+              target.updatedAt = new Date().toISOString();
+              if (typeof schedulePatientSync === 'function') schedulePatientSync(target.id);
+              showToast(`文字起こしの結果を「${target.title || '頼んだ患者'}」の入力欄に足しました`, 'info');
+            }
+            saveDataAndSync();
+            if (typeof updateSourceEditorCount === 'function') updateSourceEditorCount();
+            if (!options.batch) {
+              document.getElementById('ocr-status-text').innerHTML = '<i class="fa-solid fa-check"></i> 完了';
+              setTimeout(() => document.getElementById('ocr-status').classList.add('hidden'), 2000);
+            }
+            resolve(true);
+          } catch (err) {
+            showAiErrorToast('写真の文字起こし（OCR）に失敗しました。', err);
+            if (!options.batch) document.getElementById('ocr-status').classList.add('hidden');
+            resolve(false);
           }
-          saveDataAndSync(); document.getElementById('ocr-status-text').innerHTML = '<i class="fa-solid fa-check"></i> 完了';
-          setTimeout(() => document.getElementById('ocr-status').classList.add('hidden'), 2000);
-        } catch (err) {
-          showAiErrorToast('写真の文字起こし（OCR）に失敗しました。', err);
-          document.getElementById('ocr-status').classList.add('hidden');
-        }
-      };
-      reader.readAsDataURL(file);
+        };
+        reader.readAsDataURL(file);
+      });
     }
 
     function captureAndSendPatientSnapshot(useBeacon) {
@@ -633,12 +653,13 @@ if (typeof module !== 'undefined' && module.exports) {
     buildExportPlainText, htmlToPlainText, isUntouchedAiMissing, cleanAiText, notifyLostAiRequests, cardTextWithLabFlagsHtml, resetCardLabFlags, detectAgeGroupFromText,
     buildExportBodyHtml,
     findSourceHighlightRanges,
-    buildSelectedCardsExportText, buildReviewRequestText, reviewRequestTargets, isEditedCard,
+    buildSelectedCardsExportText, buildReviewRequestText, reviewRequestTargets, isEditedCard, downloadTextBlob, chooseExportFile, clinicalCardDuplicateKey,
     buildAssessmentTableText,
     describeAutoRewrite,
     mergeShortFragmentCards,
     labCategoryTags,
     classifyTextByRules,
+    applyPainContextTags, painContextTagEvidence, painContextClauses,
     maskPersonalInfo,
     restoreMaskedText,
     createMaskContext,

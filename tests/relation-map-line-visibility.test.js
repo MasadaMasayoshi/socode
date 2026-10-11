@@ -29,9 +29,9 @@ test('Bridge clearance masks only the underlying stroke in either paint order', 
     assert.equal(JSON.stringify(map), before);
   }
 });
-test('Treatment lines have stronger strokes and unclipped terminal markers in exports', () => {
+test('All relation types use uniform strokes and unclipped terminal markers in exports', () => {
   const svg = app.relationMapSvg(crossing());
-  assert.match(svg, /stroke="#2563EB" stroke-width="2"[^>]*marker-end="url\(#rm-marker-\d+-arrow-blue\)"/);
+  assert.match(svg, /stroke="#2563EB" stroke-width="1.5"[^>]*marker-end="url\(#rm-marker-\d+-arrow-blue\)"/);
   assert.match(svg, /id="rm-marker-\d+-arrow-blue"[^>]*overflow="visible"/);
   assert.match(svg, /id="rm-marker-\d+-arrow-treat-sel"[^>]*overflow="visible"/);
 });
@@ -57,7 +57,7 @@ test('Screen arrows keep readable stroke and endpoint sizes at fit zoom, includi
     const svg = app.relationMapSvg(crossing(), { interactive, screen: true, zoom });
     assert.equal((svg.match(/vector-effect="non-scaling-stroke"/g) || []).length, 2);
     for (const m of svg.matchAll(/class="rm-marker-([^"]+)"[^>]*markerWidth="([^"]+)"/g)) {
-      assert.ok(Math.abs(Number(m[2]) * zoom - (['arrow-blue', 'arrow-treat-sel'].includes(m[1]) ? 10 : 8)) < 0.001);
+      assert.ok(Math.abs(Number(m[2]) * zoom - 8) < 0.001);
     }
     assert.equal((svg.match(/class="rm-link-hit"/g) || []).length, interactive ? 2 : 0);
   }

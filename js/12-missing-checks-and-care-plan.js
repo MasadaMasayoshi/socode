@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-11.timeline-cards11'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-11.usability-context12'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -115,7 +115,7 @@
       if (!el) return;
       applyUntaggedReviews(cp);
       const counts = missingCheckCounts(cp);
-      const utHtml = untaggedSectionHtml(cp);
+      const utHtml = '';
       if (!counts.total && !utHtml) { el.classList.add('hidden'); el.innerHTML = ''; return; }
       el.classList.remove('hidden');
       const chip = s => `<button type="button" class="mc-filter mc-${s.key}${missingSummaryOpen && missingSummaryFilter === s.key ? ' active' : ''}" onclick="showMissingCheckList('${s.key}')"><i class="fa-solid ${s.icon}"></i>${s.label} <b>${counts[s.key]}</b></button>`;
@@ -230,30 +230,24 @@
       return segs.map(s => ({ text: s, tagIds: Array.from(detectMultipleHendersonTags(s)) })).filter(p => p.tagIds.length);
     }
 
-    const UNTAGGED_EFFECT_RULES = [
-      { id: 5, re: /眠れ|眠れず|睡眠|不眠|夜間覚醒|寝つ|寝れ/, label: '睡眠' },
-      { id: 4, re: /動く|動かす|動け|動き|体位|体動|荷重|移乗|リハ|離床|歩行|歩く|起立|起き|端坐|車椅子|車いす|立位|訓練|可動域|ROM|SLR|運動|ベッド上|床上/, label: '動作・姿勢' },
-      { id: 2, re: /食欲|食事|摂取|昼食|夕食|朝食|嘔気|嘔吐/, label: '食事' },
-      { id: 3, re: /トイレ|排尿|排便|尿|便/, label: '排泄' },
-      { id: 8, re: /清拭|入浴|洗髪|清潔ケア|陰部洗浄/, label: '清潔' },
-      { id: 6, re: /更衣|着替/, label: '更衣' }
-    ];
     function untaggedContextEffects(cp, item) {
       const items = (cp && cp.items) || [];
-      const idx = items.findIndex(i => i.id === item.id);
+      const idx = items.indexOf(item) >= 0 ? items.indexOf(item) : items.findIndex(i => item.id && i.id === item.id);
       if (idx < 0) return [];
-      const near = items.filter((i, k) => i.id !== item.id && !i.deleted && i.type !== 'unnecessary' && item.timestamp && item.timestamp !== '日時不明' && i.timestamp === item.timestamp && Math.abs(k - idx) <= 2);
-      const found = [];
-      UNTAGGED_EFFECT_RULES.forEach(rule => {
-        const hit = near.find(i => {
-          const text = String(i.text || '');
+      const near = items.filter((i, k) => k !== idx && !i.deleted && i.type !== 'unnecessary' && item.timestamp && item.timestamp !== '日時不明' && i.timestamp === item.timestamp && Math.abs(k - idx) <= 2);
+      const found = painContextTagEvidence(items, item);
+      PAIN_EFFECT_RULES.filter(rule => !found.some(e => e.id === rule.id)).forEach(rule => {
+        let evidence = '';
+        near.some(i => painContextClauses(i.text).some(text => {
           if (!rule.re.test(text)) return false;
           const linked = i.sceneId && i.sceneId === item.sceneId;
           const explicitPain = PAIN_TEXT_REGEX.test(text) && !/疼痛増強(?:なし|見られず)|痛みなし|疼痛なし/.test(text);
           const movement = rule.id === 4 && PAIN_SCORE_REGEX.test(item.text) && POSTURE_ACTIVITY_REGEX.test(text);
-          return linked || explicitPain || movement;
-        });
-        if (hit) found.push({ id: rule.id, label: rule.label, evidence: String(hit.text).slice(0, 40) });
+          if (!linked && !explicitPain && !movement) return false;
+          evidence = text;
+          return true;
+        }));
+        if (evidence) found.push({ id: rule.id, label: rule.label, evidence: evidence.slice(0, 40) });
       });
       return found;
     }
@@ -281,7 +275,11 @@
         return set('none', '事務的・管理的な背景情報で、特定のヘンダーソンの基本的欲求との直接の関係が弱い情報です。', UNTAGGED_ADMIN_STRONG_RE.test(text) ? '高' : '中', [], ['支援体制（9.環境）に関わる内容が含まれていないか確認してください']);
       }
       if (/アレルギー/.test(text)) {
-        return set('none', 'アレルギーの有無は、基準では9.環境・薬剤の項目にしない背景情報です（アレルギーがある場合は、その内容を別の項目の根拠として確認します）。', '中', [], ['「あり」の場合は原因物質と症状を確認し、必要な項目に別のカードで記録してください']);
+        if (ALLERGY_ABSENT_REGEX.test(text)) return set('classify', '「アレルギーなし」は分類基準で9.環境に分類します。タグが未設定なら付与漏れです。', '高', [9], ['「アレルギーなし」に9.環境が付くよう分類ルールと分類基準を揃えてください']);
+        return set('none', 'アレルギーがある場合は、原因物質・症状・安全上の対応を確認し、内容に合う項目へ分類します。「アレルギーなし」は9.環境に分類します。', '中', [], ['「あり」の場合は原因物質と症状を確認し、必要な項目に別のカードで記録してください']);
+      }
+      if (/^(?:回診[:：]\s*)?硬膜外(?:麻酔|カテーテル)(?:の)?(?:抜去|中止|終了)[。.]?$/.test(text.trim())) {
+        return set('insufficient', '硬膜外麻酔の抜去・終了という治療経過です。この記載だけでは基本的欲求への影響が判断できないため、タグを付けていません。', '高', [], ['抜去後の痛み・睡眠・動作などへの影響が記録されている場合は、その所見を根拠に分類してください']);
       }
       if (UNTAGGED_PATHOLOGY_RE.test(text)) {
         return set('none', '疾患の分類・病理所見で、患者の学び（理解・学習）の根拠ではありません。「説明すると今後必要になる」だけでは14.学びにしません。臨床背景として残します。', '中', [], ['患者の病状理解や説明への反応が書かれていれば、それを別のカードにして14.学びの根拠にしてください']);
@@ -293,7 +291,7 @@
         const eff = cp ? untaggedContextEffects(cp, item) : [];
         if (eff.length) {
           out.fromContext = true;
-          return set('classify', `痛みの記載そのものには影響先が書かれていませんが、前後の記録から${eff.map(e => `「${e.evidence}」→${e.label}（${e.id}）`).join('、')}に関係すると読み取れます。`, '中', eff.map(e => e.id), ['前後の記録を読み、痛みが本当にその項目に影響しているか確認してから付けてください']);
+          return set('classify', `痛みの記載そのものには影響先が書かれていません。前後の記録の${eff.map(e => `「${e.evidence}」→${e.label}（${e.id}）`).join('、')}が候補ですが、痛みとの関係を確認する必要があります。`, '中', eff.map(e => e.id), ['前後の記録を読み、痛みが本当にその項目に影響しているか確認してから付けてください']);
         }
         return set('insufficient', '痛み・鎮痛薬の記載で、何に影響しているか（睡眠・動作・食事・排泄など）が書かれていないため、基準（痛みは影響している項目へ）に従い、どの項目にも付けていません。9.環境にも付けません。', '高', [], ['痛みで眠れない→5、動くと痛い→4、食事・排泄・清潔への影響→2・3・8のように、影響を確認して別のカードに記録するか、「タグを付ける」で項目を選んでください']);
       }
@@ -679,7 +677,7 @@
           <div class="cp-grid3">${CARE_PLAN_SECTIONS.map(s => field(s.key, `<i class="fa-solid fa-list-ol"></i> ${s.label}`, 5, s.placeholder)).join('')}</div>
           <div class="cp-actions">
             <label class="cp-status-select"><span class="my-asm-label">状態</span><select class="field" onchange="setCarePlanStatus('${pid}', this.value)">${CARE_PLAN_STATUSES.map(s => `<option value="${s.key}"${p.status === s.key ? ' selected' : ''}>${s.label}</option>`).join('')}</select></label>
-            <button type="button" class="btn btn-outline my-asm-btn${carePlanReviewOpen.has(p.id) ? ' active' : ''}" onclick="toggleCarePlanReview('${pid}')" aria-expanded="${carePlanReviewOpen.has(p.id)}" title="目標・OP/TP/EPを7つの項目で確かめます（AIなし）"><i class="fa-solid fa-clipboard-list"></i> 計画をチェック</button>
+            <button type="button" class="btn btn-outline my-asm-btn${carePlanReviewOpen.has(p.id) ? ' active' : ''}" onclick="toggleCarePlanReview('${pid}')" aria-expanded="${carePlanReviewOpen.has(p.id)}" title="目標・OP/TP/EPを7つの項目で確かめます"><i class="fa-solid fa-clipboard-list"></i> 計画をチェック</button>
             <button type="button" class="btn btn-outline my-asm-btn" onclick="regenerateCarePlanUI('${pid}')" title="目標・OP/TP/EPを、いまの看護問題に合わせて作り直します（書いた内容は置き換わります）"><i class="fa-solid fa-rotate"></i> この問題で作り直す</button>
             <button type="button" class="btn btn-primary my-asm-btn" onclick="openCareRecord('${pid}')"><i class="fa-solid fa-plus"></i> 実施・評価を記録</button>
             <button type="button" class="btn btn-outline my-asm-btn cp-delete" onclick="deleteCarePlanUI('${pid}')"><i class="fa-solid fa-trash-can"></i> この計画を消す</button>
@@ -1586,7 +1584,15 @@
     function cpModelOrFallback(cp, p) {
       let m = reviewCarePlan(cp, p).model;
       const dm = !m && cpDomainOf(p);
-      if (dm && dm.op) { const c0 = cpRecordContext(cp); m = { goalLong: '', goalShort: dm.goal ? dm.goal(c0) : '', op: dm.op.slice(0, 5).map(([l]) => `${l}を観察する`), tp: [], ep: [] }; }
+      if (dm && dm.op) {
+        const c0 = cpRecordContext(cp);
+        const topic = dm.op[0]?.[0] || p.problem;
+        const care = (cp.items || []).find(i => !i.deleted && i.type === 'o' && dm.words.test(i.text || '') && /介助|見守|清拭|更衣|練習|ケア.*実施/.test(i.text || '') && !/明日|予定|禁止|中止|抜去|OFF/.test(i.text || ''));
+        m = { goalLong: '', goalShort: dm.goal ? dm.goal(c0) : '', op: dm.op.slice(0, 5).map(([l]) => `${l}を観察する`),
+          tp: [care ? `現在の指示・制限を確認して、記録にある「${care.text}」の援助を行い、実施前後の症状・反応を記録する` : `「${p.problem}」で援助を必要とする場面と本人の希望を確認し、現在の治療・活動上の制限を担当看護師と照合して、本日行う援助の手順・タイミングを決める`, `「${topic}」の変化があったときは、本人の訴えと観察内容を担当看護師に共有し、対応後の反応を確認する`],
+          ep: [`「${topic}」について気になる変化があれば看護師に伝えることを説明し、いつ・どのように知らせるか本人の言葉で確認する`, '実施する援助の目的と現在の注意点を説明し、本人・家族に自分の言葉で言い返してもらい、不明な点を確認する'],
+          fallback: true };
+      }
       if (cpIsRisk(p)) { const g = cpRiskGoalFor(p, cpRecordContext(cp)); m = { goalLong: g.long, goalShort: g.short, op: (m && m.op) || [], tp: (m && m.tp) || [], ep: (m && m.ep) || [] }; }
       return m;
     }
@@ -1692,6 +1698,10 @@
         const auto = ['rules', 'map', 'import', 'ai'].includes(p.source) && !p.userEdited;
         const empty = !p.goalShort && !p.goalLong && !p.op.length && !p.tp.length && !p.ep.length;
         if (auto && (cpPlanIncoherent(p) || (empty && p.validation && p.validation.kind === 'risk'))) { regenerateCarePlanSections(cp, p); regenerated++; }
+        else if (auto && (!p.tp.length || !p.ep.length)) {
+          const model = cpModelOrFallback(cp, p);
+          if (model) ['tp', 'ep'].forEach(k => { if (!p[k].length && model[k]?.length) { p[k] = [...model[k]]; p.reasonNeeded = true; } });
+        }
         else if (!p.genKey && (p.goalShort || p.op.length)) p.genKey = cpPlanKey(p);
 
         if (p.status === 'active' && !p.records.length && ['rules', 'map', 'import', 'ai'].includes(p.source)) p.status = 'planned';
@@ -1916,7 +1926,7 @@
         return `<li class="cpr-item cpr-${it.level}"><div class="cpr-head">${icon(it.level)} <b>${escapeHtml(it.label)}</b>${it.level === 'ok' ? '<span class="cpr-okt">問題なし</span>' : ''}</div>${it.msgs.map(m => `<p>${escapeHtml(m)}</p>`).join('')}${extra}</li>`;
       }).join('');
       const modelHtml = r.model ? cpModelBlockHtml(r.model, 'この看護問題の手本') + `<button type="button" class="my-asm-link" onclick="applyCareModelUI('${pid}')"><i class="fa-solid fa-wand-magic-sparkles"></i> 手本を空欄に入れる（書いてある所はそのまま）</button>` : '';
-      return `<div class="cpr" id="cpr-${pid}"><div class="cpr-title"><i class="fa-solid fa-clipboard-list"></i> 計画のチェック（AIなし）<span class="my-asm-muted">要確認 ${cpReviewCount(r)}件</span></div><ul class="cpr-list">${rows}</ul>${modelHtml}</div>`;
+      return `<div class="cpr" id="cpr-${pid}"><div class="cpr-title"><i class="fa-solid fa-clipboard-list"></i> 計画のチェック<span class="my-asm-muted">要確認 ${cpReviewCount(r)}件</span></div><ul class="cpr-list">${rows}</ul>${modelHtml}</div>`;
     }
 
     const CP_SET_TOPICS = [
@@ -1975,13 +1985,15 @@
       const local = reviewCarePlanSet(cp);
       const group = (title, icon, cls, arr) => arr.length ? `<div class="cps-group ${cls}"><b><i class="fa-solid ${icon}"></i> ${title}</b><ul>${arr.map(x => `<li>${escapeHtml(x.msg || [x.title ? `${x.title}：` : '', x.comment || ''].join(''))}${x.suggestion ? `<span class="cpr-sugg">提案：${escapeHtml(x.suggestion)}</span>` : ''}</li>`).join('')}</ul></div>` : '';
       const n = carePlanList(cp).length;
-      let h = `<div class="cps"><div class="cpr-title"><i class="fa-solid fa-layer-group"></i> 全計画のチェック（AIなし）<span class="my-asm-muted">計画どうしの重複・補完・不足を見ます</span><button type="button" class="my-asm-link" onclick="closeCarePlanSetReview()">閉じる</button></div>`;
+      let h = `<div class="cps"><div class="cpr-title"><i class="fa-solid fa-layer-group"></i> 全計画のチェック<span class="my-asm-muted">計画どうしの重複・補完・不足を見ます</span><button type="button" class="my-asm-link" onclick="closeCarePlanSetReview()">閉じる</button></div>`;
       if (n < 2) h += '<p class="my-asm-muted">計画が2件以上あると、重複や補完を確かめられます。</p>';
       else {
         const any = local.dups.length || local.overlaps.length || local.gaps.length;
         h += group('重複', 'fa-clone', 'warn', [...local.dups, ...local.overlaps]) + group('全体では入っている', 'fa-circle-check', 'ok', local.covered) + group('どの計画にも無い', 'fa-triangle-exclamation', 'warn', local.gaps);
         if (!any) h += '<p class="my-asm-muted">計画どうしの重複・不足は見つかりませんでした。</p>';
       }
+      const actions = carePlanSetNextSteps(cp, local);
+      h += `<div class="cps-next"><h4>次に行うこと</h4><ol>${actions.map(action => `<li>${escapeHtml(action.text)}${action.planId ? ` <button type="button" class="btn btn-outline" onclick="openCarePlanFromReview(${jsArg(action.planId)})">この計画を見直す</button>${action.missing ? ` <button type="button" class="btn btn-outline" onclick="fillMissingCareSectionsUI(${jsArg(action.planId)})">空欄に追記案を入れる</button>` : ''}` : ''}</li>`).join('')}</ol></div>`;
       h += '</div>';
       return h;
     }
@@ -1991,6 +2003,36 @@
     }
     window.openCarePlanSetReview = function() { carePlanSetState.open = true; renderCarePlanSetReview(); const el = document.getElementById('careplan-set-review'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' }); };
     window.closeCarePlanSetReview = function() { carePlanSetState.open = false; renderCarePlanSetReview(); };
+    function carePlanSetNextSteps(cp, review = reviewCarePlanSet(cp)) {
+      const actions = [];
+      carePlanList(cp).forEach(plan => {
+        const missing = ['op', 'tp', 'ep'].filter(k => !plan[k]?.length);
+        if (missing.length) actions.push({ planId: plan.id, missing: true, text: `「${plan.problem}」の${missing.map(k => k.toUpperCase()).join('・')}を補い、誰が・いつ・どのように行うか、患者の記録と現在の指示に合わせて具体化してください。` });
+        else {
+          const warnings = reviewCarePlan(cp, plan).items.filter(check => check.level === 'warn');
+          if (warnings.length) actions.push({ planId: plan.id, text: `「${plan.problem}」：${warnings.map(check => check.label).join('・')}を見直してください。${warnings[0].msgs[0] || ''}` });
+        }
+      });
+      if (review.dups.length || review.overlaps.length) actions.push({ text: '重複する援助・説明は主に担当する計画を決め、他の計画はその計画を参照してください。問題の目的が違うものは、目標と達成条件を分けて残してください。' });
+      review.gaps.forEach(gap => actions.push({ text: `${gap.msg}。担当する計画を決め、援助内容・説明内容と理解の確認方法をTP・EPへ追記してください。` }));
+      if (!actions.length) actions.push({ text: '実施後の患者の反応と目標の達成状況を記録してください。未達成の場合は原因を確認し、援助の内容・回数・タイミングを再評価してください。' });
+      return actions;
+    }
+    window.openCarePlanFromReview = function(id) {
+      carePlanOpen.add(id); carePlanReviewOpen.add(id); renderCarePlans();
+      [...document.querySelectorAll('.cp-card[data-care-plan-id]')].find(el => el.dataset.carePlanId === id)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    };
+    window.fillMissingCareSectionsUI = function(id) {
+      const cp = getCurrentPatient(), plan = getCarePlan(cp, id);
+      if (!plan) return;
+      const model = cpModelOrFallback(cp, plan);
+      if (!model) return showToast('追記案の根拠が不足しています。原文を確認して作成してください', 'warn');
+      const before = careOperationSnapshot(cp), patch = {};
+      ['op', 'tp', 'ep'].forEach(k => { if (!plan[k]?.length && model[k]?.length) patch[k] = [...model[k]]; });
+      updateCarePlan(cp, id, { ...patch, reasonNeeded: true });
+      rememberCareOperation(cp, before); commitCarePlanChange(cp);
+      showToast('空欄に追記案を入れました。原文・現在の指示と照合し、具体的な援助に整えてください', 'success');
+    };
 
     function buildCarePlansText(cp, { withRecords = true, recordFilter = null } = {}) {
       return carePlanList(cp).map((p, k) => {
@@ -2055,12 +2097,12 @@ ${body}
       printHtmlDocument(buildCarePlansPrintHtml(cp));
       showToast(isMobilePrintTarget() ? '印刷用の見本を開きました。上の「印刷・PDFに保存」を押してください' : '印刷画面を開きます。「送信先」で「PDFに保存」を選ぶとPDFになります', 'info');
     };
-    window.exportCarePlansText = function() {
+    window.exportCarePlansText = async function() {
       const cp = getCurrentPatient();
       if (!carePlanList(cp).length) return showToast('書き出す看護計画がありません。先に看護計画を作成してください', 'warn');
       const safeTitle = String(cp.title || '患者').replace(/[\\/:*?"<>|]/g, '_');
       const text = `看護計画・実施・評価：${cp.title || ''}\n出力日時: ${new Date().toLocaleString('ja-JP')}\n\n${buildCarePlansText(cp)}\n`;
-      downloadTextBlob(new Blob([text], { type: 'text/plain;charset=utf-8' }), `${safeTitle}_看護計画.txt`);
+      if (!(await downloadTextBlob(new Blob([text], { type: 'text/plain;charset=utf-8' }), `${safeTitle}_看護計画.txt`))) return;
       showToast('看護計画をテキストで書き出しました', 'success');
     };
 
@@ -2075,6 +2117,6 @@ if (typeof module !== 'undefined' && module.exports) {
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
     cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf,
     CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
-    cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, carePlanSetReviewHtml, carePlanSetState
+    cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, carePlanSetReviewHtml, carePlanSetState, carePlanSetNextSteps
   });
 }

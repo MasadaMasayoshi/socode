@@ -44,7 +44,7 @@ const {app}=require('../server');
     assert.equal(body.contents[0].parts.length,2);
     assert.equal(body.contents[0].parts.filter(p=>p.inline_data).length,1);
     ocrRequests++;
-    await route.fulfill({json:{candidates:[{content:{parts:[{text:'架空OCR通信検証'}]},finishReason:'STOP'}]}});
+    await route.fulfill({json:{candidates:[{content:{parts:[{text:`架空OCR通信検証${ocrRequests}`}]},finishReason:'STOP'}]}});
    });
    await page.evaluate(()=>{globalAppData.apiKey='AIza-fictitious-browser-test-key';});
    const image={name:'fictional.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXioAAAAASUVORK5CYII=','base64')};
@@ -56,10 +56,15 @@ const {app}=require('../server');
    await page.locator('#ocr-file-input').setInputFiles(image);
    await page.waitForFunction(first=>document.getElementById('source-text').value.length>first,firstOcr.length);
    assert.equal(ocrRequests,2,'selecting the same image retries the real UI');
+   await page.waitForFunction(()=>!document.getElementById('ocr-file-input').disabled);
+   await page.locator('#ocr-file-input').setInputFiles([image,{...image,name:'fictional-2.png'},{...image,name:'fictional-3.png'}]);
+   await page.waitForFunction(()=>!document.getElementById('ocr-file-input').disabled&&document.getElementById('source-text').value.includes('架空OCR通信検証5'));
+   const batchText=await page.locator('#source-text').inputValue();
+   assert.ok(batchText.indexOf('架空OCR通信検証3')<batchText.indexOf('架空OCR通信検証4')&&batchText.indexOf('架空OCR通信検証4')<batchText.indexOf('架空OCR通信検証5'));
    const beforeInvalid=await page.locator('#source-text').inputValue();
    await page.locator('#ocr-file-input').setInputFiles({name:'invalid.pdf',mimeType:'application/pdf',buffer:Buffer.from('fictional invalid input')});
    assert.equal(await page.locator('#source-text').inputValue(),beforeInvalid);
-   assert.equal(ocrRequests,2);
+   assert.equal(ocrRequests,5);
    await page.evaluate(()=>{globalAppData.apiKey='';});
    await page.unroute('https://generativelanguage.googleapis.com/**');
 
@@ -138,7 +143,7 @@ const {app}=require('../server');
    assert.ok(reviewButton.y>=classifyButton.y+classifyButton.height);
    await page.locator('#btn-manual-review').locator('..').screenshot({path:`browser-artifacts/${width}-source-actions.png`});
    await page.locator('#btn-manual-review').click();
-   await page.locator('#nursing-source-compare').click();
+   assert.equal(await page.locator('#nursing-source-review').isVisible(),true);
    await page.locator('#nursing-organized-text button[data-card-id="source-nav-smoke"]').click();
    assert.match(await page.locator('#nursing-source-match-status').innerText(),/表記をそろえた一致 1／2/);
    assert.equal(await page.locator('#nursing-original-text mark').innerText(),'架空の照合記録：痛みなし');
@@ -250,11 +255,11 @@ const {app}=require('../server');
     return results;
    });
    for (const result of lineVisibility) {
-    assert.equal(result.width,'2px');
+    assert.equal(result.width,'1.5px');
     assert.equal(result.opacity,'0.65');
     assert.equal(result.selectedOpacity,'1');
     assert.equal(result.vectorEffect,'non-scaling-stroke');
-    assert.ok(Math.abs(result.endpointSize - 10) < .001);
+    assert.ok(Math.abs(result.endpointSize - 8) < .001);
     assert.equal(result.maskExists,true);
     assert.equal(result.markerOverflow,'visible');
     assert.equal(result.selectedMarker,true);
@@ -437,6 +442,39 @@ const {app}=require('../server');
    });
    assert.deepEqual(episodes,{before:'入院前',current:'入院時',currentCol:'postadmission',joined:true,separate:true,careChanges:3});
    assert.equal(await page.locator('#source-text').inputValue(),episodeSource);
+   assert.equal(await page.locator('#btn-board-export-review').isVisible(),true);
+   const countBeforeRetry=await page.evaluate(()=>getCurrentPatient().items.filter(i=>!i.deleted).length);
+   await page.locator('#btn-start-classify').click();
+   await page.locator('#modal-dialog').waitFor({state:'visible'});
+   await page.locator('#dialog-secondary').click();
+   await page.waitForFunction(()=>document.getElementById('modal-dialog').classList.contains('hidden'));
+   assert.equal(await page.evaluate(()=>getCurrentPatient().items.filter(i=>!i.deleted).length),countBeforeRetry);
+   await page.locator('#btn-source-fullscreen').click();
+   const fullBox=await page.locator('#source-editor').boundingBox();
+   assert.ok(Math.abs(fullBox.x)<1&&Math.abs(fullBox.y)<1&&Math.abs(fullBox.width-width)<1&&Math.abs(fullBox.height-900)<1);
+   assert.equal(await page.evaluate(()=>document.getElementById('source-editor').parentNode===document.body),true);
+   await page.keyboard.press('Escape');
+   assert.equal(await page.evaluate(()=>document.getElementById('source-editor').parentNode===document.body),false);
+   await page.locator('#btn-manual-review').click();
+   assert.equal(await page.locator('#nursing-source-review').isVisible(),true);
+   assert.match(await page.locator('#nursing-original-text').textContent(),/A氏/);
+   await page.locator('#nursing-manual-review').screenshot({path:`browser-artifacts/${width}-original-review.png`});
+   await page.locator('#nursing-manual-review').getByRole('button',{name:'閉じる',exact:true}).click();
+   await page.evaluate(()=>{
+    window.__exports=[];window.__cancelExport=false;
+    window.showSaveFilePicker=async options=>{
+     if(window.__cancelExport)throw new DOMException('Canceled','AbortError');
+     return {createWritable:async()=>({write:async blob=>window.__exports.push({name:options.suggestedName,type:blob.type,size:blob.size,text:blob.type.startsWith('text/')?await blob.text():''}),close:async()=>{}})};
+    };
+   });
+   await page.locator('#btn-board-export-review').click();
+   await page.waitForFunction(()=>window.__exports.length===1);
+   assert.match(await page.evaluate(()=>window.__exports[0].text),/分類基準|classification criteria/);
+   await page.evaluate(()=>{window.__cancelExport=true;});
+   await page.locator('#btn-board-export-review').click();
+   assert.equal(await page.evaluate(()=>window.__exports.length),1);
+   await page.evaluate(()=>{window.__cancelExport=false;});
+
    await page.locator('#tab-assessment').click();
    await page.evaluate(()=>selectAssessmentNeed(4));
    await page.locator('#assessment-single').screenshot({path:`browser-artifacts/${width}-grouped-episode.png`});
@@ -535,11 +573,58 @@ const {app}=require('../server');
        const id=line.getAttribute('marker-end').match(/#([^)]*)/)[1];
        const marker=svg.querySelector(`[id="${id}"]`);
        if(marker.querySelector('path').getAttribute('d')!=='M0,1.5 L10,5 L0,8.5 z')throw Error('Treatment endpoint is not an arrow');
-       if(Math.abs(marker.markerWidth.baseVal.value*zoom-10)>.01)throw Error('Treatment arrow shrinks with zoom');
+       if(Math.abs(marker.markerWidth.baseVal.value*zoom-8)>.01)throw Error('Treatment arrow shrinks with zoom');
       },zoom);
       await page.locator('#toast-container').evaluate(el=>el.replaceChildren());
       await page.locator('#rm-canvas-wrap').screenshot({path:`browser-artifacts/${width}-gastric-arrows-${zoom}.png`});
+      await page.evaluate(zoom=>{
+       const wrap=document.getElementById('rm-canvas-wrap'),bounds=wrap.getBoundingClientRect();
+       const next=zoom===2?1.5:2;
+       rmZoomAt(next,bounds.left+bounds.width/2,bounds.top+bounds.height/2);
+       const svg=wrap.querySelector('svg');
+       if([...svg.querySelectorAll('marker')].some(m=>Math.abs(Number(m.getAttribute('markerWidth'))*rmState.zoom-8)>.01))throw Error('Live zoom changes arrow size');
+       if([...svg.querySelectorAll('.rm-bridge-clearance')].some(p=>Math.abs(Number(p.getAttribute('stroke-width'))*rmState.zoom-3.2)>.01))throw Error('Live zoom changes crossing clearance');
+      },zoom);
+
      }
+    }
+    if(id==='gastric-arrows') {
+     const problems=await page.evaluate(()=>getCurrentPatient().relationMap.nodes.filter(n=>n.type==='nursing_problem').map(n=>n.id));
+     assert.ok(problems.length>=3);
+     const background=await page.locator('#rm-canvas-wrap svg').evaluate(el=>({paper:getComputedStyle(el.querySelector('.rm-bg')).fill,canvas:getComputedStyle(el.closest('.rm-canvas-wrap')).backgroundColor}));
+     assert.equal(background.paper,background.canvas);
+     await page.locator('.rm-prob-menu [data-rm-action="toggle-problems"]').click();
+     for(const problem of problems.slice(0,2))await page.locator(`#rm-problems [data-node-id="${problem}"]`).click();
+     assert.equal(await page.locator('#rm-problems [aria-pressed="true"]').count(),2);
+     await page.locator('#rm-problems [data-rm-action="focus-apply"]').click();
+     const selected=await page.evaluate(()=>Array.from(document.querySelectorAll('#rm-canvas-wrap .rm-node[data-node-id]')).map(el=>el.dataset.nodeId));
+     for(const problem of problems.slice(0,2))assert.ok(selected.includes(problem));
+     for(const problem of problems.slice(2))assert.ok(!selected.includes(problem));
+     assert.deepEqual(await page.locator('#rm-canvas-wrap svg').evaluate(el=>({paper:getComputedStyle(el.querySelector('.rm-bg')).fill,canvas:getComputedStyle(el.closest('.rm-canvas-wrap')).backgroundColor})),background);
+     const closure=await page.evaluate(()=>{
+      const map=getCurrentPatient().relationMap,ids=new Set(Array.from(document.querySelectorAll('#rm-canvas-wrap .rm-node[data-node-id]')).map(el=>el.dataset.nodeId));
+      return map.edges.filter(e=>ids.has(e.target)&&map.nodes.find(n=>n.id===e.source)?.type!=='nursing_problem').every(e=>ids.has(e.source))&&map.edges.filter(e=>ids.has(e.source)&&e.relation==='treats'&&['disease','symptom','pathophysiology'].includes(map.nodes.find(n=>n.id===e.target)?.type)).every(e=>ids.has(e.target));
+     });
+     assert.equal(closure,true,'Focused diagrams preserve incoming evidence, including the pre-treatment flow');
+     await page.locator('#rm-canvas-wrap').screenshot({path:`browser-artifacts/${width}-selected-problems.png`});
+     await page.evaluate(()=>rmSavePng());
+     await page.waitForFunction(()=>window.__exports.some(e=>e.type==='image/png'));
+     await page.locator('.rm-prob-menu [data-rm-action="toggle-problems"]').click();
+     await page.locator('#rm-problems [data-rm-action="focus-all"]').click();
+     if(width===1440){
+      const dragged=page.locator('#rm-canvas-wrap .rm-node').first();
+      await dragged.scrollIntoViewIfNeeded();
+      const box=await dragged.boundingBox();
+      await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
+      await page.mouse.down();
+      await page.mouse.move(box.x+box.width/2+35,box.y+box.height/2+20,{steps:3});
+      await page.waitForFunction(()=>document.getElementById('rm-canvas-wrap').classList.contains('is-dragging'));
+      assert.equal(await page.locator('#rm-canvas-wrap .rm-link-line').evaluateAll(lines=>lines.every(line=>!/(?:NaN|undefined|Infinity)/.test(line.getAttribute('d')))),true);
+      await page.mouse.up();
+      assert.equal(await page.locator('#rm-canvas-wrap').evaluate(el=>el.classList.contains('is-dragging')),false);
+      await page.evaluate(()=>rmUndoRedo(false));
+     }
+
     }
     if(id==='heart-failure') await page.screenshot({path:`browser-artifacts/${width}-public-long-relation.png`});
     console.log(`PASS ${width}px public ${id}: UI classification, assessment, plans, labs and relation map`);

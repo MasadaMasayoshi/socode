@@ -13,7 +13,7 @@ test('家族の住まい・支援者・アレルギー・常用薬・入院歴�
   assert.ok(tagsOf('長男(53歳)・次男(50歳)はそれぞれ結婚し、別世帯に暮らしている。').includes(9));
   assert.ok(tagsOf('長男夫婦が同町内に住んでいる。').includes(9));
   assert.ok(tagsOf('援助者:長男とその嫁(主に長男が世話を行っている)').includes(9));
-  assert.ok(!tagsOf('アレルギー: なし').includes(9));
+  assert.ok(tagsOf('アレルギー: なし').includes(9));
   assert.ok(!tagsOf('常用薬: ノルバスク2.5mg 1錠×朝').includes(9));
   assert.ok(tagsOf('出産時以外入院歴なし、手術歴なし').includes(9));
   assert.ok(!tagsOf('Stage 1B').includes(14));

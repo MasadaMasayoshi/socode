@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-11.status-visible10'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-11.usability-context12'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -191,7 +191,7 @@
         case 'tied':
           return `<span class="confidence-badge confidence-tied" title="過去の編集で票が同数のため、自動分類の確信度が低くなっています。内容を確認してください">?</span>`;
         case 'rule':
-          return `<span class="confidence-badge confidence-rule" title="学習データがまだ無く、固定ルールで自動分類しました。内容を確認してください">仮</span>`;
+          return '';
         default:
           return '';
       }

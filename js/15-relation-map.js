@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-11.status-visible10'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-11.usability-context12'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -119,10 +119,10 @@
     const RM_NOTE_FONT = 11.5, RM_NOTE_LINE_H = 15, RM_NOTE_GAP = 7, RM_NOTE_MAX = 60;
 
     const RM_BUILD_VERSION = 3;
-    const RM_LAYOUT_STYLE = 4;
+    const RM_LAYOUT_STYLE = 5;
     const RM_COL_GAP = 80, RM_ROW_GAP = 28;
 
-    const RM_COL_GAP_MIN = 72, RM_COL_GAP_MAX = 170, RM_COL_GAP_PER_LINE = 9, RM_COL_GAP_BASE = 56;
+    const RM_COL_GAP_MIN = 54, RM_COL_GAP_MAX = 110, RM_COL_GAP_PER_LINE = 5, RM_COL_GAP_BASE = 44;
     const RM_MAX_NODES = 70, RM_MAX_EDGES = 160, RM_TEXT_MAX = 120, RM_UNDO_MAX = 40;
     const RM_BRIDGE_R = 6;
 
@@ -1082,9 +1082,9 @@
       return { x: x1 - pad, y: y1 - pad - top, w: x2 - x1 + pad * 2, h: y2 - y1 + pad * 2 + top };
     }
     let rmMaskSequence = 0;
-    function rmEdgesSvg(map, { interactive, screen = interactive, markerPrefix, zoom = 1 }) {
+    function rmEdgesSvg(map, { interactive, screen = interactive, markerPrefix, zoom = 1, fast = false }) {
       const maskPrefix = `rm-cross-mask-${++rmMaskSequence}`;
-      const { routes } = rmRouteEdges(map);
+      const routes = fast ? rmDragRoutes(map) : rmRouteEdges(map).routes;
       const nodeById = new Map(map.nodes.map(n => [n.id, n]));
 
       const isKnow = id => { const n = nodeById.get(id); return !!n && (n.added || (n.source === 'knowledge' && n.type !== 'nursing_problem')); };
@@ -1108,7 +1108,7 @@
         const tl = treat && r.pts && r.pts.length > 1 ? `<text class="rm-treat-label" x="${Math.round((r.pts[0][0] + r.pts[1][0]) / 2) + 6}" y="${Math.round((r.pts[0][1] + r.pts[1][1]) / 2) + 3}" font-size="10" fill="#2563EB" font-weight="700">治療</text>` : '';
         return `${mask}<g class="rm-link${treat ? ' is-treat' : ''}${sel ? ' is-selected' : ''}" data-link-id="${escapeHtml(e.id)}">
           ${interactive ? `<path class="rm-link-hit" d="${d}" fill="none" stroke="transparent" stroke-width="20"/>` : ''}
-          <path class="rm-link-line"${cuts.length ? ` mask="url(#${maskId})"` : ''} d="${d}" fill="none" opacity="0.65" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#3F3B35'}" stroke-width="${treat ? 2 : 1.5}"${screen ? ' vector-effect="non-scaling-stroke"' : ''}${e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} marker-end="url(#${markerPrefix}-${treat ? 'arrow-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"/>${tl}
+          <path class="rm-link-line"${cuts.length ? ` mask="url(#${maskId})"` : ''} d="${d}" fill="none" opacity="0.65" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#3F3B35'}" stroke-width="1.5"${screen ? ' vector-effect="non-scaling-stroke"' : ''}${e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} marker-end="url(#${markerPrefix}-${treat ? 'arrow-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"/>${tl}
         </g>`;
       }).join('');
     }
@@ -1153,10 +1153,10 @@
       const markerScale = screen ? 1 / zoom : 1;
 
       const font = "'Noto Sans JP','Hiragino Kaku Gothic ProN','Hiragino Sans','Yu Gothic UI','Yu Gothic','Meiryo',sans-serif";
-      const marker = (kind, color, treatment = false) => `<marker id="${markerPrefix}-${kind}" class="rm-marker-${kind}" viewBox="0 0 10 10" refX="11" refY="5" markerUnits="userSpaceOnUse" markerWidth="${(treatment ? 10 : 8) * markerScale}" markerHeight="${(treatment ? 10 : 8) * markerScale}" overflow="visible" orient="auto-start-reverse"><path d="M0,1.5 L10,5 L0,8.5 z" fill="${color}"/></marker>`;
+      const marker = (kind, color) => `<marker id="${markerPrefix}-${kind}" class="rm-marker-${kind}" viewBox="0 0 10 10" refX="11" refY="5" markerUnits="userSpaceOnUse" markerWidth="${8 * markerScale}" markerHeight="${8 * markerScale}" overflow="visible" orient="auto-start-reverse"><path d="M0,1.5 L10,5 L0,8.5 z" fill="${color}"/></marker>`;
       return `<svg xmlns="http://www.w3.org/2000/svg" class="rm-svg" data-marker-prefix="${markerPrefix}" style="--rm-arrow-selected: url(#${markerPrefix}-arrow-sel); --rm-arrow-treat-selected: url(#${markerPrefix}-arrow-treat-sel)" viewBox="${b.x} ${b.y} ${b.w} ${b.h}" width="${Math.round(b.w * zoom)}" height="${Math.round(b.h * zoom)}" font-family="${escapeHtml(font)}" role="img" aria-label="${escapeHtml(title || '関連図')}">
         <defs>${marker('arrow', '#3F3B35')}${marker('arrow-sel', '#C2410C')}${marker('arrow-pred', RM_PRED_LINE)}${marker('arrow-blue', '#2563EB', true)}${marker('arrow-treat-sel', '#C2410C', true)}</defs>
-        <rect class="rm-bg${interactive ? ' is-paper' : ''}" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${interactive ? RM_PAPER : '#FFFFFF'}"/>
+        <rect class="rm-bg${screen ? ' is-paper' : ''}" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${screen ? RM_PAPER : '#FFFFFF'}"/>
         <g class="rm-headers">${rmHeadersSvg(map, b)}</g>
         <g class="rm-links">${rmEdgesSvg(map, { interactive, screen, markerPrefix, zoom })}</g>
         <g class="rm-nodes">${map.nodes.map(n => rmNodeSvg(n, { interactive })).join('')}</g>
@@ -1378,7 +1378,7 @@
     ];
 
     function buildRelationMapFromRecord(cp) {
-      const items = ((cp && cp.items) || []).filter(i => i && i.text && i.type !== 'unnecessary' && !i.aiSuggested
+      const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && i.text && i.type !== 'unnecessary' && !i.aiSuggested
         && !(typeof isMissingInfoOnlyItem === 'function' && isMissingInfoOnlyItem(i)));
       const all = [cp.sourceText || '', ...items.map(i => i.text)].join('\n').normalize('NFKC');
       const nodes = new Map();
@@ -1387,7 +1387,7 @@
       const N = (key, type, label, o = {}) => {
         if (nodes.has(key)) return nodes.get(key);
         const srcItems = (o.items || []).filter(Boolean);
-        if (srcItems.length === 1 && ['patient_fact', 'symptom'].includes(type) && byItem.has(srcItems[0])) { const ex = byItem.get(srcItems[0]); nodes.set(key, ex); return ex; }
+        if (!o.distinctEvidence && srcItems.length === 1 && ['patient_fact', 'symptom'].includes(type) && byItem.has(srcItems[0])) { const ex = byItem.get(srcItems[0]); nodes.set(key, ex); return ex; }
         const n = { id: rmNewId('n'), key, type, label: rmShorten(label, o.max || 44), evidence: o.evidence || '', observed: o.observed !== false, source: o.source || 'record', priority: 0, x: 0, y: 0, itemIds: (o.items || []).map(i => i && i.id).filter(Boolean).slice(0, 10), cat: o.cat };
         if (type === 'nursing_problem') { const note = o.note != null ? o.note : rmPlainNote(label); if (note) n.note = rmShorten(note, RM_NOTE_MAX); }
         const ph = rmPhaseOfItems(srcItems);
@@ -1497,18 +1497,28 @@
       const disease = dxHost && dxLabel0 ? N('disease', 'disease', dxLabel0, { items: [dxHost] }) : null;
       const dxLabel = disease ? disease.label : '';
 
-      const historyText = items.filter(i => /既往|生活歴|嗜好|喫煙|飲酒/.test(`${i.fieldLabel || ''}${i.text}`)).map(i => i.text).join('\n');
       const smokeItem = findItem(/喫煙|タバコ|たばこ|煙草/, i => !/非喫煙|喫煙[^\n]{0,4}(?:なし|無)|吸わない/.test(String(i.text).normalize('NFKC')));
       const smoke = smokeItem ? N('smoke', 'patient_fact', short(smokeItem), { items: [smokeItem] }) : null;
       if (disease) {
+        const excluded = new Set(((cp && cp.items) || []).filter(i => i.deleted || i.type === 'unnecessary').map(i => clinicalCardDuplicateKey(i.text, i.timestamp)));
+        const sourceFactors = cp.sourceText ? groupClinicalPhrasesWithTimestamps(String(cp.sourceText).normalize('NFKC')).filter(i => !i.isUnnecessaryBoilerplate && !excluded.has(clinicalCardDuplicateKey(i.text, i.timestamp))) : [];
+        const factorRecords = [...items, ...sourceFactors.filter(i => !items.some(o => clinicalCardDuplicateKey(o.text, o.timestamp) === clinicalCardDuplicateKey(i.text, i.timestamp)))];
         RM_DISEASE_FACTORS.forEach((f, k) => {
           if (!f.disease.test(dxLabel)) return;
-          const it = findItem(f.factor, i => i !== dxText[0]);
-          if (!it || !f.factor.test(historyText + '\n' + it.text)) return;
-          const fact = f.factor.test('喫煙') && smoke ? smoke : N(`factor_${k}`, 'patient_fact', short(it), { items: [it] });
-          const mid = N(`factor_mid_${k}`, 'pathophysiology', f.mid, { source: 'knowledge' });
-          E(fact, mid, 'contributes_to', { evidence: '医学的に知られている要因' });
-          E(mid, disease, 'contributes_to', { evidence: '発症に関係する要因（この患者で原因と断定はしない）' });
+          const seenFactors = new Set();
+          f.factor.source.split('|').forEach(pattern => {
+            const matchRe = new RegExp(pattern);
+            const it = factorRecords.find(i => i !== dxText[0] && !/家族歴/.test(`${i.fieldLabel || ''}${i.text}`) && !rmIsFamilySpeech(i.text) && rmPositiveMatch(matchRe, i.text));
+            if (!it) return;
+            const match = rmPositiveMatch(matchRe, it.text);
+            if (seenFactors.has(match[0])) return;
+            seenFactors.add(match[0]);
+            const phrase = String(it.text).split(/[。\n]/).find(s => rmPositiveMatch(matchRe, s)) || it.text;
+            const fact = /喫煙|タバコ|たばこ/.test(match[0]) && smoke ? smoke : N(`factor_${k}_${pattern}`, 'patient_fact', phrase.replace(/^[^:：]{1,8}[:：]\s*/, ''), { items: [it], max: 70, evidence: it.text, distinctEvidence: true });
+            const mid = N(`factor_mid_${k}`, 'pathophysiology', f.mid, { source: 'knowledge' });
+            E(fact, mid, 'contributes_to', { evidence: `原文の要因：${it.text}` });
+            E(mid, disease, 'contributes_to', { evidence: '発症に関係する要因（この患者で原因と断定はしない）' });
+          });
         });
       }
       const elderly = Number.isFinite(age) && age >= 65;
@@ -2815,9 +2825,9 @@
         if (c) c.textContent = probs.length ? String(probs.length) : '';
       });
 
-      box.innerHTML = open ? `<span class="rm-problems-title">看護問題ごとに見る（押すとその流れだけの図になります）</span>`
+      box.innerHTML = open ? `<span class="rm-problems-title">看護問題を選ぶ（複数選択できます）</span>`
         + `<button type="button" role="menuitem" class="rm-prob-all${rmState.focusProblem ? '' : ' is-on'}" data-rm-action="focus-all">すべての流れ（全体の図）</button>`
-        + probs.map(n => `<button type="button" role="menuitem" class="rm-prob-btn${/リスク|可能性|おそれ|危険/.test(n.label) ? ' is-risk' : ''}${rmState.focusProblem === n.id ? ' is-on' : ''}" data-rm-action="focus-problem" data-node-id="${escapeHtml(n.id)}" title="${escapeHtml(n.note ? `${n.note}（この看護問題へつながる流れだけを表示します）` : 'この看護問題へつながる流れだけを表示します')}">${escapeHtml(rmDisplayLabel(n))}${n.note ? `<small class="rm-prob-note">${escapeHtml(n.note)}</small>` : ''}</button>`).join('') : '';
+        + probs.map(n => `<button type="button" role="menuitem" class="rm-prob-btn${/リスク|可能性|おそれ|危険/.test(n.label) ? ' is-risk' : ''}${(Array.isArray(rmState.focusProblem) ? rmState.focusProblem.includes(n.id) : rmState.focusProblem === n.id) ? ' is-on' : ''}" data-rm-action="focus-problem" aria-pressed="${Array.isArray(rmState.focusProblem) ? rmState.focusProblem.includes(n.id) : rmState.focusProblem === n.id}" data-node-id="${escapeHtml(n.id)}" title="${escapeHtml(n.note ? `${n.note}（この看護問題へつながる流れだけを表示します）` : 'この看護問題へつながる流れだけを表示します')}"><span aria-hidden="true">${Array.isArray(rmState.focusProblem) && rmState.focusProblem.includes(n.id) ? '✓ ' : ''}</span>${escapeHtml(rmDisplayLabel(n))}${n.note ? `<small class="rm-prob-note">${escapeHtml(n.note)}</small>` : ''}</button>`).join('') + '<button type="button" class="btn btn-primary" data-rm-action="focus-apply">選択した問題の図を表示</button>' : '';
     }
 
     function rmShowCtx(e) {
@@ -2881,9 +2891,22 @@
       wrap.scrollLeft += (r.left + r.width / 2) - (wr.left + wrap.clientWidth / 2);
       wrap.scrollTop += (r.top + r.height / 2) - (wr.top + wrap.clientHeight / 2);
     }
-    function rmRenderEdgesOnly(map) {
+    function rmDragRoutes(map) {
+      const rects = new Map(map.nodes.map(n => [n.id, rmRect(n)]));
+      return map.edges.flatMap(edge => {
+        const a = rects.get(edge.source), b = rects.get(edge.target);
+        if (!a || !b) return [];
+        const right = b.cx >= a.cx;
+        const sx = right ? a.x2 : a.x1, tx = right ? b.x1 : b.x2;
+        const mid = (sx + tx) / 2;
+        const pts = [[sx, a.cy], [mid, a.cy], [mid, b.cy], [tx, b.cy]];
+        const segs = pts.slice(1).map((p, k) => ({ x1: pts[k][0], y1: pts[k][1], x2: p[0], y2: p[1], cross: [] }));
+        return [{ edge, pts, segs }];
+      });
+    }
+    function rmRenderEdgesOnly(map, fast = false) {
       const g = document.querySelector('#rm-canvas-wrap .rm-links');
-      if (g) g.innerHTML = rmEdgesSvg(map, { interactive: true, markerPrefix: g.closest('svg').dataset.markerPrefix, zoom: rmState.zoom });
+      if (g) g.innerHTML = rmEdgesSvg(map, { interactive: true, markerPrefix: g.closest('svg').dataset.markerPrefix, zoom: rmState.zoom, fast });
     }
     function rmRenderToolbarState() {
       const set = (act, dis) => { const b = document.querySelector(`[data-rm-action="${act}"]`); if (b) b.disabled = dis; };
@@ -2947,8 +2970,9 @@
       const map = rmMap();
       const sel = rmState.selected;
       if (rmState.focusProblem && map) {
-        const p = rmNodeById(map, rmState.focusProblem);
-        bar.innerHTML = `<span class="rm-sel-label"><i class="fa-solid fa-filter"></i> 「${escapeHtml(p ? rmDisplayLabel(p) : '')}」へつながる流れだけを表示しています（見るだけ。直すときは全体の図で）</span>${rmBtn('focus-all', '<i class="fa-solid fa-diagram-project"></i> 全体の図に戻す', 'btn-primary')}`;
+        const ids = Array.isArray(rmState.focusProblem) ? rmState.focusProblem : [rmState.focusProblem];
+        const labels = ids.map(id => rmNodeById(map, id)).filter(Boolean).map(rmDisplayLabel);
+        bar.innerHTML = `<span class="rm-sel-label"><i class="fa-solid fa-filter"></i> ${escapeHtml(labels.join('・'))} の関連図</span>${rmBtn('focus-all', '<i class="fa-solid fa-diagram-project"></i> 全体の図に戻す', 'btn-primary')}`;
         return;
       }
       if (rmState.connectFrom) {
@@ -3173,16 +3197,32 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
     }
 
     function rmProblemSubmap(map, problemId) {
-      const p = map && map.nodes.find(n => n.id === problemId && n.type === 'nursing_problem');
-      if (!p) return null;
-      const keep = new Set([p.id]);
-      const stack = [p.id];
+      const selected = new Set(Array.isArray(problemId) ? problemId : [problemId]);
+      const problems = map && map.nodes.filter(n => selected.has(n.id) && n.type === 'nursing_problem');
+      if (!problems || !problems.length) return null;
+      const keep = new Set(problems.map(p => p.id));
+      const stack = [...keep];
+      const nodes = new Map(map.nodes.map(n => [n.id, n]));
+      const incoming = new Map();
+      const indications = new Map();
+      map.edges.forEach(e => {
+        if (!incoming.has(e.target)) incoming.set(e.target, []);
+        incoming.get(e.target).push(e.source);
+        if (e.relation === 'treats' && ['disease', 'symptom', 'pathophysiology'].includes(nodes.get(e.target)?.type)) {
+          if (!indications.has(e.source)) indications.set(e.source, []);
+          indications.get(e.source).push(e.target);
+        }
+      });
       while (stack.length) {
         const id = stack.pop();
-        map.edges.forEach(e => { if (e.target === id && e.relation !== 'treats' && !keep.has(e.source)) { const s = map.nodes.find(n => n.id === e.source); if (s && s.type !== 'nursing_problem') { keep.add(s.id); stack.push(s.id); } } });
+        // Treatment arrows point to their indication, opposite to causal ancestry.
+        [...(incoming.get(id) || []), ...(indications.get(id) || [])].forEach(source => {
+          const node = nodes.get(source);
+          if (!node || keep.has(source) || (node.type === 'nursing_problem' && !selected.has(source))) return;
+          keep.add(source);
+          stack.push(source);
+        });
       }
-
-      map.edges.forEach(e => { if (keep.has(e.target) && !keep.has(e.source)) { const s = map.nodes.find(n => n.id === e.source); if (s && (e.relation === 'treats' || ['lab', 'vital'].includes(s.type))) keep.add(s.id); } });
       const sub = JSON.parse(JSON.stringify({ ...map, nodes: map.nodes.filter(n => keep.has(n.id)), edges: map.edges.filter(e => keep.has(e.source) && keep.has(e.target)) }));
       delete sub.addedStash;
       layoutRelationMap(sub);
@@ -3190,16 +3230,20 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
     }
     function rmPrint(perProblem = false) {
       const cp = getCurrentPatient();
-      const map = rmMap(cp);
+      const full = rmMap(cp);
+      const map = !perProblem && rmState.focusProblem ? rmProblemSubmap(full, rmState.focusProblem) : full;
       if (!map || !map.nodes.length) { showToast('印刷する関連図がありません', 'warn'); return; }
       printHtmlDocument(relationMapPrintHtml(cp, map, { perProblem }), { keepSvg: true });
       showToast(isMobilePrintTarget() ? '印刷用の見本を開きました。上の「印刷・PDFに保存」を押してください' : '印刷画面を開きます。「送信先」で「PDFに保存」を選ぶとPDFになります（A4横）', 'info');
     }
     function rmSavePng() {
       const cp = getCurrentPatient();
-      const map = rmMap(cp);
+      const full = rmMap(cp);
+      const map = rmState.focusProblem ? rmProblemSubmap(full, rmState.focusProblem) : full;
       if (!map || !map.nodes.length) { showToast('保存する関連図がありません', 'warn'); return; }
       const svg = relationMapSvg(map, { interactive: false, zoom: 2, title: `${cp.title || ''}の関連図` });
+      const filename = `${String(cp.title || '患者').replace(/[\\/:*?"<>|]/g, '_')}_関連図.png`;
+      const handlePromise = typeof window.showSaveFilePicker === 'function' ? chooseExportFile(filename).catch(error => { if (error.name !== 'AbortError') showToast('保存先を開けませんでした', 'error'); return null; }) : null;
       const img = new Image();
       const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
       const fail = () => showToast('画像を作れませんでした。「印刷 / PDF」を使ってください', 'error');
@@ -3210,14 +3254,9 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
           const ctx = canvas.getContext('2d');
           ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0);
-          canvas.toBlob(blob => {
+          canvas.toBlob(async blob => {
             if (!blob) return fail();
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `${String(cp.title || '患者').replace(/[\\/:*?"<>|]/g, '_')}_関連図.png`;
-            document.body.appendChild(a); a.click(); a.remove();
-            setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-            showToast('関連図を画像（PNG）で保存しました', 'success');
+            if (await downloadTextBlob(blob, filename, handlePromise)) showToast('関連図を画像（PNG）で保存しました', 'success');
           }, 'image/png');
         } catch (e) { fail(); } finally { URL.revokeObjectURL(url); }
       };
@@ -3239,6 +3278,8 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
       rmState.zoom = Math.round(z * 1000) / 1000;
       svg.setAttribute('width', Math.round(vb.width * rmState.zoom));
       svg.setAttribute('height', Math.round(vb.height * rmState.zoom));
+      svg.querySelectorAll('marker').forEach(marker => { marker.setAttribute('markerWidth', 8 / rmState.zoom); marker.setAttribute('markerHeight', 8 / rmState.zoom); });
+      svg.querySelectorAll('.rm-bridge-clearance').forEach(path => path.setAttribute('stroke-width', 3.2 / rmState.zoom));
       wrap.scrollLeft = left + mx * rmState.zoom - (clientX - wr.left);
       wrap.scrollTop = top + my * rmState.zoom - (clientY - wr.top);
     }
@@ -3300,7 +3341,15 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
         else if (act === 'goto-problem') { const id = btn.dataset.nodeId; rmSetProblemsOpen(false); if (rmNodeById(rmMap(), id)) { rmSelect({ type: 'node', id }); rmScrollToNode(id); } }
         else if (act === 'print') { rmSetMoreOpen(false); rmPrint(); }
         else if (act === 'print-per-problem') { rmSetMoreOpen(false); rmPrint(true); }
-        else if (act === 'focus-problem') { rmSetProblemsOpen(false); rmState.focusProblem = btn.dataset.nodeId || null; rmState.selected = null; rmState.connectFrom = null; renderRelationMap(); rmZoom('fit'); }
+        else if (act === 'focus-problem') {
+          const ids = new Set(Array.isArray(rmState.focusProblem) ? rmState.focusProblem : rmState.focusProblem ? [rmState.focusProblem] : []);
+          const id = btn.dataset.nodeId;
+          if (ids.has(id)) ids.delete(id); else ids.add(id);
+          rmState.focusProblem = ids.size ? [...ids] : null;
+          rmState.selected = null; rmState.connectFrom = null;
+          renderRelationMap(); rmZoom('fit');
+        }
+        else if (act === 'focus-apply') { rmSetProblemsOpen(false); renderRelationMap(); rmZoom('fit'); }
         else if (act === 'focus-all') { rmSetProblemsOpen(false); rmState.focusProblem = null; renderRelationMap(); rmZoom('fit'); }
         else if (act === 'png') { rmSetMoreOpen(false); rmSavePng(); }
         else if (act === 'clear') { rmSetMoreOpen(false); rmClearAll(); }
@@ -3420,6 +3469,7 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
         if (!d || d.pointerId !== e.pointerId) return;
         if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 4) return;
         d.moved = true;
+        wrap.classList.add('is-dragging');
         const map = rmMap();
         const node = map && rmNodeById(map, d.id);
         if (!node) return;
@@ -3430,7 +3480,7 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
         const moveG = n => { const g = wrap.querySelector(`.rm-node[data-node-id="${rmCssEsc(n.id)}"]`); if (g) g.setAttribute('transform', `translate(${n.x},${n.y})`); };
         moveG(node);
         map.nodes.forEach(l => { if (l.attachTo === node.id) { l.x += mx; l.y += my; moveG(l); } });
-        if (!raf) raf = requestAnimationFrame(() => { raf = 0; rmRenderEdgesOnly(map); });
+        if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (rmState.drag) rmRenderEdgesOnly(map, true); });
       });
       const endDrag = e => {
         pointers.delete(e.pointerId);
@@ -3452,6 +3502,7 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
         const d = rmState.drag;
         if (!d || d.pointerId !== e.pointerId) return;
         rmState.drag = null;
+        wrap.classList.remove('is-dragging');
         const cp = getCurrentPatient();
         if (d.moved) {
           rmState.undo.push(d.before);
@@ -3478,9 +3529,10 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
       wrap.addEventListener('scroll', rmHideCtx, { passive: true });
 
       document.addEventListener('click', e => {
-        if (rmState.moreOpen && !(e.target.closest && e.target.closest('#rm-more, [data-rm-action="toggle-more"]'))) rmSetMoreOpen(false);
+        const inside = selector => e.composedPath().some(node => node.matches?.(selector));
+        if (rmState.moreOpen && !inside('#rm-more, [data-rm-action="toggle-more"]')) rmSetMoreOpen(false);
         if (!rmState.problemsOpen) return;
-        if (e.target.closest && e.target.closest('#rm-problems, [data-rm-action="toggle-problems"]')) return;
+        if (inside('#rm-problems, [data-rm-action="toggle-problems"]')) return;
         rmSetProblemsOpen(false);
       });
       document.addEventListener('keydown', e => {
@@ -3530,5 +3582,5 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
     if (typeof document !== 'undefined' && document.getElementById && document.getElementById('view-relation')) initRelationMapUi();
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, rmClinicalFields, rmEpistemicStatus, rmPrepareClinicalMap, findRelationEvidence, relationMapTextHtml, rmImportClinicalEntities, layoutRelationMap, buildRelationMapFromRecord, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel, rmShorten, rmProblemSubmap, rmReduceShortcuts, rmNodeSize, RM_PROBLEM_NOTES, rmPlainNote, rmLifeStage, rmMergeDuplicateProblems, rmLabsAsEvidence, layoutRelationMapOnce });
+  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, rmClinicalFields, rmEpistemicStatus, rmPrepareClinicalMap, findRelationEvidence, relationMapTextHtml, rmImportClinicalEntities, layoutRelationMap, buildRelationMapFromRecord, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmDragRoutes, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel, rmShorten, rmProblemSubmap, rmReduceShortcuts, rmNodeSize, RM_PROBLEM_NOTES, rmPlainNote, rmLifeStage, rmMergeDuplicateProblems, rmLabsAsEvidence, layoutRelationMapOnce });
 }

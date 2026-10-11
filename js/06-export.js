@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-11.status-panel8'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-11.usability-context12'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -130,7 +130,7 @@
 
       const sec = (title, html) => { out += `<h2>${n++}. ${escapeHtml(title)}</h2><div class="ai">${html}</div>`; };
       if (cp.labEvaluationResult) sec('検査データ臨床評価（AI・参考）', storedAiHtml(cp.labEvaluationResult));
-      else if (typeof labAssessmentHtmlFor === 'function' && labAssessmentHtmlFor(cp)) sec('検査データ臨床評価（AIなし）', labAssessmentHtmlFor(cp));
+      else if (typeof labAssessmentHtmlFor === 'function' && labAssessmentHtmlFor(cp)) sec('検査データ臨床評価', labAssessmentHtmlFor(cp));
       if (cp.contradictionResult) sec('S/O矛盾チェック（AI・参考）', storedAiHtml(cp.contradictionResult));
       const cands = cp.diagnosisCandidates || [];
       if (cands.length) {
@@ -544,22 +544,22 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         body = body.slice(0, refMatch.index).trim();
       }
 
-      if (lines.length > 1) notes.push(`元の文章の${lines.length}行（${lines.map(l => `「${l.length > 20 ? l.slice(0, 20) + '…' : l}」`).join('')}）を1枚にまとめた`);
-
       const ts = item && item.timestamp && item.timestamp !== '日時不明' ? item.timestamp : null;
       let firstLine = lines[0] || '';
       firstLine = firstLine.replace(/^(?:[・○●◯◎□■▪▫◆◇][\s　]*)+/, '');
       if (ts) {
-        const tsIdx = firstLine.normalize('NFKC').indexOf(ts);
-        if (tsIdx !== -1 && tsIdx <= 2 && !rewriteNorm(body).startsWith(rewriteNorm(ts))) {
-          notes.push(`行頭の「${ts}」を本文から外し、日時として記録した`);
-          firstLine = firstLine.normalize('NFKC').slice(tsIdx + ts.length).replace(/^[\]】\s]+/, '');
+        const sourceTs = firstLine.normalize('NFKC').includes(ts) ? ts : (ts.match(/\d{1,2}:\d{2}$/) || [])[0];
+        const tsIdx = sourceTs ? firstLine.normalize('NFKC').indexOf(sourceTs) : -1;
+        if (tsIdx !== -1 && tsIdx <= 2 && !rewriteNorm(body).startsWith(rewriteNorm(sourceTs))) {
+          notes.push(`行頭の「${sourceTs}」を本文から外し、日時として記録した`);
+          firstLine = firstLine.normalize('NFKC').slice(tsIdx + sourceTs.length).replace(/^[\]】\s]+/, '');
         }
       }
 
       const cardLabel = (body.match(/^([^\d:：「」]{1,20})[:：]\s*/) || [])[1];
       const lineLabel = (firstLine.normalize('NFKC').match(/^([^\d:：「」]{1,20})[:：]\s*/) || [])[1];
-      if (cardLabel && rewriteNorm(cardLabel) !== rewriteNorm(lineLabel || '') && !rewriteNorm(firstLine).startsWith(rewriteNorm(cardLabel))) {
+      const separateHeading = cardLabel && lines.length > 1 && rewriteNorm(firstLine).replace(/[:：]$/, '') === rewriteNorm(cardLabel);
+      if (separateHeading || (cardLabel && rewriteNorm(cardLabel) !== rewriteNorm(lineLabel || '') && !rewriteNorm(firstLine).startsWith(rewriteNorm(cardLabel)))) {
         notes.push(`見出し「${cardLabel.trim()}」を先頭に付けた（直前の見出し行から）`);
         body = body.replace(/^([^\d:：「」]{1,20})[:：]\s*/, '');
       }
@@ -570,7 +570,12 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         notes.push(`行の見出し「${lineLabel.trim()}」を本文から外した${item && item.fieldLabel ? `（[${item.fieldLabel}]として表示）` : ''}`);
         firstLine = firstLine.normalize('NFKC').replace(/^([^\d:：「」]{1,20})[:：]\s*/, '');
       }
-      if (lines.length > 1) {
+      // A heading and a fragment on the next line do not prove that whole lines were merged.
+      const bodyNorm = rewriteNorm(body);
+      const bodyLine = lines.length > 1 && bodyNorm ? lines.find(l => rewriteNorm(l).includes(bodyNorm)) : null;
+      if (bodyLine) firstLine = bodyLine;
+      if (lines.length > 1 && !bodyLine) {
+        notes.push(`元の文章の${lines.length}行（${lines.map(l => `「${l.length > 20 ? l.slice(0, 20) + '…' : l}」`).join('')}）を1枚にまとめた`);
 
         (body.match(/\d[\d,.]*\s*(?:×\s*10\^?\d+)?[^\s\d(（、,]*/g) || []).forEach(tok => {
           const m = tok.match(/^(\d[\d,.]*)\s*(.+)$/);
@@ -630,6 +635,9 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         out += `\n■ ${idx + 1}件目\n`;
         out += `${meta}\n`;
         out += `カードの内容: ${i.text}\n`;
+        if (Array.isArray(i.contextTagEvidence) && i.contextTagEvidence.length) {
+          out += `タグを付けた根拠（原文の文脈）:\n${i.contextTagEvidence.map(e => `  ・${hendersonNameOf(e.id)}：［${e.timestamp}］${e.evidence}`).join('\n')}\n`;
+        }
         out += `元の文章: ${excerpt || '（元の文章の中に見つかりませんでした）'}\n`;
         const edits = Array.isArray(i.editLog) ? i.editLog : [];
 
@@ -656,7 +664,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       return out;
     }
     function correctionRequestInstructionsText() {
-      return '\n[Developer instructions]\nCompare source, surrounding records and edit history. Separate automatic processing from manual edits; reproduce card splits/merges and tag additions/removals from the source. Determine intended behavior vs bugs; report evidence, cause and fix. Mark unverifiable causes 『確認不能』; do not present guesses as facts. Generalize rules to similar records, not one patient. Preserve source/Japanese clinical text and approved『タグ不要』/『理由を了承』decisions. Classify Henderson needs by meaning, not S/O; assess pre/post admission separately. Honor requested corrections. Check extraction (js/03), keywords (js/01), context/tag rules (js/07). Update the classification criteria in 学習データ管理 → 分類基準 (including the reference notebook in js/02) to reflect the confirmed corrections from this request; keep the criteria and implemented rules consistent for similar records. Run relevant tests; never derive expected answers from app output or hide missing fixtures.\n';
+      return '\n[Developer instructions]\nCompare source, surrounding records and edit history. Separate automatic processing from manual edits; reproduce card splits/merges and tag additions/removals from the source. Determine intended behavior vs bugs; report evidence, cause and fix. Mark unverifiable causes 『確認不能』; do not present guesses as facts. Generalize rules to similar records, not one patient. Preserve source/Japanese clinical text and approved『タグ不要』/『理由を了承』decisions. Classify Henderson needs by meaning, not S/O; assess pre/post admission separately. Honor requested corrections. Check extraction (js/03), keywords (js/01), context/tag rules (js/07). Update the classification criteria in 学習データ管理 → 分類基準 (including the reference notebook in js/02) to reflect the confirmed corrections from this request; keep the criteria and implemented rules consistent for similar records. For each confirmed rule, document the condition, a positive example and a counterexample (such as a different time or an unrelated event), remove superseded contradictory criteria, and advance the notebook version. Run relevant tests; never derive expected answers from app output or hide missing fixtures.\n';
     }
     function buildSelectedCardsExportText(cp, selectedIds, sourceText, includeSourceText = true, includeAssessment = false) {
       const ids = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);
@@ -750,7 +758,24 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         modal.onclick = e => { if (e.target === modal) finish(null); };
       });
     }
-    function downloadTextBlob(blob, filename) {
+    async function chooseExportFile(filename) {
+      if (typeof window.showSaveFilePicker !== 'function') return null;
+      return window.showSaveFilePicker({ suggestedName: filename });
+    }
+    async function downloadTextBlob(blob, filename, handlePromise = null) {
+      if (typeof window.showSaveFilePicker === 'function' || handlePromise) {
+        try {
+          const handle = await (handlePromise || chooseExportFile(filename));
+          if (!handle) return false;
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          return true;
+        } catch (error) {
+          if (error.name !== 'AbortError') showToast('保存先を開けませんでした。もう一度書き出してください', 'error');
+          return false;
+        }
+      }
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = filename;
@@ -758,6 +783,8 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      showToast('保存先を選ぶ画面が出ない場合は、ブラウザの「ダウンロード前に保存場所を確認」を有効にしてください', 'info', 7000);
+      return true;
     }
     window.exportSelectedCardsText = async function() {
       const cp = getCurrentPatient();
@@ -767,16 +794,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const text = buildSelectedCardsExportText(cp, selectedCardIds, DOM.sourceText.value || cp.sourceText || '', options.includeSourceText, options.includeAssessment);
       const safeTitle = (cp.title || 'カルテ').replace(/[\\/:*?"<>|]/g, '_');
       const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `${safeTitle}_修正依頼_${selectedCardIds.size}件.txt`;
-
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-
-      showToast(`選択した${selectedCardIds.size}件をテキストファイル（.txt）に書き出しました`, 'success');
+      if (await downloadTextBlob(blob, `${safeTitle}_修正依頼_${selectedCardIds.size}件.txt`)) showToast(`選択した${selectedCardIds.size}件を書き出しました`, 'success');
     };
 
     // ==========================================================================
@@ -787,7 +805,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     }
     function reviewRequestTargets(cp) {
       const items = cp.items || [];
-      return items.filter(i => i.type !== 'unnecessary' && (isEditedCard(i) || (typeof isUntaggedItem === 'function' && isUntaggedItem(i))));
+      return items.filter(i => !i.deleted && i.type !== 'unnecessary' && (isEditedCard(i) || (typeof isUntaggedItem === 'function' && isUntaggedItem(i))));
     }
     function describeEditHistoryForRequest(i) {
       const log = Array.isArray(i.editLog) ? i.editLog.filter(e => e && e.kind !== 'create') : [];
@@ -813,13 +831,30 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       let out = `修正依頼：${cp.title}（手で編集したカード ${editedN}件・タグ未設定のカード ${untaggedN}件／書き出し ${items.length}枚）\n`;
       out += `出力日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
       out += correctionRequestInstructionsText();
+      out += '【依頼の要点】\nタグ未設定のカードは、本文だけで判断せず、添付した原文全体と同じ場面の前後を読み直してください。影響先が確認できるものは根拠を示してタグを付けるルールに修正してください。昨日と本日、安静時と動作時を区別し、根拠が不足するものは必要な確認事項を示してください。今回の変更を分類基準にも反映してください。\n';
       out += 'Edited/untagged cards are review targets, not proof of bugs. Untagged may mean intentional exclusion, insufficient evidence or a rule gap.\n';
+      const originalItems = sourceText && sourceText.trim() && typeof classifyTextByRules === 'function' ? classifyTextByRules(sourceText) : [];
       items.forEach((i, idx) => {
         const edited = isEditedCard(i), untagged = typeof isUntaggedItem === 'function' && isUntaggedItem(i);
         const kinds = [edited ? '手で編集済み' : null, untagged ? 'タグ未設定' : null].filter(Boolean).join('＋');
         out += `\n────────────────────────\n■ ${idx + 1}件目　問題の種類: ${kinds}\n`;
+        let request = '原文・編集履歴と分類結果を比較し、確認できた誤りを同じ種類の記録でも直るよう修正してください。';
         if (untagged) {
           const inf = typeof inferUntaggedReason === 'function' ? inferUntaggedReason(i, cp) : null;
+          const original = originalItems.find(o => o.timestamp === i.timestamp && rewriteNorm(o.text) === rewriteNorm(i.text));
+          const evidence = original ? painContextTagEvidence(originalItems, original) : [];
+          if (original) {
+            const sourceIndex = originalItems.indexOf(original);
+            const context = originalItems.filter((o, n) => o !== original && o.type !== 'unnecessary' && o.timestamp === original.timestamp && Math.abs(n - sourceIndex) <= 4);
+            if (context.length) out += `原文から再抽出した周辺記録（${original.timestamp}）:\n${context.map(o => `  ・${o.text}`).join('\n')}\n`;
+          }
+          if (inf && evidence.length && !(i.editLog || []).some(e => e.kind === 'tagRemove')) {
+            Object.assign(inf, { kind: 'classify', kindLabel: '原文の文脈から分類可能', confidence: '中', candidates: evidence.map(e => e.id), reason: 'カード本文には影響先がなくても、同じ場面の原文に影響が明記されています。', checks: ['以下の原文の根拠を用いてタグ付与漏れを再現し、文脈を読む分類ルールを修正してください'] });
+            out += `原文から確認できるタグの根拠:\n${evidence.map(e => `  ・${hendersonNameOf(e.id)}：［${e.timestamp}］${e.evidence}`).join('\n')}\n`;
+            request = `同じ場面の原文を根拠に${evidence.map(e => hendersonNameOf(e.id)).join('・')}を付けてください。本文だけの判定でタグが落ちないよう分類ルールと分類基準を修正してください。`;
+          } else if (inf) {
+            request = inf.kind === 'classify' && inf.candidates.length && !inf.fromContext ? `${inf.reason} ${inf.candidates.map(h => hendersonNameOf(h)).join('・')}を付ける分類ルールと分類基準に修正してください。` : inf.kind === 'none' ? `${inf.reason} 原文から基本的欲求との関係を再確認し、関連が確認できた場合は根拠を示して分類してください。` : `${inf.reason} 原文全体を読み直し、影響先と同じ場面の根拠が確認できる場合はタグを付けてください。確認できなければ、不足している情報を具体的に示してください。`;
+          }
           if (inf) {
             out += `状況（タグ未設定）: ${inf.kindLabel}／推定理由：${inf.reason}／推定の確からしさ：${inf.confidence}／分類候補：${inf.candidates.length ? inf.candidates.map(h => hendersonNameOf(h)).join('・') : 'なし'}\n`;
             out += `Fix checks: ${inf.checks.join('／') || 'Check source/context before tagging'}. ` +
@@ -833,7 +868,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         }
         const block = buildCardsReportText(cp, [i], sourceText, '', false);
         const at = block.indexOf('\n■ ');
-        out += (at >= 0 ? block.slice(at).replace(/^\n■ [^\n]*\n/, '') : '');
+        out += (at >= 0 ? block.slice(at).replace(/^\n■ [^\n]*\n/, '').replace('修正してほしい内容: \n', `修正してほしい内容: ${request}\n`) : '');
       });
       if (includeSourceText) {
         out += `\n【分類前の文章（カルテ・看護記録入力欄）】\n`;
@@ -841,19 +876,14 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       }
       return out;
     }
-    window.exportReviewRequestText = function() {
+    window.exportReviewRequestText = async function() {
       const cp = getCurrentPatient();
       const targets = reviewRequestTargets(cp);
       if (!targets.length) return showToast('書き出す対象（手で編集したカード・タグ未設定のカード）はありません', 'success');
       const text = buildReviewRequestText(cp, DOM.sourceText.value || cp.sourceText || '', true);
       const safeTitle = (cp.title || 'カルテ').replace(/[\\/:*?"<>|]/g, '_');
       const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `${safeTitle}_修正依頼_編集済み・未設定_${targets.length}枚.txt`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      showToast(`編集済み・タグ未設定の${targets.length}枚を、問題の説明つきで書き出しました`, 'success');
+      if (await downloadTextBlob(blob, `${safeTitle}_修正依頼_編集済み・未設定_${targets.length}枚.txt`)) showToast(`編集済み・タグ未設定の${targets.length}枚を、問題の説明つきで書き出しました`, 'success');
     };
 
     function buildExportDocument(cp) {
@@ -880,8 +910,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         : '');
       const blob = new Blob([sheet], { type: 'text/plain;charset=utf-8' });
 
-      downloadTextBlob(blob, `${safeTitle}_看護アセスメント.txt`);
-      showToast('テキストファイル（.txt）を自動ダウンロードしました', 'success');
+      if (await downloadTextBlob(blob, `${safeTitle}_看護アセスメント.txt`)) showToast('看護アセスメントを書き出しました', 'success');
     });
 
     document.getElementById('btn-export-pdf').addEventListener('click', () => {

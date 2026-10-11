@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-10.znavigation17'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-11.usability-context12'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -466,11 +466,11 @@
       try { await navigator.clipboard.writeText(currentReportText()); showToast('書き出した内容をコピーしました', 'success'); }
       catch (e) { showToast(['コピーできませんでした', { text: 'プレビューの文章を選んで Ctrl+C でコピーするか、「テキストで保存」を使ってください。', detail: true }], 'error'); }
     };
-    window.downloadReport = function() {
+    window.downloadReport = async function() {
       const cp = getCurrentPatient();
       const blob = new Blob([currentReportText()], { type: 'text/plain;charset=utf-8' });
 
-      downloadTextBlob(blob, `${(cp.title || 'カルテ').replace(/[\\/:*?"<>|]/g, '_')}_${REPORT_FORMATS[reportState.format].label}.txt`);
+      if (!(await downloadTextBlob(blob, `${(cp.title || 'カルテ').replace(/[\\/:*?"<>|]/g, '_')}_${REPORT_FORMATS[reportState.format].label}.txt`))) return;
       showToast('テキストファイル（.txt）を保存しました', 'success');
     };
     window.printReport = function() {
