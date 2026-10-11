@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-10.znavigation17'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-11.export-instructions'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -613,10 +613,11 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       return when ? `${when} ${body}` : body;
     }
 
-    function buildCardsReportText(cp, items, sourceText, headline, includeSourceText = true, assessmentText = null) {
+    function buildCardsReportText(cp, items, sourceText, headline, includeSourceText = true, assessmentText = null, instructions = '') {
       let out = `${headline}\n`;
       out += `出力日時: ${new Date().toLocaleString('ja-JP')}\n`;
       out += `※「アプリによる書き換え」は元の文章とカードの文章の違い、「手で編集した履歴」は画面上で行った編集です（手での編集の記録は2026/9/27の機能追加以降の分のみ）。\n`;
+      out += instructions;
       items.forEach((i, idx) => {
         const tags = (i.hendersonIds || []).map(hendersonNameOf).join('、');
         const meta = [
@@ -654,11 +655,14 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       }
       return out;
     }
+    function correctionRequestInstructionsText() {
+      return '\n【調査・修正の指示】\n原文・前後の記録・編集履歴を照合し、なぜカードが分割・統合されたのか、なぜタグが付与・除外されたのかを調査してください。アプリの自動処理と利用者の手編集を区別し、該当する処理を原文で再現して原因を確認してください。意図した処理か不具合かを判断し、根拠・原因・修正方針を示してください。確認できない理由は推測で断定せず『確認不能』としてください。特定の患者だけに合わせず、同じ種類の記録にも適用できる規則として修正してください。\n';
+    }
     function buildSelectedCardsExportText(cp, selectedIds, sourceText, includeSourceText = true, includeAssessment = false) {
       const ids = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);
       const items = (cp.items || []).filter(i => ids.has(i.id));
       return buildCardsReportText(cp, items, sourceText, `修正依頼メモ：${cp.title}（選択したカード ${items.length}件）`, includeSourceText,
-        includeAssessment ? buildAssessmentTableText(cp, ids) : null);
+        includeAssessment ? buildAssessmentTableText(cp, ids) : null, correctionRequestInstructionsText());
     }
 
     function assessmentPeriodGroups(cp, col, list) {
@@ -816,6 +820,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       out += `2. 「修正してほしい内容」に利用者の希望があれば、それを優先する。空欄のものは、下の「直し方の案」に沿って、同じ種類の他の文章にも効く形（特定の患者の語句だけに合わせない）で直す。\n`;
       out += `3. 直したら、テストと保存済みの正しい分類結果（golden）で、他のカードに悪影響が出ていないか確認する。\n`;
       out += `4. 利用者が「タグ不要」「理由を了承」と確定したカードは、その判断を変えない。\n`;
+      out += correctionRequestInstructionsText();
       items.forEach((i, idx) => {
         const edited = isEditedCard(i), untagged = typeof isUntaggedItem === 'function' && isUntaggedItem(i);
         const kinds = [edited ? '手で編集済み' : null, untagged ? 'タグ未設定' : null].filter(Boolean).join('＋');
