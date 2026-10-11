@@ -2,7 +2,7 @@
 // Learned corrections precede headings and fixed rules; automatic creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-11.usability-context15'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-11.usability-context16'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -2515,4 +2515,9 @@
       addedThisRun.forEach(item => reportLearningEvent(item.text, 'create', { type: item.type, hendersonIds: item.hendersonIds, assessmentCols: item.assessmentCols, fieldLabel: item.fieldLabel, predictionSource: item.predictionSource, fuzzyMatchedText: fuzzyMatches.get(item.id) }));
       saveDataAndSync();
       showToast(`${addedCount}件のデータを分類・カード化しました${updatedCount ? `／${updatedCount}枚のタグを更新しました` : ''}`, 'success');
+    });
+
+    // Initial patient rendering can precede the review module; retry after all scripts load.
+    window.addEventListener('load', () => {
+      if (refreshSavedUntaggedCards(getCurrentPatient())) saveDataAndSync();
     });

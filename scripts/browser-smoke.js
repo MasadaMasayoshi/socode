@@ -17,7 +17,7 @@ const {app}=require('../server');
    const context=await browser.newContext({viewport:{width,height:900},hasTouch:width<768});
    await context.addInitScript(() => localStorage.setItem('nursing_font', 'serif'));
    const page=await context.newPage(),errors=[];
-   page.on('pageerror',e=>errors.push(e.message));
+    page.on('pageerror',e=>errors.push(e.stack || e.message));
    await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
    await page.waitForFunction(()=>typeof getCurrentPatient==='function'&&!!getCurrentPatient());
    const fontCheck = await page.evaluate(() => {
@@ -434,7 +434,8 @@ const {app}=require('../server');
      card('epidural','回診: 硬膜外麻酔抜去','術後1日目 8:00'),card('resting','ペインスケール「3」(安静時)','術後1日目 14:00'),
      card('manual','食物アレルギー: なし','入院前',{predictionSource:'confirmed',editLog:[{kind:'tagRemove',hId:9}]})];
     cp.myAssessments={existing:{text:'手書き評価'}};
-    cp.carePlans={saved:{id:'saved',problem:'架空計画',op:[],tp:[],ep:[],relatedNeeds:[],records:[],evidenceIds:['pain']}};
+    cp.carePlans={saved:normalizeCarePlan({id:'saved',problem:'架空計画',op:[],tp:[],ep:[],relatedNeeds:[],records:[],evidenceIds:['pain']})};
+    cp.untaggedReviews={ [untaggedTextKey('食物アレルギー: なし')]: {decision:'none'} };
     saveDataAndSync();
    },savedTagSource);
    await page.reload({waitUntil:'networkidle'});
