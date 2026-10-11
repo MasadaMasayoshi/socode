@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-10.znavigation17'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-11.clear-status5'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1050,11 +1050,10 @@
                 <span class="text-[12.5px] leading-snug font-semibold text-[var(--ink)] break-words font-sans">${needLabel}</span>
               </div>
             </div>
-            ${ownAsm && typeof sufficiencyMiniHtml === 'function' ? sufficiencyMiniHtml(cp, need.id) : ''}
           </td>
           <td class="border border-[var(--line)] p-1.5 align-top min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'unclassified')"><div class="space-y-1.5">${categorize('unclassified')}</div></td>
-          <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--slate-soft)]/30 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'preadmission')"><div class="space-y-1.5">${categorize('preadmission')}</div>${phaseJudge('pre')}</td>
-          <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--accent-soft)]/40 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'postadmission')"><div class="space-y-1.5">${categorize('postadmission')}</div>${postJudge()}</td>
+          <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--slate-soft)]/30 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'preadmission')">${phaseJudge('pre')}<div class="space-y-1.5">${categorize('preadmission')}</div></td>
+          <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--accent-soft)]/40 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'postadmission')">${postJudge()}<div class="space-y-1.5">${categorize('postadmission')}</div></td>
           <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--brick-soft)]/40 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'missing')">
             <div class="space-y-1.5">${categorize('missing')}</div>
             <button onclick="openMissingModal(${need.id})" class="mt-1.5 text-[10px] text-[var(--brick)] hover:text-[var(--ink)] font-medium flex items-center w-full justify-center p-1 border border-dashed border-[var(--brick-line)] rounded-[var(--radius-sm)]"><i class="fa-solid fa-plus mr-1"></i> 追加</button>
@@ -1108,8 +1107,8 @@
           ${nUnc ? `<div class="asm-aux-body">${categorize('unclassified')}</div>` : ''}
         </section>
         <div class="asm-center">
-          <section class="asm-col asm-col-pre" ${drop('preadmission')}><div class="asm-col-title">入院前 <b>${nPre}</b></div><div class="space-y-1.5">${categorize('preadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div>${phaseJ('pre')}</section>
-          <section class="asm-col asm-col-post" ${drop('postadmission')}><div class="asm-col-title">入院後 <b>${nPost}</b></div><div class="space-y-1.5">${categorize('postadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div>${(typeof isSurgicalPatient === 'function' && isSurgicalPatient(cp)) ? phaseJ('preop') + phaseJ('postop') : phaseJ('post')}</section>
+          <section class="asm-col asm-col-pre" ${drop('preadmission')}><div class="asm-col-title">入院前 <b>${nPre}</b></div>${phaseJ('pre')}<div class="space-y-1.5">${categorize('preadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div></section>
+          <section class="asm-col asm-col-post" ${drop('postadmission')}><div class="asm-col-title">入院後 <b>${nPost}</b></div>${(typeof isSurgicalPatient === 'function' && isSurgicalPatient(cp)) ? phaseJ('preop') + phaseJ('postop') : phaseJ('post')}<div class="space-y-1.5">${categorize('postadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div></section>
         </div>
         <section class="asm-aux asm-aux-miss" ${drop('missing')}>
           <div class="asm-aux-title"><i class="fa-solid fa-clipboard-question" style="color:var(--brick)"></i>不足情報 <b>${nMiss}</b>${nMiss ? `<span class="my-asm-muted">未確認 ${unchecked}</span>` : '<span class="my-asm-muted">まだありません</span>'}

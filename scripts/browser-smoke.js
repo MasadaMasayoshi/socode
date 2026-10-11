@@ -427,8 +427,30 @@ const {app}=require('../server');
     assert.ok(result.planned&&result.refs&&result.linked,`${width}px ${id}: state or evidence ownership`);
     await page.locator('#tab-careplan').click();
     await page.evaluate(()=>{for(const p of carePlanList(getCurrentPatient())){p.qa=[{level:'warn',msg:'保存済み自動警告'}];carePlanOpen.add(p.id);}renderCarePlans();});
-    assert.doesNotMatch(await page.locator('#careplan-list').innerText(),/表示前の自動チェック|保存済み自動警告/);
+    assert.doesNotMatch(await page.locator('#careplan-list').innerText(),/表示前の自動チェック|保存済み自動警告|そのまま使わず|現在のカードを表示します|優先順位：/);
     if(id==='gastric-arrows') await page.screenshot({path:`browser-artifacts/${width}-careplan-no-auto-check.png`});
+    if(id==='gastric-arrows') {
+     await page.locator('#tab-assessment').click();
+     await page.evaluate(()=>selectAssessmentNeed(1));
+     for (const column of ['.asm-col-pre','.asm-col-post']) {
+      const section=page.locator('#assessment-single '+column);
+      assert.equal(await section.locator('.suf-phase-block').count(),column==='.asm-col-pre'?1:2);
+      assert.equal(await section.evaluate(el=>{
+       const last=Array.from(el.querySelectorAll('.suf-phase-block')).at(-1),card=el.querySelector('.asc-card');
+       return !!card && !!(last.compareDocumentPosition(card)&Node.DOCUMENT_POSITION_FOLLOWING);
+      }),true,'Each phase verdict precedes its evidence cards');
+     }
+     await page.locator('#toast-container').evaluate(el=>el.replaceChildren());
+     await page.screenshot({path:`browser-artifacts/${width}-sufficiency-top.png`});
+     await page.evaluate(()=>selectAssessmentNeed('all'));
+     assert.equal(await page.locator('#assessment-tbody tr:not(.my-asm-row)').first().evaluate(row=>{
+      return [row.cells[2],row.cells[3]].every(cell=>{
+       const blocks=Array.from(cell.querySelectorAll('.suf-phase-block')),card=cell.querySelector('.asc-card');
+       return blocks.length>0 && !!card && !!(blocks.at(-1).compareDocumentPosition(card)&Node.DOCUMENT_POSITION_FOLLOWING);
+      }) && !row.cells[0].querySelector('.suf-mini-wrap');
+     }),true,'Overview verdicts appear in the matching admission column');
+     await page.evaluate(()=>selectAssessmentNeed(1));
+    }
     await page.locator('#tab-relation').click();
     if(id==='gastric-arrows') {
      for (const zoom of [.55,1,2]) {
