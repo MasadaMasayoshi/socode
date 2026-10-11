@@ -41,6 +41,24 @@ test('Multiple selected problems share their ancestors and exclude unrelated pro
   assert.equal(app.rmProblemSubmap(branchingMap(),[]),null);
 });
 
+test('Selected postoperative problems retain the disease treated by surgery and its original factors', () => {
+  const map={nodes:[
+    {id:'factor',type:'patient_fact',label:'発症要因'},
+    {id:'disease',type:'disease',label:'治療対象の疾患'},
+    {id:'surgery',type:'treatment',label:'手術'},
+    {id:'sign',type:'symptom',label:'術後の症状'},
+    {id:'problem',type:'nursing_problem',label:'選択した問題'}
+  ],edges:[
+    {id:'e1',source:'factor',target:'disease',relation:'contributes_to'},
+    {id:'e2',source:'surgery',target:'disease',relation:'treats'},
+    {id:'e3',source:'surgery',target:'sign',relation:'causes'},
+    {id:'e4',source:'sign',target:'problem',relation:'results_in'}
+  ]};
+  const sub=app.rmProblemSubmap(map,'problem');
+  assert.deepEqual(plain(sub.nodes.map(n=>n.id)),['factor','disease','surgery','sign','problem']);
+  assert.equal(sub.edges.length,4);
+});
+
 test('All incoming treatment evidence is traversed even when treatment only treats a selected ancestor', () => {
   const map=branchingMap();
   map.edges=map.edges.filter(e=>!(e.source==='disease'&&e.target==='treatment'));

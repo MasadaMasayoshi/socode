@@ -603,7 +603,7 @@ const {app}=require('../server');
      assert.deepEqual(await page.locator('#rm-canvas-wrap svg').evaluate(el=>({paper:getComputedStyle(el.querySelector('.rm-bg')).fill,canvas:getComputedStyle(el.closest('.rm-canvas-wrap')).backgroundColor})),background);
      const closure=await page.evaluate(()=>{
       const map=getCurrentPatient().relationMap,ids=new Set(Array.from(document.querySelectorAll('#rm-canvas-wrap .rm-node[data-node-id]')).map(el=>el.dataset.nodeId));
-      return map.edges.filter(e=>ids.has(e.target)&&map.nodes.find(n=>n.id===e.source)?.type!=='nursing_problem').every(e=>ids.has(e.source));
+      return map.edges.filter(e=>ids.has(e.target)&&map.nodes.find(n=>n.id===e.source)?.type!=='nursing_problem').every(e=>ids.has(e.source))&&map.edges.filter(e=>ids.has(e.source)&&e.relation==='treats'&&['disease','symptom','pathophysiology'].includes(map.nodes.find(n=>n.id===e.target)?.type)).every(e=>ids.has(e.target));
      });
      assert.equal(closure,true,'Focused diagrams preserve incoming evidence, including the pre-treatment flow');
      await page.locator('#rm-canvas-wrap').screenshot({path:`browser-artifacts/${width}-selected-problems.png`});

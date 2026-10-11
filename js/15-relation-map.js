@@ -3204,13 +3204,19 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
       const stack = [...keep];
       const nodes = new Map(map.nodes.map(n => [n.id, n]));
       const incoming = new Map();
+      const indications = new Map();
       map.edges.forEach(e => {
         if (!incoming.has(e.target)) incoming.set(e.target, []);
         incoming.get(e.target).push(e.source);
+        if (e.relation === 'treats' && ['disease', 'symptom', 'pathophysiology'].includes(nodes.get(e.target)?.type)) {
+          if (!indications.has(e.source)) indications.set(e.source, []);
+          indications.get(e.source).push(e.target);
+        }
       });
       while (stack.length) {
         const id = stack.pop();
-        (incoming.get(id) || []).forEach(source => {
+        // Treatment arrows point to their indication, opposite to causal ancestry.
+        [...(incoming.get(id) || []), ...(indications.get(id) || [])].forEach(source => {
           const node = nodes.get(source);
           if (!node || keep.has(source) || (node.type === 'nursing_problem' && !selected.has(source))) return;
           keep.add(source);
