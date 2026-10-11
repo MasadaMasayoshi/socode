@@ -913,6 +913,22 @@ const {app}=require('../server');
    assert.match(operationExport,/理由未記録/);
    assert.match(operationExport,/追加の修正依頼（利用者）: 原文を再確認してください。\n家族歴を関連図で保持してください。/);
    console.log(`PASS ${width}px: split/merge reasons, source histories, reload and unnecessary-card export`);
+   // Repeated fictional background evidence remains readable and survives reload.
+   const consolidated=await page.evaluate(()=>{
+    createNewPatientPage('背景情報の重複検証');
+    const cp=getCurrentPatient();
+    cp.sourceText='診断名：胃がん\n【メディカルヒストリー】がん家系なので検診を欠かさない。半年前から胃のむかつきがある。精密検査で胃底部に25mmの腫瘍。\n【ファミリーヒストリー】祖母は胃がん。\n【胃カメラ】胃底部に25mmの腫瘍。\n胃全摘術を施行。\n術後1日目：創部痛 NRS2。';
+    cp.items=classifyTextByRules(cp.sourceText).map((i,k)=>({...i,id:'background-'+k}));
+    cp.relationMap=buildRelationMapFromRecord(cp);saveDataAndSync();
+    const map=cp.relationMap,tumors=map.nodes.filter(n=>/腫瘍.*25mm/.test(n.label)),family=map.nodes.filter(n=>/^家族歴/.test(n.label)),pain=map.nodes.find(n=>n.type==='nursing_problem'&&/痛/.test(n.label));
+    return {tumors:tumors.length,refs:tumors[0].itemIds.length,mixed:family.some(n=>/むかつき|25mm/.test(n.label)),focused:rmProblemSubmap(map,pain.id).nodes.some(n=>n.id===tumors[0].id),evidence:tumors[0].evidence};
+   });
+   assert.equal(consolidated.tumors,1);assert.ok(consolidated.refs>=2);assert.equal(consolidated.mixed,false);assert.equal(consolidated.focused,true);
+   await page.reload({waitUntil:'networkidle'});
+   await page.waitForFunction(()=>!!getCurrentPatient()?.relationMap);
+   assert.equal(await page.evaluate(()=>getCurrentPatient().relationMap.nodes.find(n=>/腫瘍.*25mm/.test(n.label)).evidence),consolidated.evidence);
+   await page.locator('#tab-relation').click();
+   await page.screenshot({path:`browser-artifacts/${width}-consolidated-background.png`});
    assert.deepEqual(errors,[],`Uncaught browser errors at ${width}px`);
    console.log(`PASS ${width}px: classification, five views, recovery and catalog revision comparison`);
    await page.goto(`http://127.0.0.1:${server.address().port}/clinical-knowledge/practice.html`,{waitUntil:'networkidle'});
