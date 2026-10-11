@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-11.status-inline6'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-11.status-inline7'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -428,8 +428,9 @@
       const ev = (a.evidence || []).map(id => labels[id]).filter(Boolean).join('・');
       const icon = v === 'met' ? 'fa-circle-check' : v === 'unmet' ? 'fa-triangle-exclamation' : v === 'conflict' ? 'fa-scale-unbalanced' : 'fa-circle-question';
 
-      const open = !inline && (v === 'unmet' || v === 'conflict') ? ' open' : '';
-      return `<details class="suf-phase-block suf-b-${v}${inline ? ' suf-inline' : ''}" data-suf-phase="${phaseKey}"${open}><summary class="suf-phase-head"><span class="suf-phase-name">${ph.label}</span><span class="suf-badge suf-${v}"><i class="fa-solid ${icon}"></i> ${SUFFICIENCY_LABELS[v]}</span><span class="suf-more">根拠</span></summary><div class="suf-phase-why">${escapeHtml(sufficiencySentence(cp, needId, phaseKey))}${ev ? `<span class="suf-ev">根拠カード：${escapeHtml(ev)}</span>` : ''}</div></details>`;
+      const keepOpen = inline && Array.from(document.querySelectorAll('.suf-inline[open]')).some(el => el.dataset.sufOwner === String(cp.id || '') && el.dataset.sufNeed === String(needId) && el.dataset.sufPhase === phaseKey);
+      const open = keepOpen || !inline && (v === 'unmet' || v === 'conflict') ? ' open' : '';
+      return `<details class="suf-phase-block suf-b-${v}${inline ? ' suf-inline' : ''}" data-suf-phase="${phaseKey}" data-suf-owner="${escapeHtml(cp.id || '')}" data-suf-need="${needId}"${open}><summary class="suf-phase-head"><span class="suf-phase-name">${ph.label}</span><span class="suf-badge suf-${v}"><i class="fa-solid ${icon}"></i> ${SUFFICIENCY_LABELS[v]}</span><span class="suf-more">根拠</span></summary><div class="suf-phase-why">${escapeHtml(sufficiencySentence(cp, needId, phaseKey))}${ev ? `<span class="suf-ev">根拠カード：${escapeHtml(ev)}</span>` : ''}</div></details>`;
     }
 
     document.addEventListener('click', event => {

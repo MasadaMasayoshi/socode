@@ -432,6 +432,7 @@ const {app}=require('../server');
     if(id==='gastric-arrows') await page.screenshot({path:`browser-artifacts/${width}-careplan-no-auto-check.png`});
     if(id==='gastric-arrows') {
      await page.locator('#tab-assessment').click();
+     await page.waitForFunction(()=>Object.values(patientSyncState).every(st=>!st.inFlight&&!st.pending) && Object.keys(patientSyncTimers).length===0);
      // Explicit phase labels isolate layout coverage from narrative date extraction.
      await page.evaluate(()=>{
       const cp=getCurrentPatient();window.__phaseItems=cp.items;
@@ -461,8 +462,10 @@ const {app}=require('../server');
      const postop=page.locator('#assessment-single [data-suf-phase="postop"]');
      await postop.locator('summary').click();
      assert.equal(await postop.locator('.suf-phase-why').isVisible(),true);
+     await page.evaluate(()=>renderAssessmentTable());
+     assert.equal(await postop.locator('.suf-phase-why').isVisible(),true,'Open evidence survives a view refresh');
      const beforeCard=await page.locator('#assessment-single .asm-col-post .asc-card').first().boundingBox();
-     await page.locator('#assessment-single .asm-center').screenshot({path:`browser-artifacts/${width}-sufficiency-evidence.png`});
+     await page.screenshot({path:`browser-artifacts/${width}-sufficiency-evidence.png`});
      await page.keyboard.press('Escape');
      assert.equal(await postop.getAttribute('open'),null);
      const afterCard=await page.locator('#assessment-single .asm-col-post .asc-card').first().boundingBox();
