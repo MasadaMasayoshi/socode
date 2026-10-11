@@ -5,11 +5,12 @@ const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');
 const app = loadApp();
 
-test('Repeated reason text is shown once while distinct evidence cards remain linked', () => {
+test('Full judgment explanations preserve distinct evidence links without duplicating raw reasons', () => {
   const cp = { id:'repeated-reason', items:['a','b'].map(id=>({ id, type:'o', text:'呼吸困難なし', timestamp:'入院前', hendersonIds:[1], assessmentCols:{1:'preadmission'} })), myAssessments:{} };
   const before = JSON.stringify(cp.items);
   const output = app.sufficiencyPhaseHtml(cp, 1, 'pre');
-  assert.equal((output.match(/「呼吸困難なし」/g) || []).length, 1);
+  assert.doesNotMatch(output, /「呼吸困難なし」/);
+  assert.match(output, /O-1（入院前：呼吸困難なし）・O-2（入院前：呼吸困難なし）により、呼吸は満たされているため、充足。/);
   assert.equal((output.match(/class="suf-evidence-chip"/g) || []).length, 2);
   assert.equal(JSON.stringify(cp.items), before);
   assert.equal(app.getSufficiency(cp, 1, 'pre'), 'met');
@@ -28,6 +29,8 @@ test('充足・未充足はサイトが決める：選ぶ欄は無く、記録�
   assert.match(pre + post, /class="suf-phase-block suf-expanded/);
   assert.match(pre, /入院前.*情報不足.*判定理由/);
   assert.match(post, /術後.*未充足.*根拠カード/);
+  assert.match(post, /O-1（術後1日目：術後排便なし 腹部膨満あり）により、排泄が現在は十分に満たされていない状態と判断し、未充足。/);
+  assert.ok(post.includes(app.sufficiencyPhaseText(cp, 3, 'postop').split('／判定根拠：')[1]), 'On-screen explanation matches the existing exported rationale');
   const head = app.sufficiencyHeaderHtml(cp, 3);
   assert.match(head, /入院前.*情報不足.*術後.*未充足.*suf-cref-O.*O-1<\/b>（術後1日目：術後排便なし/, '見出しに、O-1によりの形で根拠を出す');
   app.ensureMyAssessment(cp, 3).interpretation = '排便がない';
