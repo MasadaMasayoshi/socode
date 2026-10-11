@@ -1377,6 +1377,7 @@ html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow-sel path { fill: #F59E6
 /* Frequent actions remain visible; only exports and destructive actions use menus. */
 .rm-toolbar { display:flex; flex-wrap:wrap; gap:8px 12px; }
 .rm-toolbar > .rm-group { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.rm-toolbar .rm-prob-menu { position:static; }
 .rm-toolbar > .rm-group > .btn, .rm-toolbar .rm-prob-menu > .btn { min-height:40px; font-size:12px; padding:6px 9px; width:auto; }
 .rm-toolbar .rm-edit-controls .icon-btn { width:40px; height:40px; }
 .rm-toolbar .rm-more-menu > .btn { width:40px; }
@@ -1395,9 +1396,13 @@ html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow-sel path { fill: #F59E6
  .rm-toolbar > .rm-group { display:grid; gap:6px; }
  .rm-toolbar > .rm-create-controls { grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); }
  .rm-toolbar > .rm-edit-controls { grid-template-columns:minmax(0,1fr) 40px 40px; }
- .rm-toolbar > .rm-view-controls { grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 40px; }
+ .rm-toolbar > .rm-view-controls { grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr) minmax(0,1fr) 40px; }
  .rm-toolbar > .rm-group > .btn, .rm-toolbar .rm-prob-menu > .btn { width:100%; font-size:11px; padding:6px 4px; }
  .rm-toolbar .rm-prob-menu { position:static; }
  .cp-toolbar { grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
  .cp-toolbar > .btn { font-size:11px; padding:8px 4px; }
 }
+
+.cp-utilities { flex-wrap:wrap; }
+.cp-history[open] { flex:1 0 100%; order:2; }
+.cp-utilities > .cp-actions { margin-left:auto; }

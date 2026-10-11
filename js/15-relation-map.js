@@ -2836,7 +2836,7 @@
       const textView = document.getElementById('rm-text-view');
       if (textView) { textView.classList.toggle('hidden', !has || !rmState.textView); textView.innerHTML = has ? relationMapTextHtml(map, cp) : ''; }
       const textToggle = view.querySelector('[data-rm-action="toggle-text"]');
-      if (textToggle) { textToggle.setAttribute('aria-pressed', String(rmState.textView)); textToggle.textContent = rmState.textView ? '図で表示' : '関連図を一覧で表示'; }
+      if (textToggle) { textToggle.setAttribute('aria-pressed', String(rmState.textView)); textToggle.textContent = rmState.textView ? '図で表示' : '一覧表示'; }
       rmRenderProblemList(map);
       const legend = document.getElementById('rm-legend');
       if (legend && !legend.dataset.ready) { legend.innerHTML = rmLegendHtml(); legend.dataset.ready = '1'; }
@@ -2961,7 +2961,8 @@
         const on = !!(map && map.nodes.some(n => n.added)), hidden = !!(map && map.addedStash);
         tg.setAttribute('aria-pressed', on ? 'true' : 'false');
         tg.classList.toggle('is-on', on);
-        tg.innerHTML = `<i class="fa-solid ${on ? 'fa-eye' : 'fa-eye-slash'}"></i> ＋補足：${on ? 'あり' : 'なし'}${hidden && !on ? `（${map.addedStash.nodes.length}個を隠しています）` : ''}`;
+        tg.innerHTML = `<i class="fa-solid ${on ? 'fa-eye' : 'fa-eye-slash'}"></i> 補足：${on ? 'あり' : 'なし'}`;
+        tg.title = `矢印の間に補った過程の表示を切り替えます${hidden && !on ? `（${map.addedStash.nodes.length}個を隠しています）` : ''}`;
       }
     }
     function rmCssEsc(id) { return (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(String(id)) : String(id).replace(/["\\]/g, '\\$&'); }

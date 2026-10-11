@@ -598,6 +598,8 @@ const {app}=require('../server');
      await page.keyboard.press('End');
      assert.equal(await page.locator('#rm-more button:not([disabled])').last().evaluate(el=>el===document.activeElement),true);
      await page.keyboard.press('Escape');
+     for(const control of await page.locator('.rm-toolbar > .rm-group > button, .rm-toolbar .rm-prob-menu > button').all())assert.equal(await control.evaluate(el=>el.scrollWidth<=el.clientWidth+1),true,`${width}px: visible control labels fit their buttons`);
+     await page.locator('.rm-toolbar').screenshot({path:`browser-artifacts/${width}-active-map-toolbar.png`});
      await page.locator('[data-rm-action="toggle-text"]').click();
      assert.equal(await page.locator('#rm-text-view').isVisible(),true);
      assert.equal(await page.locator('#rm-more').isVisible(),false);
