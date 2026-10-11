@@ -6,15 +6,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="2026-10-12.usability-context22">
-  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-11.usability-context15,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-12.usability-context21,06:2026-10-12.usability-context21,07:2026-10-11.usability-context16,08:2026-10-11.usability-context12,09:2026-10-12.usability-context21,10:2026-10-11.usability-context19,11:2026-10-12.usability-context22,12:2026-10-12.usability-context20,13:2026-10-12.usability-context21,14:2026-10-10.znavigation17,15:2026-10-11.usability-context17">
+  <meta name="app-version" content="2026-10-12.usability-context23">
+  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-11.usability-context15,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-12.usability-context21,06:2026-10-12.usability-context23,07:2026-10-11.usability-context16,08:2026-10-11.usability-context12,09:2026-10-12.usability-context23,10:2026-10-11.usability-context19,11:2026-10-12.usability-context22,12:2026-10-12.usability-context20,13:2026-10-12.usability-context21,14:2026-10-10.znavigation17,15:2026-10-12.usability-context23">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=2026-10-11.usability-context19">
+  <link rel="stylesheet" href="style.css?v=2026-10-12.usability-context23">
 
   <link rel="stylesheet" href="vendor/tailwind.css?v=2026-10-06.14">
   <script>
@@ -286,6 +286,7 @@
       <div id="missing-check-summary" class="mc-summary hidden"></div>
       <div id="assessment-need-nav" class="need-nav" role="group" aria-label="基本的欲求の切り替え"></div>
 
+      <span id="suf-summary" class="suf-sum-wrap"></span>
       <div id="assessment-layout" class="assessment-layout">
       <div class="assessment-data">
       <div id="assessment-single" class="asm-single hidden"></div>
@@ -294,9 +295,9 @@
           <thead>
             <tr class="text-[var(--ink-muted)] text-center">
               <th class="border border-[var(--line)] p-2.5 w-56 shrink-0 bg-[var(--paper)]">基本欲求</th>
-              <th class="border border-[var(--line)] p-2.5 w-1/4 bg-[var(--paper)]">未分類</th>
               <th class="border border-[var(--line)] p-2.5 w-1/4 bg-[var(--slate-soft)]">入院前</th>
               <th class="border border-[var(--line)] p-2.5 w-1/4 bg-[var(--accent-soft)]">入院後</th>
+              <th class="border border-[var(--line)] p-2.5 w-1/4 bg-[var(--paper)]">充足・未充足</th>
               <th class="border border-[var(--line)] p-2.5 w-1/4 bg-[var(--brick-soft)]">不足情報</th>
             </tr>
           </thead>
@@ -306,10 +307,9 @@
         </table>
       </div>
       </div>
-      <aside id="assessment-status" class="assessment-status" aria-labelledby="assessment-status-title">
-        <h3 id="assessment-status-title">充足・未充足</h3>
-        <span id="suf-summary" class="suf-sum-wrap"></span>
-        <div id="assessment-status-content"></div>
+      <aside id="assessment-unclassified" class="assessment-unclassified" aria-labelledby="assessment-unclassified-title">
+        <h3 id="assessment-unclassified-title">未分類</h3>
+        <div id="assessment-unclassified-content"></div>
       </aside>
       </div>
     </div>
@@ -332,31 +332,10 @@
     </div>
 
     <div id="view-careplan" class="hidden surface p-4 flex flex-col gap-3">
-      <div class="flex flex-wrap gap-2" aria-label="実施・評価記録の編集履歴">
-        <button type="button" class="btn btn-outline text-xs" onclick="undoCareRecordEdit(false)">記録の編集を元に戻す</button>
-        <button type="button" class="btn btn-outline text-xs" onclick="undoCareRecordEdit(true)">やり直す</button>
-        <span class="text-xs text-[var(--ink-muted)]">既存記録の編集のみ。情報カードの追加・記録の追加と削除は対象外</span>
-      </div>
-      <div class="flex flex-wrap gap-2" aria-label="看護計画の編集履歴">
-        <button type="button" class="btn btn-outline text-xs" onclick="undoCareOperation(false)">計画・記録の操作を元に戻す</button>
-        <button type="button" class="btn btn-outline text-xs" onclick="undoCareOperation(true)">操作をやり直す</button>
-        <button type="button" class="btn btn-outline text-xs" onclick="undoCarePlanField(false)">計画の編集を元に戻す</button>
-        <button type="button" class="btn btn-outline text-xs" onclick="undoCarePlanField(true)">やり直す</button>
-        <span class="text-xs text-[var(--ink-muted)]">文章・状態・関連項目の編集（この画面を開いている間）</span>
-      </div>
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <h2 class="font-display font-semibold text-[var(--ink)] text-[15px] flex items-center"><i class="fa-solid fa-notes-medical text-[var(--accent)] mr-2"></i>看護計画・実施・評価</h2>
-        <div class="cp-top-actions flex flex-wrap items-center gap-2">
-          <span id="careplan-import-info" class="text-[11px] text-[var(--ink-muted)]"></span>
-          <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="buildCarePlansByRulesUI()" title="記録から看護問題を見つけ、目標・OP/TP/EPの手本つきで看護計画を作ります"><i class="fa-solid fa-list-check"></i> 記録から計画を作る</button>
-          <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="importCarePlansFromMapUI()" title="関連図の看護問題を、根拠データ（関連図でその問題へたどれる記録の事実）つきで取り込みます"><i class="fa-solid fa-diagram-project"></i> 関連図から取り込む</button>
-          <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="openCarePlanSetReview()" aria-label="全計画をまとめて評価" title="全ての計画を横断して、重複・補完・不足を記録を基に確認します"><i class="fa-solid fa-layer-group" aria-hidden="true"></i> 全計画をまとめて評価</button>
-          <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="printCarePlans()" title="看護計画と実施・評価の記録を、A4縦の印刷用の形で印刷・PDF保存します"><i class="fa-solid fa-file-pdf"></i> 印刷 / PDF</button>
-          <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="exportCarePlansText()" title="看護計画と実施・評価の記録をテキストファイルで保存します"><i class="fa-solid fa-file-lines"></i> テキスト</button>
-          <button type="button" class="btn btn-primary text-[11px] py-1.5" onclick="addCarePlanUI()"><i class="fa-solid fa-plus"></i> 看護計画を追加</button>
-        </div>
-      </div>
-      <p class="cp-help-text text-[11px] text-[var(--ink-muted)] leading-relaxed" onclick="this.classList.toggle('is-open')">看護問題ごとに目標とOP（観察）・TP（援助）・EP（教育）を書き、毎日の実施内容・患者の反応・目標の達成状況を記録します。上下の矢印で優先順位を入れ替えられます。書いた内容は自動で保存されます。計画を開いて「計画をチェック」「AIで看護計画を評価」を押すと、目標が評価できる形か・OPの不足などを確かめられます。</p>
+      <div class="cp-page-heading"><h2 class="font-display font-semibold text-[var(--ink)] text-[15px]"><i class="fa-solid fa-notes-medical text-[var(--accent)] mr-2" aria-hidden="true"></i>看護計画・実施・評価</h2><span id="careplan-import-info" class="text-[11px] text-[var(--ink-muted)]"></span></div>
+<div class="cp-toolbar" role="toolbar" aria-label="看護計画の操作"><button type="button" class="btn btn-outline" onclick="buildCarePlansByRulesUI()" title="記録から看護問題を見つけ、目標・OP/TP/EPの手本つきで看護計画を作ります"><i class="fa-solid fa-list-check"></i> 記録から計画を作る</button><button type="button" class="btn btn-outline" onclick="importCarePlansFromMapUI()" title="関連図の看護問題を、根拠データ（関連図でその問題へたどれる記録の事実）つきで取り込みます"><i class="fa-solid fa-diagram-project"></i> 関連図から取り込む</button><button type="button" class="btn btn-primary" onclick="addCarePlanUI()"><i class="fa-solid fa-plus" aria-hidden="true"></i> 看護計画を追加</button><button type="button" class="btn btn-outline" onclick="openCarePlanSetReview()" aria-label="全計画をまとめて評価"><i class="fa-solid fa-layer-group" aria-hidden="true"></i> 全計画を評価</button></div>
+<div class="cp-utilities"><details id="cp-history" class="cp-history"><summary>編集履歴</summary><div class="cp-history-panel"><div class="cp-history-row"><span>計画・記録の操作</span><button type="button" class="btn btn-outline" onclick="undoCareOperation(false)"> 元に戻す</button><button type="button" class="btn btn-outline" onclick="undoCareOperation(true)"> やり直す</button></div><div class="cp-history-row"><span>計画の文章・状態</span><button type="button" class="btn btn-outline" onclick="undoCarePlanField(false)"> 元に戻す</button><button type="button" class="btn btn-outline" onclick="undoCarePlanField(true)"> やり直す</button></div><div class="cp-history-row"><span>記録の文章</span><button type="button" class="btn btn-outline" onclick="undoCareRecordEdit(false)"> 元に戻す</button><button type="button" class="btn btn-outline" onclick="undoCareRecordEdit(true)"> やり直す</button></div><p>計画の文章・状態の編集履歴は、この画面を開いている間に使えます。記録の文章の履歴は既存記録の編集が対象です。</p></div></details><details id="cp-actions" class="cp-actions"><summary class="btn btn-outline" aria-label="看護計画の書き出し"><i class="fa-solid fa-file-export" aria-hidden="true"></i> 書き出し</summary><div class="cp-actions-menu"><button type="button" class="btn btn-outline" onclick="printCarePlans()" title="看護計画と実施・評価の記録を、A4縦の印刷用の形で印刷・PDF保存します"><i class="fa-solid fa-file-pdf"></i> 印刷 / PDF</button><button type="button" class="btn btn-outline" onclick="exportCarePlansText()" title="看護計画と実施・評価の記録をテキストファイルで保存します"><i class="fa-solid fa-file-lines"></i> テキスト</button></div></details></div>
+      <p class="cp-help-text text-[11px] text-[var(--ink-muted)] leading-relaxed" onclick="this.classList.toggle('is-open')">看護問題ごとに目標とOP（観察）・TP（援助）・EP（教育）を書き、毎日の実施内容・患者の反応・目標の達成状況を記録します。上下の矢印で優先順位を入れ替えられます。書いた内容は自動で保存されます。「全計画を評価」で、計画の不足と記録に応じた次の見直しを確認できます。</p>
       <div id="careplan-set-review"></div>
       <div id="careplan-list" class="flex flex-col gap-3"></div>
     </div>
@@ -368,27 +347,25 @@
       </div>
 
       <div class="rm-toolbar" role="toolbar" aria-label="関連図の操作">
-        <div class="rm-group" aria-label="作る">
+        <div class="rm-group rm-create-controls" aria-label="作成">
           <button type="button" class="btn btn-primary text-[11px] py-1.5" data-rm-action="build-rules" title="分類したカード・検査値の推移・看護計画（または選んだ看護診断）から、関連図のたたき台を作ります"><i class="fa-solid fa-diagram-project"></i> 記録から作る</button>
+          <button type="button" class="btn btn-outline" data-rm-action="add"><i class="fa-solid fa-plus"></i> 追加</button>
+          <button type="button" class="btn btn-outline" data-rm-action="import-clinical" title="薬剤・アセスメントを取り込む" data-rm-needs-map><i class="fa-solid fa-file-import"></i> 情報を取り込む</button>
         </div>
-        <div class="rm-group rm-group-end" aria-label="見る・出す">
+        <div class="rm-group rm-edit-controls" aria-label="編集"><button type="button" class="btn btn-outline" data-rm-action="relayout" data-rm-needs-map><i class="fa-solid fa-table-cells"></i> 並べ直す</button><button type="button" class="icon-btn" data-rm-action="undo" aria-label="元に戻す" title="元に戻す（Ctrl+Z）"><i class="fa-solid fa-rotate-left"></i></button><button type="button" class="icon-btn" data-rm-action="redo" aria-label="やり直す" title="やり直す（Ctrl+Y）"><i class="fa-solid fa-rotate-right"></i></button></div>
+        <div class="rm-group rm-view-controls" aria-label="表示">
 
           <div class="rm-prob-menu">
             <button type="button" class="btn btn-outline rm-prob-toggle text-[11px] py-1.5" data-rm-action="toggle-problems" aria-expanded="false" aria-controls="rm-problems" title="看護問題ごとに、その流れだけの図を見られます"><i class="fa-solid fa-list-ol"></i> 看護問題<span class="rm-prob-count"></span></button>
             <div id="rm-problems" class="rm-problems hidden" role="menu" aria-label="看護問題の一覧"></div>
           </div>
+          <button type="button" class="btn btn-outline" data-rm-action="toggle-text" aria-pressed="false" aria-controls="rm-text-view" data-rm-needs-map>一覧表示</button>
+          <button type="button" class="btn btn-outline rm-bridge-btn" data-rm-action="toggle-added" data-rm-needs-map aria-pressed="false" title="矢印の間に補った過程の表示を切り替えます"><i class="fa-solid fa-eye-slash"></i> 補足：なし</button>
           <div class="rm-prob-menu rm-more-menu">
-            <button type="button" class="btn btn-outline toolbar-more" data-rm-action="toggle-more" aria-expanded="false" aria-controls="rm-more" aria-label="関連図のその他の操作" title="編集・表示・書き出し"><i class="fa-solid fa-ellipsis"></i></button>
-            <div id="rm-more" class="rm-problems rm-more hidden" role="menu" aria-label="その他の操作">
-              <div class="rm-group rm-group-sep" aria-label="編集">
-                <button type="button" role="menuitem" class="rm-more-item" data-rm-action="add"><i class="fa-solid fa-plus"></i> 追加</button>
-                <button type="button" role="menuitem" class="rm-more-item" data-rm-action="import-clinical" data-rm-needs-map><i class="fa-solid fa-file-import"></i> 薬剤・アセスメントを取り込む</button>
-                <button type="button" role="menuitem" class="rm-more-item" data-rm-action="relayout" data-rm-needs-map><i class="fa-solid fa-table-cells"></i> 並べ直す</button>
-                <button type="button" role="menuitem" class="rm-more-item" data-rm-action="undo" title="元に戻す（Ctrl+Z）"><i class="fa-solid fa-rotate-left"></i> 元に戻す</button>
-                <button type="button" role="menuitem" class="rm-more-item" data-rm-action="redo" title="やり直す（Ctrl+Y）"><i class="fa-solid fa-rotate-right"></i> やり直す</button>
-              </div>
-              <button type="button" role="menuitem" class="rm-more-item" data-rm-action="toggle-text" aria-pressed="false" aria-controls="rm-text-view" data-rm-needs-map>関連図を一覧で表示</button>
-              <button type="button" role="menuitem" class="rm-more-item rm-bridge-btn" data-rm-action="toggle-added" data-rm-needs-map aria-pressed="false" title="矢印の間に補った過程の表示を切り替えます"><i class="fa-solid fa-eye-slash"></i> ＋補足：なし</button>
+            <button type="button" class="btn btn-outline toolbar-more" data-rm-action="toggle-more" aria-expanded="false" aria-controls="rm-more" aria-label="関連図のその他の操作" title="書き出し・削除"><i class="fa-solid fa-ellipsis"></i></button>
+            <div id="rm-more" class="rm-problems rm-more hidden" role="menu" aria-label="書き出し・削除">
+
+
               <button type="button" role="menuitem" class="rm-more-item" data-rm-action="print" data-rm-needs-map title="A4横で印刷・PDF保存します"><i class="fa-solid fa-print"></i> 印刷 / PDF</button>
               <button type="button" role="menuitem" class="rm-more-item" data-rm-action="print-per-problem" data-rm-needs-map title="全体の図の後に、看護問題ごとの図を1ページずつ印刷します（A4横）"><i class="fa-solid fa-copy"></i> 看護問題ごとに印刷 / PDF</button>
               <button type="button" role="menuitem" class="rm-more-item" data-rm-action="png" data-rm-needs-map title="画像（PNG）で保存します"><i class="fa-solid fa-image"></i> 画像で保存</button>
@@ -975,7 +952,7 @@
         <section data-help-section="assessment">
           <ul>
             <li>上の 1〜14 のボタン（または ← → キー）で項目を切り替えます。「すべて」で14項目を一覧にします。</li>
-            <li>項目を選ぶと、中央に「入院前」「入院後」、上に「未分類」、下に「不足情報」が出ます。カードは枠の間でドラッグするか、カードの「前・後・欠」ボタンで移します。</li>
+            <li>項目を選ぶと、「入院前」「入院後」の下に、左から「充足・未充足」「不足情報」が出ます。「未分類」はその下にあります。カードは枠の間でドラッグするか、カードの「前・後・欠」ボタンで移します。</li>
             <li>「自分のアセスメント」に情報の解釈・考えられる原因・今後の見通しを書き、根拠のカードを選びます。「確定」すると版として残り、あとで情報が変わると再評価を知らせます。</li>
             <li>不足情報のカードの「未確認」ボタンで、確認した内容と結果を記録できます。</li>
           </ul>
@@ -1084,9 +1061,20 @@
     <button id="btn-bulk-merge" onclick="openMergeModal()" class="btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;" title="選択した2件以上のカードを1枚にまとめる"><i class="fa-solid fa-layer-group mr-1"></i>統合</button>
     <button onclick="bulkSetType('unnecessary')" class="btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;">不要にする</button>
 
+    <button id="btn-bulk-correction-request" onclick="openSelectedCorrectionRequest()" class="btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;"><i class="fa-solid fa-pen mr-1"></i>修正依頼を追加</button>
     <button onclick="exportSelectedCardsText()" class="btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;" title="選択したカードだけを、元の文章の該当箇所と修正内容の記入欄付きでテキストファイル(.txt)に書き出す"><i class="fa-solid fa-file-export mr-1"></i>選択をテキスト書き出し</button>
     <button id="btn-bulk-back-to-overview" onclick="openCardOverview(true)" class="hidden btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;" title="選択を保ったまま、カード一覧に戻る"><i class="fa-solid fa-table-list mr-1"></i>一覧に戻る</button>
     <button onclick="clearSelection()" class="btn btn-ghost hover:bg-white/10" style="color:var(--bar-ink);">選択解除</button>
+  </div>
+
+  <div id="modal-card-correction" role="dialog" aria-modal="true" aria-labelledby="card-correction-title" class="hidden fixed inset-0 z-[68] bg-[var(--ink)]/40 flex items-center justify-center p-4">
+    <div class="modal-surface max-w-lg w-full p-4 flex flex-col gap-3">
+      <h3 id="card-correction-title" class="text-sm font-semibold">選択したカードへの修正依頼</h3>
+      <p id="card-correction-description" class="text-xs text-[var(--ink-muted)]"></p>
+      <label for="card-correction-text" class="text-xs">追加の修正依頼</label>
+      <textarea id="card-correction-text" rows="5" class="field resize-y" aria-describedby="card-correction-description" placeholder="例：原文の前後を確認し、このカードを分けた理由とタグを外した理由を調査してください。"></textarea>
+      <div class="flex justify-end gap-2"><button class="btn btn-outline" onclick="closeSelectedCorrectionRequest()">キャンセル</button><button id="btn-save-card-correction" class="btn btn-primary" onclick="saveSelectedCorrectionRequest()">保存する</button></div>
+    </div>
   </div>
 
   <div id="modal-card-overview" class="hidden fixed inset-0 z-[66] flex flex-col" style="background:var(--paper);">
@@ -1249,16 +1237,16 @@
   <script src="js/03-extraction-helpers.js?v=2026-10-10.znavigation17"></script>
   <script src="js/04-server-sync.js?v=2026-10-10.znavigation17"></script>
   <script src="js/05-app-state-and-ui.js?v=2026-10-12.usability-context21"></script>
-  <script src="js/06-export.js?v=2026-10-12.usability-context21"></script>
+  <script src="js/06-export.js?v=2026-10-12.usability-context23"></script>
   <script src="js/07-classification.js?v=2026-10-11.usability-context16"></script>
   <script src="js/08-assessment-tools.js?v=2026-10-11.usability-context12"></script>
-  <script src="js/09-board.js?v=2026-10-12.usability-context21"></script>
+  <script src="js/09-board.js?v=2026-10-12.usability-context23"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-11.usability-context19"></script>
   <script src="js/11-own-assessment.js?v=2026-10-12.usability-context22"></script>
   <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-12.usability-context20"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-12.usability-context21"></script>
   <script src="js/14-drug-reference.js?v=2026-10-10.znavigation17"></script>
-  <script src="js/15-relation-map.js?v=2026-10-11.usability-context17"></script>
+  <script src="js/15-relation-map.js?v=2026-10-12.usability-context23"></script>
   <script>
   // Manual source comparison and reversible text edits on the active chart.
   (function(){

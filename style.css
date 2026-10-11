@@ -1351,3 +1351,58 @@ html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow-sel path { fill: #F59E6
   .rm-toolbar > .rm-group > .btn, .rm-toolbar .rm-prob-menu > .btn { width: 100%; min-width: 0; min-height: 44px; padding: 8px 4px; font-size: 11px; white-space: nowrap; justify-content: center; }
   .rm-toolbar #rm-more, .rm-toolbar #rm-problems { left: auto; right: 0; width: min(320px, calc(100vw - 48px)); max-height: min(65vh, 520px); }
 }
+
+/* Judgment and missing-information sections share a row; unclassified cards stay below. */
+.asm-followup { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:.6rem; align-items:start; }
+.asm-followup > * { min-width:0; }
+.asm-followup .suf-status-group { grid-template-columns:1fr; }
+.assessment-unclassified { padding:.8rem; border:1px solid var(--line); border-radius:var(--radius); background:var(--paper); }
+.assessment-unclassified h3 { margin:0 0 .5rem; font-size:14px; }
+#assessment-unclassified-content { display:grid; gap:.6rem; }
+.assess-table .assessment-status .suf-status-group { grid-template-columns:1fr; }
+@media (max-width:767px) { .asm-followup { grid-template-columns:1fr; } }
+
+.cp-page-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.4rem; }
+#careplan-import-info:empty { display:none; }
+.cp-toolbar { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) 44px; gap:8px; align-items:center; }
+.cp-toolbar > .btn { min-width:0; min-height:44px; font-size:12px; justify-content:center; }
+.cp-actions { position:relative; }
+.cp-actions > summary { list-style:none; display:flex; justify-content:center; align-items:center; width:44px; height:44px; cursor:pointer; }
+.cp-actions > summary::-webkit-details-marker { display:none; }
+.cp-actions-menu { position:absolute; right:0; top:calc(100% + 6px); z-index:55; width:min(320px,calc(100vw - 48px)); max-height:70dvh; overflow:auto; padding:12px; display:grid; gap:6px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:0 8px 24px rgba(0,0,0,.12); }
+.cp-actions-menu .btn { text-align:left; justify-content:flex-start; font-size:12px; min-height:40px; }
+.cp-actions-menu h3 { margin:.5rem 0 0; font-size:12px; }
+.cp-actions-menu p { font-size:11px; line-height:1.6; color:var(--ink-muted); }
+
+/* Frequent actions remain visible; only exports and destructive actions use menus. */
+.rm-toolbar { display:flex; flex-wrap:wrap; gap:8px 12px; }
+.rm-toolbar > .rm-group { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.rm-toolbar .rm-prob-menu { position:static; }
+.rm-toolbar > .rm-group > .btn, .rm-toolbar .rm-prob-menu > .btn { min-height:40px; font-size:12px; padding:6px 9px; width:auto; }
+.rm-toolbar .rm-edit-controls .icon-btn { width:40px; height:40px; }
+.rm-toolbar .rm-more-menu > .btn { width:40px; }
+.cp-toolbar { grid-template-columns:repeat(4,minmax(0,1fr)); }
+.cp-utilities { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.cp-history { flex:1; min-width:0; }
+.cp-history > summary { cursor:pointer; font-size:12px; padding:10px 0; color:var(--ink-muted); }
+.cp-history-panel { display:grid; gap:6px; padding:10px; border:1px solid var(--line); border-radius:var(--radius); }
+.cp-history-row { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:6px; font-size:12px; }
+.cp-history-row .btn { font-size:11px; min-height:36px; padding:6px; }
+.cp-history-panel p { font-size:11px; line-height:1.6; color:var(--ink-muted); }
+.cp-actions > summary { width:auto; height:40px; font-size:12px; gap:6px; }
+.cp-actions:not([open]) .cp-actions-menu { display:none; }
+@media(max-width:767px) {
+ .rm-toolbar { display:grid; grid-template-columns:1fr; gap:6px; }
+ .rm-toolbar > .rm-group { display:grid; gap:6px; }
+ .rm-toolbar > .rm-create-controls { grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); }
+ .rm-toolbar > .rm-edit-controls { grid-template-columns:minmax(0,1fr) 40px 40px; }
+ .rm-toolbar > .rm-view-controls { grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr) minmax(0,1fr) 40px; }
+ .rm-toolbar > .rm-group > .btn, .rm-toolbar .rm-prob-menu > .btn { width:100%; font-size:11px; padding:6px 4px; }
+ .rm-toolbar .rm-prob-menu { position:static; }
+ .cp-toolbar { grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+ .cp-toolbar > .btn { font-size:11px; padding:8px 4px; }
+}
+
+.cp-utilities { flex-wrap:wrap; }
+.cp-history[open] { flex:1 0 100%; order:2; }
+.cp-utilities > .cp-actions { margin-left:auto; }

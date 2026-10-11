@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-11.usability-context17'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-12.usability-context23'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -118,7 +118,7 @@
 
     const RM_NOTE_FONT = 11.5, RM_NOTE_LINE_H = 15, RM_NOTE_GAP = 7, RM_NOTE_MAX = 60;
 
-    const RM_BUILD_VERSION = 3;
+    const RM_BUILD_VERSION = 4;
     const RM_LAYOUT_STYLE = 6;
     const RM_COL_GAP = 80, RM_ROW_GAP = 36;
 
@@ -1380,18 +1380,28 @@
     function buildRelationMapFromRecord(cp) {
       const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && i.text && i.type !== 'unnecessary' && !i.aiSuggested
         && !(typeof isMissingInfoOnlyItem === 'function' && isMissingInfoOnlyItem(i)));
+      const excluded = new Set(((cp && cp.items) || []).filter(i => i.deleted || i.type === 'unnecessary').map(i => clinicalCardDuplicateKey(i.text, i.timestamp)));
+      const sourceRecords = cp.sourceText ? groupClinicalPhrasesWithTimestamps(String(cp.sourceText).normalize('NFKC')).filter(i => !i.isUnnecessaryBoilerplate && !excluded.has(clinicalCardDuplicateKey(i.text, i.timestamp))) : [];
+      const clinicalRecords = [...items, ...sourceRecords.filter(i => !items.some(o => clinicalCardDuplicateKey(o.text, o.timestamp) === clinicalCardDuplicateKey(i.text, i.timestamp)))];
       const all = [cp.sourceText || '', ...items.map(i => i.text)].join('\n').normalize('NFKC');
       const nodes = new Map();
       const edges = [];
       const byItem = new Map();
+      const sourceHistoryNodes = new WeakSet();
       const N = (key, type, label, o = {}) => {
         if (nodes.has(key)) return nodes.get(key);
         const srcItems = (o.items || []).filter(Boolean);
-        if (!o.distinctEvidence && srcItems.length === 1 && ['patient_fact', 'symptom'].includes(type) && byItem.has(srcItems[0])) { const ex = byItem.get(srcItems[0]); nodes.set(key, ex); return ex; }
+        if (!o.distinctEvidence && srcItems.length === 1 && ['patient_fact', 'symptom'].includes(type) && byItem.has(srcItems[0])) {
+          const ex = byItem.get(srcItems[0]);
+          // Reuse source background without replacing an established clinical model's wording.
+          if (sourceHistoryNodes.has(ex)) { ex.label = rmShorten(label, o.max || 44); sourceHistoryNodes.delete(ex); }
+          nodes.set(key, ex); return ex;
+        }
         const n = { id: rmNewId('n'), key, type, label: rmShorten(label, o.max || 44), evidence: o.evidence || '', observed: o.observed !== false, source: o.source || 'record', priority: 0, x: 0, y: 0, itemIds: (o.items || []).map(i => i && i.id).filter(Boolean).slice(0, 10), cat: o.cat };
         if (type === 'nursing_problem') { const note = o.note != null ? o.note : rmPlainNote(label); if (note) n.note = rmShorten(note, RM_NOTE_MAX); }
         const ph = rmPhaseOfItems(srcItems);
         if (ph !== null) n.phase = ph;
+        if (o.sourceHistory) sourceHistoryNodes.add(n);
         nodes.set(key, n);
         if (srcItems.length === 1 && ['patient_fact', 'symptom'].includes(type)) byItem.set(srcItems[0], n);
         return n;
@@ -1447,8 +1457,8 @@
       };
 
       const notSurgeryLine = i => !/^【?\s*(?:予定)?(?:術式|手術(?:名|予定)?)\s*】?\s*[:：]/.test(String(i.text || '').normalize('NFKC')) && !/^(?:予定)?術式$/.test(i.fieldLabel || '');
-      const dxItems = items.filter(i => i.fieldLabel && /^(?:診断名|病名|主病名|疾患名|主診断)$/.test(i.fieldLabel) && notSurgeryLine(i));
-      const dxText = dxItems.length ? dxItems : items.filter(i => /^【?(?:診断名?|病名|疾患名)】?\s*[:：]/.test(String(i.text).normalize('NFKC')) && notSurgeryLine(i));
+      const dxItems = clinicalRecords.filter(i => i.fieldLabel && /^(?:診断名|病名|主病名|疾患名|主診断)$/.test(i.fieldLabel) && notSurgeryLine(i));
+      const dxText = dxItems.length ? dxItems : clinicalRecords.filter(i => /^【?(?:診断名?|病名|疾患名)】?\s*[:：]/.test(String(i.text).normalize('NFKC')) && notSurgeryLine(i));
 
       const cleanDx = t => String(t).normalize('NFKC').replace(/^【?(?:診断名?|病名|疾患名)】?\s*[:：]\s*/, '').replace(/[\s、,，]*[（(]?\s*(?:予定)?(?:術式|手術名?)\s*[:：][\s\S]*$/, '').trim();
       let dxLabel0 = dxText[0] ? cleanDx(dxText[0].text) : '';
@@ -1463,7 +1473,7 @@
         const reInline = new RegExp('診断名?\\s*[:：]\\s*[^\\n。]*' + CA);
         let hit = null;
         for (const pass of [0, 1]) {
-          for (const i of items) {
+          for (const i of clinicalRecords) {
             if (hit || /既往|家族/.test(i.fieldLabel || '') || !notSurgeryLine(i)) continue;
             const sents = String(i.text).normalize('NFKC').split(/(?<=[。\n])/).filter(x => x.trim());
             for (const st of sents) {
@@ -1478,7 +1488,7 @@
         if (!hit) {
           const ORG = '(?:胃|大腸|結腸|直腸|肝|膵|肺|乳腺|食道|前立腺|子宮|卵巣|胆嚢|胆管|腎|膀胱|甲状腺|咽頭|喉頭)';
           const reSite = new RegExp('(' + ORG + '[^。\\n、]{0,8})に[^。\\n、]{0,14}?(?:がん|癌)');
-          for (const i of items) {
+          for (const i of clinicalRecords) {
             if (hit || /既往|家族/.test(i.fieldLabel || '') || !notSurgeryLine(i)) continue;
             for (const st of String(i.text).normalize('NFKC').split(/(?<=[。\n])/)) {
               if (famRe.test(st)) continue;
@@ -1497,28 +1507,55 @@
       const disease = dxHost && dxLabel0 ? N('disease', 'disease', dxLabel0, { items: [dxHost] }) : null;
       const dxLabel = disease ? disease.label : '';
 
-      const smokeItem = findItem(/喫煙|タバコ|たばこ|煙草/, i => !/非喫煙|喫煙[^\n]{0,4}(?:なし|無)|吸わない/.test(String(i.text).normalize('NFKC')));
-      const smoke = smokeItem ? N('smoke', 'patient_fact', short(smokeItem), { items: [smokeItem] }) : null;
+      const smokeItem = clinicalRecords.find(i => !/家族歴/.test(`${i.fieldLabel || ''}${i.text}`) && !rmIsFamilySpeech(i.text) && rmPositiveMatch(/喫煙|タバコ|たばこ|煙草/, i.text) && !/非喫煙|喫煙[^\n]{0,4}(?:なし|無)|吸わない/.test(String(i.text).normalize('NFKC')));
+      const smoke = smokeItem ? N('smoke', 'patient_fact', short(smokeItem, 90), { items: [smokeItem], evidence: smokeItem.text, max: 90 }) : null;
       if (disease) {
-        const excluded = new Set(((cp && cp.items) || []).filter(i => i.deleted || i.type === 'unnecessary').map(i => clinicalCardDuplicateKey(i.text, i.timestamp)));
-        const sourceFactors = cp.sourceText ? groupClinicalPhrasesWithTimestamps(String(cp.sourceText).normalize('NFKC')).filter(i => !i.isUnnecessaryBoilerplate && !excluded.has(clinicalCardDuplicateKey(i.text, i.timestamp))) : [];
-        const factorRecords = [...items, ...sourceFactors.filter(i => !items.some(o => clinicalCardDuplicateKey(o.text, o.timestamp) === clinicalCardDuplicateKey(i.text, i.timestamp)))];
+        const factorRecords = clinicalRecords;
         RM_DISEASE_FACTORS.forEach((f, k) => {
           if (!f.disease.test(dxLabel)) return;
           const seenFactors = new Set();
           f.factor.source.split('|').forEach(pattern => {
             const matchRe = new RegExp(pattern);
-            const it = factorRecords.find(i => i !== dxText[0] && !/家族歴/.test(`${i.fieldLabel || ''}${i.text}`) && !rmIsFamilySpeech(i.text) && rmPositiveMatch(matchRe, i.text));
-            if (!it) return;
-            const match = rmPositiveMatch(matchRe, it.text);
-            if (seenFactors.has(match[0])) return;
-            seenFactors.add(match[0]);
-            const phrase = String(it.text).split(/[。\n]/).find(s => rmPositiveMatch(matchRe, s)) || it.text;
-            const fact = /喫煙|タバコ|たばこ/.test(match[0]) && smoke ? smoke : N(`factor_${k}_${pattern}`, 'patient_fact', phrase.replace(/^[^:：]{1,8}[:：]\s*/, ''), { items: [it], max: 70, evidence: it.text, distinctEvidence: true });
-            const mid = N(`factor_mid_${k}`, 'pathophysiology', f.mid, { source: 'knowledge' });
-            E(fact, mid, 'contributes_to', { evidence: `原文の要因：${it.text}` });
-            E(mid, disease, 'contributes_to', { evidence: '発症に関係する要因（この患者で原因と断定はしない）' });
+            factorRecords.filter(i => i !== dxText[0] && !/家族歴/.test(`${i.fieldLabel || ''}${i.text}`) && !rmIsFamilySpeech(i.text) && rmPositiveMatch(matchRe, i.text)).forEach((it, index) => {
+              const match = rmPositiveMatch(matchRe, it.text);
+              const recordKey = clinicalCardDuplicateKey(it.text, it.timestamp);
+              if (seenFactors.has(recordKey)) return;
+              seenFactors.add(recordKey);
+              const phrase = String(it.text).split(/[。\n]/).find(s => rmPositiveMatch(matchRe, s)) || it.text;
+              const fact = /喫煙|タバコ|たばこ/.test(match[0]) && it === smokeItem ? smoke : N(`factor_${k}_${pattern}_${index}`, 'patient_fact', phrase.replace(/^[^:：]{1,8}[:：]\s*/, ''), { items: [it], max: 70, evidence: it.text, distinctEvidence: true });
+              const mid = N(`factor_mid_${k}`, 'pathophysiology', f.mid, { source: 'knowledge' });
+              E(fact, mid, 'contributes_to', { evidence: `原文の要因：${it.text}` });
+              E(mid, disease, 'contributes_to', { evidence: '発症に関係する要因（この患者で原因と断定はしない）' });
+            });
           });
+        });
+      }
+      const familyHistoryRecord = i => /家族歴|ファミリーヒストリー|がん家系|癌家系/.test(`${i.fieldLabel || ''}${i.text}`) || /(?:祖父|祖母|父|母|兄|姉|弟|妹|親族)[^。\n]{0,24}(?:がん|癌)/.test(i.text);
+      const patientHistory = i => !familyHistoryRecord(i) && !/既往歴/.test(i.fieldLabel || '') && !/^既往歴/.test(String(i.text)) && !rmIsFamilySpeech(i.text);
+      const tumorSizeRe = /(?:腫瘍|腫瘤|病変|がん|癌)[^。\n]{0,18}?\d+(?:\.\d+)?\s*(?:mm|cm)(?!Hg|H2O)|\d+(?:\.\d+)?\s*(?:mm|cm)(?!Hg|H2O)[^。\n]{0,10}?(?:腫瘍|腫瘤|病変|がん|癌)/i;
+      const tumorRecords = disease ? clinicalRecords.filter(i => patientHistory(i) && rmPositiveMatch(/腫瘍|腫瘤|病変|がん|癌/, String(i.text).replace(/^[^:：\n]{1,18}[:：]\s*/, '')) && tumorSizeRe.test(String(i.text).normalize('NFKC'))) : [];
+      if (disease) {
+        const historyRecords = clinicalRecords.filter(i => i !== dxHost && patientHistory(i) && (/現病歴|メディカルヒストリー|病理結果|病理所見|病期|進行度/.test(`${i.fieldLabel || ''}${i.text}`) || /健診|検診|精査|生検|内視鏡|受診/.test(i.text)));
+        const details = [...new Set([...tumorRecords, ...historyRecords])];
+        const seen = new Set();
+        details.forEach((it, index) => {
+          const key = clinicalCardDuplicateKey(it.text, it.timestamp);
+          if (seen.has(key)) return;
+          seen.add(key);
+          const finding = N(`dx_record_${index}`, 'patient_fact', rmShorten(it.text, 90), { items: [it], evidence: it.text, max: 90, distinctEvidence: true, sourceHistory: true });
+          E(finding, disease, 'supports', { evidence: '原文に記録された疾患の所見・診断までの経過（発症原因とは断定しない）' });
+        });
+      }
+      if (disease && /がん|癌/.test(dxLabel0)) {
+        const familyRecords = clinicalRecords.filter(i => familyHistoryRecord(i) && rmPositiveMatch(/がん|癌/, i.text));
+        const seenFamily = new Set();
+        familyRecords.forEach((it, index) => {
+          const key = clinicalCardDuplicateKey(it.text, it.timestamp);
+          if (seenFamily.has(key)) return;
+          seenFamily.add(key);
+          const label = /^家族歴/.test(it.text) ? rmShorten(it.text, 90) : `家族歴：${rmShorten(it.text, 84)}`;
+          const family = N(`family_history_${index}`, 'patient_fact', label, { items: [it], evidence: it.text, max: 90, distinctEvidence: true });
+          E(family, disease, 'related_to', { evidence: '原文にある家族のがんの記録。本人の診断・発症原因・遺伝性を断定せず、背景情報として確認する' });
         });
       }
       const elderly = Number.isFinite(age) && age >= 65;
@@ -1538,19 +1575,14 @@
       }
 
       if (disease && surgery && /がん|癌/.test(dxLabel)) {
-        const tnm = dxLabel.normalize('NFKC').match(/T\s*(\d)[a-c]?\s*N\s*(\d)[a-c]?\s*M\s*(\d)/i);
-        const examItem = findItem(/精査|健診|検診|内視鏡|生検|造影|CT|MRI/, i => !/既往/.test(i.fieldLabel || '') && i !== dxText[0] && !/FEV|SpO2|WBC|CRP/.test(String(i.text)));
-        const where = (dxLabel.match(/(胃底部|噴門部?|胃体部|幽門部?|前庭部|上行結腸|下行結腸|S状結腸|直腸[^\s、,]{0,3}|[^\s、,（(]{1,4}部)/) || [])[1] || '';
-        const size = (dxLabel.normalize('NFKC').match(/(\d+(?:\.\d+)?)\s*(?:mm|cm)/) || [])[0] || '';
-        let exam = null;
+        const tnm = dxLabel0.normalize('NFKC').match(/T\s*(\d)[a-c]?\s*N\s*(\d)[a-c]?\s*M\s*(\d)/i);
+        const examItem = clinicalRecords.find(i => patientHistory(i) && i !== dxHost && /精査|健診|検診|内視鏡|生検|造影|CT|MRI/.test(i.text) && !/FEV|SpO2|WBC|CRP/.test(String(i.text)));
+        const dxDetails = [dxLabel0, ...tumorRecords.map(i => i.text)].join(' ').normalize('NFKC');
+        const where = (dxDetails.match(/(胃底部|噴門部?|胃体部|幽門部?|前庭部|上行結腸|下行結腸|S状結腸|直腸[^\s、,]{0,3}|[^\s、,（(]{1,4}部)/) || [])[1] || '';
+        const size = (dxDetails.match(/(\d+(?:\.\d+)?)\s*(?:mm|cm)/) || [])[0] || '';
         if (examItem) {
-          const et = String(examItem.text).normalize('NFKC');
-          const parts = [];
-          if (/貧血/.test(et)) parts.push('貧血を指摘');
-          if (/健診|検診/.test(et)) parts.unshift('健診で');
-          const lead = parts.length ? parts.join('') + 'され、' : '';
-          exam = N('dx_exam', 'patient_fact', `${lead}精査を受けて診断された（検査の内容は記録なし）`, { items: [examItem], max: 60 });
-          E(exam, disease, 'results_in', { evidence: '精査の結果、診断された' });
+          const recordedExam = [...nodes.values()].find(n => n.type === 'patient_fact' && n.evidence === examItem.text);
+          if (!recordedExam) E(N('dx_exam', 'patient_fact', short(examItem, 90), { items: [examItem], evidence: examItem.text, max: 90 }), disease, 'supports', { evidence: '原文に記録された検査・診断までの経過' });
         }
         const tName = { 1: '粘膜〜粘膜下層まで', 2: '固有筋層まで', 3: '漿膜下層まで', 4: '漿膜・他の臓器まで' };
         let stage = null;
@@ -1564,6 +1596,13 @@
         const aim = N('dx_aim', 'pathophysiology', '手術の対象と目的：腫瘍と周囲のリンパ節を切除し、根治をめざす', { source: 'knowledge', max: 60, evidence: gast && /全摘/.test(surgery.label) ? '切除範囲は腫瘍の位置・広がりで決まる。全摘を選んだ理由は医師の説明で確認する' : '' });
         E(stage || disease, aim, 'results_in', { evidence: tnm ? '遠隔転移がなく、切除で根治をめざせる進行度' : 'がんの根治をめざす治療方針' });
         E(surgery, disease, 'treats', { evidence: '疾患に対する手術。切除範囲・選択理由は別の説明で確認する' });
+      }
+      if (surgery) {
+        const organs = [...new Set((String(surgeryItem.text).match(/胆嚢|胆囊|胃|肺|膵|肝|腎|膀胱|子宮|卵巣|前立腺|大腿骨/g) || []))];
+        clinicalRecords.filter(i => /既往歴/.test(`${i.fieldLabel || ''}${i.text}`) && organs.some(organ => i.text.includes(organ))).forEach((it, index) => {
+          const history = N(`treatment_history_${index}`, 'patient_fact', `既往歴：${rmShorten(it.text, 84)}`, { items: [it], evidence: it.text, max: 90, distinctEvidence: true });
+          E(history, surgery, 'related_to', { evidence: '原文の既往歴と今回の治療部位が共通する記録。治療の選択理由や発症原因とは断定しない' });
+        });
       }
       const gastric = surgery && /胃/.test(surgery.label + dxLabel) && /全摘|切除/.test(surgery.label);
 
@@ -2797,7 +2836,7 @@
       const textView = document.getElementById('rm-text-view');
       if (textView) { textView.classList.toggle('hidden', !has || !rmState.textView); textView.innerHTML = has ? relationMapTextHtml(map, cp) : ''; }
       const textToggle = view.querySelector('[data-rm-action="toggle-text"]');
-      if (textToggle) { textToggle.setAttribute('aria-pressed', String(rmState.textView)); textToggle.textContent = rmState.textView ? '図で表示' : '関連図を一覧で表示'; }
+      if (textToggle) { textToggle.setAttribute('aria-pressed', String(rmState.textView)); textToggle.textContent = rmState.textView ? '図で表示' : '一覧表示'; }
       rmRenderProblemList(map);
       const legend = document.getElementById('rm-legend');
       if (legend && !legend.dataset.ready) { legend.innerHTML = rmLegendHtml(); legend.dataset.ready = '1'; }
@@ -2922,7 +2961,8 @@
         const on = !!(map && map.nodes.some(n => n.added)), hidden = !!(map && map.addedStash);
         tg.setAttribute('aria-pressed', on ? 'true' : 'false');
         tg.classList.toggle('is-on', on);
-        tg.innerHTML = `<i class="fa-solid ${on ? 'fa-eye' : 'fa-eye-slash'}"></i> ＋補足：${on ? 'あり' : 'なし'}${hidden && !on ? `（${map.addedStash.nodes.length}個を隠しています）` : ''}`;
+        tg.innerHTML = `<i class="fa-solid ${on ? 'fa-eye' : 'fa-eye-slash'}"></i> 補足：${on ? 'あり' : 'なし'}`;
+        tg.title = `矢印の間に補った過程の表示を切り替えます${hidden && !on ? `（${map.addedStash.nodes.length}個を隠しています）` : ''}`;
       }
     }
     function rmCssEsc(id) { return (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(String(id)) : String(id).replace(/["\\]/g, '\\$&'); }

@@ -63,3 +63,12 @@ test('Missing and historical reasons remain unknown rather than inferred from te
     assert.match(out, /保存済みのレビュー判断: none／理由: 原文を確認した利用者の判断/);
   }
 });
+
+test('User correction notes retain multiline text in selected and review exports without changing clinical data', () => {
+ const cp={title:'架空',items:[{id:'a',type:'o',text:'食事全量',hendersonIds:[2],requestedCorrection:'原文を確認してください。\n分けた理由を調査してください。'}]};
+ const before=JSON.stringify(cp);
+ assert.equal(app.reviewRequestTargets(cp).length,1);
+ assert.match(app.buildSelectedCardsExportText(cp,['a'],'',false),/修正してほしい内容: 原文を確認してください。\n分けた理由を調査してください。/);
+ assert.match(app.buildReviewRequestText(cp,'',false),/追加の修正依頼（利用者）: 原文を確認してください。\n分けた理由を調査してください。/);
+ assert.equal(JSON.stringify(cp),before);
+});
