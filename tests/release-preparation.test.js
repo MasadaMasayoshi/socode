@@ -15,7 +15,7 @@ test('validation evidence rejects missing summaries, hidden skips, cancellations
 });
 test('release decision requires latest-head evidence and every recorded release condition',()=>{
  const head='a'.repeat(40),regression={schemaVersion:1,head,kind:'public-regression',status:'passed',summary:{tests:2,pass:2,fail:0,cancelled:0,skipped:0,todo:0}};
- const browser={schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:7,uncaughtErrors:0};
+ const browser={schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:8,uncaughtErrors:0};
  const conditions=Object.fromEntries(REQUIRED.map(k=>[k,{status:'complete',evidence:['review-record']}])) ;
  assert.equal(evaluate(head,regression,browser,conditions).ready,true);
  assert.equal(evaluate('b'.repeat(40),regression,browser,conditions).ready,false);
@@ -26,7 +26,7 @@ test('release decision requires latest-head evidence and every recorded release 
 });
 
 test('explicit owner test-only policy preserves pending statuses while requiring complete current tests',()=>{
- const head='c'.repeat(40),regression={schemaVersion:1,head,kind:'public-regression',status:'passed',summary:{tests:926,pass:926,fail:0,cancelled:0,skipped:0,todo:0}},browser={schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:7,uncaughtErrors:0};
+ const head='c'.repeat(40),regression={schemaVersion:1,head,kind:'public-regression',status:'passed',summary:{tests:926,pass:926,fail:0,cancelled:0,skipped:0,todo:0}},browser={schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:8,uncaughtErrors:0};
  const conditions=require('../docs/release-conditions.json'),result=evaluate(head,regression,browser,conditions);
  assert.equal(result.ready,true);assert.equal(result.followUp.length,6);assert.equal(conditions.liveOcr.status,'pending');
  assert.equal(evaluate('d'.repeat(40),regression,browser,conditions).ready,false);

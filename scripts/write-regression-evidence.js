@@ -11,7 +11,7 @@ function parseSummary(log){
  return result;
 }
 if(require.main===module){try{
- const head=process.env.GITHUB_SHA;if(!/^[a-f0-9]{40}$/.test(head||''))throw Error('GITHUB_SHA must identify the tested commit');
+ const head=require('node:child_process').execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();if(!/^[a-f0-9]{40}$/.test(head||''))throw Error('Checkout must identify the tested commit');
  const summary=parseSummary(fs.readFileSync(process.argv[2],'utf8'));
  fs.writeFileSync(process.argv[3],JSON.stringify({schemaVersion:1,head,kind:'public-regression',status:'passed',summary},null,2)+'\n');
 }catch(e){console.error(e.message);process.exitCode=1;}}

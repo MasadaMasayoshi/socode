@@ -458,7 +458,7 @@ const {app}=require('../server');
    console.log(`PASS ${width}px: 36-question practice, coverage, persistent progress and reset`);
    await context.close();
   }
-  const head=process.env.GITHUB_SHA || require('node:child_process').execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
+  const head=require('node:child_process').execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
   fs.writeFileSync('browser-artifacts/validation-evidence.json',JSON.stringify({schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:8,uncaughtErrors:0,ocrTransport:'intercepted',liveOcrVerified:false},null,2)+'\n');
  } finally {
   if(browser)await browser.close();
