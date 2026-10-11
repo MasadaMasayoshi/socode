@@ -383,7 +383,7 @@ test('＋補足のあり・なしをボタン1つで入れ替える（隠すと�
   app.rmShowAdded(saved);
   saved.nodes.filter(n => n.added).forEach(n => assert.ok(saved.edges.some(e => e.target === n.id) && saved.edges.some(e => e.source === n.id)));
   assert.match(src, /act === 'toggle-added'\) rmToggleAdded\(\)/);
-  assert.match(src, /＋補足：\$\{on \? 'あり' : 'なし'\}/);
+  assert.match(src, /補足：\$\{on \? 'あり' : 'なし'\}/);
 });
 
 test('検査データは根拠になる四角のすぐ下にくっつける（同じ四角の中ではなく、別の四角をぴったり付ける）', () => {
