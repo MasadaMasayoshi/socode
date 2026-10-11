@@ -6,15 +6,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="2026-10-11.usability-context16">
-  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-11.usability-context15,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-11.usability-context15,06:2026-10-11.usability-context16,07:2026-10-11.usability-context16,08:2026-10-11.usability-context12,09:2026-10-11.usability-context12,10:2026-10-11.usability-context15,11:2026-10-11.usability-context13,12:2026-10-11.usability-context13,13:2026-10-11.usability-context12,14:2026-10-10.znavigation17,15:2026-10-11.usability-context14">
+  <meta name="app-version" content="2026-10-11.usability-context17">
+  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-11.usability-context15,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-11.usability-context15,06:2026-10-11.usability-context16,07:2026-10-11.usability-context16,08:2026-10-11.usability-context12,09:2026-10-11.usability-context17,10:2026-10-11.usability-context15,11:2026-10-11.usability-context13,12:2026-10-11.usability-context13,13:2026-10-11.usability-context12,14:2026-10-10.znavigation17,15:2026-10-11.usability-context17">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=2026-10-11.usability-context14">
+  <link rel="stylesheet" href="style.css?v=2026-10-11.usability-context17">
 
   <link rel="stylesheet" href="vendor/tailwind.css?v=2026-10-06.14">
   <script>
@@ -201,29 +201,22 @@
       </section>
 
       <div class="xl:w-3/4 flex flex-col gap-3 min-w-0">
-        <div class="flex flex-wrap items-center gap-2">
-          <div class="relative flex-1 min-w-[180px]">
+        <div id="board-toolbar" class="board-toolbar">
+          <div class="relative board-search-wrap">
             <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-muted)] text-[11px]"></i>
-            <input type="text" id="board-search" class="field pl-7" placeholder="カードの内容・タグ名で検索...">
+            <input type="text" id="board-search" class="field pl-7" placeholder="内容・タグで検索" aria-label="カードの内容・タグ名で検索">
           </div>
-
-          <button id="btn-open-card-overview" onclick="openCardOverview()" class="btn btn-outline text-[11px] py-1.5 whitespace-nowrap" title="すべてのカードを画面いっぱいに並べて一覧で表示します（カードを選ぶと一覧を閉じて元の文章の該当箇所を表示）">
-            <i class="fa-solid fa-table-list"></i> 一覧表示
-          </button>
-
-          <button id="btn-undo" onclick="undoLastEdit()" class="btn btn-outline text-[11px] py-1.5 whitespace-nowrap" disabled title="元に戻せる操作はありません">
-            <i class="fa-solid fa-rotate-left"></i> 元に戻す
-          </button>
-          <button id="btn-redo" onclick="undoLastEdit(true)" class="btn btn-outline text-[11px] py-1.5 whitespace-nowrap" disabled title="やり直す（Ctrl+Shift+Z）">やり直す</button>
-
-          <button id="btn-open-compare" onclick="openCompare()" class="btn btn-outline text-[11px] py-1.5 whitespace-nowrap" title="記録した時点（分類し直す前・画面を開いたとき・手で記録したとき）と今のカードを比べ、追加・変更・削除したカードを表示します">
-            <i class="fa-solid fa-code-compare"></i> 変更点の比較
-          </button>
-          <button type="button" id="btn-board-export-review" onclick="exportReviewRequestText()" class="btn btn-outline text-[11px] py-1.5"><i class="fa-solid fa-file-export"></i> 修正依頼を書き出す</button>
-          <span class="text-[10px] text-[var(--ink-muted)] leading-snug flex items-center gap-2">
-            <span><i class="fa-solid fa-circle-info mr-0.5"></i>カードを選ぶと、分類やタグを変更できます</span>
-            <button type="button" class="help-link" onclick="openHelp('board')"><i class="fa-regular fa-circle-question"></i> 操作方法</button>
-          </span>
+          <button type="button" id="btn-board-export-review" onclick="exportReviewRequestText()" class="btn btn-outline" aria-label="修正依頼を書き出す" title="修正依頼を書き出す"><i class="fa-solid fa-file-export"></i><span>修正依頼<span class="toolbar-label-tail">を書き出す</span></span></button>
+          <details id="board-actions" class="board-actions-menu">
+            <summary class="btn btn-outline toolbar-more" aria-label="分類ボードのその他の操作" title="その他の操作"><i class="fa-solid fa-ellipsis"></i></summary>
+            <div class="board-menu-panel">
+              <button type="button" id="btn-open-card-overview" onclick="openCardOverview()" title="すべてのカードを画面いっぱいに並べて表示します"><i class="fa-solid fa-table-list"></i> 一覧表示</button>
+              <button type="button" id="btn-undo" onclick="undoLastEdit()" disabled title="元に戻せる操作はありません"><i class="fa-solid fa-rotate-left"></i> 元に戻す</button>
+              <button type="button" id="btn-redo" onclick="undoLastEdit(true)" disabled title="やり直す（Ctrl+Shift+Z）"><i class="fa-solid fa-rotate-right"></i> やり直す</button>
+              <button type="button" id="btn-open-compare" onclick="openCompare()" title="記録した時点と今のカードを比べます"><i class="fa-solid fa-code-compare"></i> 変更点の比較</button>
+              <button type="button" onclick="openHelp('board')"><i class="fa-regular fa-circle-question"></i> 操作方法</button>
+            </div>
+          </details>
         </div>
 
       <section id="so-board-grid" class="board-layout">
@@ -377,15 +370,6 @@
       <div class="rm-toolbar" role="toolbar" aria-label="関連図の操作">
         <div class="rm-group" aria-label="作る">
           <button type="button" class="btn btn-primary text-[11px] py-1.5" data-rm-action="build-rules" title="分類したカード・検査値の推移・看護計画（または選んだ看護診断）から、関連図のたたき台を作ります"><i class="fa-solid fa-diagram-project"></i> 記録から作る</button>
-          <button type="button" class="btn btn-outline text-[11px] py-1.5 rm-bridge-btn" data-rm-action="toggle-added" data-rm-needs-map aria-pressed="false" title="矢印の間に補った過程（紫の「＋補足」）のあり・なしを切り替えます。補足が無いときは、医学知識で補います"><i class="fa-solid fa-eye-slash"></i> ＋補足：なし</button>
-        </div>
-        <div class="rm-group rm-group-sep" aria-label="編集">
-          <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="add"><i class="fa-solid fa-plus"></i> 追加</button>
-          <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="import-clinical" data-rm-needs-map>薬剤・アセスメントを取り込む</button>
-          <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="toggle-text" aria-pressed="false" aria-controls="rm-text-view" data-rm-needs-map>関連図を一覧で表示</button>
-          <button type="button" class="btn btn-outline text-[11px] py-1.5 rm-icon-btn" data-rm-action="undo" title="ひとつ前の状態に戻します（Ctrl+Z）" aria-label="元に戻す"><i class="fa-solid fa-rotate-left"></i></button>
-          <button type="button" class="btn btn-outline text-[11px] py-1.5 rm-icon-btn" data-rm-action="redo" title="元に戻した操作をやり直します（Ctrl+Y）" aria-label="やり直す"><i class="fa-solid fa-rotate-right"></i></button>
-          <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="relayout" data-rm-needs-map title="左から右へ因果と時系列の順に並べ直し、看護問題を右端（重要なものほど上）にそろえます"><i class="fa-solid fa-table-cells"></i> 並べ直す</button>
         </div>
         <div class="rm-group rm-group-end" aria-label="見る・出す">
 
@@ -394,8 +378,17 @@
             <div id="rm-problems" class="rm-problems hidden" role="menu" aria-label="看護問題の一覧"></div>
           </div>
           <div class="rm-prob-menu rm-more-menu">
-            <button type="button" class="btn btn-outline text-[11px] py-1.5" data-rm-action="toggle-more" aria-expanded="false" aria-controls="rm-more" title="印刷・画像で保存・すべて消す"><i class="fa-solid fa-ellipsis"></i> その他</button>
+            <button type="button" class="btn btn-outline toolbar-more" data-rm-action="toggle-more" aria-expanded="false" aria-controls="rm-more" aria-label="関連図のその他の操作" title="編集・表示・書き出し"><i class="fa-solid fa-ellipsis"></i></button>
             <div id="rm-more" class="rm-problems rm-more hidden" role="menu" aria-label="その他の操作">
+              <div class="rm-group rm-group-sep" aria-label="編集">
+                <button type="button" role="menuitem" class="rm-more-item" data-rm-action="add"><i class="fa-solid fa-plus"></i> 追加</button>
+                <button type="button" role="menuitem" class="rm-more-item" data-rm-action="import-clinical" data-rm-needs-map><i class="fa-solid fa-file-import"></i> 薬剤・アセスメントを取り込む</button>
+                <button type="button" role="menuitem" class="rm-more-item" data-rm-action="relayout" data-rm-needs-map><i class="fa-solid fa-table-cells"></i> 並べ直す</button>
+                <button type="button" role="menuitem" class="rm-more-item" data-rm-action="undo" title="元に戻す（Ctrl+Z）"><i class="fa-solid fa-rotate-left"></i> 元に戻す</button>
+                <button type="button" role="menuitem" class="rm-more-item" data-rm-action="redo" title="やり直す（Ctrl+Y）"><i class="fa-solid fa-rotate-right"></i> やり直す</button>
+              </div>
+              <button type="button" role="menuitem" class="rm-more-item" data-rm-action="toggle-text" aria-pressed="false" aria-controls="rm-text-view" data-rm-needs-map>関連図を一覧で表示</button>
+              <button type="button" role="menuitem" class="rm-more-item rm-bridge-btn" data-rm-action="toggle-added" data-rm-needs-map aria-pressed="false" title="矢印の間に補った過程の表示を切り替えます"><i class="fa-solid fa-eye-slash"></i> ＋補足：なし</button>
               <button type="button" role="menuitem" class="rm-more-item" data-rm-action="print" data-rm-needs-map title="A4横で印刷・PDF保存します"><i class="fa-solid fa-print"></i> 印刷 / PDF</button>
               <button type="button" role="menuitem" class="rm-more-item" data-rm-action="print-per-problem" data-rm-needs-map title="全体の図の後に、看護問題ごとの図を1ページずつ印刷します（A4横）"><i class="fa-solid fa-copy"></i> 看護問題ごとに印刷 / PDF</button>
               <button type="button" role="menuitem" class="rm-more-item" data-rm-action="png" data-rm-needs-map title="画像（PNG）で保存します"><i class="fa-solid fa-image"></i> 画像で保存</button>
@@ -1255,13 +1248,13 @@
   <script src="js/06-export.js?v=2026-10-11.usability-context16"></script>
   <script src="js/07-classification.js?v=2026-10-11.usability-context16"></script>
   <script src="js/08-assessment-tools.js?v=2026-10-11.usability-context12"></script>
-  <script src="js/09-board.js?v=2026-10-11.usability-context12"></script>
+  <script src="js/09-board.js?v=2026-10-11.usability-context17"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-11.usability-context15"></script>
   <script src="js/11-own-assessment.js?v=2026-10-11.usability-context13"></script>
   <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-11.usability-context13"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-11.usability-context12"></script>
   <script src="js/14-drug-reference.js?v=2026-10-10.znavigation17"></script>
-  <script src="js/15-relation-map.js?v=2026-10-11.usability-context14"></script>
+  <script src="js/15-relation-map.js?v=2026-10-11.usability-context17"></script>
   <script>
   // Manual source comparison and reversible text edits on the active chart.
   (function(){

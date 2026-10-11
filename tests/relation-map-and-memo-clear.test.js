@@ -667,7 +667,7 @@ test('関連図：操作は 作る｜編集｜見る・出す にまとめ、拡
   assert.match(view, /class="rm-zoom-pad"[\s\S]*?data-rm-action="zoom-in"[\s\S]*?data-rm-action="zoom-out"[\s\S]*?data-rm-action="zoom-fit"[\s\S]*?data-rm-action="zoom-100"/);
   assert.match(css, /\.rm-zoom-pad \{ position: absolute; right: 18px; bottom: 18px;/);
   assert.match(src, /else if \(act === 'toggle-more'\)/);
-  assert.match(src, /<details class="rm-help"><summary>看護問題を押すと、その問題の流れだけを表示します/, '案内は1行（くわしくは開いたときだけ）');
+  assert.match(src, /<details class="rm-help"><summary>図の操作方法<\/summary>/, '案内は1行（くわしくは開いたときだけ）');
 
   const map = caseMap('gastric_postop');
   const live = app.relationMapSvg(map, { interactive: true });
