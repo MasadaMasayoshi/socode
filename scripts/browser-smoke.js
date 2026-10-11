@@ -419,6 +419,27 @@ const {app}=require('../server');
    assert.equal(await page.evaluate(()=>JSON.stringify(records)),original);
    await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
    await page.waitForFunction(()=>typeof createNewPatientPage==='function');
+   await page.evaluate(()=>createNewPatientPage('カード単位の架空検証'));
+   await page.locator('#tab-so-board').click();
+   const episodeSource='氏名：A氏 76歳 女性\n入院日：2026年6月8日\n睡眠：7時間程度（寝つきはよい）現在は痛みのため眠れていない\n術後1日目\n8:00 回診\n酸素OFF、硬膜外麻酔抜去、フットポンプOFF\n14:45 RH\n理学療法士によるリハビリ開始\nマッサージと関節可動域訓練開始「動かし始めは痛いけど、大丈夫」と本人\n本日、PTとともにベッド上でセッティング・SLR・足関節ROMの訓練実施。';
+   await page.locator('#source-text').fill(episodeSource);
+   await page.locator('#btn-start-classify').click();
+   await page.waitForFunction(()=>getCurrentPatient().items.some(i=>i.type==='s'));
+   const episodes=await page.evaluate(()=>{
+    const items=getCurrentPatient().items.filter(i=>!i.deleted&&i.type!=='unnecessary');
+    const before=items.find(i=>i.text.includes('7時間')),current=items.find(i=>i.text.includes('現在は'));
+    const rehabilitation=items.find(i=>i.type==='o'&&i.text.includes('理学療法士'));
+    const speech=items.find(i=>i.type==='s');
+    return {before:before.timestamp,current:current.timestamp,currentCol:current.assessmentCols[5],
+     joined:rehabilitation.text.includes('関節可動域訓練')&&rehabilitation.text.includes('セッティング・SLR・足関節ROM'),
+     separate:!rehabilitation.text.includes('動かし始めは痛い')&&speech.sceneId===rehabilitation.sceneId,
+     careChanges:items.filter(i=>/OFF$|硬膜外麻酔抜去$/.test(i.text)).length};
+   });
+   assert.deepEqual(episodes,{before:'入院前',current:'入院時',currentCol:'postadmission',joined:true,separate:true,careChanges:3});
+   assert.equal(await page.locator('#source-text').inputValue(),episodeSource);
+   await page.locator('#tab-assessment').click();
+   await page.evaluate(()=>selectAssessmentNeed(4));
+   await page.locator('#assessment-single').screenshot({path:`browser-artifacts/${width}-grouped-episode.png`});
    for (const {id,text} of [...require('../tests/public-case-helpers').loadPublicCases(), {id:'gastric-arrows',text:fs.readFileSync('tests/fixtures/relation-map/gastric_postop.txt','utf8')}]) {
     await page.evaluate(id=>createNewPatientPage('公開架空検証 '+id),id);
     await page.locator('#tab-so-board').click();

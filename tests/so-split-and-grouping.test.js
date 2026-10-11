@@ -57,9 +57,13 @@ test('同じ時刻のバイタルは体温→血圧→脈拍→呼吸→SpO2の�
   assert.ok(!all.some(c => /^脈拍 74/.test(c.text)));
 });
 
-test('同じ時刻の処置の列挙（酸素OFF、硬膜外麻酔抜去、フットポンプOFF）は「回診:」の1枚', () => {
+test('Independent care changes keep their own cards and timestamps', () => {
   const r = find('酸素OFF');
-  assert.equal(r.text, '回診: 酸素OFF、硬膜外麻酔抜去、フットポンプOFF');
+  assert.equal(r.text, '回診: 酸素OFF');
+  assert.equal(find('硬膜外麻酔抜去').text, '回診: 硬膜外麻酔抜去');
+  assert.equal(find('フットポンプOFF').text, '回診: フットポンプOFF');
+  assert.deepEqual(Array.from(r.hendersonIds), [1]);
+  assert.deepEqual(Array.from(find('フットポンプOFF').hendersonIds), [9]);
   assert.equal(r.timestamp, '術後1日目 8:00');
   assert.equal(app.splitEnumeratedPhrases('シャワー浴、弾性ストッキング着用').length, 2, '別々の看護行為は引き続き分ける');
 });

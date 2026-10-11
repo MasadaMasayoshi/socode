@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-11.status-visible10'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-11.timeline-cards11'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -242,10 +242,17 @@
       const items = (cp && cp.items) || [];
       const idx = items.findIndex(i => i.id === item.id);
       if (idx < 0) return [];
-      const near = items.filter((i, k) => i.id !== item.id && i.type !== 'unnecessary' && (Math.abs(k - idx) <= 2 || (item.timestamp && item.timestamp !== '日時不明' && i.timestamp === item.timestamp && Math.abs(k - idx) <= 8)));
+      const near = items.filter((i, k) => i.id !== item.id && !i.deleted && i.type !== 'unnecessary' && item.timestamp && item.timestamp !== '日時不明' && i.timestamp === item.timestamp && Math.abs(k - idx) <= 2);
       const found = [];
       UNTAGGED_EFFECT_RULES.forEach(rule => {
-        const hit = near.find(i => rule.re.test(String(i.text || '')));
+        const hit = near.find(i => {
+          const text = String(i.text || '');
+          if (!rule.re.test(text)) return false;
+          const linked = i.sceneId && i.sceneId === item.sceneId;
+          const explicitPain = PAIN_TEXT_REGEX.test(text) && !/疼痛増強(?:なし|見られず)|痛みなし|疼痛なし/.test(text);
+          const movement = rule.id === 4 && PAIN_SCORE_REGEX.test(item.text) && POSTURE_ACTIVITY_REGEX.test(text);
+          return linked || explicitPain || movement;
+        });
         if (hit) found.push({ id: rule.id, label: rule.label, evidence: String(hit.text).slice(0, 40) });
       });
       return found;
