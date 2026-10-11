@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-11.status-inline6'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-11.status-panel8'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -986,6 +986,14 @@
       if (id && !id.startsWith('asc_')) setItemType(id, targetType);
     };
 
+    function renderAssessmentStatusHtml(cp, selectedNeed) {
+      if (typeof sufficiencyPhaseHtml !== 'function') return '';
+      const phases = sufficiencyUiPhases(cp);
+      return HENDERSON_NEEDS.filter(need => selectedNeed === 'all' || need.id === Number(selectedNeed)).map(need =>
+        `<section class="suf-status-need"><h4>${escapeHtml(need.name)}</h4><div class="suf-status-group">${phases.map(phase => sufficiencyPhaseHtml(cp, need.id, phase.key, { inline: true })).join('')}</div>${sufficiencyReasonHtml(cp, need.id)}</section>`
+      ).join('');
+    }
+
     function renderAssessmentTable() {
       if (typeof resetCardLabFlags === 'function') resetCardLabFlags();
       const cp = getCurrentPatient();
@@ -993,6 +1001,7 @@
       cp.items.forEach(i => { if (!i.assessmentCols || typeof inferAssessmentColumn !== 'function') return; const col = inferAssessmentColumn(i.fieldLabel, i.timestamp, null); if (!col) return; Object.keys(i.assessmentCols).forEach(h => { if (i.assessmentCols[h] === 'unclassified') i.assessmentCols[h] = col; }); });
       const activeItems = cp.items.filter(i => i.type !== 'unnecessary');
       const selectedNeed = getSelectedAssessmentNeed();
+      const statusHtml = renderAssessmentStatusHtml(cp, selectedNeed);
       const frag = document.createDocumentFragment();
 
       const ownAsm = typeof renderMyAssessmentRowHtml === 'function';
@@ -1036,9 +1045,6 @@
         }
         const needLabel = need.name.replace(/^\d+\.\s*/, '');
 
-        const phaseJudge = key => ownAsm && typeof sufficiencyPhaseHtml === 'function' ? sufficiencyPhaseHtml(cp, need.id, key, { inline: true }) : '';
-
-        const postJudge = () => (typeof isSurgicalPatient === 'function' && isSurgicalPatient(cp)) ? phaseJudge('preop') + phaseJudge('postop') : phaseJudge('post');
         const tr = document.createElement('tr');
         tr.className = "border-b border-[var(--line)] hover:bg-[var(--paper)]/60";
         tr.innerHTML = `
@@ -1052,8 +1058,8 @@
             </div>
           </td>
           <td class="border border-[var(--line)] p-1.5 align-top min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'unclassified')"><div class="space-y-1.5">${categorize('unclassified')}</div></td>
-          <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--slate-soft)]/30 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'preadmission')"><div class="suf-cell-head">${phaseJudge('pre')}</div><div class="space-y-1.5">${categorize('preadmission')}</div></td>
-          <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--accent-soft)]/40 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'postadmission')"><div class="suf-cell-head">${postJudge()}</div><div class="space-y-1.5">${categorize('postadmission')}</div></td>
+          <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--slate-soft)]/30 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'preadmission')"><div class="space-y-1.5">${categorize('preadmission')}</div></td>
+          <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--accent-soft)]/40 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'postadmission')"><div class="space-y-1.5">${categorize('postadmission')}</div></td>
           <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--brick-soft)]/40 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'missing')">
             <div class="space-y-1.5">${categorize('missing')}</div>
             <button onclick="openMissingModal(${need.id})" class="mt-1.5 text-[10px] text-[var(--brick)] hover:text-[var(--ink)] font-medium flex items-center w-full justify-center p-1 border border-dashed border-[var(--brick-line)] rounded-[var(--radius-sm)]"><i class="fa-solid fa-plus mr-1"></i> 追加</button>
@@ -1073,8 +1079,13 @@
         }
       });
       document.getElementById('assessment-tbody').replaceChildren(frag);
+      const statusContent = document.getElementById('assessment-status-content');
+      if (statusContent) statusContent.innerHTML = statusHtml;
       const sufSum = document.getElementById('suf-summary');
-      if (sufSum && typeof sufficiencyMiniHtml === 'function') sufSum.innerHTML = sufficiencySummaryHtml(cp);
+      if (sufSum && typeof sufficiencyMiniHtml === 'function') {
+        sufSum.classList.toggle('hidden', selectedNeed !== 'all');
+        sufSum.innerHTML = selectedNeed === 'all' ? sufficiencySummaryHtml(cp) : '';
+      }
 
       const aiSufBtn = document.getElementById('btn-sufficiency-ai');
       if (aiSufBtn && typeof hasRuleSufficiency === 'function') aiSufBtn.classList.toggle('hidden', !hasRuleSufficiency(cp));
@@ -1098,17 +1109,16 @@
       const unchecked = typeof missingCheckStatus === 'function' ? missItems.filter(i => missingCheckStatus(cp, i.id) === 'unchecked').length : nMiss;
       const drop = col => `ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, '${col}')"`;
       const name = need.name.replace(/^\d+\.\s*/, '');
-      const phaseJ = key => typeof sufficiencyPhaseHtml === 'function' ? sufficiencyPhaseHtml(cp, need.id, key, { inline: true }) : '';
 
       const own = typeof renderMyAssessmentRowHtml === 'function' && myAssessmentAlwaysShown() ? `<div class="asm-own">${renderMyAssessmentRowHtml(cp, need, false)}</div>` : '';
-      return `<div class="asm-single-head"><span class="need-number asm-single-no">${need.id}</span><i class="fa-solid ${need.icon} text-[var(--accent)]"></i><b>${escapeHtml(name)}</b><span class="my-asm-muted">カード ${matching.length}枚</span></div>${typeof sufficiencyReasonHtml === 'function' ? sufficiencyReasonHtml(cp, need.id) : ''}
+      return `<div class="asm-single-head"><span class="need-number asm-single-no">${need.id}</span><i class="fa-solid ${need.icon} text-[var(--accent)]"></i><b>${escapeHtml(name)}</b><span class="my-asm-muted">カード ${matching.length}枚</span></div>
         <section class="asm-aux asm-aux-unc${nUnc ? '' : ' is-empty'}" ${drop('unclassified')}>
           <div class="asm-aux-title"><span class="col-dot" style="background:var(--ink-muted)"></span>未分類 <b>${nUnc}</b><span class="my-asm-muted">${nUnc ? '入院前・入院後に振り分けてください（ドラッグ、またはカードの「前」「後」）' : '未分類のカードはありません'}</span></div>
           ${nUnc ? `<div class="asm-aux-body">${categorize('unclassified')}</div>` : ''}
         </section>
         <div class="asm-center">
-          <section class="asm-col asm-col-pre" ${drop('preadmission')}><div class="asm-col-title"><span>入院前 <b>${nPre}</b></span>${phaseJ('pre')}</div><div class="space-y-1.5">${categorize('preadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div></section>
-          <section class="asm-col asm-col-post" ${drop('postadmission')}><div class="asm-col-title"><span>入院後 <b>${nPost}</b></span>${(typeof isSurgicalPatient === 'function' && isSurgicalPatient(cp)) ? phaseJ('preop') + phaseJ('postop') : phaseJ('post')}</div><div class="space-y-1.5">${categorize('postadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div></section>
+          <section class="asm-col asm-col-pre" ${drop('preadmission')}><div class="asm-col-title"><span>入院前 <b>${nPre}</b></span></div><div class="space-y-1.5">${categorize('preadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div></section>
+          <section class="asm-col asm-col-post" ${drop('postadmission')}><div class="asm-col-title"><span>入院後 <b>${nPost}</b></span></div><div class="space-y-1.5">${categorize('postadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div></section>
         </div>
         <section class="asm-aux asm-aux-miss" ${drop('missing')}>
           <div class="asm-aux-title"><i class="fa-solid fa-clipboard-question" style="color:var(--brick)"></i>不足情報 <b>${nMiss}</b>${nMiss ? `<span class="my-asm-muted">未確認 ${unchecked}</span>` : '<span class="my-asm-muted">まだありません</span>'}

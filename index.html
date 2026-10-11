@@ -6,15 +6,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="2026-10-11.status-inline7">
-  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-10.znavigation17,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-11.desktop-arrows,06:2026-10-11.desktop-arrows,07:2026-10-10.znavigation17,08:2026-10-10.znavigation17,09:2026-10-11.status-inline6,10:2026-10-10.znavigation17,11:2026-10-11.status-inline7,12:2026-10-11.clear-status5,13:2026-10-10.znavigation17,14:2026-10-10.znavigation17,15:2026-10-11.quiet-plans4">
+  <meta name="app-version" content="2026-10-11.status-panel8">
+  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-10.znavigation17,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-11.desktop-arrows,06:2026-10-11.status-panel8,07:2026-10-10.znavigation17,08:2026-10-10.znavigation17,09:2026-10-11.status-panel8,10:2026-10-10.znavigation17,11:2026-10-11.status-inline7,12:2026-10-11.status-panel8,13:2026-10-10.znavigation17,14:2026-10-10.znavigation17,15:2026-10-11.quiet-plans4">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=2026-10-11.status-inline6">
+  <link rel="stylesheet" href="style.css?v=2026-10-11.status-panel8">
 
   <link rel="stylesheet" href="vendor/tailwind.css?v=2026-10-06.14">
   <script>
@@ -299,7 +299,6 @@
           </h2>
         </div>
         <div class="asm-toolbar flex flex-wrap items-center gap-2">
-          <span id="suf-summary" class="suf-sum-wrap"></span>
           <button type="button" id="btn-my-asm-show" class="btn btn-outline my-asm-show-btn" onclick="toggleMyAssessmentShown()" aria-pressed="false">
             <i class="fa-solid fa-user-pen"></i> 自分のアセスメント：<span class="my-asm-show-state">非表示</span>
           </button>
@@ -310,11 +309,7 @@
       </div>
 
       <div id="ai-results" class="ai-results hidden">
-        <div class="ai-results-bar">
-          <span class="ai-results-title"><i class="fa-solid fa-comment-medical"></i> 結果</span>
-          <div id="ai-results-tabs" class="ai-results-tabs" role="tablist" aria-label="結果の種類"></div>
-          <button type="button" id="ai-results-close" class="ai-results-close hidden" onclick="showAiResult(null)"><i class="fa-solid fa-chevron-up"></i> たたむ</button>
-        </div>
+        <div id="ai-results-tabs" hidden></div>
 
       <div id="lab-evaluation-panel" class="ai-panel hidden bg-[var(--accent-soft)] border border-[var(--accent-line)] rounded-[var(--radius)] p-3.5 flex flex-col gap-2">
         <button type="button" class="ai-panel-head" onclick="toggleAiPanel(this)" aria-expanded="false" style="color:var(--accent-dark);"><i class="fa-solid fa-microscope"></i><span class="ai-panel-title">検査データ臨床評価</span><span class="ai-panel-summary"></span><span class="ai-panel-toggle">詳細を開く</span></button>
@@ -351,6 +346,8 @@
       <div id="missing-check-summary" class="mc-summary hidden"></div>
       <div id="assessment-need-nav" class="need-nav" role="group" aria-label="基本的欲求の切り替え"></div>
 
+      <div id="assessment-layout" class="assessment-layout">
+      <div class="assessment-data">
       <div id="assessment-single" class="asm-single hidden"></div>
       <div id="assessment-table-wrap" class="overflow-x-auto">
         <table class="assess-table w-full border-collapse text-xs">
@@ -367,6 +364,13 @@
 
           </tbody>
         </table>
+      </div>
+      </div>
+      <aside id="assessment-status" class="assessment-status" aria-labelledby="assessment-status-title">
+        <h3 id="assessment-status-title">充足・未充足</h3>
+        <span id="suf-summary" class="suf-sum-wrap"></span>
+        <div id="assessment-status-content"></div>
+      </aside>
       </div>
     </div>
 
@@ -1283,13 +1287,13 @@
   <script src="js/03-extraction-helpers.js?v=2026-10-10.znavigation17"></script>
   <script src="js/04-server-sync.js?v=2026-10-10.znavigation17"></script>
   <script src="js/05-app-state-and-ui.js?v=2026-10-11.desktop-arrows"></script>
-  <script src="js/06-export.js?v=2026-10-11.desktop-arrows"></script>
+  <script src="js/06-export.js?v=2026-10-11.status-panel8"></script>
   <script src="js/07-classification.js?v=2026-10-10.znavigation17"></script>
   <script src="js/08-assessment-tools.js?v=2026-10-10.znavigation17"></script>
-  <script src="js/09-board.js?v=2026-10-11.status-inline6"></script>
+  <script src="js/09-board.js?v=2026-10-11.status-panel8"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-10.znavigation17"></script>
   <script src="js/11-own-assessment.js?v=2026-10-11.status-inline7"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-11.clear-status5"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-11.status-panel8"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-10.znavigation17"></script>
   <script src="js/14-drug-reference.js?v=2026-10-10.znavigation17"></script>
   <script src="js/15-relation-map.js?v=2026-10-11.quiet-plans4"></script>
