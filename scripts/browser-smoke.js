@@ -807,6 +807,47 @@ const {app}=require('../server');
     if(id==='heart-failure') await page.screenshot({path:`browser-artifacts/${width}-public-long-relation.png`});
     console.log(`PASS ${width}px public ${id}: UI classification, assessment, plans, labs and relation map`);
    }
+   await page.evaluate(()=>createNewPatientPage('架空の保存済み計画検証'));
+   await page.locator('#tab-so-board').click();
+   await page.locator('#source-text').fill('術後1日目\n創部痛 NRS 6、体動時に痛みあり。\n「痛くて眠れない」と話す。');
+   await page.locator('#btn-start-classify').click();
+   await page.waitForFunction(()=>getCurrentPatient().items.some(i=>i.type==='s'));
+   await page.locator('#tab-careplan').click();
+   await page.evaluate(()=>{
+    const cp=getCurrentPatient(),p=carePlanList(cp).find(p=>cpDomainOf(p)?.key==='pain');
+    if(!p)throw Error('Missing fictional pain plan');
+    window.__repairPlanId=p.id;
+    p.tp=[];p.ep=[];p.op=['疼痛の部位とNRS、体動時の痛みを確認する'];
+    p.goalShort='術後3日目までに本人が体動時の痛みを伝えられる';p.goalLong='退院までに本人が痛みを伝えられる';p.userEdited=false;
+    const manual=createCarePlan(cp,{problem:'記録からまだ確認できない問題のリスク状態',source:'manual',userEdited:true,op:['手で入力した観察'],tp:[],ep:[]});
+    window.__manualPlanId=manual.id;window.__savedPlanIds=carePlanList(cp).map(p=>p.id).sort();
+    saveDataAndSync();
+   });
+   await page.locator('#tab-so-board').click();
+   await page.locator('#tab-careplan').click();
+   await page.waitForFunction(()=>{
+    const cp=getCurrentPatient(),saved=JSON.parse(localStorage.getItem('nursing_patients_data')).patients.find(p=>p.id===cp.id);
+    return saved.carePlans[window.__repairPlanId].tp.length>0&&saved.carePlans[window.__repairPlanId].ep.length>0;
+   });
+   const savedPlans=await page.evaluate(()=>({patient:getCurrentPatient().id,pain:window.__repairPlanId,manual:window.__manualPlanId,ids:window.__savedPlanIds}));
+   await page.reload({waitUntil:'networkidle'});
+   await page.waitForFunction(()=>!!getCurrentPatient());
+   const restoredPlans=await page.evaluate(({pain,manual})=>{
+    const cp=getCurrentPatient();return {patient:cp.id,ids:carePlanList(cp).map(p=>p.id).sort(),tp:getCarePlan(cp,pain).tp.length,ep:getCarePlan(cp,pain).ep.length,manual:[getCarePlan(cp,manual).tp,getCarePlan(cp,manual).ep],op:getCarePlan(cp,pain).op};
+   },savedPlans);
+   assert.equal(restoredPlans.patient,savedPlans.patient);assert.deepEqual(restoredPlans.ids,savedPlans.ids);
+   assert.ok(restoredPlans.tp>0&&restoredPlans.ep>0,'Automatic TP/EP repairs survive reload without new plans');
+   assert.deepEqual(restoredPlans.manual,[[],[]],'Intentionally blank manual sections remain unchanged');
+   assert.deepEqual(restoredPlans.op,['疼痛の部位とNRS、体動時の痛みを確認する']);
+   await page.locator('#tab-careplan').click();
+   await page.evaluate(({pain})=>{addCareRecord(getCurrentPatient(),pain,{achievement:'not',response:'架空の未達成記録'});renderCarePlans();},savedPlans);
+   await page.getByRole('button',{name:'全計画をまとめて評価',exact:true}).click();
+   assert.match(await page.locator('#careplan-set-review .cps-next').innerText(),/未達成.*修正案と再評価の時期/);
+   const unsupported=page.locator('#careplan-set-review .cps-next li').filter({hasText:'記録からまだ確認できない問題のリスク状態'});
+   await unsupported.getByRole('button',{name:'空欄に追記案を入れる',exact:true}).click();
+   assert.match(await page.locator('#toast-container').innerText(),/追記案がありません/);
+   assert.deepEqual(await page.evaluate(({manual})=>[getCarePlan(getCurrentPatient(),manual).tp,getCarePlan(getCurrentPatient(),manual).ep],savedPlans),[[],[]]);
+   await page.locator('#careplan-set-review .cps-next').screenshot({path:`browser-artifacts/${width}-careplan-next-actions.png`});
    assert.deepEqual(errors,[],`Uncaught browser errors at ${width}px`);
    console.log(`PASS ${width}px: classification, five views, recovery and catalog revision comparison`);
    await page.goto(`http://127.0.0.1:${server.address().port}/clinical-knowledge/practice.html`,{waitUntil:'networkidle'});

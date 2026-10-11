@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-11.usability-context13'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-12.usability-context20'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1768,11 +1768,15 @@
 
     function autoBuildCarePlans(cp, { notify = true } = {}) {
       if (!cp) return 0;
+      const before = JSON.stringify(cp.carePlans || {});
       let r;
       try { r = buildCarePlansByRules(cp, { skipDeleted: true }); } catch (err) { console.warn('Care plan generation failed:', err); return 0; }
       if (!r.fresh.length) {
 
-        try { const ref = refineCarePlans(cp); if (ref.merged || ref.refsRemoved || ref.regenerated) commitCarePlanChange(cp, false); } catch (err) { console.warn('Care plan refinement failed:', err); }
+        try {
+          refineCarePlans(cp);
+          if (JSON.stringify(cp.carePlans || {}) !== before) commitCarePlanChange(cp, false);
+        } catch (err) { console.warn('Care plan refinement failed:', err); }
         return 0;
       }
       commitCarePlanChange(cp, false);
@@ -2003,13 +2007,31 @@
     window.closeCarePlanSetReview = function() { carePlanSetState.open = false; renderCarePlanSetReview(); };
     function carePlanSetNextSteps(cp, review = reviewCarePlanSet(cp)) {
       const actions = [];
+      if (!carePlanList(cp).length) return [{ text: '原文と分類したカードを確認し、看護問題・目標・OP・TP・EPを作成してください。計画を作成してから、重複や不足を見直してください。' }];
       carePlanList(cp).forEach(plan => {
+        if (['ended', 'resolved', 'paused'].includes(plan.status)) {
+          actions.push({ planId: plan.id, text: `「${plan.problem}」は${CARE_PLAN_STATUSES.find(s => s.key === plan.status).label}です。その判断の根拠と患者の反応、再評価・再開が必要になる条件を記録してください。` });
+          return;
+        }
+        const last = latestCareRecord(plan);
+        const outcome = evaluateCarePlanFromRecords(plan).result;
+        const followUp = !last ? '' : outcome === 'achieved'
+          ? '目標の達成が記録されています。患者の現状を確認し、計画を継続するか終了するか判断して、その理由を記録してください。'
+          : ['partial', 'not'].includes(outcome)
+            ? `${outcome === 'partial' ? '一部達成' : '未達成'}の理由を患者の反応と原文から確認し、援助内容・回数・タイミングの修正案と再評価の時期を記録してください。`
+            : '最新の実施記録では目標の達成状況を確認できません。患者の反応を目標と照合し、評価できない場合は不足する情報と確認する時期を記録してください。';
+        let action;
         const missing = ['op', 'tp', 'ep'].filter(k => !plan[k]?.length);
-        if (missing.length) actions.push({ planId: plan.id, missing: true, text: `「${plan.problem}」の${missing.map(k => k.toUpperCase()).join('・')}を補い、誰が・いつ・どのように行うか、患者の記録と現在の指示に合わせて具体化してください。` });
+        if (missing.length) action = { planId: plan.id, missing: true, text: `「${plan.problem}」の${missing.map(k => k.toUpperCase()).join('・')}を補い、誰が・いつ・どのように行うか、患者の記録と現在の指示に合わせて具体化してください。` };
         else {
           const warnings = reviewCarePlan(cp, plan).items.filter(check => check.level === 'warn');
-          if (warnings.length) actions.push({ planId: plan.id, text: `「${plan.problem}」：${warnings.map(check => check.label).join('・')}を見直してください。${warnings[0].msgs[0] || ''}` });
+          if (warnings.length) action = { planId: plan.id, text: `「${plan.problem}」：${warnings.map(check => check.label).join('・')}を見直してください。${warnings[0].msgs[0] || ''}` };
         }
+        if (followUp) {
+          if (action) action.text += followUp;
+          else action = { planId: plan.id, text: `「${plan.problem}」：${followUp}` };
+        }
+        if (action) actions.push(action);
       });
       if (review.dups.length || review.overlaps.length) actions.push({ text: '重複する援助・説明は主に担当する計画を決め、他の計画はその計画を参照してください。問題の目的が違うものは、目標と達成条件を分けて残してください。' });
       review.gaps.forEach(gap => actions.push({ text: `${gap.msg}。担当する計画を決め、援助内容・説明内容と理解の確認方法をTP・EPへ追記してください。` }));
@@ -2027,6 +2049,7 @@
       if (!model) return showToast('追記案の根拠が不足しています。原文を確認して作成してください', 'warn');
       const before = careOperationSnapshot(cp), patch = {};
       ['op', 'tp', 'ep'].forEach(k => { if (!plan[k]?.length && model[k]?.length) patch[k] = [...model[k]]; });
+      if (!Object.keys(patch).length) return showToast('空欄に入れられる追記案がありません。原文・現在の指示を確認し、この看護問題に必要な内容を入力してください', 'warn');
       updateCarePlan(cp, id, { ...patch, reasonNeeded: true });
       rememberCareOperation(cp, before); commitCarePlanChange(cp);
       showToast('空欄に追記案を入れました。原文・現在の指示と照合し、具体的な援助に整えてください', 'success');
