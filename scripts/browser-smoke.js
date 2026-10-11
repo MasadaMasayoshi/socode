@@ -255,11 +255,11 @@ const {app}=require('../server');
     return results;
    });
    for (const result of lineVisibility) {
-    assert.equal(result.width,'2px');
+    assert.equal(result.width,'1.5px');
     assert.equal(result.opacity,'0.65');
     assert.equal(result.selectedOpacity,'1');
     assert.equal(result.vectorEffect,'non-scaling-stroke');
-    assert.ok(Math.abs(result.endpointSize - 10) < .001);
+    assert.ok(Math.abs(result.endpointSize - 8) < .001);
     assert.equal(result.maskExists,true);
     assert.equal(result.markerOverflow,'visible');
     assert.equal(result.selectedMarker,true);
