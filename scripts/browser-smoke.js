@@ -431,7 +431,15 @@ const {app}=require('../server');
     if(id==='gastric-arrows') await page.screenshot({path:`browser-artifacts/${width}-careplan-no-auto-check.png`});
     if(id==='gastric-arrows') {
      await page.locator('#tab-assessment').click();
-     await page.evaluate(()=>selectAssessmentNeed(1));
+     // Explicit phase labels isolate layout coverage from narrative date extraction.
+     await page.evaluate(()=>{
+      const cp=getCurrentPatient();window.__phaseItems=cp.items;
+      cp.items=[
+       {id:'phase-pre',type:'o',text:'普段は呼吸困難なし',timestamp:'入院前',hendersonIds:[1],assessmentCols:{1:'preadmission'}},
+       {id:'phase-preop',type:'o',text:'呼吸困難なし',timestamp:'術前',hendersonIds:[1],assessmentCols:{1:'postadmission'}},
+       {id:'phase-postop',type:'o',text:'浅い呼吸、湿性咳嗽あり、喀痰あり',timestamp:'術後1日目',hendersonIds:[1],assessmentCols:{1:'postadmission'}}
+      ];selectAssessmentNeed(1);
+     });
      for (const column of ['.asm-col-pre','.asm-col-post']) {
       const section=page.locator('#assessment-single '+column);
       assert.equal(await section.locator('.suf-phase-block').count(),column==='.asm-col-pre'?1:2);
@@ -449,7 +457,7 @@ const {app}=require('../server');
        return blocks.length>0 && !!card && !!(blocks.at(-1).compareDocumentPosition(card)&Node.DOCUMENT_POSITION_FOLLOWING);
       }) && !row.cells[0].querySelector('.suf-mini-wrap');
      }),true,'Overview verdicts appear in the matching admission column');
-     await page.evaluate(()=>selectAssessmentNeed(1));
+     await page.evaluate(()=>{getCurrentPatient().items=window.__phaseItems;delete window.__phaseItems;selectAssessmentNeed(1);});
     }
     await page.locator('#tab-relation').click();
     if(id==='gastric-arrows') {
