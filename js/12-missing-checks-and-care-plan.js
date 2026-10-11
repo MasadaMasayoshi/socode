@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-11.clear-status5'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-11.status-panel8'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -705,8 +705,6 @@
     function carePlanBasisHtml(p, cp) {
       const pid = safeDomId(p.id);
       const parts = [];
-      const changedEvidence = cp ? carePlanEvidenceChanges(cp, p) : [];
-      if (changedEvidence.length) parts.push(`<div class="cp-qa cp-qa-warn"><b>根拠カードに変更があります</b><ul>${changedEvidence.map(x => `<li>${escapeHtml(x.before.text)} → ${x.after ? escapeHtml(x.after.text) : '削除・除外済み'}（日時・分類も確認してください）</li>`).join('')}</ul><button type="button" class="btn btn-outline" onclick="reviewCarePlanEvidenceUI('${pid}')">変更内容を確認して根拠を更新</button></div>`);
       if (p.note) parts.push(`<p class="cp-note">${escapeHtml(p.note)}</p>`);
       if (p.evidence && p.evidence.length) parts.push(`<div class="cp-ev"><span class="my-asm-label"><i class="fa-solid fa-diagram-project"></i> 根拠データ（関連図から）</span><div class="cpr-ev">${p.evidence.map(e => `<span>${escapeHtml(e)}</span>`).join('')}</div></div>`);
       if(cp&&(p.evidenceIds||[]).length)parts.push(`<div class="cp-ev"><b>根拠の情報カードを確認</b><div style="display:flex;gap:6px;flex-wrap:wrap">${[...new Set(p.evidenceIds.map(String))].map(id=>carePlanLinkedCardHtml(cp,p,id)).join('')}</div></div>`);

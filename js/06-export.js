@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-11.desktop-arrows'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-11.status-panel8'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -656,7 +656,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       return out;
     }
     function correctionRequestInstructionsText() {
-      return '\n[Developer instructions]\nCompare source, surrounding records and edit history. Separate automatic processing from manual edits; reproduce card splits/merges and tag additions/removals from the source. Determine intended behavior vs bugs; report evidence, cause and fix. Mark unverifiable causes 『確認不能』; do not present guesses as facts. Generalize rules to similar records, not one patient. Preserve source/Japanese clinical text and approved『タグ不要』/『理由を了承』decisions. Classify Henderson needs by meaning, not S/O; assess pre/post admission separately. Honor requested corrections. Check extraction (js/03), keywords (js/01), context/tag rules (js/07). Run relevant tests; never derive expected answers from app output or hide missing fixtures.\n';
+      return '\n[Developer instructions]\nCompare source, surrounding records and edit history. Separate automatic processing from manual edits; reproduce card splits/merges and tag additions/removals from the source. Determine intended behavior vs bugs; report evidence, cause and fix. Mark unverifiable causes 『確認不能』; do not present guesses as facts. Generalize rules to similar records, not one patient. Preserve source/Japanese clinical text and approved『タグ不要』/『理由を了承』decisions. Classify Henderson needs by meaning, not S/O; assess pre/post admission separately. Honor requested corrections. Check extraction (js/03), keywords (js/01), context/tag rules (js/07). Update the classification criteria in 学習データ管理 → 分類基準 (including the reference notebook in js/02) to reflect the confirmed corrections from this request; keep the criteria and implemented rules consistent for similar records. Run relevant tests; never derive expected answers from app output or hide missing fixtures.\n';
     }
     function buildSelectedCardsExportText(cp, selectedIds, sourceText, includeSourceText = true, includeAssessment = false) {
       const ids = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);

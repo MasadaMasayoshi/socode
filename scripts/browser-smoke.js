@@ -428,7 +428,7 @@ const {app}=require('../server');
     assert.ok(result.planned&&result.refs&&result.linked,`${width}px ${id}: state or evidence ownership`);
     await page.locator('#tab-careplan').click();
     await page.evaluate(()=>{for(const p of carePlanList(getCurrentPatient())){p.qa=[{level:'warn',msg:'保存済み自動警告'}];carePlanOpen.add(p.id);}renderCarePlans();});
-    assert.doesNotMatch(await page.locator('#careplan-list').innerText(),/表示前の自動チェック|保存済み自動警告|そのまま使わず|現在のカードを表示します|優先順位：/);
+    assert.doesNotMatch(await page.locator('#careplan-list').innerText(),/表示前の自動チェック|保存済み自動警告|そのまま使わず|現在のカードを表示します|優先順位：|根拠カードに変更があります|変更内容を確認して根拠を更新/);
     if(id==='gastric-arrows') await page.screenshot({path:`browser-artifacts/${width}-careplan-no-auto-check.png`});
     if(id==='gastric-arrows') {
      await page.locator('#tab-assessment').click();
@@ -442,24 +442,17 @@ const {app}=require('../server');
        {id:'phase-postop',type:'o',text:'浅い呼吸、湿性咳嗽あり、喀痰あり',timestamp:'術後1日目',hendersonIds:[1],assessmentCols:{1:'postadmission'}}
       ];selectAssessmentNeed(1);
      });
-     for (const column of ['.asm-col-pre','.asm-col-post']) {
-      const section=page.locator('#assessment-single '+column);
-      assert.equal(await section.locator('.asm-col-title .suf-inline').count(),column==='.asm-col-pre'?1:2);
-      assert.equal(await section.locator('.suf-inline[open]').count(),0);
-      assert.equal(await section.locator('.asm-col-title').evaluate(head=>{
-       const label=head.querySelector('span').getBoundingClientRect(),cy=label.y+label.height/2;
-       return Array.from(head.querySelectorAll('summary')).every(el=>{
-        const r=el.getBoundingClientRect();return Math.abs(r.y+r.height/2-cy)<2;
-       });
-      }),true,'Phase verdicts share the column-title line');
-      assert.equal(await section.evaluate(el=>{
-       const last=Array.from(el.querySelectorAll('.suf-phase-block')).at(-1),card=el.querySelector('.asc-card');
-       return !!card && !!(last.compareDocumentPosition(card)&Node.DOCUMENT_POSITION_FOLLOWING);
-      }),true,'Each phase verdict precedes its evidence cards');
-     }
+     assert.equal(await page.locator('#assessment-single .suf-phase-block').count(),0,'Card headings and rows contain no verdicts');
+     const status=page.locator('#assessment-status');
+     assert.equal(await status.locator('.suf-inline').count(),3);
+     assert.equal(await status.locator('.suf-inline[open]').count(),0);
+     assert.deepEqual(await status.locator('.suf-inline').evaluateAll(els=>els.map(el=>el.dataset.sufPhase)),['pre','preop','postop']);
+     const dataBox=await page.locator('.assessment-data').boundingBox(),statusBox=await status.boundingBox();
+     assert.ok(width>=1024 ? statusBox.x>=dataBox.x+dataBox.width : statusBox.y+statusBox.height<=dataBox.y,'Verdicts occupy a separate panel');
      await page.locator('#toast-container').evaluate(el=>el.replaceChildren());
-     await page.locator('#assessment-single .asm-center').screenshot({path:`browser-artifacts/${width}-sufficiency-inline.png`});
-     const postop=page.locator('#assessment-single [data-suf-phase="postop"]');
+     await status.screenshot({path:`browser-artifacts/${width}-sufficiency-panel.png`});
+     if(width===1440) await page.locator('#assessment-layout').screenshot({path:`browser-artifacts/${width}-assessment-layout.png`});
+     const postop=status.locator('[data-suf-phase="postop"]');
      await postop.locator('summary').click();
      assert.equal(await postop.locator('.suf-phase-why').isVisible(),true);
      await page.evaluate(()=>renderAssessmentTable());
@@ -471,12 +464,9 @@ const {app}=require('../server');
      const afterCard=await page.locator('#assessment-single .asm-col-post .asc-card').first().boundingBox();
      assert.equal(beforeCard.y,afterCard.y,'Evidence does not shift the cards');
      await page.evaluate(()=>selectAssessmentNeed('all'));
-     assert.equal(await page.locator('#assessment-tbody tr:not(.my-asm-row)').first().evaluate(row=>{
-      return [row.cells[2],row.cells[3]].every(cell=>{
-       const blocks=Array.from(cell.querySelectorAll('.suf-phase-block')),card=cell.querySelector('.asc-card');
-       return blocks.length>0 && !!card && !!(blocks.at(-1).compareDocumentPosition(card)&Node.DOCUMENT_POSITION_FOLLOWING);
-      }) && !row.cells[0].querySelector('.suf-mini-wrap');
-     }),true,'Overview verdicts appear in the matching admission column');
+     assert.equal(await page.locator('#assessment-tbody .suf-phase-block').count(),0,'Overview rows contain no verdicts');
+     assert.equal(await status.locator('.suf-status-need').count(),14);
+     assert.equal(await page.locator('.ai-results-bar').count(),0);
      await page.evaluate(()=>{getCurrentPatient().items=window.__phaseItems;delete window.__phaseItems;selectAssessmentNeed(1);});
     }
     await page.locator('#tab-relation').click();
