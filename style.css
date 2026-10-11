@@ -68,8 +68,10 @@
     }
 
     @font-face { font-family: 'Noto Serif JP App'; src: url('vendor/fonts/NotoSerifJP-subset.woff2') format('woff2'); font-weight: 200 900; font-style: normal; font-display: swap; }
-    :root { --font-body: 'Noto Serif JP App', 'Noto Serif JP', 'Yu Mincho', 'YuMincho', 'Hiragino Mincho ProN', serif; --font-display: var(--font-body); }
-    html[data-font="gothic"] { --font-body: 'BIZ UDPGothic', 'BIZ UDPゴシック', 'IBM Plex Sans JP', 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif; --font-display: var(--font-body); }
+    :root { --font-serif: 'Noto Serif JP App', 'Noto Serif JP', 'Yu Mincho', 'YuMincho', 'Hiragino Mincho ProN', serif; --font-gothic: 'IBM Plex Sans JP', 'BIZ UDPGothic', 'BIZ UDPゴシック', 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif; --font-body: var(--font-serif); --font-display: var(--font-body); }
+    @media screen and (min-width: 1024px) { :root { --font-body: var(--font-gothic); } }
+    html[data-font="serif"] { --font-body: var(--font-serif); }
+    html[data-font="gothic"] { --font-body: var(--font-gothic); }
     * { font-family: var(--font-body); }
     .font-display { font-family: var(--font-display); }
 
@@ -1016,9 +1018,9 @@
     html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-pred .rm-box { stroke: #746C61; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-pred.is-added .rm-box { stroke: #8E7CC3; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-node[data-kind="patient_fact"] .rm-box { fill: #1F2A1F; stroke: #9DBB94; }
-    html[data-theme="dark"] .rm-canvas-wrap .rm-link-line[stroke-dasharray] { stroke: #7A7366; }
-    html[data-theme="dark"] .rm-canvas-wrap #rm-arrow-pred path { fill: #7A7366; }
-    html[data-theme="dark"] .rm-canvas-wrap #rm-tee-blue path { stroke: #8DB3EA; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-link-line[stroke-dasharray] { stroke: #A39C8F; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow-pred path { fill: #A39C8F; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-marker-tee-blue path { stroke: #8DB3EA; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-box { filter: none; }
     html[data-theme="dark"] .rm-ctx-item.rm-danger, html[data-theme="dark"] .rm-more-item.rm-danger { color: #F7A28F; }
     .rm-group { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
@@ -1078,7 +1080,7 @@
     .rm-canvas-wrap .rm-node:focus-visible .rm-box { stroke: var(--accent); stroke-width: 3px; }
     .rm-canvas-wrap .rm-node.is-selected .rm-box, .rm-canvas-wrap .rm-node.is-connect-from .rm-box { stroke: #C2410C; stroke-width: 3px; }
     .rm-canvas-wrap .rm-link { cursor: pointer; }
-    .rm-canvas-wrap .rm-link.is-selected .rm-link-line { stroke: #C2410C; stroke-width: 2.4px; marker-end: url(#rm-arrow-sel); }
+    .rm-canvas-wrap .rm-link.is-selected .rm-link-line { stroke: #C2410C; stroke-width: 3.4px; marker-end: var(--rm-arrow-selected); }
     .rm-canvas-wrap.is-connecting .rm-node { cursor: crosshair; }
     .rm-canvas-wrap.is-connecting .rm-node:hover .rm-box { stroke: #C2410C; stroke-width: 2.5px; }
     .rm-legend { display: flex; flex-wrap: wrap; gap: .3rem .9rem; font-size: 11px; color: var(--ink-muted); align-items: center; }
@@ -1088,7 +1090,7 @@
     html[data-theme="dark"] .rm-canvas-wrap .rm-text { fill: #EAE5DA; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-note { fill: #C9C2B5; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-link-line { stroke: #B9B2A3; }
-    html[data-theme="dark"] .rm-canvas-wrap #rm-arrow path { fill: #B9B2A3; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow path { fill: #B9B2A3; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-link-label { fill: #D8D2C5; stroke: #221F1B; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-selected .rm-box, html[data-theme="dark"] .rm-canvas-wrap .rm-node.is-connect-from .rm-box { stroke: #F59E6B; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-link.is-selected .rm-link-line { stroke: #F59E6B; }
@@ -1129,9 +1131,9 @@
     .rm-svg text, .rm-svg tspan { font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic UI', 'Yu Gothic', 'Meiryo', sans-serif; }
     .rm-canvas-wrap .rm-svg.rm-focus .rm-node:not(.is-path) { opacity: .22; }
     .rm-canvas-wrap .rm-svg.rm-focus .rm-link:not(.is-path) { opacity: .1; }
-    .rm-canvas-wrap .rm-svg.rm-focus .rm-link.is-path .rm-link-line { stroke-width: 2.2px; }
+    .rm-canvas-wrap .rm-svg.rm-focus .rm-link.is-path .rm-link-line { stroke-width: 3.4px; }
     .rm-canvas-wrap .rm-node, .rm-canvas-wrap .rm-link { transition: opacity .15s; }
-    .rm-canvas-wrap .rm-link:hover .rm-link-line { stroke-width: 2.4px; }
+    .rm-canvas-wrap .rm-link:hover .rm-link-line { stroke-width: 3.4px; }
 
     html[data-theme="dark"] .rm-canvas-wrap .rm-bg.is-paper { fill: #171512; }
 
@@ -1290,7 +1292,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 /* Keep treatment endpoints visible and preserve their meaning when selected. */
-.rm-canvas-wrap .rm-link.is-treat.is-selected .rm-link-line { marker-end: url(#rm-tee-sel); }
+.rm-canvas-wrap .rm-link.is-treat.is-selected .rm-link-line { marker-end: var(--rm-tee-selected); }
 html[data-theme="dark"] .rm-canvas-wrap .rm-link.is-treat.is-selected .rm-link-line { stroke: #F59E6B; }
-html[data-theme="dark"] .rm-canvas-wrap #rm-tee-sel path { stroke: #F59E6B; }
+html[data-theme="dark"] .rm-canvas-wrap .rm-marker-tee-sel path { stroke: #F59E6B; }
 html[data-theme="dark"] .rm-canvas-wrap .rm-treat-label { fill: #8DB3EA; }
+
+/* Desktop reading scale; mobile and print keep their existing layout. */
+@media screen and (min-width: 1024px) {
+  .rec-card .card-text { font-size: 14px; line-height: 1.65; }
+  .field, #source-text { font-size: 14px; line-height: 1.65; }
+  .btn, .tab-pill, .patient-switcher { font-size: 13px; }
+  .tag-chip, .time-chip, .field-chip { font-size: 11px; }
+  .rm-check, .rm-help { font-size: 13px; line-height: 1.7; }
+  .rm-legend { font-size: 12px; }
+}
+html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow-sel path { fill: #F59E6B; }

@@ -2,7 +2,7 @@
 // Confirmations and Undo verify the captured patient/target; local writes require full readback.
 // AI transport accepts image OCR only; classification and clinical generation stay local.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-10.znavigation17'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-11.desktop-arrows'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -214,15 +214,22 @@
       }, true);
     }
 
-    function currentAppFont() { return document.documentElement.getAttribute('data-font') === 'gothic' ? 'gothic' : 'serif'; }
+    const FONT_KEY = 'nursing_font_v2';
+    const desktopFontMedia = matchMedia('(min-width: 1024px)');
+    function currentAppFont() { return document.documentElement.getAttribute('data-font') || (desktopFontMedia.matches ? 'gothic' : 'serif'); }
+    function updateAppFontLabel() {
+      const label = document.getElementById('font-current-label');
+      if (label) label.textContent = currentAppFont() === 'gothic' ? 'ゴシック' : '明朝';
+    }
     function setAppFont(font) {
       document.documentElement.setAttribute('data-font', font === 'gothic' ? 'gothic' : 'serif');
-      try { localStorage.setItem('nursing_font', font === 'gothic' ? 'gothic' : 'serif'); } catch (e) {   }
-      const label = document.getElementById('font-current-label');
-      if (label) label.textContent = font === 'gothic' ? 'ゴシック' : '明朝';
+      try { localStorage.setItem(FONT_KEY, font === 'gothic' ? 'gothic' : 'serif'); } catch (e) {   }
+      updateAppFontLabel();
     }
     window.toggleAppFont = function() { setAppFont(currentAppFont() === 'gothic' ? 'serif' : 'gothic'); };
-    setAppFont(currentAppFont());
+    // Legacy startup saved serif automatically; new explicit choices use FONT_KEY.
+    updateAppFontLabel();
+    desktopFontMedia.addEventListener('change', updateAppFontLabel);
     document.getElementById('btn-toggle-theme').addEventListener('click', () => {
       const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
       const next = isDark ? 'light' : 'dark';

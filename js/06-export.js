@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-11.export-instructions'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-11.desktop-arrows'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -616,7 +616,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     function buildCardsReportText(cp, items, sourceText, headline, includeSourceText = true, assessmentText = null, instructions = '') {
       let out = `${headline}\n`;
       out += `出力日時: ${new Date().toLocaleString('ja-JP')}\n`;
-      out += `※「アプリによる書き換え」は元の文章とカードの文章の違い、「手で編集した履歴」は画面上で行った編集です（手での編集の記録は2026/9/27の機能追加以降の分のみ）。\n`;
+      out += instructions ? 'Auto rewrite compares source/card text; manual history records UI edits since 2026-09-27.\n' : `※「アプリによる書き換え」は元の文章とカードの文章の違い、「手で編集した履歴」は画面上で行った編集です（手での編集の記録は2026/9/27の機能追加以降の分のみ）。\n`;
       out += instructions;
       items.forEach((i, idx) => {
         const tags = (i.hendersonIds || []).map(hendersonNameOf).join('、');
@@ -656,7 +656,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       return out;
     }
     function correctionRequestInstructionsText() {
-      return '\n【調査・修正の指示】\n原文・前後の記録・編集履歴を照合し、なぜカードが分割・統合されたのか、なぜタグが付与・除外されたのかを調査してください。アプリの自動処理と利用者の手編集を区別し、該当する処理を原文で再現して原因を確認してください。意図した処理か不具合かを判断し、根拠・原因・修正方針を示してください。確認できない理由は推測で断定せず『確認不能』としてください。特定の患者だけに合わせず、同じ種類の記録にも適用できる規則として修正してください。\n';
+      return '\n[Developer instructions]\nCompare source, surrounding records and edit history. Separate automatic processing from manual edits; reproduce card splits/merges and tag additions/removals from the source. Determine intended behavior vs bugs; report evidence, cause and fix. Mark unverifiable causes 『確認不能』; do not present guesses as facts. Generalize rules to similar records, not one patient. Preserve source/Japanese clinical text and approved『タグ不要』/『理由を了承』decisions. Classify Henderson needs by meaning, not S/O; assess pre/post admission separately. Honor requested corrections. Check extraction (js/03), keywords (js/01), context/tag rules (js/07). Run relevant tests; never derive expected answers from app output or hide missing fixtures.\n';
     }
     function buildSelectedCardsExportText(cp, selectedIds, sourceText, includeSourceText = true, includeAssessment = false) {
       const ids = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);
@@ -812,15 +812,8 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const editedN = items.filter(isEditedCard).length;
       let out = `修正依頼：${cp.title}（手で編集したカード ${editedN}件・タグ未設定のカード ${untaggedN}件／書き出し ${items.length}枚）\n`;
       out += `出力日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
-      out += `【この書き出しについて】\n`;
-      out += `・「手で編集した」カード：利用者が画面で文章・タグ・分類を直したり、カードを統合・分割したものです。アプリの自動処理が最初に出した結果と違っているため、自動処理の側に直すべき点がある可能性があります。\n`;
-      out += `・「タグ未設定」カード：どのヘンダーソン14項目のキーワードにも当たらず、タグが付かなかったものです。キーワード不足、文脈（前後の記録）を読めていない、または意図的にタグを付けない決まり（疼痛の影響先が不明、アレルギー、病期など）のどれかです。\n\n`;
-      out += `【直し方の目安（開発者・Claude向け）】\n`;
-      out += `1. 各カードの「問題の種類」と「状況」を読み、自動処理のどこが原因かを特定する（キーワード辞書 js/01、タグの絞り込み・文脈判定 js/07、カードの分け方・統合 js/03・js/07）。\n`;
-      out += `2. 「修正してほしい内容」に利用者の希望があれば、それを優先する。空欄のものは、下の「直し方の案」に沿って、同じ種類の他の文章にも効く形（特定の患者の語句だけに合わせない）で直す。\n`;
-      out += `3. 直したら、テストと保存済みの正しい分類結果（golden）で、他のカードに悪影響が出ていないか確認する。\n`;
-      out += `4. 利用者が「タグ不要」「理由を了承」と確定したカードは、その判断を変えない。\n`;
       out += correctionRequestInstructionsText();
+      out += 'Edited/untagged cards are review targets, not proof of bugs. Untagged may mean intentional exclusion, insufficient evidence or a rule gap.\n';
       items.forEach((i, idx) => {
         const edited = isEditedCard(i), untagged = typeof isUntaggedItem === 'function' && isUntaggedItem(i);
         const kinds = [edited ? '手で編集済み' : null, untagged ? 'タグ未設定' : null].filter(Boolean).join('＋');
@@ -829,14 +822,14 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
           const inf = typeof inferUntaggedReason === 'function' ? inferUntaggedReason(i, cp) : null;
           if (inf) {
             out += `状況（タグ未設定）: ${inf.kindLabel}／推定理由：${inf.reason}／推定の確からしさ：${inf.confidence}／分類候補：${inf.candidates.length ? inf.candidates.map(h => hendersonNameOf(h)).join('・') : 'なし'}\n`;
-            out += `直し方の案: ${inf.checks.join('／') || '原文と前後の記録を確認し、付けるべき項目があれば付ける'}。` +
-              (inf.kind === 'none' ? '自動では付けない方針のため、アプリ側の変更は不要な可能性が高い。' : (inf.kind === 'source' ? '原本を確認するまで分類しない。' : '同じ種類の語句が他の患者でも出るなら、キーワードまたは文脈判定を追加する。')) + '\n';
+            out += `Fix checks: ${inf.checks.join('／') || 'Check source/context before tagging'}. ` +
+              (inf.kind === 'none' ? 'Exclusion may be intended.' : (inf.kind === 'source' ? 'Verify the original before classifying.' : 'Fix matching/context rules for similar records.')) + '\n';
           }
         }
         if (edited) {
           const hist = describeEditHistoryForRequest(i);
           out += `状況（手で編集済み）:\n${hist.map(h => `  ・${h}`).join('\n')}\n`;
-          out += `直し方の案: 利用者の手直しの内容（上の履歴）が、自動処理の結果と違っていた点を特定し、同じ種類の記録が最初から正しく処理されるよう分け方・統合・タグ付けの規則を直す。\n`;
+          out += 'Fix checks: Reproduce the original result; use manual corrections as evidence, not automatic proof of a bug.\n';
         }
         const block = buildCardsReportText(cp, [i], sourceText, '', false);
         const at = block.indexOf('\n■ ');

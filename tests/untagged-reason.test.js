@@ -74,6 +74,6 @@ test('review-request export lists edited (incl. merge/split) and untagged cards 
   ] };
   assert.equal(app.reviewRequestTargets(cp).length, 3);
   const t = app.buildReviewRequestText(cp, '', false);
-  assert.match(t, /統合：/); assert.match(t, /分割または短縮/); assert.match(t, /直し方の案/); assert.match(t, /タグ未設定/);
+  assert.match(t, /統合：/); assert.match(t, /分割または短縮/); assert.match(t, /Fix checks:/); assert.match(t, /タグ未設定/);
   assert.match(t, /書き出し 3枚/); assert.ok(!t.includes('カードの内容: 食事は全量摂取'));
 });

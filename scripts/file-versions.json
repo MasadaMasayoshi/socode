@@ -16,12 +16,12 @@
     "hash": "48f0892e5d44452a"
   },
   "js/05-app-state-and-ui.js": {
-    "version": "2026-10-10.znavigation17",
-    "hash": "93943245682da83e"
+    "version": "2026-10-11.desktop-arrows",
+    "hash": "d0804d11d3bd608f"
   },
   "js/06-export.js": {
-    "version": "2026-10-11.export-instructions",
-    "hash": "eb29946e1db42161"
+    "version": "2026-10-11.desktop-arrows",
+    "hash": "e37af6d8a8a74d03"
   },
   "js/07-classification.js": {
     "version": "2026-10-10.znavigation17",
@@ -56,12 +56,12 @@
     "hash": "ddd095be9f67a182"
   },
   "js/15-relation-map.js": {
-    "version": "2026-10-10.znavigation19",
-    "hash": "771c18639467581c"
+    "version": "2026-10-11.desktop-arrows",
+    "hash": "4cb187d58605ed42"
   },
   "style.css": {
-    "version": "2026-10-10.znavigation18",
-    "hash": "40013e7fa7bcd82e"
+    "version": "2026-10-11.desktop-arrows",
+    "hash": "4dd1c029508390d5"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",

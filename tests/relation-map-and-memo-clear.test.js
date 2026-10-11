@@ -107,7 +107,7 @@ test('関連図：治療は楕円で「治療 → 治療の対象」、治療ご
   assert.ok(!map.edges.some(e => map.edges.some(o => o.source === e.target && o.target === e.source)), '両向きの矢印は無い');
   const svg = app.relationMapSvg(map, {});
   assert.match(svg, /<ellipse class="rm-box"/);
-  assert.match(svg, /stroke="#2563EB"[^>]*marker-end="url\(#rm-tee-blue\)"/);
+  assert.match(svg, /stroke="#2563EB"[^>]*marker-end="url\(#rm-marker-\d+-tee-blue\)"/);
   assert.match(svg, /（WBC 11600\/μL↑）/);
 });
 
@@ -675,7 +675,7 @@ test('関連図：操作は 作る｜編集｜見る・出す にまとめ、拡
   assert.match(app.relationMapSvg(map, {}), /<rect class="rm-bg"[^>]*fill="#FFFFFF"/, '印刷・画像は白');
   const pe = map.edges.find(e => e.predicted);
   assert.ok(pe);
-  assert.match(live, /stroke="#A8A29E" stroke-width="1.4" stroke-dasharray="6 4" marker-end="url\(#rm-arrow-pred\)"/);
+  assert.match(live, /stroke="#716B62" stroke-width="2.4" vector-effect="non-scaling-stroke" stroke-dasharray="6 4" marker-end="url\(#rm-marker-\d+-arrow-pred\)"/);
   assert.match(live, /class="rm-node[^"]* is-pred"/);
 });
 
@@ -683,7 +683,7 @@ test('関連図の評価への対応：治療の線の先は「┤」・線が�
 
   const gas = caseMap('gastric_postop');
   const svg = app.relationMapSvg(gas, {});
-  assert.match(svg, /<marker id="rm-tee-blue"/);
+  assert.match(svg, /<marker id="rm-marker-\d+-tee-blue"/);
   assert.doesNotMatch(svg, /url\(#rm-arrow-blue\)/);
   assert.match(src, /治療 ┤ 治療の対象（抑える・和らげる）/);
 
