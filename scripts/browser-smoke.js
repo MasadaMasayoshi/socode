@@ -809,7 +809,7 @@ const {app}=require('../server');
    }
    await page.evaluate(()=>createNewPatientPage('架空の保存済み計画検証'));
    await page.locator('#tab-so-board').click();
-   await page.locator('#source-text').fill('術後1日目\n創部痛 NRS 6、体動時に痛みあり。\n「痛くて眠れない」と話す。');
+   await page.locator('#source-text').fill(fs.readFileSync('tests/fixtures/relation-map/gastric_postop.txt','utf8'));
    await page.locator('#btn-start-classify').click();
    await page.waitForFunction(()=>getCurrentPatient().items.some(i=>i.type==='s'));
    await page.locator('#tab-careplan').click();
