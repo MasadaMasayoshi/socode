@@ -55,3 +55,11 @@ test('Missing and historical reasons remain unknown rather than inferred from te
   const split = app.splitCardIntoParts(cp, 'old', ['前', '半']);
   assert.equal(split[0].editLog.at(-1).reason, null);
 });
+
+ test('Saved review notes remain visible in both exports', () => {
+  const cp = { title: '架空', items: [{ id: 'a', type: 'o', text: '架空の記録', hendersonIds: [], tagNotNeeded: true, editLog: [{kind: 'tagRemove', hId: 4}] }] };
+  app.setUntaggedReview(cp, 'a', { decision: 'none', note: '原文を確認した利用者の判断' });
+  for (const out of [app.buildSelectedCardsExportText(cp, ['a'], '', false), app.buildReviewRequestText(cp, '', false)]) {
+    assert.match(out, /保存済みのレビュー判断: none／理由: 原文を確認した利用者の判断/);
+  }
+});

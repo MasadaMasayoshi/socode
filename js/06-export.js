@@ -640,6 +640,8 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         out += `\n■ ${idx + 1}件目\n`;
         out += `${meta}\n`;
         out += `カードID: ${i.id || '記録なし'}／保存済みの分類経路: ${i.predictionSource || '記録なし'}\n`;
+        const review = typeof untaggedReviewOf === 'function' ? untaggedReviewOf(cp, i) : null;
+        if (review) out += `保存済みのレビュー判断: ${review.decision}／理由: ${review.note || '理由未記録（調査してください）'}\n`;
         out += '自動処理の理由・ルール: 記録なし（差分や分類経路だけでは原因を断定できません。原文で再現して調査してください）\n';
         out += `カードの内容: ${i.text}\n`;
         if (Array.isArray(i.contextTagEvidence) && i.contextTagEvidence.length) {
@@ -819,7 +821,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const log = Array.isArray(i.editLog) ? i.editLog.filter(e => e && e.kind !== 'create') : [];
       const lines = [];
       const merges = log.filter(e => e.kind === 'merge');
-      log.filter(e => e.kind === 'split').forEach(e => lines.push(`分割（操作記録）：${formatEditLogEntry(e)}`));
+      log.filter(e => e.kind === 'split').forEach(e => lines.push(`分割（操作記録）：「${e.from}」→${(e.parts || []).map(t => `「${t}」`).join(' ／ ')}（詳細は以下の履歴）`));
       const textEdits = log.filter(e => e.kind === 'text');
       const tagEdits = log.filter(e => e.kind === 'tagAdd' || e.kind === 'tagRemove');
       merges.forEach(e => lines.push(`統合：${(Array.isArray(e.from) ? e.from : [e.from]).filter(Boolean).map(t => `「${String(t).slice(0, 60)}」`).join(' ＋ ')} を1枚にした`));

@@ -372,7 +372,7 @@
       ids.forEach(id => selectedCardIds.add(id));
       renderSoBoard();
       if (typeof refreshCardOverview === 'function' && document.getElementById('modal-card-overview') && !document.getElementById('modal-card-overview').classList.contains('hidden')) refreshCardOverview();
-      showToast(`編集済み・タグ未設定の${ids.length}枚を選択しました（下の帯の「選択したカードを書き出し」でも書き出せます）`, 'success');
+      showToast(`修正依頼の対象${ids.length}枚を選択しました（下の帯の「選択したカードを書き出し」でも書き出せます）`, 'success');
     };
 
     function renderBulkActionBar() {
