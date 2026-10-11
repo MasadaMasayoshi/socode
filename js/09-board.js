@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-11.usability-context12'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-11.usability-context17'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -435,6 +435,23 @@
 
     const boardSearchInput = document.getElementById('board-search');
     if (boardSearchInput) boardSearchInput.addEventListener('input', e => { boardSearchTerm = e.target.value.trim(); renderSoBoard(); });
+
+    const boardActionsMenu = document.getElementById('board-actions');
+    if (boardActionsMenu) {
+      boardActionsMenu.addEventListener('click', e => {
+        if (e.target.closest('button')) boardActionsMenu.open = false;
+      });
+      document.addEventListener('pointerdown', e => {
+        if (boardActionsMenu.open && !boardActionsMenu.contains(e.target)) boardActionsMenu.open = false;
+      });
+      document.addEventListener('keydown', e => {
+        if (e.key !== 'Escape' || !boardActionsMenu.open) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        boardActionsMenu.open = false;
+        boardActionsMenu.querySelector('summary')?.focus();
+      });
+    }
 
     function searchBoardByWord(term) {
       term = String(term || '').replace(/\s+/g, ' ').trim();

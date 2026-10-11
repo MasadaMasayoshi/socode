@@ -21,10 +21,10 @@ test('文言：NotebookLM に問い合わせているような表示・性能や
   assert.match(src, /すべての項目を判定できるわけではありません/);
 });
 
-test('Retired AI results leave no warning panels; card guidance stays concise', () => {
+test('Retired AI results leave no warning panels; board help is reachable from its menu', () => {
   assert.doesNotMatch(html, /class="ai-note"|id="ai-results"/);
   assert.match(html, /<details id="lab-evaluation-panel"[\s\S]*?<summary>検査値の評価<\/summary>/);
-  assert.match(html, /カードを選ぶと、分類やタグを変更できます/);
+  assert.match(html, /<details id="board-actions"[\s\S]*?onclick="openHelp\('board'\)"/);
   assert.doesNotMatch(html, /Ctrl\(⌘\)\+クリックで複数選択、またはカード左上/);
   assert.match(html, /id="modal-help"/);
   assert.match(html, /data-help-section="keys"/);

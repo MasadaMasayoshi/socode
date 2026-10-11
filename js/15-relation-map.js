@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-11.usability-context14'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-11.usability-context17'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -2873,11 +2873,13 @@
     }
     function rmHideCtx() { const box = document.getElementById('rm-ctx'); if (box && !box.classList.contains('hidden')) { box.classList.add('hidden'); box.innerHTML = ''; } }
 
-    function rmSetMoreOpen(open) {
+    function rmSetMoreOpen(open, returnFocus = false) {
       rmState.moreOpen = !!open;
       const box = document.getElementById('rm-more');
       if (box) box.classList.toggle('hidden', !rmState.moreOpen);
       document.querySelectorAll('#view-relation [data-rm-action="toggle-more"]').forEach(b => b.setAttribute('aria-expanded', rmState.moreOpen ? 'true' : 'false'));
+      if (open) box?.querySelector('button:not([disabled])')?.focus();
+      else if (returnFocus) document.querySelector('#view-relation [data-rm-action="toggle-more"]')?.focus();
     }
     function rmSetProblemsOpen(open) {
       rmState.problemsOpen = !!open;
@@ -2985,7 +2987,7 @@
         return;
       }
 
-      if (!map || !sel) { bar.innerHTML = '<span class="rm-sel-hint"><details class="rm-help"><summary>看護問題を押すと、その問題の流れだけを表示します。編集は右クリック（スマホは長押し）。複数選択は「看護問題」から <span class="rm-help-more">操作のしかた</span></summary><div>看護問題を押すと、発症要因・疾患・治療を含む流れを表示します。看護問題を編集するには右クリック（スマホは長押し）してください。その他の四角を押すと、文字の編集・種類・事実／予測・矢印でつなぐ・削除ができます（2回続けて押すと文字の編集）。矢印（線）を押すと、<b>向きを逆にする</b>・種類・事実／予測・「なぜ？」が選べます。<br><b>図を動かす</b>：何もない所をドラッグ（スマホは指でスワイプ）。<b>拡大・縮小</b>：右下の ＋・－、2本指で広げる・つまむ、または左クリックを押したまま（または Ctrl を押しながら）ホイール。スマホで四角を動かすときは、一度タップして選んでからドラッグします。</div></details></span>'; return; }
+      if (!map || !sel) { bar.innerHTML = '<span class="rm-sel-hint"><details class="rm-help"><summary>図の操作方法</summary><div>看護問題を押すと、発症要因・疾患・治療を含む流れを表示します。看護問題を編集するには右クリック（スマホは長押し）してください。その他の四角を押すと、文字の編集・種類・事実／予測・矢印でつなぐ・削除ができます（2回続けて押すと文字の編集）。矢印（線）を押すと、<b>向きを逆にする</b>・種類・事実／予測・「なぜ？」が選べます。<br><b>図を動かす</b>：何もない所をドラッグ（スマホは指でスワイプ）。<b>拡大・縮小</b>：右下の ＋・－、2本指で広げる・つまむ、または左クリックを押したまま（または Ctrl を押しながら）ホイール。スマホで四角を動かすときは、一度タップして選んでからドラッグします。</div></details></span>'; return; }
       if (sel.type === 'node') {
         const n = rmNodeById(map, sel.id);
         if (!n) { rmState.selected = null; return rmRenderSelectionBar(); }
@@ -3309,10 +3311,21 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
       const view = document.getElementById('view-relation');
       if (!view || view.dataset.ready) return;
       view.dataset.ready = '1';
+      document.getElementById('rm-more')?.addEventListener('keydown', e => {
+        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
+        const buttons = Array.from(document.querySelectorAll('#rm-more button:not([disabled])'));
+        if (!buttons.length) return;
+        const index = buttons.indexOf(document.activeElement);
+        const next = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1 :
+          (index + (e.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
+        e.preventDefault();
+        buttons[next].focus();
+      });
       view.addEventListener('click', e => {
         const btn = e.target.closest('[data-rm-action]');
         if (!btn || btn.tagName === 'SELECT') return;
         const act = btn.dataset.rmAction;
+        if (btn.closest('#rm-more')) rmSetMoreOpen(false, true);
         const sel = rmState.selected;
         if (btn.closest('#rm-ctx')) rmHideCtx();
         if (act === 'ctx-add') rmAddNode(btn.dataset.kind || 'pathophysiology', rmState.ctxPoint);
@@ -3543,7 +3556,7 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
         const ctx = document.getElementById('rm-ctx');
         if (ctx && !ctx.classList.contains('hidden')) { rmHideCtx(); return; }
         if (rmState.problemsOpen) { rmSetProblemsOpen(false); return; }
-        if (rmState.moreOpen) { rmSetMoreOpen(false); return; }
+        if (rmState.moreOpen) { e.preventDefault(); rmSetMoreOpen(false, true); return; }
         const view = document.getElementById('view-relation');
         if (!view || !view.classList.contains('rm-fullscreen')) return;
         if (rmState.connectFrom || rmState.selected) return;
