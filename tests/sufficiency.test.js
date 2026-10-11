@@ -5,6 +5,16 @@ const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');
 const app = loadApp();
 
+test('Repeated reason text is shown once while distinct evidence cards remain linked', () => {
+  const cp = { id:'repeated-reason', items:['a','b'].map(id=>({ id, type:'o', text:'呼吸困難なし', timestamp:'入院前', hendersonIds:[1], assessmentCols:{1:'preadmission'} })), myAssessments:{} };
+  const before = JSON.stringify(cp.items);
+  const output = app.sufficiencyPhaseHtml(cp, 1, 'pre');
+  assert.equal((output.match(/「呼吸困難なし」/g) || []).length, 1);
+  assert.equal((output.match(/class="suf-evidence-chip"/g) || []).length, 2);
+  assert.equal(JSON.stringify(cp.items), before);
+  assert.equal(app.getSufficiency(cp, 1, 'pre'), 'met');
+});
+
 test('充足・未充足はサイトが決める：選ぶ欄は無く、記録から出た結果だけを表示し、書き出しにも出る', () => {
   const cp = { id: 'p', items: [
     { id: 'a', type: 'o', text: '術後排便なし 腹部膨満あり', timestamp: '術後1日目', hendersonIds: [3], assessmentCols: { 3: 'postadmission' } },

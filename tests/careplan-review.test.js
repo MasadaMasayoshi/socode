@@ -12,6 +12,15 @@ const src = readAppSource();
 const app = loadApp();
 const clone = v => JSON.parse(JSON.stringify(v));
 
+test('Evidence-check banners are removed from saved plans while source evidence remains visible', () => {
+  const plan = { id:'saved-warning', problem:'不安', evidence:['本人の言葉を原文から確認'], validation:{ kind:'insufficient', msgs:['不安を示す言動・訴えの記録が見当たりません'] } };
+  const before = JSON.stringify(plan);
+  const output = app.carePlanBasisHtml(plan, { items:[], carePlans:{} });
+  assert.doesNotMatch(output, /根拠の確認|cp-qa|不安を示す言動/);
+  assert.match(output, /本人の言葉を原文から確認/);
+  assert.equal(JSON.stringify(plan), before);
+});
+
 function stomaPatient() {
   const text = fs.readFileSync(path.join(ROOT, 'tests/fixtures/relation-map/rectal_cancer_stoma.txt'), 'utf8');
   const items = app.classifyTextByRules(text).map((i, k) => ({ ...i, id: `it${k}` }));
