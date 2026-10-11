@@ -41,8 +41,8 @@ test('assigning a tag works and original text is untouched', () => {
 test('Patient 36 cards: real gaps are tagged; pain without stated effect is explained, not forced', () => {
   const app = loadApp();
   const tags = t => Array.from(app.detectMultipleHendersonTags(t));
-  assert.equal(tags('アレルギー: なし').length, 0);
-  assert.equal(app.inferUntaggedReason({ id: 'al', text: 'アレルギー: なし', type: 'o', hendersonIds: [] }).kind, 'none');
+  assert.deepEqual(tags('アレルギー: なし'), [9]);
+  assert.equal(app.inferUntaggedReason({ id: 'al', text: 'アレルギー: なし', type: 'o', hendersonIds: [] }).kind, 'classify');
   assert.ok(tags('動かなければ疼痛訴えなく、鎮痛剤の内服も行わず経過').includes(4));
   assert.ok(tags('手術時間: 2時間30分 出血量 350ml(輸血なし) 術中輸液量 2,320ml').includes(1));
   assert.ok(tags('昼食: 点滴終了、抗生剤のみとなったため、ヘパリンロック行う').includes(9));

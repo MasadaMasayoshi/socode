@@ -7,8 +7,8 @@ const app = loadApp();
 const base = app.DEFAULT_NOTEBOOK_CONTENT;
 
 test('最新の統合版には、2026-09-28 版のあとに直したルールが入っている', () => {
-  assert.equal(app.NOTEBOOK_CONTENT_VERSION_MARK, '統合版 2026-09-30');
-  assert.ok(base.startsWith('【看護アセスメント 基準ノート（統合版 2026-09-30）】'));
+  assert.equal(app.NOTEBOOK_CONTENT_VERSION_MARK, '統合版 2026-10-11');
+  assert.ok(base.startsWith('【看護アセスメント 基準ノート（統合版 2026-10-11）】'));
   ['Day 1（月・術後3日目）', '「Sデータ」「Oデータ」だけの行', '麻酔から目が覚める', '母（パート）', 'セファゾリンNa', '(1 mg/Lから換算)', '「判定できません」', '■ 表の貼り付け', '■ 自分のアセスメント・不足情報・看護計画の記録', '「14時ごろ」']
     .forEach(k => assert.ok(base.includes(k), k));
 });
@@ -48,7 +48,7 @@ test('統合：書き足された行・追加の分類基準を章に入れ、�
   const c4 = t.indexOf('・内服薬の副作用の記載には14.学びのタグも付けてほしい');
   assert.ok(c4 > t.indexOf('第4章') && c4 < t.indexOf('第5章'), '第4章に入る');
   assert.match(t, /第9章 そのほかの追加の基準（統合 2026-09-30）\n━+\n・略語は正式名称を括弧で添える\n$/);
-  assert.ok(t.startsWith('【看護アセスメント 基準ノート（統合版 2026-09-30）】'));
+  assert.ok(t.startsWith('【看護アセスメント 基準ノート（統合版 2026-10-11）】'));
 
   const again = app.buildIntegratedNotebook({ serverText: t, extras: [], today: new Date(2026, 8, 30) });
   assert.equal((again.text.match(/家族からの情報はSではなくOデータ/g) || []).length, 1);

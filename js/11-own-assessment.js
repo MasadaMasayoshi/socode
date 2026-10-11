@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-11.status-visible10'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-11.usability-context12'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -425,11 +425,12 @@
       const v = phaseVerdictOf(cp, needId, phaseKey);
       const a = ruleSufficiencyFor(cp)[needId][phaseKey] || {};
       const labels = myEvidenceLabels(cp, needId);
-      const ev = (a.evidence || []).map(id => labels[id]).filter(Boolean).join('・');
+      const ev = (a.evidence || []).filter(id => labels[id]).map(id => `<button type="button" class="suf-evidence-chip" onclick="jumpToBoardCard(${jsArg(id)})" title="${escapeHtml(labels[id])}">${escapeHtml(labels[id].match(/^[SO]-\d+/)?.[0] || labels[id])}</button>`).join('');
       const icon = v === 'met' ? 'fa-circle-check' : v === 'unmet' ? 'fa-triangle-exclamation' : v === 'conflict' ? 'fa-scale-unbalanced' : 'fa-circle-question';
 
       const head = `<span class="suf-phase-name">${ph.label}</span><span class="suf-badge suf-${v}"><i class="fa-solid ${icon}"></i> ${SUFFICIENCY_LABELS[v]}</span>`;
-      const why = `<div class="suf-phase-why">根拠：${escapeHtml(sufficiencySentence(cp, needId, phaseKey))}${ev ? `<span class="suf-ev">根拠カード：${escapeHtml(ev)}</span>` : ''}</div>`;
+      const reason = a.reason || a.need || 'この時期の記録が少なく、判断に必要な情報がありません。';
+      const why = `<div class="suf-phase-why"><span class="suf-reason-label">判定理由</span><p>${escapeHtml(reason)}</p>${ev ? `<div class="suf-ev"><span>根拠カード</span>${ev}</div>` : ''}</div>`;
       return `<section class="suf-phase-block suf-expanded suf-b-${v}" data-suf-phase="${phaseKey}"><div class="suf-phase-head">${head}</div>${why}</section>`;
     }
 
@@ -584,7 +585,7 @@
     function myAssessmentCheckHtml(cp, needId) {
       const hints = reviewMyAssessment(cp, needId);
       const icon = { warn: 'fa-triangle-exclamation', info: 'fa-lightbulb', ok: 'fa-circle-check' };
-      return `<div class="my-asm-label"><i class="fa-solid fa-list-check"></i> 見直しのポイント（AIなし）</div><ul>${hints.map(h => `<li class="my-hint my-hint-${h.level}"><i class="fa-solid ${icon[h.level]}"></i><span>${escapeHtml(h.text)}</span>${h.itemId ? `<button type="button" class="my-asm-link" onclick="linkMyEvidence(${needId}, ${jsArg(h.itemId)})">根拠に加える</button>` : ''}</li>`).join('')}</ul>`;
+      return `<div class="my-asm-label"><i class="fa-solid fa-list-check"></i> 見直しのポイント</div><ul>${hints.map(h => `<li class="my-hint my-hint-${h.level}"><i class="fa-solid ${icon[h.level]}"></i><span>${escapeHtml(h.text)}</span>${h.itemId ? `<button type="button" class="my-asm-link" onclick="linkMyEvidence(${needId}, ${jsArg(h.itemId)})">根拠に加える</button>` : ''}</li>`).join('')}</ul>`;
     }
 
     function myAssessmentReviewHtml(cp, needId, st, labels, review) {
@@ -1232,8 +1233,8 @@
       const cp = getCurrentPatient();
       if (!(cp.items || []).some(i => i.type !== 'unnecessary')) return showToast('カードがありません。先に「分類開始」で分類してください', 'warn');
       const r = applySufficiencyResult(cp, judgeSufficiencyByRules(cp), new Date().toISOString(), 'rules');
-      try { finishAiResult(cp, () => renderAssessmentTable(), '充足・未充足の判定（AIなし）'); } catch (e) { renderAssessmentTable(); }
-      showToast(`AIなしで判定しました：${r.set}欄に入れました` + (r.kept ? `／自分で選んだ${r.kept}欄はそのまま` : '') + (r.unknown ? `／${r.unknown}欄は記録が足りず判定できません` : '') + '。根拠の言葉を見て、自分で直してください', 'success', 8000);
+      try { finishAiResult(cp, () => renderAssessmentTable(), '充足・未充足の判定'); } catch (e) { renderAssessmentTable(); }
+      showToast(`記録を基に判定しました：${r.set}欄に入れました` + (r.kept ? `／自分で選んだ${r.kept}欄はそのまま` : '') + (r.unknown ? `／${r.unknown}欄は記録が足りず判定できません` : '') + '。根拠の言葉を見て、自分で直してください', 'success', 8000);
     };
 
     function buildMyAssessmentsPrintHtml(cp, startNo) {

@@ -2,7 +2,7 @@
 // Confirmations and Undo verify the captured patient/target; local writes require full readback.
 // AI transport accepts image OCR only; classification and clinical generation stay local.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-11.status-simple9'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-11.usability-context12'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -1905,17 +1905,13 @@
         return merged;
       }
     }
-    function exportLearningData() {
+    async function exportLearningData() {
       const dict = globalAppData.learningUserDict || {};
       const count = Object.keys(dict).length;
       if (!count) { showToast('書き出す学習データがありません', 'info'); return false; }
       const payload = { kind: 'nursing-learning-dict', version: 1, exportedAt: new Date().toISOString(), learningUserDict: dict };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `学習データ_${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      if (!(await downloadTextBlob(blob, `学習データ_${new Date().toISOString().slice(0, 10)}.json`))) return false;
       showToast(`学習データ${count}件を書き出しました`, 'success');
       return true;
     }
@@ -2278,15 +2274,10 @@
       await saveCustomTagRules([...(globalAppData.customTagRules || []), { keyword: r.keyword, mode: 'exclude', hendersonIds: [r.hendersonId], note: `ルール見直し候補から登録（${r.count}回外されていた）`, updatedAt: new Date().toISOString() }]);
       renderRuleReviewPanel();
     };
-    window.exportRuleReviewText = function() {
+    window.exportRuleReviewText = async function() {
       const c = lastRuleReviewCandidates || computeRuleReviewCandidates(globalAppData.patients);
       const blob = new Blob([buildRuleReviewReportText(c)], { type: 'text/plain;charset=utf-8' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'ルール見直し候補.txt';
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      showToast('ルール見直し候補をテキストファイル（.txt）に書き出しました', 'success');
+      if (await downloadTextBlob(blob, 'ルール見直し候補.txt')) showToast('ルール見直し候補を書き出しました', 'success');
     };
 
     let customRulesOffline = false;
@@ -2620,10 +2611,21 @@
       const el = document.getElementById('source-editor-count');
       if (el) el.textContent = DOM.sourceText.value ? `（${DOM.sourceText.value.length.toLocaleString()}文字）` : '';
     }
+    let sourceFullscreenAnchor = null;
     window.toggleSourceFullscreen = function(force) {
       const box = document.getElementById('source-editor');
       if (!box) return;
       const on = typeof force === 'boolean' ? force : !box.classList.contains('is-fullscreen');
+      if (on && !sourceFullscreenAnchor) {
+        sourceFullscreenAnchor = document.createElement('span');
+        sourceFullscreenAnchor.hidden = true;
+        box.parentNode.insertBefore(sourceFullscreenAnchor, box);
+        document.body.appendChild(box);
+      } else if (!on && sourceFullscreenAnchor) {
+        sourceFullscreenAnchor.parentNode.insertBefore(box, sourceFullscreenAnchor);
+        sourceFullscreenAnchor.remove();
+        sourceFullscreenAnchor = null;
+      }
       box.classList.toggle('is-fullscreen', on);
       document.body.classList.toggle('source-fullscreen-open', on);
       const btn = document.getElementById('btn-source-fullscreen');

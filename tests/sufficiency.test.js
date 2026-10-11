@@ -14,10 +14,10 @@ test('充足・未充足はサイトが決める：選ぶ欄は無く、記録�
   assert.equal(app.getSufficiency(cp, 1), 'met');
   assert.equal(app.getSufficiency(cp, 6), '');
   const pre = app.sufficiencyPhaseHtml(cp, 3, 'pre'), post = app.sufficiencyPhaseHtml(cp, 3, 'postop');
-  assert.doesNotMatch(pre + post, /<button|<details|<summary|ルール判定|サイト内|AIなし/);
+  assert.doesNotMatch(pre + post, /<select|<details|<summary|ルール判定|サイト内|AIなし/);
   assert.match(pre + post, /class="suf-phase-block suf-expanded/);
-  assert.match(pre, /入院前.*情報不足.*根拠/);
-  assert.match(post, /術後.*未充足.*根拠カード：/);
+  assert.match(pre, /入院前.*情報不足.*判定理由/);
+  assert.match(post, /術後.*未充足.*根拠カード/);
   const head = app.sufficiencyHeaderHtml(cp, 3);
   assert.match(head, /入院前.*情報不足.*術後.*未充足.*suf-cref-O.*O-1<\/b>（術後1日目：術後排便なし/, '見出しに、O-1によりの形で根拠を出す');
   app.ensureMyAssessment(cp, 3).interpretation = '排便がない';

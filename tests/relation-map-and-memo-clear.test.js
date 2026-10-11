@@ -568,7 +568,7 @@ test('関連図：術後・入院2日目以降の記録の四角は治療より�
   assert.match(css, /\.rm-problems \{ position: absolute;/, '図の上に重ねて出し、場所をとらない');
   assert.match(src, /else if \(act === 'toggle-problems'\) \{ rmSetMoreOpen\(false\); rmSetProblemsOpen\(!rmState\.problemsOpen\); \}/);
   assert.match(src, /else if \(act === 'goto-problem'\)/);
-  assert.match(src, /data-rm-action="focus-problem" data-node-id=/, '2026-10-06.26：一覧から看護問題ごとの図にする');
+  assert.match(src, /data-rm-action="focus-problem"[^>]*data-node-id=/, '2026-10-06.26：一覧から看護問題ごとの図にする');
 });
 
 test('関連図：左向きの矢印を作らない（治療は対象と同じ列のすぐ下・くっつけた検査データの先は親より右）', () => {

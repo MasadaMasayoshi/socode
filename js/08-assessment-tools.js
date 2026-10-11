@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-11.status-simple9'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-11.usability-context12'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -195,11 +195,11 @@
         if (rule.has) {
           DOM.labEvalContent.innerHTML = rule.html;
 
-          showToast('検査値の評価を表示しました（AIなし）。要確認の値は原本で確かめてください', 'success');
+          showToast('検査値の評価を表示しました。要確認の値は原本で確かめてください', 'success');
           return;
         }
         setTimeout(() => {
-          let evaluation = `【検査値の簡易チェック（AIなし・登録された基準値との比較）】\n`;
+          let evaluation = `【検査値の簡易チェック（登録された基準値との比較）】\n`;
           const { findings, undetermined, checked } = evaluateLabFindings(oItems);
           if (findings.length > 0) {
             findings.forEach(f => {
@@ -1740,7 +1740,7 @@
       const checks = [];
       labs.forEach(l => { if (!l.source) checks.push('原文が残っていません'); if (l.quality !== 'valid' && l.status !== 'review') checks.push(`${l.key}：要確認の値に判定が付いています`); if (l.prediction && l.prediction.value != null && !['medium', 'high'].includes(l.prediction.confidence)) checks.push(`${l.key}：確度が低い予想に値が付いています`); });
       broken.forEach(b => { if (labs.some(l => l.source === b.source)) checks.push('読めない文字列が検査値になっています'); });
-      let out = '【検査データ臨床評価・アセスメントノート】\n（AIなし：記録と、登録された基準との比較です。「事実」と「考察・予測」を分けています。予想は原文の値を書き換えるものではありません）\n';
+      let out = '【検査データ臨床評価・アセスメントノート】\n（記録に基づく評価：記録と、登録された基準との比較です。「事実」と「考察・予測」を分けています。予想は原文の値を書き換えるものではありません）\n';
       if (facts.length) out += `\n■ 検査値（事実：原文・基準との比較）\n${facts.join('\n')}\n`;
       if (respLines.length) out += `\n■ 呼吸機能（事実）\n${respLines.join('\n')}\n`;
       if (vitalLines.length) out += `\n■ バイタルサイン（事実：検査値とは別に評価）\n${vitalLines.join('\n')}\n`;

@@ -8,6 +8,17 @@ const { describeAutoRewrite, buildSelectedCardsExportText, groupClinicalPhrasesW
 const cardsOf = text => Array.from(groupClinicalPhrasesWithTimestamps(text.normalize('NFKC'))).filter(i => !i.isUnnecessaryBoilerplate);
 const rewrite = (src, text, item, items) => Array.from(describeAutoRewrite(src, text, item || { text }, items || []) || []);
 
+test('A care heading and a selected fragment describe splitting instead of whole-line merging', () => {
+  const src = '8:00 回診\n酸素OFF、硬膜外麻酔抜去、フットポンプOFF';
+  const items = ['酸素OFF', '硬膜外麻酔抜去', 'フットポンプOFF'].map(text => ({ text: `回診: ${text}`, timestamp: '術後1日目 8:00' }));
+  const notes = rewrite(src, items[1].text, items[1], items);
+  assert.ok(!notes.some(n => /2行.*1枚にまとめた/.test(n)));
+  assert.ok(notes.some(n => /見出し「回診」/.test(n)));
+  assert.ok(notes.some(n => /酸素OFF.*別のカードに分けた/.test(n)));
+  assert.ok(notes.some(n => /フットポンプOFF.*別のカードに分けた/.test(n)));
+  assert.ok(!notes.some(n => /を削除/.test(n)));
+});
+
 test('アプリによる書き換え：元の文章のままのカードは「なし」（空配列）', () => {
   assert.deepEqual(rewrite('嘔気・嘔吐なし', '嘔気・嘔吐なし'), []);
   assert.deepEqual(rewrite('排尿: 7回/日程度（夜間2回）自立', '排尿: 7回/日程度(夜間2回)自立'), [], '全角/半角の違いは書き換えとして挙げない');

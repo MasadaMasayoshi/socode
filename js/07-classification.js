@@ -2,7 +2,7 @@
 // Learned corrections precede headings and fixed rules; automatic creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-11.timeline-cards11'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-11.usability-context12'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -108,6 +108,7 @@
 
     const PAIN_TEXT_REGEX = /疼痛|痛み|痛い|痛く|痛かった|創痛|ペインスケール|NRS|VAS|鎮痛|ロキソ|レスキュー/;
     const PAIN_SCORE_REGEX = /ペインスケール|NRS|VAS|フェイススケール/;
+    const ALLERGY_ABSENT_REGEX = /アレルギー(?:[:：\s]*|は|が)(?:特に)?(?:なし|ない|ありません|認めない)/;
     const POSTURE_ACTIVITY_REGEX = /荷重|移乗|歩行|歩く|歩け|リハビリ|離床|端坐位|立位|移動|ROM|SLR|可動域|起立/;
     const LEARN_CONTENT_IN_QUOTE_REGEX = /んですね|んだよね|んだったよね|だったよね|なきゃ|なくちゃ|やらなくちゃ|やらなきゃ|大丈夫[?？]|でいいの|いいの[?？]|できるかな|やり方|方法|なりにくく|合併症|良くない|いけないの|教えて/;
     const LEARN_KNOWLEDGE_FIRST_REGEX = /なりにくく|やり方|方法|合併症|良くない|予防|教えて/;
@@ -177,6 +178,7 @@
       }
 
       const isPainText = PAIN_TEXT_REGEX.test(text) && !/痛みなし|疼痛なし|疼痛(?:の)?訴え(?:なし|なく)|疼痛増強(?:なし|なく|見られず)/.test(text);
+      if (ALLERGY_ABSENT_REGEX.test(text)) tags.add(9);
 
       if (/動かなければ|動かさなければ|動かさない(?:と|限り)/.test(text) && /疼痛|痛/.test(text)) tags.add(4);
       if (isPainText) {
@@ -257,7 +259,7 @@
         if (/安静|動|自分でできる|歩|起き/.test(patientQuotes) && !tags.has(4) && /安静|動|歩|起き/.test(patientQuotes)) tags.add(4);
       }
 
-      if (tags.has(9) && NOT_ENV_REGEX.test(text) && !ENV_EVIDENCE_REGEX.test(text)) tags.delete(9);
+      if (tags.has(9) && NOT_ENV_REGEX.test(text) && !ENV_EVIDENCE_REGEX.test(text) && !ALLERGY_ABSENT_REGEX.test(text)) tags.delete(9);
       custom.add.forEach(r => { if (text.includes(r.keyword)) r.hendersonIds.forEach(h => tags.add(h)); });
       const out = Array.from(tags);
       // A physical report or treatment-effect speculation is not communication evidence.
@@ -2192,7 +2194,7 @@
 
     function mergeClinicalEpisodeCards(list) {
       const domain = t => {
-        if (/膀胱|カテーテル|排尿|排便|尿量|医師.*説明|主治医.*説明|明日|予定|翌日|今後/.test(t)) return null;
+        if (/膀胱|カテーテル|排尿|排便|尿量|医師.*説明|主治医.*説明|明日|予定|翌日|今後|(?:昨日|前日).*?(?:本日|今日|現在)/.test(t)) return null;
         if (/リハビリ|(?:^|\s|:)RH\b|可動域|ROM|SLR|荷重|移乗|立位保持|歩行訓練|セッティング|体重(?:を)?かけ|動かし始め/.test(t)) return 'rehab';
         if (/創部|ガーゼ/.test(t) && !PAIN_TEXT_REGEX.test(t)) return 'wound';
         if (/呼吸困難|肺Air|排痰|痰の性状/.test(t)) return 'respiratory';
@@ -2305,17 +2307,71 @@
       });
       return items;
     }
+    const PAIN_EFFECT_RULES = [
+      { id: 5, re: /眠れ|睡眠|不眠|夜間覚醒|寝つ|寝れ/, label: '睡眠' },
+      { id: 4, re: /動く|動かす|動け|動き|体位|体動|荷重|移乗|リハ|離床|歩行|歩く|起立|起き|端坐|車椅子|車いす|立位|訓練|可動域|ROM|SLR|運動|ベッド上|床上/, label: '動作・姿勢' },
+      { id: 2, re: /食欲|食事|摂取|昼食|夕食|朝食|嘔気|嘔吐/, label: '食事' },
+      { id: 3, re: /トイレ|排尿|排便|尿|便/, label: '排泄' },
+      { id: 8, re: /清拭|入浴|洗髪|清潔ケア|陰部洗浄/, label: '清潔' },
+      { id: 6, re: /更衣|着替/, label: '更衣' }
+    ];
+    function painCurrentContextText(text) {
+      const source = String(text || '');
+      const transition = source.search(/本日|今日|現在|今は/);
+      return transition > 0 && /昨日|前日|術前|入院前/.test(source.slice(0, transition)) ? source.slice(transition) : source;
+    }
+    function painContextClauses(text) {
+      return painCurrentContextText(text)
+        .replace(/((?:痛み|疼痛)(?:のため|で)|痛くて)[、,]\s*/g, '$1')
+        .replace(/((?:荷重|移乗|体位変換|歩行|歩く|動かす)[^。、,]{0,25})[、,]\s*(?=疼痛|痛み|ペインスケール|NRS)/g, '$1')
+        .split(/[。\n；;、,]+/).map(s => s.trim()).filter(Boolean);
+    }
+    function painContextTagEvidence(items, item) {
+      if (!item || !PAIN_TEXT_REGEX.test(item.text || '') || /疼痛増強(?:なし|なく|見られず)|(?:痛み|疼痛|創痛)(?:は)?(?:なし|ない|なく)/.test(item.text || '') || !item.timestamp || item.timestamp === '日時不明') return [];
+      const index = items.indexOf(item);
+      if (index < 0) return [];
+      const near = items.filter((other, n) => other !== item && !other.deleted && other.type !== 'unnecessary' && other.timestamp === item.timestamp && Math.abs(n - index) <= 4);
+      const positivePain = t => PAIN_TEXT_REGEX.test(t) && !/疼痛増強(?:なし|なく|見られず)|痛みなし|疼痛なし|疼痛(?:の)?訴え(?:なし|なく)/.test(t);
+      return PAIN_EFFECT_RULES.flatMap(rule => {
+        for (const other of near) {
+          const text = painCurrentContextText(other.text);
+          let evidence = painContextClauses(text).find(clause => rule.re.test(clause) && positivePain(clause) && detectMultipleHendersonTags(clause).includes(rule.id));
+          // An extracted S/O scene preserves the explicit sequence across its sentences.
+          if (!evidence && other.sceneId && positivePain(text) && rule.re.test(text) && POSTURE_ACTIVITY_REGEX.test(text) && detectMultipleHendersonTags(text).includes(rule.id)) evidence = text;
+          if (evidence) return [{ id: rule.id, label: rule.label, timestamp: other.timestamp, evidence }];
+        }
+        return [];
+      });
+    }
+    function applyPainContextTags(items, cp) {
+      items.forEach(item => {
+        const review = cp && typeof untaggedReviewOf === 'function' ? untaggedReviewOf(cp, item) : null;
+        if (item.deleted || item.type === 'unnecessary' || item.tagNotNeeded || (item.hendersonIds || []).length ||
+            item.predictionSource && item.predictionSource !== 'rule' || ['none', 'accept'].includes(review?.decision) ||
+            (item.editLog || []).some(e => e.kind === 'tagRemove')) return;
+        const evidence = painContextTagEvidence(items, item);
+        if (!evidence.length) return;
+        item.hendersonIds = evidence.map(e => e.id).sort((a, b) => a - b);
+        item.contextTagEvidence = evidence;
+        item.patientBackground = null;
+        if (item.assessmentCols) item.hendersonIds.forEach(id => { item.assessmentCols[id] = inferAssessmentColumn(item.fieldLabel, item.timestamp, item.admissionPhase) || 'unclassified'; });
+      });
+      return items;
+    }
+    function clinicalCardDuplicateKey(text, timestamp) {
+      return `${String(timestamp || '日時不明').normalize('NFKC').replace(/\s+/g, '')}\u0000${String(text || '').normalize('NFKC').replace(/\s+/g, '').replace(/[。．.]+$/, '')}`;
+    }
     function classifyTextByRules(text) {
       const src = (text || '').trim().normalize('NFKC');
       const out = [];
 
       withExtractionContext(src, () => groupClinicalPhrasesWithTimestamps(src).forEach(chunk => {
         const cleanedText = cleanExtractedPhrase(chunk.text);
-        if (cleanedText.length < 2 || isBareFieldHeaderOnly(cleanedText) || isHeadingOnlyChunk(chunk, cleanedText) || out.some(i => i.text === cleanedText && i.timestamp === (chunk.timestamp || '日時不明'))) return;
+        if (cleanedText.length < 2 || isBareFieldHeaderOnly(cleanedText) || isHeadingOnlyChunk(chunk, cleanedText) || out.some(i => clinicalCardDuplicateKey(i.text, i.timestamp) === clinicalCardDuplicateKey(cleanedText, chunk.timestamp))) return;
         const { detectedHIds, predictedType } = computeLocalTagsAndType(chunk, cleanedText, null);
         out.push({ text: cleanedText, timestamp: chunk.timestamp || '日時不明', type: predictedType, hendersonIds: detectedHIds.slice().sort((a, b) => a - b), fieldLabel: chunk.fieldLabel || null, ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}) });
       }));
-      return applySceneTagInheritance(out);
+      return applyPainContextTags(applySceneTagInheritance(out));
     }
 
     const CLASSIFY_MODE_STORAGE_KEY = 'nursing_classify_mode';
@@ -2333,7 +2389,7 @@
       if (note) {
         note.textContent = mode === 'ai'
           ? (globalAppData.apiKey ? 'Gemini が基準ノートを根拠に分類します（個人情報は伏せ字にして送ります。失敗したらルールで分類）' : 'APIキーが未設定です。「API設定」でキーを保存してください')
-          : 'サイト内のルールに基づいて分類します。画像の文字起こし以外にはAIを使用しません';
+          : '原文と前後の記録をもとに、S/O・14項目のタグを整理します';
         note.classList.toggle('text-[var(--brick)]', mode === 'ai' && !globalAppData.apiKey);
       }
     }
@@ -2351,7 +2407,7 @@
       const cp = getCurrentPatient();
 
       if (getClassifyMode() === 'ai' && !globalAppData.apiKey) {
-        const st = await requireApiKey('AIありで分類', { fallbackLabel: 'AIなしで分類する' });
+        const st = await requireApiKey('AIありで分類', { fallbackLabel: '記録を基に分類する' });
         if (st !== 'fallback') return;
         window.setClassifyMode('rules');
       }
@@ -2374,7 +2430,7 @@
           cp.items.forEach(i => markItemDeleted(cp, i.id));
           cp.items = [];
 
-          ['myAssessments', 'missingChecks', 'untaggedReviews', 'carePlans', 'checkpoints', 'relationMap'].forEach(f => { delete cp[f]; });
+          ['myAssessments', 'missingChecks', 'carePlans', 'checkpoints', 'relationMap'].forEach(f => { delete cp[f]; });
           cp.caseResetAt = new Date().toISOString();
           selectedCardIds.clear();
           if (highlightedSourceItemId != null) clearSourceHighlight(false);
@@ -2383,9 +2439,10 @@
 
       let addedCount = 0;
       const addedThisRun = [];
+      const fuzzyMatches = new Map();
       withExtractionContext(text, () => groupClinicalPhrasesWithTimestamps(text).forEach(chunk => {
         const cleanedText = cleanExtractedPhrase(chunk.text);
-        if (cleanedText.length < 2 || isBareFieldHeaderOnly(cleanedText) || isHeadingOnlyChunk(chunk, cleanedText) || cp.items.some(i => i.text === cleanedText && i.timestamp === chunk.timestamp)) return;
+        if (cleanedText.length < 2 || isBareFieldHeaderOnly(cleanedText) || isHeadingOnlyChunk(chunk, cleanedText) || cp.items.some(i => !i.deleted && clinicalCardDuplicateKey(i.text, i.timestamp) === clinicalCardDuplicateKey(cleanedText, chunk.timestamp))) return;
         let userLearned = globalAppData.learningUserDict[cleanedText];
         let predictionSource = null;
         let fuzzyMatchedText = null;
@@ -2415,10 +2472,13 @@
         addedThisRun.push(newItem);
         cp.items.push(newItem);
 
-        reportLearningEvent(cleanedText, 'create', { type: predictedType, hendersonIds: detectedHIds, assessmentCols, fieldLabel: newItem.fieldLabel, predictionSource, fuzzyMatchedText: fuzzyMatchedText || undefined });
+        if (fuzzyMatchedText) fuzzyMatches.set(newItem.id, fuzzyMatchedText);
         addedCount++;
       }));
       applySceneTagInheritance(addedThisRun);
+      applyPainContextTags(addedThisRun, cp);
+      if (typeof applyUntaggedReviews === 'function') applyUntaggedReviews(cp);
+      addedThisRun.forEach(item => reportLearningEvent(item.text, 'create', { type: item.type, hendersonIds: item.hendersonIds, assessmentCols: item.assessmentCols, fieldLabel: item.fieldLabel, predictionSource: item.predictionSource, fuzzyMatchedText: fuzzyMatches.get(item.id) }));
       saveDataAndSync();
       showToast(`${addedCount}件のデータを分類・カード化しました`, 'success');
     });

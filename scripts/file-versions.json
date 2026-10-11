@@ -4,8 +4,8 @@
     "hash": "8e19d850b1f8b828"
   },
   "js/02-reference-data.js": {
-    "version": "2026-10-11.timeline-cards11",
-    "hash": "2db6c4e4739cb041"
+    "version": "2026-10-11.usability-context12",
+    "hash": "1946bcf174f6f7e1"
   },
   "js/03-extraction-helpers.js": {
     "version": "2026-10-10.znavigation17",
@@ -16,52 +16,52 @@
     "hash": "48f0892e5d44452a"
   },
   "js/05-app-state-and-ui.js": {
-    "version": "2026-10-11.status-simple9",
-    "hash": "18c6c72b4de7b9e0"
+    "version": "2026-10-11.usability-context12",
+    "hash": "af78e1538df53129"
   },
   "js/06-export.js": {
-    "version": "2026-10-11.status-panel8",
-    "hash": "4251e00ebef096b7"
+    "version": "2026-10-11.usability-context12",
+    "hash": "82930382e1b4bb0a"
   },
   "js/07-classification.js": {
-    "version": "2026-10-11.timeline-cards11",
-    "hash": "c563675ba63ee1f3"
+    "version": "2026-10-11.usability-context12",
+    "hash": "42d9f5658067c422"
   },
   "js/08-assessment-tools.js": {
-    "version": "2026-10-11.status-simple9",
-    "hash": "e898c80b72b9e323"
+    "version": "2026-10-11.usability-context12",
+    "hash": "355cfaa6664862f9"
   },
   "js/09-board.js": {
-    "version": "2026-10-11.status-visible10",
-    "hash": "1222e8ad5b245638"
+    "version": "2026-10-11.usability-context12",
+    "hash": "6472cdf9a9263511"
   },
   "js/10-reference-page-and-startup.js": {
-    "version": "2026-10-10.znavigation17",
-    "hash": "c8d8f2645baa9a55"
+    "version": "2026-10-11.usability-context12",
+    "hash": "862a5f513c095050"
   },
   "js/11-own-assessment.js": {
-    "version": "2026-10-11.status-visible10",
-    "hash": "e897ce83b378bd99"
+    "version": "2026-10-11.usability-context12",
+    "hash": "a54e93fd6d71d326"
   },
   "js/12-missing-checks-and-care-plan.js": {
-    "version": "2026-10-11.timeline-cards11",
-    "hash": "521c84ea493eb3c8"
+    "version": "2026-10-11.usability-context12",
+    "hash": "cf377f35da456549"
   },
   "js/13-compare-and-report.js": {
-    "version": "2026-10-10.znavigation17",
-    "hash": "ab9bfce8677d18b3"
+    "version": "2026-10-11.usability-context12",
+    "hash": "58b88e116a7f7c3d"
   },
   "js/14-drug-reference.js": {
     "version": "2026-10-10.znavigation17",
     "hash": "ddd095be9f67a182"
   },
   "js/15-relation-map.js": {
-    "version": "2026-10-11.status-visible10",
-    "hash": "120b0746e5aee9f3"
+    "version": "2026-10-11.usability-context12",
+    "hash": "c444f9cddde45a9b"
   },
   "style.css": {
-    "version": "2026-10-11.status-visible10",
-    "hash": "93318a737b50d095"
+    "version": "2026-10-11.usability-context12",
+    "hash": "98375e4b5438007a"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",

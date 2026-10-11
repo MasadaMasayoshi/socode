@@ -428,10 +428,10 @@
     .source-fs-btn { display: inline-flex; align-items: center; gap: .3rem; font-size: 11px; font-weight: 600; color: var(--accent); padding: .2rem .5rem; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); }
     .source-fs-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
     .source-fs-only { display: none; }
-    .source-editor.is-fullscreen { position: fixed; inset: 0; z-index: 85; background: var(--paper); padding: 16px max(16px, calc((100vw - 1100px) / 2)); gap: .6rem; }
+    .source-editor.is-fullscreen { position: fixed; inset: 0; width: 100%; height: 100dvh; min-height: 0; overflow: hidden; box-sizing: border-box; z-index: 100; background: var(--paper); padding: 16px max(16px, calc((100vw - 1100px) / 2)); gap: .6rem; }
     .source-editor.is-fullscreen .source-editor-title { font-size: 14px; color: var(--ink); }
     .source-editor.is-fullscreen .source-fs-only { display: inline-flex; }
-    .source-editor.is-fullscreen #source-text, .source-editor.is-fullscreen #source-highlight-view { flex: 1; height: auto !important; max-height: none; font-size: 15px; line-height: 1.9; padding: 1rem 1.2rem; }
+    .source-editor.is-fullscreen #source-text, .source-editor.is-fullscreen #source-highlight-view { flex: 1; min-height: 0; height: auto !important; max-height: none; overflow: auto; font-size: 15px; line-height: 1.9; padding: 1rem 1.2rem; }
     body.source-fullscreen-open { overflow: hidden; }
     .tab-pill { white-space: nowrap; flex-shrink: 0; }
     @media (max-width: 640px) {
@@ -1060,7 +1060,7 @@
     .rm-canvas-wrap .rm-node:focus-visible .rm-box { stroke: var(--accent); stroke-width: 3px; }
     .rm-canvas-wrap .rm-node.is-selected .rm-box, .rm-canvas-wrap .rm-node.is-connect-from .rm-box { stroke: #C2410C; stroke-width: 3px; }
     .rm-canvas-wrap .rm-link { cursor: pointer; }
-    .rm-canvas-wrap .rm-link.is-selected .rm-link-line { stroke: #C2410C; stroke-width: 2.2px; opacity: 1; marker-end: var(--rm-arrow-selected); }
+    .rm-canvas-wrap .rm-link.is-selected .rm-link-line { stroke: #C2410C; stroke-width: 1.5px; opacity: 1; marker-end: var(--rm-arrow-selected); }
     .rm-canvas-wrap.is-connecting .rm-node { cursor: crosshair; }
     .rm-canvas-wrap.is-connecting .rm-node:hover .rm-box { stroke: #C2410C; stroke-width: 2.5px; }
     .rm-legend { display: flex; flex-wrap: wrap; gap: .3rem .9rem; font-size: 11px; color: var(--ink-muted); align-items: center; }
@@ -1101,9 +1101,9 @@
     .rm-svg text, .rm-svg tspan { font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic UI', 'Yu Gothic', 'Meiryo', sans-serif; }
     .rm-canvas-wrap .rm-svg.rm-focus .rm-node:not(.is-path) { opacity: .22; }
     .rm-canvas-wrap .rm-svg.rm-focus .rm-link:not(.is-path) { opacity: .1; }
-    .rm-canvas-wrap .rm-svg.rm-focus .rm-link.is-path .rm-link-line { stroke-width: 2.2px; opacity: 1; }
+    .rm-canvas-wrap .rm-svg.rm-focus .rm-link.is-path .rm-link-line { stroke-width: 1.5px; opacity: 1; }
     .rm-canvas-wrap .rm-node, .rm-canvas-wrap .rm-link { transition: opacity .15s; }
-    .rm-canvas-wrap .rm-link:hover .rm-link-line { stroke-width: 2.2px; opacity: 1; }
+    .rm-canvas-wrap .rm-link:hover .rm-link-line { stroke-width: 1.5px; opacity: 1; }
 
     html[data-theme="dark"] .rm-canvas-wrap .rm-bg.is-paper { fill: #171512; }
 
@@ -1278,6 +1278,10 @@ html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow-sel path { fill: #F59E6
 /* Manual review stays in the overflow menu and occupies space only when opened. */
 #nursing-manual-review { width:min(1100px,calc(100vw - 24px));max-height:85dvh;margin:auto;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);overflow:auto; }
 #nursing-manual-review::backdrop { background:rgba(0,0,0,.35); }
+.manual-review-actions { display:flex; gap:.5rem; justify-content:flex-start; align-items:center; flex-wrap:wrap; margin:.8rem 0; }
+.manual-review-actions .btn { min-height:38px; font-size:13px; }
+.source-editor.is-fullscreen .source-editor-bar { flex-wrap:wrap; flex-shrink:0; }
+.source-editor.is-fullscreen .source-editor-bar > span:last-child { flex-wrap:wrap; }
 .manual-review-heading { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px; }
 
 /* Verdicts stay outside the assessment card rows. */
@@ -1287,6 +1291,21 @@ html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow-sel path { fill: #F59E6
 .assessment-status { width: 100%; padding: .8rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); }
 .assessment-status > h3 { margin: 0 0 .5rem; font-size: 14px; font-weight: 700; }
 #assessment-status-content { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: .8rem; }
+.assessment-status .suf-phase-block { padding:1rem; background:var(--surface); border-top-width:4px; }
+.assessment-status .suf-phase-head { gap:.7rem; padding-bottom:.65rem; margin-bottom:.65rem; border-bottom:1px solid var(--line-soft); }
+.assessment-status .suf-phase-name { font-size:14px; font-weight:700; color:var(--ink); }
+.assessment-status .suf-badge { font-size:13px; padding:.25rem .7rem; }
+.assessment-status .suf-phase-why { font-size:14px; line-height:1.75; color:var(--ink); }
+.assessment-status .suf-phase-why p { margin:.25rem 0 .7rem; }
+.suf-reason-label { font-size:11px; font-weight:700; color:var(--ink-muted); }
+.assessment-status .suf-ev { display:flex; flex-wrap:wrap; align-items:center; gap:.35rem; font-size:11px; }
+.suf-evidence-chip { padding:.15rem .45rem; border:1px solid var(--line); border-radius:5px; background:var(--paper); font-size:12px; font-weight:600; cursor:pointer; }
+.suf-evidence-chip:hover { border-color:var(--accent); }
+.rm-canvas-wrap.is-dragging .rm-box, .rm-canvas-wrap.is-panning .rm-box { filter:none; }
+.cps-next { border-top:1px solid var(--line); margin-top:1rem; padding-top:.75rem; }
+.cps-next h4 { font-size:14px; font-weight:700; margin:0 0 .5rem; }
+.cps-next li { margin:.65rem 0; font-size:13px; line-height:1.7; }
+.cps-next .btn { margin:.35rem .35rem 0 0; font-size:12px; }
 .suf-status-need h4 { margin: 0 0 .3rem; font-size: 12px; line-height: 1.5; }
 .suf-status-group { position: relative; display: flex; flex-wrap: wrap; gap: .3rem .6rem; }
 .utility-dialog { width: min(480px, calc(100vw - 24px)); max-height: 85dvh; margin: auto; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); overflow: auto; }
