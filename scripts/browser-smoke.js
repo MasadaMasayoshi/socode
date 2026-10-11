@@ -94,6 +94,8 @@ const {app}=require('../server');
    // Fresh browser contexts may load the fictional chart saved by an earlier
    // width from the same temporary server. Exercise the real replacement dialog.
    assert.equal(await page.locator('#nursing-auto-check').count(),0);
+   assert.equal(await page.locator('#nursing-manual-review').isVisible(),false);
+   assert.equal(await page.locator('main #nursing-manual-review').count(),0);
    assert.equal(await page.locator('a[href="clinical-knowledge/checks.html"]').count(),0);
    const existingCards=await page.evaluate(()=>getCurrentPatient().items.length);
    await page.locator('#btn-start-classify').click();
@@ -114,6 +116,8 @@ const {app}=require('../server');
     cp.items.push({...base,id:'source-nav-smoke',text:'架空の照合記録:痛みなし',deleted:false,aiSuggested:false,type:'o'});
     cp.items.push({...base,id:'source-deleted-smoke',text:'削除済みの架空記録',deleted:true});
    });
+   await page.locator('[data-menu-toggle="more-menu"]').click();
+   await page.locator('#btn-manual-review').click();
    await page.locator('#nursing-source-compare').click();
    await page.locator('#nursing-organized-text button[data-card-id="source-nav-smoke"]').click();
    assert.match(await page.locator('#nursing-source-match-status').innerText(),/表記をそろえた一致 1／2/);
@@ -127,6 +131,9 @@ const {app}=require('../server');
    assert.equal(await page.locator('#nursing-original-text mark').count(),0);
    assert.match(await page.locator('#nursing-manual-review-status').innerText(),/更新されたため表示を更新/);
    await page.screenshot({path:`browser-artifacts/${width}-source-navigation.png`});
+   await page.locator('#nursing-source-compare').click();
+   await page.locator('#nursing-manual-review button').filter({hasText:'閉じる'}).click();
+   assert.equal(await page.locator('#nursing-manual-review').isVisible(),false);
    const boardHistory = await page.evaluate(()=>{
     const cp=getCurrentPatient(),card=cp.items.find(i=>i.id==='source-nav-smoke');
     const before=JSON.stringify(cp.items),original=card.text;
@@ -149,7 +156,7 @@ const {app}=require('../server');
    assert.match(await page.locator('#toast-container').innerText(),/元に戻していません/);
    await page.evaluate(()=>{getCurrentPatient().items=getCurrentPatient().items.filter(i=>i.id!=='toast-later-update');});
 
-   await page.locator('#nursing-source-compare').click();
+
    await page.evaluate(()=>{
     const cp=getCurrentPatient(),plan=createCarePlan(cp,{problem:'架空の根拠確認計画'});
     updateCarePlan(cp,plan.id,{evidenceIds:['source-nav-smoke']});
@@ -221,9 +228,9 @@ const {app}=require('../server');
     return results;
    });
    for (const result of lineVisibility) {
-    assert.equal(result.width,'3px');
+    assert.equal(result.width,'2px');
     assert.equal(result.vectorEffect,'non-scaling-stroke');
-    assert.ok(Math.abs(result.endpointSize - 14) < .001);
+    assert.ok(Math.abs(result.endpointSize - 10) < .001);
     assert.equal(result.maskExists,true);
     assert.equal(result.markerOverflow,'visible');
     assert.equal(result.selectedMarker,true);
@@ -420,9 +427,10 @@ const {app}=require('../server');
        const line=svg.querySelector(`[data-link-id="${edge.id}"] .rm-link-line`);
        const id=line.getAttribute('marker-end').match(/#([^)]*)/)[1];
        const marker=svg.querySelector(`[id="${id}"]`);
-       if(marker.querySelector('path').getAttribute('d')!=='M0,0 L10,5 L0,10 z')throw Error('Treatment endpoint is not an arrow');
-       if(Math.abs(marker.markerWidth.baseVal.value*zoom-14)>.01)throw Error('Treatment arrow shrinks with zoom');
+       if(marker.querySelector('path').getAttribute('d')!=='M0,1.5 L10,5 L0,8.5 z')throw Error('Treatment endpoint is not an arrow');
+       if(Math.abs(marker.markerWidth.baseVal.value*zoom-10)>.01)throw Error('Treatment arrow shrinks with zoom');
       },zoom);
+      await page.locator('#toast-container').evaluate(el=>el.replaceChildren());
       await page.locator('#rm-canvas-wrap').screenshot({path:`browser-artifacts/${width}-gastric-arrows-${zoom}.png`});
      }
     }
