@@ -1388,7 +1388,7 @@
       const backgroundRecords = clinicalRecords.flatMap(i => {
         const original = String(i.text), at = compactSource.indexOf(original.normalize('NFKC').replace(/\s/g, ''));
         const headings = at >= 0 ? [...compactSource.slice(0, at).matchAll(/【([^】]+)】/g)] : [];
-        const heading = headings.at(-1)?.[1] || '';
+        const heading = original.match(/^【([^】]+)】/)?.[1] || headings.at(-1)?.[1] || '';
         const fieldLabel = i.fieldLabel || (/メディカルヒストリー|現病歴|ファミリーヒストリー|家族歴/.test(heading) ? heading : null);
         const parts = original.replace(/(?=【[^】]+】)/g, '\n').split(/(?<=。)|\n/).map(t => t.trim()).filter(Boolean);
         const allFamily = parts.every(t => /家族歴|ファミリーヒストリー|がん家系|癌家系|(?:祖父|祖母|父|母|兄|姉|弟|妹|親族)[^。\n]{0,24}(?:がん|癌)/.test(t));
