@@ -675,7 +675,7 @@ test('関連図：操作は 作る｜編集｜見る・出す にまとめ、拡
   assert.match(app.relationMapSvg(map, {}), /<rect class="rm-bg"[^>]*fill="#FFFFFF"/, '印刷・画像は白');
   const pe = map.edges.find(e => e.predicted);
   assert.ok(pe);
-  assert.match(live, /stroke="#716B62" stroke-width="2.4" vector-effect="non-scaling-stroke" stroke-dasharray="6 4" marker-end="url\(#rm-marker-\d+-arrow-pred\)"/);
+  assert.match(live, /stroke="#716B62" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-dasharray="6 4" marker-end="url\(#rm-marker-\d+-arrow-pred\)"/);
   assert.match(live, /class="rm-node[^"]* is-pred"/);
 });
 

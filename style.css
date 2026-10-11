@@ -1080,7 +1080,7 @@
     .rm-canvas-wrap .rm-node:focus-visible .rm-box { stroke: var(--accent); stroke-width: 3px; }
     .rm-canvas-wrap .rm-node.is-selected .rm-box, .rm-canvas-wrap .rm-node.is-connect-from .rm-box { stroke: #C2410C; stroke-width: 3px; }
     .rm-canvas-wrap .rm-link { cursor: pointer; }
-    .rm-canvas-wrap .rm-link.is-selected .rm-link-line { stroke: #C2410C; stroke-width: 3.4px; marker-end: var(--rm-arrow-selected); }
+    .rm-canvas-wrap .rm-link.is-selected .rm-link-line { stroke: #C2410C; stroke-width: 2.2px; marker-end: var(--rm-arrow-selected); }
     .rm-canvas-wrap.is-connecting .rm-node { cursor: crosshair; }
     .rm-canvas-wrap.is-connecting .rm-node:hover .rm-box { stroke: #C2410C; stroke-width: 2.5px; }
     .rm-legend { display: flex; flex-wrap: wrap; gap: .3rem .9rem; font-size: 11px; color: var(--ink-muted); align-items: center; }
@@ -1131,9 +1131,9 @@
     .rm-svg text, .rm-svg tspan { font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic UI', 'Yu Gothic', 'Meiryo', sans-serif; }
     .rm-canvas-wrap .rm-svg.rm-focus .rm-node:not(.is-path) { opacity: .22; }
     .rm-canvas-wrap .rm-svg.rm-focus .rm-link:not(.is-path) { opacity: .1; }
-    .rm-canvas-wrap .rm-svg.rm-focus .rm-link.is-path .rm-link-line { stroke-width: 3.4px; }
+    .rm-canvas-wrap .rm-svg.rm-focus .rm-link.is-path .rm-link-line { stroke-width: 2.2px; }
     .rm-canvas-wrap .rm-node, .rm-canvas-wrap .rm-link { transition: opacity .15s; }
-    .rm-canvas-wrap .rm-link:hover .rm-link-line { stroke-width: 3.4px; }
+    .rm-canvas-wrap .rm-link:hover .rm-link-line { stroke-width: 2.2px; }
 
     html[data-theme="dark"] .rm-canvas-wrap .rm-bg.is-paper { fill: #171512; }
 
@@ -1307,3 +1307,8 @@ html[data-theme="dark"] .rm-canvas-wrap .rm-treat-label { fill: #8DB3EA; }
   .rm-legend { font-size: 12px; }
 }
 html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow-sel path { fill: #F59E6B; }
+
+/* Manual review stays in the overflow menu and occupies space only when opened. */
+#nursing-manual-review { width:min(1100px,calc(100vw - 24px));max-height:85dvh;margin:auto;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);overflow:auto; }
+#nursing-manual-review::backdrop { background:rgba(0,0,0,.35); }
+.manual-review-heading { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px; }

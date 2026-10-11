@@ -55,3 +55,11 @@ test('original source coverage reports unmatched sentences as review candidates 
  const block=html.match(/<script>(\s*\/\/ Manual source comparison[\s\S]*?)<\/script>/);
  assert.ok(block);assert.doesNotThrow(()=>new vm.Script(block[1]));
 });
+
+test('manual tools live in a closed dialog outside the main layout',()=>{
+ const main=html.match(/<main[\s\S]*?<\/main>/)[0];
+ assert.doesNotMatch(main,/nursing-manual-review/);
+ assert.match(html,/<dialog id="nursing-manual-review" aria-labelledby=/);
+ assert.match(html,/id="btn-manual-review"/);
+ assert.match(html,/showModal\(\)/);
+});

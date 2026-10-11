@@ -22,7 +22,7 @@ test('Bridge clearance masks only the underlying stroke in either paint order', 
     const svg = app.relationMapSvg(map, { interactive });
     const index = reverse ? 0 : 1;
     assert.match(svg, new RegExp(`id="rm-cross-mask-[0-9]+-${index}"`));
-    assert.match(svg, /<circle cx="[\d.]+" cy="[\d.]+" r="4" fill="black"\/>/);
+    assert.match(svg, /class="rm-bridge-clearance"[^>]+fill="none" stroke="black" stroke-width="3.2"/);
     assert.match(svg, new RegExp(`data-link-id="vertical">[\\s\\S]*?<path class="rm-link-line" mask="url\\(#rm-cross-mask-[0-9]+-${index}\\)"`));
     assert.doesNotMatch(svg.match(/data-link-id="horizontal">[\s\S]*?<\/g>/)[0], / mask=/);
     assert.equal((svg.match(/class="rm-link-hit"/g) || []).length, interactive ? 2 : 0);
@@ -31,7 +31,7 @@ test('Bridge clearance masks only the underlying stroke in either paint order', 
 });
 test('Treatment lines have stronger strokes and unclipped terminal markers in exports', () => {
   const svg = app.relationMapSvg(crossing());
-  assert.match(svg, /stroke="#2563EB" stroke-width="3"[^>]*marker-end="url\(#rm-marker-\d+-arrow-blue\)"/);
+  assert.match(svg, /stroke="#2563EB" stroke-width="2"[^>]*marker-end="url\(#rm-marker-\d+-arrow-blue\)"/);
   assert.match(svg, /id="rm-marker-\d+-arrow-blue"[^>]*overflow="visible"/);
   assert.match(svg, /id="rm-marker-\d+-arrow-treat-sel"[^>]*overflow="visible"/);
 });
@@ -57,7 +57,7 @@ test('Screen arrows keep readable stroke and endpoint sizes at fit zoom, includi
     const svg = app.relationMapSvg(crossing(), { interactive, screen: true, zoom });
     assert.equal((svg.match(/vector-effect="non-scaling-stroke"/g) || []).length, 2);
     for (const m of svg.matchAll(/class="rm-marker-([^"]+)"[^>]*markerWidth="([^"]+)"/g)) {
-      assert.ok(Math.abs(Number(m[2]) * zoom - (['arrow-blue', 'arrow-treat-sel'].includes(m[1]) ? 14 : 12)) < 0.001);
+      assert.ok(Math.abs(Number(m[2]) * zoom - (['arrow-blue', 'arrow-treat-sel'].includes(m[1]) ? 10 : 8)) < 0.001);
     }
     assert.equal((svg.match(/class="rm-link-hit"/g) || []).length, interactive ? 2 : 0);
   }
@@ -69,8 +69,10 @@ test('crossing clearance stays inside a six-unit bridge at all zoom levels', () 
   for (const zoom of [.25, .55, 1, 2]) {
     const svg = app.relationMapSvg(crossing(), {interactive:true, zoom});
     assert.match(svg, /mask-type:luminance/);
-    for (const m of svg.matchAll(/<circle[^>]+ r="([^"]+)"/g)) assert.ok(Number(m[1]) <= 4);
-    assert.match(svg, /class="rm-marker-arrow-blue"[^>]+><path d="M0,0 L10,5 L0,10 z"/);
+    assert.doesNotMatch(svg, /<circle/);
+    const m = svg.match(/class="rm-bridge-clearance"[^>]+stroke-width="([^"]+)"/);
+    assert.ok(m && Math.abs(Number(m[1])*zoom-3.2)<.001);
+    assert.match(svg, /class="rm-marker-arrow-blue"[^>]+><path d="M0,1.5 L10,5 L0,8.5 z"/);
   }
 });
 test('off-center treatment endpoints lie on the actual ellipse outline', () => {
@@ -81,4 +83,16 @@ test('off-center treatment endpoints lie on the actual ellipse outline', () => {
   const r = app.rmRouteEdges(map).routes[0], n = app.rmRect(map.nodes[0]);
   const [x,y] = r.pts[0];
   assert.ok(Math.abs(((x-n.cx)/(n.w/2))**2+((y-n.cy)/(n.h/2))**2-1) < .001);
+});
+
+test('close crossings use one hop without backtracking in either direction', () => {
+  for (const right of [true,false]) {
+    const [a,b] = right ? [0,100] : [100,0];
+    const r = {pts:[[a,30],[b,30]],segs:[{x1:a,y1:30,x2:b,y2:30,cross:right?[40,46,51]:[51,46,40]}]};
+    const d = app.rmRoutePath(r);
+    assert.equal((d.match(/ Q/g)||[]).length,2);
+    assert.doesNotMatch(d,/ A/);
+    const xs=[...d.matchAll(/[MLQ](-?[\d.]+),/g)].map(m=>Number(m[1]));
+    assert.ok(xs.every((x,i)=>!i||(right?x>=xs[i-1]:x<=xs[i-1])),d);
+  }
 });

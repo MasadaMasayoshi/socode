@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-11.visible-arrows2'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-11.slim-arrows3'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -1002,6 +1002,23 @@
     }
 
     const RM_CORNER_R = 7;
+    function rmBridgeSpans(seg) {
+      const groups = [];
+      [...new Set(seg.cross)].sort((a, b) => a - b).forEach(x => {
+        const last = groups[groups.length - 1];
+        if (last && x - last.last < RM_BRIDGE_R * 2 + 2) last.last = x;
+        else groups.push({ first: x, last: x });
+      });
+      return groups.map(g => ({ lo: g.first - RM_BRIDGE_R, hi: g.last + RM_BRIDGE_R, y: seg.y1 }));
+    }
+    function rmBridgePath(span, right = true) {
+      const { lo, hi, y } = span, r = RM_BRIDGE_R;
+      if (hi - lo <= r * 2 + .01) return `M${right ? lo : hi},${y} A${r},${r} 0 0 ${right ? 1 : 0} ${right ? hi : lo},${y}`;
+      // One continuous hop over close crossings; separate arcs can double back.
+      return right
+        ? `M${lo},${y} Q${lo},${y-r} ${lo+r},${y-r} L${hi-r},${y-r} Q${hi},${y-r} ${hi},${y}`
+        : `M${hi},${y} Q${hi},${y-r} ${hi-r},${y-r} L${lo+r},${y-r} Q${lo},${y-r} ${lo},${y}`;
+    }
     function rmRoutePath(r) {
       const f = v => Math.round(v * 10) / 10;
       const segs = r.segs;
@@ -1017,8 +1034,10 @@
         const ux = (s.x2 - s.x1) / len, uy = (s.y2 - s.y1) / len;
         const rEnd = rad(k);
         const dir = s.x2 >= s.x1 ? 1 : -1;
-        s.cross.forEach(cx => {
-          d += ` L${f(cx - dir * RM_BRIDGE_R)},${f(s.y1)} A${RM_BRIDGE_R},${RM_BRIDGE_R} 0 0 ${dir > 0 ? 1 : 0} ${f(cx + dir * RM_BRIDGE_R)},${f(s.y1)}`;
+        const spans = rmBridgeSpans(s);
+        if (dir < 0) spans.reverse();
+        spans.forEach(span => {
+          d += ' ' + rmBridgePath(span, dir > 0).replace(/^M/, 'L');
         });
         if (rEnd > 0) {
           const n = segs[k + 1];
@@ -1046,17 +1065,16 @@
 
       const isKnow = id => { const n = nodeById.get(id); return !!n && (n.added || (n.source === 'knowledge' && n.type !== 'nursing_problem')); };
 
-      // Cut the underlying vertical stroke at bridge crests, regardless of paint order.
-      const crossings = routes.flatMap(r => r.segs.flatMap(s => s.cross.map(x => ({ x, y: s.y1 - RM_BRIDGE_R }))));
+      // Trace the hop itself; circular erasers create oversized breaks at crossings.
+      const crossings = routes.flatMap((r, ri) => r.segs.flatMap(s => rmBridgeSpans(s).map(span => ({ ...span, ri }))));
       const bounds = rmBounds(map);
       return routes.map((r, routeIndex) => {
-        const cuts = crossings.filter(c => r.segs.some(s =>
-          Math.abs(s.x1 - s.x2) < 0.5 && Math.abs(s.x1 - c.x) < 0.5 &&
-          c.y > Math.min(s.y1, s.y2) && c.y < Math.max(s.y1, s.y2)));
+        const cuts = crossings.filter(c => c.ri !== routeIndex && r.segs.some(s =>
+          Math.abs(s.x1 - s.x2) < 0.5 && s.x1 > c.lo && s.x1 < c.hi &&
+          c.y - RM_BRIDGE_R > Math.min(s.y1, s.y2) && c.y < Math.max(s.y1, s.y2)));
         const maskId = `${maskPrefix}-${routeIndex}`;
-        // Keep small-scale crossing cuts inside the bridge; oversized cuts erase nearby lines.
-        const clearance = 4;
-        const mask = cuts.length ? `<defs><mask id="${maskId}" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" style="mask-type:luminance" x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}"><rect x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}" fill="white"/>${cuts.map(c => `<circle cx="${c.x}" cy="${c.y}" r="${clearance}" fill="black"/>`).join('')}</mask></defs>` : '';
+        const clearance = screen ? 3.2 / zoom : 3.2;
+        const mask = cuts.length ? `<defs><mask id="${maskId}" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" style="mask-type:luminance" x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}"><rect x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}" fill="white"/>${cuts.map(c => `<path class="rm-bridge-clearance" d="${rmBridgePath(c)}" fill="none" stroke="black" stroke-width="${clearance}"/>`).join('')}</mask></defs>` : '';
         const e = r.edge;
         const d = rmRoutePath(r);
         const treat = e.relation === 'treats';
@@ -1066,7 +1084,7 @@
         const tl = treat && r.pts && r.pts.length > 1 ? `<text class="rm-treat-label" x="${Math.round((r.pts[0][0] + r.pts[1][0]) / 2) + 6}" y="${Math.round((r.pts[0][1] + r.pts[1][1]) / 2) + 3}" font-size="10" fill="#2563EB" font-weight="700">治療</text>` : '';
         return `${mask}<g class="rm-link${treat ? ' is-treat' : ''}${sel ? ' is-selected' : ''}" data-link-id="${escapeHtml(e.id)}">
           ${interactive ? `<path class="rm-link-hit" d="${d}" fill="none" stroke="transparent" stroke-width="20"/>` : ''}
-          <path class="rm-link-line"${cuts.length ? ` mask="url(#${maskId})"` : ''} d="${d}" fill="none" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#3F3B35'}" stroke-width="${treat ? 3 : 2.4}"${screen ? ' vector-effect="non-scaling-stroke"' : ''}${e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} marker-end="url(#${markerPrefix}-${treat ? 'arrow-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"/>${tl}
+          <path class="rm-link-line"${cuts.length ? ` mask="url(#${maskId})"` : ''} d="${d}" fill="none" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#3F3B35'}" stroke-width="${treat ? 2 : 1.5}"${screen ? ' vector-effect="non-scaling-stroke"' : ''}${e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} marker-end="url(#${markerPrefix}-${treat ? 'arrow-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"/>${tl}
         </g>`;
       }).join('');
     }
@@ -1111,7 +1129,7 @@
       const markerScale = screen ? 1 / zoom : 1;
 
       const font = "'Noto Sans JP','Hiragino Kaku Gothic ProN','Hiragino Sans','Yu Gothic UI','Yu Gothic','Meiryo',sans-serif";
-      const marker = (kind, color, treatment = false) => `<marker id="${markerPrefix}-${kind}" class="rm-marker-${kind}" viewBox="0 0 10 10" refX="11" refY="5" markerUnits="userSpaceOnUse" markerWidth="${(treatment ? 14 : 12) * markerScale}" markerHeight="${(treatment ? 14 : 12) * markerScale}" overflow="visible" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${color}"/></marker>`;
+      const marker = (kind, color, treatment = false) => `<marker id="${markerPrefix}-${kind}" class="rm-marker-${kind}" viewBox="0 0 10 10" refX="11" refY="5" markerUnits="userSpaceOnUse" markerWidth="${(treatment ? 10 : 8) * markerScale}" markerHeight="${(treatment ? 10 : 8) * markerScale}" overflow="visible" orient="auto-start-reverse"><path d="M0,1.5 L10,5 L0,8.5 z" fill="${color}"/></marker>`;
       return `<svg xmlns="http://www.w3.org/2000/svg" class="rm-svg" data-marker-prefix="${markerPrefix}" style="--rm-arrow-selected: url(#${markerPrefix}-arrow-sel); --rm-arrow-treat-selected: url(#${markerPrefix}-arrow-treat-sel)" viewBox="${b.x} ${b.y} ${b.w} ${b.h}" width="${Math.round(b.w * zoom)}" height="${Math.round(b.h * zoom)}" font-family="${escapeHtml(font)}" role="img" aria-label="${escapeHtml(title || '関連図')}">
         <defs>${marker('arrow', '#3F3B35')}${marker('arrow-sel', '#C2410C')}${marker('arrow-pred', RM_PRED_LINE)}${marker('arrow-blue', '#2563EB', true)}${marker('arrow-treat-sel', '#C2410C', true)}</defs>
         <rect class="rm-bg${interactive ? ' is-paper' : ''}" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${interactive ? RM_PAPER : '#FFFFFF'}"/>
