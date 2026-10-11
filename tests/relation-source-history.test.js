@@ -91,3 +91,14 @@ test('Different tumor measurements and distinct pathology times do not collapse'
  assert.equal(map.nodes.filter(n=>n.type==='patient_fact'&&/腫瘍.*(?:25|30)mm/.test(n.label)).length,3);
  assert.equal(map.nodes.filter(n=>/病理結果/.test(n.label)).length,2);
 });
+
+test('Examination findings and complication fears retain their recorded context', () => {
+ const cp=patient('診断名：胃がん\n【胃カメラ】胃底部に25mm大の腫瘍あり。\n胃全摘術を予定。\n入院1日目\n14:00 麻酔科から帰室。「麻酔科で丁寧に説明してもらった。手術っていろいろな合併症があるんだね。怖いね」と話す。');
+ const map=app.buildRelationMapFromRecord(cp),disease=map.nodes.find(n=>n.type==='disease'),tumor=map.nodes.find(n=>/腫瘍.*25mm/.test(n.label)),words=map.nodes.find(n=>/不安の言動/.test(n.label)),problem=map.nodes.find(n=>n.type==='nursing_problem'&&/不安/.test(n.label));
+ assert.match(tumor.label,/胃カメラで確認/);assert.ok(linked(map,tumor,disease,'supports'));assert.ok(!linked(map,tumor,disease,'causes'));
+ assert.match(words.label,/麻酔科.*手術の合併症.*怖い/);assert.match(words.evidence,/手術っていろいろな合併症があるんだね。怖いね/);assert.match(words.evidence,/入院1日目.*14:00/);assert.ok(words.itemIds.length);
+ assert.match(problem.label,/手術の合併症/);assert.ok(linked(map,words,problem,'supports'));assert.ok(!map.nodes.some(n=>/入院・今後の生活の変化/.test(n.label)));
+ assert.match(app.normalizeRelationMap(JSON.parse(JSON.stringify(map))).nodes.find(n=>n.id===words.id).evidence,/麻酔科/);
+ const other=app.buildRelationMapFromRecord(patient('診断名：胃がん\n「検査の結果がどうなるのか。怖いね」と話す。'));
+ const otherWords=other.nodes.find(n=>/不安の言動/.test(n.label));assert.match(otherWords.label,/検査の結果がどうなるのか/);assert.doesNotMatch(otherWords.label,/麻酔科|手術の合併症/);
+});

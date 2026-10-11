@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-12.usability-context24'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-12.usability-context25'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -118,7 +118,7 @@
 
     const RM_NOTE_FONT = 11.5, RM_NOTE_LINE_H = 15, RM_NOTE_GAP = 7, RM_NOTE_MAX = 60;
 
-    const RM_BUILD_VERSION = 5;
+    const RM_BUILD_VERSION = 6;
     const RM_LAYOUT_STYLE = 6;
     const RM_COL_GAP = 80, RM_ROW_GAP = 36;
 
@@ -1574,6 +1574,10 @@
           const label = singleTumor ? `${site}の腫瘍（${size.replace(/\s/g, '')}）` : rmShorten(it.text, 90);
           const finding = B(singleTumor ? 'tumor' : pathology ? 'pathology' : 'history', it, label, canonical);
           if (singleTumor && /限局潰瘍型/.test(t)) finding.label = `${site}の限局潰瘍型腫瘍（${size.replace(/\s/g, '')}）`;
+          if (singleTumor) {
+            const exam = /胃カメラ/.test(finding.evidence) ? '胃カメラ' : /内視鏡/.test(finding.evidence) ? '内視鏡' : /精密検査/.test(finding.evidence) ? '精密検査' : '';
+            if (exam) finding.label = `${exam}で確認：${site}の腫瘍（${size.replace(/\s/g, '')}）`;
+          }
           if (pathology && new Set(finding.evidence.split('\n\n').map(e => evidenceKey(e.replace(/^\[[^\]]*\] /, '')))).size > 1) finding.label = '病理結果（原文の表記差あり・要確認）';
           E(finding, disease, 'supports', { evidence: '原文に記録された疾患の所見・診断までの経過（発症原因とは断定しない）' });
         });
@@ -2341,13 +2345,23 @@
       const familyOnly = anxItems.length && anxItems.every(i => rmIsFamilySpeech(i.text));
       if (anxItems.length) {
 
-        const quote = i => { const m = String(i.text).match(/「([^」]{1,80})」/); const q = m ? m[1] : short(i, 20).replace(/[「」]/g, ''); const t = q.split(/。/).filter(Boolean).pop() || q; return `「${t.length > 20 ? t.slice(0, 19) + '…' : t}」`; };
+        const complicationFear = i => /麻酔科/.test(i.text) && /説明/.test(i.text) && /手術/.test(i.text) && /合併症/.test(i.text) && /怖/.test(i.text);
+        const quote = i => {
+          if (complicationFear(i)) return '麻酔科で手術の合併症の説明を受け、怖いと話す';
+          const quotes = [...String(i.text).matchAll(/「([^」]+)」/g)];
+          const q = (quotes.find(m => /不安|心配|迷惑|怖|どうなる|どうしよう|歩ける|やっていけ/.test(m[1])) || quotes[0])?.[1] || String(i.text).replace(/[「」]/g, '');
+          return `「${rmShorten(q, 90)}」`;
+        };
         const mixed = !familyOnly && anxItems.some(i => rmIsFamilySpeech(i.text));
-        const words = N('anx_words', 'patient_fact', `${anxItems.map(i => (rmIsFamilySpeech(i.text) && mixed ? '家族' : '') + quote(i)).join('')}（${familyOnly ? '家族の' : mixed ? '本人・家族の' : ''}不安の言動）`, { items: anxItems, max: 70 });
-        const change = N('life_change', 'pathophysiology', `${disease ? '診断・' : ''}${surgery ? '手術・' : ''}入院・今後の生活の変化`, { source: 'knowledge' });
-        E(words, change, 'contributes_to', { evidence: '本人の言葉' });
-        if (surgery) E(surgery, change, 'contributes_to');
-        E(change, N('p_anx', 'nursing_problem', familyOnly ? '家族の不安（退院後の生活の変化に関連）' : `不安（${disease ? '診断・' : ''}${surgery ? '手術・' : ''}生活の変化に関連）`, { cat: 'anx', note: familyOnly ? '' : `${disease ? '病気・' : ''}${surgery ? '手術・' : ''}今後の生活に不安がある` }), 'results_in');
+        const words = N('anx_words', 'patient_fact', `${anxItems.map(i => (rmIsFamilySpeech(i.text) && mixed ? '家族' : '') + quote(i)).join('')}（${familyOnly ? '家族の' : mixed ? '本人・家族の' : ''}不安の言動）`, { items: anxItems, max: 180, evidence: anxItems.map(i => `[${i.timestamp || '日時不明'}] ${i.text}`).join('\n\n') });
+        if (anxItems.every(complicationFear)) {
+          E(words, N('p_anx', 'nursing_problem', familyOnly ? '家族の不安（手術の合併症に関連）' : '不安（手術の合併症に関連）', { cat: 'anx', note: '説明を受けた手術の合併症について不安を話している' }), 'supports', { evidence: words.evidence, noBridge: true });
+        } else {
+          const change = N('life_change', 'pathophysiology', `${disease ? '診断・' : ''}${surgery ? '手術・' : ''}入院・今後の生活の変化`, { source: 'knowledge' });
+          E(words, change, 'contributes_to', { evidence: '本人の言葉' });
+          if (surgery) E(surgery, change, 'contributes_to');
+          E(change, N('p_anx', 'nursing_problem', familyOnly ? '家族の不安（退院後の生活の変化に関連）' : `不安（${disease ? '診断・' : ''}${surgery ? '手術・' : ''}生活の変化に関連）`, { cat: 'anx', note: familyOnly ? '' : `${disease ? '病気・' : ''}${surgery ? '手術・' : ''}今後の生活に不安がある` }), 'results_in');
+        }
       }
 
       const knowItem = items.find(i => i.type === 's' && !anxItems.includes(i) && !rmIsFamilySpeech(i.text) && /わからない|分からない|知らなかった|教えて|大丈夫なの|していいの|かけていいの|どうしたら|何に気を付け|気をつければ/.test(i.text));
