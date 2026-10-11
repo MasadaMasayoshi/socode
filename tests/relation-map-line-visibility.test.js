@@ -31,9 +31,9 @@ test('Bridge clearance masks only the underlying stroke in either paint order', 
 });
 test('Treatment lines have stronger strokes and unclipped terminal markers in exports', () => {
   const svg = app.relationMapSvg(crossing());
-  assert.match(svg, /stroke="#2563EB" stroke-width="3"[^>]*marker-end="url\(#rm-marker-\d+-tee-blue\)"/);
-  assert.match(svg, /id="rm-marker-\d+-tee-blue"[^>]*overflow="visible"/);
-  assert.match(svg, /id="rm-marker-\d+-tee-sel"[^>]*overflow="visible"/);
+  assert.match(svg, /stroke="#2563EB" stroke-width="3"[^>]*marker-end="url\(#rm-marker-\d+-arrow-blue\)"/);
+  assert.match(svg, /id="rm-marker-\d+-arrow-blue"[^>]*overflow="visible"/);
+  assert.match(svg, /id="rm-marker-\d+-arrow-treat-sel"[^>]*overflow="visible"/);
 });
 
 test('Separate SVG renders never reuse crossing mask identifiers', () => {
@@ -57,9 +57,28 @@ test('Screen arrows keep readable stroke and endpoint sizes at fit zoom, includi
     const svg = app.relationMapSvg(crossing(), { interactive, screen: true, zoom });
     assert.equal((svg.match(/vector-effect="non-scaling-stroke"/g) || []).length, 2);
     for (const m of svg.matchAll(/class="rm-marker-([^"]+)"[^>]*markerWidth="([^"]+)"/g)) {
-      assert.ok(Math.abs(Number(m[2]) * zoom - (m[1].startsWith('tee') ? 14 : 12)) < 0.001);
+      assert.ok(Math.abs(Number(m[2]) * zoom - (['arrow-blue', 'arrow-treat-sel'].includes(m[1]) ? 14 : 12)) < 0.001);
     }
     assert.equal((svg.match(/class="rm-link-hit"/g) || []).length, interactive ? 2 : 0);
   }
   assert.doesNotMatch(app.relationMapSvg(crossing()), /non-scaling-stroke/);
+});
+
+// Small fit zoom must not turn local crossing clearance into a broad eraser.
+test('crossing clearance stays inside a six-unit bridge at all zoom levels', () => {
+  for (const zoom of [.25, .55, 1, 2]) {
+    const svg = app.relationMapSvg(crossing(), {interactive:true, zoom});
+    assert.match(svg, /mask-type:luminance/);
+    for (const m of svg.matchAll(/<circle[^>]+ r="([^"]+)"/g)) assert.ok(Number(m[1]) <= 4);
+    assert.match(svg, /class="rm-marker-arrow-blue"[^>]+><path d="M0,0 L10,5 L0,10 z"/);
+  }
+});
+test('off-center treatment endpoints lie on the actual ellipse outline', () => {
+  const map = {nodes:[
+    {id:'t',type:'treatment',label:'治療',x:500,y:100},
+    {id:'d',type:'disease',label:'疾患',x:0,y:220}
+  ],edges:[{id:'e',source:'t',target:'d',relation:'treats'}]};
+  const r = app.rmRouteEdges(map).routes[0], n = app.rmRect(map.nodes[0]);
+  const [x,y] = r.pts[0];
+  assert.ok(Math.abs(((x-n.cx)/(n.w/2))**2+((y-n.cy)/(n.h/2))**2-1) < .001);
 });

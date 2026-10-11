@@ -93,6 +93,8 @@ const {app}=require('../server');
    await page.locator('#source-text').fill('【架空の画面検証用記録】\n体温36.8℃、脈拍72回/分。\n「昨夜はよく眠れました」と話す。');
    // Fresh browser contexts may load the fictional chart saved by an earlier
    // width from the same temporary server. Exercise the real replacement dialog.
+   assert.equal(await page.locator('#nursing-auto-check').count(),0);
+   assert.equal(await page.locator('a[href="clinical-knowledge/checks.html"]').count(),0);
    const existingCards=await page.evaluate(()=>getCurrentPatient().items.length);
    await page.locator('#btn-start-classify').click();
    if(existingCards>0){
@@ -123,7 +125,7 @@ const {app}=require('../server');
    await page.evaluate(()=>{getCurrentPatient().sourceText+='\n架空の外部更新';});
    await page.locator('#nursing-source-next').click();
    assert.equal(await page.locator('#nursing-original-text mark').count(),0);
-   assert.match(await page.locator('#nursing-auto-check-status').innerText(),/更新されたため表示を更新/);
+   assert.match(await page.locator('#nursing-manual-review-status').innerText(),/更新されたため表示を更新/);
    await page.screenshot({path:`browser-artifacts/${width}-source-navigation.png`});
    const boardHistory = await page.evaluate(()=>{
     const cp=getCurrentPatient(),card=cp.items.find(i=>i.id==='source-nav-smoke');
@@ -202,7 +204,7 @@ const {app}=require('../server');
       const vertical = host.querySelector('[data-link-id="vertical"] .rm-link-line');
       const mask = vertical.getAttribute('mask');
       const width = getComputedStyle(line).strokeWidth;
-      const marker = host.querySelector('.rm-marker-tee-blue');
+      const marker = host.querySelector('.rm-marker-arrow-blue');
       line.parentElement.classList.add('is-selected');
       const selectedId = getComputedStyle(line).markerEnd.match(/#([^)"]+)/)[1];
       const selectedMarker = host.querySelector(`[id="${selectedId}"]`);
@@ -210,7 +212,7 @@ const {app}=require('../server');
         vectorEffect:getComputedStyle(line).vectorEffect,
         endpointSize:marker.markerWidth.baseVal.value * zoom,
         markerOverflow:getComputedStyle(marker).overflow,
-        selectedMarker:!!selectedMarker && selectedMarker.classList.contains('rm-marker-tee-sel')});
+        selectedMarker:!!selectedMarker && selectedMarker.classList.contains('rm-marker-arrow-treat-sel')});
       if (reverse) map.edges.reverse();
     }
     if (originalTheme === undefined) delete document.documentElement.dataset.theme;
@@ -386,7 +388,7 @@ const {app}=require('../server');
    assert.equal(await page.evaluate(()=>JSON.stringify(records)),original);
    await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
    await page.waitForFunction(()=>typeof createNewPatientPage==='function');
-   for (const {id,text} of require('../tests/public-case-helpers').loadPublicCases()) {
+   for (const {id,text} of [...require('../tests/public-case-helpers').loadPublicCases(), {id:'gastric-arrows',text:fs.readFileSync('tests/fixtures/relation-map/gastric_postop.txt','utf8')}]) {
     await page.evaluate(id=>createNewPatientPage('公開架空検証 '+id),id);
     await page.locator('#tab-so-board').click();
     await page.locator('#source-text').fill(text);
@@ -403,6 +405,27 @@ const {app}=require('../server');
     });
     assert.ok(result.items>0&&result.plans>0&&result.nodes>0,`${width}px ${id}: empty workflow`);
     assert.ok(result.planned&&result.refs&&result.linked,`${width}px ${id}: state or evidence ownership`);
+    if(id==='gastric-arrows') {
+     for (const zoom of [.55,1,2]) {
+      await page.evaluate(zoom=>{
+       const cp=getCurrentPatient(),map=cp.relationMap;
+       const edge=map.edges.find(e=>e.relation==='treats' && map.nodes.find(n=>n.id===e.target)?.type==='disease');
+       if(!edge)throw Error('Missing gastric treatment target');
+       const target=map.nodes.find(n=>n.id===edge.target),source=map.nodes.find(n=>n.id===edge.source);
+       rmState.zoom=zoom;renderRelationMap();
+       const wrap=document.getElementById('rm-canvas-wrap');
+       wrap.scrollLeft=Math.max(0,(Math.min(source.x,target.x)-rmBounds(map).x)*zoom-20);
+       wrap.scrollTop=Math.max(0,(Math.min(source.y,target.y)-rmBounds(map).y)*zoom-20);
+       const svg=wrap.querySelector('svg');
+       const line=svg.querySelector(`[data-link-id="${edge.id}"] .rm-link-line`);
+       const id=line.getAttribute('marker-end').match(/#([^)]*)/)[1];
+       const marker=svg.querySelector(`[id="${id}"]`);
+       if(marker.querySelector('path').getAttribute('d')!=='M0,0 L10,5 L0,10 z')throw Error('Treatment endpoint is not an arrow');
+       if(Math.abs(marker.markerWidth.baseVal.value*zoom-14)>.01)throw Error('Treatment arrow shrinks with zoom');
+      },zoom);
+      await page.locator('#rm-canvas-wrap').screenshot({path:`browser-artifacts/${width}-gastric-arrows-${zoom}.png`});
+     }
+    }
     if(id==='heart-failure') await page.screenshot({path:`browser-artifacts/${width}-public-long-relation.png`});
     console.log(`PASS ${width}px public ${id}: UI classification, assessment, plans, labs and relation map`);
    }
@@ -436,7 +459,7 @@ const {app}=require('../server');
    await context.close();
   }
   const head=process.env.GITHUB_SHA || require('node:child_process').execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
-  fs.writeFileSync('browser-artifacts/validation-evidence.json',JSON.stringify({schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:7,uncaughtErrors:0,ocrTransport:'intercepted',liveOcrVerified:false},null,2)+'\n');
+  fs.writeFileSync('browser-artifacts/validation-evidence.json',JSON.stringify({schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:8,uncaughtErrors:0,ocrTransport:'intercepted',liveOcrVerified:false},null,2)+'\n');
  } finally {
   if(browser)await browser.close();
   await new Promise(resolve=>server.close(resolve));

@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-11.desktop-arrows'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-11.visible-arrows2'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -947,6 +947,22 @@
       });
       routes.forEach(r => { if (r.yc != null) r.pts = [[r.sx, r.sy], [r.xS, r.sy], [r.xS, r.yc], [r.xT, r.yc], [r.xT, r.ty], [r.tx, r.ty]].filter((p, k, a) => !k || Math.abs(p[0] - a[k - 1][0]) + Math.abs(p[1] - a[k - 1][1]) > 0.5); });
 
+      // Anchor ellipse endpoints to their outline rather than the enclosing rectangle.
+      routes.forEach(r => {
+        for (const [id, k, other] of [[r.edge.source, 0, 1], [r.edge.target, r.pts.length - 1, r.pts.length - 2]]) {
+          const n = byId.get(id), rect = rectById.get(id);
+          if (!n || rmType(n).shape !== 'ellipse') continue;
+          const p = r.pts[k], q = r.pts[other];
+          if (Math.abs(p[1] - q[1]) < .5) {
+            const dy = (p[1] - rect.cy) / (rect.h / 2);
+            p[0] = rect.cx + (q[0] >= rect.cx ? 1 : -1) * rect.w / 2 * Math.sqrt(Math.max(0, 1 - dy * dy));
+          } else if (Math.abs(p[0] - q[0]) < .5) {
+            const dx = (p[0] - rect.cx) / (rect.w / 2);
+            p[1] = rect.cy + (q[1] >= rect.cy ? 1 : -1) * rect.h / 2 * Math.sqrt(Math.max(0, 1 - dx * dx));
+          }
+        }
+      });
+
       const verticals = [];
       routes.forEach((r, ri) => { for (let k = 0; k < r.pts.length - 1; k++) { const [x1, y1] = r.pts[k], [x2, y2] = r.pts[k + 1]; if (Math.abs(x1 - x2) < 0.5) verticals.push({ ri, x: x1, a: Math.min(y1, y2), b: Math.max(y1, y2) }); } });
 
@@ -1038,8 +1054,9 @@
           Math.abs(s.x1 - s.x2) < 0.5 && Math.abs(s.x1 - c.x) < 0.5 &&
           c.y > Math.min(s.y1, s.y2) && c.y < Math.max(s.y1, s.y2)));
         const maskId = `${maskPrefix}-${routeIndex}`;
-        const clearance = screen ? Math.max(4, 4 / zoom) : 4;
-        const mask = cuts.length ? `<defs><mask id="${maskId}" maskUnits="userSpaceOnUse" x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}"><rect x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}" fill="white"/>${cuts.map(c => `<circle cx="${c.x}" cy="${c.y}" r="${clearance}" fill="black"/>`).join('')}</mask></defs>` : '';
+        // Keep small-scale crossing cuts inside the bridge; oversized cuts erase nearby lines.
+        const clearance = 4;
+        const mask = cuts.length ? `<defs><mask id="${maskId}" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" style="mask-type:luminance" x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}"><rect x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}" fill="white"/>${cuts.map(c => `<circle cx="${c.x}" cy="${c.y}" r="${clearance}" fill="black"/>`).join('')}</mask></defs>` : '';
         const e = r.edge;
         const d = rmRoutePath(r);
         const treat = e.relation === 'treats';
@@ -1049,7 +1066,7 @@
         const tl = treat && r.pts && r.pts.length > 1 ? `<text class="rm-treat-label" x="${Math.round((r.pts[0][0] + r.pts[1][0]) / 2) + 6}" y="${Math.round((r.pts[0][1] + r.pts[1][1]) / 2) + 3}" font-size="10" fill="#2563EB" font-weight="700">治療</text>` : '';
         return `${mask}<g class="rm-link${treat ? ' is-treat' : ''}${sel ? ' is-selected' : ''}" data-link-id="${escapeHtml(e.id)}">
           ${interactive ? `<path class="rm-link-hit" d="${d}" fill="none" stroke="transparent" stroke-width="20"/>` : ''}
-          <path class="rm-link-line"${cuts.length ? ` mask="url(#${maskId})"` : ''} d="${d}" fill="none" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#3F3B35'}" stroke-width="${treat ? 3 : 2.4}"${screen ? ' vector-effect="non-scaling-stroke"' : ''}${e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} marker-end="url(#${markerPrefix}-${treat ? 'tee-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"/>${tl}
+          <path class="rm-link-line"${cuts.length ? ` mask="url(#${maskId})"` : ''} d="${d}" fill="none" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#3F3B35'}" stroke-width="${treat ? 3 : 2.4}"${screen ? ' vector-effect="non-scaling-stroke"' : ''}${e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} marker-end="url(#${markerPrefix}-${treat ? 'arrow-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"/>${tl}
         </g>`;
       }).join('');
     }
@@ -1094,9 +1111,9 @@
       const markerScale = screen ? 1 / zoom : 1;
 
       const font = "'Noto Sans JP','Hiragino Kaku Gothic ProN','Hiragino Sans','Yu Gothic UI','Yu Gothic','Meiryo',sans-serif";
-      const marker = (kind, color, tee = false) => `<marker id="${markerPrefix}-${kind}" class="rm-marker-${kind}" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="${(tee ? 14 : 12) * markerScale}" markerHeight="${(tee ? 14 : 12) * markerScale}" overflow="visible" orient="auto-start-reverse">${tee ? `<path d="M8,0 L8,10" stroke="${color}" stroke-width="2.2" fill="none"/>` : `<path d="M0,0 L10,5 L0,10 z" fill="${color}"/>`}</marker>`;
-      return `<svg xmlns="http://www.w3.org/2000/svg" class="rm-svg" data-marker-prefix="${markerPrefix}" style="--rm-arrow-selected: url(#${markerPrefix}-arrow-sel); --rm-tee-selected: url(#${markerPrefix}-tee-sel)" viewBox="${b.x} ${b.y} ${b.w} ${b.h}" width="${Math.round(b.w * zoom)}" height="${Math.round(b.h * zoom)}" font-family="${escapeHtml(font)}" role="img" aria-label="${escapeHtml(title || '関連図')}">
-        <defs>${marker('arrow', '#3F3B35')}${marker('arrow-sel', '#C2410C')}${marker('arrow-pred', RM_PRED_LINE)}${marker('tee-blue', '#2563EB', true)}${marker('tee-sel', '#C2410C', true)}</defs>
+      const marker = (kind, color, treatment = false) => `<marker id="${markerPrefix}-${kind}" class="rm-marker-${kind}" viewBox="0 0 10 10" refX="11" refY="5" markerUnits="userSpaceOnUse" markerWidth="${(treatment ? 14 : 12) * markerScale}" markerHeight="${(treatment ? 14 : 12) * markerScale}" overflow="visible" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${color}"/></marker>`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" class="rm-svg" data-marker-prefix="${markerPrefix}" style="--rm-arrow-selected: url(#${markerPrefix}-arrow-sel); --rm-arrow-treat-selected: url(#${markerPrefix}-arrow-treat-sel)" viewBox="${b.x} ${b.y} ${b.w} ${b.h}" width="${Math.round(b.w * zoom)}" height="${Math.round(b.h * zoom)}" font-family="${escapeHtml(font)}" role="img" aria-label="${escapeHtml(title || '関連図')}">
+        <defs>${marker('arrow', '#3F3B35')}${marker('arrow-sel', '#C2410C')}${marker('arrow-pred', RM_PRED_LINE)}${marker('arrow-blue', '#2563EB', true)}${marker('arrow-treat-sel', '#C2410C', true)}</defs>
         <rect class="rm-bg${interactive ? ' is-paper' : ''}" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${interactive ? RM_PAPER : '#FFFFFF'}"/>
         <g class="rm-headers">${rmHeadersSvg(map, b)}</g>
         <g class="rm-links">${rmEdgesSvg(map, { interactive, screen, markerPrefix, zoom })}</g>
@@ -1116,7 +1133,7 @@
         `<span class="rm-legend-item">${sw('nursing_problem')}看護問題（#＝優先順位）</span>`,
         `<span class="rm-legend-item">${line('#3F3B35')}原因 → 結果</span>`,
 
-        `<span class="rm-legend-item"><svg width="34" height="10" aria-hidden="true"><line x1="0" y1="5" x2="31" y2="5" stroke="#2563EB" stroke-width="1.6"/><line x1="32" y1="0" x2="32" y2="10" stroke="#2563EB" stroke-width="2.4"/></svg>治療 ┤ 治療の対象（抑える・和らげる）</span>`,
+        `<span class="rm-legend-item">${line('#2563EB')}治療 → 治療の対象（抑える・和らげる）</span>`,
         `<span class="rm-legend-item">${line('#3F3B35', true)}予測・可能性（破線）</span>`
       ].join('');
     }

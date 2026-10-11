@@ -1020,7 +1020,7 @@
     html[data-theme="dark"] .rm-canvas-wrap .rm-node[data-kind="patient_fact"] .rm-box { fill: #1F2A1F; stroke: #9DBB94; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-link-line[stroke-dasharray] { stroke: #A39C8F; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow-pred path { fill: #A39C8F; }
-    html[data-theme="dark"] .rm-canvas-wrap .rm-marker-tee-blue path { stroke: #8DB3EA; }
+    html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow-blue path { fill: #8DB3EA; }
     html[data-theme="dark"] .rm-canvas-wrap .rm-box { filter: none; }
     html[data-theme="dark"] .rm-ctx-item.rm-danger, html[data-theme="dark"] .rm-more-item.rm-danger { color: #F7A28F; }
     .rm-group { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
@@ -1292,9 +1292,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 /* Keep treatment endpoints visible and preserve their meaning when selected. */
-.rm-canvas-wrap .rm-link.is-treat.is-selected .rm-link-line { marker-end: var(--rm-tee-selected); }
+.rm-canvas-wrap .rm-link.is-treat.is-selected .rm-link-line { marker-end: var(--rm-arrow-treat-selected); }
 html[data-theme="dark"] .rm-canvas-wrap .rm-link.is-treat.is-selected .rm-link-line { stroke: #F59E6B; }
-html[data-theme="dark"] .rm-canvas-wrap .rm-marker-tee-sel path { stroke: #F59E6B; }
+html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow-treat-sel path { fill: #F59E6B; }
 html[data-theme="dark"] .rm-canvas-wrap .rm-treat-label { fill: #8DB3EA; }
 
 /* Desktop reading scale; mobile and print keep their existing layout. */
