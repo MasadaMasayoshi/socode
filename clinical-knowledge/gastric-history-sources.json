@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-10-12",
+  "scope": "Generic source checks for recorded gastric diagnostic history; no patient data and no independent clinical approval.",
+  "sources": [
+    {
+      "id": "ncc-gastric-symptoms",
+      "title": "胃がんについて：3．症状",
+      "publisher": "国立がん研究センター がん情報サービス",
+      "url": "https://ganjoho.jp/public/cancer/stomach/about.html",
+      "matchedContent": "Stomach discomfort, nausea and anemia can occur with gastric cancer. These findings are nonspecific; they do not establish this patient’s symptom or anemia mechanism.",
+      "verification": "source-text-matched"
+    },
+    {
+      "id": "ncc-gastric-diagnosis",
+      "title": "胃がん 検査：内視鏡検査、生検・病理検査",
+      "publisher": "国立がん研究センター がん情報サービス",
+      "url": "https://ganjoho.jp/public/cancer/stomach/diagnosis.html",
+      "matchedContent": "Endoscopy identifies lesions; histopathology establishes cancer. Do not add an unrecorded biopsy or equate finding a tumor with histologic confirmation.",
+      "verification": "source-text-matched"
+    },
+    {
+      "id": "nci-gastric-symptoms",
+      "title": "Stomach Cancer Symptoms",
+      "publisher": "National Cancer Institute",
+      "url": "https://www.cancer.gov/types/stomach/symptoms",
+      "matchedContent": "Indigestion, stomach discomfort and nausea are possible symptoms, also caused by other conditions.",
+      "verification": "source-text-matched"
+    },
+    {
+      "id": "nci-gastric-diagnosis",
+      "title": "Stomach Cancer Diagnosis",
+      "publisher": "National Cancer Institute",
+      "url": "https://www.cancer.gov/types/stomach/diagnosis",
+      "matchedContent": "Anemia evaluation and upper endoscopy with biopsy are part of diagnostic assessment; individual test results must come from the record.",
+      "verification": "source-text-matched"
+    }
+  ],
+  "implementation": {
+    "file": "js/15-relation-map.js",
+    "rule": "Connect symptoms → screening anemia → examination finding only when explicitly ordered within the same dated medical-history passage. Use related_to with a visible 経過 label; examination → recorded diagnosis uses supports.",
+    "limitations": "Neither temporal order nor a nonspecific symptom proves causation. Do not infer tumor bleeding, pathology, a specific mechanism, or that discomfort prompted screening. Distinct findings and all source evidence remain preserved."
+  }
+}

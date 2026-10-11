@@ -102,3 +102,19 @@ test('Examination findings and complication fears retain their recorded context'
  const other=app.buildRelationMapFromRecord(patient('診断名：胃がん\n「検査の結果がどうなるのか。怖いね」と話す。'));
  const otherWords=other.nodes.find(n=>/不安の言動/.test(n.label));assert.match(otherWords.label,/検査の結果がどうなるのか/);assert.doesNotMatch(otherWords.label,/麻酔科|手術の合併症/);
 });
+
+test('Recorded diagnostic history connects symptoms, screening and examination without causal claims', () => {
+ const text='診断名：胃がん\n【メディカルヒストリー】がん家系なので検診を欠かさない。半年前から胃のむかつき感があった。2か月前の会社の検診で貧血を指摘された。精密検査で胃底部に25mm大のがんを指摘された。\n【胃カメラ】胃底部に25mm大の腫瘍あり。\n胃全摘術を施行。\n術後1日目：創部痛 NRS2。';
+ const cp=patient(text),map=app.buildRelationMapFromRecord(cp),symptom=map.nodes.find(n=>/半年前/.test(n.label)),screen=map.nodes.find(n=>/2か月前/.test(n.label)),tumor=map.nodes.find(n=>/腫瘍.*25mm/.test(n.label)),disease=map.nodes.find(n=>n.type==='disease');
+ assert.match(symptom.label,/診断前の症状/);assert.ok(linked(map,symptom,screen,'related_to'));assert.ok(linked(map,screen,tumor,'related_to'));assert.ok(linked(map,tumor,disease,'supports'));
+ const history=map.edges.filter(e=>/^診断までの経過：/.test(e.evidence));assert.equal(history.length,2);history.forEach(e=>{assert.equal(e.relation,'related_to');assert.match(e.evidence,/ganjoho.jp/);});
+ assert.ok(!linked(map,symptom,disease,'causes'));assert.ok(!map.nodes.some(n=>/胃がんからの出血/.test(n.label)));assert.match(app.relationMapSvg(map,{}),/>経過<\/text>/);
+ const pain=map.nodes.find(n=>n.type==='nursing_problem'&&/痛/.test(n.label)),sub=app.rmProblemSubmap(map,pain.id);[symptom,screen,tumor].forEach(n=>assert.ok(sub.nodes.some(x=>x.id===n.id)));
+ const restored=app.normalizeRelationMap(JSON.parse(JSON.stringify(map)));assert.equal(restored.nodes.find(n=>n.id===tumor.id).evidence,tumor.evidence);assert.equal(restored.edges.find(e=>e.id===history[0].id).evidence,history[0].evidence);
+});
+
+test('No diagnostic sequence is invented from unrelated symptoms or negative screening findings', () => {
+ for(const source of ['診断名：胃がん\n半年前から胃のむかつきがある。\n2か月前の会社の検診で貧血。\n【胃カメラ】胃底部25mmの腫瘍。','診断名：胃がん\n【メディカルヒストリー】半年前から胃のむかつきなし。2か月前の検診で貧血なし。精密検査で胃底部25mmの腫瘍。']) {
+  const map=app.buildRelationMapFromRecord(patient(source));assert.equal(map.edges.filter(e=>/^診断までの経過：/.test(e.evidence)).length,0);
+ }
+});
