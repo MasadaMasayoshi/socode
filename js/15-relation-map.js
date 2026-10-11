@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-11.usability-context13'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-11.usability-context14'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -126,7 +126,7 @@
     const RM_MAX_NODES = 70, RM_MAX_EDGES = 160, RM_TEXT_MAX = 120, RM_UNDO_MAX = 40;
     const RM_BRIDGE_R = 6;
 
-    const RM_PAPER = '#FFFFFF';
+    const RM_PAPER = '#F5F3EE';
 
     const RM_PRED_LINE = '#716B62', RM_PRED_TEXT = '#6B655C';
 

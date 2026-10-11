@@ -652,7 +652,7 @@ test('関連図：矢印の向きを逆にする（並べ直して左向きを�
   const svg = app.relationMapSvg(caseMap('gastric_postop'), {});
   assert.ok(!/<text class="rm-text"(?![^>]*text-anchor="middle")/.test(svg), '文字はまん中ぞろえ');
   assert.match(src, /<div class="rm-stage">\$\{focusSub \? relationMapSvg\(focusSub/);
-  assert.match(css, /\.rm-stage \{ display: inline-block; padding: 24px;/);
+  assert.match(css, /\.rm-stage \{ display: inline-block; padding: min\(28vh, 220px\) min\(28vw, 320px\);/);
   assert.ok(html.indexOf('id="tab-careplan"') < html.indexOf('id="tab-labs"'), '看護計画のタブが先');
   assert.ok(html.indexOf('id="tab-labs"') < html.indexOf('id="tab-relation"'));
 });
@@ -671,7 +671,7 @@ test('関連図：操作は 作る｜編集｜見る・出す にまとめ、拡
 
   const map = caseMap('gastric_postop');
   const live = app.relationMapSvg(map, { interactive: true });
-  assert.match(live, /<rect class="rm-bg is-paper"[^>]*fill="#FFFFFF"/);
+  assert.match(live, /<rect class="rm-bg is-paper"[^>]*fill="#F5F3EE"/);
   assert.match(app.relationMapSvg(map, {}), /<rect class="rm-bg"[^>]*fill="#FFFFFF"/, '印刷・画像は白');
   const pe = map.edges.find(e => e.predicted);
   assert.ok(pe);

@@ -593,7 +593,7 @@ const {app}=require('../server');
      assert.ok(problems.length>=3);
      const background=await page.locator('#rm-canvas-wrap svg').evaluate(el=>({paper:getComputedStyle(el.querySelector('.rm-bg')).fill,canvas:getComputedStyle(el.closest('.rm-canvas-wrap')).backgroundColor}));
      assert.equal(background.paper,background.canvas);
-     assert.equal(background.paper,'rgb(255, 255, 255)');
+     assert.equal(background.paper,'rgb(245, 243, 238)');
      // Reproduce direct node selection, rather than testing only the problem menu.
      const problemNode=page.locator(`#rm-canvas-wrap .rm-node[data-node-id="${problems[0]}"]`);
      await problemNode.scrollIntoViewIfNeeded();
@@ -633,6 +633,20 @@ const {app}=require('../server');
       return map.edges.filter(e=>ids.has(e.target)&&map.nodes.find(n=>n.id===e.source)?.type!=='nursing_problem').every(e=>ids.has(e.source))&&map.edges.filter(e=>ids.has(e.source)&&e.relation==='treats'&&['disease','symptom','pathophysiology'].includes(map.nodes.find(n=>n.id===e.target)?.type)).every(e=>ids.has(e.target));
      });
      assert.equal(closure,true,'Focused diagrams preserve incoming evidence, including the pre-treatment flow');
+     for(const theme of ['light','dark'])for(const fullscreen of [false,true]){
+      const layers=await page.evaluate(({theme,fullscreen})=>{
+       document.documentElement.setAttribute('data-theme',theme);rmSetFullscreen(fullscreen);
+       const wrap=document.getElementById('rm-canvas-wrap'),stage=wrap.querySelector('.rm-stage'),svg=wrap.querySelector('svg');
+       const w=wrap.getBoundingClientRect(),s=stage.getBoundingClientRect(),g=svg.getBoundingClientRect();
+       return {canvas:getComputedStyle(wrap).backgroundColor,stage:getComputedStyle(stage).backgroundColor,svg:getComputedStyle(svg).backgroundColor,paper:getComputedStyle(svg.querySelector('.rm-bg')).fill,outline:getComputedStyle(svg).outlineStyle,shadow:getComputedStyle(wrap).boxShadow,
+        margins:[g.left-s.left,g.top-s.top,s.right-g.right,s.bottom-g.bottom],scrollable:wrap.scrollWidth>w.width&&wrap.scrollHeight>w.height};
+      },{theme,fullscreen});
+      assert.equal(layers.stage,layers.canvas);assert.equal(layers.svg,layers.canvas);assert.equal(layers.paper,layers.canvas);
+      assert.equal(layers.outline,'none');assert.equal(layers.shadow,'none');
+      assert.ok(layers.margins.every(value=>value>=100),'Keep usable empty space on all four sides');
+      assert.equal(layers.scrollable,true,'Even a filtered map must pan in both directions');
+     }
+     await page.evaluate(()=>{rmSetFullscreen(false);document.documentElement.setAttribute('data-theme','light');});
      await page.locator('#rm-canvas-wrap').screenshot({path:`browser-artifacts/${width}-selected-problems.png`});
      await page.evaluate(()=>rmSavePng());
      await page.waitForFunction(()=>window.__exports.some(e=>e.type==='image/png'));
@@ -640,6 +654,19 @@ const {app}=require('../server');
      await page.locator('#rm-problems [data-rm-action="focus-all"]').click();
      if(width===1440){
       const wrap=page.locator('#rm-canvas-wrap');
+      for(const side of ['left','right','top','bottom']){
+       const before=await wrap.evaluate((el,side)=>{
+        const style=getComputedStyle(el.querySelector('.rm-stage'));
+        el.scrollLeft=side==='left'?0:side==='right'?el.scrollWidth-el.clientWidth:Number.parseFloat(style.paddingLeft);
+        el.scrollTop=side==='top'?0:side==='bottom'?el.scrollHeight-el.clientHeight:Number.parseFloat(style.paddingTop);
+        return {left:el.scrollLeft,top:el.scrollTop};
+       },side);
+       const area=await wrap.boundingBox(),x=side==='right'?area.x+area.width-12:area.x+12,y=side==='bottom'?area.y+area.height-12:area.y+12;
+       const dx=side==='left'?-35:side==='right'?35:0,dy=side==='top'?-35:side==='bottom'?35:0;
+       await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+dx,y+dy,{steps:3});await page.mouse.up();
+       const after=await wrap.evaluate(el=>({left:el.scrollLeft,top:el.scrollTop}));
+       assert.ok(side==='left'?after.left>before.left:side==='right'?after.left<before.left:side==='top'?after.top>before.top:after.top<before.top,`${side} margin accepts dragging`);
+      }
       await wrap.evaluate(el=>{el.scrollLeft=0;el.scrollTop=0;});
       const area=await wrap.boundingBox();
       await page.mouse.move(area.x+12,area.y+12);
