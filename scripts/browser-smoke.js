@@ -413,11 +413,11 @@ const {app}=require('../server');
 
    await page.locator('#tab-assessment').click();
    await page.evaluate(()=>selectAssessmentNeed(1));
-   await page.locator('[data-need-id="1"]').focus();
+   await page.locator('#assessment-need-nav [data-need-id="1"]').focus();
    for (const [key,id] of [['ArrowRight','2'],['End','14'],['Home','1'],['ArrowLeft','1']]) {
     await page.keyboard.press(key);
     assert.equal(await page.evaluate(()=>document.activeElement.dataset.needId),id);
-    assert.equal(await page.locator(`[data-need-id="${id}"]`).getAttribute('aria-pressed'),'true');
+    assert.equal(await page.locator(`#assessment-need-nav [data-need-id="${id}"]`).getAttribute('aria-pressed'),'true');
    }
    await page.locator('#tab-assessment').focus();
    await page.keyboard.press('ArrowRight');
