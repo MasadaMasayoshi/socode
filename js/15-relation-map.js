@@ -1387,14 +1387,21 @@
       const nodes = new Map();
       const edges = [];
       const byItem = new Map();
+      const sourceHistoryNodes = new WeakSet();
       const N = (key, type, label, o = {}) => {
         if (nodes.has(key)) return nodes.get(key);
         const srcItems = (o.items || []).filter(Boolean);
-        if (!o.distinctEvidence && srcItems.length === 1 && ['patient_fact', 'symptom'].includes(type) && byItem.has(srcItems[0])) { const ex = byItem.get(srcItems[0]); nodes.set(key, ex); return ex; }
+        if (!o.distinctEvidence && srcItems.length === 1 && ['patient_fact', 'symptom'].includes(type) && byItem.has(srcItems[0])) {
+          const ex = byItem.get(srcItems[0]);
+          // Reuse source background without replacing an established clinical model's wording.
+          if (sourceHistoryNodes.has(ex)) { ex.label = rmShorten(label, o.max || 44); sourceHistoryNodes.delete(ex); }
+          nodes.set(key, ex); return ex;
+        }
         const n = { id: rmNewId('n'), key, type, label: rmShorten(label, o.max || 44), evidence: o.evidence || '', observed: o.observed !== false, source: o.source || 'record', priority: 0, x: 0, y: 0, itemIds: (o.items || []).map(i => i && i.id).filter(Boolean).slice(0, 10), cat: o.cat };
         if (type === 'nursing_problem') { const note = o.note != null ? o.note : rmPlainNote(label); if (note) n.note = rmShorten(note, RM_NOTE_MAX); }
         const ph = rmPhaseOfItems(srcItems);
         if (ph !== null) n.phase = ph;
+        if (o.sourceHistory) sourceHistoryNodes.add(n);
         nodes.set(key, n);
         if (srcItems.length === 1 && ['patient_fact', 'symptom'].includes(type)) byItem.set(srcItems[0], n);
         return n;
@@ -1535,7 +1542,7 @@
           const key = clinicalCardDuplicateKey(it.text, it.timestamp);
           if (seen.has(key)) return;
           seen.add(key);
-          const finding = N(`dx_record_${index}`, 'patient_fact', rmShorten(it.text, 90), { items: [it], evidence: it.text, max: 90, distinctEvidence: true });
+          const finding = N(`dx_record_${index}`, 'patient_fact', rmShorten(it.text, 90), { items: [it], evidence: it.text, max: 90, distinctEvidence: true, sourceHistory: true });
           E(finding, disease, 'supports', { evidence: '原文に記録された疾患の所見・診断までの経過（発症原因とは断定しない）' });
         });
       }
