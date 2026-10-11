@@ -990,7 +990,7 @@
       if (typeof sufficiencyPhaseHtml !== 'function') return '';
       const phases = sufficiencyUiPhases(cp);
       return HENDERSON_NEEDS.filter(need => selectedNeed === 'all' || need.id === Number(selectedNeed)).map(need =>
-        `<section class="suf-status-need" data-need-id="${need.id}"><h4>${escapeHtml(need.name)}</h4><div class="suf-status-group">${phases.map(phase => sufficiencyPhaseHtml(cp, need.id, phase.key, { inline: true })).join('')}</div>${sufficiencyReasonHtml(cp, need.id)}</section>`
+        `<section class="suf-status-need"><h4>${escapeHtml(need.name)}</h4><div class="suf-status-group">${phases.map(phase => sufficiencyPhaseHtml(cp, need.id, phase.key, { inline: true })).join('')}</div>${sufficiencyReasonHtml(cp, need.id)}</section>`
       ).join('');
     }
 
