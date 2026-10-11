@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-12.usability-context21'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-12.usability-context23'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -355,6 +355,37 @@
       renderSoBoard();
     };
 
+    let selectedCorrectionEditing = null;
+    window.openSelectedCorrectionRequest = function() {
+      const cp = getCurrentPatient();
+      const cards = (cp.items || []).filter(i => selectedCardIds.has(i.id) && !i.deleted);
+      if (!cards.length) return showToast('先に情報カードを選択してください', 'warn');
+      selectedCorrectionEditing = { patientId: cp.id, ids: cards.map(i => i.id), before: cards.map(i => i.requestedCorrection || '') };
+      const notes = [...new Set(selectedCorrectionEditing.before)];
+      document.getElementById('card-correction-text').value = notes.length === 1 ? notes[0] : '';
+      document.getElementById('card-correction-description').textContent = `選択した${cards.length}枚に共通の依頼を保存し、書き出しに含めます。保存済みの依頼は置き換わります。空欄で保存すると依頼を取り消します。`;
+      document.getElementById('modal-card-correction').classList.remove('hidden');
+      setTimeout(() => document.getElementById('card-correction-text').focus(), 30);
+    };
+    window.closeSelectedCorrectionRequest = function() {
+      selectedCorrectionEditing = null;
+      document.getElementById('modal-card-correction').classList.add('hidden');
+    };
+    window.saveSelectedCorrectionRequest = function() {
+      const cp = getCurrentPatient(), editing = selectedCorrectionEditing;
+      if (!editing) return;
+      const cards = editing.ids.map(id => (cp.items || []).find(i => i.id === id && !i.deleted));
+      if (cp.id !== editing.patientId || cards.some((i, index) => !i || (i.requestedCorrection || '') !== editing.before[index])) {
+        closeSelectedCorrectionRequest();
+        return showToast('患者またはカードの依頼が変わりました。選択し直してください', 'warn');
+      }
+      const note = document.getElementById('card-correction-text').value.trim();
+      cards.forEach(i => { if (note) i.requestedCorrection = note; else delete i.requestedCorrection; touchItem(i); });
+      closeSelectedCorrectionRequest();
+      saveDataAndSync();
+      showToast(note ? `${cards.length}枚に修正依頼を追加しました` : '追加した修正依頼を取り消しました', 'success');
+    };
+
     window.selectAllUntagged = function() {
       const cp = getCurrentPatient();
       const ids = (cp.items || []).filter(isUntaggedItem).map(i => i.id);
@@ -436,8 +467,7 @@
     const boardSearchInput = document.getElementById('board-search');
     if (boardSearchInput) boardSearchInput.addEventListener('input', e => { boardSearchTerm = e.target.value.trim(); renderSoBoard(); });
 
-    const boardActionsMenu = document.getElementById('board-actions');
-    if (boardActionsMenu) {
+    [document.getElementById('board-actions'), document.getElementById('cp-actions')].filter(Boolean).forEach(boardActionsMenu => {
       boardActionsMenu.addEventListener('click', e => {
         if (e.target.closest('button')) boardActionsMenu.open = false;
       });
@@ -451,7 +481,7 @@
         boardActionsMenu.open = false;
         boardActionsMenu.querySelector('summary')?.focus();
       });
-    }
+    });
 
     function searchBoardByWord(term) {
       term = String(term || '').replace(/\s+/g, ' ').trim();
@@ -627,6 +657,7 @@
         id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
         editLog: [{ at: new Date().toISOString(), kind: 'merge', actor: 'user', from: sourceTexts.slice(), sourceCards: JSON.parse(JSON.stringify(mergeSourceItems)), reason: document.getElementById('merge-reason').value.trim() || null }],
         text: mergedText,
+        requestedCorrection: [...new Set(mergeSourceItems.map(i => i.requestedCorrection).filter(Boolean))].join('\n'),
         timestamp: timestampCandidate || '日時不明',
         type: finalType,
         hendersonIds: finalHendersonIds,
@@ -1021,7 +1052,7 @@
       cp.items.forEach(i => { if (!i.assessmentCols || typeof inferAssessmentColumn !== 'function') return; const col = inferAssessmentColumn(i.fieldLabel, i.timestamp, null); if (!col) return; Object.keys(i.assessmentCols).forEach(h => { if (i.assessmentCols[h] === 'unclassified') i.assessmentCols[h] = col; }); });
       const activeItems = cp.items.filter(i => i.type !== 'unnecessary');
       const selectedNeed = getSelectedAssessmentNeed();
-      const statusHtml = renderAssessmentStatusHtml(cp, selectedNeed);
+      let unclassifiedHtml = '';
       const frag = document.createDocumentFragment();
 
       const ownAsm = typeof renderMyAssessmentRowHtml === 'function';
@@ -1059,6 +1090,10 @@
           }).join('');
         };
 
+        if (selectedNeed === 'all' || Number(selectedNeed) === need.id) {
+          const unc = matching.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === 'unclassified');
+          if (unc.length || selectedNeed !== 'all') unclassifiedHtml += `<section class="asm-aux asm-aux-unc${unc.length ? '' : ' is-empty'}" data-need-id="${need.id}" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'unclassified')"><div class="asm-aux-title">${selectedNeed === 'all' ? escapeHtml(need.name) + ' ／ ' : ''}未分類 <b>${unc.length}</b><span class="my-asm-muted">${unc.length ? '入院前・入院後に振り分けてください' : '未分類のカードはありません'}</span></div><div class="asm-aux-body">${categorize('unclassified')}</div></section>`;
+        }
         if (selectedNeed !== 'all') {
           if (Number(selectedNeed) === need.id) singleHtml = renderAssessmentSingleHtml(cp, need, matching, categorize);
           return;
@@ -1077,9 +1112,9 @@
               </div>
             </div>
           </td>
-          <td class="border border-[var(--line)] p-1.5 align-top min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'unclassified')"><div class="space-y-1.5">${categorize('unclassified')}</div></td>
           <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--slate-soft)]/30 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'preadmission')"><div class="space-y-1.5">${categorize('preadmission')}</div></td>
           <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--accent-soft)]/40 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'postadmission')"><div class="space-y-1.5">${categorize('postadmission')}</div></td>
+          <td class="border border-[var(--line)] p-1.5 align-top"><div class="assessment-status">${renderAssessmentStatusHtml(cp, need.id)}</div></td>
           <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--brick-soft)]/40 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'missing')">
             <div class="space-y-1.5">${categorize('missing')}</div>
             <button onclick="openMissingModal(${need.id})" class="mt-1.5 text-[10px] text-[var(--brick)] hover:text-[var(--ink)] font-medium flex items-center w-full justify-center p-1 border border-dashed border-[var(--brick-line)] rounded-[var(--radius-sm)]"><i class="fa-solid fa-plus mr-1"></i> 追加</button>
@@ -1099,8 +1134,8 @@
         }
       });
       document.getElementById('assessment-tbody').replaceChildren(frag);
-      const statusContent = document.getElementById('assessment-status-content');
-      if (statusContent) statusContent.innerHTML = statusHtml;
+      const unclassifiedContent = document.getElementById('assessment-unclassified-content');
+      if (unclassifiedContent) unclassifiedContent.innerHTML = unclassifiedHtml || '<p class="my-asm-muted">未分類のカードはありません</p>';
       const sufSum = document.getElementById('suf-summary');
       if (sufSum && typeof sufficiencyMiniHtml === 'function') {
         sufSum.classList.toggle('hidden', selectedNeed !== 'all');
@@ -1124,7 +1159,7 @@
 
     function renderAssessmentSingleHtml(cp, need, matching, categorize) {
       const count = col => matching.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === col).length;
-      const nUnc = count('unclassified'), nPre = count('preadmission'), nPost = count('postadmission'), nMiss = count('missing');
+      const nPre = count('preadmission'), nPost = count('postadmission'), nMiss = count('missing');
       const missItems = matching.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === 'missing');
       const unchecked = typeof missingCheckStatus === 'function' ? missItems.filter(i => missingCheckStatus(cp, i.id) === 'unchecked').length : nMiss;
       const drop = col => `ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, '${col}')"`;
@@ -1132,19 +1167,16 @@
 
       const own = typeof renderMyAssessmentRowHtml === 'function' && myAssessmentAlwaysShown() ? `<div class="asm-own">${renderMyAssessmentRowHtml(cp, need, false)}</div>` : '';
       return `<div class="asm-single-head"><span class="need-number asm-single-no">${need.id}</span><i class="fa-solid ${need.icon} text-[var(--accent)]"></i><b>${escapeHtml(name)}</b><span class="my-asm-muted">カード ${matching.length}枚</span></div>
-        <section class="asm-aux asm-aux-unc${nUnc ? '' : ' is-empty'}" ${drop('unclassified')}>
-          <div class="asm-aux-title"><span class="col-dot" style="background:var(--ink-muted)"></span>未分類 <b>${nUnc}</b><span class="my-asm-muted">${nUnc ? '入院前・入院後に振り分けてください（ドラッグ、またはカードの「前」「後」）' : '未分類のカードはありません'}</span></div>
-          ${nUnc ? `<div class="asm-aux-body">${categorize('unclassified')}</div>` : ''}
-        </section>
         <div class="asm-center">
           <section class="asm-col asm-col-pre" ${drop('preadmission')}><div class="asm-col-title"><span>入院前 <b>${nPre}</b></span></div><div class="space-y-1.5">${categorize('preadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div></section>
           <section class="asm-col asm-col-post" ${drop('postadmission')}><div class="asm-col-title"><span>入院後 <b>${nPost}</b></span></div><div class="space-y-1.5">${categorize('postadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div></section>
         </div>
+        <div class="asm-followup"><aside id="assessment-status" class="assessment-status" aria-labelledby="assessment-status-title"><h3 id="assessment-status-title">充足・未充足</h3><div id="assessment-status-content">${renderAssessmentStatusHtml(cp, need.id)}</div></aside>
         <section class="asm-aux asm-aux-miss" ${drop('missing')}>
           <div class="asm-aux-title"><i class="fa-solid fa-clipboard-question" style="color:var(--brick)"></i>不足情報 <b>${nMiss}</b>${nMiss ? `<span class="my-asm-muted">未確認 ${unchecked}</span>` : '<span class="my-asm-muted">まだありません</span>'}
             <button type="button" onclick="openMissingModal(${need.id})" class="asm-aux-add"><i class="fa-solid fa-plus"></i> 不足情報を追加</button></div>
           ${nMiss ? `<div class="asm-aux-body">${categorize('missing')}</div>` : ''}
-        </section>
+        </section></div>
         ${own}`;
     }
 

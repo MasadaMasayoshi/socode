@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-12.usability-context21'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-12.usability-context23'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -661,7 +661,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         } else {
           out += `手で編集した履歴: なし\n`;
         }
-        out += `修正してほしい内容: \n`;
+        out += `修正してほしい内容: ${i.requestedCorrection || ''}\n`;
       });
       if (assessmentText !== null) {
         out += `\n【総合アセスメント表（選択したカードのみ）】\n`;
@@ -815,7 +815,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     }
     function reviewRequestTargets(cp) {
       const items = cp.items || [];
-      return items.filter(i => !i.deleted && (i.type === 'unnecessary' || isEditedCard(i) || (typeof isUntaggedItem === 'function' && isUntaggedItem(i))));
+      return items.filter(i => !i.deleted && (i.type === 'unnecessary' || String(i.requestedCorrection || '').trim() || isEditedCard(i) || (typeof isUntaggedItem === 'function' && isUntaggedItem(i))));
     }
     function describeEditHistoryForRequest(i) {
       const log = Array.isArray(i.editLog) ? i.editLog.filter(e => e && e.kind !== 'create') : [];
@@ -850,7 +850,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const originalItems = sourceText && sourceText.trim() && typeof classifyTextByRules === 'function' ? classifyTextByRules(sourceText) : [];
       items.forEach((i, idx) => {
         const edited = isEditedCard(i), untagged = typeof isUntaggedItem === 'function' && isUntaggedItem(i);
-        const kinds = [i.type === 'unnecessary' ? '不必要に分類' : null, edited ? '手で編集済み' : null, untagged ? 'タグ未設定' : null].filter(Boolean).join('＋');
+        const kinds = [i.requestedCorrection ? '依頼を追記' : null, i.type === 'unnecessary' ? '不必要に分類' : null, edited ? '手で編集済み' : null, untagged ? 'タグ未設定' : null].filter(Boolean).join('＋');
         out += `\n────────────────────────\n■ ${idx + 1}件目　問題の種類: ${kinds}\n`;
         let request = '原文・編集履歴と分類結果を比較し、確認できた誤りを同じ種類の記録でも直るよう修正してください。';
         if (i.type === 'unnecessary') {
@@ -890,7 +890,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         }
         const block = buildCardsReportText(cp, [i], sourceText, '', false);
         const at = block.indexOf('\n■ ');
-        out += (at >= 0 ? block.slice(at).replace(/^\n■ [^\n]*\n/, '').replace('修正してほしい内容: \n', `修正してほしい内容: ${request}\n`) : '');
+        out += (at >= 0 ? block.slice(at).replace(/^\n■ [^\n]*\n/, '').replace(`修正してほしい内容: ${i.requestedCorrection || ''}\n`, `修正してほしい内容: ${request}${i.requestedCorrection ? '\n追加の修正依頼（利用者）: ' + i.requestedCorrection : ''}\n`) : '');
       });
       if (includeSourceText) {
         out += `\n【分類前の文章（カルテ・看護記録入力欄）】\n`;
