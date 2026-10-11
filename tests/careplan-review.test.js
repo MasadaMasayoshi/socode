@@ -76,7 +76,7 @@ test('関連図から取り込む：看護問題・補足・根拠データ（�
 
   const h = app.carePlanBasisHtml(pain);
   assert.match(h, /根拠データ（関連図から）/);
-  assert.match(h, /関連図から取り込んだ看護問題です。そのまま使わず、この患者に必要な理由/);
+  assert.doesNotMatch(h, /そのまま使わず|cp-reason-need|優先順位：|現在のカードを表示します/);
   assert.match(app.carePlanBasisHtml({ ...pain, reasons: [{ text: '術後1日目でNRS5', about: '短期目標' }] }), /この患者に必要な理由[\s\S]*短期目標[\s\S]*術後1日目でNRS5/);
   assert.equal(app.carePlanBasisHtml({ ...pain, evidence: ['<img src=x onerror=alert(1)>'], note: '', reasonNeeded: false }).includes('<img'), false);
 
