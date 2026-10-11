@@ -518,14 +518,15 @@ test('関連図：最新のガイドラインを根拠にした「＋補足」�
   [hf, asp, copd, colon].forEach(m => assert.ok(m.nodes.length <= 70, String(m.nodes.length)));
 });
 
-test('Relation map retains fullscreen and zoom controls while supplemental display moves into the menu', () => {
+test('Relation map retains fullscreen and zoom controls with supplemental display on the visible toolbar', () => {
   const view = html.slice(html.indexOf('<div id="view-relation"'), html.indexOf('<div id="view-reference"'));
   assert.match(view, /data-rm-action="fullscreen"/);
   assert.doesNotMatch(view, /事実を並べた図ではなく/);
   assert.doesNotMatch(view, /自動で作った図はたたき台です/, '下の注意書きも消した（v.26）');
   assert.match(src, /const leftHeld = \(\(e\.buttons & 1\) === 1 \|\| mouseLeftDown\) && !rmState\.drag;/, 'パソコンは左クリック＋ホイールで拡大・縮小');
   const secondary = view.slice(view.indexOf('<div id="rm-more"'), view.indexOf('<div class="rm-canvas-frame"'));
-  assert.match(secondary, /data-rm-action="toggle-added"/);
+  assert.doesNotMatch(secondary, /data-rm-action="toggle-added"/);
+  assert.match(view.slice(0, view.indexOf('<div id="rm-more"')), /data-rm-action="toggle-added"/);
   assert.match(src, /else if \(act === 'fullscreen'\) rmSetFullscreen\(\);/);
   assert.match(src, /if \(viewName !== 'relation' && typeof window\.rmSetFullscreen === 'function'\) window\.rmSetFullscreen\(false\);/);
   assert.match(css, /#view-relation\.rm-fullscreen \.rm-canvas-wrap \{ position: fixed; inset: 0; z-index: 50;/, '広げるのは図の枠だけ');
@@ -660,8 +661,8 @@ test('関連図：矢印の向きを逆にする（並べ直して左向きを�
 test('関連図：操作は 作る｜編集｜見る・出す にまとめ、拡大・縮小は図の右下、印刷・画像・すべて消すは「その他」の中／地の色・予測は薄く', () => {
   const view = html.slice(html.indexOf('<div id="view-relation"'), html.indexOf('<div id="view-reference"'));
   const bar = view.slice(view.indexOf('class="rm-toolbar"'), view.indexOf('id="rm-selection-bar"'));
-  assert.match(bar, /class="rm-group rm-group-sep" aria-label="編集"/);
-  assert.match(bar, /class="rm-group rm-group-end" aria-label="見る・出す"/);
+  assert.match(bar, /class="rm-group rm-edit-controls" aria-label="編集"/);
+  assert.match(bar, /class="rm-group rm-view-controls" aria-label="表示"/);
   assert.match(bar, /id="rm-more" class="rm-problems rm-more hidden"[\s\S]*?data-rm-action="print"[\s\S]*?data-rm-action="png"[\s\S]*?data-rm-action="clear"/, '印刷・画像・すべて消すは「その他」の中');
   assert.doesNotMatch(bar, /data-rm-action="zoom-/, '拡大・縮小はツールバーに置かない');
   assert.match(view, /class="rm-zoom-pad"[\s\S]*?data-rm-action="zoom-in"[\s\S]*?data-rm-action="zoom-out"[\s\S]*?data-rm-action="zoom-fit"[\s\S]*?data-rm-action="zoom-100"/);
