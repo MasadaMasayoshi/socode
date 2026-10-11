@@ -8,15 +8,18 @@ const { readAppSource } = require('./app-helpers');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const app = readAppSource();
 
-test('Header retains export controls and groups utility actions into three menu choices', () => {
+test('Header retains export controls and groups utility actions into two menu choices', () => {
   const header = html.slice(html.indexOf('<header'), html.indexOf('</header>'));
   const moreMenu = header.slice(header.indexOf('id="more-menu"'));
   ['btn-export-docs', 'btn-export-pdf', 'btn-toggle-theme'].forEach(id => {
     assert.match(header, new RegExp(`id="${id}"`), id);
     assert.ok(!moreMenu.includes(`id="${id}"`), `${id} はメニューの外（好評だった見た目のまま）`);
   });
-  ['btn-manual-review', 'btn-data-tools', 'btn-open-settings'].forEach(id => assert.match(moreMenu, new RegExp(`id="${id}"`), id));
-  assert.equal((moreMenu.match(/role="menuitem"/g) || []).length, 3);
+  ['btn-data-tools', 'btn-open-settings'].forEach(id => assert.match(moreMenu, new RegExp(`id="${id}"`), id));
+  assert.equal((moreMenu.match(/role="menuitem"/g) || []).length, 2);
+  assert.ok(!header.includes('id="btn-manual-review"'));
+  assert.ok(html.indexOf('id="btn-manual-review"') > html.indexOf('id="btn-start-classify"'));
+  assert.ok(html.indexOf('id="btn-manual-review"') < html.indexOf('id="sample-case-select"'));
   for (const id of ['btn-save-data', 'input-load-data', 'btn-open-admin', 'btn-toggle-font']) assert.ok(!header.includes(`id="${id}"`));
   const backup = html.slice(html.indexOf('<dialog id="data-tools"'), html.indexOf('</dialog>', html.indexOf('<dialog id="data-tools"')));
   ['btn-save-data', 'input-load-data', 'btn-load-data', 'btn-restore-import'].forEach(id => assert.ok(backup.includes(`id="${id}"`)));

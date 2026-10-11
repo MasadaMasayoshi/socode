@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-11.quiet-plans4'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-11.status-visible10'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -119,7 +119,7 @@
     const RM_NOTE_FONT = 11.5, RM_NOTE_LINE_H = 15, RM_NOTE_GAP = 7, RM_NOTE_MAX = 60;
 
     const RM_BUILD_VERSION = 3;
-    const RM_LAYOUT_STYLE = 3;
+    const RM_LAYOUT_STYLE = 4;
     const RM_COL_GAP = 80, RM_ROW_GAP = 28;
 
     const RM_COL_GAP_MIN = 72, RM_COL_GAP_MAX = 170, RM_COL_GAP_PER_LINE = 9, RM_COL_GAP_BASE = 56;
@@ -781,30 +781,54 @@
         x += w + gapAfter(r);
       });
 
-      const bands = [...new Set(ids.map(id => band.get(id)))].sort((p, q) => p - q);
-      let top = 0;
-      const stripes = [];
-      bands.forEach(bv => {
-        const perCol = cols.map(c => c.filter(e => band.get(e.id) === bv));
-        const colH = perCol.map(c => c.reduce((h, e) => h + stackH(e.id), 0) + Math.max(0, c.length - 1) * RM_ROW_GAP);
-        const bandH = Math.max(0, ...colH);
-        perCol.forEach((c, r) => {
-          let y = top + (bandH - colH[r]) / 2;
-          c.forEach(e => { members.get(e.id).forEach((m, k) => { const n = byId.get(m); if (k) y += RM_STACK_GAP; n.y = Math.round(y); y += blockH(n); }); y += RM_ROW_GAP; });
-        });
-        if (bandH > 0) { stripes.push({ y1: top - RM_ROW_GAP * 0.9, y2: top + bandH + RM_ROW_GAP * 0.9, p: bv }); top += bandH + RM_ROW_GAP * 2; }
+      // Pack each column independently. Shared problem bands formerly reserved
+      // every band's tallest stack across every column, accumulating empty space.
+      const heights = cols.map(c => c.reduce((sum, e) => sum + stackH(e.id), 0) + Math.max(0, c.length - 1) * RM_ROW_GAP);
+      const height = Math.max(0, ...heights);
+      const offsets = new Map();
+      heads.forEach(h => {
+        let offset = 0;
+        members.get(h).forEach(m => { offsets.set(m, offset); offset += blockH(byId.get(m)) + RM_STACK_GAP; });
       });
-
-      const probCol = (cols[lastRank] || []).map(e => byId.get(e.id)).filter(n => n && n.type === 'nursing_problem');
-      if (probCol.length) {
-        const cyOf = n => n.y + rmNodeSize(n).h / 2;
-        const want = new Map(probCol.map(p => {
-          const ps = map.edges.filter(e => e.target === p.id).map(e => byId.get(e.source)).filter(n => n && !attach.has(n.id) && n.type !== 'nursing_problem');
-          return [p.id, ps.length ? ps.reduce((sum, n) => sum + cyOf(n), 0) / ps.length - rmNodeSize(p).h / 2 : p.y];
-        }));
-        probCol.sort((a, b) => want.get(a.id) - want.get(b.id) || a.priority - b.priority);
-        let bottom = -Infinity;
-        probCol.forEach(p => { p.y = Math.round(Math.max(want.get(p.id), bottom + RM_ROW_GAP)); bottom = p.y + blockH(p); });
+      const place = (h, top) => members.get(h).forEach(m => { byId.get(m).y = Math.round(top + offsets.get(m)); });
+      cols.forEach((c, r) => {
+        let y = (height - heights[r]) / 2;
+        c.forEach(e => { place(e.id, y); y += stackH(e.id) + RM_ROW_GAP; });
+      });
+      // Project neighbor alignment onto ordered, non-overlapping column positions.
+      // Merging decreasing groups gives a bounded placement without stretching height.
+      const align = (c, r) => {
+        let offset = 0;
+        const groups = [];
+        c.forEach((e, index) => {
+          const targets = [];
+          members.get(e.id).forEach(m => {
+            const relativeCenter = offsets.get(m) + rmNodeSize(byId.get(m)).h / 2;
+            [...inn.get(m), ...out.get(m)].forEach(id => {
+              if (head.get(id) === e.id || rank.get(id) === r) return;
+              const n = byId.get(id);
+              targets.push(n.y + rmNodeSize(n).h / 2 - relativeCenter);
+            });
+            if (byId.get(m).type === 'disease') targets.push(height / 2 - relativeCenter);
+          });
+          const top = targets.length ? targets.reduce((sum, y) => sum + y, 0) / targets.length : byId.get(e.id).y;
+          groups.push({ start: index, end: index, value: top - offset, weight: 1 });
+          while (groups.length > 1 && groups.at(-2).value > groups.at(-1).value) {
+            const last = groups.pop(), previous = groups.pop(), weight = last.weight + previous.weight;
+            groups.push({ start: previous.start, end: last.end, value: (last.value * last.weight + previous.value * previous.weight) / weight, weight });
+          }
+          offset += stackH(e.id) + RM_ROW_GAP;
+        });
+        offset = 0;
+        const slack = height - heights[r];
+        groups.forEach(group => {
+          const shift = Math.max(0, Math.min(slack, group.value));
+          for (let k = group.start; k <= group.end; k++) { place(c[k].id, offset + shift); offset += stackH(c[k].id) + RM_ROW_GAP; }
+        });
+      };
+      for (let pass = 0; pass < 8; pass++) {
+        cols.forEach(align);
+        for (let r = cols.length - 1; r >= 0; r--) align(cols[r], r);
       }
 
       hung.forEach((labs, hostId) => {

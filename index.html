@@ -6,15 +6,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="2026-10-11.status-simple9">
-  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-10.znavigation17,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-11.status-simple9,06:2026-10-11.status-panel8,07:2026-10-10.znavigation17,08:2026-10-11.status-simple9,09:2026-10-11.status-panel8,10:2026-10-10.znavigation17,11:2026-10-11.status-inline7,12:2026-10-11.status-panel8,13:2026-10-10.znavigation17,14:2026-10-10.znavigation17,15:2026-10-11.quiet-plans4">
+  <meta name="app-version" content="2026-10-11.status-visible10">
+  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-10.znavigation17,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-11.status-simple9,06:2026-10-11.status-panel8,07:2026-10-10.znavigation17,08:2026-10-11.status-simple9,09:2026-10-11.status-visible10,10:2026-10-10.znavigation17,11:2026-10-11.status-visible10,12:2026-10-11.status-visible10,13:2026-10-10.znavigation17,14:2026-10-10.znavigation17,15:2026-10-11.status-visible10">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=2026-10-11.status-simple9">
+  <link rel="stylesheet" href="style.css?v=2026-10-11.status-visible10">
 
   <link rel="stylesheet" href="vendor/tailwind.css?v=2026-10-06.14">
   <script>
@@ -84,13 +84,10 @@
           <i class="fa-solid fa-moon"></i>
         </button>
         <div class="hdr-menu-wrap">
-          <button class="icon-btn-lg" data-menu-toggle="more-menu" aria-haspopup="true" aria-expanded="false" title="原文・保存・設定" aria-label="その他の操作">
+          <button class="icon-btn-lg" data-menu-toggle="more-menu" aria-haspopup="true" aria-expanded="false" title="保存・設定" aria-label="その他の操作">
             <i class="fa-solid fa-ellipsis-vertical"></i>
           </button>
           <div id="more-menu" class="hdr-menu hidden" role="menu">
-            <button type="button" id="btn-manual-review" class="hdr-menu-item" role="menuitem" onclick="openNursingManualReview()">
-              <i class="fa-solid fa-file-lines"></i><span>原文を確認・編集</span>
-            </button>
             <button type="button" id="btn-data-tools" class="hdr-menu-item" role="menuitem" onclick="document.getElementById('data-tools').showModal()">
               <i class="fa-solid fa-floppy-disk"></i><span>保存・復元</span>
             </button>
@@ -187,6 +184,10 @@
         </button>
 
         <p id="classify-mode-note" class="text-[10px] text-[var(--ink-muted)] leading-snug -mt-1"></p>
+
+        <button type="button" id="btn-manual-review" class="btn btn-outline w-full text-[11px]" onclick="openNursingManualReview()">
+          <i class="fa-solid fa-file-lines"></i><span>原文を確認・編集</span>
+        </button>
 
         <div class="flex flex-wrap items-center justify-between gap-1 pt-1 border-t border-[var(--line-soft)]">
           <span class="text-[11px] text-[var(--ink-muted)] whitespace-nowrap">テスト用:</span>
@@ -1251,13 +1252,13 @@
   <script src="js/06-export.js?v=2026-10-11.status-panel8"></script>
   <script src="js/07-classification.js?v=2026-10-10.znavigation17"></script>
   <script src="js/08-assessment-tools.js?v=2026-10-11.status-simple9"></script>
-  <script src="js/09-board.js?v=2026-10-11.status-panel8"></script>
+  <script src="js/09-board.js?v=2026-10-11.status-visible10"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-10.znavigation17"></script>
-  <script src="js/11-own-assessment.js?v=2026-10-11.status-inline7"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-11.status-panel8"></script>
+  <script src="js/11-own-assessment.js?v=2026-10-11.status-visible10"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-11.status-visible10"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-10.znavigation17"></script>
   <script src="js/14-drug-reference.js?v=2026-10-10.znavigation17"></script>
-  <script src="js/15-relation-map.js?v=2026-10-11.quiet-plans4"></script>
+  <script src="js/15-relation-map.js?v=2026-10-11.status-visible10"></script>
   <script>
   // Manual source comparison and reversible text edits on the active chart.
   (function(){

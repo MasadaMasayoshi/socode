@@ -14,7 +14,8 @@ test('充足・未充足はサイトが決める：選ぶ欄は無く、記録�
   assert.equal(app.getSufficiency(cp, 1), 'met');
   assert.equal(app.getSufficiency(cp, 6), '');
   const pre = app.sufficiencyPhaseHtml(cp, 3, 'pre'), post = app.sufficiencyPhaseHtml(cp, 3, 'postop');
-  assert.doesNotMatch(pre + post, /<button|ルール判定|サイト内|AIなし/);
+  assert.doesNotMatch(pre + post, /<button|<details|<summary|ルール判定|サイト内|AIなし/);
+  assert.match(pre + post, /class="suf-phase-block suf-expanded/);
   assert.match(pre, /入院前.*情報不足.*根拠/);
   assert.match(post, /術後.*未充足.*根拠カード：/);
   const head = app.sufficiencyHeaderHtml(cp, 3);

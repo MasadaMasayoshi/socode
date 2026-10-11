@@ -534,12 +534,12 @@ test('関連図：全画面ボタンがあり、Esc・ほかのページへの�
   assert.equal(typeof app.rmSetFullscreen, 'function');
 });
 
-test('関連図：1本道の流れを同じ列に縦に積み、横長になりすぎない（幅が高さの2倍以内）', () => {
+test('Linear chains stay stacked while long case diagrams remain compact in both dimensions', () => {
   ['gastric_postop', 'hip_fracture', 'colon_cancer_postop_long', 'copd_exacerbation_long'].forEach(name => {
     const map = caseMap(name);
     const rects = map.nodes.map(n => app.rmRect(n));
     const W = Math.max(...rects.map(r => r.x2)), H = Math.max(...rects.map(r => r.y2));
-    assert.ok(W <= H * 2, `${name}: ${W} x ${H}`);
+    assert.ok(W <= 3400 && H <= 1800, `${name}: ${W} x ${H}`);
     const byId = new Map(map.nodes.map(n => [n.id, app.rmRect(n)]));
     assert.ok(map.edges.some(e => { const a = byId.get(e.source), b = byId.get(e.target); return Math.abs(a.cx - b.cx) < 2 && b.y1 > a.y2; }), `${name}: 縦に積んだ流れ（下向きの矢印）がある`);
 
@@ -953,4 +953,28 @@ test('関連図：がんの手術は「精査・診断 → 病期の意味 → �
   [exam, disease, stage, aim, surg].forEach(n => assert.ok(n));
   const has = (a, b) => map.edges.some(e => e.source === a.id && e.target === b.id);
   assert.ok(has(exam, disease) && has(disease, stage) && has(stage, aim) && map.edges.some(e => e.source === surg.id && e.target === disease.id && e.relation === 'treats'));
+});
+
+
+test('Independent columns reuse empty space without losing nodes, edges or priority order', () => {
+  const map = { nodes: [], edges: [] };
+  for (let k = 1; k <= 4; k++) {
+    map.nodes.push({ id: 's' + k, type: 'symptom', label: '所見' + k, x: 0, y: 0 }, { id: 'p' + k, type: 'nursing_problem', label: '看護問題' + k, priority: k, x: 0, y: 0 });
+    map.edges.push({ id: 'e' + k, source: 's' + k, target: 'p' + k, relation: 'results_in' });
+  }
+  const labels = map.nodes.map(n => [n.id, n.label]), edges = JSON.stringify(map.edges);
+  app.layoutRelationMap(map);
+  assert.deepEqual(map.nodes.map(n => [n.id, n.label]), labels);
+  assert.equal(JSON.stringify(map.edges), edges);
+  const rects = map.nodes.map(app.rmRect);
+  assert.ok(Math.max(...rects.map(r => r.y2)) <= 270, 'Four short parallel flows fit without reserving four full-width bands');
+  for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
+    const a = rects[i], b = rects[j];
+    assert.ok(!(a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.y1), 'Nodes remain separate');
+  }
+  const problems = map.nodes.filter(n => n.type === 'nursing_problem').sort((a, b) => a.priority - b.priority);
+  assert.ok(problems.every((n, k) => !k || n.y > problems[k - 1].y));
+  const positions = map.nodes.map(n => [n.id, n.x, n.y]);
+  app.layoutRelationMap(map);
+  assert.deepEqual(map.nodes.map(n => [n.id, n.x, n.y]), positions, 'Layout remains deterministic');
 });
