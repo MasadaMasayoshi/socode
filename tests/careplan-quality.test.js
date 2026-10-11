@@ -119,9 +119,6 @@ test('別の患者の流用：記録にない手術・処置・薬の言葉が�
   const cp = surgery();
   const p = app.createCarePlan(cp, mk('急性疼痛', { tp: ['股関節の脱臼肢位に注意して体位を整える', 'インスリンを実施する'] }));
   assert.equal(JSON.stringify(app.cpForeignTerms(cp, p).sort()), JSON.stringify(['インスリン', '股関節'].sort()));
-  app.createCarePlan(cp, { ...mk('不安'), caseId: 'someone-else' });
-  const gate = app.cpQualityGate(cp);
-  assert.ok(gate.some(g => g.qa.some(q => q.code === 'foreign')));
 });
 test('状態と評価：新しい計画は「実施中」にならず、記録を足したときだけ実施中。記録がなければ評価不能。実施・評価は自動で作らない', () => {
   const cp = surgery();
@@ -131,17 +128,12 @@ test('状態と評価：新しい計画は「実施中」にならず、記録�
   assert.equal(app.evaluateCarePlanFromRecords(p).result, 'unevaluable');
   assert.ok(app.CARE_ACHIEVEMENTS.some(a => a.label === '評価不能'));
   app.refineCarePlans(cp);
-  assert.equal(p.records.length, 0, '自動チェックは記録を作らない');
+  assert.equal(p.records.length, 0, 'Refinement does not create records');
   app.addCareRecord(cp, p.id, { doneText: '鎮痛薬を使って離床した', response: '「楽になった」', achievement: 'partial', evaluation: '体動時の痛みは残る' });
   assert.equal(p.status, 'active');
   assert.equal(app.evaluateCarePlanFromRecords(p).result, 'partial');
 });
-test('自動チェック：リスクの目標が治療の書き方・定型文・安静度に反する援助・実施中なのに記録なしを見つける', () => {
-  const cp = surgery([card('r', '安静度：ベッド上安静')]);
-  const p = app.createCarePlan(cp, mk('術後呼吸器合併症リスク状態', { goalShort: '3日後までに、肺炎のリスク状態が改善する', op: ['状態を観察する'], tp: ['端座位から歩行を進める'], status: 'active' }));
-  const codes = app.cpQualityGate(cp).find(g => g.id === p.id).qa.map(q => q.code);
-  ['risk-as-treatment', 'placeholder', 'order-conflict', 'active-without-record'].forEach(c => assert.ok(codes.includes(c), c + ' / ' + codes));
-});
+
 test('自動作成：何度作っても重複せず、リスクへ直した問題も作り直さず、手動で動かした順番は戻さない', () => {
   const cp = surgery();
   const n = app.autoBuildCarePlans(cp, { notify: false });
@@ -199,19 +191,8 @@ test('状態：自動作成の計画が記録なしで「実施中」になっ�
   assert.equal(p.status, 'planned');
   assert.ok(app.CARE_PLAN_STATUSES.some(s => s.key === 'done' && s.label === '実施済み'));
 });
-test('自動チェック：曖昧な目標・具体的でないOP/TP・理解の確かめがないEP・問題の変更を検出する', () => {
-  const cp = surgery();
-  const p = app.createCarePlan(cp, mk('急性疼痛', { goalShort: '数日以内に、観察の値が改善に向かう', op: ['状態を観察する'], tp: ['援助する'], ep: ['痛みについて説明する'] }));
-  const codes = app.cpQualityGate(cp).find(g => g.id === p.id).qa.map(q => q.code);
-  ['vague-goal', 'op-vague', 'tp-vague', 'ep-no-check'].forEach(c => assert.ok(codes.includes(c), c));
-});
-test('周術期に見落としやすい問題（出血・血栓塞栓）は、計画にないとき検討の候補として示す（自動では作らない）', () => {
-  const cp = surgery([card('d', '腹腔ドレーン排液 淡血性')]);
-  app.createCarePlan(cp, mk('急性疼痛'));
-  const r = app.refineCarePlans(cp);
-  assert.ok(r.candidates.some(c => /出血リスク/.test(c)) && r.candidates.some(c => /静脈血栓塞栓症/.test(c)));
-  assert.ok(!app.carePlanList(cp).some(p => /出血|血栓/.test(p.problem)));
-});
+
+
 test('ヘンダーソンの分類：血算・凝固の検査値は食事に、血液型・鎮痛薬は呼吸に、呼吸訓練・腹腔ドレーンは排泄に入れない（他の項目に付くときだけ外す）', () => {
   const tags = t => Array.from(app.detectMultipleHendersonTags(t));
   assert.ok(!tags('創部痛あり。鎮痛薬を使用。血液型A型').includes(1));
@@ -272,4 +253,18 @@ test('関連図：がんの手術（治療）は、手術の目的を通って�
   const seen = new Set([dis.id]); const q = [dis.id];
   while (q.length) { const c = q.shift(); (adj.get(c) || []).forEach(n => { if (!seen.has(n)) { seen.add(n); q.push(n); } }); }
   assert.ok(seen.has(sur.id));
+});
+
+// Existing charts may contain persisted warnings from earlier versions.
+test('saved automatic warnings are removed while plan content and manual reasons remain', () => {
+  const cp = surgery();
+  const p = app.createCarePlan(cp, mk('急性疼痛', { goalShort: '離床時に痛みを伝えられる', userEdited: true }));
+  p.qa = [{ code: 'evidence-missing', level: 'warn', msg: '保存済み自動警告' }];
+  p.reasons = [{ text: '本人が体動時の痛みを訴えている' }];
+  const before = JSON.stringify([p.goalShort, p.op, p.tp, p.ep, p.records]);
+  assert.doesNotMatch(app.carePlanBasisHtml(p, cp), /表示前の自動チェック|保存済み自動警告/);
+  app.refineCarePlans(cp);
+  assert.equal(Object.hasOwn(p, 'qa'), false);
+  assert.equal(JSON.stringify([p.goalShort, p.op, p.tp, p.ep, p.records]), before);
+  assert.match(app.carePlanBasisHtml(p, cp), /本人が体動時の痛みを訴えている/);
 });

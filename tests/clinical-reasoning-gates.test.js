@@ -15,7 +15,7 @@ test('relation-map reviewer flags inferred causal connections without evidence e
 
 test('care-plan evidence and clinical-knowledge review gates remain present', () => {
   const source = readAppSource();
-  assert.match(source, /function cpQualityGate\(cp\)/);
+
   assert.match(source, /function validateCarePlanEvidence\(cp, /);
   assert.match(source, /function validateRelationMap\(map, cp = null\)/);
 });

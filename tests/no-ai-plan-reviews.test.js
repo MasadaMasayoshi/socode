@@ -6,7 +6,8 @@ const path = require('node:path');
 const src = fs.readFileSync(path.join(__dirname, '..', 'js/12-missing-checks-and-care-plan.js'), 'utf8');
 
 test('non-AI nursing plan review remains available', () => {
-  assert.ok(src.includes('function cpQualityGate(cp)'));
+  assert.ok(!src.includes('function cpQualityGate(cp)'));
+  assert.ok(!src.includes('表示前の自動チェック'));
   assert.ok(src.includes('function reviewCarePlanSet(cp)'));
   assert.ok(src.includes('function carePlanSetReviewHtml(cp)'));
   assert.ok(src.includes('function buildCarePlansPrintHtml(cp'));

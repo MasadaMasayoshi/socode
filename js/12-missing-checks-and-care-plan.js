@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-10.znavigation17'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-11.quiet-plans4'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -443,6 +443,7 @@
         .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
     }
     function normalizeCarePlan(p) {
+      delete p.qa; // Discard saved warnings from the removed automatic checker.
       ['problem', 'goalLong', 'goalShort'].forEach(k => { if (typeof p[k] !== 'string') p[k] = ''; });
       CARE_PLAN_SECTIONS.forEach(s => { if (!Array.isArray(p[s.key])) p[s.key] = []; });
       if (!Array.isArray(p.relatedNeeds)) p.relatedNeeds = [];
@@ -719,8 +720,6 @@
       if (vmsg.length) parts.push(`<div class="cp-qa cp-qa-warn"><i class="fa-solid fa-magnifying-glass-chart"></i> <b>根拠の確認</b><ul>${vmsg.map(m => `<li>${escapeHtml(m)}</li>`).join('')}</ul></div>`);
       const refs = cp ? (p.refs || []).map(r => { const id = cpResolvePlanId(cp, r.id); const q = id && getCarePlan(cp, id); const n = q ? carePlanList(cp).findIndex(x => x.id === q.id) + 1 : 0; return q ? `<li>#${n} ${escapeHtml(q.problem)}：${escapeHtml(r.why)}</li>` : ''; }).join('') : '';
       if (refs) parts.push(`<div class="cp-note"><b>関連する計画：</b><ul>${refs}</ul></div>`);
-      const qa = p.qa || [];
-      if (qa.length) parts.push(`<div class="cp-qa ${qa.some(q => q.level === 'error') ? 'cp-qa-err' : 'cp-qa-warn'}"><i class="fa-solid fa-clipboard-check"></i> <b>表示前の自動チェック</b><ul>${qa.map(q => `<li>${escapeHtml(q.msg)}</li>`).join('')}</ul></div>`);
       return parts.length ? `<div class="cp-basis">${parts.join('')}</div>` : '';
     }
     function carePlanCardHtml(cp, p, k, n) {
@@ -1656,65 +1655,6 @@
     }
 
     const CP_PLACEHOLDER = /患者の状態に合わせて|を和らげる援助|(?:状態|様子)を観察する。?$|経過を(?:見る|みる)。?$|検査値を確認する。?$|(?:状態|経過)を確認する。?$|数日以内に/;
-    function cpQualityGate(cp) {
-      const list = carePlanList(cp);
-      const all = [];
-      const seen = new Map();
-      list.forEach((p, k) => {
-        const qa = [];
-        const add = (code, level, msg) => qa.push({ code, level, msg });
-        const key = cpPlanKey(p);
-        if (seen.has(key)) add('duplicate', 'warn', `「${seen.get(key)}」と同じ意味の看護問題です。1つにまとめてください`); else seen.set(key, p.problem);
-        if (p.caseId && cp.id && p.caseId !== cp.id) add('foreign', 'error', '別の患者の計画が混ざっています。この患者の記録で確かめてください');
-        cpForeignTerms(cp, p).forEach(t => add('foreign-term', 'warn', `この患者の記録にない「${t}」が計画に出ています。別の患者の計画の流用ではないか確認してください`));
-        const v = validateCarePlanEvidence(cp, p); // Recheck current evidence; a saved validation may be stale.
-        if (v.kind === 'insufficient') add('unsupported', 'warn', (v.msgs[0] || '現時点では判断するための情報が不足しています'));
-        if (v.kind === 'conflict') add('conflict', 'warn', v.msgs[0]);
-        if (v.kind === 'risk' && v.msgs[0] && !cpIsRisk(p)) add('should-be-risk', 'warn', v.msgs[0]);
-        if (!(p.evidence && p.evidence.length) && p.source !== 'manual' && p.source) add('no-evidence', 'info', '根拠データ（記録の事実）が紐づいていません');
-
-        if (p.source === 'ai' && Array.isArray(p.tp) && p.tp.length > 0) {
-          add('clinical-guidance-review', 'info',
-            'AI生成のTPは記録との一致だけでは医学的妥当性を保証できません。公的ガイドライン等の出典、適用条件、禁忌、実施権限を確認してください');
-        }
-        if (p.evidence && p.evidence.length) {
-          const text = cpEvidenceTexts(cp).all.replace(/\s/g, '');
-          (p.evidence || []).forEach(e => { const s = cpNorm(e).replace(/\s/g, ''); if (s.length >= 4 && !text.includes(s.slice(0, Math.min(s.length, 12)))) add('evidence-missing', 'warn', `根拠「${e}」がこの患者の記録に見当たりません`); });
-        }
-        const goals = [p.goalLong, p.goalShort].join('\n');
-        if (cpIsRisk(p) && /(?:リスク(?:状態)?|おそれ)が?(?:改善|軽減|解消|低下)|(?:イレウス|肺炎|感染|血栓)が?(?:改善|軽快|治癒)/.test(cpNorm(goals))) add('risk-as-treatment', 'warn', 'リスクの計画なのに、すでに起きた合併症の回復のような目標になっています（予防・早期発見・安全の維持で書きます）');
-        const ctx = cpRecordContext(cp);
-        const gNrs = [...cpNorm(p.goalShort || p.goalLong).matchAll(/NRS\s*(\d+)/g)].map(m => Number(m[1])).pop();
-        if ((cpDomainOf(p) || {}).key === 'pain' && ctx.nrs != null && gNrs != null && gNrs >= ctx.nrs) add('goal-achieved', 'warn', `目標のNRS${gNrs}以下は、記録の値（NRS${ctx.nrs}）ですでに達成されています。機能・生活に関わる目標にします`);
-        const body = [p.goalLong, p.goalShort, ...p.op, ...p.tp, ...p.ep];
-        const ph = body.filter(l => CP_PLACEHOLDER.test(cpNorm(l)));
-        if (ph.length) add('placeholder', 'warn', `定型文のままの項目があります：「${String(ph[0]).slice(0, 24)}…」`);
-        if (!p.goalShort && !p.goalLong && p.source) add('no-goal', 'info', '目標が未記入です');
-
-        [['goalLong', '長期目標'], ['goalShort', '短期目標']].forEach(([f, label]) => {
-          const g = cpNorm(p[f]);
-          if (!g.trim()) return;
-          if (/数日以内|観察の値が改善に向かう|欲求が自分で満たせる|改善に向かう$/.test(g)) add('vague-goal', 'warn', `${label}が曖昧です（「${g.slice(0, 20)}…」）。いつまでに・どうなれば達成かを書きます`);
-          else { const gc = cpGoalCheck(g); if (!gc.deadline || !gc.measure) add('goal-weak', 'info', `${label}：${gc.msgs[0] || '期限か達成の基準が足りません'}`); }
-        });
-        if (p.genKey && p.genKey !== key) add('regen-needed', 'warn', '看護問題が変わっています。目標・OP/TP/EPが古い問題のままではないか確認し、「この問題で作り直す」で作り直せます');
-
-        p.op.filter(l => cpNorm(l).replace(/[\s。]/g, '').length < 12 || /^(?:状態|経過|程度|様子)(?:を|の).{0,6}(?:観察|確認)(?:する)?。?$/.test(cpNorm(l).replace(/\s/g, ''))).forEach(l => add('op-vague', 'warn', `OPが具体的ではありません：「${l}」（何を・どんな変化に注意して見るかを書きます）`));
-        p.tp.filter(l => cpNorm(l).length < 18 || !/指示|許可|範囲|確認|中止|報告|前後|再評価|評価|一緒|介助|調整|整える|行う|使/.test(l)).forEach(l => add('tp-vague', 'warn', `TPが具体的ではありません：「${l}」（行う援助・条件・安全上の注意・反応の確かめ方を書きます）`));
-        if (p.ep.length && p.ep.some(l => !CP_EP_CHECK.test(cpNorm(l)))) add('ep-no-check', 'warn', 'EPに、理解や手技をどう確かめるか（実施してもらう・自分の言葉で言ってもらう等）がない項目があります。「分かりました」だけで習得とはしません');
-        if (!p.op.length && p.source) add('no-op', 'info', 'OP（観察計画）が未記入です'); if (!p.tp.length && p.source) add('no-tp', 'info', 'TP（援助計画）が未記入です'); if (!p.ep.length && p.source) add('no-ep', 'info', 'EP（教育計画）が未記入です');
-
-        if (/ベッド上安静|床上安静|安静度[:：]?\s*ベッド上|離床(?:不可|禁止)/.test(cpEvidenceTexts(cp).now) && p.tp.some(l => /歩行|端座位|立位|離床を進め/.test(cpNorm(l)) && !/許可|指示|範囲/.test(l))) add('order-conflict', 'warn', '安静度の指示がある記録です。離床・歩行の援助には「医師の指示・許可の範囲で」と書き、指示を確認してください');
-
-        p.records.forEach(r => { if (!r.at || !(r.doneText || r.doneItems.length || r.evaluation)) add('record-empty', 'info', '日時または内容が足りない実施・評価の記録があります'); });
-        if (p.status === 'active' && !p.records.length) add('active-without-record', 'info', '「実施中」ですが、実施の記録がまだありません');
-        if ((Number(p.order) || 0) !== k + 1) add('order', 'info', '優先順位の番号がずれています');
-        all.push({ id: p.id, qa });
-        p.qa = qa;
-      });
-      return all;
-    }
-
     function cpModelOrFallback(cp, p) {
       let m = reviewCarePlan(cp, p).model;
       const dm = !m && cpDomainOf(p);
@@ -1742,15 +1682,6 @@
       if (CP_PLACEHOLDER.test(body)) return true;
       if (plan.genKey && plan.genKey !== cpPlanKey(plan)) return true;
       return false;
-    }
-
-    function cpMissingProblemCandidates(cp) {
-      const t = cpEvidenceTexts(cp).all;
-      const keys = new Set(carePlanList(cp).map(p => (cpDomainOf(p) || {}).key));
-      const out = [];
-      if (/術後|手術/.test(t) && /ドレーン|出血|抗凝固|創部/.test(t) && !keys.has('bleed')) out.push('検討する問題（計画にまだありません）：術後出血リスク状態。ドレーン排液の量・性状、創部、血圧・脈拍、Hbの推移を確かめて、必要か判断してください');
-      if (/術後|手術|臥床|安静/.test(t) && !keys.has('vte')) out.push('検討する問題（計画にまだありません）：静脈血栓塞栓症リスク状態。術後の臥床・安静、下肢の腫脹・痛み、弾性ストッキングなどの指示を確かめて、必要か判断してください');
-      return out;
     }
 
     function cpRecSnip(cp, re, max = 36, skipRe = null) {
@@ -1825,7 +1756,7 @@
     function refineCarePlans(cp) {
       const now = new Date().toISOString();
       const merged = mergeDuplicateCarePlans(cp, now);
-      carePlanList(cp).forEach(p => { if (!p.caseId && cp.id) p.caseId = cp.id; });
+      carePlanList(cp).forEach(p => { delete p.qa; if (!p.caseId && cp.id) p.caseId = cp.id; });
       carePlanList(cp).forEach(p => applyCarePlanValidation(cp, p));
 
       let regenerated = 0;
@@ -1843,12 +1774,7 @@
       cpExplainDistinct(cp);
       prioritizeCarePlans(cp);
       carePlanList(cp).forEach((p, n) => { p.order = n + 1; });
-      const gate = cpQualityGate(cp);
-
-      const cand = cpMissingProblemCandidates(cp);
-      const first = carePlanList(cp)[0];
-      if (first && cand.length) first.qa = [...(first.qa || []), ...cand.map(c => ({ code: 'candidate', level: 'info', msg: c }))];
-      return { merged, refsRemoved, gate, regenerated, candidates: cand };
+      return { merged, refsRemoved, regenerated };
     }
 
     function evaluateCarePlanFromRecords(plan) {
@@ -2220,7 +2146,7 @@ if (typeof module !== 'undefined' && module.exports) {
     captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
     cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf,
-    CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpMissingProblemCandidates, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
-    cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, cpQualityGate, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, carePlanSetReviewHtml, carePlanSetState
+    CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
+    cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, carePlanSetReviewHtml, carePlanSetState
   });
 }

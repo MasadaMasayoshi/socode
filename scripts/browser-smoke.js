@@ -187,6 +187,7 @@ const {app}=require('../server');
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),true,`${name} must fit the viewport; tables/maps may scroll inside their containers`);
     await page.screenshot({path:`browser-artifacts/${width}-${name}.png`});
    }
+   await page.mouse.move(0,0);
    const lineVisibility = await page.evaluate(() => {
     const host = document.createElement('div');
     host.className = 'rm-canvas-wrap';
@@ -211,11 +212,12 @@ const {app}=require('../server');
       const vertical = host.querySelector('[data-link-id="vertical"] .rm-link-line');
       const mask = vertical.getAttribute('mask');
       const width = getComputedStyle(line).strokeWidth;
+      const opacity = getComputedStyle(line).opacity;
       const marker = host.querySelector('.rm-marker-arrow-blue');
       line.parentElement.classList.add('is-selected');
       const selectedId = getComputedStyle(line).markerEnd.match(/#([^)"]+)/)[1];
       const selectedMarker = host.querySelector(`[id="${selectedId}"]`);
-      results.push({width,maskExists:!!mask && !!host.querySelector(mask.slice(4,-1)),
+      results.push({width,opacity,selectedOpacity:getComputedStyle(line).opacity,maskExists:!!mask && !!host.querySelector(mask.slice(4,-1)),
         vectorEffect:getComputedStyle(line).vectorEffect,
         endpointSize:marker.markerWidth.baseVal.value * zoom,
         markerOverflow:getComputedStyle(marker).overflow,
@@ -229,6 +231,8 @@ const {app}=require('../server');
    });
    for (const result of lineVisibility) {
     assert.equal(result.width,'2px');
+    assert.equal(result.opacity,'0.65');
+    assert.equal(result.selectedOpacity,'1');
     assert.equal(result.vectorEffect,'non-scaling-stroke');
     assert.ok(Math.abs(result.endpointSize - 10) < .001);
     assert.equal(result.maskExists,true);
@@ -402,6 +406,15 @@ const {app}=require('../server');
     await page.locator('#btn-start-classify').click();
     await page.waitForFunction(()=>getCurrentPatient().items.some(i=>!i.deleted&&i.type==='s'));
     for(const name of ['assessment','careplan','labs','relation']) await page.locator('#tab-'+name).click();
+    assert.equal(await page.locator('#rm-add-kind').count(),0);
+    assert.equal(await page.locator('[data-rm-action="check"]').count(),0);
+    assert.equal(await page.locator('#rm-check').count(),0);
+    if(id==='gastric-arrows') {
+     await page.locator('[data-rm-action="add"]').click();
+     await page.locator('#modal-dialog').waitFor({state:'visible'});
+     assert.match(await page.locator('#dialog-title').innerText(),/四角を追加/);
+     await page.locator('#dialog-cancel').click();
+    }
     await page.locator('[data-rm-action="build-rules"]').click();
     await page.waitForFunction(()=>getCurrentPatient().relationMap?.nodes.length>0);
     const result=await page.evaluate(()=>{
@@ -412,6 +425,11 @@ const {app}=require('../server');
     });
     assert.ok(result.items>0&&result.plans>0&&result.nodes>0,`${width}px ${id}: empty workflow`);
     assert.ok(result.planned&&result.refs&&result.linked,`${width}px ${id}: state or evidence ownership`);
+    await page.locator('#tab-careplan').click();
+    await page.evaluate(()=>{for(const p of carePlanList(getCurrentPatient())){p.qa=[{level:'warn',msg:'保存済み自動警告'}];carePlanOpen.add(p.id);}renderCarePlans();});
+    assert.doesNotMatch(await page.locator('#careplan-list').innerText(),/表示前の自動チェック|保存済み自動警告/);
+    if(id==='gastric-arrows') await page.screenshot({path:`browser-artifacts/${width}-careplan-no-auto-check.png`});
+    await page.locator('#tab-relation').click();
     if(id==='gastric-arrows') {
      for (const zoom of [.55,1,2]) {
       await page.evaluate(zoom=>{

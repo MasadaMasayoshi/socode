@@ -716,7 +716,7 @@ test('関連図の評価への対応：治療の線の先は矢印・線が四�
   assert.doesNotMatch(src, /非効果的気道浄化（無気肺・肺炎のリスク状態）/);
 });
 
-test('スマホ：見出しのボタンを小さく・保存の状態は折り返す（横にはみ出さない）／関連図は長押しでメニュー・最初は疾患を上下のまん中に・チェックは直すことがあるときだけ', () => {
+test('スマホ：見出しのボタンを小さく・保存の状態は折り返す（横にはみ出さない）／関連図は長押しでメニュー・最初は疾患を上下のまん中に', () => {
   const mob = css.slice(css.lastIndexOf('@media (max-width: 639px)'));
   assert.match(mob, /@media \(max-width: 639px\) \{/);
   assert.match(mob, /#save-status \{ white-space: normal; min-width: 0;/);
@@ -725,7 +725,8 @@ test('スマホ：見出しのボタンを小さく・保存の状態は折り�
   assert.match(src, /const longPress = \{ timer: 0, fired: false, sx: 0, sy: 0 \};/);
   assert.match(src, /longPress\.fired = true;\s*rmShowCtx\(\{ target: tgt, clientX: cx, clientY: cy \}\);/);
   assert.match(src, /const dis = wrap\.querySelector\('\.rm-node\[data-kind="disease"\]'\);/);
-  assert.match(src, /rmShowCheck\(issues\.some\(i => i\.level !== 'info'\) \? issues : null\);/);
+  assert.doesNotMatch(src, /rmShowCheck/);
+  assert.doesNotMatch(html, /id="rm-add-kind"|data-rm-action="check"|id="rm-check"/);
 });
 
 test('長文事例の見直し：長い文はかっこ書きから外して「…」で切らない・本人の息苦しさはガス交換の低下の結果・Kが低ければ電解質異常は事実・治療の「┤」は検査データの下の端まで', () => {

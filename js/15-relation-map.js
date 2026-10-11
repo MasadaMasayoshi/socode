@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-11.slim-arrows3'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-11.quiet-plans4'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -1084,7 +1084,7 @@
         const tl = treat && r.pts && r.pts.length > 1 ? `<text class="rm-treat-label" x="${Math.round((r.pts[0][0] + r.pts[1][0]) / 2) + 6}" y="${Math.round((r.pts[0][1] + r.pts[1][1]) / 2) + 3}" font-size="10" fill="#2563EB" font-weight="700">治療</text>` : '';
         return `${mask}<g class="rm-link${treat ? ' is-treat' : ''}${sel ? ' is-selected' : ''}" data-link-id="${escapeHtml(e.id)}">
           ${interactive ? `<path class="rm-link-hit" d="${d}" fill="none" stroke="transparent" stroke-width="20"/>` : ''}
-          <path class="rm-link-line"${cuts.length ? ` mask="url(#${maskId})"` : ''} d="${d}" fill="none" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#3F3B35'}" stroke-width="${treat ? 2 : 1.5}"${screen ? ' vector-effect="non-scaling-stroke"' : ''}${e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} marker-end="url(#${markerPrefix}-${treat ? 'arrow-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"/>${tl}
+          <path class="rm-link-line"${cuts.length ? ` mask="url(#${maskId})"` : ''} d="${d}" fill="none" opacity="0.65" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#3F3B35'}" stroke-width="${treat ? 2 : 1.5}"${screen ? ' vector-effect="non-scaling-stroke"' : ''}${e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} marker-end="url(#${markerPrefix}-${treat ? 'arrow-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"/>${tl}
         </g>`;
       }).join('');
     }
@@ -2731,7 +2731,6 @@
       if (!map.nodes.length) { showToast('記録から関連図に使える情報が見つかりませんでした。「追加」で手で作ってください', 'warn'); return; }
       rmCommit(cp, map, { pushUndo: true });
       rmZoom('fit-readable');
-      rmShowCheckIfNeeded(map);
       const nAdded = map.nodes.filter(n => n.added).length;
       showToast(`記録から関連図を作りました（${map.nodes.length}個${nAdded ? `・うち紫の「＋補足」${nAdded}個は矢印の間に補った過程` : ''}）。病態のつながりを確かめて直してください`, 'success', 8000);
     }
@@ -2741,7 +2740,7 @@
       const view = document.getElementById('view-relation');
       if (!view) return;
       const cp = getCurrentPatient();
-      if (rmState.patientId !== cp.id) { rmSelectHistory(cp); rmState.selected = null; rmState.connectFrom = null; rmState.focusProblem = null; rmShowCheck(null); }
+      if (rmState.patientId !== cp.id) { rmSelectHistory(cp); rmState.selected = null; rmState.connectFrom = null; rmState.focusProblem = null; }
       const map = rmMap(cp);
       const wrap = document.getElementById('rm-canvas-wrap');
       const empty = document.getElementById('rm-empty');
@@ -2963,22 +2962,6 @@
       }
     }
 
-    let rmLastIssues = null;
-    function rmShowCheck(issues) {
-      rmLastIssues = issues;
-      const box = document.getElementById('rm-check');
-      if (!box) return;
-      if (!issues) { box.innerHTML = ''; box.classList.add('hidden'); return; }
-      box.classList.remove('hidden');
-      const fixable = issues.filter(i => i.fix).length;
-      const icon = { error: 'fa-circle-xmark', warn: 'fa-triangle-exclamation', info: 'fa-circle-info' };
-      box.innerHTML = `<div class="rm-check-head"><b><i class="fa-solid fa-list-check"></i> 関連図のチェック</b>
-        <span>${issues.length ? `${issues.filter(i => i.level === 'error').length}件の要修正・${issues.filter(i => i.level === 'warn').length}件の確認・${issues.filter(i => i.level === 'info').length}件のヒント` : '問題は見つかりませんでした'}</span>
-        ${fixable ? `<button type="button" class="btn btn-primary text-[11px] py-1" data-rm-action="autofix"><i class="fa-solid fa-wand-magic"></i> 自動で直す（${fixable}件）</button>` : ''}
-        <button type="button" class="btn btn-outline text-[11px] py-1" data-rm-action="close-check">閉じる</button></div>
-        ${issues.length ? `<ul class="rm-check-list">${issues.map((i, k) => `<li class="rm-check-${i.level}"><i class="fa-solid ${icon[i.level]}"></i> <span>${escapeHtml(i.msg)}</span>${(i.nodeIds || i.edgeIds) ? ` <button type="button" class="rm-check-show" data-rm-action="show-issue" data-issue="${k}">図で見る</button>` : ''}</li>`).join('')}</ul>` : ''}`;
-    }
-
     function rmMutate(fn, { message, render = true } = {}) {
       const cp = getCurrentPatient();
       const map = rmMap(cp);
@@ -3114,10 +3097,6 @@
       }
     }
 
-    function rmShowCheckIfNeeded(map) {
-      const issues = validateRelationMap(map);
-      rmShowCheck(issues.some(i => i.level !== 'info') ? issues : null);
-    }
     async function rmClearAll() {
       const map = rmMap();
       if (!map || !map.nodes.length) return;
@@ -3125,7 +3104,6 @@
       if (ok !== true) return;
       rmState.selected = null; rmState.connectFrom = null;
       rmCommit(getCurrentPatient(), null, { pushUndo: true });
-      rmShowCheck(null);
       showToast('関連図を消しました（「元に戻す」で戻せます）', 'info');
     }
     function rmMoveProblem(id, dir) {
@@ -3282,19 +3260,10 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
         else if (act === 'select-edge') rmSelect({ type: 'edge', id: btn.dataset.edgeId });
         else if (act === 'import-clinical') rmMutate(map => { rmImportClinicalEntities(map, getCurrentPatient()); rmPrepareClinicalMap(map, getCurrentPatient()); });
         else if (act === 'build-rules') rmBuild();
-        else if (act === 'add') rmAddNode(document.getElementById('rm-add-kind')?.value || 'pathophysiology');
+        else if (act === 'add') rmAddNode('pathophysiology');
         else if (act === 'relayout') rmMutate(map => layoutRelationMap(map), { message: '並べ直しました（重要な看護問題ほど上・看護問題は右端）' });
         else if (act === 'undo') rmUndoRedo(false);
         else if (act === 'redo') rmUndoRedo(true);
-        else if (act === 'check') { const m = rmMap(); rmShowCheck(m ? validateRelationMap(m, getCurrentPatient()) : []); }
-        else if (act === 'autofix' && rmLastIssues) { let n = 0; rmMutate(map => { n = rmApplyFixes(map, rmLastIssues); }); rmShowCheck(validateRelationMap(rmMap())); showToast(`${n}件を直しました（「元に戻す」で戻せます）`, 'success'); }
-        else if (act === 'close-check') rmShowCheck(null);
-        else if (act === 'show-issue' && rmLastIssues) {
-          const is = rmLastIssues[Number(btn.dataset.issue)];
-          if (is && is.nodeIds) rmSelect({ type: 'node', id: is.nodeIds[0] });
-          else if (is && is.edgeIds) rmSelect({ type: 'edge', id: is.edgeIds[0] });
-          document.getElementById('rm-canvas-wrap')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        }
         else if (act === 'zoom-in') rmZoom(1.2);
         else if (act === 'zoom-out') rmZoom(1 / 1.2);
         else if (act === 'zoom-fit') rmZoom('fit');
