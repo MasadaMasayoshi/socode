@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-12.usability-context27'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-12.usability-context29'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -463,8 +463,19 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     // ------------------------------------------------------------------------
 
     const SELECTED_EXPORT_TYPE_LABELS = { s: 'Sデータ', o: 'Oデータ', unclassified: '未分類', unnecessary: '不必要な情報' };
-    function sourceExcerptForCard(sourceText, cardText) {
-      const ranges = findSourceHighlightRanges(sourceText || '', cardText);
+    function sourceRangesForCard(sourceText, cardText, item) {
+      if (item?.fieldLabel && /^(?:ない|なし|あり|陰性|陽性)[。.]?$/.test(String(cardText).trim())) {
+        const label = escapeRegExp(item.fieldLabel);
+        const value = escapeRegExp(String(cardText).trim().replace(/[。.]$/, ''));
+        const re = new RegExp(`${label}(?:は|が|[:：\\s]+)${value}`, 'g');
+        const match = re.exec(sourceText || '');
+        return match ? [[match.index, match.index + match[0].length]] : [];
+      }
+      if (/^(?:ない|なし|あり)[。.]?$/.test(String(cardText).trim())) return [];
+      return findSourceHighlightRanges(sourceText || '', cardText);
+    }
+    function sourceExcerptForCard(sourceText, cardText, item) {
+      const ranges = sourceRangesForCard(sourceText, cardText, item);
       if (!ranges.length) return null;
 
       const start = sourceText.lastIndexOf('\n', ranges[0][0] - 1) + 1;
@@ -525,7 +536,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       return changes;
     }
     function describeAutoRewrite(sourceText, cardText, item, otherItems) {
-      const ranges = findSourceHighlightRanges(sourceText || '', cardText);
+      const ranges = sourceRangesForCard(sourceText, cardText, item);
       if (!ranges.length) return null;
       const notes = [];
       const lineStart = sourceText.lastIndexOf('\n', ranges[0][0] - 1) + 1;
@@ -636,13 +647,13 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
           i.fieldLabel ? `見出し: ${i.fieldLabel}` : null,
           `タグ: ${tags || 'なし'}`
         ].filter(Boolean).join(' ／ ');
-        const excerpt = sourceExcerptForCard(sourceText, i.text);
+        const excerpt = sourceExcerptForCard(sourceText, i.text, i);
         out += `\n■ ${idx + 1}件目\n`;
         out += `${meta}\n`;
         out += `カードID: ${i.id || '記録なし'}／保存済みの分類経路: ${i.predictionSource || '記録なし'}\n`;
         const review = typeof untaggedReviewOf === 'function' ? untaggedReviewOf(cp, i) : null;
         if (review) out += `保存済みのレビュー判断: ${review.decision}／理由: ${review.note || '理由未記録（調査してください）'}\n`;
-        out += '自動処理の理由・ルール: 記録なし（差分や分類経路だけでは原因を断定できません。原文で再現して調査してください）\n';
+        out += i.ruleCorrectionReason ? `自動処理の理由・ルール: ${i.ruleCorrectionReason}\n` : '自動処理の理由・ルール: 記録なし（差分や分類経路だけでは原因を断定できません。原文で再現して調査してください）\n';
         out += `カードの内容: ${i.text}\n`;
         if (Array.isArray(i.contextTagEvidence) && i.contextTagEvidence.length) {
           out += `タグを付けた根拠（原文の文脈）:\n${i.contextTagEvidence.map(e => `  ・${hendersonNameOf(e.id)}：［${e.timestamp}］${e.evidence}`).join('\n')}\n`;
@@ -673,8 +684,12 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       }
       return out;
     }
+    function buildPatientBackupData(now = new Date().toISOString()) {
+      return { schemaVersion: 1, exportedAt: now, patients: globalAppData.patients,
+        currentPatientId: globalAppData.currentPatientId, learningUserDict: globalAppData.learningUserDict };
+    }
     function correctionRequestInstructionsText() {
-      return '\n[Developer instructions]\nCompare source, surrounding records and edit history. Separate automatic processing from manual edits; reproduce card splits/merges and tag additions/removals from the source. Determine intended behavior vs bugs; report evidence, cause and fix. Mark unverifiable causes 『確認不能』; do not present guesses as facts. Generalize rules to similar records, not one patient. Preserve source/Japanese clinical text and approved『タグ不要』/『理由を了承』decisions. Classify Henderson needs by meaning, not S/O; assess pre/post admission separately. Honor requested corrections. Check extraction (js/03), keywords (js/01), context/tag rules (js/07). Update the classification criteria in 学習データ管理 → 分類基準 (including the reference notebook in js/02) to reflect the confirmed corrections from this request; keep the criteria and implemented rules consistent for similar records. For each confirmed rule, document the condition, a positive example and a counterexample (such as a different time or an unrelated event), remove superseded contradictory criteria, and advance the notebook version. Verify fresh classification, existing saved cards after reload, and append classification with duplicate cards. Correct missing tags on untouched automatic cards without replacing card IDs, text, S/O, assessments or plans; preserve manual edits, learned decisions and approved exclusions. Include runtime/rule versions, saved prediction source, current-rule output and observed differences; mark unobserved browser/cache/learning causes 『確認不能』. Run relevant tests; never derive expected answers from app output or hide missing fixtures. Investigate why each card was classified as unnecessary, left untagged or excluded: identify the recorded actor, responsible rule and decision reason; compare original/surrounding records and reproduce the decision. Explicit split/merge records show actions, not proof of their justification. Use source/result card IDs and preserved histories to trace changes. If the reason or rule was not recorded, state 『理由未記録』/『確認不能』 and investigate; never infer motive from a text diff. Validate exclusions against the source, fix confirmed errors and update both classification rules and criteria with positive/counterexamples. An explicit correction request may challenge an approved exclusion; review it without silently overwriting it or automatically restoring every excluded card.\n';
+      return '\n[Developer instructions]\nCompare source, surrounding records and edit history. Separate automatic processing from manual edits; reproduce card splits/merges and tag additions/removals from the source. Determine intended behavior vs bugs; report evidence, cause and fix. Mark unverifiable causes 『確認不能』; do not present guesses as facts. Generalize rules to similar records, not one patient. Preserve source/Japanese clinical text and approved『タグ不要』/『理由を了承』decisions. Classify Henderson needs by meaning, not S/O; assess pre/post admission separately. Honor requested corrections. Check extraction (js/03), keywords (js/01), context/tag rules (js/07). Update the classification criteria in 学習データ管理 → 分類基準 (including the reference notebook in js/02) to reflect the confirmed corrections from this request; keep the criteria and implemented rules consistent for similar records. For each confirmed rule, document the condition, a positive example and a counterexample (such as a different time or an unrelated event), remove superseded contradictory criteria, and advance the notebook version. Verify fresh classification, existing saved cards after reload, and append classification with duplicate cards. Correct missing tags on untouched automatic cards without replacing card IDs, text, S/O, assessments or plans; preserve manual edits, learned decisions and approved exclusions. Include runtime/rule versions, saved prediction source, current-rule output and observed differences; mark unobserved browser/cache/learning causes 『確認不能』. Run relevant tests; never derive expected answers from app output or hide missing fixtures. Investigate why each card was classified as unnecessary, left untagged or excluded: identify the recorded actor, responsible rule and decision reason; compare original/surrounding records and reproduce the decision. Explicit split/merge records show actions, not proof of their justification. Use source/result card IDs and preserved histories to trace changes. If the reason or rule was not recorded, state 『理由未記録』/『確認不能』 and investigate; never infer motive from a text diff. Validate exclusions against the source, fix confirmed errors and update both classification rules and criteria with positive/counterexamples. An explicit correction request may challenge an approved exclusion; review it without silently overwriting it or automatically restoring every excluded card.\n\n【タグ未設定の追加調査】\nタグ未設定のカードを、抽出・原文対応・S/O・ヘンダーソンの意味・入院前後と術前後の時期・否定や正常所見・前後の記録・本人と家族の区別・手編集と学習履歴の各視点から調査し、根拠が確認できた分類漏れを修正してください。その後、添付資料全体から意味や場面が類似する情報と、既にタグがあっても別のタグを追加できる情報を収集してください。各情報の原文・時期・候補タグ・根拠・不足情報を示し、付与可能・タグ不要・確認待ちを区別してください。添付以外の情報は追加せず、類似しているだけで因果関係やタグを推定しないでください。確認した一般則を分類処理と分類基準に反映してください。\n';
     }
     function buildSelectedCardsExportText(cp, selectedIds, sourceText, includeSourceText = true, includeAssessment = false) {
       const ids = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);

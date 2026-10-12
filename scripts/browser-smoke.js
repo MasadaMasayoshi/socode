@@ -18,6 +18,18 @@ const {app}=require('../server');
    await context.addInitScript(() => localStorage.setItem('nursing_font', 'serif'));
    const page=await context.newPage(),errors=[];
     page.on('pageerror',e=>errors.push(e.stack || e.message));
+   const classificationDeliveries = [];
+   await page.route('**/api/classification-delivery', async route => {
+    const job = route.request().postDataJSON();
+    const backup = JSON.parse(job.backupText);
+    assert.equal(backup.schemaVersion, 1);
+    assert.ok(Array.isArray(backup.patients));
+    assert.ok(!Object.hasOwn(backup, 'apiKey'));
+    assert.match(job.reviewText, /【タグ未設定の追加調査】/);
+    assert.match(job.reviewText, /その後、添付資料全体から/);
+    classificationDeliveries.push(job);
+    await route.fulfill({ json: { ok: true, sent: true, id: job.id } });
+   });
    await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
    await page.waitForFunction(()=>typeof getCurrentPatient==='function'&&!!getCurrentPatient());
    const fontCheck = await page.evaluate(() => {
@@ -36,6 +48,21 @@ const {app}=require('../server');
    assert.equal(fontCheck.defaultLabel, width >= 1024 ? 'ゴシック' : '明朝');
    assert.equal(fontCheck.persistedDefault, null);
    assert.equal(fontCheck.explicitSerif, true);
+   const sourceTagCheck = await page.evaluate(() => {
+    const source = '入院前\n既往歴:症状がない\nADL:全て自立 アレルギーはない。\n入院1日目\n《術前検査結果》\n| 項目 | 種類 | 基準値 | A氏 | 正常・異常 |\n| :--- | :--- | :--- | :--- | :--- |\nHCV 抗体(-)\n【胸部 X 線】明らかな病変はなし';
+    const cards = classifyTextByRules(source);
+    const legacy = { id: 'source-check', text: 'ない', fieldLabel: 'アレルギー', timestamp: '入院前', type: 'o', hendersonIds: [], predictionSource: 'rule' };
+    const cp = { title: '架空検証', sourceText: source, items: [legacy] };
+    const changed = refreshSavedUntaggedCards(cp);
+    const exported = buildSelectedCardsExportText(cp, new Set([legacy.id]), source, false);
+    return { changed, allergy: legacy.hendersonIds, sourceCorrect: exported.includes('元の文章: ADL:全て自立 アレルギーはない。'),
+      infection: cards.find(i => i.text.includes('HCV')).hendersonIds,
+      chest: cards.find(i => i.text.includes('胸部')).hendersonIds,
+      scaffolding: cards.filter(i => /項目|:---|術前検査結果/.test(i.text)).every(i => i.type === 'unnecessary'),
+      sleep: detectMultipleHendersonTags('睡眠:6時間 排便:1回/日'),
+      noEmptyAbnormal: !cards.some(i => i.text === '異常 |') };
+   });
+   assert.deepEqual(sourceTagCheck, { changed: 1, allergy: [9], sourceCorrect: true, infection: [9], chest: [1], scaffolding: true, sleep: [5,3], noEmptyAbnormal: true });
    // Exercise the real file-input/OCR UI with an intercepted transport; this is not live-provider verification.
    let ocrRequests=0,failOcrRequest=0;
    await page.route('https://generativelanguage.googleapis.com/**', async route=>{
@@ -132,6 +159,10 @@ const {app}=require('../server');
     await page.locator('#modal-dialog').waitFor({state:'hidden'});
    }
    await page.waitForFunction(()=>getCurrentPatient().items.some(x=>!x.deleted));
+   await page.waitForFunction(() => localStorage.getItem('nursing_classification_mail_outbox_v1') === '[]');
+   assert.ok(classificationDeliveries.length > 0);
+   assert.doesNotMatch(await page.locator('#toast-container').innerText(), /メール|送信/);
+
    const cardFont = await page.locator('.rec-card .card-text').first().evaluate(el => getComputedStyle(el).fontSize);
    assert.equal(cardFont, width >= 1024 ? '14px' : '11.2px');
    await page.screenshot({path:`browser-artifacts/${width}-reading-font.png`});
@@ -992,7 +1023,7 @@ const {app}=require('../server');
    await context.close();
   }
   const head=require('node:child_process').execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
-  fs.writeFileSync('browser-artifacts/validation-evidence.json',JSON.stringify({schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:8,uncaughtErrors:0,ocrTransport:'intercepted',liveOcrVerified:false},null,2)+'\n');
+  fs.writeFileSync('browser-artifacts/validation-evidence.json',JSON.stringify({schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:10,uncaughtErrors:0,ocrTransport:'intercepted',liveOcrVerified:false},null,2)+'\n');
  } finally {
   if(browser)await browser.close();
   await new Promise(resolve=>server.close(resolve));

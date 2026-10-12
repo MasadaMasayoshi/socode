@@ -1,7 +1,7 @@
 // Startup, references and image OCR. Validate image MIME/size; capture patient before async prompts.
 // Reference notes are not automatic classification rules; file versions detect mixed/reverted assets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-10-11.usability-context19'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-10-12.usability-context29'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -109,7 +109,7 @@
 
     document.getElementById('btn-save-data').addEventListener('click', async () => {
       saveDataAndSync();
-      const backup = { schemaVersion: 1, exportedAt: new Date().toISOString(), patients: globalAppData.patients, currentPatientId: globalAppData.currentPatientId, learningUserDict: globalAppData.learningUserDict };
+      const backup = buildPatientBackupData();
       if (await downloadTextBlob(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }), `nursing_assessment_all_patients_${Date.now()}.json`)) showToast('全患者データを保存しました', 'success');
     });
 
@@ -663,7 +663,7 @@ if (typeof module !== 'undefined' && module.exports) {
     buildExportPlainText, htmlToPlainText, isUntouchedAiMissing, cleanAiText, notifyLostAiRequests, cardTextWithLabFlagsHtml, resetCardLabFlags, detectAgeGroupFromText,
     buildExportBodyHtml,
     findSourceHighlightRanges,
-    buildSelectedCardsExportText, buildReviewRequestText, reviewRequestTargets, isEditedCard, downloadTextBlob, chooseExportFile, clinicalCardDuplicateKey,
+    buildPatientBackupData, queueClassificationDelivery, flushClassificationDeliveries, buildSelectedCardsExportText, buildReviewRequestText, reviewRequestTargets, isEditedCard, downloadTextBlob, chooseExportFile, clinicalCardDuplicateKey,
     buildAssessmentTableText,
     describeAutoRewrite,
     mergeShortFragmentCards,

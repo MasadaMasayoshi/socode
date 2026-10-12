@@ -1,7 +1,7 @@
 // Shared patient and learning persistence. Keep patient identity, per-card merge and map revisions.
 // Only deliberate corrections vote; source snapshots and raw research history remain shared.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = '2026-10-10.znavigation17'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = '2026-10-12.usability-context29'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -10,6 +10,62 @@
 
     const RENDER_ORIGIN = (document.querySelector('meta[name="api-origin"]') || {}).content || 'https://socode.onrender.com';
     const API_BASE = (typeof location !== 'undefined' && /\.github\.io$/i.test(location.hostname || '')) ? `${RENDER_ORIGIN.replace(/\/+$/, '')}/api` : '/api';
+    const CLASSIFICATION_MAIL_OUTBOX_KEY = 'nursing_classification_mail_outbox_v1';
+    const classificationMailOutbox = (() => {
+      try {
+        const saved = JSON.parse(localStorage.getItem(CLASSIFICATION_MAIL_OUTBOX_KEY) || '[]');
+        return Array.isArray(saved) ? saved.filter(j => j && typeof j.id === 'string' && typeof j.backupText === 'string' && typeof j.reviewText === 'string') : [];
+      } catch (_) { return []; }
+    })();
+    let classificationMailSending = false;
+    let classificationMailRetry = null;
+    function saveClassificationOutbox() {
+      try {
+        localStorage.setItem(CLASSIFICATION_MAIL_OUTBOX_KEY, JSON.stringify(classificationMailOutbox));
+        return true;
+      } catch (_) {
+        console.warn('Classification delivery queue could not be persisted; original records are retained.');
+        return false;
+      }
+    }
+    function queueClassificationDelivery(cp) {
+      // Use the same credential-free JSON schema as the Save button, plus full review text.
+      const randomId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const job = { id: `classification_${randomId}`, backupText: JSON.stringify(buildPatientBackupData(), null, 2),
+        reviewText: buildReviewRequestText(cp, cp.sourceText || '', true) };
+      classificationMailOutbox.push(job);
+      saveClassificationOutbox();
+      void flushClassificationDeliveries();
+      return job;
+    }
+    async function flushClassificationDeliveries() {
+      if (classificationMailSending || !classificationMailOutbox.length || navigator.onLine === false ||
+          typeof IS_FILE_PROTOCOL !== 'undefined' && IS_FILE_PROTOCOL) return;
+      classificationMailSending = true;
+      if (classificationMailRetry) { clearTimeout(classificationMailRetry); classificationMailRetry = null; }
+      try {
+        while (classificationMailOutbox.length) {
+          const job = classificationMailOutbox[0];
+          const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+          const timeout = controller ? setTimeout(() => controller.abort(), 45000) : null;
+          try {
+            const res = await fetch(`${API_BASE}/classification-delivery`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(job), ...(controller ? { signal: controller.signal } : {}) });
+            const result = await res.json();
+            if (!res.ok || result?.sent !== true || result.id !== job.id) throw new Error('Delivery not confirmed');
+            classificationMailOutbox.shift();
+            saveClassificationOutbox();
+          } finally { if (timeout) clearTimeout(timeout); }
+        }
+      } catch (_) {
+        // Owner requested no in-site delivery notifications, including retry status.
+        console.warn('Classification delivery pending; saved attachment will be retried.');
+        classificationMailRetry = setTimeout(() => { classificationMailRetry = null; void flushClassificationDeliveries(); }, 60000);
+      } finally { classificationMailSending = false; }
+    }
+    window.addEventListener('online', () => { void flushClassificationDeliveries(); });
+    window.addEventListener('load', () => { void flushClassificationDeliveries(); });
+
     // { [text]: { preferredType, preferredCols, preferredHendersonIds, typeVotes, hendersonVotes, lastEditedFrom, updatedAt } }
 
     let sharedLearningDict = {};

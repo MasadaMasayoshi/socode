@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-12.usability-context20'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-12.usability-context28'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -261,6 +261,25 @@
       const ocr = untaggedOcrSuspect(text);
       if (ocr) {
         return set('source', `${ocr.why}。意味を推測して分類すると誤るため、原文のまま残しています。`, ocr.level, [], ['原本（元の記録）で文字・数値・単位を確認してください', '確認できるまで、臨床的な根拠として使わないでください']);
+      }
+      if (isSourceStructureText(text) || /^ホーマンズ[:：]\s*足を背屈させたとき[。.]?$/.test(text.trim())) {
+        return set('none', '資料の見出し・表構造・説明メモで、患者の観察所見ではありません。日時や項目の文脈は保持します。', '高', [], ['患者所見と分け、配下の数値・観察結果を除外しないでください']);
+      }
+      if (item?.fieldLabel === 'アレルギー' && /^(?:ない|なし)[。.]?$/.test(text.trim())) {
+        return set('classify', 'アレルギー欄の陰性所見です。本文の短い語だけでなく項目名を合わせて9.環境に分類します。', '高', [9], ['原文のアレルギー欄と照合し、別の「症状がない」を出典にしないでください']);
+      }
+      if (/^着があり剥離/.test(text.trim()) || /の着があり剥離/.test(text)) {
+        return set('source', '原文に文字が欠けた可能性のある手術記録です。前後を接続しても欠けた文字は確定できません。', '高', [], ['原本で欠落箇所を確認し、推測で文字や病態を補わないでください']);
+      }
+      if (/胆嚢結石/.test(text) && /症状がない|無症状/.test(text)) {
+        return set('none', '無症状の既往歴です。医学情報として保持し、後日の胆嚢摘出の記録と照合します。この記載だけで飲食・排泄の障害は判断しません。', '高', [], ['症状・摂取・排泄への影響が別に記録されていれば、時期を分けて評価してください']);
+      }
+      if (/精密検査/.test(text) && /がん|癌/.test(text) && /入院/.test(text) && !GASTRIC_FINDING_REGEX.test(text)) {
+        return set('none', '検査で判明した診断と入院目的です。医学情報として保持し、胃カメラ・予定手術・実施手術と照合します。患者の理解を示す記録ではありません。', '高', [], ['症状や生活への影響、説明への反応は別の根拠として確認してください']);
+      }
+      const semanticTags = detectMultipleHendersonTags(text).filter(id => [1, 2, 9, 14].includes(id));
+      if (semanticTags.length && (HEALTH_SCREEN_USE_REGEX.test(text) || CHEST_IMAGE_REGEX.test(text) || GASTRIC_FINDING_REGEX.test(text) || INFECTION_SCREEN_REGEX.test(text))) {
+        return set('classify', '検診の利用行動または検査の対象・所見から、基本的欲求との関係を確認できます。陰性所見も評価の根拠として保持します。', '高', semanticTags, ['タグの付与と充足・未充足の判定を分け、所見一つで総合判定しないでください']);
       }
       const parts = untaggedSegmentTags(text);
       if (parts.length) {

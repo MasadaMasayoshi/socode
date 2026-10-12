@@ -1,7 +1,7 @@
 // Local record extraction. Preserve source wording, units, timestamps and admission context.
 // Headings supply context; narrative numbers are not automatically laboratory measurements.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = '2026-10-10.znavigation17'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = '2026-10-12.usability-context28'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -97,7 +97,7 @@
     const LAB_CATEGORY_TAG_RULES = [
 
       { tags: [1], regex: /(SpO2|SpO₂|SPO2|酸素飽和度|PaO2|PaCO2|呼吸数|呼吸\s*\d|血圧|脈拍|心拍|\bBNP\b|NT-proBNP|\bBP\s*\d|(?<![A-Za-z])[PR]\s*\d+\s*回|(?<![A-Za-z])(?:HR|PR|RR)\s*\d)/i },
-      { tags: [3], regex: /(\bCre\b|クレアチニン|\bBUN\b|尿素窒素|eGFR|尿酸|尿蛋白|尿糖|尿比重)/i },
+      { tags: [3], regex: /(\bCr(?:e)?\b|クレアチニン|\bBUN\b|尿素窒素|eGFR|尿酸|尿蛋白|尿糖|尿比重)/i },
       { tags: [7], regex: /(\bWBC\b|白血球|\bCRP\b|C反応性|体温|(?<![A-Za-z])B?T\s*\d{2})/i },
 
       { tags: [2], regex: /(APTT|PT-INR|PT%|\bPT(?=\s*[\d%(（])|プロトロンビン|Dダイマー|D-ダイマー|\bFDP\b|フィブリノ|\bPLT\b|血小板)/i }
@@ -216,10 +216,18 @@
       const m = trimmed.match(SECTION_TITLE_WITH_VALUES_REGEX);
       return !!(m && /\d/.test(m[1]));
     }
+    // Detect formatting before sentence splitting; never consume a row with a value.
+    function isSourceStructureText(str) {
+      const t = String(str || '').normalize('NFKC').trim();
+      if (/^\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?$/.test(t)) return true;
+      if (t.includes('|') && /項目/.test(t) && /基準値|正常・異常/.test(t) && !/\d/.test(t)) return true;
+      if (/^\d+\s*期生\s+[^。:：]{0,60}(?:看護過程|援助技術)[^。:：]*$/.test(t)) return true;
+      return /^(?:《(?:術前検査結果|カルテより手術の情報|帰室時の状況|カルテ情報)》\s*)+(?:【血液検査データ[ー]?】)?$/.test(t);
+    }
     function isUnnecessaryBoilerplateText(str) {
       if (!str) return false;
       const trimmed = str.trim();
-      return LAB_TABLE_TITLE_ONLY_REGEX.test(trimmed) || (UNNECESSARY_BOILERPLATE_REGEX.test(trimmed) && !isSectionTitleWithValues(trimmed)) || BARE_PATIENT_HONORIFIC_REGEX.test(trimmed) ||
+      return isSourceStructureText(trimmed) || LAB_TABLE_TITLE_ONLY_REGEX.test(trimmed) || (UNNECESSARY_BOILERPLATE_REGEX.test(trimmed) && !isSectionTitleWithValues(trimmed)) || BARE_PATIENT_HONORIFIC_REGEX.test(trimmed) ||
         STUDENT_CARE_START_REGEX.test(trimmed) || ROOM_MOVE_ONLY_REGEX.test(trimmed) || SCHEDULE_COLUMN_HEADER_REGEX.test(trimmed) ||
         SECTION_TITLE_ONLY_REGEX.test(trimmed) || COURSE_INFO_REGEX.test(trimmed) || CARE_START_ONLY_REGEX.test(trimmed) || isOcrNoiseText(trimmed);
     }
@@ -246,7 +254,7 @@
       return EMPTY_COLON_HEADER_REGEX.test(str.trim());
     }
 
-    const BARE_STATUS_WORD_REGEX = /^(無|なし|あり|有り|特になし|特記なし|不明|良好|不良|普通|軽度|中等度|重度|陰性|陽性)(?:[\s　]*[（(][^）)]*[）)])?$/;
+    const BARE_STATUS_WORD_REGEX = /^(無|なし|ない|あり|有り|特になし|特記なし|不明|良好|不良|普通|軽度|中等度|重度|陰性|陽性)(?:[\s　]*[（(][^）)]*[）)])?$/;
     function isBareStatusWord(str) {
       if (!str) return false;
       return BARE_STATUS_WORD_REGEX.test(str.trim());

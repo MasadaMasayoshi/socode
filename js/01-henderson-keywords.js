@@ -1,7 +1,7 @@
 // Henderson vocabulary. Match content, not S/O form; insurance belongs to need 9.
 // Uploaded assessment domains inform vocabulary; retain Japanese clinical terms and concise need names.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['01'] = '2026-10-10.znavigation17'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['01'] = '2026-10-12.usability-context28'; // Version stamp (scripts/stamp-version.js)
 
     const HENDERSON_NEEDS = [
       { id: 1, name: "呼吸", icon: "fa-lungs", keywords: ["出血量", "輸液量",   "呼吸", "SpO2", "咳", "痰", "喘鳴", "息切れ", "チアノーゼ", "酸素", "息苦し", "PaO2", "呼吸数", "呼吸音", "動脈血ガス", "胸部X線", "胸郭", "呼吸補助筋", "起座呼吸", "wheezes", "発汗", "気道", "分泌物", "狭窄", "喫煙", "人工呼吸器", "酸素マスク", "肥満", "発熱", "副作用", "安楽な姿勢", "湿度", "臭気", "吸入器", "在宅酸素療法", "排痰", "咳嗽", "血圧", "脈拍", "頻脈", "徐脈", "不整脈", "動悸", "浮腫", "末梢冷感", "循環動態", "心拍数", "心電図", "胸痛", "ショック", "麻酔覚醒", "気管挿管", "抜管", "無気肺", "有効咳嗽", "術後肺炎", "肺血栓塞栓症", "PTE",
@@ -34,7 +34,7 @@
         "飲酒", "アルコール",
 
         "朝食", "昼食", "夕食", "全量摂取", "絶食", "禁食", "むかつき", "胸やけ"] },
-      { id: 3, name: "排泄", icon: "fa-toilet", keywords: ["排尿", "排便", "便が出ない", "便がでない", "下痢", "便秘", "失禁", "導尿", "残尿", "BUN", "Cre", "eGFR", "おしっこ", "下血", "血尿", "ストーマ", "導尿カテーテル", "ドレーン排液", "排泄", "緩下剤", "下剤", "浣腸", "おむつ", "肛門", "臀部", "腹部", "夜間排尿", "利尿剤", "尿道カテーテル", "ウロストミー", "混濁", "滲出液", "体臭", "腸蠕動", "排ガス", "イレウス", "腹部膨満",
+      { id: 3, name: "排泄", icon: "fa-toilet", keywords: ["排尿", "排便", "便が出ない", "便がでない", "下痢", "便秘", "失禁", "導尿", "残尿", "BUN", "Cre", "Cr", "eGFR", "おしっこ", "下血", "血尿", "ストーマ", "導尿カテーテル", "ドレーン排液", "排泄", "緩下剤", "下剤", "浣腸", "おむつ", "肛門", "臀部", "腹部", "夜間排尿", "利尿剤", "尿道カテーテル", "ウロストミー", "混濁", "滲出液", "体臭", "腸蠕動", "排ガス", "イレウス", "腹部膨満",
 
         "カテーテル", "尿量", "尿検査", "尿糖", "尿蛋白",
 
