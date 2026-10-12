@@ -65,8 +65,8 @@ test('Append coverage excludes only fully represented source parents and never p
  assert.equal(app.hasCompleteSavedSourceCoverage(items,longer,'術後1日目'),false);
  assert.equal(app.hasCompleteSavedSourceCoverage(items,longer+'尿量100ml。','手術当日'),false);
 });
-test('Confirmed, learned and approved fragment decisions are never silently replaced',()=>{
- for(const flags of [{predictionSource:'confirmed'},{predictionSource:'learned'},{tagNotNeeded:true},{editLog:[{kind:'tagRemove',hId:2}]}]){
+test('Confirmed and approved fragment decisions are never silently replaced',()=>{
+ for(const flags of [{predictionSource:'confirmed'},{tagNotNeeded:true},{editLog:[{kind:'tagRemove',hId:2}]}]){
   const cp={sourceText:source,items:[saved('着があり剥離した。また、胆嚢内に結石が認められ、同時に摘出した。','手術当日',flags)]};const before=JSON.stringify(cp);
   assert.equal(app.refreshSavedUntaggedCards(cp),0);assert.equal(JSON.stringify(cp),before);
  }

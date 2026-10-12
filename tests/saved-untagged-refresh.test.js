@@ -28,8 +28,8 @@ test('Existing automatic cards receive source-supported tags without replacing p
   assert.equal(JSON.stringify(cp), after);
 });
 
-test('Manual, learned, approved and deleted cards keep their original decisions', () => {
-  for (const extra of [{ predictionSource: 'confirmed' }, { predictionSource: 'learned' }, { predictionSource: 'fuzzy' }, { predictionSource: 'tied' }, { tagNotNeeded: true }, { deleted: true }, { aiSuggested: true }, { editLog: [{ kind: 'tagRemove', hId: 9 }] }, { editLog: [{ kind: 'text', before: '別の文章' }] }]) {
+test('Manual, approved and deleted cards keep their original decisions', () => {
+  for (const extra of [{ predictionSource: 'confirmed' }, { tagNotNeeded: true }, { deleted: true }, { aiSuggested: true }, { editLog: [{ kind: 'tagRemove', hId: 9 }] }, { editLog: [{ kind: 'text', before: '別の文章' }] }]) {
     const cp = { sourceText: source, items: [saved('アレルギー: なし', '入院前', extra)] };
     const before = JSON.stringify(cp);
     assert.equal(app.refreshSavedUntaggedCards(cp), 0);
@@ -50,12 +50,12 @@ test('A legacy automatic card is updated only when source text and event time ma
     saved('創痛が強い。', '術後1日目 10:00'),
     saved('創痛がある。', '術後1日目 10:00', { hendersonIds: [9] })
   ] };
-  assert.equal(app.refreshSavedUntaggedCards(cp), 1);
-  assert.deepEqual(cp.items.map(tags), [[9], [], [], [9]]);
+  assert.equal(app.refreshSavedUntaggedCards(cp), 2);
+  assert.deepEqual(cp.items.map(tags), [[9], [], [], [4, 5, 9]]);
   assert.equal(app.refreshSavedUntaggedCards({ items: [saved('アレルギー: なし', '入院前')] }), 0);
 });
 
-test('Correction export distinguishes a saved-result gap from learned or unmatched state', () => {
+test('Correction export includes unedited learned gaps and distinguishes unmatched source', () => {
   const cp = { title: '架空検証', items: [saved('創痛がある。', '術後1日目 10:00')] };
   const before = JSON.stringify(cp);
   const out = app.buildReviewRequestText(cp, source);
@@ -66,8 +66,8 @@ test('Correction export distinguishes a saved-result gap from learned or unmatch
   assert.equal(JSON.stringify(cp), before);
   cp.items[0].predictionSource = 'learned';
   const protectedOut = app.buildReviewRequestText(cp, source);
-  assert.match(protectedOut, /対象外（学習結果による分類）/);
-  assert.doesNotMatch(protectedOut, /確認できた差分:/);
+  assert.match(protectedOut, /保存済みの分類経路: learned／自動タグ更新: 対象/);
+  assert.match(protectedOut, /確認できた差分:/);
   cp.items[0].timestamp = '術後2日目 10:00';
   assert.match(app.buildReviewRequestText(cp, source), /確認不能（本文と日時が一致する原文カードなし）/);
 });

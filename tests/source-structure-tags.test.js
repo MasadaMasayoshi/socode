@@ -53,9 +53,14 @@ test('Untouched structure cards are repaired in place; protected decisions remai
   assert.equal(cp.items[0].type, 'unnecessary'); assert.equal(cp.items[0].id, 'x');
   assert.ok(cp.items[0].ruleCorrectionReason);
   assert.equal(app.refreshSavedUntaggedCards(cp), 0);
-  for (const extra of [{ predictionSource: 'confirmed' }, { predictionSource: 'learned' }, { tagNotNeeded: true }, { editLog: [{kind:'text'}] }]) {
+  for (const extra of [{ predictionSource: 'confirmed' }, { tagNotNeeded: true }, { editLog: [{kind:'text'}] }]) {
     const cp = { sourceText: source, items: [mk(extra)] }, before = JSON.stringify(cp);
     assert.equal(app.refreshSavedUntaggedCards(cp), 0); assert.equal(JSON.stringify(cp), before);
+  }
+  for (const predictionSource of ['learned','fuzzy','tied']) {
+    const learned = {sourceText:source,items:[mk({predictionSource,hendersonIds:[9]})]};
+    assert.equal(app.refreshSavedUntaggedCards(learned),1);assert.equal(learned.items[0].type,'unnecessary');assert.deepEqual(Array.from(learned.items[0].hendersonIds),[]);
+    assert.equal(app.refreshSavedUntaggedCards(learned),0);
   }
   const fragment = { sourceText: source, items: [mk({text:'異常 |'})] };
   assert.equal(app.refreshSavedUntaggedCards(fragment), 1); assert.equal(fragment.items[0].type, 'unnecessary');
