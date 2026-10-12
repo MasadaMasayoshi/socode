@@ -1130,7 +1130,7 @@
         const line = String(original).trim();
         if ((line.match(/\|/g) || []).length < 2) { header = null; emittedHeader = false; out.push(original); continue; }
         const cells = line.replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
-        if (cells.every(c => !c || /^:?-{2,}:?$/.test(c))) { out.push(SOURCE_TITLE_MARK + cells.join(' ')); continue; }
+        if (cells.every(c => !c || /^:?-{2,}:?$/.test(c))) { out.push(SOURCE_TITLE_MARK + line); continue; }
         if (/^(?:項目|検査項目)$/.test(cells[0])) { header = cells; emittedHeader = false; out.push(SOURCE_TITLE_MARK + cells.join(' ')); continue; }
         const keep = header ? header.map((c, k) => k).filter(k => k === 0 || !/^(?:種類|正常・異常|正常|異常)$/.test(header[k])) : cells.map((c, k) => k);
         const values = keep.filter(k => k > 0 && cells[k]);

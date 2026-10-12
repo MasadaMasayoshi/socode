@@ -7,6 +7,7 @@ test('Sparse Markdown lab rows become records without table debris or lost value
  const source='入院1日目\n| 項目 | 種類 | 基準値 | A氏 | 正常・異常 |\n| :--- | :--- | :--- | :--- | :--- |\n| WBC(白血球数) | | | 5880/μL、 | |\n| RBC(赤血球数) | | | 511 万/μL | |';
  const items=Array.from(app.classifyTextByRules(source));const clinical=items.filter(i=>i.type!=='unnecessary');
  assert.equal(clinical.length,2);assert.ok(clinical.every(i=>!i.text.includes('|')));assert.match(clinical[0].text,/5880/);assert.match(clinical[1].text,/511/);
+ const border={id:'legacy-border',type:'o',text:'| :--- | :--- | :--- | :--- | :--- |',timestamp:'入院1日目',hendersonIds:[],predictionSource:'rule'};assert.equal(app.refreshSavedUntaggedCards({sourceText:source,items:[border]}),1);assert.equal(border.type,'unnecessary');
 });
 test('Markdown comparison columns keep separate event dates and supplied reference ranges',()=>{
  const source='| 検査項目 | 基準値 | 入院時 | 術後1日目 |\n| --- | --- | --- | --- |\n| WBC | 4000〜9000/μL | 5880 | 11600 |\n| Hb | 12〜16g/dL | 13.5 | 12.2 |';
