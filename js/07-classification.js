@@ -2,7 +2,7 @@
 // Learned corrections precede headings and fixed rules; automatic creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-12.usability-context32'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-12.usability-context33'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -148,6 +148,7 @@
       return keep.length ? keep : ids;
     }
     function detectMultipleHendersonTags(text) {
+      if (isPatientIdentityLine(text)) return [];
       const raw = detectMultipleHendersonTagsRaw(text);
       return hendersonRelevanceFilter(String(text || '').replace(/（問い：[^）]*）/g, ''), raw);
     }
@@ -354,8 +355,7 @@
       return (2 * overlap) / (sa.size + sb.size);
     }
 
-    function findFuzzyLearnedMatch(text) {
-      const dict = globalAppData.learningUserDict || {};
+    function findFuzzyLearnedMatch(text, dict = globalAppData.learningUserDict || {}) {
       let bestKey = null, bestScore = 0;
       for (const key of Object.keys(dict)) {
         if (!key || key === text) continue;
@@ -605,7 +605,12 @@
       return parts;
     }
 
+    function isPatientIdentityLine(text) {
+      const compact = String(text || '').normalize('NFKC').replace(/\s+/g, '');
+      return /^[^・、,。:：\d\n]{1,20}(?:氏|さん|様)[・、,]?\d{1,3}歳[・、,]?(?:男性|女性|男児|女児)[。.]?$/.test(compact);
+    }
     function splitEnumeratedPhrases(text) {
+      if (isPatientIdentityLine(text)) return [text.trim()];
       const byNakaten = splitByNakatenList(text);
       if (byNakaten.length > 1) return byNakaten;
       return splitIndependentActionPhrases(byNakaten[0]);
@@ -2293,13 +2298,25 @@
       return countSubstantiveLeadSentences(text.slice(0, firstIndex)) >= 2 ? 'o' : 's';
     }
     function predictLocalItemType(chunk, cleanedText, userLearned) {
-      return userLearned?.preferredType
+      return (chunk.isUnnecessaryBoilerplate ? 'unnecessary' : null)
+        || userLearned?.preferredType
         || (chunk.fieldLabel ? (FIELD_LABELS.find(f => f.key === chunk.fieldLabel)?.type || 'o') : null)
         || (chunk.isUnnecessaryBoilerplate ? 'unnecessary' : null)
         || predictSOTypeFromNarrative(cleanedText);
     }
 
     function computeLocalTagsAndType(chunk, cleanedText, userLearned) {
+
+      if (chunk.isUnnecessaryBoilerplate || isPatientIdentityLine(cleanedText)) {
+        return { detectedHIds: [], predictedType: chunk.isUnnecessaryBoilerplate ? 'unnecessary' : 'o' };
+      }
+      if (hasLearnedSignal(userLearned)) {
+        // Type/column learning must not disable current field and context evidence.
+        const base = computeLocalTagsAndType(chunk, cleanedText, null);
+        const detectedHIds = Array.from(new Set([...base.detectedHIds, ...(userLearned.preferredHendersonIds || [])]))
+          .filter(id => !Object.hasOwn(userLearned.hendersonVotes || {}, id) || userLearned.hendersonVotes[id] > 0);
+        return { detectedHIds, predictedType: predictLocalItemType(chunk, cleanedText, userLearned) };
+      }
 
       const semanticText = chunk.fieldLabel === 'アレルギー' && isBareStatusWord(cleanedText) ? `アレルギー: ${cleanedText}` : cleanedText;
       const ruleHIds = detectMultipleHendersonTags(semanticText);
@@ -2417,7 +2434,7 @@
       if (item.deleted || item.type === 'unnecessary' || item.aiSuggested) return '更新対象外のカード';
       if (item.tagNotNeeded) return 'タグ不要の指定';
       if ((item.editLog || []).length || item.predictionSource === 'confirmed') return '手で編集・確認した分類';
-      if (item.predictionSource && item.predictionSource !== 'rule') return '学習結果による分類';
+      if (item.predictionSource && !['rule', 'learned', 'fuzzy', 'tied'].includes(item.predictionSource)) return '分類経路の確認が必要';
       if (typeof untaggedReviewOf !== 'function' && Object.keys(cp?.untaggedReviews || {}).length) return 'レビューの読込待ち';
       const review = typeof untaggedReviewOf === 'function' ? untaggedReviewOf(cp, item) : null;
       if (review && ['none', 'accept', 'assign'].includes(review.decision)) return '了承済みのレビュー';
@@ -2457,11 +2474,10 @@
       return fragments >= 2 && norm.split('').every((ch, n) => covered[n] || /[。、,．.・:：]/.test(ch));
     }
     // Reuse complete source context; append runs may omit every surrounding duplicate card.
-    function refreshSavedUntaggedCards(cp, sourceText = cp?.sourceText, now = new Date().toISOString()) {
+    function refreshSavedUntaggedCards(cp, sourceText = cp?.sourceText, now = new Date().toISOString(), learningDict = globalAppData.learningUserDict) {
       if (!cp || !String(sourceText || '').trim()) return 0;
-      const targets = (cp.items || []).filter(i => !(i.hendersonIds || []).length &&
-        (!savedUntaggedProtection(i, cp) || i.type === 'unnecessary' && !savedUntaggedProtection({ ...i, type: 'o' }, cp) &&
-          (/^[<＜]/.test(i.text) && extractDayLabelFromHeading(i.text) || i.timestamp === '検査データ' && /^ホーマンズ[:：]\s*足を背屈させたとき[。.]?$/.test(i.text))));
+      const targets = (cp.items || []).filter(i => !savedUntaggedProtection(i, cp) || i.type === 'unnecessary' && !savedUntaggedProtection({ ...i, type: 'o' }, cp) &&
+          (/^[<＜]/.test(i.text) && extractDayLabelFromHeading(i.text) || i.timestamp === '検査データ' && /^ホーマンズ[:：]\s*足を背屈させたとき[。.]?$/.test(i.text)));
 
       if (!targets.length) return 0;
       const sourceCards = classifyTextByRules(sourceText);
@@ -2485,6 +2501,8 @@
           sourceCards.some(i => i.type === 'unnecessary' && rewriteNorm(i.text) === rewriteNorm(item.text));
         if (original?.type === 'unnecessary' || tableFragment || structureMatch) {
           item.type = 'unnecessary';
+          item.hendersonIds = [];
+          item.assessmentCols = {};
           if (item.timestamp === '検査データ') {
             const matches = sourceCards.filter(i => i.type === 'unnecessary' && rewriteNorm(i.text) === rewriteNorm(item.text));
             if (new Set(matches.map(i => i.timestamp)).size === 1) item.timestamp = matches[0].timestamp;
@@ -2493,13 +2511,18 @@
           item.ruleTagUpdatedAt = now; item._touchedAt = now; updated++; return;
         }
         if (!original || original.type === 'unnecessary' || !original.hendersonIds.length) return;
-        item.hendersonIds = original.hendersonIds.slice();
+        const learned = learningDict?.[item.text] || (['fuzzy', 'tied'].includes(item.predictionSource) ? findFuzzyLearnedMatch(item.text, learningDict || {})?.learned : null);
+        const additions = original.hendersonIds.filter(id => !(item.hendersonIds || []).includes(id) &&
+          (!Object.hasOwn(learned?.hendersonVotes || {}, id) || learned.hendersonVotes[id] > 0));
+        if (!additions.length) return;
+        item.hendersonIds = Array.from(new Set([...(item.hendersonIds || []), ...additions])).sort((a, b) => a - b);
         item.patientBackground = null;
         item.assessmentCols = { ...(item.assessmentCols || {}) };
         item.hendersonIds.forEach(id => {
           if (!item.assessmentCols[id]) item.assessmentCols[id] = inferAssessmentColumn(item.fieldLabel, item.timestamp, item.admissionPhase) || 'unclassified';
         });
-        if (original.contextTagEvidence) item.contextTagEvidence = original.contextTagEvidence.map(e => ({ ...e }));
+        if (original.contextTagEvidence) item.contextTagEvidence = original.contextTagEvidence.filter(e => item.hendersonIds.includes(e.id)).map(e => ({ ...e }));
+        item.ruleCorrectionReason = '同じ原文・日時で確認できた最新ルールのタグ不足を補正。学習したS/O・既存タグ・手書き評価は保持し、明示的に外したタグは戻さない。';
         if (original.sourceParentText) item.sourceContextText = original.sourceParentText;
         if (original._sourceMatchKind === 'fragment') item.ruleCorrectionReason = '最新の原文カードに含まれる保存済みの分割片を、同じ日時と本文で照合。分割片自身の明示的な所見だけを根拠にタグを補正し、親カードの別内容のタグは引き継がない。';
         item.ruleTagUpdatedAt = now;
@@ -2521,35 +2544,60 @@
       return applyPainContextTags(applySceneTagInheritance(out));
     }
 
-    function manualClassificationSources(item) {
+    function manualClassificationLineage(item, path = new Set()) {
+      if (!item || path.has(item) || path.size >= 100) return null;
+      const nextPath = new Set(path).add(item);
       const operation = (item.editLog || []).slice().reverse().find(e => ['merge', 'split'].includes(e.kind));
-      if (operation?.sourceCards?.length) return operation.sourceCards;
-      if (operation?.kind === 'merge' && Array.isArray(operation.from)) return operation.from.map(text => ({ text, timestamp: item.timestamp }));
-      const edit = (item.editLog || []).find(e => e.kind === 'text' && typeof e.from === 'string');
-      return [{ ...item, text: edit?.from || item.text }];
+      const sources = operation?.sourceCards?.length ? operation.sourceCards
+        : operation?.kind === 'merge' && Array.isArray(operation.from) ? operation.from.map(text => ({ text, timestamp: item.timestamp })) : null;
+      const ids = new Set(item.id == null ? [] : [item.id]);
+      const groups = operation?.kind === 'split' ? [operation.resultIds || []] : [];
+      if (!sources) {
+        if (operation) return null;
+        const edit = (item.editLog || []).find(e => e.kind === 'text' && typeof e.from === 'string');
+        return { ids, groups, sources: [{ ...item, text: edit?.from || item.text }] };
+      }
+      const leaves = [];
+      for (const source of sources) {
+        const lineage = manualClassificationLineage(source, nextPath);
+        if (!lineage) return null;
+        lineage.ids.forEach(id => ids.add(id));
+        groups.push(...lineage.groups); leaves.push(...lineage.sources);
+      }
+      return { ids, groups, sources: leaves };
     }
     function manualClassificationTextKey(text) {
       return rewriteNorm(text).replace(/[。、,.，・:：【】「」()（）]/g, '');
     }
+    function manualSourcesMatch(sources, sourceCards) {
+      if (!sources.length) return false;
+      if (sources.every(source => currentRuleCardForSavedItem(sourceCards, source))) return true;
+      if (sources.length < 2 || !sources.every(s => s.timestamp === sources[0].timestamp)) return false;
+      const joined = manualClassificationTextKey(sources.map(s => s.text).join(''));
+      return sourceCards.some(s => s.timestamp === sources[0].timestamp && manualClassificationTextKey(s.text) === joined);
+    }
+    function completeManualLineages(items) {
+      let entries = items.filter(item => !item.deleted && (item.predictionSource === 'confirmed' || item.tagNotNeeded || (item.editLog || []).some(e => !e.actor || e.actor === 'user')))
+        .map(item => ({ item, lineage: manualClassificationLineage(item) })).filter(e => e.lineage);
+      // Split siblings may now exist inside subsequent merges. Reject incomplete groups transitively.
+      for (;;) {
+        const represented = new Set(entries.flatMap(e => Array.from(e.lineage.ids)));
+        const complete = entries.filter(e => e.lineage.groups.every(group => group.length && group.every(id => represented.has(id))));
+        if (complete.length === entries.length) return complete;
+        entries = complete;
+      }
+    }
     function preservedUserCardsForClassification(items, sourceCards) {
-      return items.filter(item => !item.deleted && (item.predictionSource === 'confirmed' || item.tagNotNeeded || (item.editLog || []).some(e => !e.actor || e.actor === 'user'))).filter(item => {
-        const split = (item.editLog || []).slice().reverse().find(e => e.kind === 'split');
-        if (split?.resultIds?.length && !split.resultIds.every(id => items.some(i => !i.deleted && i.id === id))) return false;
-        const sources = manualClassificationSources(item);
-        if (sources.every(source => currentRuleCardForSavedItem(sourceCards, source))) return true;
-        // Old name/age/sex fragments can now be one source card; require the complete recorded combination and one event.
-        if (sources.length < 2 || !sources.every(s => s.timestamp === sources[0].timestamp)) return false;
-        const joined = manualClassificationTextKey(sources.map(s => s.text).join(''));
-        return sourceCards.some(s => s.timestamp === sources[0].timestamp && manualClassificationTextKey(s.text) === joined);
+      const matching = items.filter(item => {
+        const lineage = manualClassificationLineage(item);
+        return lineage && manualSourcesMatch(lineage.sources, sourceCards);
       });
+      return completeManualLineages(matching).map(e => e.item);
     }
     function coveredByManualClassification(item, existing) {
-      return existing.some(saved => {
-        if (saved.deleted || !((saved.editLog || []).length || saved.predictionSource === 'confirmed')) return false;
-        const operation = (saved.editLog || []).slice().reverse().find(e => ['merge', 'split'].includes(e.kind));
-        if (!operation) return false;
-        if (operation.kind === 'split' && (!operation.resultIds?.length || !operation.resultIds.every(id => existing.some(i => !i.deleted && i.id === id)))) return false;
-        const sources = manualClassificationSources(saved);
+      return completeManualLineages(existing).some(({ item: saved, lineage }) => {
+        if (!(saved.editLog || []).some(e => ['merge', 'split'].includes(e.kind))) return false;
+        const sources = lineage.sources;
         if (sources.some(s => clinicalCardDuplicateKey(s.text, s.timestamp) === clinicalCardDuplicateKey(item.text, item.timestamp))) return true;
         return sources.length > 1 && sources.every(s => s.timestamp === item.timestamp) && manualClassificationTextKey(item.text) === manualClassificationTextKey(sources.map(s => s.text).join(''));
       });

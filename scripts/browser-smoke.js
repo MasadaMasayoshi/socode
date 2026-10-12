@@ -77,17 +77,41 @@ const {app}=require('../server');
     return { pipes: clinical.some(i=>i.text.includes('|')), lab: clinical.some(i=>i.text.includes('5880')), shower: shower.hendersonIds.includes(8), fulfilled: sufficiencySentence(cp,8,'preop').includes('身体の清潔を保てている'), sourceCopy: buildExportPlainText(cp).includes('分類前の文章'), fragment: legacy.hendersonIds };
    });
    assert.deepEqual(cleanSheetCheck, {pipes:false,lab:true,shower:true,fulfilled:true,sourceCopy:false,fragment:[2]});
+   // Start with raw source and stale learning, not prebuilt expected cards.
+   await page.evaluate(() => {
+    createNewPatientPage('初回分類と保存済み学習');
+    const source='入院前\nA 氏・58 歳・男性\nアレルギー: なし\n手術前日\nシャワー浴実施';
+    DOM.sourceText.value=source;getCurrentPatient().sourceText=source;
+    globalAppData.learningUserDict['アレルギー: なし']={preferredType:'o'};saveDataAndSync();
+   });
+   await page.locator('#btn-start-classify').click();
+   await page.waitForFunction(()=>getCurrentPatient().items.some(i=>i.text==='シャワー浴実施'));
+   const initialClassification=await page.evaluate(()=>getCurrentPatient().items.map(i=>({text:i.text,tags:i.hendersonIds,type:i.type})));
+   assert.deepEqual(initialClassification,[{text:'A 氏・58 歳・男性',tags:[],type:'o'},{text:'アレルギー: なし',tags:[9],type:'o'},{text:'シャワー浴実施',tags:[8],type:'o'}]);
+   await page.evaluate(()=>{const cp=getCurrentPatient(),item=cp.items.find(i=>i.text==='シャワー浴実施');item.hendersonIds=[];item.predictionSource='learned';cp.myAssessments={keep:{text:'手書き評価'}};saveDataAndSync();});
+   await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>!!getCurrentPatient());
+   assert.deepEqual(await page.evaluate(()=>getCurrentPatient().items.find(i=>i.text==='シャワー浴実施').hendersonIds),[8]);
+   assert.equal(await page.evaluate(()=>getCurrentPatient().myAssessments.keep.text),'手書き評価');
+   for(const action of ['#dialog-secondary','#dialog-confirm']) {
+    await page.locator('#btn-start-classify').click();await page.locator('#modal-dialog').waitFor({state:'visible'});await page.locator(action).click();await page.locator('#modal-dialog').waitFor({state:'hidden'});
+    assert.deepEqual(await page.evaluate(()=>getCurrentPatient().items.map(i=>({text:i.text,tags:i.hendersonIds,type:i.type}))),initialClassification);
+   }
+   console.log(`PASS ${width}px: fresh identity grouping, learned-card reload repair and stable append/replacement`);
    // Replay actual merge/exclusion UI decisions through replacement, reload and append.
-   const correctionSource = '手術前日\n【呼吸機能】%肺活量110.6%\n一秒率69.33%\n10:00\n記録者:担当者';
+   const correctionSource = '手術前日\n【呼吸機能】%肺活量110.6%\n一秒率69.33%\n【胸部レントゲン】異常なし\n10:00\n記録者:担当者';
    await page.evaluate(source => {
     createNewPatientPage('再分類の判断保持');const cp=getCurrentPatient();DOM.sourceText.value=source;cp.sourceText=source;
     cp.items=[{id:'merge-left',text:'【呼吸機能】%肺活量110.6%',type:'o',timestamp:'手術前日',hendersonIds:[1],predictionSource:'rule'},
      {id:'merge-right',text:'一秒率69.33%',type:'o',timestamp:'手術前日',hendersonIds:[1],predictionSource:'rule'},
+     {id:'merge-third',text:'【胸部レントゲン】異常なし',type:'o',timestamp:'手術前日',hendersonIds:[1],predictionSource:'rule'},
      {id:'manual-excluded',text:'記録者:担当者',type:'o',timestamp:'手術前日 10:00',hendersonIds:[],predictionSource:'rule'}];
     saveDataAndSync();clearSelection();setCardSelected('merge-left',true);setCardSelected('merge-right',true);openMergeModal();
    },correctionSource);
    await page.locator('#merge-text').fill('%肺活量110.6%、一秒率69.33%');
    await page.locator('#merge-reason').fill('同じ時期の検査値をまとめる');await page.locator('#btn-confirm-merge').click();
+   await page.evaluate(()=>{const first=getCurrentPatient().items.find(i=>i.editLog?.at(-1)?.kind==='merge');clearSelection();setCardSelected(first.id,true);setCardSelected('merge-third',true);openMergeModal();});
+   await page.locator('#merge-text').fill('%肺活量110.6%、一秒率69.33%、胸部レントゲン異常なし');
+   await page.locator('#merge-reason').fill('統合した検査値と画像検査を同じ場面で確認');await page.locator('#btn-confirm-merge').click();
    const correctionMergedId=await page.evaluate(()=>{
     const cp=getCurrentPatient();setItemType('manual-excluded','unnecessary');
     cp.myAssessments={existing:{text:'手書き評価'}};cp.carePlans={saved:{evidenceIds:[cp.items.find(i=>i.id!=='manual-excluded').id]}};
@@ -103,7 +127,7 @@ const {app}=require('../server');
    }
    await page.locator('#btn-start-classify').click();await page.locator('#modal-dialog').waitFor({state:'visible'});await page.locator('#dialog-secondary').click();await page.locator('#modal-dialog').waitFor({state:'hidden'});
    assert.deepEqual(await page.evaluate(()=>getCurrentPatient().items.map(i=>i.id).sort()),[correctionMergedId,'manual-excluded'].sort());
-   console.log(`PASS ${width}px: user merge/exclusion survive repeated replacement, reload and append`);
+   console.log(`PASS ${width}px: nested user merges/exclusion survive repeated replacement, reload and append`);
    // Exercise the real file-input/OCR UI with an intercepted transport; this is not live-provider verification.
    let ocrRequests=0,failOcrRequest=0;
    await page.route('https://generativelanguage.googleapis.com/**', async route=>{
@@ -1064,7 +1088,7 @@ const {app}=require('../server');
    await context.close();
   }
   const head=require('node:child_process').execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
-  fs.writeFileSync('browser-artifacts/validation-evidence.json',JSON.stringify({schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:12,uncaughtErrors:0,ocrTransport:'intercepted',liveOcrVerified:false},null,2)+'\n');
+  fs.writeFileSync('browser-artifacts/validation-evidence.json',JSON.stringify({schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:13,uncaughtErrors:0,ocrTransport:'intercepted',liveOcrVerified:false},null,2)+'\n');
  } finally {
   if(browser)await browser.close();
   await new Promise(resolve=>server.close(resolve));
