@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-12.usability-context22'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-12.usability-context31'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -314,12 +314,30 @@
     const SUFFICIENCY_UI_PHASES = SUFFICIENCY_PHASES.filter(p => p.key !== 'all');
 
     const SUFFICIENCY_SURG_PHASES = [{ key: 'preop', label: '術前' }, { key: 'postop', label: '術後' }];
-    function surgPhaseOf(i) {
+    const sourceSurgicalPeriods = new WeakMap();
+    function surgPhaseOf(i, cp) {
       const ts = String(i.timestamp || '').normalize('NFKC');
       const head = String(i.text || '').normalize('NFKC').slice(0, 30);
       if (/術後|POD\s*\d|手術(?:翌日|後)|術直後|帰室/.test(ts) || /^[【\[]?術後/.test(head)) return 'post';
       if (/手術当日|術中|手術日|入室|OP当日/.test(ts) && !/術後|帰室/.test(ts)) return 'op';
       if (/術前|手術前|入院時|入院日|入院当日/.test(ts) || /^[【\[]?術前/.test(head)) return 'pre';
+      if (cp && cp.sourceText) {
+        let cached = sourceSurgicalPeriods.get(cp);
+        if (!cached || cached.source !== cp.sourceText) {
+          const periods = new Map();
+          String(cp.sourceText).split(/\r?\n/).forEach(line => {
+            if (!/^[＜<【]/.test(line.trim())) return;
+            const day = extractDayLabelFromHeading(line);
+            const phase = /術後|手術(?:後|翌日)/.test(line) ? 'post' : /手術当日|術中/.test(line) ? 'op' : /術前|手術前/.test(line) ? 'pre' : '';
+            if (!day || !phase) return;
+            if (!periods.has(day)) periods.set(day, new Set());
+            periods.get(day).add(phase);
+          });
+          cached = {source:cp.sourceText, periods}; sourceSurgicalPeriods.set(cp,cached);
+        }
+        const phases = cached.periods.get(ts.split(' ')[0]);
+        if (phases?.size === 1) return Array.from(phases)[0];
+      }
       return '';
     }
     function isSurgicalPatient(cp) { return (cp.items || []).some(i => i && !i.deleted && !i.aiSuggested && i.type !== 'unnecessary' && surgPhaseOf(i) === 'post'); }
@@ -331,7 +349,7 @@
 
     const sufficiencyCache = { sig: '', res: null, cp: null };
     function ruleSufficiencyFor(cp) {
-      const sig = JSON.stringify((cp.items || []).map(i => [i.id, i.type, i.text, i.hendersonIds, i.assessmentCols, i.timestamp, i.fieldLabel, i.admissionPhase, i.assessmentColumn, i.deleted, i.aiSuggested]));
+      const sig = JSON.stringify([cp.sourceText, (cp.items || []).map(i => [i.id, i.type, i.text, i.hendersonIds, i.assessmentCols, i.timestamp, i.fieldLabel, i.admissionPhase, i.assessmentColumn, i.deleted, i.aiSuggested])]);
       if (sufficiencyCache.cp === cp && sufficiencyCache.sig === sig && sufficiencyCache.res) return sufficiencyCache.res;
       let res = {};
       try { res = judgeSufficiencyByRules(cp); } catch (err) { console.warn('Fulfillment evaluation failed:', err); }
@@ -389,12 +407,16 @@
       const labs = (a.evidence || []).slice(0, 3).map(id => {
         const lb = (labelMap || {})[id]; if (!lb) return '';
         const it = byId.get(id); if (!it) return lb;
-        const t = String(it.text || '').replace(/\s+/g, ' ').replace(/^「|」$/g, '').trim();
+        const t = cleanSheetRecordText(it.text).replace(/\s+/g, ' ').trim();
         const when = it.timestamp && it.timestamp !== '日時不明' ? `${it.timestamp}：` : '';
-        return `${lb}（${when}${t.length > 20 ? t.slice(0, 20) + '…' : t}）`;
+        return `${lb}（${when}${t}）`;
       }).filter(Boolean);
       const by = labs.length ? `${labs.join('・')}により` : `${a.reason}より`;
-      if (a.verdict === 'met') return `${by}、${name}は満たされているため、充足。`;
+      if (a.verdict === 'met') {
+        const conclusions = { 1: '呼吸状態を保てている', 2: '食事・水分摂取ができている', 3: '排泄が保たれている', 4: '移動や姿勢の保持ができている', 5: '休息・睡眠がとれている', 6: '衣服の着脱ができている', 7: '体温が保たれている', 8: '身体の清潔を保てている', 9: '記録された安全上の問題に対処できている', 10: '思いや希望を伝えられている', 11: '信仰・価値観に沿って過ごせている', 12: '役割や活動に取り組めている', 13: '余暇や楽しみの機会がある', 14: '必要な知識を理解し、行動に結びつけている' };
+        return `${labs.length ? labs.join('・') : a.reason}。${conclusions[needId] || `${name}が保たれている`}と判断し、充足。`;
+      }
+      if (a.needsConfirmation) return `${labs.length ? labs.join('・') + '。' : ''}${a.reason}。判定保留。`;
       if (a.verdict === 'unmet') {
 
         let risk = SUFFICIENCY_RISKS[needId] || '合併症';
@@ -1070,9 +1092,9 @@
 
     const SUF_NEG_AFTER = '(?:[^、。,]{0,6})(?:なし|ない|無|訴えず|みられず|見られず|認めず|なく|ありません)';
     const SUF_UNMET_CUES = ['痛み|疼痛|創痛|痛い|NRS\\s*[:：]?\\s*[3-9]|ペインスケール\\s*[「:：]?\\s*[3-9]', '眠れ[なず]|不眠|睡眠(?:不足|障害)|寝つけ', '全介助|要介助|介助(?:が必要|を要|にて|で)|見守りが必要|できない|困難|不可|禁止|制限', '不安|怖い|恐怖|心配|戸惑|情けない|申し訳', '食欲(?:低下|不振|がない|ない)|摂取量(?:半分|減)|半分のみ|おなかすかない|嘔気|嘔吐', '排便(?:なし|なく)|便秘|下痢|腹部膨満|お腹が張', 'べたべた|べたつき|気持ちが悪い|汚れ|悪臭|掻痒', '発赤|腫脹|熱感|発熱|排膿|浮腫|褥瘡', '呼吸困難(?:感)?(?:あり|を訴)|息苦しい|息切れ|チアノーゼ|喘鳴|SpO2\\s*[:：]?\\s*(?:[0-8]\\d|9[0-3])\\s*%', '転倒|ふらつき|不安定|せん妄|不穏|混乱|拒否', '体温[^\\d。、]{0,3}3[89]|3[89](?:\\.\\d)?\\s*度', '[↑↓]', '(?:旅行|趣味|外出|散歩|余暇)[^。]{0,20}(?:したい|できず|できない|行けない|行きたい)|早く治して', '(?:わから|分から)ない|教えて(?:ほしい|欲しい|ください)|大丈夫(?:か|なの|でしょうか)|ずれ(?:たり)?しないか|気を付け(?:れば|ること)', '仕事[^。]{0,10}(?:できない|できず|休)|復職[^。]{0,10}(?:不安|心配|難)|働けな', '体重[^。、]{0,8}(?:減|低下)|[0-9.]+\\s*kg\\s*(?:減|低下)|やせ|朝食[^。、]{0,6}(?:抜|食べない|とらない|欠食|ほとんど食べ)|欠食|野菜嫌い|嫌い|苦手|外食|早食い|偏食|短時間で済ま|早く食べ', '難聴|聞こえ(?:にくい|ない|が悪)|聴力(?:低下|障害)|(?:説明|話|内容)[^。、]{0,8}(?:ほとんど|あまり)?伝わ(?:らない|りにくい)|意思疎通(?:が)?(?:困難|難しい|図れ(?:ない|ず))|失語|構音障害'];
-    const SUF_MET_CUES = ['自立|自力|自分で|一人で|問題なし|良好|清明|規則的|正常|普通食|常食|整|障害なし|異常なし|理解(?:力)?(?:あり|良好)|前向き|頑張|楽しみ|きれい好き', '睡眠[^\\d。、]{0,3}[6-9](?:\\s*[~〜～-]\\s*[6-9])?\\s*時間|眠れた|よく眠れ', '食欲(?:良好|あり)|全量摂取|摂取量\\s*(?:良好|十分)', 'SpO2\\s*[:：]?\\s*(?:9[4-9]|100)\\s*%', 'ペインスケール\\s*[「:：]?\\s*[0-2]|NRS\\s*[:：]?\\s*[0-2](?!\\d)|痛みなし|疼痛なし', '体温[^\\d。、]{0,3}(?:3[67]|35\\.[5-9])', '排便\\s*[:：]?\\s*\\d\\s*回/日|排尿\\s*[:：]?\\s*\\d+\\s*回/日', '呼吸困難感(?:の)?訴えなし|肺Air入り(?:が)?良好', '意思疎通(?:は)?(?:良好|可能|図れ)|言葉にで|希望を(?:伝え|話)|質問(?:が)?でき|ナースコール[^。]{0,6}(?:使用|押|できる)|コミュニケーション[^。]{0,6}(?:良好|障害なし)', '理解(?:力)?(?:が)?良好|現状認識(?:が)?良好|理解できて|理解している', '(?:旅行|趣味|友人|外出)[^。]{0,12}(?:楽しむ|楽しん|行って|している)', '信仰[^。]{0,8}なし|宗教[^。]{0,8}なし|特別な宗教', '(?:RR|呼吸数)[^\\d。、]{0,3}(?:1[2-9]|20)(?!\\d)|%(?:VC|肺活量)\\s*(?:[89]\\d|1\\d\\d)|胸部[^。、]{0,8}(?:明らかな)?(?:異常|病変)[^。、]{0,4}(?:なし|認めず|ない)|禁煙|呼吸困難(?:感)?(?:は)?(?:なし|ない|無)', '趣味|テニス|ゴルフ|ジム|ウォーキング|ジョギング|旅行|友人[^。]{0,6}(?:会|食事)'];
+    const SUF_MET_CUES = ['自立|自力|自分で|一人で|問題なし|良好|清明|規則的|正常|普通食|常食|整|障害なし|異常なし|理解(?:力)?(?:あり|良好)|前向き|頑張|楽しみ|きれい好き', '睡眠[^\\d。、]{0,3}[6-9](?:\\s*[~〜～-]\\s*[6-9])?\\s*時間|眠れた|よく眠れ', '食欲(?:良好|あり)|全量摂取|摂取量\\s*(?:良好|十分)', 'SpO2\\s*[:：]?\\s*(?:9[4-9]|100)\\s*%', 'ペインスケール\\s*[「:：]?\\s*[0-2]|NRS\\s*[:：]?\\s*[0-2](?!\\d)|痛みなし|疼痛なし', '体温[^\\d。、]{0,3}(?:3[67]|35\\.[5-9])', '排便\\s*[:：]?\\s*\\d\\s*回/日|排尿\\s*[:：]?\\s*\\d+\\s*回/日', '呼吸困難感(?:の)?訴えなし|肺Air入り(?:が)?良好', '意思疎通(?:は)?(?:良好|可能|図れ)|言葉にで|希望を(?:伝え|話)|質問(?:が)?でき|ナースコール[^。]{0,6}(?:使用|押|できる)|コミュニケーション[^。]{0,6}(?:良好|障害なし)', '理解(?:力)?(?:が)?良好|現状認識(?:が)?良好|理解できて|理解している', '(?:旅行|趣味|友人|外出)[^。]{0,12}(?:楽しむ|楽しん|行って|している)', '信仰[^。]{0,8}なし|宗教[^。]{0,8}なし|特別な宗教', '(?:RR|呼吸数)[^\\d。、]{0,3}(?:1[2-9]|20)(?!\\d)|%(?:VC|肺活量)\\s*(?:[89]\\d|1\\d\\d)|胸部[^。、]{0,8}(?:明らかな)?(?:異常|病変)[^。、]{0,4}(?:なし|認めず|ない)|呼吸困難(?:感)?(?:は)?(?:なし|ない|無)', '趣味|テニス|ゴルフ|ジム|ウォーキング|ジョギング|旅行|友人[^。]{0,6}(?:会|食事)'];
 
-    const SUF_UNMET_SCOPE = [[4, 5, 6, 8, 13, 14], [5], null, [13, 14], [2, 3], [3], [8], [7, 8], [1], [4, 9, 10, 13, 14], [7], null, [13], [14], [12], [2], [10]];
+    const SUF_UNMET_SCOPE = [[4, 5, 6, 8, 13, 14], [5], null, [13], [2, 3], [3], [8], [7, 8], [1], [4, 9, 10, 13, 14], [7], null, [13], [14], [12], [2], [10]];
     const SUF_MET_SCOPE = [null, [5], [2], [1], [4, 5, 6, 8, 10, 12, 13, 14], [7], [3], [1], [10], [14], [13], [11], [1], [13]];
 
     const SUF_UNCERTAIN = /[？?]|かな$|かも|だっけ|だよね|んですね|でしょうか|ですか|分かりました|わかりました|大丈夫|問題ない|できる(?:かな|と思|はず)/;
@@ -1088,9 +1110,13 @@
     function sufficiencyClauseVerdict(clause, needId, opts) {
       const speech = !!(opts && opts.speech);
       const t = String(clause || '').normalize('NFKC');
+      if (needId === 1 && /トライボール|ボール|呼吸訓練/.test(t) && !/呼吸困難|息苦|息切れ|チアノーゼ|SpO2|呼吸数/.test(t)) return { v: '', hit: '' };
 
       if (needId === 12 && !/仕事|職|復職|達成|役割|家事|意欲|生きがい|就労|勤務|主婦/.test(t)) return { v: '', hit: '' };
       const metOk = sufficiencyMetAllowed(t, needId, speech);
+      if (needId === 8 && metOk && /(?:シャワー浴|入浴|清拭|洗髪|口腔ケア)(?:を)?(?:する|した|実施|済|行った|できた)/.test(t) && !/予定|禁止|中止|できな/.test(t)) return { v: 'met', hit: '清潔ケアの実施' };
+      if (needId === 14 && !speech && /(?:説明|オリエンテーション)[^。]{0,30}(?:受ける|受けた|実施|行った|あり)|(?:呼吸訓練|起き上がり)[^。]{0,15}(?:練習|実施)/.test(t) && !/予定|未実施|中止/.test(t) && !/理解(?:して|でき|良好)|自立|自分で/.test(t)) return { v: 'pending', hit: '説明・練習の実施' };
+      if (needId === 9 && INFECTION_SCREEN_REGEX.test(t)) return { v: 'pending', hit: '感染症検査は陰性' };
       let unmet = '', met = '';
       for (let k = 0; k < SUF_UNMET_CUES.length; k++) {
         const src = SUF_UNMET_CUES[k], sc = SUF_UNMET_SCOPE[k];
@@ -1112,10 +1138,11 @@
     const SUF_SEVERE = /難聴|伝わらない|全介助|要介助|できない|不可|禁止|不眠|眠れ[なず]|転倒|せん妄|不穏|チアノーゼ|呼吸困難(?:感)?(?:あり|を訴)|息苦しい|SpO2/;
     const SUF_MILD = /やや|軽度|少量|わずか|軽い|軽度/;
     function sufficiencyCardVerdict(item, needId, phase) {
+      if (needId === 1 && /トライボール|呼吸訓練/.test(String(item.text || '')) && !/呼吸困難|息苦|息切れ|チアノーゼ|SpO2|呼吸数/.test(String(item.text || ''))) return { v: '', hit: '', clause: '' };
 
       if (needId === 11 && /記載なし|情報なし|不明|未確認|聴取(?:して)?(?:い)?ない|確認(?:でき|して)ない/.test(String(item.text || '').normalize('NFKC'))) return { v: '', hit: '', clause: '' };
       const parts = String(item.text || '').normalize('NFKC').split(/[。\n、,，]|\s{2,}|(?<=[)）])/).map(s => s.trim()).filter(Boolean);
-      let met = null, unmet = null;
+      let met = null, unmet = null, pending = null;
 
       const speech = /[「」]/.test(String(item.text || ''));
       for (const p of parts) {
@@ -1129,13 +1156,14 @@
           else if (SUF_SEVERE.test(p)) unmet.severe = true;
         }
         if (r.v === 'met' && !met) met = { v: 'met', hit: r.hit, clause: p };
+        if (r.v === 'pending' && !pending) pending = { v: 'pending', hit: r.hit, clause: p };
       }
 
       if (!unmet && !met && needId === 10 && speech) {
         const q = (String(item.text || '').match(/「[^」]{4,}」/) || [String(item.text || '')])[0];
         met = { v: 'met', hit: '発言', clause: q.slice(0, 30) };
       }
-      return unmet || met || { v: '', hit: '', clause: '' };
+      return unmet || met || pending || { v: '', hit: '', clause: '' };
     }
     function placeByDate(i) {
       return typeof inferAssessmentColumn === 'function' ? inferAssessmentColumn(i.fieldLabel, i.timestamp, null) : null;
@@ -1189,7 +1217,7 @@
     }
     function judgeSufficiencyByRules(cp) {
 
-      const HISTORY_LABELS = ['現病歴', '診断名', '既往歴', '手術術式', '氏名', '年齢', '性別', '感染症'];
+      const HISTORY_LABELS = ['現病歴', '診断名', '既往歴', '手術術式', '氏名', '年齢', '性別'];
       const items = (cp.items || []).filter(i => i && !i.deleted && !i.aiSuggested && i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i) && !HISTORY_LABELS.includes(i.fieldLabel));
       const out = {};
       const surgical = isSurgicalPatient(cp);
@@ -1212,6 +1240,8 @@
           if (um.length && mt.length && um.length === mt.length && !um.some(x => x.r.severe)) return { verdict: 'conflict', reason: `充足を示す${mt.slice(0, 2).map(short).join('')}と、未充足を示す${um.slice(0, 2).map(short).join('')}`, evidence: [...mt.slice(0, 3), ...um.slice(0, 3)].map(x => x.i.id), need: '' };
           if (um.length && (um.some(x => x.r.severe) || um.length * 2 >= mt.length)) return { verdict: 'unmet', reason: `${um.slice(0, 3).map(short).join('')}`, evidence: um.slice(0, 5).map(x => x.i.id), need: '' };
           if (mt.length) return { verdict: 'met', reason: `${mt.slice(0, 3).map(short).join('')}`, evidence: mt.slice(0, 5).map(x => x.i.id), need: '' };
+          const pending = rs.filter(x => x.r.v === 'pending');
+          if (pending.length) return { verdict: 'conflict', needsConfirmation: true, reason: need.id === 14 ? '説明・練習は実施されているが、理解の程度や自分で実施できるかの確認が必要' : '感染症検査の陰性結果は確認できるが、転倒など他の安全面は別に確認する必要がある', evidence: pending.slice(0, 5).map(x => x.i.id), need: '' };
           if (need.id === 11 && cards.some(i => /宗教|信仰|信条|祈|礼拝|価値観/.test(String(i.text || '')) && !/記載なし|情報なし|不明|未確認/.test(String(i.text || '')))) return { verdict: 'met', reason: '信仰による問題の記載なし', evidence: cards.slice(0, 3).map(i => i.id), need: '' };
           return { verdict: 'unknown', reason: '', evidence: [], need: cards.length ? `${label}の記録が少なく、満たされているか判断できない` : `${label}の記録がない` };
         };
@@ -1220,8 +1250,8 @@
         const isPreop = () => false;
         const phases = { pre: ['入院前', (c, i) => c === 'preadmission' || (c === 'postadmission' && isPreop(i))], post: ['入院後', c => c === 'postadmission'], all: ['全体', c => c !== 'missing'] };
         if (surgical) {
-          phases.preop = ['術前', (c, i) => c === 'postadmission' && surgPhaseOf(i) === 'pre'];
-          phases.postop = ['術後', (c, i) => c === 'postadmission' && (surgPhaseOf(i) === 'post' || surgPhaseOf(i) === 'op')];
+          phases.preop = ['術前', (c, i) => c === 'postadmission' && surgPhaseOf(i, cp) === 'pre'];
+          phases.postop = ['術後', (c, i) => c === 'postadmission' && (surgPhaseOf(i, cp) === 'post' || surgPhaseOf(i, cp) === 'op')];
         }
         Object.keys(phases).forEach(k => { res[k] = judge(mine.filter(i => phases[k][1](effCol(i), i)), phases[k][0], k === 'preop' ? 'pre' : k === 'postop' ? 'post' : k); });
         out[need.id] = res;

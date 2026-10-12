@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-12.usability-context29'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-12.usability-context31'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -144,6 +144,7 @@
     }
 
     function buildAssessmentPrintHtml(cp) {
+      cp = { ...cp, items: sheetRecordItems(cp) };
       const active = (cp.items || []).filter(i => i.type !== 'unnecessary');
       const colOf = (i, id) => i.assessmentCols?.[id] || 'unclassified';
 
@@ -324,6 +325,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     };
 
     function buildExportBodyHtml(cp) {
+      cp = { ...cp, items: sheetRecordItems(cp) };
       const items = cp.items || [];
       const dataTable = list => list.length === 0 ? '<p class="muted">（登録なし）</p>' :
         `<table><colgroup><col style="width:15%"><col><col style="width:22%"></colgroup><thead><tr><th>日時</th><th>内容</th><th>タグ</th></tr></thead><tbody>${list.map(i => `<tr><td class="tm">${escapeHtml(i.timestamp && i.timestamp !== '日時不明' ? i.timestamp : '—')}</td><td>${printFieldLabel(i)}${escapeHtml(i.text)}</td><td class="tags">${escapeHtml(printTagNames(i)) || '<span class="muted">タグ未設定</span>'}</td></tr>`).join('')}</tbody></table>`;
@@ -399,7 +401,26 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       return lines.map(t => `・${t}`).join('\n') + '\n';
     }
 
+    function cleanSheetRecordText(text) {
+      return String(text || '').split(/\r?\n/).map(line => {
+        if (!line.includes('|')) return line;
+        const cells = line.split('|').map(c => c.trim()).filter(Boolean);
+        if (!cells.length || cells.every(c => /^:?-{2,}:?$/.test(c)) || /^(?:項目|検査項目)$/.test(cells[0])) return '';
+        return cells.join(' ');
+      }).filter(Boolean).join('\n');
+    }
+    function sheetRecordItems(cp) {
+      const seen = new Set();
+      return (cp.items || []).filter(i => !i.deleted).filter(i => {
+        const text = cleanSheetRecordText(i.text);
+        if (!text) return false;
+        const key = `${i.type}\0${i.timestamp || ''}\0${i.fieldLabel || ''}\0${JSON.stringify(i.assessmentCols || {})}\0${(i.hendersonIds || []).slice().sort((a,b)=>a-b).join(',')}\0${text.normalize('NFKC').replace(/\s+/g, '')}`;
+        if (seen.has(key)) return false;
+        seen.add(key); return true;
+      }).map(i => ({ ...i, text: cleanSheetRecordText(i.text) }));
+    }
     function buildExportPlainText(cp) {
+      cp = { ...cp, items: sheetRecordItems(cp) };
       const formatLine = i => `[${i.timestamp}]${i.fieldLabel ? ` [${i.fieldLabel}]` : ''} ${i.text}`;
 
       let out = `看護アセスメント・記録整理シート：${cp.title}\n`;
@@ -703,10 +724,10 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       if (col === 'preadmission') return [{ label: '', items: list, judge: [['pre', '入院前']] }];
       if (col !== 'postadmission') return [{ label: '', items: list, judge: [] }];
       if (!surg) return [{ label: '', items: list, judge: [['post', '入院後']] }];
-      const by = k => list.filter(i => surgPhaseOf(i) === k);
+      const by = k => list.filter(i => surgPhaseOf(i, cp) === k);
       const groups = [];
-      const rest = list.filter(i => !surgPhaseOf(i));
-      if (rest.length) groups.push({ label: '時期の読み取れない記録', items: rest, judge: [] });
+      const rest = list.filter(i => !surgPhaseOf(i, cp));
+      if (rest.length) groups.push({ label: '時期未確認', items: rest, judge: [] });
       groups.push({ label: '術前', items: by('pre'), judge: [['preop', '術前']] });
       if (by('op').length) groups.push({ label: '手術当日', items: by('op'), judge: [] });
       groups.push({ label: '術後', items: by('post'), judge: [['postop', '術後']] });
@@ -722,6 +743,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     }
     const ASSESSMENT_COL_ORDER = [['unclassified', '未分類'], ['preadmission', '入院前'], ['postadmission', '入院後'], ['missing', '不足情報']];
     function buildAssessmentTableText(cp, onlyIds = null) {
+      if (!onlyIds) cp = { ...cp, items: sheetRecordItems(cp) };
       const activeItems = (cp.items || []).filter(i => i.type !== 'unnecessary');
       const include = i => !onlyIds || onlyIds.has(i.id);
       let out = '';
@@ -744,7 +766,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
               const seq = seqLabels[i.id] ? `${seqLabels[i.id]} ` : '';
               const time = i.timestamp && i.timestamp !== '日時不明' ? `[${i.timestamp}] ` : '';
               const label = (i.fieldLabel ? `[${i.fieldLabel}] ` : '') + (isFamilySpeech(i.text) ? '[家族] ' : '');
-              out += `    ・${seq}${time}${label}${i.text}${i.aiSuggested ? '（AI推定）' : ''}\n`;
+              out += `    ・${seq}${time}${label}${cleanSheetRecordText(i.text)}${i.aiSuggested ? '（AI推定）' : ''}\n`;
             }); });
             if (!onlyIds) pg.judge.forEach(([k, l]) => { out += periodJudgeText(cp, need.id, k, l); });
           });
@@ -754,7 +776,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     }
 
     const EXPORT_OPTIONS_STORAGE_KEY = 'export_options_v1';
-    function askExportOptions(title) {
+    function askExportOptions(title, allowSource = true) {
       return new Promise(resolve => {
         const modal = document.getElementById('modal-export-options');
         const optAssessment = document.getElementById('export-opt-assessment');
@@ -762,7 +784,8 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         let saved = {};
         try { saved = JSON.parse(localStorage.getItem(EXPORT_OPTIONS_STORAGE_KEY) || '{}') || {}; } catch (e) { saved = {}; }
         optAssessment.checked = !!saved.includeAssessment;
-        optSource.checked = !!saved.includeSourceText;
+        optSource.checked = allowSource && !!saved.includeSourceText;
+        if (optSource.closest) optSource.closest('label').hidden = !allowSource;
         document.getElementById('export-options-title').textContent = title;
         modal.classList.remove('hidden');
         const finish = (result) => {
@@ -899,17 +922,22 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         if (i.type === 'unnecessary') {
           request = 'なぜ不必要に分類されたか、原文・前後の記録・編集履歴と該当ルールを照合して再現してください。理由未記録ならその旨を示し、除外の妥当性を判断してください。確認できた誤りだけを分類処理と分類基準で修正してください。';
         }
+        if (i.type === 'unnecessary' && typeof inferUntaggedReason === 'function') {
+          out += `現在の除外判断（過去の処理理由とは区別）: ${inferUntaggedReason(i, cp).reason}\n`;
+        }
         if (untagged && i.type !== 'unnecessary') {
           const inf = typeof inferUntaggedReason === 'function' ? inferUntaggedReason(i, cp) : null;
-          const original = originalItems.find(o => o.timestamp === i.timestamp && rewriteNorm(o.text) === rewriteNorm(i.text));
+          const original = currentRuleCardForSavedItem(originalItems, i);
           const protection = savedUntaggedProtection(i, cp);
+          if (original?._sourceMatchAmbiguous) out += '原文対応の注意: 同じ日時の複数の原文カードに一致します。親カードの一意な特定は確認不能ですが、分割片自身の所見は保持します。\n';
+          if (original?._sourceMatchKind) out += `原文対応: ${original._sourceMatchKind === 'fragment' ? '最新ルールでは統合された原文カードの一部に一致（分割片自身の内容だけでタグを判定）' : '項目名と短い値を合わせて一致'}\n対応する原文カード: ${original.sourceParentText}\n`;
           out += `保存済みの分類経路: ${i.predictionSource || '記録なし'}／自動タグ更新: ${protection ? `対象外（${protection}）` : '対象'}\n`;
           out += `原文を最新ルールで再分類したタグ: ${original ? (original.hendersonIds.length ? original.hendersonIds.map(h => hendersonNameOf(h)).join('・') : 'なし（この記録だけでは分類の根拠が不足する場合があります）') : '確認不能（本文と日時が一致する原文カードなし）'}\n`;
           if (original?.hendersonIds.length && !protection) out += '確認できた差分: 最新ルールではタグが付きますが、保存済みカードには反映されていません。既存カードの更新経路を確認してください。\n';
-          if (inf && protection) Object.assign(inf, { kind: 'none', kindLabel: '保存済みの判断を保持', reason: `${protection}を保持しています。最新ルールとの差だけで誤りと決めつけず、意図を確認してください。`, candidates: [], checks: ['利用者の編集・学習・レビューの意図を確認し、了承済みの判断を自動で上書きしないでください'] });
+          if (inf && protection) Object.assign(inf, { kind: 'none', kindLabel: '保存済みの判断を保持', reason: `${protection}を保持しています。${inf.kind === 'none' ? inf.reason : '最新ルールとの差だけで誤りと決めつけず、意図を確認してください。'}`, candidates: [], checks: ['利用者の編集・学習・レビューの意図を確認し、了承済みの判断を自動で上書きしないでください'] });
           const evidence = original ? painContextTagEvidence(originalItems, original) : [];
           if (original) {
-            const sourceIndex = originalItems.indexOf(original);
+            const sourceIndex = originalItems.findIndex(o => o === original || original.sourceParentText === o.text && o.timestamp === original.timestamp);
             const context = originalItems.filter((o, n) => o !== original && o.type !== 'unnecessary' && o.timestamp === original.timestamp && Math.abs(n - sourceIndex) <= 4);
             if (context.length) out += `原文から再抽出した周辺記録（${original.timestamp}）:\n${context.map(o => `  ・${o.text}`).join('\n')}\n`;
           }
@@ -962,17 +990,12 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
 
     document.getElementById('btn-export-docs').addEventListener('click', async () => {
       const cp = getCurrentPatient();
-      const options = await askExportOptions('テキスト書き出し');
+      const options = await askExportOptions('テキスト書き出し', false);
       if (!options) return;
-      const includeSourceText = options.includeSourceText;
       const safeTitle = (cp.title || 'カルテ').replace(/[\\/:*?"<>|]/g, '_');
 
-      const sourceForExport = (DOM.sourceText.value || cp.sourceText || '').trim();
       const sheet = buildExportPlainText(cp) +
-        (options.includeAssessment ? `\n【総合アセスメント表】\n${buildAssessmentTableText(cp)}` : '') +
-        (includeSourceText
-        ? `\n【分類前の文章（カルテ・看護記録入力欄）】\n${sourceForExport || '（入力欄に文章がありません）'}\n`
-        : '');
+        (options.includeAssessment ? `\n【総合アセスメント表】\n${buildAssessmentTableText(cp)}` : '');
       const blob = new Blob([sheet], { type: 'text/plain;charset=utf-8' });
 
       if (await downloadTextBlob(blob, `${safeTitle}_看護アセスメント.txt`)) showToast('看護アセスメントを書き出しました', 'success');

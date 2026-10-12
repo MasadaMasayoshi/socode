@@ -63,6 +63,17 @@ const {app}=require('../server');
       noEmptyAbnormal: !cards.some(i => i.text === '異常 |') };
    });
    assert.deepEqual(sourceTagCheck, { changed: 1, allergy: [9], sourceCorrect: true, infection: [9], chest: [1], scaffolding: true, sleep: [5,3], noEmptyAbnormal: true });
+   const cleanSheetCheck = await page.evaluate(() => {
+    const cards = classifyTextByRules('手術前日\n●14:00 臍処置後、シャワー浴をする。\n| 項目 | 種類 | 基準値 | A氏 | 正常・異常 |\n| :--- | :--- | :--- | :--- | :--- |\n| WBC(白血球数) | | | 5880/μL | |');
+    const clinical = cards.filter(i => i.type !== 'unnecessary');
+    const cp = { title: '架空検証', myAssessments: {}, items: clinical.concat([{id:'post',text:'術後観察',type:'o',timestamp:'術後1日目',hendersonIds:[]}]) };
+    clinical.forEach((i,k) => { i.id = 'clean-' + k; i.assessmentCols = Object.fromEntries(i.hendersonIds.map(h=>[h,'postadmission'])); });
+    const shower = clinical.find(i => i.text.includes('シャワー'));
+    const legacy = {id:'fragment',type:'o',text:'着があり剥離した。また、胆嚢内に結石が認められ、同時に摘出した。',timestamp:'手術当日',predictionSource:'rule',hendersonIds:[]};
+    refreshSavedUntaggedCards({sourceText:'手術当日\n胃体部と膵体部の\n' + legacy.text,items:[legacy]});
+    return { pipes: clinical.some(i=>i.text.includes('|')), lab: clinical.some(i=>i.text.includes('5880')), shower: shower.hendersonIds.includes(8), fulfilled: sufficiencySentence(cp,8,'preop').includes('身体の清潔を保てている'), sourceCopy: buildExportPlainText(cp).includes('分類前の文章'), fragment: legacy.hendersonIds };
+   });
+   assert.deepEqual(cleanSheetCheck, {pipes:false,lab:true,shower:true,fulfilled:true,sourceCopy:false,fragment:[2]});
    // Exercise the real file-input/OCR UI with an intercepted transport; this is not live-provider verification.
    let ocrRequests=0,failOcrRequest=0;
    await page.route('https://generativelanguage.googleapis.com/**', async route=>{
@@ -688,7 +699,7 @@ const {app}=require('../server');
      if(width===1440) await page.locator('#assessment-layout').screenshot({path:`browser-artifacts/${width}-assessment-layout.png`});
      const postop=status.locator('[data-suf-phase="postop"]');
      for (const phase of ['pre','preop','postop']) assert.equal(await status.locator(`[data-suf-phase="${phase}"] .suf-phase-why`).isVisible(),true,'Every phase shows its evidence without opening a disclosure');
-     assert.match(await status.locator('[data-suf-phase="pre"] .suf-phase-why p').innerText(), /O-1（入院前：普段は呼吸困難なし）により、呼吸は満たされているため、充足。/);
+     assert.match(await status.locator('[data-suf-phase="pre"] .suf-phase-why p').innerText(), /O-1（入院前：普段は呼吸困難なし）。呼吸状態を保てていると判断し、充足。/);
      assert.match(await postop.locator('.suf-phase-why p').innerText(), /O-3（術後1日目：.*により、呼吸が現在は十分に満たされていない状態と判断し、未充足。/);
      await page.evaluate(()=>renderAssessmentTable());
      assert.equal(await postop.locator('.suf-phase-why').isVisible(),true,'Evidence remains visible after refresh');
@@ -973,7 +984,7 @@ const {app}=require('../server');
     const download=page.waitForEvent('download');await page.locator('#mobile-export-download').click();assert.match((await download).suggestedFilename(),/修正依頼/);
     await page.locator('#toast-container').evaluate(el=>el.replaceChildren());await page.screenshot({path:`browser-artifacts/${width}-mobile-request-export.png`});await page.locator('#mobile-export-close').click();
     await page.evaluate(()=>{Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>false});});
-    await page.locator('#btn-board-export-review').click();await page.locator('#modal-mobile-export').waitFor({state:'visible'});assert.equal(await page.locator('#mobile-export-share').isVisible(),false);assert.equal(await page.locator('#mobile-export-text').inputValue(),mobileText);await page.locator('#mobile-export-close').click();
+    await page.locator('#btn-board-export-review').click();await page.locator('#modal-mobile-export').waitFor({state:'visible'});assert.equal(await page.locator('#mobile-export-share').isVisible(),false);const repeatedText=await page.locator('#mobile-export-text').inputValue();assert.match(repeatedText,/^出力日時: .+$/m);assert.equal(repeatedText.replace(/^出力日時: .*$/m,''),mobileText.replace(/^出力日時: .*$/m,''));await page.locator('#mobile-export-close').click();
    }
    // Repeated fictional background evidence remains readable and survives reload.
    const consolidated=await page.evaluate(()=>{
@@ -1023,7 +1034,7 @@ const {app}=require('../server');
    await context.close();
   }
   const head=require('node:child_process').execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
-  fs.writeFileSync('browser-artifacts/validation-evidence.json',JSON.stringify({schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:10,uncaughtErrors:0,ocrTransport:'intercepted',liveOcrVerified:false},null,2)+'\n');
+  fs.writeFileSync('browser-artifacts/validation-evidence.json',JSON.stringify({schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:11,uncaughtErrors:0,ocrTransport:'intercepted',liveOcrVerified:false},null,2)+'\n');
  } finally {
   if(browser)await browser.close();
   await new Promise(resolve=>server.close(resolve));
