@@ -2461,17 +2461,18 @@
       if (!cp || !String(sourceText || '').trim()) return 0;
       const targets = (cp.items || []).filter(i => !(i.hendersonIds || []).length &&
         (!savedUntaggedProtection(i, cp) || i.type === 'unnecessary' && !savedUntaggedProtection({ ...i, type: 'o' }, cp) &&
-          /^[<＜]/.test(i.text) && extractDayLabelFromHeading(i.text)));
+          (/^[<＜]/.test(i.text) && extractDayLabelFromHeading(i.text) || i.timestamp === '検査データ' && /^ホーマンズ[:：]\s*足を背屈させたとき[。.]?$/.test(i.text))));
 
       if (!targets.length) return 0;
       const sourceCards = classifyTextByRules(sourceText);
       let updated = 0;
       targets.forEach(item => {
         if (item.type === 'unnecessary') {
-          const heading = sourceCards.find(i => i.type === 'unnecessary' && rewriteNorm(i.text) === rewriteNorm(item.text));
+          const matches = sourceCards.filter(i => i.type === 'unnecessary' && rewriteNorm(i.text) === rewriteNorm(item.text));
+          const heading = new Set(matches.map(i => i.timestamp)).size === 1 ? matches[0] : null;
           if (heading && heading.timestamp !== item.timestamp) {
             item.timestamp = heading.timestamp;
-            item.ruleCorrectionReason = '資料の日時見出しを原文で照合し、直前の記録の時刻ではなく見出し自身の日付へ補正。除外の判断・ID・本文は保持。';
+            item.ruleCorrectionReason = '原文で日時・場面を一意に照合し、直前の時刻や項目名ではなく該当する記録の日付へ補正。除外の判断・ID・本文は保持。';
             item.ruleTagUpdatedAt = now; item._touchedAt = now; updated++;
           }
           return;

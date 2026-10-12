@@ -48,6 +48,7 @@ test('A stale section label is not retained as the time of an explanatory note',
  const src='手術当日\n【検査データ】\nWBC 10500/μL\nホーマンズ:\n足を背屈させたとき';
  const item=saved('ホーマンズ: 足を背屈させたとき','検査データ'),cp={sourceText:src,items:[item]};
  assert.equal(app.refreshSavedUntaggedCards(cp),1);assert.equal(item.timestamp,'手術当日');assert.equal(item.type,'unnecessary');
+ item.timestamp='検査データ';assert.equal(app.refreshSavedUntaggedCards(cp),1);assert.equal(item.timestamp,'手術当日');assert.equal(app.refreshSavedUntaggedCards(cp),0);
 });
 test('Course staff metadata is excluded by context without excluding unrelated care assignments',()=>{
  const c=cards('23期生 経過別看護過程と援助技術(急性期)\n担当:教員\n事例紹介\n入院前\n担当:長男');
