@@ -984,7 +984,7 @@ const {app}=require('../server');
     const download=page.waitForEvent('download');await page.locator('#mobile-export-download').click();assert.match((await download).suggestedFilename(),/修正依頼/);
     await page.locator('#toast-container').evaluate(el=>el.replaceChildren());await page.screenshot({path:`browser-artifacts/${width}-mobile-request-export.png`});await page.locator('#mobile-export-close').click();
     await page.evaluate(()=>{Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>false});});
-    await page.locator('#btn-board-export-review').click();await page.locator('#modal-mobile-export').waitFor({state:'visible'});assert.equal(await page.locator('#mobile-export-share').isVisible(),false);assert.equal(await page.locator('#mobile-export-text').inputValue(),mobileText);await page.locator('#mobile-export-close').click();
+    await page.locator('#btn-board-export-review').click();await page.locator('#modal-mobile-export').waitFor({state:'visible'});assert.equal(await page.locator('#mobile-export-share').isVisible(),false);const repeatedText=await page.locator('#mobile-export-text').inputValue();assert.match(repeatedText,/^出力日時: .+$/m);assert.equal(repeatedText.replace(/^出力日時: .*$/m,''),mobileText.replace(/^出力日時: .*$/m,''));await page.locator('#mobile-export-close').click();
    }
    // Repeated fictional background evidence remains readable and survives reload.
    const consolidated=await page.evaluate(()=>{
