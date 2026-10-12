@@ -62,7 +62,7 @@ test('Correction export distinguishes a saved-result gap from learned or unmatch
   assert.match(out, /確認できた差分: 最新ルールではタグが付きますが、保存済みカードには反映されていません/);
   assert.match(out, /保存済みの分類経路: rule／自動タグ更新: 対象/);
   assert.match(out, /原文を最新ルールで再分類したタグ: 姿勢・睡眠/);
-  assert.match(out, /existing saved cards after reload, and append classification with duplicate cards/);
+  assert.match(out, /existing saved data after reload and append classification with duplicate records/);
   assert.equal(JSON.stringify(cp), before);
   cp.items[0].predictionSource = 'learned';
   const protectedOut = app.buildReviewRequestText(cp, source);

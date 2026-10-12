@@ -25,6 +25,9 @@ const {app}=require('../server');
     assert.equal(backup.schemaVersion, 1);
     assert.ok(Array.isArray(backup.patients));
     assert.ok(!Object.hasOwn(backup, 'apiKey'));
+    assert.equal(job.reviewText.split('【依頼対象：サイトのコード修正】').length - 1, 1);
+    assert.match(job.reviewText, /文章を訂正して返す作業ではありません/);
+    assert.match(job.reviewText, /push the tested commit to GitHub/);
     assert.match(job.reviewText, /【タグ未設定の追加調査】/);
     assert.match(job.reviewText, /その後、添付資料全体から/);
     classificationDeliveries.push(job);
@@ -74,6 +77,33 @@ const {app}=require('../server');
     return { pipes: clinical.some(i=>i.text.includes('|')), lab: clinical.some(i=>i.text.includes('5880')), shower: shower.hendersonIds.includes(8), fulfilled: sufficiencySentence(cp,8,'preop').includes('身体の清潔を保てている'), sourceCopy: buildExportPlainText(cp).includes('分類前の文章'), fragment: legacy.hendersonIds };
    });
    assert.deepEqual(cleanSheetCheck, {pipes:false,lab:true,shower:true,fulfilled:true,sourceCopy:false,fragment:[2]});
+   // Replay actual merge/exclusion UI decisions through replacement, reload and append.
+   const correctionSource = '手術前日\n【呼吸機能】%肺活量110.6%\n一秒率69.33%\n10:00\n記録者:担当者';
+   await page.evaluate(source => {
+    createNewPatientPage('再分類の判断保持');const cp=getCurrentPatient();DOM.sourceText.value=source;cp.sourceText=source;
+    cp.items=[{id:'merge-left',text:'【呼吸機能】%肺活量110.6%',type:'o',timestamp:'手術前日',hendersonIds:[1],predictionSource:'rule'},
+     {id:'merge-right',text:'一秒率69.33%',type:'o',timestamp:'手術前日',hendersonIds:[1],predictionSource:'rule'},
+     {id:'manual-excluded',text:'記録者:担当者',type:'o',timestamp:'手術前日 10:00',hendersonIds:[],predictionSource:'rule'}];
+    saveDataAndSync();clearSelection();setCardSelected('merge-left',true);setCardSelected('merge-right',true);openMergeModal();
+   },correctionSource);
+   await page.locator('#merge-text').fill('%肺活量110.6%、一秒率69.33%');
+   await page.locator('#merge-reason').fill('同じ時期の検査値をまとめる');await page.locator('#btn-confirm-merge').click();
+   const correctionMergedId=await page.evaluate(()=>{
+    const cp=getCurrentPatient();setItemType('manual-excluded','unnecessary');
+    cp.myAssessments={existing:{text:'手書き評価'}};cp.carePlans={saved:{evidenceIds:[cp.items.find(i=>i.id!=='manual-excluded').id]}};
+    saveDataAndSync();return cp.items.find(i=>i.id!=='manual-excluded').id;
+   });
+   for (let pass=0;pass<2;pass++) {
+    await page.locator('#btn-start-classify').click();await page.locator('#modal-dialog').waitFor({state:'visible'});
+    assert.match(await page.locator('#dialog-message').innerText(),/今回の原文と同じ記録・日時/);
+    await page.locator('#dialog-confirm').click();await page.locator('#modal-dialog').waitFor({state:'hidden'});
+    await page.waitForFunction(id=>getCurrentPatient().items.some(i=>i.id===id),correctionMergedId);
+    assert.deepEqual(await page.evaluate(id=>{const cp=getCurrentPatient();return {ids:cp.items.map(i=>i.id).sort(),excluded:cp.items.find(i=>i.id==='manual-excluded').type,history:cp.items.find(i=>i.id===id).editLog.at(-1).kind,assessment:cp.myAssessments.existing.text,plan:cp.carePlans.saved.evidenceIds};},correctionMergedId),{ids:[correctionMergedId,'manual-excluded'].sort(),excluded:'unnecessary',history:'merge',assessment:'手書き評価',plan:[correctionMergedId]});
+    await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>!!getCurrentPatient());
+   }
+   await page.locator('#btn-start-classify').click();await page.locator('#modal-dialog').waitFor({state:'visible'});await page.locator('#dialog-secondary').click();await page.locator('#modal-dialog').waitFor({state:'hidden'});
+   assert.deepEqual(await page.evaluate(()=>getCurrentPatient().items.map(i=>i.id).sort()),[correctionMergedId,'manual-excluded'].sort());
+   console.log(`PASS ${width}px: user merge/exclusion survive repeated replacement, reload and append`);
    // Exercise the real file-input/OCR UI with an intercepted transport; this is not live-provider verification.
    let ocrRequests=0,failOcrRequest=0;
    await page.route('https://generativelanguage.googleapis.com/**', async route=>{
@@ -1034,7 +1064,7 @@ const {app}=require('../server');
    await context.close();
   }
   const head=require('node:child_process').execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
-  fs.writeFileSync('browser-artifacts/validation-evidence.json',JSON.stringify({schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:11,uncaughtErrors:0,ocrTransport:'intercepted',liveOcrVerified:false},null,2)+'\n');
+  fs.writeFileSync('browser-artifacts/validation-evidence.json',JSON.stringify({schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:12,uncaughtErrors:0,ocrTransport:'intercepted',liveOcrVerified:false},null,2)+'\n');
  } finally {
   if(browser)await browser.close();
   await new Promise(resolve=>server.close(resolve));
