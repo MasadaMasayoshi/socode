@@ -935,11 +935,12 @@ const {app}=require('../server');
     await page.locator('#tab-so-board').click();
     await page.evaluate(()=>{window.showSaveFilePicker=undefined;window.__copied='';window.__shared='';Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async t=>{window.__copied=t;}}});Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>true});Object.defineProperty(navigator,'share',{configurable:true,value:async d=>{window.__shared=await d.files[0].text();}});});
     await page.locator('#btn-board-export-review').click();await page.locator('#modal-mobile-export').waitFor({state:'visible'});
+    assert.equal(await page.locator('#modal-mobile-export .modal-surface').evaluate(el=>getComputedStyle(el).backgroundColor),await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--surface').trim()==='#FFFFFF'?'rgb(255, 255, 255)':'rgb(34, 31, 27)'));
     const mobileText=await page.locator('#mobile-export-text').inputValue();assert.match(mobileText,/架空の食事記録0/);assert.match(mobileText,/最初の依頼\n追加の依頼/);
     await page.locator('#mobile-export-copy').click();assert.equal(await page.evaluate(()=>window.__copied),mobileText);
     await page.locator('#mobile-export-share').click();await page.waitForFunction(()=>window.__shared.length>0);assert.equal(await page.evaluate(()=>window.__shared),mobileText);
     const download=page.waitForEvent('download');await page.locator('#mobile-export-download').click();assert.match((await download).suggestedFilename(),/修正依頼/);
-    await page.screenshot({path:`browser-artifacts/${width}-mobile-request-export.png`});await page.locator('#mobile-export-close').click();
+    await page.locator('#toast-container').evaluate(el=>el.replaceChildren());await page.screenshot({path:`browser-artifacts/${width}-mobile-request-export.png`});await page.locator('#mobile-export-close').click();
     await page.evaluate(()=>{Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>false});});
     await page.locator('#btn-board-export-review').click();await page.locator('#modal-mobile-export').waitFor({state:'visible'});assert.equal(await page.locator('#mobile-export-share').isVisible(),false);assert.equal(await page.locator('#mobile-export-text').inputValue(),mobileText);await page.locator('#mobile-export-close').click();
    }
