@@ -987,8 +987,14 @@ const {app}=require('../server');
    });
    await page.locator('#tab-so-board').click();
    await page.evaluate(()=>openSplitCard('reason-source'));
+   // Opening must never steal focus after the user moves to the reason field.
+   await page.evaluate(()=>document.getElementById('split-reason').focus());
+   await page.waitForTimeout(60);
+   assert.equal(await page.evaluate(()=>document.activeElement.id),'split-reason');
    await page.locator('#split-text').fill('架空の前半。\n架空の後半。');
    await page.locator('#split-reason').fill('別の情報として確認する');
+   assert.equal(await page.locator('#split-text').inputValue(),'架空の前半。\n架空の後半。');
+   assert.equal(await page.locator('#split-reason').inputValue(),'別の情報として確認する');
    await page.locator('#modal-split').screenshot({path:`browser-artifacts/${width}-split-reason.png`});
    await page.locator('#btn-split-confirm').click();
    await page.evaluate(()=>{getCurrentPatient().items.filter(i=>i.type!=='unnecessary').forEach(i=>setCardSelected(i.id,true));openMergeModal();});
