@@ -19,7 +19,7 @@ test('Treatment targets, associations and postoperative findings have distinct d
  assert.ok(!map.nodes.some(n=>/受診から帰室/.test(n.label)));
  const svg=app.relationMapSvg(map,{}),association=map.edges.find(e=>e.relation==='related_to');assert.ok(association);
  const group=svg.match(new RegExp('<g[^>]*data-link-id="'+association.id+'"[^>]*>([\\s\\S]*?)</g>'));
- assert.ok(group);assert.doesNotMatch(group[1],/marker-end/);
+ assert.ok(group);assert.doesNotMatch(group[1],/marker-end/);assert.match(svg,/>根拠<\/text>/);
 });
 test('A planned or cancelled operation cannot become a completed operation',()=>{
  const map=app.buildRelationMapFromRecord(patient('診断名：胃がん\n予定術式：胃全摘術\n「手術が怖い」と話す。'));

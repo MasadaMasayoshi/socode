@@ -1109,7 +1109,7 @@
         const history = e.relation === 'preceded_by' || (e.relation === 'related_to' && /^診断までの経過：/.test(e.evidence || ''));
         const association = e.relation === 'related_to' && !history;
         const tl = treat && r.pts && r.pts.length > 1 ? `<text class="rm-treat-label" x="${Math.round((r.pts[0][0] + r.pts[1][0]) / 2) + 6}" y="${Math.round((r.pts[0][1] + r.pts[1][1]) / 2) + 3}" font-size="10" fill="#2563EB" font-weight="700">治療</text>` : '';
-        const hl = history && r.pts && r.pts.length > 1 ? `<text class="rm-history-label" x="${Math.round((r.pts[0][0] + r.pts[1][0]) / 2) + 6}" y="${Math.round((r.pts[0][1] + r.pts[1][1]) / 2) + 3}" font-size="10" fill="#6B6458" font-weight="700">経過</text>` : '';
+        const hl = (history || e.relation === 'supports') && r.pts && r.pts.length > 1 ? `<text class="rm-history-label" x="${Math.round((r.pts[0][0] + r.pts[1][0]) / 2) + 6}" y="${Math.round((r.pts[0][1] + r.pts[1][1]) / 2) + 3}" font-size="10" fill="#6B6458" font-weight="700">${history ? '経過' : '根拠'}</text>` : '';
         return `${mask}<g class="rm-link${treat ? ' is-treat' : ''}${association ? ' is-association' : ''}${sel ? ' is-selected' : ''}" data-link-id="${escapeHtml(e.id)}">
           ${interactive ? `<path class="rm-link-hit" d="${d}" fill="none" stroke="transparent" stroke-width="20"/>` : ''}
           <path class="rm-link-line"${cuts.length ? ` mask="url(#${maskId})"` : ''} d="${d}" fill="none" opacity="0.65" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#3F3B35'}" stroke-width="1.5"${screen ? ' vector-effect="non-scaling-stroke"' : ''}${association ? ' stroke-dasharray="4 3"' : e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} ${association ? '' : `marker-end="url(#${markerPrefix}-${treat ? 'arrow-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"`}/>${tl}${hl}
@@ -1180,7 +1180,7 @@
         `<span class="rm-legend-item">${line('#3F3B35')}原因 → 結果</span>`,
 
         `<span class="rm-legend-item">${line('#2563EB')}治療 → 治療の対象（抑える・和らげる）</span>`,
-        '<span class="rm-legend-item">経過：先 → 後（原因とは別）／背景の関連：矢印なしの破線</span>',
+        '<span class="rm-legend-item">経過：先 → 後（原因とは別）／根拠：データ → 評価／背景の関連：矢印なしの破線</span>',
         `<span class="rm-legend-item">${line('#3F3B35', true)}予測・可能性（破線）</span>`
       ].join('');
     }
@@ -2935,7 +2935,7 @@
       if (legend && !legend.dataset.ready) { legend.innerHTML = rmLegendHtml(); legend.dataset.ready = '1'; }
       const info = document.getElementById('rm-info');
       if (info) info.textContent = has ? `${map.nodes.length}個の四角・${map.edges.length}本の矢印・看護問題${map.nodes.filter(n => n.type === 'nursing_problem').length}個${map.updatedAt ? `（最終更新 ${new Date(map.updatedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}）` : ''}` : '';
-      if (info && has && map.source === 'rules' && map.buildVersion < RM_BUILD_VERSION) info.textContent += ' ／ 旧版の関連図です。「記録から作成」で最新の矢印・時系列に更新できます（手編集を含む置換の前に確認します）。';
+      if (info && has && map.source === 'rules' && map.buildVersion < RM_BUILD_VERSION) info.textContent += ' ／ 旧版の関連図です。「記録から作る」で最新の矢印・時系列に更新できます（手編集を含む置換の前に確認します）。';
       rmRenderSelectionBar();
       rmRenderToolbarState();
       const conflictBtn = document.getElementById('rm-conflict-button');
