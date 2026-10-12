@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-12.usability-context26'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-12.usability-context28'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -1574,7 +1574,7 @@
           const size = (t.match(/\d+(?:\.\d+)?\s*(?:mm|cm)(?!Hg|H2O)/i) || [])[0];
           const singleTumor = tumorRecords.includes(it) && site && size && !/多発|複数|[2-9]個/.test(t);
           const pathology = /病理結果|病理所見/.test(`${it.fieldLabel || ''}${it.text}`);
-          const canonical = singleTumor ? `${site}:${size.replace(/\s/g, '')}` : pathology ? `${it.timestamp || ''}:${evidenceKey(t).replace(/([TNPHM])O(?=\b|[TNPHM]|$)/g, '$10')}` : evidenceKey(it.text);
+          const canonical = singleTumor ? `${site}:${size.replace(/\s/g, '')}` : pathology ? `${it.timestamp || ''}:${evidenceKey(t).replace(/[,、]?Stage[IVX]+[ABC]?$/i, '').replace(/([TNPHM])O(?=\b|[TNPHM]|$)/g, '$10')}` : evidenceKey(it.text);
           const label = singleTumor ? `${site}の腫瘍（${size.replace(/\s/g, '')}）` : rmShorten(it.text, 90);
           const finding = B(singleTumor ? 'tumor' : pathology ? 'pathology' : 'history', it, label, canonical);
           if (singleTumor && /限局潰瘍型/.test(t)) finding.label = `${site}の限局潰瘍型腫瘍（${size.replace(/\s/g, '')}）`;

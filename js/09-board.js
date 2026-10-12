@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-12.usability-context27'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-12.usability-context28'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -136,7 +136,7 @@
         showToast('入力欄に元の文章が無いため、該当箇所を表示できません', 'info');
         return;
       }
-      const ranges = findSourceHighlightRanges(source, item.text);
+      const ranges = sourceRangesForCard(source, item.text, item);
       if (!ranges.length) {
         clearSourceHighlight(false);
         showToast('元の文章の中に、このカードの該当箇所が見つかりませんでした（カードか入力欄の文章が後から編集された可能性があります）', 'info');

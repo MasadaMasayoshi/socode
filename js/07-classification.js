@@ -2,7 +2,7 @@
 // Learned corrections precede headings and fixed rules; automatic creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-11.usability-context16'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-12.usability-context29'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -91,7 +91,13 @@
     };
     function labelPrimaryNeeds(text) {
       const m = (text || '').match(/^([^:：「」、。\s]{1,14})\s*[:：]/);
-      return m && LABEL_PRIMARY_NEEDS[m[1]] ? LABEL_PRIMARY_NEEDS[m[1]] : null;
+      if (!m || !LABEL_PRIMARY_NEEDS[m[1]]) return null;
+      // Explicit additional fields on the same line retain their own domains.
+      const ids = [...LABEL_PRIMARY_NEEDS[m[1]]];
+      for (const field of text.matchAll(/\s+([^:：「」、。\s]{1,14})\s*[:：]/g)) {
+        (LABEL_PRIMARY_NEEDS[field[1]] || []).forEach(id => { if (!ids.includes(id)) ids.push(id); });
+      }
+      return ids;
     }
 
     const WEAK_WHEN_NEGATED = { 2: ['嘔気', '嘔吐', '悪心', '吐気', 'むかつき'], 9: ['疼痛', '痛み', '痛'] };
@@ -109,7 +115,11 @@
     const PAIN_TEXT_REGEX = /疼痛|痛み|痛い|痛く|痛かった|創痛|ペインスケール|NRS|VAS|鎮痛|ロキソ|レスキュー/;
     const PAIN_SCORE_REGEX = /ペインスケール|NRS|VAS|フェイススケール/;
     const ALLERGY_ABSENT_REGEX = /アレルギー(?:[:：\s]*|は|が)(?:特に)?(?:なし|ない|ありません|認めない)/;
-    const POSTURE_ACTIVITY_REGEX = /荷重|移乗|歩行|歩く|歩け|リハビリ|離床|端坐位|立位|移動|ROM|SLR|可動域|起立/;
+    const INFECTION_SCREEN_REGEX = /(?:HBV\s*抗原|HCV\s*抗体|梅毒)\s*[:：]?\s*\(\s*[-−]\s*\)/i;
+    const HEALTH_SCREEN_USE_REGEX = /(?:検診|健診)[^。]{0,18}(?:欠かさ|定期的に受け|毎年受け|受けている|受けていた)/;
+    const CHEST_IMAGE_REGEX = /胸部\s*(?:X\s*線|レントゲン|CT)/i;
+    const GASTRIC_FINDING_REGEX = /(?:精密検査|胃カメラ|内視鏡)[^。]{0,40}胃[^。]{0,20}(?:腫瘍|病変|がん|癌)/;
+    const POSTURE_ACTIVITY_REGEX = /体動|荷重|移乗|歩行|歩く|歩け|リハビリ|離床|端坐位|立位|移動|ROM|SLR|可動域|起立/;
     const LEARN_CONTENT_IN_QUOTE_REGEX = /んですね|んだよね|んだったよね|だったよね|なきゃ|なくちゃ|やらなくちゃ|やらなきゃ|大丈夫[?？]|でいいの|いいの[?？]|できるかな|やり方|方法|なりにくく|合併症|良くない|いけないの|教えて/;
     const LEARN_KNOWLEDGE_FIRST_REGEX = /なりにくく|やり方|方法|合併症|良くない|予防|教えて/;
     const QUOTE_EMOTION_WORD_REGEX = /怖|恐|不安|心配|嫌|つら|辛|悲し|寂し|情けな|びっくり|嬉し|うれし|かしら/;
@@ -178,7 +188,10 @@
       }
 
       const isPainText = PAIN_TEXT_REGEX.test(text) && !/痛みなし|疼痛なし|疼痛(?:の)?訴え(?:なし|なく)|疼痛増強(?:なし|なく|見られず)/.test(text);
-      if (ALLERGY_ABSENT_REGEX.test(text)) tags.add(9);
+      if (ALLERGY_ABSENT_REGEX.test(text) || INFECTION_SCREEN_REGEX.test(text)) tags.add(9);
+      if (HEALTH_SCREEN_USE_REGEX.test(text)) tags.add(14);
+      if (CHEST_IMAGE_REGEX.test(text)) tags.add(1);
+      if (GASTRIC_FINDING_REGEX.test(text)) tags.add(2);
 
       if (/動かなければ|動かさなければ|動かさない(?:と|限り)/.test(text) && /疼痛|痛/.test(text)) tags.add(4);
       if (isPainText) {
@@ -191,7 +204,7 @@
         if (/着替|更衣/.test(text)) tags.add(6);
       }
       if (tags.size === 0 && !isPainText && Array.from(NEGATABLE_SPEECH_KEYWORDS).some(kw => hasNonNegatedOccurrence(text, kw))) tags.add(10);
-      if (PATIENT_EDUCATION_REGEX.test(text)) tags.add(14);
+      if (PATIENT_EDUCATION_REGEX.test(text) || /(?:手術|術前)オリエンテーション/.test(text) && !/(?:手術|術前)オリエンテーション[^。]{0,20}(?:予定なし|未実施|中止)/.test(text)) tags.add(14);
 
       const patientQuotes = (patientText.match(/「[^」]*」/g) || []).join('');
       if (LEARNING_NEED_IN_QUOTE_REGEX.test(patientQuotes)) {
@@ -259,7 +272,7 @@
         if (/安静|動|自分でできる|歩|起き/.test(patientQuotes) && !tags.has(4) && /安静|動|歩|起き/.test(patientQuotes)) tags.add(4);
       }
 
-      if (tags.has(9) && NOT_ENV_REGEX.test(text) && !ENV_EVIDENCE_REGEX.test(text) && !ALLERGY_ABSENT_REGEX.test(text)) tags.delete(9);
+      if (tags.has(9) && NOT_ENV_REGEX.test(text) && !ENV_EVIDENCE_REGEX.test(text) && !ALLERGY_ABSENT_REGEX.test(text) && !INFECTION_SCREEN_REGEX.test(text)) tags.delete(9);
       custom.add.forEach(r => { if (text.includes(r.keyword)) r.hendersonIds.forEach(h => tags.add(h)); });
       const out = Array.from(tags);
       // A physical report or treatment-effect speculation is not communication evidence.
@@ -1405,7 +1418,6 @@
           const hhmm = `${h}:${String(m).padStart(2, '0')}`;
           return dayLabel ? `${dayLabel} ${hhmm}` : hhmm;
         }
-        if (raw === '検査データ') return raw;
         if (raw === '翌日' || raw === '翌朝') {
           dayLabel = nextDayLabel(dayLabel) || raw;
           lastClockMin = null;
@@ -1512,6 +1524,9 @@
             continue;
           }
 
+          if (/の\s*$/.test(line) && /^(?:癒?着があり剥離)/.test(String(raw[i + 1] || '').trim())) {
+            line = line.trimEnd() + raw[++i].trim();
+          }
           const inlineDayHeading = line.match(/^(.*?[^\s<＜])\s*([<＜]?実習\s*\d+\s*日[目日][^<＜>＞]{0,40}[>＞)）]?)(.*)$/);
           if (inlineDayHeading && inlineDayHeading[1].trim().length >= 4) {
             pushJoined(inlineDayHeading[1]);
@@ -1619,6 +1634,10 @@
           lastClockMin = null;
         }
 
+        if (/^【病理結果】/.test(cleanLine)) {
+          pushExtracted({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp });
+          continue;
+        }
         const tasteMatch = cleanLine.match(/^(嗜好品?|嗜好)\s*[:：]\s*(.+)$/);
         if (tasteMatch) {
           const body = tasteMatch[2];
@@ -1633,6 +1652,11 @@
         const headingOnlyLabels = detectFieldLabelHeadingOnlyLine(cleanLine);
         if (headingOnlyLabels) {
           pendingFieldLabelKeys = headingOnlyLabels;
+          continue;
+        }
+        if (isSourceStructureText(cleanLine)) {
+          pendingFieldLabelKeys = null;
+          pushExtracted({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
           continue;
         }
         if (pendingFieldLabelKeys) {
@@ -1672,7 +1696,6 @@
 
             '|\\d+\\s*[〜~\\-]\\s*\\d+日目' +
             '|\\d+日目' +
-            '|検査データ' +
           ')[\\]】]?\\s*'
         );
         let marker;
@@ -1816,7 +1839,7 @@
           }
         }
 
-        if (isUnnecessaryBoilerplateText(cleanLine)) {
+        if (isUnnecessaryBoilerplateText(cleanLine) || /^ホーマンズ[:：]\s*足を背屈させたとき[。.]?$/.test(cleanLine)) {
           pushExtracted({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
           continue;
         }
@@ -2161,7 +2184,10 @@
       splitFamilySpeechSentences(extracted);
       splitMixedSubjectiveObjective(extracted);
       mergeDanglingObservations(extracted);
-      extracted.forEach(item => { delete item._line; delete item._lab; });
+      extracted.forEach(item => {
+        if (isSourceStructureText(item.text) || /^ホーマンズ[:：]\s*足を背屈させたとき[。.]?$/.test(item.text)) item.isUnnecessaryBoilerplate = true;
+        delete item._line; delete item._lab;
+      });
       return extracted;
     }
 
@@ -2250,7 +2276,8 @@
 
     function computeLocalTagsAndType(chunk, cleanedText, userLearned) {
 
-      const ruleHIds = detectMultipleHendersonTags(cleanedText);
+      const semanticText = chunk.fieldLabel === 'アレルギー' && isBareStatusWord(cleanedText) ? `アレルギー: ${cleanedText}` : cleanedText;
+      const ruleHIds = detectMultipleHendersonTags(semanticText);
       const detectedHIds = Array.from(new Set([...ruleHIds, ...(userLearned?.preferredHendersonIds || [])]));
 
       if ((chunk.isLabOrVital || mentionsLabItemName(cleanedText)) && !hasLearnedSignal(userLearned)) labCategoryTags(cleanedText).forEach(h => { if (!detectedHIds.includes(h)) detectedHIds.push(h); });
@@ -2263,7 +2290,7 @@
 
         if (/\d{1,3}歳|生後\s*\d+\s*(?:か月|ヶ月|カ月|ケ月|日)|日齢\s*\d+|(?:ちゃん|くん)\s*[(（]/.test(cleanedText) && /(?:男性|女性|男児|女児|男子|女子|男の子|女の子|初妊婦|経妊婦|初産婦|経産婦|妊婦|褥婦)/.test(cleanedText) && cleanedText.length <= 40) FIELD_LABEL_DEFAULT_TAGS['年齢'].forEach(h => detectedHIds.push(h));
 
-        detectDiagnosisTagHints(cleanedText).forEach(h => { if (!detectedHIds.includes(h)) detectedHIds.push(h); });
+        (FAMILY_HISTORY_DISEASE_CONTEXT_REGEX.test(cleanedText) ? [] : detectDiagnosisTagHints(cleanedText)).forEach(h => { if (!detectedHIds.includes(h)) detectedHIds.push(h); });
       }
 
       if (!hasLearnedSignal(userLearned) && typeof drugTagsForText === 'function' && /(?:内服|処方|点滴|注射|投与|持続|静注|使用|貼付|服薬|頓用|mg|単位|ml\/h)/i.test(cleanedText)) {
@@ -2376,10 +2403,24 @@
       if (!cp || !String(sourceText || '').trim()) return 0;
       const targets = (cp.items || []).filter(i => !(i.hendersonIds || []).length && !savedUntaggedProtection(i, cp));
       if (!targets.length) return 0;
-      const originals = new Map(classifyTextByRules(sourceText).map(i => [clinicalCardDuplicateKey(i.text, i.timestamp), i]));
+      const sourceCards = classifyTextByRules(sourceText);
+      const originals = new Map(sourceCards.map(i => [clinicalCardDuplicateKey(i.text, i.timestamp), i]));
+      sourceCards.filter(i => i.fieldLabel === 'アレルギー' && /^アレルギー[:：]\s*(?:ない|なし)$/.test(i.text)).forEach(i => {
+        originals.set(clinicalCardDuplicateKey(i.text.replace(/^アレルギー[:：]\s*/, ''), i.timestamp), i);
+      });
       let updated = 0;
       targets.forEach(item => {
         const original = originals.get(clinicalCardDuplicateKey(item.text, item.timestamp));
+        if (/^(?:ない|なし)$/.test(item.text) && item.fieldLabel !== 'アレルギー') return;
+        const tableFragment = /^(?:\|[^\n]*\|\s*正常|異常\s*\|)$/.test(item.text) &&
+          sourceCards.some(i => i.type === 'unnecessary' && i.timestamp === item.timestamp && i.text.includes('正常・異常') && i.text.includes('|') && (i.text.startsWith(item.text) || /異常\s*\|$/.test(item.text)));
+        const structureMatch = (isSourceStructureText(item.text) || /^ホーマンズ[:：]\s*足を背屈させたとき[。.]?$/.test(item.text)) &&
+          sourceCards.some(i => i.type === 'unnecessary' && rewriteNorm(i.text) === rewriteNorm(item.text));
+        if (original?.type === 'unnecessary' || tableFragment || structureMatch) {
+          item.type = 'unnecessary';
+          item.ruleCorrectionReason = '原文で確認した資料の見出し・表構造・説明メモ。患者所見から除外し、原文とカードIDを保持。';
+          item.ruleTagUpdatedAt = now; item._touchedAt = now; updated++; return;
+        }
         if (!original || original.type === 'unnecessary' || !original.hendersonIds.length) return;
         item.hendersonIds = original.hendersonIds.slice();
         item.patientBackground = null;
@@ -2514,6 +2555,7 @@
       if (typeof applyUntaggedReviews === 'function') applyUntaggedReviews(cp);
       addedThisRun.forEach(item => reportLearningEvent(item.text, 'create', { type: item.type, hendersonIds: item.hendersonIds, assessmentCols: item.assessmentCols, fieldLabel: item.fieldLabel, predictionSource: item.predictionSource, fuzzyMatchedText: fuzzyMatches.get(item.id) }));
       saveDataAndSync();
+      queueClassificationDelivery(cp);
       showToast(`${addedCount}件のデータを分類・カード化しました${updatedCount ? `／${updatedCount}枚のタグを更新しました` : ''}`, 'success');
     });
 

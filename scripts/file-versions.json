@@ -1,51 +1,51 @@
 {
   "js/01-henderson-keywords.js": {
-    "version": "2026-10-10.znavigation17",
-    "hash": "8e19d850b1f8b828"
+    "version": "2026-10-12.usability-context28",
+    "hash": "74dc29632df48a45"
   },
   "js/02-reference-data.js": {
-    "version": "2026-10-11.usability-context15",
-    "hash": "2109000ee98dbee6"
+    "version": "2026-10-12.usability-context28",
+    "hash": "767e7e94b87ac41b"
   },
   "js/03-extraction-helpers.js": {
-    "version": "2026-10-10.znavigation17",
-    "hash": "6985261a5748a8d1"
+    "version": "2026-10-12.usability-context28",
+    "hash": "d72300e4316750e4"
   },
   "js/04-server-sync.js": {
-    "version": "2026-10-10.znavigation17",
-    "hash": "48f0892e5d44452a"
+    "version": "2026-10-12.usability-context29",
+    "hash": "5d32db02d71fadd8"
   },
   "js/05-app-state-and-ui.js": {
     "version": "2026-10-12.usability-context21",
     "hash": "3ea560e48efc9873"
   },
   "js/06-export.js": {
-    "version": "2026-10-12.usability-context27",
-    "hash": "6b34cd8bc0a103fa"
+    "version": "2026-10-12.usability-context29",
+    "hash": "c0ce9619ba18b980"
   },
   "js/07-classification.js": {
-    "version": "2026-10-11.usability-context16",
-    "hash": "a61f3df0373b9a8f"
+    "version": "2026-10-12.usability-context29",
+    "hash": "09329a66b7f9fa94"
   },
   "js/08-assessment-tools.js": {
     "version": "2026-10-11.usability-context12",
     "hash": "355cfaa6664862f9"
   },
   "js/09-board.js": {
-    "version": "2026-10-12.usability-context27",
-    "hash": "a44ba98e58036558"
+    "version": "2026-10-12.usability-context28",
+    "hash": "9d479baa88f05b0b"
   },
   "js/10-reference-page-and-startup.js": {
-    "version": "2026-10-11.usability-context19",
-    "hash": "2d1521f41abf3086"
+    "version": "2026-10-12.usability-context29",
+    "hash": "ac6be1988f16e9e2"
   },
   "js/11-own-assessment.js": {
     "version": "2026-10-12.usability-context22",
     "hash": "81e5017710b52676"
   },
   "js/12-missing-checks-and-care-plan.js": {
-    "version": "2026-10-12.usability-context20",
-    "hash": "3bc4a1d59131b5e8"
+    "version": "2026-10-12.usability-context28",
+    "hash": "678d1eccdb7ae363"
   },
   "js/13-compare-and-report.js": {
     "version": "2026-10-12.usability-context21",
@@ -56,8 +56,8 @@
     "hash": "ddd095be9f67a182"
   },
   "js/15-relation-map.js": {
-    "version": "2026-10-12.usability-context26",
-    "hash": "63b3d6196a703f64"
+    "version": "2026-10-12.usability-context28",
+    "hash": "1a576f2d1c5d7dc9"
   },
   "style.css": {
     "version": "2026-10-12.usability-context27",

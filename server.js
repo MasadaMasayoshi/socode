@@ -602,11 +602,11 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-const ROUTE_BODY_PARSER_PATHS = new Set(['/api/learning-dict/sync', '/api/patients/sync', '/api/patient-snapshot', '/api/presence/leave']);
+const ROUTE_BODY_PARSER_PATHS = new Set(['/api/learning-dict/sync', '/api/patients/sync', '/api/patient-snapshot', '/api/presence/leave', '/api/classification-delivery']);
 const defaultJsonParser = express.json({ limit: '5mb' });
 app.use((req, res, next) => (ROUTE_BODY_PARSER_PATHS.has(req.path) ? next() : defaultJsonParser(req, res, next)));
 
-const PRIVATE_PATH_REGEX = /^\/(?:data|tests|scripts|node_modules|Claude outputs)(?:\/|$)|^\/(?:server\.js|package(?:-lock)?\.json|README\.md|tailwind\.[\w.]+|app-\d+\.js)$/i;
+const PRIVATE_PATH_REGEX = /^\/(?:data|tests|scripts|server|node_modules|Claude outputs)(?:\/|$)|^\/(?:server\.js|package(?:-lock)?\.json|README\.md|tailwind\.[\w.]+|app-\d+\.js)$/i;
 
 function isPrivateStaticPath(rawPath) {
   let p;
@@ -1264,6 +1264,15 @@ const PATIENT_SNAPSHOT_MAX_ITEMS_PER_PATIENT = 500;
 
 const PATIENT_SNAPSHOT_MAX_BYTES = 6 * 1024 * 1024;
 const PATIENT_SNAPSHOT_ARCHIVE_MAX_BYTES = 12 * 1024 * 1024;
+
+const classificationMail = require('./server/classification-mail').createClassificationMail({ dataDir: DATA_DIR });
+app.post('/api/classification-delivery', express.json({ limit: '15mb', type: () => true }),
+  rateLimit('classification-delivery', { windowMs: 60000, max: 10 }), async (req, res) => {
+    const origin = req.headers.origin;
+    const ownOrigin = `${req.protocol}://${req.get('host')}`;
+    if (origin && origin !== ownOrigin && !CORS_ALLOWED_ORIGINS.has(origin)) return res.status(403).json({ ok: false });
+    res.json(await classificationMail.send(req.body));
+  });
 
 app.post('/api/patient-snapshot', express.json({ limit: '8mb', type: () => true }), rateLimit('patient-snapshot', { windowMs: 60000, max: 60 }), async (req, res) => {
   const { clientId, patients } = req.body || {};
