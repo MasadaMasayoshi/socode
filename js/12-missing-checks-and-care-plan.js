@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-12.usability-context28'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-12.usability-context31'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -262,6 +262,15 @@
       if (ocr) {
         return set('source', `${ocr.why}。意味を推測して分類すると誤るため、原文のまま残しています。`, ocr.level, [], ['原本（元の記録）で文字・数値・単位を確認してください', '確認できるまで、臨床的な根拠として使わないでください']);
       }
+      if (/^[A-ZＡ-Ｚ]\s*氏[、・,\s]+\d{1,3}\s*歳[、・,\s]+(?:男性|女性)[。.]?$/.test(text.trim())) {
+        return set('none', '氏名・年齢・性別の患者基本情報です。利用者による統合を保持し、この情報だけで特定の基本的欲求や未充足を決めません。', '高', [], ['基本情報として保持し、年齢・性別の意味を実際の生活・症状と合わせて評価してください']);
+      }
+      if (/^(?:【血液型】|血液型[:：]\s*)[ABOＡＢＯ型\sRhRH+\-()（）陰陽性]+$/.test(text.trim())) {
+        return set('none', '血液型は医学情報として保持します。血液型単独では呼吸・飲食・安全の欲求や患者の理解を判断できないため、タグは付けません。', '高', [], ['輸血の実施・反応などが記録された場合は、その別の所見を根拠に分類してください']);
+      }
+      if (item?.type === 'unnecessary') {
+        return set('none', item.ruleCorrectionReason || '資料の表題・見出し・教材の管理情報として患者所見から除外されています。過去の処理理由は、保存された履歴がなければ理由未記録です。', '高', [], ['現在の除外基準と、過去の処理主体・理由を区別して確認してください']);
+      }
       if (isSourceStructureText(text) || /^ホーマンズ[:：]\s*足を背屈させたとき[。.]?$/.test(text.trim())) {
         return set('none', '資料の見出し・表構造・説明メモで、患者の観察所見ではありません。日時や項目の文脈は保持します。', '高', [], ['患者所見と分け、配下の数値・観察結果を除外しないでください']);
       }
@@ -269,7 +278,8 @@
         return set('classify', 'アレルギー欄の陰性所見です。本文の短い語だけでなく項目名を合わせて9.環境に分類します。', '高', [9], ['原文のアレルギー欄と照合し、別の「症状がない」を出典にしないでください']);
       }
       if (/^着があり剥離/.test(text.trim()) || /の着があり剥離/.test(text)) {
-        return set('source', '原文に文字が欠けた可能性のある手術記録です。前後を接続しても欠けた文字は確定できません。', '高', [], ['原本で欠落箇所を確認し、推測で文字や病態を補わないでください']);
+        const known = text.match(GALLBLADDER_OPERATIVE_FINDING_REGEX)?.[0];
+        return set('source', known ? `一部に文字欠落の可能性がありますが、「${known}」は読み取れます。この消化器の治療記録には2.食事を付け、欠落部分の意味は保留します。` : '原文に文字が欠けた可能性のある手術記録です。前後を接続しても欠けた文字は確定できません。', '高', known ? [2] : [], ['読める所見と確認待ちの部分を区別し、欠けた文字を推測で補わないでください']);
       }
       if (/胆嚢結石/.test(text) && /症状がない|無症状/.test(text)) {
         return set('none', '無症状の既往歴です。医学情報として保持し、後日の胆嚢摘出の記録と照合します。この記載だけで飲食・排泄の障害は判断しません。', '高', [], ['症状・摂取・排泄への影響が別に記録されていれば、時期を分けて評価してください']);

@@ -2,7 +2,7 @@
 // Learned corrections precede headings and fixed rules; automatic creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-12.usability-context29'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-12.usability-context31'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -116,6 +116,7 @@
     const PAIN_SCORE_REGEX = /ペインスケール|NRS|VAS|フェイススケール/;
     const ALLERGY_ABSENT_REGEX = /アレルギー(?:[:：\s]*|は|が)(?:特に)?(?:なし|ない|ありません|認めない)/;
     const INFECTION_SCREEN_REGEX = /(?:HBV\s*抗原|HCV\s*抗体|梅毒)\s*[:：]?\s*\(\s*[-−]\s*\)/i;
+    const GALLBLADDER_OPERATIVE_FINDING_REGEX = /胆[嚢囊][^。]{0,50}結石[^。]{0,50}摘出した/;
     const HEALTH_SCREEN_USE_REGEX = /(?:検診|健診)[^。]{0,18}(?:欠かさ|定期的に受け|毎年受け|受けている|受けていた)/;
     const CHEST_IMAGE_REGEX = /胸部\s*(?:X\s*線|レントゲン|CT)/i;
     const GASTRIC_FINDING_REGEX = /(?:精密検査|胃カメラ|内視鏡)[^。]{0,40}胃[^。]{0,20}(?:腫瘍|病変|がん|癌)/;
@@ -191,7 +192,7 @@
       if (ALLERGY_ABSENT_REGEX.test(text) || INFECTION_SCREEN_REGEX.test(text)) tags.add(9);
       if (HEALTH_SCREEN_USE_REGEX.test(text)) tags.add(14);
       if (CHEST_IMAGE_REGEX.test(text)) tags.add(1);
-      if (GASTRIC_FINDING_REGEX.test(text)) tags.add(2);
+      if (GASTRIC_FINDING_REGEX.test(text) || GALLBLADDER_OPERATIVE_FINDING_REGEX.test(text)) tags.add(2);
 
       if (/動かなければ|動かさなければ|動かさない(?:と|限り)/.test(text) && /疼痛|痛/.test(text)) tags.add(4);
       if (isPainText) {
@@ -1121,6 +1122,28 @@
       }
       return out;
     }
+    function normalizeMarkdownLabTables(lines) {
+      const out = [];
+      let header = null;
+      let emittedHeader = false;
+      for (const original of lines) {
+        const line = String(original).trim();
+        if ((line.match(/\|/g) || []).length < 2) { header = null; emittedHeader = false; out.push(original); continue; }
+        const cells = line.replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+        if (cells.every(c => !c || /^:?-{2,}:?$/.test(c))) { out.push(SOURCE_TITLE_MARK + cells.join(' ')); continue; }
+        if (/^(?:項目|検査項目)$/.test(cells[0])) { header = cells; emittedHeader = false; out.push(SOURCE_TITLE_MARK + cells.join(' ')); continue; }
+        const keep = header ? header.map((c, k) => k).filter(k => k === 0 || !/^(?:種類|正常・異常|正常|異常)$/.test(header[k])) : cells.map((c, k) => k);
+        const values = keep.filter(k => k > 0 && cells[k]);
+        if (!cells[0] || !values.length) continue;
+        const ref = header?.findIndex(c => TAB_TABLE_REF_HEADER_REGEX.test(c.normalize('NFKC'))) ?? -1;
+        const patientValues = values.filter(k => k !== ref);
+        if (patientValues.length > 1 && header) {
+          if (!emittedHeader) { out.push(header.map((c,k) => keep.includes(k) ? c : '').join('\t')); emittedHeader = true; }
+          out.push(cells.map((c,k) => keep.includes(k) ? c : '').join('\t'));
+        } else out.push(`${cells[0]} ${values.map(k => k === ref ? `(基準値: ${cells[k]})` : cells[k]).join(' ')}`);
+      }
+      return out;
+    }
     function preprocessFreeFormLines(raw) {
       raw = carrySpeakerAndJoinQuotes(raw);
       const step1 = [];
@@ -1131,6 +1154,9 @@
       raw.forEach((original, idx) => {
         const line = original.trim();
 
+        if (/^担当[:：]/.test(line) && raw.slice(Math.max(0, idx - 3), idx).some(l => /^\d+\s*期生/.test(String(l).trim()) && isSourceStructureText(l))) {
+          step1.push(SOURCE_TITLE_MARK + line); return;
+        }
         if (line === DAY_SAVE_MARK || line === DAY_RESTORE_MARK) { step1.push(line); return; }
 
         if (idx === firstIdx && line.length <= 80 && !/[。「]/.test(line) && !/\d+\s*歳|男性|女性/.test(line) &&
@@ -1503,7 +1529,7 @@
       const SPEAKER_LEAD_ONLY_REGEX = /^(?:本人|患者|患者様|担当看護師|受け?持ち?看護師|看護師|Ns|主治医|担当医|執刀医|医師|Dr\.?|PT|OT|理学療法士|作業療法士|薬剤師|栄養士|家族|長男|長女|次男|次女|妻|夫|息子|娘|嫁)(?:さん|氏)?(?:より|から|が|は)?[:：]?$/;
       const lines = (() => {
 
-        const rawWithHints = preprocessFreeFormLines(expandTabSeparatedLabTables(text.split(/\r?\n/)));
+        const rawWithHints = preprocessFreeFormLines(expandTabSeparatedLabTables(normalizeMarkdownLabTables(text.split(/\r?\n/))));
         const hints = rawWithHints.map(l => (String(l).trim().match(NEED_HINT_REGEX) || [''])[0]);
         const raw = rawWithHints.map((l, k) => (hints[k] ? String(l).trim().slice(hints[k].length) : l));
         const joined = [];
@@ -1613,10 +1639,9 @@
         cleanLine = cleanLine.replace(/\by\s*GTP\b/i, 'γGTP');
 
         if (/^[＜<][^＜<＞>]{1,40}[＞>）)]?$/.test(cleanLine) && !/^[＜<]\s*[\d.]/.test(cleanLine)) {
-          pushExtracted({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
           setDayFromHeading(cleanLine);
-
           updateAdmissionPhase(cleanLine);
+          pushExtracted({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
           continue;
         }
 
@@ -2398,26 +2423,71 @@
       if (review && ['none', 'accept', 'assign'].includes(review.decision)) return '了承済みのレビュー';
       return '';
     }
+    function currentRuleCardForSavedItem(sourceCards, item) {
+      const key = clinicalCardDuplicateKey(item.text, item.timestamp);
+      const direct = sourceCards.find(i => clinicalCardDuplicateKey(i.text, i.timestamp) === key);
+      if (direct) return direct;
+      if (item.fieldLabel === 'アレルギー' && /^(?:ない|なし)$/.test(item.text)) {
+        const labeled = sourceCards.find(i => i.fieldLabel === item.fieldLabel && i.timestamp === item.timestamp &&
+          clinicalCardDuplicateKey(i.text.replace(/^アレルギー[:：]\s*/, ''), i.timestamp) === key);
+        if (labeled) return { ...labeled, text: item.text, _sourceMatchKind: 'field', sourceParentText: labeled.text };
+      }
+      const needle = rewriteNorm(item.text).replace(/[。．.]+$/, '');
+      if (needle.length < 8 && !/^Stage\s*[IVX]+[ABC]?$/i.test(String(item.text).trim())) return null;
+      const parents = sourceCards.filter(i => i.type !== 'unnecessary' && i.timestamp === item.timestamp && rewriteNorm(i.text).includes(needle));
+      const parent = parents[0];
+      if (!parent) return null;
+      const ids = detectMultipleHendersonTags(item.text).sort((a, b) => a - b);
+      const known = String(item.text).match(GALLBLADDER_OPERATIVE_FINDING_REGEX)?.[0];
+      return { ...item, hendersonIds: ids, _sourceMatchKind: 'fragment', sourceParentText: parent.text, _sourceMatchAmbiguous: new Set(parents.map(p => rewriteNorm(p.text))).size > 1,
+        ...(known && ids.includes(2) ? { contextTagEvidence: [{ id: 2, label: '食事', timestamp: item.timestamp, evidence: known }] } : {}) };
+    }
+    function hasCompleteSavedSourceCoverage(items, text, timestamp) {
+      const norm = rewriteNorm(text);
+      if (norm.length < 20) return false;
+      const covered = new Uint8Array(norm.length);
+      let fragments = 0;
+      items.filter(i => !i.deleted && i.type !== 'unnecessary' && !i.aiSuggested && i.timestamp === timestamp).forEach(i => {
+        const part = rewriteNorm(i.text).replace(/[。．.]+$/, '');
+        if (part.length < 8) return;
+        const start = norm.indexOf(part);
+        if (start < 0) return;
+        covered.fill(1, start, start + part.length); fragments++;
+      });
+      return fragments >= 2 && norm.split('').every((ch, n) => covered[n] || /[。、,．.・:：]/.test(ch));
+    }
     // Reuse complete source context; append runs may omit every surrounding duplicate card.
     function refreshSavedUntaggedCards(cp, sourceText = cp?.sourceText, now = new Date().toISOString()) {
       if (!cp || !String(sourceText || '').trim()) return 0;
-      const targets = (cp.items || []).filter(i => !(i.hendersonIds || []).length && !savedUntaggedProtection(i, cp));
+      const targets = (cp.items || []).filter(i => !(i.hendersonIds || []).length &&
+        (!savedUntaggedProtection(i, cp) || i.type === 'unnecessary' && !savedUntaggedProtection({ ...i, type: 'o' }, cp) &&
+          /^[<＜]/.test(i.text) && extractDayLabelFromHeading(i.text)));
+
       if (!targets.length) return 0;
       const sourceCards = classifyTextByRules(sourceText);
-      const originals = new Map(sourceCards.map(i => [clinicalCardDuplicateKey(i.text, i.timestamp), i]));
-      sourceCards.filter(i => i.fieldLabel === 'アレルギー' && /^アレルギー[:：]\s*(?:ない|なし)$/.test(i.text)).forEach(i => {
-        originals.set(clinicalCardDuplicateKey(i.text.replace(/^アレルギー[:：]\s*/, ''), i.timestamp), i);
-      });
       let updated = 0;
       targets.forEach(item => {
-        const original = originals.get(clinicalCardDuplicateKey(item.text, item.timestamp));
+        if (item.type === 'unnecessary') {
+          const heading = sourceCards.find(i => i.type === 'unnecessary' && rewriteNorm(i.text) === rewriteNorm(item.text));
+          if (heading && heading.timestamp !== item.timestamp) {
+            item.timestamp = heading.timestamp;
+            item.ruleCorrectionReason = '資料の日時見出しを原文で照合し、直前の記録の時刻ではなく見出し自身の日付へ補正。除外の判断・ID・本文は保持。';
+            item.ruleTagUpdatedAt = now; item._touchedAt = now; updated++;
+          }
+          return;
+        }
+        const original = currentRuleCardForSavedItem(sourceCards, item);
         if (/^(?:ない|なし)$/.test(item.text) && item.fieldLabel !== 'アレルギー') return;
         const tableFragment = /^(?:\|[^\n]*\|\s*正常|異常\s*\|)$/.test(item.text) &&
-          sourceCards.some(i => i.type === 'unnecessary' && i.timestamp === item.timestamp && i.text.includes('正常・異常') && i.text.includes('|') && (i.text.startsWith(item.text) || /異常\s*\|$/.test(item.text)));
+          sourceCards.some(i => i.type === 'unnecessary' && i.timestamp === item.timestamp && i.text.includes('正常・異常') && (rewriteNorm(i.text.replace(/\|/g, '')).startsWith(rewriteNorm(item.text.replace(/\|/g, ''))) || /異常\s*\|$/.test(item.text)));
         const structureMatch = (isSourceStructureText(item.text) || /^ホーマンズ[:：]\s*足を背屈させたとき[。.]?$/.test(item.text)) &&
           sourceCards.some(i => i.type === 'unnecessary' && rewriteNorm(i.text) === rewriteNorm(item.text));
         if (original?.type === 'unnecessary' || tableFragment || structureMatch) {
           item.type = 'unnecessary';
+          if (item.timestamp === '検査データ') {
+            const matches = sourceCards.filter(i => i.type === 'unnecessary' && rewriteNorm(i.text) === rewriteNorm(item.text));
+            if (new Set(matches.map(i => i.timestamp)).size === 1) item.timestamp = matches[0].timestamp;
+          }
           item.ruleCorrectionReason = '原文で確認した資料の見出し・表構造・説明メモ。患者所見から除外し、原文とカードIDを保持。';
           item.ruleTagUpdatedAt = now; item._touchedAt = now; updated++; return;
         }
@@ -2429,6 +2499,8 @@
           if (!item.assessmentCols[id]) item.assessmentCols[id] = inferAssessmentColumn(item.fieldLabel, item.timestamp, item.admissionPhase) || 'unclassified';
         });
         if (original.contextTagEvidence) item.contextTagEvidence = original.contextTagEvidence.map(e => ({ ...e }));
+        if (original.sourceParentText) item.sourceContextText = original.sourceParentText;
+        if (original._sourceMatchKind === 'fragment') item.ruleCorrectionReason = '最新の原文カードに含まれる保存済みの分割片を、同じ日時と本文で照合。分割片自身の明示的な所見だけを根拠にタグを補正し、親カードの別内容のタグは引き継がない。';
         item.ruleTagUpdatedAt = now;
         item._touchedAt = now;
         updated++;
@@ -2516,7 +2588,7 @@
       const fuzzyMatches = new Map();
       withExtractionContext(text, () => groupClinicalPhrasesWithTimestamps(text).forEach(chunk => {
         const cleanedText = cleanExtractedPhrase(chunk.text);
-        if (cleanedText.length < 2 || isBareFieldHeaderOnly(cleanedText) || isHeadingOnlyChunk(chunk, cleanedText) || cp.items.some(i => !i.deleted && clinicalCardDuplicateKey(i.text, i.timestamp) === clinicalCardDuplicateKey(cleanedText, chunk.timestamp))) return;
+        if (cleanedText.length < 2 || isBareFieldHeaderOnly(cleanedText) || isHeadingOnlyChunk(chunk, cleanedText) || cp.items.some(i => !i.deleted && clinicalCardDuplicateKey(i.text, i.timestamp) === clinicalCardDuplicateKey(cleanedText, chunk.timestamp)) || hasCompleteSavedSourceCoverage(cp.items, cleanedText, chunk.timestamp)) return;
         let userLearned = globalAppData.learningUserDict[cleanedText];
         let predictionSource = null;
         let fuzzyMatchedText = null;

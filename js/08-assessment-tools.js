@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-11.usability-context12'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-12.usability-context31'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1604,12 +1604,13 @@
         return minutes(a) - minutes(b);
       }));
       const labs = [], broken = [], resp = [], vitals = [];
+      const respiratoryEvents = new Set();
       const lastValid = {};
       items.forEach(item => {
         const text = String(item.text || '');
         const t = text.normalize('NFKC');
         const phase = String(item.timestamp || '').replace(/\s*\d{1,2}[:：]\d{2}.*$/, '').trim();
-        LAB_RESP_DEFS.forEach(d => { const mm = t.match(d.regex); if (mm) { const v = Number(mm[2]); resp.push({ key: d.key, source: text.trim(), value: v, raw: mm[2], ref: d.ref, status: v >= d.low ? 'normal' : 'low', phase, def: d }); } });
+        LAB_RESP_DEFS.forEach(d => { const mm = t.match(d.regex); if (mm) { const v = Number(mm[2]); const event = `${d.key}\0${v}\0${String(item.timestamp || '').normalize('NFKC')}\0${!item.timestamp || item.timestamp === '日時不明' ? t.replace(/\s+/g,'') : ''}`; if (respiratoryEvents.has(event)) return; respiratoryEvents.add(event); resp.push({ key: d.key, source: text.trim(), value: v, raw: mm[2], ref: d.ref, status: v >= d.low ? 'normal' : 'low', phase, def: d }); } });
         LAB_VITAL_DEFS.forEach(d => { const mm = t.match(d.regex); if (mm) { const v = Number(mm[1]); vitals.push({ key: d.key, source: text.trim(), value: v, raw: mm[1], unit: d.unit, ref: d.ref, status: d.judge(v), phase, oxygen: d.key === 'SpO2' && /酸素|(?:^|[^Sp])O2\s*\d|\d\s*L\s*\/?\s*分|カニュ|マスク|ネーザル/i.test(t.replace(/Sp[O0]2|SPO2|SpO₂/gi, '')) && !/室内気|room air|\bRA\b/i.test(t), roomAir: d.key === 'SpO2' && /室内気|room air|\bRA\b/i.test(t) }); } });
         const bp = t.match(/血圧\D{0,3}(\d{2,3})\s*[/／]\s*(\d{2,3})/);
         if (bp) { const s = Number(bp[1]), dd = Number(bp[2]); vitals.push({ key: '血圧', source: text.trim(), value: `${s}/${dd}`, unit: 'mmHg', ref: '収縮期100〜139・拡張期60〜89mmHg', status: (s >= 140 || dd >= 90) ? 'high' : (s < 90 || dd < 50) ? 'low' : 'normal', phase }); }
