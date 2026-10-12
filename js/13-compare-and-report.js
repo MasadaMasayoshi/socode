@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-12.usability-context21'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-12.usability-context34'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -633,7 +633,7 @@
       document.getElementById('split-reason').value = '';
       updateSplitPreview();
       document.getElementById('modal-split').classList.remove('hidden');
-      setTimeout(() => { ta.focus(); }, 30);
+      ta.focus();
     };
     window.closeSplitCard = function() { splitEditingId = null; document.getElementById('modal-split').classList.add('hidden'); };
     window.splitAtSentences = function() {

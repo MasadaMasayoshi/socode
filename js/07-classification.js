@@ -1,8 +1,8 @@
 // Local semantic classification. S quotations are not automatically communication.
-// Learned corrections precede headings and fixed rules; automatic creation does not vote.
+// Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-12.usability-context33'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-12.usability-context34'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -2427,6 +2427,52 @@
       });
       return items;
     }
+    function familyScreeningEvidence(items, item) {
+      if (!FAMILY_HISTORY_DISEASE_CONTEXT_REGEX.test(item.text) || !item.timestamp || item.timestamp === '日時不明') return [];
+      for (const other of items || []) {
+        if (other === item || other.deleted || other.type === 'unnecessary' || other.timestamp !== item.timestamp) continue;
+        for (const clause of splitIntoSentenceFragments(other.text)) {
+          if (!/(?:がん|癌)(?:家系|の家族歴)(?:なので|のため|があるので)[^。]{0,40}(?:検診|健診)/.test(clause)) continue;
+          if (/^(?:父|母|祖父|祖母|妻|夫|兄|姉|弟|妹)(?:は|が)/.test(clause) || /受け(?:ていない|ない|なかった)|受診(?:しない|していない)|予定|勧め/.test(clause)) continue;
+          if (!/欠かさないようにしていた|欠かさず|受けている|受けた|受診している|受診した/.test(clause)) continue;
+          return [{ id: 14, label: '学び', timestamp: other.timestamp, evidence: clause }];
+        }
+      }
+      return [];
+    }
+    function applyFamilyScreeningContext(items, context = items, learningDict = {}) {
+      items.forEach(item => {
+        if (item.type === 'unnecessary' || item.deleted || item.tagNotNeeded || item.predictionSource === 'confirmed' || (item.editLog || []).length) return;
+        const learned = learningDict[item.text] || (['fuzzy', 'tied'].includes(item.predictionSource) ? findFuzzyLearnedMatch(item.text, learningDict)?.learned : null);
+        if (Object.hasOwn(learned?.hendersonVotes || {}, 14) && learned.hendersonVotes[14] <= 0) return;
+        const evidence = familyScreeningEvidence(context, item);
+        if (!evidence.length) return;
+        item.hendersonIds = Array.from(new Set([...(item.hendersonIds || []), 14])).sort((a, b) => a - b);
+        item.contextTagEvidence = [...(item.contextTagEvidence || []).filter(e => e.id !== 14), ...evidence];
+        item.ruleDecision = { ruleId: 'context.family-screening', version: window.APP_FILE_VERSIONS['07'], reason: '家族のがんの記録を、同じ時期に明記された本人の検診利用行動の背景として14.学びへ関連付けた。家族の診断を本人の疾患や未充足とは扱わない。' };
+        item.patientBackground = null;
+        if (item.assessmentCols && !item.assessmentCols[14]) item.assessmentCols[14] = inferAssessmentColumn(item.fieldLabel, item.timestamp, item.admissionPhase) || 'unclassified';
+      });
+      return items;
+    }
+    function automaticRuleDecision(chunk, text, type) {
+      let ruleId, reason;
+      if (type === 'unnecessary' && chunk.isUnnecessaryBoilerplate) {
+        if (/^\|?\s*:?-{3,}/.test(text)) { ruleId = 'source.table-separator'; reason = '表の列を区切る罫線で、患者の測定値や所見を含まないため除外。原文の罫線は照合用に保持。'; }
+        else if (/^[<＜]/.test(text) && extractDayLabelFromHeading(text)) { ruleId = 'source.date-heading'; reason = '実習日・入院日・手術時期の見出し。日時の整理に用い、患者の所見カードから除外。'; }
+        else if (/^担当[:：]/.test(text)) { ruleId = 'source.course-staff'; reason = '直前の教材表題に続く担当者名で、患者の担当者や支援者を示す記録ではないため除外。'; }
+        else if (/^ホーマンズ[:：]/.test(text)) { ruleId = 'source.incomplete-explanation'; reason = '検査の説明途中の文章で、患者の検査結果は書かれていないため除外。別に記載されたホーマンズ徴候の結果は残す。'; }
+        else { ruleId = 'source.structure'; reason = '資料の表題・節見出し・表の項目名で、患者の所見や測定値を含まないため除外。配下の記録は別に分類。'; }
+      } else if (isPatientIdentityLine(text)) { ruleId = 'background.identity'; reason = '氏名・年齢・性別を1枚の患者基本情報として保持。この紹介だけでは特定の欲求タグを付けない。'; }
+      return ruleId ? { ruleId, reason, version: window.APP_FILE_VERSIONS['07'] } : null;
+    }
+    function removeCoveredCompositeCards(items) {
+      return items.filter(item => {
+        if (item.deleted || item.type === 'unnecessary' || item.predictionSource === 'confirmed' || item.tagNotNeeded || (item.editLog || []).length) return true;
+        const others = items.filter(other => other !== item && other.type === item.type && (other.fieldLabel || null) === (item.fieldLabel || null) && (other.sceneId || null) === (item.sceneId || null) && rewriteNorm(other.text).length < rewriteNorm(item.text).length);
+        return !hasCompleteSavedSourceCoverage(others, item.text, item.timestamp);
+      });
+    }
     function clinicalCardDuplicateKey(text, timestamp) {
       return `${String(timestamp || '日時不明').normalize('NFKC').replace(/\s+/g, '')}\u0000${String(text || '').normalize('NFKC').replace(/\s+/g, '').replace(/[。．.]+$/, '')}`;
     }
@@ -2539,9 +2585,9 @@
         const cleanedText = cleanExtractedPhrase(chunk.text);
         if (cleanedText.length < 2 || isBareFieldHeaderOnly(cleanedText) || isHeadingOnlyChunk(chunk, cleanedText) || out.some(i => clinicalCardDuplicateKey(i.text, i.timestamp) === clinicalCardDuplicateKey(cleanedText, chunk.timestamp))) return;
         const { detectedHIds, predictedType } = computeLocalTagsAndType(chunk, cleanedText, null);
-        out.push({ text: cleanedText, timestamp: chunk.timestamp || '日時不明', type: predictedType, hendersonIds: detectedHIds.slice().sort((a, b) => a - b), fieldLabel: chunk.fieldLabel || null, ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}) });
+        out.push({ text: cleanedText, timestamp: chunk.timestamp || '日時不明', type: predictedType, hendersonIds: detectedHIds.slice().sort((a, b) => a - b), fieldLabel: chunk.fieldLabel || null, ruleDecision: automaticRuleDecision(chunk, cleanedText, predictedType), ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}) });
       }));
-      return applyPainContextTags(applySceneTagInheritance(out));
+      return removeCoveredCompositeCards(applyFamilyScreeningContext(applyPainContextTags(applySceneTagInheritance(out))));
     }
 
     function manualClassificationLineage(item, path = new Set()) {
@@ -2691,7 +2737,7 @@
           }
         }
         const { detectedHIds, predictedType } = computeLocalTagsAndType(chunk, cleanedText, userLearned);
-        if (!predictionSource) predictionSource = 'rule';
+        if (!predictionSource || chunk.isUnnecessaryBoilerplate || isPatientIdentityLine(cleanedText)) { predictionSource = 'rule'; fuzzyMatchedText = null; }
         const assessmentCols = {};
 
         const inferredCol = userLearned ? null : inferAssessmentColumn(chunk.fieldLabel, chunk.timestamp, chunk.admissionPhase);
@@ -2701,15 +2747,21 @@
           ? classifyPatientBackground(chunk.fieldLabel)
           : null;
 
-        const newItem = { id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text: cleanedText, timestamp: chunk.timestamp || "日時不明", type: predictedType, hendersonIds: detectedHIds, assessmentCols, fieldLabel: chunk.fieldLabel || null, patientBackground, admissionPhase: chunk.admissionPhase || 'preadmission', predictionSource, ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}), _touchedAt: new Date().toISOString() };
+        const newItem = { id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text: cleanedText, timestamp: chunk.timestamp || "日時不明", type: predictedType, hendersonIds: detectedHIds, assessmentCols, fieldLabel: chunk.fieldLabel || null, patientBackground, admissionPhase: chunk.admissionPhase || 'preadmission', predictionSource, ruleDecision: automaticRuleDecision(chunk, cleanedText, predictedType), ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}), _touchedAt: new Date().toISOString() };
         addedThisRun.push(newItem);
         cp.items.push(newItem);
 
         if (fuzzyMatchedText) fuzzyMatches.set(newItem.id, fuzzyMatchedText);
         addedCount++;
       }));
+      const retainedNew = new Set(removeCoveredCompositeCards(cp.items));
+      const redundantNew = new Set(addedThisRun.filter(item => !retainedNew.has(item)));
+      cp.items = cp.items.filter(item => !redundantNew.has(item));
+      addedThisRun.splice(0, addedThisRun.length, ...addedThisRun.filter(item => !redundantNew.has(item)));
+      addedCount = addedThisRun.length;
       applySceneTagInheritance(addedThisRun);
       applyPainContextTags(addedThisRun, cp);
+      applyFamilyScreeningContext(addedThisRun, sourceCardsForRun, globalAppData.learningUserDict);
       const updatedCount = refreshSavedUntaggedCards(cp, text);
       if (typeof applyUntaggedReviews === 'function') applyUntaggedReviews(cp);
       addedThisRun.forEach(item => reportLearningEvent(item.text, 'create', { type: item.type, hendersonIds: item.hendersonIds, assessmentCols: item.assessmentCols, fieldLabel: item.fieldLabel, predictionSource: item.predictionSource, fuzzyMatchedText: fuzzyMatches.get(item.id) }));

@@ -77,6 +77,21 @@ const {app}=require('../server');
     return { pipes: clinical.some(i=>i.text.includes('|')), lab: clinical.some(i=>i.text.includes('5880')), shower: shower.hendersonIds.includes(8), fulfilled: sufficiencySentence(cp,8,'preop').includes('身体の清潔を保てている'), sourceCopy: buildExportPlainText(cp).includes('分類前の文章'), fragment: legacy.hendersonIds };
    });
    assert.deepEqual(cleanSheetCheck, {pipes:false,lab:true,shower:true,fulfilled:true,sourceCopy:false,fragment:[2]});
+   // Reproduce the attachment's family context and ambiguous pathology in the actual UI.
+   const reviewSource='23期生 経過別看護過程と援助技術(急性期)\n担当:教員\n入院前\n【メディカルヒストリー】\nがん家系なので、検診を欠かさないようにしていた。半年前から胃のむかつき感があった。2か月前に会社の検診があり、貧血を指摘された。精密検査で胃底部に25mm大のがんを指摘され、手術目的で入院の予定。\n【ファミリーヒストリー】\n祖母を胃がん、父を前立腺がんで亡くしている\n【メディカルヒストリー】\nがん家系なので、検診を欠かさないようにしていた。\n半年前から胃のむかつき感があった。\n2 か月前に会社の検診があり、貧血を指摘された。\n精密検査で胃底部に25mm大のがんを指摘され、手術目的で入院の予定。\n手術当日\n【病理結果】T2 N0 P0 H0 M0、Stage IB\n【病理結果】T2 NO PO HO M0、Stage IB';
+   await page.evaluate(source=>{createNewPatientPage('家族歴と表記差');DOM.sourceText.value=source;getCurrentPatient().sourceText=source;saveDataAndSync();},reviewSource);
+   await page.locator('#btn-start-classify').click();await page.waitForFunction(()=>getCurrentPatient().items.some(i=>i.text.includes('病理結果')));
+   const checkReviewState=async()=>{
+    const state=await page.evaluate(()=>{const cp=getCurrentPatient(),family=cp.items.find(i=>i.text.startsWith('祖母')),pathology=cp.items.filter(i=>i.text.includes('病理結果'));return {family:family.hendersonIds,evidence:family.contextTagEvidence[0].evidence,pathology:pathology.map(i=>i.text),warnings:pathology.map(i=>inferUntaggedReason(i,cp).kind),screening:cp.items.filter(i=>i.text.includes('がん家系なので')).length,metadata:cp.items.find(i=>i.text==='担当:教員').ruleDecision.ruleId};});
+    assert.deepEqual(state,{family:[14],evidence:'がん家系なので、検診を欠かさないようにしていた。',pathology:['【病理結果】T2 N0 P0 H0 M0、Stage IB','【病理結果】T2 NO PO HO M0、Stage IB'],warnings:['source','source'],screening:1,metadata:'source.course-staff'});
+   };
+   await checkReviewState();
+   await page.evaluate(()=>{const cp=getCurrentPatient(),family=cp.items.find(i=>i.text.startsWith('祖母'));family.hendersonIds=[];delete family.contextTagEvidence;saveDataAndSync();});
+   await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>!!getCurrentPatient());await checkReviewState();
+   for(const action of ['#dialog-secondary','#dialog-confirm']){
+    await page.locator('#btn-start-classify').click();await page.locator('#modal-dialog').waitFor({state:'visible'});await page.locator(action).click();await page.locator('#modal-dialog').waitFor({state:'hidden'});await checkReviewState();
+   }
+   console.log(`PASS ${width}px: source-backed family tags, pathology ambiguity, recorded exclusions and no composite duplication`);
    // Start with raw source and stale learning, not prebuilt expected cards.
    await page.evaluate(() => {
     createNewPatientPage('初回分類と保存済み学習');
@@ -972,8 +987,14 @@ const {app}=require('../server');
    });
    await page.locator('#tab-so-board').click();
    await page.evaluate(()=>openSplitCard('reason-source'));
+   // Opening must never steal focus after the user moves to the reason field.
+   await page.evaluate(()=>document.getElementById('split-reason').focus());
+   await page.waitForTimeout(60);
+   assert.equal(await page.evaluate(()=>document.activeElement.id),'split-reason');
    await page.locator('#split-text').fill('架空の前半。\n架空の後半。');
    await page.locator('#split-reason').fill('別の情報として確認する');
+   assert.equal(await page.locator('#split-text').inputValue(),'架空の前半。\n架空の後半。');
+   assert.equal(await page.locator('#split-reason').inputValue(),'別の情報として確認する');
    await page.locator('#modal-split').screenshot({path:`browser-artifacts/${width}-split-reason.png`});
    await page.locator('#btn-split-confirm').click();
    await page.evaluate(()=>{getCurrentPatient().items.filter(i=>i.type!=='unnecessary').forEach(i=>setCardSelected(i.id,true));openMergeModal();});
@@ -1088,7 +1109,7 @@ const {app}=require('../server');
    await context.close();
   }
   const head=require('node:child_process').execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
-  fs.writeFileSync('browser-artifacts/validation-evidence.json',JSON.stringify({schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:13,uncaughtErrors:0,ocrTransport:'intercepted',liveOcrVerified:false},null,2)+'\n');
+  fs.writeFileSync('browser-artifacts/validation-evidence.json',JSON.stringify({schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:14,uncaughtErrors:0,ocrTransport:'intercepted',liveOcrVerified:false},null,2)+'\n');
  } finally {
   if(browser)await browser.close();
   await new Promise(resolve=>server.close(resolve));

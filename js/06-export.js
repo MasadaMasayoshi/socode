@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-12.usability-context32'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-12.usability-context34'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -411,7 +411,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     }
     function sheetRecordItems(cp) {
       const seen = new Set();
-      return (cp.items || []).filter(i => !i.deleted).filter(i => {
+      return removeCoveredCompositeCards(cp.items || []).filter(i => !i.deleted).filter(i => {
         const text = cleanSheetRecordText(i.text);
         if (!text) return false;
         const key = `${i.type}\0${i.timestamp || ''}\0${i.fieldLabel || ''}\0${JSON.stringify(i.assessmentCols || {})}\0${(i.hendersonIds || []).slice().sort((a,b)=>a-b).join(',')}\0${text.normalize('NFKC').replace(/\s+/g, '')}`;
@@ -656,6 +656,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     }
 
     function buildCardsReportText(cp, items, sourceText, headline, includeSourceText = true, assessmentText = null, instructions = '') {
+      const replayed = items.some(i => !i.ruleDecision) ? classifyTextByRules(sourceText) : [];
       let out = `${headline}\n`;
       out += `出力日時: ${new Date().toLocaleString('ja-JP')}\n`;
       out += instructions ? 'Auto rewrite compares source/card text; manual history records UI edits since 2026-09-27.\n' : `※「アプリによる書き換え」は元の文章とカードの文章の違い、「手で編集した履歴」は画面上で行った編集です（手での編集の記録は2026/9/27の機能追加以降の分のみ）。\n`;
@@ -674,7 +675,11 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         out += `カードID: ${i.id || '記録なし'}／保存済みの分類経路: ${i.predictionSource || '記録なし'}\n`;
         const review = typeof untaggedReviewOf === 'function' ? untaggedReviewOf(cp, i) : null;
         if (review) out += `保存済みのレビュー判断: ${review.decision}／理由: ${review.note || '理由未記録（調査してください）'}\n`;
-        out += i.ruleCorrectionReason ? `自動処理の理由・ルール: ${i.ruleCorrectionReason}\n` : '自動処理の理由・ルール: 記録なし（差分や分類経路だけでは原因を断定できません。原文で再現して調査してください）\n';
+        out += i.ruleDecision ? `自動処理の理由・ルール: ${i.ruleDecision.reason}／ルール: ${i.ruleDecision.ruleId}／版: ${i.ruleDecision.version}\n` : i.ruleCorrectionReason ? `自動処理の理由・ルール: ${i.ruleCorrectionReason}\n` : '自動処理の理由・ルール: 記録なし（差分や分類経路だけでは原因を断定できません。原文で再現して調査してください）\n';
+        if (!i.ruleDecision) {
+          const current = currentRuleCardForSavedItem(replayed, i);
+          if (current?.ruleDecision) out += `現在のルールによる再照合（過去の実行理由とは別）: ${current.ruleDecision.reason}／ルール: ${current.ruleDecision.ruleId}\n`;
+        }
         out += `カードの内容: ${i.text}\n`;
         if (Array.isArray(i.contextTagEvidence) && i.contextTagEvidence.length) {
           out += `タグを付けた根拠（原文の文脈）:\n${i.contextTagEvidence.map(e => `  ・${hendersonNameOf(e.id)}：［${e.timestamp}］${e.evidence}`).join('\n')}\n`;
