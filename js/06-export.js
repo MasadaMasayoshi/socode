@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-12.usability-context23'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-12.usability-context27'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -661,7 +661,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         } else {
           out += `手で編集した履歴: なし\n`;
         }
-        out += `修正してほしい内容: ${i.requestedCorrection || ''}\n`;
+        out += `修正してほしい内容: ${i.requestedCorrection || (i.correctionRequested ? '原文・前後の記録と分類結果を照合し、このカードを調査してください。' : '')}\n`;
       });
       if (assessmentText !== null) {
         out += `\n【総合アセスメント表（選択したカードのみ）】\n`;
@@ -772,6 +772,33 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       if (typeof window.showSaveFilePicker !== 'function') return null;
       return window.showSaveFilePicker({ suggestedName: filename });
     }
+    let mobileExportUrl = null;
+    async function openMobileTextExport(blob, filename) {
+      const modal = document.getElementById('modal-mobile-export'), text = document.getElementById('mobile-export-text');
+      if (mobileExportUrl) URL.revokeObjectURL(mobileExportUrl);
+      mobileExportUrl = URL.createObjectURL(blob);
+      text.value = await blob.text();
+      const download = document.getElementById('mobile-export-download');
+      download.href = mobileExportUrl;download.download = filename;
+      document.getElementById('mobile-export-title').textContent = filename;
+      const share = document.getElementById('mobile-export-share');
+      let file = null, canShare = false;
+      try { file = new File([blob], filename, { type: blob.type || 'text/plain' });canShare = !!navigator.share && !!navigator.canShare && navigator.canShare({ files: [file] }); } catch (e) { }
+      share.classList.toggle('hidden', !canShare);
+      share.onclick = async () => {
+        try { await navigator.share({ files: [file] });showToast('選択した保存先・共有先へ渡しました', 'success'); }
+        catch (error) { if (error.name !== 'AbortError') showToast('保存・共有を開けません。ダウンロードまたは全文コピーを使ってください', 'warn'); }
+      };
+      document.getElementById('mobile-export-copy').onclick = async () => {
+        try { await navigator.clipboard.writeText(text.value);showToast('全文をコピーしました', 'success'); }
+        catch (e) { text.focus();text.select();text.setSelectionRange(0, text.value.length);if (document.execCommand && document.execCommand('copy')) showToast('全文をコピーしました', 'success');else showToast('全文を選択しました。長押ししてコピーしてください', 'info'); }
+      };
+      document.getElementById('mobile-export-close').onclick = () => {
+        modal.classList.add('hidden');text.value = '';download.removeAttribute('href');
+        if (mobileExportUrl) URL.revokeObjectURL(mobileExportUrl);mobileExportUrl = null;
+      };
+      modal.classList.remove('hidden');document.getElementById('mobile-export-copy').focus();
+    }
     async function downloadTextBlob(blob, filename, handlePromise = null) {
       if (typeof window.showSaveFilePicker === 'function' || handlePromise) {
         try {
@@ -782,17 +809,18 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
           await writable.close();
           return true;
         } catch (error) {
-          if (error.name !== 'AbortError') showToast('保存先を開けませんでした。もう一度書き出してください', 'error');
-          return false;
+          if (error.name === 'AbortError') return false;
+          showToast('保存先を開けないため、別の書き出し方法を表示します', 'info');
         }
       }
+      if (isMobilePrintTarget()) { await openMobileTextExport(blob, filename);return false; }
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      setTimeout(() => URL.revokeObjectURL(a.href), 30000);
       showToast('保存先を選ぶ画面が出ない場合は、ブラウザの「ダウンロード前に保存場所を確認」を有効にしてください', 'info', 7000);
       return true;
     }
@@ -815,7 +843,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     }
     function reviewRequestTargets(cp) {
       const items = cp.items || [];
-      return items.filter(i => !i.deleted && (i.type === 'unnecessary' || String(i.requestedCorrection || '').trim() || isEditedCard(i) || (typeof isUntaggedItem === 'function' && isUntaggedItem(i))));
+      return items.filter(i => !i.deleted && (i.type === 'unnecessary' || i.correctionRequested || String(i.requestedCorrection || '').trim() || isEditedCard(i) || (typeof isUntaggedItem === 'function' && isUntaggedItem(i))));
     }
     function describeEditHistoryForRequest(i) {
       const log = Array.isArray(i.editLog) ? i.editLog.filter(e => e && e.kind !== 'create') : [];
@@ -850,7 +878,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const originalItems = sourceText && sourceText.trim() && typeof classifyTextByRules === 'function' ? classifyTextByRules(sourceText) : [];
       items.forEach((i, idx) => {
         const edited = isEditedCard(i), untagged = typeof isUntaggedItem === 'function' && isUntaggedItem(i);
-        const kinds = [i.requestedCorrection ? '依頼を追記' : null, i.type === 'unnecessary' ? '不必要に分類' : null, edited ? '手で編集済み' : null, untagged ? 'タグ未設定' : null].filter(Boolean).join('＋');
+        const kinds = [i.correctionRequested || i.requestedCorrection ? '利用者が修正依頼に追加' : null, i.type === 'unnecessary' ? '不必要に分類' : null, edited ? '手で編集済み' : null, untagged ? 'タグ未設定' : null].filter(Boolean).join('＋');
         out += `\n────────────────────────\n■ ${idx + 1}件目　問題の種類: ${kinds}\n`;
         let request = '原文・編集履歴と分類結果を比較し、確認できた誤りを同じ種類の記録でも直るよう修正してください。';
         if (i.type === 'unnecessary') {
@@ -890,7 +918,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         }
         const block = buildCardsReportText(cp, [i], sourceText, '', false);
         const at = block.indexOf('\n■ ');
-        out += (at >= 0 ? block.slice(at).replace(/^\n■ [^\n]*\n/, '').replace(`修正してほしい内容: ${i.requestedCorrection || ''}\n`, `修正してほしい内容: ${request}${i.requestedCorrection ? '\n追加の修正依頼（利用者）: ' + i.requestedCorrection : ''}\n`) : '');
+        out += (at >= 0 ? block.slice(at).replace(/^\n■ [^\n]*\n/, '').replace(`修正してほしい内容: ${i.requestedCorrection || (i.correctionRequested ? '原文・前後の記録と分類結果を照合し、このカードを調査してください。' : '')}\n`, `修正してほしい内容: ${request}${i.requestedCorrection ? '\n追加の修正依頼（利用者）: ' + i.requestedCorrection : ''}\n`) : '');
       });
       if (includeSourceText) {
         out += `\n【分類前の文章（カルテ・看護記録入力欄）】\n`;
