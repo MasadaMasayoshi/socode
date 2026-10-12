@@ -2,7 +2,7 @@
 // Learned corrections precede headings and fixed rules; automatic creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-12.usability-context31'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-12.usability-context32'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -2521,6 +2521,39 @@
       return applyPainContextTags(applySceneTagInheritance(out));
     }
 
+    function manualClassificationSources(item) {
+      const operation = (item.editLog || []).slice().reverse().find(e => ['merge', 'split'].includes(e.kind));
+      if (operation?.sourceCards?.length) return operation.sourceCards;
+      if (operation?.kind === 'merge' && Array.isArray(operation.from)) return operation.from.map(text => ({ text, timestamp: item.timestamp }));
+      const edit = (item.editLog || []).find(e => e.kind === 'text' && typeof e.from === 'string');
+      return [{ ...item, text: edit?.from || item.text }];
+    }
+    function manualClassificationTextKey(text) {
+      return rewriteNorm(text).replace(/[。、,.，・:：【】「」()（）]/g, '');
+    }
+    function preservedUserCardsForClassification(items, sourceCards) {
+      return items.filter(item => !item.deleted && (item.predictionSource === 'confirmed' || item.tagNotNeeded || (item.editLog || []).some(e => !e.actor || e.actor === 'user'))).filter(item => {
+        const split = (item.editLog || []).slice().reverse().find(e => e.kind === 'split');
+        if (split?.resultIds?.length && !split.resultIds.every(id => items.some(i => !i.deleted && i.id === id))) return false;
+        const sources = manualClassificationSources(item);
+        if (sources.every(source => currentRuleCardForSavedItem(sourceCards, source))) return true;
+        // Old name/age/sex fragments can now be one source card; require the complete recorded combination and one event.
+        if (sources.length < 2 || !sources.every(s => s.timestamp === sources[0].timestamp)) return false;
+        const joined = manualClassificationTextKey(sources.map(s => s.text).join(''));
+        return sourceCards.some(s => s.timestamp === sources[0].timestamp && manualClassificationTextKey(s.text) === joined);
+      });
+    }
+    function coveredByManualClassification(item, existing) {
+      return existing.some(saved => {
+        if (saved.deleted || !((saved.editLog || []).length || saved.predictionSource === 'confirmed')) return false;
+        const operation = (saved.editLog || []).slice().reverse().find(e => ['merge', 'split'].includes(e.kind));
+        if (!operation) return false;
+        if (operation.kind === 'split' && (!operation.resultIds?.length || !operation.resultIds.every(id => existing.some(i => !i.deleted && i.id === id)))) return false;
+        const sources = manualClassificationSources(saved);
+        if (sources.some(s => clinicalCardDuplicateKey(s.text, s.timestamp) === clinicalCardDuplicateKey(item.text, item.timestamp))) return true;
+        return sources.length > 1 && sources.every(s => s.timestamp === item.timestamp) && manualClassificationTextKey(item.text) === manualClassificationTextKey(sources.map(s => s.text).join(''));
+      });
+    }
     const CLASSIFY_MODE_STORAGE_KEY = 'nursing_classify_mode';
     function getClassifyMode() {
       return 'rules';
@@ -2552,6 +2585,7 @@
       if (!text) return showToast('文章を入力してください', 'warn');
       if (typeof resetSourcePaneLayout === 'function') resetSourcePaneLayout();
       const cp = getCurrentPatient();
+      const sourceCardsForRun = classifyTextByRules(text);
 
       if (getClassifyMode() === 'ai' && !globalAppData.apiKey) {
         const st = await requireApiKey('AIありで分類', { fallbackLabel: '記録を基に分類する' });
@@ -2566,19 +2600,22 @@
         const answer = await openDialog({
           title: '今あるカードをどうしますか？',
           message: `この患者には既に${cp.items.length}枚のカードがあります。\n` +
-            `「置き換えて分類」：今のカードを消してから分類し直します。` +
-            (editedCount ? `（うち${editedCount}枚は手で編集・確認したカードです。置き換えると本文の手直しは消えますが、S/O・タグの学習結果は次の分類に引き継がれます）` : '') +
+            `「置き換えて分類」：自動分類カードを作り直します。` +
+            (editedCount ? `手で編集・統合・不要判定した${editedCount}枚は、今回の原文と同じ記録・日時で照合できるものを保持します。原文からなくなった記録や別の日時の判断は引き継ぎません。` : '') +
             `\n「追加して分類」：今のカードを残し、新しく見つかった分を追加します。手で編集していない自動分類カードのタグ付与漏れも、原文と最新ルールを照合して更新します。`,
           confirmLabel: '置き換えて分類',
           secondaryLabel: '追加して分類'
         });
         if (answer === null) return;
         if (answer === true) {
-          cp.items.forEach(i => markItemDeleted(cp, i.id));
-          cp.items = [];
+          const preserved = preservedUserCardsForClassification(cp.items, sourceCardsForRun);
+          const keepIds = new Set(preserved.map(i => i.id));
+          cp.items.filter(i => !keepIds.has(i.id)).forEach(i => markItemDeleted(cp, i.id));
+          cp.items = preserved;
 
-          ['myAssessments', 'missingChecks', 'carePlans', 'checkpoints', 'relationMap'].forEach(f => { delete cp[f]; });
+          if (!preserved.length) ['myAssessments', 'missingChecks', 'carePlans', 'checkpoints', 'relationMap'].forEach(f => { delete cp[f]; });
           cp.caseResetAt = new Date().toISOString();
+          preserved.forEach(item => { touchItem(item); unmarkItemDeleted(cp, item.id); });
           selectedCardIds.clear();
           if (highlightedSourceItemId != null) clearSourceHighlight(false);
         }
@@ -2587,9 +2624,10 @@
       let addedCount = 0;
       const addedThisRun = [];
       const fuzzyMatches = new Map();
+      const userCardsForRun = preservedUserCardsForClassification(cp.items, sourceCardsForRun);
       withExtractionContext(text, () => groupClinicalPhrasesWithTimestamps(text).forEach(chunk => {
         const cleanedText = cleanExtractedPhrase(chunk.text);
-        if (cleanedText.length < 2 || isBareFieldHeaderOnly(cleanedText) || isHeadingOnlyChunk(chunk, cleanedText) || cp.items.some(i => !i.deleted && clinicalCardDuplicateKey(i.text, i.timestamp) === clinicalCardDuplicateKey(cleanedText, chunk.timestamp)) || hasCompleteSavedSourceCoverage(cp.items, cleanedText, chunk.timestamp)) return;
+        if (cleanedText.length < 2 || isBareFieldHeaderOnly(cleanedText) || isHeadingOnlyChunk(chunk, cleanedText) || cp.items.some(i => !i.deleted && clinicalCardDuplicateKey(i.text, i.timestamp) === clinicalCardDuplicateKey(cleanedText, chunk.timestamp)) || coveredByManualClassification({ text: cleanedText, timestamp: chunk.timestamp }, userCardsForRun) || hasCompleteSavedSourceCoverage(cp.items, cleanedText, chunk.timestamp)) return;
         let userLearned = globalAppData.learningUserDict[cleanedText];
         let predictionSource = null;
         let fuzzyMatchedText = null;
@@ -2629,7 +2667,7 @@
       addedThisRun.forEach(item => reportLearningEvent(item.text, 'create', { type: item.type, hendersonIds: item.hendersonIds, assessmentCols: item.assessmentCols, fieldLabel: item.fieldLabel, predictionSource: item.predictionSource, fuzzyMatchedText: fuzzyMatches.get(item.id) }));
       saveDataAndSync();
       queueClassificationDelivery(cp);
-      showToast(`${addedCount}件のデータを分類・カード化しました${updatedCount ? `／${updatedCount}枚のタグを更新しました` : ''}`, 'success');
+      showToast(`${addedCount}件のデータを分類・カード化しました${userCardsForRun.length ? `／${userCardsForRun.length}枚の手編集判断を保持しました` : ''}${updatedCount ? `／${updatedCount}枚のタグを更新しました` : ''}`, 'success');
     });
 
     // Initial patient rendering can precede the review module; retry after all scripts load.
