@@ -407,7 +407,7 @@
       const labs = (a.evidence || []).slice(0, 3).map(id => {
         const lb = (labelMap || {})[id]; if (!lb) return '';
         const it = byId.get(id); if (!it) return lb;
-        const t = cleanSheetRecordText(it.text).replace(/\s+/g, ' ').replace(/^「|」$/g, '').trim();
+        const t = cleanSheetRecordText(it.text).replace(/\s+/g, ' ').trim();
         const when = it.timestamp && it.timestamp !== '日時不明' ? `${it.timestamp}：` : '';
         return `${lb}（${when}${t}）`;
       }).filter(Boolean);

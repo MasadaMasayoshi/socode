@@ -30,6 +30,7 @@ test('Stable breathing is assessed from current findings; cessation alone does n
 test('Communication uses expressed concerns without treating anxiety as communication failure',()=>{
  assert.equal(app.sufficiencyCardVerdict(card('a','「手術っていろいろな合併症があるんだね。怖いね」と話す。',10,'手術前日',{type:'s'}),10).v,'met');
  assert.equal(app.sufficiencyCardVerdict(card('b','説明が伝わらない。',10),10).v,'unmet');
+ const cp=patient([card('c','「手術っていろいろな合併症があるんだね。怖いね」と話す。',10,'手術前日',{type:'s'})]);assert.match(app.sufficiencySentence(cp,10,'preop'),/「手術っていろいろな合併症があるんだね。怖いね」と話す。/);
 });
 test('Existing sheet records are cleaned and deduplicated only within the same date and classification',()=>{
  const one=card('a','| WBC(白血球数) | | | 5880/μL | |',7,'入院1日目');
