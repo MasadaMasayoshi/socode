@@ -23,3 +23,9 @@ Keep conflicting local maps unsaved. Before accepting the latest server map, ver
 `relation-map-clinical.test.js` covers metadata round trips, epistemic states, cycles, ownership, escaping and imports. `relation-map-conflict.test.js` covers actual HTTP concurrency, bulk sync, damaged references and replacement. Existing plan/map/MongoDB checks remain.
 
 Historical fixture status is documented in [migration](public-regression-migration-20261010.md); missing legacy originals are not silently replaced. Proposed renderer replacement, patient authorization, audit requirements, FHIR, structured dose/route/frequency, facility ranges and complete clinical review are not implemented by this extension. Unverifiable attachment reference IDs are not treated as verified laws, dates or library-size facts.
+
+## Background and chronology
+
+Treatment arrows point from the treatment to its target. Association edges have no arrowhead, including selection and SVG export. Explicit diagnostic sequence uses `preceded_by` from earlier to later; this is not a causal claim. Postoperative pathology is placed after surgery even when it supports the original diagnosis. A consultation return alone is not diagnostic evidence. Planned operations retain their planned label and cancelled operations do not establish completed surgery.
+
+Basic information has ten separate, source-derived tags. These coexist with the fourteen needs without asserting fulfillment. Card overrides retain explicit additions and removals across reload and existing manual-card preservation. Old diagrams retain edits; their status identifies the old generator and points to the existing confirmed rebuild action.

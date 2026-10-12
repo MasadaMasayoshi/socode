@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-12.usability-context28'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-12.usability-context35'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -106,7 +106,7 @@
       { key: 'worsens', label: '悪化に働く' },
       { key: 'managed_by', label: '治療・ケアする' },
       { key: 'addresses', label: '対応する' },
-      { key: 'preceded_by', label: '時間的に先行する' },
+      { key: 'preceded_by', label: '経過：先 → 後' },
       { key: 'related_to', label: '関連する' }
     ];
     const RM_RELATION_KEYS = new Set(RM_RELATIONS.map(r => r.key));
@@ -118,7 +118,7 @@
 
     const RM_NOTE_FONT = 11.5, RM_NOTE_LINE_H = 15, RM_NOTE_GAP = 7, RM_NOTE_MAX = 60;
 
-    const RM_BUILD_VERSION = 7;
+    const RM_BUILD_VERSION = 8;
     const RM_LAYOUT_STYLE = 6;
     const RM_COL_GAP = 80, RM_ROW_GAP = 36;
 
@@ -507,7 +507,8 @@
 
     function rmFlowEdges(map) {
 
-      return map.edges.map(e => e.relation === 'treats' ? { from: e.target, to: e.source, treat: true } : { from: e.source, to: e.target });
+      const byId = new Map(map.nodes.map(n => [n.id, n]));
+      return map.edges.filter(e => !(e.relation === 'supports' && byId.get(e.source)?.phase === 2 && byId.get(e.target)?.type === 'disease')).map(e => e.relation === 'treats' ? { from: e.target, to: e.source, treat: true } : { from: e.source, to: e.target });
     }
     const RM_ATTACH_GAP = 0;
 
@@ -683,7 +684,7 @@
         hr.clear();
         order.filter(id => head.get(id) === id && !probIds.has(id)).forEach(h => {
           const n = byId.get(h), ps = sInn.get(h).filter(x => !probIds.has(x));
-          hr.set(h, n.type === 'patient_fact' && !ps.length ? 0 : Math.max(minRank(n), floorOf(h), ...ps.map(x => (hr.get(x) ?? 0) + hstep(x, h))));
+          hr.set(h, n.type === 'patient_fact' && !ps.length ? Math.max(0, floorOf(h)) : Math.max(minRank(n), floorOf(h), ...ps.map(x => (hr.get(x) ?? 0) + hstep(x, h))));
         });
       };
       rankHeads(() => 0);
@@ -1105,12 +1106,13 @@
         const know = !treat && !e.predicted && (isKnow(e.source) || isKnow(e.target));
         const sel = interactive && rmState.selected && rmState.selected.type === 'edge' && rmState.selected.id === e.id;
 
-        const history = e.relation === 'related_to' && /^診断までの経過：/.test(e.evidence || '');
+        const history = e.relation === 'preceded_by' || (e.relation === 'related_to' && /^診断までの経過：/.test(e.evidence || ''));
+        const association = e.relation === 'related_to' && !history;
         const tl = treat && r.pts && r.pts.length > 1 ? `<text class="rm-treat-label" x="${Math.round((r.pts[0][0] + r.pts[1][0]) / 2) + 6}" y="${Math.round((r.pts[0][1] + r.pts[1][1]) / 2) + 3}" font-size="10" fill="#2563EB" font-weight="700">治療</text>` : '';
         const hl = history && r.pts && r.pts.length > 1 ? `<text class="rm-history-label" x="${Math.round((r.pts[0][0] + r.pts[1][0]) / 2) + 6}" y="${Math.round((r.pts[0][1] + r.pts[1][1]) / 2) + 3}" font-size="10" fill="#6B6458" font-weight="700">経過</text>` : '';
-        return `${mask}<g class="rm-link${treat ? ' is-treat' : ''}${sel ? ' is-selected' : ''}" data-link-id="${escapeHtml(e.id)}">
+        return `${mask}<g class="rm-link${treat ? ' is-treat' : ''}${association ? ' is-association' : ''}${sel ? ' is-selected' : ''}" data-link-id="${escapeHtml(e.id)}">
           ${interactive ? `<path class="rm-link-hit" d="${d}" fill="none" stroke="transparent" stroke-width="20"/>` : ''}
-          <path class="rm-link-line"${cuts.length ? ` mask="url(#${maskId})"` : ''} d="${d}" fill="none" opacity="0.65" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#3F3B35'}" stroke-width="1.5"${screen ? ' vector-effect="non-scaling-stroke"' : ''}${e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} marker-end="url(#${markerPrefix}-${treat ? 'arrow-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"/>${tl}${hl}
+          <path class="rm-link-line"${cuts.length ? ` mask="url(#${maskId})"` : ''} d="${d}" fill="none" opacity="0.65" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#3F3B35'}" stroke-width="1.5"${screen ? ' vector-effect="non-scaling-stroke"' : ''}${association ? ' stroke-dasharray="4 3"' : e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} ${association ? '' : `marker-end="url(#${markerPrefix}-${treat ? 'arrow-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"`}/>${tl}${hl}
         </g>`;
       }).join('');
     }
@@ -1178,6 +1180,7 @@
         `<span class="rm-legend-item">${line('#3F3B35')}原因 → 結果</span>`,
 
         `<span class="rm-legend-item">${line('#2563EB')}治療 → 治療の対象（抑える・和らげる）</span>`,
+        '<span class="rm-legend-item">経過：先 → 後（原因とは別）／背景の関連：矢印なしの破線</span>',
         `<span class="rm-legend-item">${line('#3F3B35', true)}予測・可能性（破線）</span>`
       ].join('');
     }
@@ -1565,7 +1568,8 @@
       const recordedPathology = [];
       const tumorRecords = disease ? backgroundRecords.filter(i => patientHistory(i) && rmPositiveMatch(/腫瘍|腫瘤|病変|がん|癌/, String(i.text).replace(/^[^:：\n]{1,18}[:：]\s*/, '')) && tumorSizeRe.test(String(i.text).normalize('NFKC'))) : [];
       if (disease) {
-        const historyRecords = backgroundRecords.filter(i => i !== dxHost && patientHistory(i) && !/[「」]/.test(i.text) && (/現病歴|メディカルヒストリー|病理結果|病理所見|病期|進行度/.test(`${i.fieldLabel || ''}${i.text}`) || /健診|検診|精査|生検|内視鏡|受診/.test(i.text)));
+        const diagnosticEvidence = i => /貧血|腫瘍|腫瘤|病変|がん|癌|生検|病理|胃[^。]{0,10}(?:むかつき|不快感|違和感)/.test(i.text) && !/帰室|帰棟|帰宅/.test(i.text);
+        const historyRecords = backgroundRecords.filter(i => diagnosticEvidence(i) && i !== dxHost && patientHistory(i) && !/[「」]/.test(i.text) && (/現病歴|メディカルヒストリー|病理結果|病理所見|病期|進行度/.test(`${i.fieldLabel || ''}${i.text}`) || /健診|検診|精査|生検|内視鏡|受診/.test(i.text)));
         const details = [...new Set([...tumorRecords, ...historyRecords])];
         const diagnosticHistory = [];
         details.forEach(it => {
@@ -1602,14 +1606,16 @@
             const screening = entries.find(h => /検診|健診/.test(h.item.text) && rmPositiveMatch(/貧血/, h.item.text));
             const lesion = entries.find(h => h.tumor && /精密検査|精査|内視鏡|胃カメラ/.test(h.item.text));
             if (!discomfort || !screening || !lesion || new Set([discomfort.node, screening.node, lesion.node]).size !== 3) return;
-            if (!(context.indexOf(discomfort.item.text) < context.indexOf(screening.item.text) && context.indexOf(screening.item.text) < context.indexOf(lesion.item.text))) return;
+            const monthsAgo = text => /半年前/.test(text) ? 6 : Number(text.match(/(\d+)\s*(?:か月|ヶ月|カ月|月)前/)?.[1] || NaN);
+            const symptomAge = monthsAgo(discomfort.item.text), screeningAge = monthsAgo(screening.item.text);
+            if (!(symptomAge > screeningAge) || !(context.indexOf(screening.item.text) < context.indexOf(lesion.item.text))) return;
             [discomfort, screening].forEach(h => {
               for (let j = edges.length - 1; j >= 0; j--) if (edges[j].source === h.node.id && edges[j].target === disease.id && edges[j].relation === 'supports') edges.splice(j, 1);
             });
             discomfort.node.label = `${rmShorten(discomfort.item.text, 70)}（診断前の症状）`;
             const source = '参考：国立がん研究センター https://ganjoho.jp/public/cancer/stomach/about.html';
-            E(discomfort.node, screening.node, 'related_to', { noBridge: true, evidence: `診断までの経過：原文では胃の症状の後に検診で貧血を指摘。症状が貧血を起こしたとは断定しない。${source}` });
-            E(screening.node, lesion.node, 'related_to', { noBridge: true, evidence: '診断までの経過：同じ現病歴に検診の貧血と続く精密検査の所見が記録されている。出血源や生検結果は補わない。参考：https://ganjoho.jp/public/cancer/stomach/diagnosis.html' });
+            E(discomfort.node, screening.node, 'preceded_by', { noBridge: true, evidence: `診断までの経過：原文では胃の症状の後に検診で貧血を指摘。症状が貧血を起こしたとは断定しない。${source}` });
+            E(screening.node, lesion.node, 'preceded_by', { noBridge: true, evidence: '診断までの経過：同じ現病歴に検診の貧血と続く精密検査の所見が記録されている。出血源や生検結果は補わない。参考：https://ganjoho.jp/public/cancer/stomach/diagnosis.html' });
           });
         }
       }
@@ -1626,20 +1632,21 @@
 
       const surgeryRe = /([^\s、。,:：「」()（）]{0,16}(?:全摘出?術|部分切除術?|切除術|切断術|摘出術|摘除術|郭清|再建術?|置換術|形成術|吻合術|固定術|造設術|開腹術|PCI|CABG|開頭術|バイパス術|ステント留置))/;
 
-      const surgeryItem = findItem(surgeryRe, i => !/既往/.test(i.fieldLabel || '') && !/^既往|\d+\s*歳|年前/.test(String(i.text).normalize('NFKC')));
-      const surgeryDone = !!surgeryItem && has(/術後|手術|術式|術日|施行/);
+      const surgeryScore = i => (/施行|実施|終了/.test(i.text) ? 10 : 0) + (/術式/.test(i.text) ? 3 : 0) + (/全摘|切除|摘出|置換|固定/.test(i.text) ? 2 : 0) - (/予定(?!通り)/.test(i.text) ? 5 : 0);
+      const surgeryItem = [...items].sort((a, b) => surgeryScore(b) - surgeryScore(a)).find(i => rmPositiveMatch(surgeryRe, i.text) && (!/中止|延期|未実施/.test(i.text) && !/既往/.test(i.fieldLabel || '') && !/^既往|\d+\s*歳|年前/.test(String(i.text).normalize('NFKC'))));
+      const surgeryDone = !!surgeryItem && !/中止|延期|未実施/.test(surgeryItem.text) && (/施行|実施|終了/.test(surgeryItem.text) || has(/術後/) || (!/予定/.test(surgeryItem.text) && /術式/.test(surgeryItem.text)));
       let surgery = null;
       if (surgeryItem) {
         const m = String(surgeryItem.text).normalize('NFKC').match(new RegExp(`${surgeryRe.source}[^、。]{0,24}`));
         const sLabel = (m ? m[0] : short(surgeryItem, 30)).replace(/^[^、。]*?(?:下で|下に|にて)/, '').replace(/(?:を)?(?:施行|実施|予定)[。.]?$/, '').replace(/を$/, '');
-        surgery = N('surgery', 'treatment', sLabel, { items: [surgeryItem] });
+        surgery = N('surgery', 'treatment', `${sLabel}${!surgeryDone && /予定/.test(surgeryItem.text) ? '（予定）' : ''}`, { items: [surgeryItem] });
 
         if (disease && !/がん|癌/.test(dxLabel)) E(surgery, disease, 'treats', { evidence: '疾患に対する手術' });
       }
 
       if (disease && surgery && /がん|癌/.test(dxLabel)) {
         const tnm = dxLabel0.normalize('NFKC').match(/T\s*(\d)[a-c]?\s*N\s*(\d)[a-c]?\s*M\s*(\d)/i);
-        const examItem = clinicalRecords.find(i => patientHistory(i) && i !== dxHost && /精査|健診|検診|内視鏡|生検|造影|CT|MRI/.test(i.text) && !/FEV|SpO2|WBC|CRP/.test(String(i.text)));
+        const examItem = clinicalRecords.find(i => patientHistory(i) && i !== dxHost && !/帰室|帰棟|帰宅/.test(i.text) && /貧血|腫瘍|病変|生検|所見/.test(i.text) && /精査|健診|検診|内視鏡|生検|造影|CT|MRI/.test(i.text) && !/FEV|SpO2|WBC|CRP/.test(String(i.text)));
         const dxDetails = [dxLabel0, ...tumorRecords.map(i => i.text)].join(' ').normalize('NFKC');
         const where = (dxDetails.match(/(胃底部|噴門部?|胃体部|幽門部?|前庭部|上行結腸|下行結腸|S状結腸|直腸[^\s、,]{0,3}|[^\s、,（(]{1,4}部)/) || [])[1] || '';
         const size = (dxDetails.match(/(\d+(?:\.\d+)?)\s*(?:mm|cm)/) || [])[0] || '';
@@ -1677,7 +1684,8 @@
         for (let j = edges.length - 1; j >= 0; j--) if (edges[j].source === h.node.id && edges[j].target === disease.id && edges[j].relation === 'supports') edges.splice(j, 1);
         E(h.node, stage, 'supports', { noBridge: true, evidence: '原文に記録された病理結果と病理病期。N0/NOなどの表記差は未確定のまま保持し、病期を再計算しない。参考：https://ganjoho.jp/public/cancer/stomach/treatment.html' });
         E(stage, disease, 'supports', { noBridge: true, evidence: '記録された胃がんの病理評価。術後の結果を術前の手術選択理由に置き換えない。' });
-        if (postoperative && surgery) E(surgery, h.node, 'related_to', { noBridge: true, evidence: '手術後の病理評価として関連づける。原文にない術前の病期や治療判断を補わない。参考：https://ganjoho.jp/public/cancer/stomach/treatment.html' });
+        if (postoperative) { h.node.phase = 2; stage.phase = 2; }
+        if (postoperative && surgery) E(surgery, h.node, 'preceded_by', { noBridge: true, evidence: '手術後の病理評価として関連づける。原文にない術前の病期や治療判断を補わない。参考：https://ganjoho.jp/public/cancer/stomach/treatment.html' });
       });
       const gastric = surgery && /胃/.test(surgery.label + dxLabel) && /全摘|切除/.test(surgery.label);
 
@@ -2927,6 +2935,7 @@
       if (legend && !legend.dataset.ready) { legend.innerHTML = rmLegendHtml(); legend.dataset.ready = '1'; }
       const info = document.getElementById('rm-info');
       if (info) info.textContent = has ? `${map.nodes.length}個の四角・${map.edges.length}本の矢印・看護問題${map.nodes.filter(n => n.type === 'nursing_problem').length}個${map.updatedAt ? `（最終更新 ${new Date(map.updatedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}）` : ''}` : '';
+      if (info && has && map.source === 'rules' && map.buildVersion < RM_BUILD_VERSION) info.textContent += ' ／ 旧版の関連図です。「記録から作成」で最新の矢印・時系列に更新できます（手編集を含む置換の前に確認します）。';
       rmRenderSelectionBar();
       rmRenderToolbarState();
       const conflictBtn = document.getElementById('rm-conflict-button');

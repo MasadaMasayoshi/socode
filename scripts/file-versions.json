@@ -4,8 +4,8 @@
     "hash": "74dc29632df48a45"
   },
   "js/02-reference-data.js": {
-    "version": "2026-10-12.usability-context34",
-    "hash": "792b2fa91ef06581"
+    "version": "2026-10-12.usability-context35",
+    "hash": "dba216ef3b79dd7c"
   },
   "js/03-extraction-helpers.js": {
     "version": "2026-10-12.usability-context28",
@@ -20,24 +20,24 @@
     "hash": "3ea560e48efc9873"
   },
   "js/06-export.js": {
-    "version": "2026-10-12.usability-context34",
-    "hash": "57482b97df8e26e9"
+    "version": "2026-10-12.usability-context35",
+    "hash": "372bd8974fa62e1b"
   },
   "js/07-classification.js": {
     "version": "2026-10-12.usability-context34",
     "hash": "b82f74fac2e4ad53"
   },
   "js/08-assessment-tools.js": {
-    "version": "2026-10-12.usability-context31",
-    "hash": "4351a257bb355b8c"
+    "version": "2026-10-12.usability-context35",
+    "hash": "1cbc6c9e0e4b8477"
   },
   "js/09-board.js": {
-    "version": "2026-10-12.usability-context28",
-    "hash": "9d479baa88f05b0b"
+    "version": "2026-10-12.usability-context35",
+    "hash": "cab02e85b9ed479a"
   },
   "js/10-reference-page-and-startup.js": {
-    "version": "2026-10-12.usability-context34",
-    "hash": "2c555088da00c6ae"
+    "version": "2026-10-12.usability-context35",
+    "hash": "e187d97625e3116c"
   },
   "js/11-own-assessment.js": {
     "version": "2026-10-12.usability-context31",
@@ -56,12 +56,12 @@
     "hash": "ddd095be9f67a182"
   },
   "js/15-relation-map.js": {
-    "version": "2026-10-12.usability-context28",
-    "hash": "1a576f2d1c5d7dc9"
+    "version": "2026-10-12.usability-context35",
+    "hash": "15d16fc5e9ce5710"
   },
   "style.css": {
-    "version": "2026-10-12.usability-context27",
-    "hash": "2d8d13f548389c1f"
+    "version": "2026-10-12.usability-context35",
+    "hash": "d2d5368d2383a45d"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",

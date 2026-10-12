@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-12.usability-context34'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-12.usability-context35'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -637,6 +637,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
           case 'text': return `本文を編集: 「${e.from}」→「${e.to}」`;
           case 'type': return `分類を変更: ${EDIT_LOG_TYPE_LABELS[e.from] || e.from || '未設定'} → ${EDIT_LOG_TYPE_LABELS[e.to] || e.to}`;
           case 'tagAdd': return `タグを追加: ${hendersonNameOf(e.hId)}`;
+          case 'basicTagAdd': case 'basicTagRemove': return `基本情報タグを${e.kind === 'basicTagAdd' ? '追加' : '削除'}: ${BASIC_INFO_TAGS.find(t => t.id === e.tagId)?.name || e.tagId}`;
           case 'tagRemove': return `タグを削除: ${hendersonNameOf(e.hId)}`;
           case 'split': return `カードを分割: 「${e.from}」→${(e.parts || []).map(t => `「${t}」`).join(' ／ ')}（このカード: 「${e.to}」）`;
           case 'merge': return `${(e.from || []).length}枚のカードを統合: ${(e.from || []).map(t => `「${t}」`).join('＋')}`;
@@ -940,6 +941,8 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         const edited = isEditedCard(i), untagged = typeof isUntaggedItem === 'function' && isUntaggedItem(i);
         const kinds = [i.correctionRequested || i.requestedCorrection ? '利用者が修正依頼に追加' : null, i.type === 'unnecessary' ? '不必要に分類' : null, edited ? '手で編集済み' : null, untagged ? 'タグ未設定' : null].filter(Boolean).join('＋');
         out += `\n────────────────────────\n■ ${idx + 1}件目　問題の種類: ${kinds}\n`;
+        const basicTags = basicInfoTags(i);
+        if (basicTags.length) out += `基本情報タグ: ${basicTags.map(t => t.name).join('・')}\n`;
         let request = '原文・編集履歴と分類結果を比較し、確認できた誤りを同じ種類の記録でも直るよう修正してください。';
         if (i.type === 'unnecessary') {
           request = 'なぜ不必要に分類されたか、原文・前後の記録・編集履歴と該当ルールを照合して再現してください。理由未記録ならその旨を示し、除外の妥当性を判断してください。確認できた誤りだけを分類処理と分類基準で修正してください。';

@@ -106,8 +106,8 @@ test('Examination findings and complication fears retain their recorded context'
 test('Recorded diagnostic history connects symptoms, screening and examination without causal claims', () => {
  const text='診断名：胃がん\n【メディカルヒストリー】がん家系なので検診を欠かさない。半年前から胃のむかつき感があった。2か月前の会社の検診で貧血を指摘された。精密検査で胃底部に25mm大のがんを指摘された。\n【胃カメラ】胃底部に25mm大の腫瘍あり。\n胃全摘術を施行。\n術後1日目：創部痛 NRS2。';
  const cp=patient(text),map=app.buildRelationMapFromRecord(cp),symptom=map.nodes.find(n=>/半年前/.test(n.label)),screen=map.nodes.find(n=>/2か月前/.test(n.label)),tumor=map.nodes.find(n=>/腫瘍.*25mm/.test(n.label)),disease=map.nodes.find(n=>n.type==='disease');
- assert.match(symptom.label,/診断前の症状/);assert.ok(linked(map,symptom,screen,'related_to'));assert.ok(linked(map,screen,tumor,'related_to'));assert.ok(linked(map,tumor,disease,'supports'));
- const history=map.edges.filter(e=>/^診断までの経過：/.test(e.evidence));assert.equal(history.length,2);history.forEach(e=>{assert.equal(e.relation,'related_to');assert.match(e.evidence,/ganjoho.jp/);});
+ assert.match(symptom.label,/診断前の症状/);assert.ok(linked(map,symptom,screen,'preceded_by'));assert.ok(linked(map,screen,tumor,'preceded_by'));assert.ok(linked(map,tumor,disease,'supports'));
+ const history=map.edges.filter(e=>/^診断までの経過：/.test(e.evidence));assert.equal(history.length,2);history.forEach(e=>{assert.equal(e.relation,'preceded_by');assert.match(e.evidence,/ganjoho.jp/);});
  assert.ok(!linked(map,symptom,disease,'causes'));assert.ok(!map.nodes.some(n=>/胃がんからの出血/.test(n.label)));assert.match(app.relationMapSvg(map,{}),/>経過<\/text>/);
  const pain=map.nodes.find(n=>n.type==='nursing_problem'&&/痛/.test(n.label)),sub=app.rmProblemSubmap(map,pain.id);[symptom,screen,tumor].forEach(n=>assert.ok(sub.nodes.some(x=>x.id===n.id)));
  const restored=app.normalizeRelationMap(JSON.parse(JSON.stringify(map)));assert.equal(restored.nodes.find(n=>n.id===tumor.id).evidence,tumor.evidence);assert.equal(restored.edges.find(e=>e.id===history[0].id).evidence,history[0].evidence);
@@ -122,7 +122,7 @@ test('No diagnostic sequence is invented from unrelated symptoms or negative scr
 test('Pathology values connect to the recorded postoperative stage without resolving OCR ambiguity', () => {
  const cp=patient('診断名：胃がん\n胃全摘術を施行。\n手術当日\n【病理結果】T2 N0 P0 H0 M0、Stage IB\n【病理結果】T2 NO PO HO M0\n術後1日目：創部痛 NRS2。');
  const map=app.buildRelationMapFromRecord(cp),path=map.nodes.find(n=>/^病理結果/.test(n.label)),stage=map.nodes.find(n=>/病理病期/.test(n.label)),disease=map.nodes.find(n=>n.type==='disease'),surgery=map.nodes.find(n=>n.type==='treatment'&&/胃全摘/.test(n.label));
- assert.match(path.label,/T2.*N0\/NO.*P0\/PO.*H0\/HO.*M0/);assert.match(path.label,/要確認/);assert.match(stage.label,/術後.*Stage IB.*原文/);assert.equal(stage.source,'record');assert.ok(linked(map,path,stage,'supports'));assert.ok(linked(map,stage,disease,'supports'));assert.ok(linked(map,surgery,path,'related_to'));
+ assert.match(path.label,/T2.*N0\/NO.*P0\/PO.*H0\/HO.*M0/);assert.match(path.label,/要確認/);assert.match(stage.label,/術後.*Stage IB.*原文/);assert.equal(stage.source,'record');assert.ok(linked(map,path,stage,'supports'));assert.ok(linked(map,stage,disease,'supports'));assert.ok(linked(map,surgery,path,'preceded_by'));
  assert.ok(!linked(map,path,surgery,'causes'));assert.ok(!linked(map,stage,surgery,'causes'));assert.ok(!map.nodes.some(n=>/N0：リンパ節転移なし/.test(n.label)));
  const pain=map.nodes.find(n=>n.type==='nursing_problem'&&/痛/.test(n.label)),focused=app.rmProblemSubmap(map,pain.id);[path,stage].forEach(n=>assert.ok(focused.nodes.some(x=>x.id===n.id)));
  const restored=app.normalizeRelationMap(JSON.parse(JSON.stringify(map)));assert.equal(restored.nodes.find(n=>n.id===path.id).evidence,path.evidence);

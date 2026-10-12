@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-12.usability-context28'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-12.usability-context35'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -224,6 +224,7 @@
         else if (highlightedSourceItemId === item.id) clearSourceHighlight(false);
       });
 
+      const basicTagsHtml = basicInfoTags(item).map(tag => `<span class="tag-chip basic-info-tag" title="基本情報（充足・未充足の判定とは別）">基本情報：${escapeHtml(tag.name)} <button aria-label="${escapeHtml(tag.name)}のタグを削除" onclick="setBasicInfoTag(${jsArg(item.id)}, '${tag.id}', false)"><i class="fa-solid fa-times"></i></button></span>`).join('');
       const tagsHtml = (item.hendersonIds || []).map(hId => {
         const need = HENDERSON_NEEDS.find(n => n.id === hId);
         return need ? `<span class="tag-chip">${need.name} <button onclick="removeHendersonTag(${jsArg(item.id)}, ${need.id})" class="text-[var(--accent)]/60 hover:text-[var(--brick)] transition"><i class="fa-solid fa-times"></i></button></span>` : '';
@@ -256,8 +257,8 @@
         </div>
         <p class="card-text font-medium leading-snug break-words text-[var(--ink)]">${cardTextWithLabFlagsHtml(item)}</p>
         <div class="flex flex-wrap gap-1 items-center">
-          ${tagsHtml}
-          <select onchange="addHendersonTagFromDropdown(${jsArg(item.id)}, this.value); this.value='';" aria-label="タグを追加" class="max-w-[92px] w-auto text-[9px] bg-[var(--paper)] hover:bg-[var(--line-soft)] border ${isUntagged ? 'border-[var(--brick)]' : 'border-[var(--line)]'} rounded-[var(--radius-sm)] px-1 py-0.5 text-[var(--ink-muted)] cursor-pointer focus:outline-none mt-0.5" style="max-width:92px;"><option value="">＋ タグ</option>${HENDERSON_NEEDS.map(n => `<option value="${n.id}">${n.name}</option>`).join('')}</select>
+          ${tagsHtml}${basicTagsHtml}
+          <select onchange="addHendersonTagFromDropdown(${jsArg(item.id)}, this.value); this.value='';" aria-label="タグを追加" class="max-w-[92px] w-auto text-[9px] bg-[var(--paper)] hover:bg-[var(--line-soft)] border ${isUntagged ? 'border-[var(--brick)]' : 'border-[var(--line)]'} rounded-[var(--radius-sm)] px-1 py-0.5 text-[var(--ink-muted)] cursor-pointer focus:outline-none mt-0.5" style="max-width:92px;"><option value="">＋ タグ</option><optgroup label="基本情報">${BASIC_INFO_TAGS.map(t => `<option value="basic:${t.id}">${t.name}</option>`).join('')}</optgroup><optgroup label="14の基本的欲求">${HENDERSON_NEEDS.map(n => `<option value="${n.id}">${n.name}</option>`).join('')}</optgroup></select>
         </div>
       `;
       return card;
@@ -929,8 +930,18 @@
       }
     };
 
+    window.setBasicInfoTag = function(id, tagId, value) {
+      const item = getCurrentPatient().items.find(i => i.id === id);
+      if (!item || !BASIC_INFO_TAGS.some(t => t.id === tagId)) return;
+      item.basicTagOverrides = { ...(item.basicTagOverrides || {}), [tagId]: value === true };
+      logItemEdit(item, { kind: value ? 'basicTagAdd' : 'basicTagRemove', tagId });
+      touchItem(item);
+      saveDataAndSync();
+    };
+
     window.addHendersonTagFromDropdown = function(id, hIdStr) {
       selectedCardIds.delete(id);
+      if (hIdStr.startsWith('basic:')) return window.setBasicInfoTag(id, hIdStr.slice(6), true);
       window.addHendersonTag(id, hIdStr);
     };
 

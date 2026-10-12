@@ -1073,12 +1073,34 @@ const {app}=require('../server');
     const map=cp.relationMap,tumors=map.nodes.filter(n=>/腫瘍.*25mm/.test(n.label)),family=map.nodes.filter(n=>/^家族歴/.test(n.label)),pain=map.nodes.find(n=>n.type==='nursing_problem'&&/痛/.test(n.label));
     return {pathology:map.nodes.find(n=>/^病理結果/.test(n.label)).label,stage:map.nodes.find(n=>/病理病期/.test(n.label)).label,history:map.edges.filter(e=>/^診断までの経過：/.test(e.evidence)).map(e=>e.relation),fear:map.nodes.find(n=>/不安の言動/.test(n.label)).label,anxiety:map.nodes.find(n=>n.type==='nursing_problem'&&/不安/.test(n.label)).label,tumors:tumors.length,refs:tumors[0].itemIds.length,mixed:family.some(n=>/むかつき|25mm/.test(n.label)),focused:rmProblemSubmap(map,pain.id).nodes.some(n=>n.id===tumors[0].id),label:tumors[0].label,evidence:tumors[0].evidence};
    });
-   assert.match(consolidated.pathology,/T2.*N0\/NO/);assert.match(consolidated.stage,/術後.*Stage IB/);assert.deepEqual(consolidated.history,['related_to','related_to']);assert.equal(consolidated.tumors,1);assert.ok(consolidated.refs>=2);assert.match(consolidated.evidence,/胃カメラ/);assert.match(consolidated.label,/胃カメラで確認/);assert.match(consolidated.fear,/麻酔科.*手術の合併症/);assert.match(consolidated.anxiety,/手術の合併症/);assert.equal(consolidated.mixed,false);assert.equal(consolidated.focused,true);
+   assert.match(consolidated.pathology,/T2.*N0\/NO/);assert.match(consolidated.stage,/術後.*Stage IB/);assert.deepEqual(consolidated.history,['preceded_by','preceded_by']);assert.equal(consolidated.tumors,1);assert.ok(consolidated.refs>=2);assert.match(consolidated.evidence,/胃カメラ/);assert.match(consolidated.label,/胃カメラで確認/);assert.match(consolidated.fear,/麻酔科.*手術の合併症/);assert.match(consolidated.anxiety,/手術の合併症/);assert.equal(consolidated.mixed,false);assert.equal(consolidated.focused,true);
    await page.reload({waitUntil:'networkidle'});
    await page.waitForFunction(()=>!!getCurrentPatient()?.relationMap);
    assert.equal(await page.evaluate(()=>getCurrentPatient().relationMap.nodes.find(n=>/腫瘍.*25mm/.test(n.label)).evidence),consolidated.evidence);
    await page.locator('#tab-relation').click();
    await page.screenshot({path:`browser-artifacts/${width}-consolidated-background.png`});
+   const graphDirections=await page.evaluate(()=>{
+    const map=getCurrentPatient().relationMap,op=map.nodes.find(n=>n.type==='treatment'&&/胃全摘/.test(n.label)),dx=map.nodes.find(n=>n.type==='disease'),path=map.nodes.find(n=>/^病理結果/.test(n.label));
+    return {treat:map.edges.some(e=>e.source===op.id&&e.target===dx.id&&e.relation==='treats'),later:path.x>op.x};
+   });
+   assert.deepEqual(graphDirections,{treat:true,later:true});
+   const association=page.locator('.rm-link.is-association .rm-link-line').first();
+   assert.equal(await association.getAttribute('marker-end'),null);
+   await page.evaluate(()=>{
+    createNewPatientPage('基本情報タグ検証');const cp=getCurrentPatient();
+    cp.sourceText='氏名：A氏\n血液型：A型\n既往歴：胆嚢結石';
+    cp.items=classifyTextByRules(cp.sourceText).map((i,k)=>({...i,id:'basic-'+k}));saveDataAndSync();
+   });
+   await page.locator('#tab-so-board').click();
+   assert.ok(await page.locator('.basic-info-tag').filter({hasText:'血液型'}).count()>0);
+   await page.getByRole('button',{name:'血液型のタグを削除',exact:true}).click();
+   assert.equal(await page.locator('.basic-info-tag').filter({hasText:'血液型'}).count(),0);
+   const bloodCard=page.locator('.card-text').filter({hasText:'血液型'}).locator('..');
+   await bloodCard.getByLabel('タグを追加').selectOption('basic:blood');
+   await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>!!getCurrentPatient());
+   await page.locator('#tab-so-board').click();
+   assert.equal(await page.locator('.basic-info-tag').filter({hasText:'血液型'}).count(),1);
+   await page.screenshot({path:`browser-artifacts/${width}-basic-info-tags.png`});
    assert.deepEqual(errors,[],`Uncaught browser errors at ${width}px`);
    console.log(`PASS ${width}px: classification, five views, recovery and catalog revision comparison`);
    await page.goto(`http://127.0.0.1:${server.address().port}/clinical-knowledge/practice.html`,{waitUntil:'networkidle'});
@@ -1109,7 +1131,7 @@ const {app}=require('../server');
    await context.close();
   }
   const head=require('node:child_process').execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
-  fs.writeFileSync('browser-artifacts/validation-evidence.json',JSON.stringify({schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:14,uncaughtErrors:0,ocrTransport:'intercepted',liveOcrVerified:false},null,2)+'\n');
+  fs.writeFileSync('browser-artifacts/validation-evidence.json',JSON.stringify({schemaVersion:1,head,kind:'browser-smoke',status:'passed',widths:[390,768,1440],scenarioCount:15,uncaughtErrors:0,ocrTransport:'intercepted',liveOcrVerified:false},null,2)+'\n');
  } finally {
   if(browser)await browser.close();
   await new Promise(resolve=>server.close(resolve));

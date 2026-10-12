@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-12.usability-context31'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-12.usability-context35'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -567,8 +567,38 @@
       });
     }
 
+    // Background tags describe source facts independently of the fourteen needs.
+    const BASIC_INFO_TAGS = [
+      { id: 'identity', name: '氏名・年齢・性別' },
+      { id: 'body', name: '身体計測' },
+      { id: 'blood', name: '血液型' },
+      { id: 'history', name: '既往歴' },
+      { id: 'family', name: '家族歴' },
+      { id: 'allergy', name: 'アレルギー' },
+      { id: 'social', name: '家族構成・支援者' },
+      { id: 'occupation', name: '職業・生活環境' },
+      { id: 'habits', name: '生活習慣' },
+      { id: 'reproductive', name: '生殖・月経歴' }
+    ];
+    function basicInfoTags(item) {
+      if (!item || item.deleted || item.type === 'unnecessary') return [];
+      const t = String(item.text || '').normalize('NFKC'), f = item.fieldLabel || '';
+      const found = new Set();
+      if ((typeof isPatientIdentityLine === 'function' && isPatientIdentityLine(t)) || /^(?:氏名|年齢|性別)$/.test(f) || /^(?:氏名|年齢|性別)[:：]/.test(t)) found.add('identity');
+      if (/^(?:身長|体重|BMI)$/.test(f) || /(?:身長|体重)\s*[:：]?\s*\d|\bBMI\s*[:：]?\s*\d/i.test(t)) found.add('body');
+      if (/血液型/.test(f + t) && /(?:AB|A|B|O)\s*型|Rh|血液型\s*[:：]\s*(?:AB|A|B|O)\b/i.test(t)) found.add('blood');
+      if (/既往歴|既往症|手術歴/.test(f + t)) found.add('history');
+      if (/家族歴|ファミリーヒストリー|がん家系|癌家系/.test(f + t) || /(?:祖父|祖母|父|母|兄|姉|弟|妹)[^。\n]{0,18}(?:がん|癌|糖尿病|高血圧)/.test(t)) found.add('family');
+      if (/アレルギー|薬剤過敏/.test(f + t)) found.add('allergy');
+      if (/家族構成|キーパーソン|主介護者|同居|独居|一人暮らし/.test(f + t)) found.add('social');
+      if (/職業|勤務先|住居|住環境|住宅|住まい/.test(f + t)) found.add('occupation');
+      if (/喫煙|禁煙|飲酒|嗜好品/.test(f + t)) found.add('habits');
+      if (/出産歴|妊娠歴|閉経|月経|性生活|性機能/.test(f + t)) found.add('reproductive');
+      return BASIC_INFO_TAGS.filter(tag => Object.hasOwn(item.basicTagOverrides || {}, tag.id) ? item.basicTagOverrides[tag.id] === true : found.has(tag.id));
+    }
+
     function isUntaggedItem(item) {
-      return item.type !== 'unnecessary' && (!item.hendersonIds || item.hendersonIds.length === 0) && !item.tagNotNeeded && !isOtherBasicInfoItem(item);
+      return item.type !== 'unnecessary' && (!item.hendersonIds || item.hendersonIds.length === 0) && !item.tagNotNeeded && !isOtherBasicInfoItem(item) && (basicInfoTags(item).length === 0 || detectMultipleHendersonTags(item.text || '').length > 0);
     }
 
     function isOtherBasicInfoItem(item) {
