@@ -1,10 +1,11 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path');
 const {allowed}=require('../scripts/prepare-release');
 const {parseSummary}=require('../scripts/write-regression-evidence');
 const {evaluate,REQUIRED}=require('../scripts/check-release-readiness');
 test('static payload excludes records, credentials and private fixtures but preserves runtime assets and licenses',()=>{
- for(const p of ['data/patients.json','.env','tests/golden/cases/case.txt','tests/fixtures/public-contracts/v1.json','server.js','docs/release-conditions.json','vendor/.secret.json'])assert.equal(allowed(p),false,p);
+ for(const p of ['data/patients.json','.env','tests/golden/cases/case.txt','tests/fixtures/public-contracts/v1.json','server.js','server/classification-mail.js','docs/release-conditions.json','vendor/.secret.json'])assert.equal(allowed(p),false,p);
  for(const p of ['index.html','js/01-henderson-keywords.js','clinical-knowledge/index.html','vendor/fontawesome/LICENSE.txt','vendor/fonts/OFL-NotoSerifJP.txt','vendor/fonts/NotoSerifJP-subset.woff2'])assert.equal(allowed(p),true,p);
 });
 test('validation evidence rejects missing summaries, hidden skips, cancellations and failures',()=>{
@@ -33,4 +34,10 @@ test('explicit owner test-only policy preserves pending statuses while requiring
  assert.equal(evaluate(head,{...regression,summary:{...regression.summary,skipped:1}},browser,conditions).ready,false);
  assert.equal(evaluate(head,regression,{...browser,status:'failed'},conditions).ready,false);
  assert.equal(evaluate(head,regression,browser,{...conditions,releasePolicy:{...conditions.releasePolicy,ownerDecision:''}}).ready,false);
+});
+
+test('Pages excludes server-only mail modules as well as the main server entry',()=>{
+ const config=fs.readFileSync(path.join(__dirname,'..','_config.yml'),'utf8');
+ assert.match(config,/^  - server$/m);
+ assert.match(config,/^  - server\.js$/m);
 });
