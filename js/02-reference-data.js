@@ -1,6 +1,6 @@
 // Japanese source examples and reference data. Generic ranges are not facility-approved values.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = '2026-10-12.usability-context34'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = '2026-10-12.usability-context35'; // Version stamp (scripts/stamp-version.js)
 
     const SAMPLE_CASES = [
  {
@@ -57,10 +57,10 @@
 [検査データ] WBC 11200, CRP 3.8, Hb 10.2, Cre 1.1, Na 136, K 4.2
 [14:30] 「少し呼吸が楽になった」と話すが、再度体温を測定すると38.2℃に上昇していた。`;
 
-    const NOTEBOOK_CONTENT_VERSION_MARK = '統合版 2026-10-12 改訂7';
+    const NOTEBOOK_CONTENT_VERSION_MARK = '統合版 2026-10-12 改訂8';
 
     const NOTEBOOK_PREVIOUS_LINE_HASHES = new Set('1rxx1s8 1n972mt 1rxzhk1 1n972mt 3oggz7 11wepfp 1ueyf9x 49fyid cktp9v 1dx8rnt 4w69aw 18yrges mz6kpv 1fxl9vm vjjqph 1na1m5x 1mm3a6p 1eegg6z xov1zd 1r2aecs 1p9asa7 ipot7j 1re2huh 33sjwu 12z0tmf lrdwgc vdcow1 31eneq 11mb2w6 t10hoq 1etsd7m 5ubyuq q42z2q 1t8xbsy 1kpypia 15hvkni 1bwlid2 ilejiw mpf6r2 1eecsip 1dkakkm 1pr7cs9 1n4b44k 2z4yug kq8d8l 1t9q52t 1cxtfpk 1bmvzo4 wf9ste 1oyarzj 1p16g52 w1hdma 1epkp3w 1g1elw8 sro6mi 13ezb12 lnvozy 12fz4ir 1uuozg2 q2k5k8 1hrhr2n 1t9nghh f1917k e0crkw j1e8d8 13rhc30 1v2xzr2 yvgn6 1qx5h46 1757o1c u83int 1nv6687 9mp1bz wrr5dv ku3lll 1284hc6 e7jic3 tu4uvg fh8e14 wk4h4o dcef5v 1tw2zb2 wfnv68 pklg0t qnr0pb 1vbrse1 ehxm2 1brwjir u319zs 1ixcp78 i4h9b 53jp4n 13njjnz 1ele74r rwuu7w cfb5kk 1niyy9p 16zgdvq 1ovb3z5 coq3bu 24dwyi 1n5xhmq ukofp0 7qvde7 1yik6ad 117e71n v54305 1d7f6u1 1c83oe0 mc5a21 4vbu7g 188wc9g ylmgxf 39187t 3yqc7v 18qsxyi 1jfl61m 19is9nl sys0jh kda9kl oi98bw 4r9yru 1nh8in0 1i94xy8 1jcmgts wjqlw9 70311g 8wukdb d73drk ysxln2 1rt8zfd rsm75j 1cy71mw 1fc2gx8 1l1dvb3 1cftclx 1epae2b 1og289u 1r8z4jp 1vk21a0 lxc9rb 14yvj9r 1bwwj4w tap586 18tgtnq 1q8n2f0 1i8sp26 1nq8mbd 1y0ddgx 1jhhrn4 1gebsqw 1ox9pmi 1p54mi5 1mh1isl njedxy w8a1pd 1a2daya 4utfxf 1cbq5a1 1vdl8io r6dyzq 1exn90y 1bocpt1 1eay80t a26n4w 1ioy22v p7xddp qtyt3m 1ecvr13 1v6ppoi 4ufv81 18oigbx 1wl1wn0 1b73s34 11avgj6 jmk6zs 90bjpt 1ch9u22 id8wik evf7p2 13i7uer w8fsyw a7uumx fevad0 tyi7ix 31f5lu ll25l5 31eqak y4dgky 1fi3pcw j4nwbp 6wnqsb pbvlhf 157ghfe 2byund lo14bk 1hitvg3 1suzyfg 1kamx2z 1bdsrow ouqo9 zj2m3c mayvhv 2e67kq 1m7v4xj 14224h9 13vzf13 t7hukc 17fmocm gqq9d3 1wilov6 1g1elw8 p7xddp id8wik 1hit4b4 151xlr6'.split(' '));
-    const DEFAULT_NOTEBOOK_CONTENT = `【看護アセスメント 基準ノート（統合版 2026-10-12 改訂7）】
+    const DEFAULT_NOTEBOOK_CONTENT = `【看護アセスメント 基準ノート（統合版 2026-10-12 改訂8）】
 このノートは、記録の分類・検査値の評価・不足情報の確認・看護問題・看護計画の基準です。確認できた修正を具体例とともに反映し、アプリで実装した分類ルールと揃えています。「学習データ管理」→「分類基準」タブで確認・編集できます。
 判断の優先順位：①第1〜4章の分類・タグ付けのルール ②第6〜7章の疾患別の判断基準 ③学習データの傾向。迷ったときは、1つの情報に複数のタグを付けてよい。
 
@@ -82,6 +82,8 @@
 ・感染症検査の陰性結果は環境・安全の検討に含める。陰性だけで全ての感染や転倒の危険がないと判断しない。
 ・整理シートでは同じ日時・種別・分類・見出しの同一記録を重複表示せず、原文全体を末尾に再掲しない。修正依頼には照合用の原文を保つ。別の日や別の分類の記録は消さない。
 ━━━━━━━━━━━━━━━━━━━━
+・基本情報タグは氏名・年齢・性別、身体計測、血液型、既往歴、家族歴、アレルギー、家族構成・支援者、職業・生活環境、生活習慣、生殖・月経歴を原文から付ける。14の基本的欲求と併記でき、充足判定を代用しない。明示的な追加・削除は保存する。
+・関連図では治療から対象へ矢印を向け、予定を実施済みとしない。背景の関連は矢印なし、明記された経過は先から後へ示す。術後病理は手術後に配置し、受診後の帰室だけを診断根拠にしない。
 ■ 1枚にまとめるもの
 ・1つの出来事・観察の続きは1枚にまとめる。改行で分かれていても、同じ時刻のすぐ次の短い行で、それだけでは意味が分からない続き（例：「創部 軽度腫脹と熱感あるが、発赤・出血・排膿なし」の次の行の「ガーゼ汚染なし」）は、直前の観察に続けて1枚にする。
 ・値の無い見出し（「疼痛:」等）の下の短い行は、見出しごと1枚にする。
