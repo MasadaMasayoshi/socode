@@ -6,15 +6,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="2026-10-12.usability-context26">
-  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-11.usability-context15,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-12.usability-context21,06:2026-10-12.usability-context23,07:2026-10-11.usability-context16,08:2026-10-11.usability-context12,09:2026-10-12.usability-context23,10:2026-10-11.usability-context19,11:2026-10-12.usability-context22,12:2026-10-12.usability-context20,13:2026-10-12.usability-context21,14:2026-10-10.znavigation17,15:2026-10-12.usability-context26">
+  <meta name="app-version" content="2026-10-12.usability-context27">
+  <meta name="app-file-versions" content="01:2026-10-10.znavigation17,02:2026-10-11.usability-context15,03:2026-10-10.znavigation17,04:2026-10-10.znavigation17,05:2026-10-12.usability-context21,06:2026-10-12.usability-context27,07:2026-10-11.usability-context16,08:2026-10-11.usability-context12,09:2026-10-12.usability-context27,10:2026-10-11.usability-context19,11:2026-10-12.usability-context22,12:2026-10-12.usability-context20,13:2026-10-12.usability-context21,14:2026-10-10.znavigation17,15:2026-10-12.usability-context26">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=2026-10-12.usability-context23">
+  <link rel="stylesheet" href="style.css?v=2026-10-12.usability-context27">
 
   <link rel="stylesheet" href="vendor/tailwind.css?v=2026-10-06.14">
   <script>
@@ -1071,9 +1071,10 @@
     <div class="modal-surface max-w-lg w-full p-4 flex flex-col gap-3">
       <h3 id="card-correction-title" class="text-sm font-semibold">選択したカードへの修正依頼</h3>
       <p id="card-correction-description" class="text-xs text-[var(--ink-muted)]"></p>
-      <label for="card-correction-text" class="text-xs">追加の修正依頼</label>
+      <label for="card-correction-text" class="text-xs">追加の修正依頼（任意）</label>
       <textarea id="card-correction-text" rows="5" class="field resize-y" aria-describedby="card-correction-description" placeholder="例：原文の前後を確認し、このカードを分けた理由とタグを外した理由を調査してください。"></textarea>
-      <div class="flex justify-end gap-2"><button class="btn btn-outline" onclick="closeSelectedCorrectionRequest()">キャンセル</button><button id="btn-save-card-correction" class="btn btn-primary" onclick="saveSelectedCorrectionRequest()">保存する</button></div>
+      <button class="btn btn-outline" onclick="removeSelectedCorrectionRequest()">選択したカードの追加依頼を取り消す</button>
+      <div class="flex justify-end gap-2"><button class="btn btn-outline" onclick="closeSelectedCorrectionRequest()">キャンセル</button><button id="btn-save-card-correction" class="btn btn-primary" onclick="saveSelectedCorrectionRequest()">追加する</button></div>
     </div>
   </div>
 
@@ -1102,6 +1103,14 @@
     <div id="card-overview-body" class="card-overview-body flex-1 min-h-0 p-2"></div>
   </div>
 
+  <div id="modal-mobile-export" role="dialog" aria-modal="true" aria-labelledby="mobile-export-title" class="hidden fixed inset-0 z-[75] bg-[var(--ink)]/40 flex items-center justify-center p-4">
+    <div class="modal-surface p-4 space-y-3 w-full max-w-lg">
+      <h3 id="mobile-export-title" class="text-sm font-semibold">書き出したテキスト</h3>
+      <p class="text-xs">保存・共有するか、全文をコピーできます。ダウンロードが使えないブラウザでも内容を取り出せます。</p>
+      <textarea id="mobile-export-text" readonly rows="8" class="field resize-y" aria-label="書き出した全文"></textarea>
+      <div class="flex flex-wrap gap-2"><button id="mobile-export-share" class="btn btn-primary">保存・共有</button><a id="mobile-export-download" class="btn btn-outline">ダウンロード</a><button id="mobile-export-copy" class="btn btn-outline">全文をコピー</button><button id="mobile-export-close" class="btn btn-outline">閉じる</button></div>
+    </div>
+  </div>
   <div id="modal-export-options" class="hidden fixed inset-0 z-[70] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4">
     <div class="modal-surface max-w-sm w-full p-5 flex flex-col gap-3">
       <div class="flex items-center justify-between border-b border-[var(--line-soft)] pb-2">
@@ -1237,10 +1246,10 @@
   <script src="js/03-extraction-helpers.js?v=2026-10-10.znavigation17"></script>
   <script src="js/04-server-sync.js?v=2026-10-10.znavigation17"></script>
   <script src="js/05-app-state-and-ui.js?v=2026-10-12.usability-context21"></script>
-  <script src="js/06-export.js?v=2026-10-12.usability-context23"></script>
+  <script src="js/06-export.js?v=2026-10-12.usability-context27"></script>
   <script src="js/07-classification.js?v=2026-10-11.usability-context16"></script>
   <script src="js/08-assessment-tools.js?v=2026-10-11.usability-context12"></script>
-  <script src="js/09-board.js?v=2026-10-12.usability-context23"></script>
+  <script src="js/09-board.js?v=2026-10-12.usability-context27"></script>
   <script src="js/10-reference-page-and-startup.js?v=2026-10-11.usability-context19"></script>
   <script src="js/11-own-assessment.js?v=2026-10-12.usability-context22"></script>
   <script src="js/12-missing-checks-and-care-plan.js?v=2026-10-12.usability-context20"></script>

@@ -1406,3 +1406,8 @@ html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow-sel path { fill: #F59E6
 .cp-utilities { flex-wrap:wrap; }
 .cp-history[open] { flex:1 0 100%; order:2; }
 .cp-utilities > .cp-actions { margin-left:auto; }
+
+/* Keep portable text export readable without relying on generated utility classes. */
+#modal-mobile-export { position: fixed; inset: 0; z-index: 75; background: rgba(0,0,0,.4); align-items: center; justify-content: center; padding: 16px; }
+#modal-mobile-export .modal-surface { max-height: 90dvh; overflow-y: auto; }
+#mobile-export-title { overflow-wrap: anywhere; }

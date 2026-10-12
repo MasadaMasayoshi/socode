@@ -72,3 +72,10 @@ test('User correction notes retain multiline text in selected and review exports
  assert.match(app.buildReviewRequestText(cp,'',false),/追加の修正依頼（利用者）: 原文を確認してください。\n分けた理由を調査してください。/);
  assert.equal(JSON.stringify(cp),before);
 });
+
+test('Blank queued requests are exported and repeated selection stays a single target', () => {
+ const cp={title:'架空',items:[{id:'a',type:'o',text:'食事全量',hendersonIds:[2],correctionRequested:true},{id:'b',type:'o',text:'食事半量',hendersonIds:[2],correctionRequested:true,requestedCorrection:'最初の依頼\n次の依頼'},{id:'c',type:'o',text:'食事良好',hendersonIds:[2]}]};
+ assert.deepEqual(Array.from(app.reviewRequestTargets(cp),i=>i.id),['a','b']);
+ const text=app.buildReviewRequestText(cp,'',false);assert.match(text,/カードの内容: 食事全量/);assert.match(text,/利用者が修正依頼に追加/);assert.equal(text.split('追加の修正依頼（利用者）: 最初の依頼\n次の依頼').length,2);assert.doesNotMatch(text,/カードの内容: 食事良好/);
+ const selected=app.buildSelectedCardsExportText(cp,new Set(['a']),'',false,false);assert.match(selected,/このカードを調査してください/);
+});

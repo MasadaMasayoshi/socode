@@ -913,6 +913,37 @@ const {app}=require('../server');
    assert.match(operationExport,/理由未記録/);
    assert.match(operationExport,/追加の修正依頼（利用者）: 原文を再確認してください。\n家族歴を関連図で保持してください。/);
    console.log(`PASS ${width}px: split/merge reasons, source histories, reload and unnecessary-card export`);
+   // Queue requests cumulatively, including blank notes, and exercise portable mobile output.
+   await page.evaluate(()=>{createNewPatientPage('依頼の累積検証');getCurrentPatient().items=['q1','q2','q3'].map((id,k)=>({id,type:'o',text:'架空の食事記録'+k,hendersonIds:[2]}));saveDataAndSync();});
+   await page.locator('#tab-so-board').click();
+   for(const [id,note] of [['q1',''],['q2','最初の依頼'],['q2','追加の依頼'],['q1','']]) {
+    await page.evaluate(id=>{clearSelection();setCardSelected(id,true);},id);
+    await page.locator('#btn-bulk-correction-request').click();
+    await page.locator('#card-correction-text').fill(note);
+    await page.locator('#btn-save-card-correction').click();
+   }
+   assert.deepEqual(await page.evaluate(()=>reviewRequestTargets(getCurrentPatient()).map(i=>i.id)),['q1','q2']);
+   assert.equal(await page.evaluate(()=>getCurrentPatient().items.find(i=>i.id==='q2').requestedCorrection),'最初の依頼\n追加の依頼');
+   await page.evaluate(()=>{clearSelection();setCardSelected('q1',true);});
+   await page.locator('#btn-bulk-correction-request').click();
+   await page.locator('[onclick="removeSelectedCorrectionRequest()"]').click();
+   assert.deepEqual(await page.evaluate(()=>reviewRequestTargets(getCurrentPatient()).map(i=>i.id)),['q2']);
+   await page.locator('#btn-bulk-correction-request').click();await page.locator('#btn-save-card-correction').click();
+   await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>!!getCurrentPatient());
+   assert.deepEqual(await page.evaluate(()=>reviewRequestTargets(getCurrentPatient()).map(i=>i.id)),['q1','q2']);
+   if(width===390) {
+    await page.locator('#tab-so-board').click();
+    await page.evaluate(()=>{window.showSaveFilePicker=undefined;window.__copied='';window.__shared='';Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async t=>{window.__copied=t;}}});Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>true});Object.defineProperty(navigator,'share',{configurable:true,value:async d=>{window.__shared=await d.files[0].text();}});});
+    await page.locator('#btn-board-export-review').click();await page.locator('#modal-mobile-export').waitFor({state:'visible'});
+    assert.equal(await page.locator('#modal-mobile-export .modal-surface').evaluate(el=>getComputedStyle(el).backgroundColor),await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--surface').trim()==='#FFFFFF'?'rgb(255, 255, 255)':'rgb(34, 31, 27)'));
+    const mobileText=await page.locator('#mobile-export-text').inputValue();assert.match(mobileText,/架空の食事記録0/);assert.match(mobileText,/最初の依頼\n追加の依頼/);
+    await page.locator('#mobile-export-copy').click();assert.equal(await page.evaluate(()=>window.__copied),mobileText);
+    await page.locator('#mobile-export-share').click();await page.waitForFunction(()=>window.__shared.length>0);assert.equal(await page.evaluate(()=>window.__shared),mobileText);
+    const download=page.waitForEvent('download');await page.locator('#mobile-export-download').click();assert.match((await download).suggestedFilename(),/修正依頼/);
+    await page.locator('#toast-container').evaluate(el=>el.replaceChildren());await page.screenshot({path:`browser-artifacts/${width}-mobile-request-export.png`});await page.locator('#mobile-export-close').click();
+    await page.evaluate(()=>{Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>false});});
+    await page.locator('#btn-board-export-review').click();await page.locator('#modal-mobile-export').waitFor({state:'visible'});assert.equal(await page.locator('#mobile-export-share').isVisible(),false);assert.equal(await page.locator('#mobile-export-text').inputValue(),mobileText);await page.locator('#mobile-export-close').click();
+   }
    // Repeated fictional background evidence remains readable and survives reload.
    const consolidated=await page.evaluate(()=>{
     createNewPatientPage('背景情報の重複検証');

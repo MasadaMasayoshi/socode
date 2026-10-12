@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-12.usability-context23'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-12.usability-context27'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -360,10 +360,9 @@
       const cp = getCurrentPatient();
       const cards = (cp.items || []).filter(i => selectedCardIds.has(i.id) && !i.deleted);
       if (!cards.length) return showToast('先に情報カードを選択してください', 'warn');
-      selectedCorrectionEditing = { patientId: cp.id, ids: cards.map(i => i.id), before: cards.map(i => i.requestedCorrection || '') };
-      const notes = [...new Set(selectedCorrectionEditing.before)];
-      document.getElementById('card-correction-text').value = notes.length === 1 ? notes[0] : '';
-      document.getElementById('card-correction-description').textContent = `選択した${cards.length}枚に共通の依頼を保存し、書き出しに含めます。保存済みの依頼は置き換わります。空欄で保存すると依頼を取り消します。`;
+      selectedCorrectionEditing = { patientId: cp.id, ids: cards.map(i => i.id), before: cards.map(i => JSON.stringify([i.requestedCorrection || '', !!i.correctionRequested])) };
+      document.getElementById('card-correction-text').value = '';
+      document.getElementById('card-correction-description').textContent = `選択した${cards.length}枚を修正依頼に追加します。空欄でも追加できます。文章を入力すると、保存済みの依頼に追記します。`;
       document.getElementById('modal-card-correction').classList.remove('hidden');
       setTimeout(() => document.getElementById('card-correction-text').focus(), 30);
     };
@@ -375,15 +374,24 @@
       const cp = getCurrentPatient(), editing = selectedCorrectionEditing;
       if (!editing) return;
       const cards = editing.ids.map(id => (cp.items || []).find(i => i.id === id && !i.deleted));
-      if (cp.id !== editing.patientId || cards.some((i, index) => !i || (i.requestedCorrection || '') !== editing.before[index])) {
+      if (cp.id !== editing.patientId || cards.some((i, index) => !i || JSON.stringify([i.requestedCorrection || '', !!i.correctionRequested]) !== editing.before[index])) {
         closeSelectedCorrectionRequest();
         return showToast('患者またはカードの依頼が変わりました。選択し直してください', 'warn');
       }
       const note = document.getElementById('card-correction-text').value.trim();
-      cards.forEach(i => { if (note) i.requestedCorrection = note; else delete i.requestedCorrection; touchItem(i); });
+      cards.forEach(i => { i.correctionRequested = true; if (note) i.requestedCorrection = [...new Set([i.requestedCorrection, note].filter(Boolean))].join('\n'); touchItem(i); });
       closeSelectedCorrectionRequest();
       saveDataAndSync();
-      showToast(note ? `${cards.length}枚に修正依頼を追加しました` : '追加した修正依頼を取り消しました', 'success');
+      showToast(`${cards.length}枚を修正依頼に追加しました`, 'success');
+    };
+
+    window.removeSelectedCorrectionRequest = function() {
+      const cp = getCurrentPatient(), editing = selectedCorrectionEditing;
+      if (!editing || cp.id !== editing.patientId) return closeSelectedCorrectionRequest();
+      const cards = editing.ids.map(id => (cp.items || []).find(i => i.id === id && !i.deleted));
+      if (cards.some((i, index) => !i || JSON.stringify([i.requestedCorrection || '', !!i.correctionRequested]) !== editing.before[index])) return showToast('カードの依頼が変わりました。選択し直してください', 'warn');
+      cards.forEach(i => { delete i.correctionRequested; delete i.requestedCorrection; touchItem(i); });
+      closeSelectedCorrectionRequest();saveDataAndSync();showToast(`${cards.length}枚の追加した修正依頼を取り消しました`, 'success');
     };
 
     window.selectAllUntagged = function() {
@@ -657,6 +665,7 @@
         id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
         editLog: [{ at: new Date().toISOString(), kind: 'merge', actor: 'user', from: sourceTexts.slice(), sourceCards: JSON.parse(JSON.stringify(mergeSourceItems)), reason: document.getElementById('merge-reason').value.trim() || null }],
         text: mergedText,
+        correctionRequested: mergeSourceItems.some(i => i.correctionRequested || i.requestedCorrection),
         requestedCorrection: [...new Set(mergeSourceItems.map(i => i.requestedCorrection).filter(Boolean))].join('\n'),
         timestamp: timestampCandidate || '日時不明',
         type: finalType,
