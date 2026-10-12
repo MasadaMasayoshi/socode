@@ -1,6 +1,6 @@
 // Japanese source examples and reference data. Generic ranges are not facility-approved values.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = '2026-10-12.usability-context33'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = '2026-10-12.usability-context34'; // Version stamp (scripts/stamp-version.js)
 
     const SAMPLE_CASES = [
  {
@@ -57,15 +57,19 @@
 [検査データ] WBC 11200, CRP 3.8, Hb 10.2, Cre 1.1, Na 136, K 4.2
 [14:30] 「少し呼吸が楽になった」と話すが、再度体温を測定すると38.2℃に上昇していた。`;
 
-    const NOTEBOOK_CONTENT_VERSION_MARK = '統合版 2026-10-12 改訂6';
+    const NOTEBOOK_CONTENT_VERSION_MARK = '統合版 2026-10-12 改訂7';
 
-    const NOTEBOOK_PREVIOUS_LINE_HASHES = new Set('1rxx1s8 1n972mt 1rxzhk1 1n972mt 3oggz7 11wepfp 1ueyf9x 49fyid cktp9v 1dx8rnt 4w69aw 18yrges mz6kpv 1fxl9vm vjjqph 1na1m5x 1mm3a6p 1eegg6z xov1zd 1r2aecs 1p9asa7 ipot7j 1re2huh 33sjwu 12z0tmf lrdwgc vdcow1 31eneq 11mb2w6 t10hoq 1etsd7m 5ubyuq q42z2q 1t8xbsy 1kpypia 15hvkni 1bwlid2 ilejiw mpf6r2 1eecsip 1dkakkm 1pr7cs9 1n4b44k 2z4yug kq8d8l 1t9q52t 1cxtfpk 1bmvzo4 wf9ste 1oyarzj 1p16g52 w1hdma 1epkp3w 1g1elw8 sro6mi 13ezb12 lnvozy 12fz4ir 1uuozg2 q2k5k8 1hrhr2n 1t9nghh f1917k e0crkw j1e8d8 13rhc30 1v2xzr2 yvgn6 1qx5h46 1757o1c u83int 1nv6687 9mp1bz wrr5dv ku3lll 1284hc6 e7jic3 tu4uvg fh8e14 wk4h4o dcef5v 1tw2zb2 wfnv68 pklg0t qnr0pb 1vbrse1 ehxm2 1brwjir u319zs 1ixcp78 i4h9b 53jp4n 13njjnz 1ele74r rwuu7w cfb5kk 1niyy9p 16zgdvq 1ovb3z5 coq3bu 24dwyi 1n5xhmq ukofp0 7qvde7 1yik6ad 117e71n v54305 1d7f6u1 1c83oe0 mc5a21 4vbu7g 188wc9g ylmgxf 39187t 3yqc7v 18qsxyi 1jfl61m 19is9nl sys0jh kda9kl oi98bw 4r9yru 1nh8in0 1i94xy8 1jcmgts wjqlw9 70311g 8wukdb d73drk ysxln2 1rt8zfd rsm75j 1cy71mw 1fc2gx8 1l1dvb3 1cftclx 1epae2b 1og289u 1r8z4jp 1vk21a0 lxc9rb 14yvj9r 1bwwj4w tap586 18tgtnq 1q8n2f0 1i8sp26 1nq8mbd 1y0ddgx 1jhhrn4 1gebsqw 1ox9pmi 1p54mi5 1mh1isl njedxy w8a1pd 1a2daya 4utfxf 1cbq5a1 1vdl8io r6dyzq 1exn90y 1bocpt1 1eay80t a26n4w 1ioy22v p7xddp qtyt3m 1ecvr13 1v6ppoi 4ufv81 18oigbx 1wl1wn0 1b73s34 11avgj6 jmk6zs 90bjpt 1ch9u22 id8wik evf7p2 13i7uer w8fsyw a7uumx fevad0 tyi7ix 31f5lu ll25l5 31eqak y4dgky 1fi3pcw j4nwbp 6wnqsb pbvlhf 157ghfe 2byund lo14bk 1hitvg3 1suzyfg 1kamx2z 1bdsrow ouqo9 zj2m3c mayvhv 2e67kq 1m7v4xj 14224h9 13vzf13 t7hukc 17fmocm gqq9d3 1wilov6 1g1elw8 p7xddp id8wik 1hit4b4'.split(' '));
-    const DEFAULT_NOTEBOOK_CONTENT = `【看護アセスメント 基準ノート（統合版 2026-10-12 改訂6）】
+    const NOTEBOOK_PREVIOUS_LINE_HASHES = new Set('1rxx1s8 1n972mt 1rxzhk1 1n972mt 3oggz7 11wepfp 1ueyf9x 49fyid cktp9v 1dx8rnt 4w69aw 18yrges mz6kpv 1fxl9vm vjjqph 1na1m5x 1mm3a6p 1eegg6z xov1zd 1r2aecs 1p9asa7 ipot7j 1re2huh 33sjwu 12z0tmf lrdwgc vdcow1 31eneq 11mb2w6 t10hoq 1etsd7m 5ubyuq q42z2q 1t8xbsy 1kpypia 15hvkni 1bwlid2 ilejiw mpf6r2 1eecsip 1dkakkm 1pr7cs9 1n4b44k 2z4yug kq8d8l 1t9q52t 1cxtfpk 1bmvzo4 wf9ste 1oyarzj 1p16g52 w1hdma 1epkp3w 1g1elw8 sro6mi 13ezb12 lnvozy 12fz4ir 1uuozg2 q2k5k8 1hrhr2n 1t9nghh f1917k e0crkw j1e8d8 13rhc30 1v2xzr2 yvgn6 1qx5h46 1757o1c u83int 1nv6687 9mp1bz wrr5dv ku3lll 1284hc6 e7jic3 tu4uvg fh8e14 wk4h4o dcef5v 1tw2zb2 wfnv68 pklg0t qnr0pb 1vbrse1 ehxm2 1brwjir u319zs 1ixcp78 i4h9b 53jp4n 13njjnz 1ele74r rwuu7w cfb5kk 1niyy9p 16zgdvq 1ovb3z5 coq3bu 24dwyi 1n5xhmq ukofp0 7qvde7 1yik6ad 117e71n v54305 1d7f6u1 1c83oe0 mc5a21 4vbu7g 188wc9g ylmgxf 39187t 3yqc7v 18qsxyi 1jfl61m 19is9nl sys0jh kda9kl oi98bw 4r9yru 1nh8in0 1i94xy8 1jcmgts wjqlw9 70311g 8wukdb d73drk ysxln2 1rt8zfd rsm75j 1cy71mw 1fc2gx8 1l1dvb3 1cftclx 1epae2b 1og289u 1r8z4jp 1vk21a0 lxc9rb 14yvj9r 1bwwj4w tap586 18tgtnq 1q8n2f0 1i8sp26 1nq8mbd 1y0ddgx 1jhhrn4 1gebsqw 1ox9pmi 1p54mi5 1mh1isl njedxy w8a1pd 1a2daya 4utfxf 1cbq5a1 1vdl8io r6dyzq 1exn90y 1bocpt1 1eay80t a26n4w 1ioy22v p7xddp qtyt3m 1ecvr13 1v6ppoi 4ufv81 18oigbx 1wl1wn0 1b73s34 11avgj6 jmk6zs 90bjpt 1ch9u22 id8wik evf7p2 13i7uer w8fsyw a7uumx fevad0 tyi7ix 31f5lu ll25l5 31eqak y4dgky 1fi3pcw j4nwbp 6wnqsb pbvlhf 157ghfe 2byund lo14bk 1hitvg3 1suzyfg 1kamx2z 1bdsrow ouqo9 zj2m3c mayvhv 2e67kq 1m7v4xj 14224h9 13vzf13 t7hukc 17fmocm gqq9d3 1wilov6 1g1elw8 p7xddp id8wik 1hit4b4 151xlr6'.split(' '));
+    const DEFAULT_NOTEBOOK_CONTENT = `【看護アセスメント 基準ノート（統合版 2026-10-12 改訂7）】
 このノートは、記録の分類・検査値の評価・不足情報の確認・看護問題・看護計画の基準です。確認できた修正を具体例とともに反映し、アプリで実装した分類ルールと揃えています。「学習データ管理」→「分類基準」タブで確認・編集できます。
 判断の優先順位：①第1〜4章の分類・タグ付けのルール ②第6〜7章の疾患別の判断基準 ③学習データの傾向。迷ったときは、1つの情報に複数のタグを付けてよい。
 
 ━━━━━━━━━━━━━━━━━━━━
 第1章 情報カードの作り方（1枚にする単位）
+・同じ日時・S/O・見出しで、長文の全内容が複数の短いカードに既に含まれている場合、新規分類と整理シートで長文を重ねない。反例：一部だけ一致する、値や日時が違う、利用者が編集したカードは省かない。原文と保存済みカード自体は書き換えない。
+・新しく除外する資料構造には実行したルールと版・理由を記録する。旧カードの理由が未記録なら、現在のルールによる再照合と過去の実行記録を区別する。未編集の人物紹介を利用者による統合と説明しない。
+・家族のがんの記録は、同じ時期に「がん家系なので検診を欠かさない」と本人の行動が明記された場合だけ14.学びの背景へ関連付け、根拠の文章を残す。家族歴のみ・受診予定だけ・受診していない・他の家族の行動・別日時は根拠にしない。
+・同じ日時の病理結果にN0/P0/H0とNO/PO/HOの表記差がある場合は原本確認待ちにする。片方へ自動置換・統合せず、学習タグも付けない。別時点の結果を同一記録の矛盾と扱わない。
 ・氏名・年齢・性別だけの一続きの紹介は、区切り記号だけで分割せず1枚の背景情報とする。正例「A氏・58歳・男性」。反例：後に続く呼吸苦や別日時の記録は人物紹介へ吸収しない。
 ・統合・分割を繰り返した履歴は元の記録までたどる。分割片が後の統合に含まれている場合も照合するが、片方が削除された不完全な分割や別日時の記録を復元済みと扱わない。
 ・S/Oや列の学習があっても、最新の原文に基づくタグ根拠を無効にしない。手編集のない学習済み自動カードも不足タグを更新する。反例：手編集・了承済みのレビュー・明示的なタグ削除は上書きしない。
@@ -231,7 +235,7 @@
 ・硬膜外麻酔の抜去だけでは欲求への影響を決めつけない。抜去後の所見まで読み直し、原文に影響が書かれているか確認する。
 ・「アレルギーなし」は9.環境に分類する。「食物アレルギーなし」「薬剤アレルギーなし」も同じとし、アレルギーという単語だけで1.呼吸には分類しない。
 ■ 検診・検査・資料構造の分類
-・検診・健診を継続して利用する本人の行動は14.学び（保健医療サービスの利用）。正例「検診を欠かさないようにしていた」。反例「祖母を胃がんで亡くした」「精密検査でがんと診断」は家族歴・診断であり、理解・学習の根拠ではない。家族歴に本人の疾患用の広いタグを補わない。
+・検診・健診を継続して利用する本人の行動は14.学び（保健医療サービスの利用）。正例「検診を欠かさないようにしていた」。反例：単独の「祖母を胃がんで亡くした」「精密検査でがんと診断」は家族歴・診断であり、理解・学習の根拠ではない。家族歴に本人の疾患用の広いタグを補わない。
 ・同じ行に睡眠・排便・排尿など複数の明示的な項目名がある場合は、先頭の項目だけで分類しない。正例「睡眠:6時間 排便:1回/日」は5と3。反例「睡眠:6時間」は5。
 ・CrとCreはクレアチニンの表記として3.排泄に分類する。正例「Cr 0.87mg/dl」。反例「CRP 0.8mg/dl」は別の検査項目で7。
 ・実施した手術・術前オリエンテーションは14.学びの根拠。反例「術前オリエンテーションの予定なし」は実施・理解の根拠ではない。

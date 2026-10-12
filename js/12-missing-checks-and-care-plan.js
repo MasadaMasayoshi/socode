@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-12.usability-context31'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-12.usability-context34'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -263,13 +263,19 @@
         return set('source', `${ocr.why}。意味を推測して分類すると誤るため、原文のまま残しています。`, ocr.level, [], ['原本（元の記録）で文字・数値・単位を確認してください', '確認できるまで、臨床的な根拠として使わないでください']);
       }
       if (/^[A-ZＡ-Ｚ]\s*氏[、・,\s]+\d{1,3}\s*歳[、・,\s]+(?:男性|女性)[。.]?$/.test(text.trim())) {
-        return set('none', '氏名・年齢・性別の患者基本情報です。利用者による統合を保持し、この情報だけで特定の基本的欲求や未充足を決めません。', '高', [], ['基本情報として保持し、年齢・性別の意味を実際の生活・症状と合わせて評価してください']);
+        return set('none', '氏名・年齢・性別の患者基本情報です。この情報だけで特定の基本的欲求や未充足を決めません。', '高', [], ['基本情報として保持し、年齢・性別の意味を実際の生活・症状と合わせて評価してください']);
       }
       if (/^(?:【血液型】|血液型[:：]\s*)[ABOＡＢＯ型\sRhRH+\-()（）陰陽性]+$/.test(text.trim())) {
         return set('none', '血液型は医学情報として保持します。血液型単独では呼吸・飲食・安全の欲求や患者の理解を判断できないため、タグは付けません。', '高', [], ['輸血の実施・反応などが記録された場合は、その別の所見を根拠に分類してください']);
       }
       if (item?.type === 'unnecessary') {
-        return set('none', item.ruleCorrectionReason || '資料の表題・見出し・教材の管理情報として患者所見から除外されています。過去の処理理由は、保存された履歴がなければ理由未記録です。', '高', [], ['現在の除外基準と、過去の処理主体・理由を区別して確認してください']);
+        return set('none', item.ruleDecision?.reason || item.ruleCorrectionReason || '資料の表題・見出し・教材の管理情報として患者所見から除外されています。過去の処理理由は、保存された履歴がなければ理由未記録です。', '高', [], ['現在の除外基準と、過去の処理主体・理由を区別して確認してください']);
+      }
+      if (FAMILY_HISTORY_DISEASE_CONTEXT_REGEX.test(text)) {
+        const context = cp?.sourceText ? classifyTextByRules(cp.sourceText) : cp?.items || [];
+        const evidence = familyScreeningEvidence(context, item);
+        if (evidence.length) return set('classify', `家族のがんの記録と、同じ時期の本人の検診利用行動「${evidence[0].evidence}」が対応しています。健康管理行動の背景として14.学びへ関連付けます。`, '高', [14], ['家族の疾患を本人の疾患に置き換えず、検診を受けた行動と理解度の判定を分けてください']);
+        return set('none', '家族の病歴として保持します。家族のがんや死亡だけでは、本人の疾患・悲嘆・学習行動は判断できません。', '高', [], ['本人の検診利用行動や気持ちが記録されている場合に、その明示された内容と関連付けてください']);
       }
       if (isSourceStructureText(text) || /^ホーマンズ[:：]\s*足を背屈させたとき[。.]?$/.test(text.trim())) {
         return set('none', '資料の見出し・表構造・説明メモで、患者の観察所見ではありません。日時や項目の文脈は保持します。', '高', [], ['患者所見と分け、配下の数値・観察結果を除外しないでください']);
@@ -311,6 +317,10 @@
         return set('insufficient', '硬膜外麻酔の抜去・終了という治療経過です。この記載だけでは基本的欲求への影響が判断できないため、タグを付けていません。', '高', [], ['抜去後の痛み・睡眠・動作などへの影響が記録されている場合は、その所見を根拠に分類してください']);
       }
       if (UNTAGGED_PATHOLOGY_RE.test(text)) {
+        const key = value => String(value || '').normalize('NFKC').replace(/\s+/g, '');
+        const comparable = value => key(value).replace(/([NPH])O(?=[NPHM、,]|Stage|$)/g, (_, prefix) => prefix + '0');
+        const variants = (cp?.items || []).filter(other => other !== item && !other.deleted && other.type !== 'unnecessary' && other.timestamp === item.timestamp && UNTAGGED_PATHOLOGY_RE.test(other.text) && key(other.text) !== key(text) && comparable(other.text) === comparable(text));
+        if (variants.length) return set('source', '同じ日時の病理結果に数字の0と英字のOが異なる表記があります。どちらが正しいかこの資料だけでは確定できないため、両方を残して原本確認待ちにします。', '高', [], ['原本でN・P・Hに続く文字を確認してください。自動置換や同一記録としての統合はしないでください']);
         return set('none', '疾患の分類・病理所見で、患者の学び（理解・学習）の根拠ではありません。「説明すると今後必要になる」だけでは14.学びにしません。臨床背景として残します。', '中', [], ['患者の病状理解や説明への反応が書かれていれば、それを別のカードにして14.学びの根拠にしてください']);
       }
       if (typeof OUTSIDE_14_NEEDS_REGEX !== 'undefined' && OUTSIDE_14_NEEDS_REGEX.test(text)) {
