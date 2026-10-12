@@ -78,12 +78,12 @@ const {app}=require('../server');
    });
    assert.deepEqual(cleanSheetCheck, {pipes:false,lab:true,shower:true,fulfilled:true,sourceCopy:false,fragment:[2]});
    // Replay actual merge/exclusion UI decisions through replacement, reload and append.
-   const correctionSource = '手術前日\n【呼吸機能】%肺活量110.6%\n一秒率69.33%\n記録者:担当者';
+   const correctionSource = '手術前日\n【呼吸機能】%肺活量110.6%\n一秒率69.33%\n10:00\n記録者:担当者';
    await page.evaluate(source => {
     createNewPatientPage('再分類の判断保持');const cp=getCurrentPatient();DOM.sourceText.value=source;cp.sourceText=source;
     cp.items=[{id:'merge-left',text:'【呼吸機能】%肺活量110.6%',type:'o',timestamp:'手術前日',hendersonIds:[1],predictionSource:'rule'},
      {id:'merge-right',text:'一秒率69.33%',type:'o',timestamp:'手術前日',hendersonIds:[1],predictionSource:'rule'},
-     {id:'manual-excluded',text:'記録者:担当者',type:'o',timestamp:'手術前日',hendersonIds:[],predictionSource:'rule'}];
+     {id:'manual-excluded',text:'記録者:担当者',type:'o',timestamp:'手術前日 10:00',hendersonIds:[],predictionSource:'rule'}];
     saveDataAndSync();clearSelection();setCardSelected('merge-left',true);setCardSelected('merge-right',true);openMergeModal();
    },correctionSource);
    await page.locator('#merge-text').fill('%肺活量110.6%、一秒率69.33%');
