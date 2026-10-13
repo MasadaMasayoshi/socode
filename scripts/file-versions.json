@@ -20,20 +20,20 @@
     "hash": "3ea560e48efc9873"
   },
   "js/06-export.js": {
-    "version": "v.43",
-    "hash": "c7e0980a801e9044"
+    "version": "v.46",
+    "hash": "e03bd00bb09bb15d"
   },
   "js/07-classification.js": {
-    "version": "2026-10-12.usability-context34",
-    "hash": "b82f74fac2e4ad53"
+    "version": "v.46",
+    "hash": "6fa4a65a5d2de631"
   },
   "js/08-assessment-tools.js": {
-    "version": "v.43",
-    "hash": "266c567ef2d74d99"
+    "version": "v.46",
+    "hash": "07bb9865fb614001"
   },
   "js/09-board.js": {
-    "version": "v.43",
-    "hash": "d42923b4b94562b2"
+    "version": "v.46",
+    "hash": "3d77604947dd151e"
   },
   "js/10-reference-page-and-startup.js": {
     "version": "v.43",
@@ -48,16 +48,16 @@
     "hash": "4692d3e8b3494112"
   },
   "js/13-compare-and-report.js": {
-    "version": "2026-10-12.usability-context34",
-    "hash": "04450bd58693aed5"
+    "version": "v.46",
+    "hash": "06491afc2f661823"
   },
   "js/14-drug-reference.js": {
     "version": "2026-10-10.znavigation17",
     "hash": "ddd095be9f67a182"
   },
   "js/15-relation-map.js": {
-    "version": "v.45",
-    "hash": "ff96b5bdef99e56a"
+    "version": "v.46",
+    "hash": "ff9bab764f38dae0"
   },
   "style.css": {
     "version": "v.44",

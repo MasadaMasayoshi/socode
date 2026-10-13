@@ -11,27 +11,19 @@ const p36 = fs.readFileSync(path.join(__dirname, 'fixtures', 'public-cases', 'hi
 const all = cards(p36);
 const find = s => all.find(c => c.text.includes(s));
 
-test('発言（S）と観察（O）が混ざったカードは同じ場面の2枚に分け、Sには何の場面か分かるよう（場面：…）を添える', () => {
-
-  const pairs = [
-    ['「あまり食欲がない」（場面：ベッドアップし、昼食摂取、半分のみ摂取、疼痛増強見られず）', 'ベッドアップし、昼食摂取、半分のみ摂取、疼痛増強見られず'],
-    ['「動いてないからお腹が張っている」（場面：排便なし(3日目なし)腸蠕動あり、排ガスあり）', '排便なし(3日目なし)腸蠕動あり、排ガスあり'],
-    ['「体重をかけるのは怖い」（場面：端坐位→車いすへ移乗行う）', '端坐位→車いすへ移乗行う']
-  ];
-  pairs.forEach(([sText, oText]) => {
-    const s = all.find(c => c.text === sText);
-    const o = all.find(c => c.text === oText);
-    assert.ok(s && o, `${sText} / ${oText}`);
-    assert.equal(s.type, 's');
-    assert.equal(o.type, 'o');
-    assert.ok(s.sceneId && s.sceneId === o.sceneId, '同じ場面の印');
-    assert.equal(s.timestamp, o.timestamp);
+test('同じ場面の発言（S）と観察（O）は無理に分けず、1枚のS/O混在カードにまとめる', () => {
+  ['あまり食欲がない', '動いてないからお腹が張っている', '体重をかけるのは怖い'].forEach(q => {
+    const m = all.find(c => c.text.includes(q));
+    assert.ok(m, q);
+    assert.equal(m.soMixed, true);
+    assert.ok(!m.sceneId);
   });
+  assert.match(all.find(c => c.text.includes('あまり食欲がない')).text, /昼食摂取、半分のみ摂取/);
   const scene = all.filter(c => c.text.startsWith('入院時の様子'));
-  assert.equal(scene.length, 2);
-  assert.equal(scene.find(c => c.type === 's').text, '入院時の様子: 息子たちの前では、「大丈夫よ。心配しないで」と言っていた。受持ち看護師には、「嫁には頼れないしね・・・かといって息子は仕事もあるし、迷惑はかけられないわ」とも言っていた。', '誰に言ったのかを残す');
-  assert.equal(scene.find(c => c.type === 'o').text, '入院時の様子: 怪我での入院、手術と初めてのことばかりで戸惑いも多い様子だった。入院診療計画書には、自宅退院までおよそ14日程度を要すると記載されていた。');
+  assert.equal(scene.length, 1);
+  assert.equal(scene[0].soMixed, true);
   assert.ok(find('「トイレに行きたい」とナースコールあり'), '観察が短すぎる（ナースコールあり）ときは分けない');
+  assert.ok(!find('「トイレに行きたい」とナースコールあり').soMixed);
 });
 
 test('発言だけのカード・医療者の説明・短い返事・「と聞いて」の続きは分けない', () => {
@@ -43,9 +35,9 @@ test('発言だけのカード・医療者の説明・短い返事・「と聞�
   assert.equal(h.length, 1);
 });
 
-test('分けた発言に話題のタグが無ければ同じ場面の観察のタグを付け、観察にタグが無ければ発言のタグを付ける', () => {
-  assert.ok(all.find(c => c.text.startsWith('「動いてないからお腹が張っている」')).hendersonIds.includes(3));
-  assert.deepEqual(Array.from(all.find(c => c.type === 'o' && c.text.startsWith('入院時の様子')).hendersonIds), [10]);
+test('S/O混在カードには発言と観察の両方のタグが付く', () => {
+  assert.ok(all.find(c => c.text.includes('動いてないからお腹が張っている')).hendersonIds.includes(3));
+  assert.deepEqual(Array.from(all.find(c => c.text.startsWith('入院時の様子')).hendersonIds), [10]);
 });
 
 test('同じ時刻のバイタルは体温→血圧→脈拍→呼吸→SpO2の順に1枚にまとめる', () => {

@@ -1,5 +1,10 @@
 'use strict';
-
+// 利用者からの指摘（患者34＝例文の文章）の検証。適切であれば複数のタグを付けてよい。
+//  ・既往歴「2型糖尿病、高血圧症にて内服加療中」は呼吸器の病気ではない → 1.呼吸にしない（2.食事・14.学び）
+//  ・生活歴「元会社員（20年前に退職）、喫煙歴なし、機会飲酒あり」は項目ごとに分ける → 12.仕事／1.呼吸／2.食事
+//  ・診断名「市中肺炎の疑い」は 2.食事・5.睡眠・8.清潔 にしない → 1.呼吸・7.体温・9.環境
+//  ・「息苦しくて夜もあまり眠れなかった…」と訴える、「少し呼吸が楽になった」と話す は症状の報告
+//    → 10.コミュニケーションにしない（1.呼吸・5.睡眠・7.体温）
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp } = require('./app-helpers');
@@ -31,9 +36,10 @@ test('肺炎の診断名は1.呼吸・7.体温・9.環境', () => {
 test('症状を訴える・話す発言には10.コミュニケーションを付けない', () => {
   const m = byText();
   assert.deepEqual(m['「息苦しくて夜もあまり眠れなかった。横になると特に苦しい」と訴える。'], [1, 5]);
-
-  assert.deepEqual(m['「少し呼吸が楽になった」と話す。'], [1]);
-  assert.deepEqual(m['再度体温を測定すると38.2°Cに上昇していた。'], [7]);
+  // 同じ場面の発言（S）と観察（O）は1枚のS/O混在カードにまとめる
+  const mixed = Object.keys(m).find(k => /少し呼吸が楽になった/.test(k) && /38\.2/.test(k));
+  assert.ok(mixed, 'S/O混在カードにまとまる');
+  assert.ok(m[mixed].includes(1) && m[mixed].includes(7));
   assert.ok(app.detectMultipleHendersonTags('「緊張のせいか食欲がない」と話す').includes(10), '気持ち（緊張）の表出は10');
 });
 

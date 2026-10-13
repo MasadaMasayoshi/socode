@@ -241,7 +241,7 @@ function commonChecks(map, label) {
   const probs = map.nodes.filter(n => n.type === 'nursing_problem');
   assert.ok(probs.length >= 4 && probs.length <= 10, `${label}：看護問題 ${probs.length}`);
 
-  const ids = new Set(); map.nodes.forEach(n => n.itemIds.forEach(id => { if ((n.type === 'symptom' || n.type === 'patient_fact') && !/^(?:家族)?S「/.test(n.label)) { assert.ok(!ids.has(id), `${label}：同じカードが2つの四角に`); ids.add(id); } }));
+  const ids = new Set(); map.nodes.forEach(n => n.itemIds.forEach(id => { if ((n.type === 'symptom' || n.type === 'patient_fact') && !/^(?:家族)?S?「/.test(n.label)) { assert.ok(!ids.has(id), `${label}：同じカードが2つの四角に`); ids.add(id); } }));
   map.edges.filter(e => e.relation === 'treats').forEach(e => assert.ok(['treatment', 'medication'].includes(map.nodes.find(n => n.id === e.source).type), '治療・薬剤から対象へ'));
   map.nodes.filter(n => n.type === 'future_risk').forEach(n => assert.equal(n.observed, false));
 }

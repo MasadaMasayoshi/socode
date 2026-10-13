@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = '2026-10-12.usability-context34'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.46'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -564,6 +564,8 @@
     const TYPE_LABEL_JA = { s: 'Sに移す', o: 'Oに移す', unclassified: '未分類に戻す', unnecessary: '不要にする' };
     wrapUndoable('setItemType', (id, type) => TYPE_LABEL_JA[type] || '分類の変更');
     wrapUndoable('bulkSetType', type => `まとめて${TYPE_LABEL_JA[type] || '分類の変更'}`);
+    wrapUndoable('setItemMixed', (id, on) => on ? 'S/O混在にする' : 'S/O混在の解除');
+    wrapUndoable('toggleCardCorrectionRequest', () => '修正依頼の追加・解除');
     wrapUndoable('deleteItem', () => 'カードの削除');
     wrapUndoable('clearUnnecessary', () => '不要カードの消去');
     wrapUndoable('saveMissingInfo', () => '不足情報カードの追加');

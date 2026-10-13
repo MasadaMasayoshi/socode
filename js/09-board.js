@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.43'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.46'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -248,7 +248,7 @@
             <label class="card-select-wrap" title="選択（複数選択の追加/解除。タップ操作のみで複数選択できます）">
               <input type="checkbox" class="card-select-checkbox" onchange="setCardSelected(${jsArg(item.id)}, this.checked)" ${isSelected ? 'checked' : ''}>
             </label>
-            ${untaggedWarningHtml}${patientBackgroundHtml}${fieldChipHtml}${timeChipHtml}${sceneChipHtml}${drugChipHtml(item)}${confidenceBadgeHtml}
+            ${untaggedWarningHtml}${patientBackgroundHtml}${item.soMixed ? '<span class="field-chip" style="background:var(--gold-soft);color:var(--ink);" title="同じ場面の発言と観察をまとめたカード">S/O混在</span>' : ''}${fieldChipHtml}${timeChipHtml}${sceneChipHtml}${drugChipHtml(item)}${confidenceBadgeHtml}
           </div>
           <div class="flex items-center gap-1 ml-auto shrink-0">
             ${item.type === 'unnecessary' ? `<button onclick="setItemType(${jsArg(item.id)}, 'unclassified')" class="type-btn type-btn-restore" title="未分類に戻す">復帰</button>` : ''}
@@ -302,14 +302,15 @@
       }
       const act = (label, icon, fn, cls = '') => `<button type="button" role="menuitem" class="${cls}" data-act="${fn}"><i class="fa-solid ${icon}"></i>${label}</button>`;
       const rows = [];
-      if (item.type !== 's') rows.push(act('Sデータに移す', 'fa-comment', `type:s`));
-      if (item.type !== 'o') rows.push(act('Oデータに移す', 'fa-eye', `type:o`));
+      if (item.type !== 's' || item.soMixed) rows.push(act('Sデータに移す', 'fa-comment', `type:s`));
+      if (item.type !== 'o' || item.soMixed) rows.push(act('Oデータに移す', 'fa-eye', `type:o`));
+      if (!item.soMixed && (item.type === 's' || item.type === 'o' || item.type === 'unclassified')) rows.push(act('S/O混在にする', 'fa-columns', 'mixed:on'));
       if (item.type !== 'unclassified') rows.push(act('未分類に戻す', 'fa-inbox', `type:unclassified`));
       rows.push('<hr>');
       rows.push(act('本文を編集', 'fa-pen', 'edit'));
       rows.push(act('カードを分ける', 'fa-scissors', 'split'));
       if (item.type !== 'unnecessary') rows.push(act('不要な情報にする', 'fa-ban', 'type:unnecessary'));
-      rows.push(act('書き込みがおかしいと報告', 'fa-flag', 'report'));
+      rows.push(act(item.correctionRequested ? '修正依頼から外す' : '書き込みがおかしい（修正依頼に追加）', 'fa-flag', 'report'));
       rows.push('<hr>');
       rows.push(act('完全に削除（直後なら元に戻せます）', 'fa-trash-can', 'delete', 'danger'));
       cardMenuEl.innerHTML = rows.join('');
@@ -323,9 +324,10 @@
 
           if (e.detail === 0) document.getElementById(id)?.querySelector('.card-menu-btn')?.focus();
         }
+        else if (a === 'mixed:on') setItemMixed(id, true);
         else if (a === 'edit') editItemText(id);
         else if (a === 'split') openSplitCard(id);
-        else if (a === 'report') openCardReportModal(id);
+        else if (a === 'report') toggleCardCorrectionRequest(id);
         else if (a === 'delete') deleteItem(id);
       }));
       cardMenuReturnFocus = ev && ev.currentTarget ? ev.currentTarget : null;
@@ -959,12 +961,42 @@
       }
     };
 
+    window.toggleCardCorrectionRequest = function(id) {
+      const item = getCurrentPatient().items.find(i => i.id === id && !i.deleted);
+      if (!item) return;
+      if (item.correctionRequested) { delete item.correctionRequested; delete item.requestedCorrection; }
+      else item.correctionRequested = true;
+      touchItem(item);
+      saveDataAndSync();
+      showToast(item.correctionRequested ? '修正依頼に追加しました（書き出しに含まれます）' : '修正依頼から外しました', 'success');
+    };
+    window.setItemMixed = function(id, on) {
+      const item = getCurrentPatient().items.find(i => i.id === id && !i.deleted);
+      if (!item) return;
+      if (on) {
+        if (item.type === 'unclassified') item.type = /「/.test(item.text) ? 's' : 'o';
+        item.soMixed = true;
+      } else delete item.soMixed;
+      item.predictionSource = 'confirmed';
+      touchItem(item);
+      saveDataAndSync();
+      showToast(on ? 'S/O混在のカードにしました' : 'S/O混在を解除しました', 'success');
+    };
+    window.toggleSoMixedColumn = function() {
+      window.__soMixedShown = !window.__soMixedShown;
+      renderSoBoard();
+    };
     window.setItemType = function(id, type) {
       const cp = getCurrentPatient(), item = cp.items.find(i => i.id === id);
       if (item) {
         const prevType = item.type;
 
-        if (type === prevType) return;
+        if (type === 'so') return setItemMixed(id, true);
+        if (type === prevType) {
+          if (item.soMixed) { delete item.soMixed; touchItem(item); saveDataAndSync(); }
+          return;
+        }
+        delete item.soMixed;
         item.type = type;
         item.predictionSource = 'confirmed';
         logItemEdit(item, { kind: 'type', from: prevType, to: type });

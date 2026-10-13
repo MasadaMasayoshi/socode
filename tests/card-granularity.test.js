@@ -17,16 +17,14 @@ test('Admission history separates habitual sleep from the current symptom', () =
   assert.deepEqual(Array.from(current.hendersonIds), [5]);
 });
 
-test('Rehabilitation observations retain the sequence and keep patient speech separate', () => {
+test('Rehabilitation observation and patient speech of the same situation stay in one mixed card', () => {
   const result = cards('術後1日目\n14:45 RH\n理学療法士によるリハビリ開始\nマッサージと関節可動域訓練開始「動かし始めは痛いけど、大丈夫」と本人\n本日、PTとともにベッド上でセッティング・SLR・足関節ROMの訓練実施。\n14:50 ペインスケール「5」\n明日車いす移動予定');
-  const observation = result.find(c => c.type === 'o' && /理学療法士/.test(c.text));
+  const observation = result.find(c => /理学療法士/.test(c.text));
   assert.match(observation.text, /関節可動域訓練/);
   assert.match(observation.text, /セッティング・SLR・足関節ROM/);
-  assert.ok(!observation.text.includes('動かし始めは痛い'));
+  assert.match(observation.text, /動かし始めは痛いけど、大丈夫/);
+  assert.equal(observation.soMixed, true);
   assert.equal(observation.timestamp, '術後1日目 14:45');
-  const speech = result.find(c => c.type === 's');
-  assert.match(speech.text, /動かし始めは痛いけど、大丈夫/);
-  assert.equal(speech.sceneId, observation.sceneId);
   assert.equal(result.find(c => /ペインスケール/.test(c.text)).timestamp, '術後1日目 14:50');
   assert.ok(result.some(c => /明日車いす移動予定/.test(c.text) && c !== observation));
 });

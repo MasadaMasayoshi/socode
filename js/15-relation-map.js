@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.45'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.46'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -1391,11 +1391,18 @@
       { disease: /脳梗塞|脳塞栓|心原性/, factor: /心房細動/, mid: '心房内の血栓の形成（血栓が脳の血管に詰まる）' }
     ];
 
+    function rmProjectMixedCard(i) {
+      if (!i.soMixed || typeof splitMixedSubjectiveObjective !== 'function') return [i];
+      const tmp = [{ ...i }];
+      splitMixedSubjectiveObjective(tmp, true);
+      return tmp.length > 1 ? tmp : [i];
+    }
     function buildRelationMapFromRecord(cp) {
       const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && i.text && i.type !== 'unnecessary' && !i.aiSuggested
-        && !(typeof isMissingInfoOnlyItem === 'function' && isMissingInfoOnlyItem(i)));
+        && !(typeof isMissingInfoOnlyItem === 'function' && isMissingInfoOnlyItem(i)))
+        .flatMap(rmProjectMixedCard);
       const excluded = new Set(((cp && cp.items) || []).filter(i => i.deleted || i.type === 'unnecessary').map(i => clinicalCardDuplicateKey(i.text, i.timestamp)));
-      const sourceRecords = cp.sourceText ? groupClinicalPhrasesWithTimestamps(String(cp.sourceText).normalize('NFKC')).filter(i => !i.isUnnecessaryBoilerplate && !excluded.has(clinicalCardDuplicateKey(i.text, i.timestamp))) : [];
+      const sourceRecords = cp.sourceText ? groupClinicalPhrasesWithTimestamps(String(cp.sourceText).normalize('NFKC')).filter(i => !i.isUnnecessaryBoilerplate && !excluded.has(clinicalCardDuplicateKey(i.text, i.timestamp))).flatMap(rmProjectMixedCard) : [];
       const clinicalRecords = [...items, ...sourceRecords.filter(i => !items.some(o => clinicalCardDuplicateKey(o.text, o.timestamp) === clinicalCardDuplicateKey(i.text, i.timestamp)))];
       // Project background clauses without changing the saved clinical cards.
       const compactSource = String(cp.sourceText || '').normalize('NFKC').replace(/\s/g, '');
@@ -1468,6 +1475,7 @@
       const short = (i, max = 34, re = null) => {
         let t = String(i.text).replace(/^【[^】]{1,10}】/, '').replace(/^\d{1,2}[:：]\d{2}\s*/, '').trim();
 
+        if (i.soMixed && i.type === 's') { const q = t.match(/「[^」]+」/); if (q) t = q[0]; }
         const sents = t.split(/。/).filter(x => x.trim());
         const first = (re && sents.find(x => re.test(x))) || sents[0] || t;
         if (first.length >= 6 && first.length < t.length) t = first;
@@ -2412,7 +2420,8 @@
       }
 
       const anxAll = items.filter(i => i.type === 's' && /不安|心配|迷惑|仕事|戻れ|帰れ|怖|どうなる|どうしよう|家族|歩ける|やっていけ|大丈夫か/.test(i.text));
-      const anxItems = [...anxAll.filter(i => !rmIsFamilySpeech(i.text)), ...anxAll.filter(i => rmIsFamilySpeech(i.text))].slice(0, 2);
+      const anxPatient = anxAll.filter(i => !rmIsFamilySpeech(i.text)), anxFamily = anxAll.filter(i => rmIsFamilySpeech(i.text));
+      const anxItems = (anxPatient.length && anxFamily.length ? [anxPatient[0], anxFamily[0]] : [...anxPatient, ...anxFamily]).slice(0, 2);
       const familyOnly = anxItems.length && anxItems.every(i => rmIsFamilySpeech(i.text));
       if (anxItems.length) {
 
@@ -2646,6 +2655,8 @@
       rmAutoFixBuilt(map);
       rmImportClinicalEntities(map, cp, { includeUnlinked: false });
       rmPrepareClinicalMap(map, cp);
+      // Projected S/O pieces of a mixed card point back to the saved card.
+      map.nodes.forEach(n => { if (n.itemIds && n.itemIds.some(id => /#[so]$/.test(String(id)))) n.itemIds = Array.from(new Set(n.itemIds.map(id => String(id).replace(/#[so]$/, '')))); });
       return map;
     }
 

@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.43'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.46'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -878,9 +878,9 @@
       const focusBefore = captureBoardFocus();
       const cp = getCurrentPatient();
 
-      const columns = { unclassified: document.createDocumentFragment(), s: document.createDocumentFragment(), o: document.createDocumentFragment(), unnecessary: document.createDocumentFragment() };
-      const totalCounts = { unclassified: 0, s: 0, o: 0 };
-      const shownCounts = { unclassified: 0, s: 0, o: 0 };
+      const columns = { unclassified: document.createDocumentFragment(), so: document.createDocumentFragment(), s: document.createDocumentFragment(), o: document.createDocumentFragment(), unnecessary: document.createDocumentFragment() };
+      const totalCounts = { unclassified: 0, s: 0, o: 0, so: 0 };
+      const shownCounts = { unclassified: 0, s: 0, o: 0, so: 0 };
 
       const sortedItems = cp.items
         .map((item, index) => ({ item, index }))
@@ -891,16 +891,21 @@
         .map(x => x.item);
 
       sortedItems.forEach(item => {
-        if (item.type !== 'unnecessary') totalCounts[item.type]++;
+        const colKey = item.soMixed && (item.type === 's' || item.type === 'o') ? 'so' : item.type;
+        if (item.type !== 'unnecessary') totalCounts[colKey]++;
         if (!itemMatchesSearch(item, boardSearchTerm)) return;
-        columns[item.type].appendChild(createCardElement(item));
-        if (item.type !== 'unnecessary') shownCounts[item.type]++;
+        columns[colKey].appendChild(createCardElement(item));
+        if (item.type !== 'unnecessary') shownCounts[colKey]++;
       });
 
-      Object.keys(columns).forEach(key => document.getElementById(`col-${key}`).replaceChildren(columns[key]));
+      Object.keys(columns).forEach(key => { const colEl = document.getElementById(`col-${key}`); if (colEl) colEl.replaceChildren(columns[key]); });
+      const soWrap = document.getElementById('board-so-wrap');
+      if (soWrap && soWrap.classList) soWrap.classList.toggle('hidden', !(totalCounts.so || window.__soMixedShown));
+      const soBtn = document.getElementById('btn-toggle-so-mixed');
+      if (soBtn && soBtn.setAttribute) soBtn.setAttribute('aria-pressed', String(!!(totalCounts.so || window.__soMixedShown)));
       if (isCardOverviewOpen()) refreshCardOverview();
-      ['unclassified', 's', 'o'].forEach(key => {
-        document.getElementById(`badge-count-${key}`).textContent = boardSearchTerm ? `${shownCounts[key]}/${totalCounts[key]}` : totalCounts[key];
+      ['unclassified', 's', 'o', 'so'].forEach(key => {
+        const badgeEl = document.getElementById(`badge-count-${key}`); if (badgeEl) badgeEl.textContent = boardSearchTerm ? `${shownCounts[key]}/${totalCounts[key]}` : totalCounts[key];
       });
 
       const unnecessaryCount = cp.items.filter(i => i.type === 'unnecessary').length;

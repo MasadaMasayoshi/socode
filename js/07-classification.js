@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = '2026-10-12.usability-context34'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.46'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -869,11 +869,11 @@
         }
       }
     }
-    function splitMixedSubjectiveObjective(list) {
+    function splitMixedSubjectiveObjective(list, forceSplit = false) {
       let serial = 0;
       for (let i = 0; i < list.length; i++) {
         const it = list[i];
-        if (it.isUnnecessaryBoilerplate || it.isLabOrVital || it.sceneId) continue;
+        if (it.isUnnecessaryBoilerplate || it.isLabOrVital || it.sceneId || (it.soMixed && !forceSplit)) continue;
         const text = it.text;
         if (stripStaffQuotes(text) !== text) continue;
         if (isFamilySpeech(text)) continue;
@@ -931,12 +931,18 @@
 
         const meaningful = objective.replace(/[、。\s]/g, '');
         if (meaningful.length < 10 || /^(?:と|とも)?(?:話す|話した|訴える|訴えあり|言う|言っていた|返答あり|発言あり|本人より|患者より|本人|患者)+$/.test(meaningful)) continue;
-        const sceneId = `scene_${Date.now().toString(36)}_${++serial}`;
+        if (!forceSplit) {
+          // Same situation with both speech and observation: keep one mixed card instead of forcing a split.
+          const mixedCard = { ...it, soMixed: true, soRole: 's' };
+          delete mixedCard.sceneId;
+          list.splice(i, 1, mixedCard);
+          continue;
+        }
+        // Projection only (relation map): separate speech and observation without changing the saved card.
         const prefix = label ? `${label}: ` : '';
         const subjectiveText = subjectiveParts.join('').replace(/。{2,}/g, '。');
-        const subjectiveCard = { ...it, text: cleanExtractedPhrase(`${prefix}${subjectiveText}`), sceneId, soRole: 's' };
-        const objectiveCard = { ...it, text: cleanExtractedPhrase(`${prefix}${objective}`), sceneId, soRole: 'o' };
-
+        const subjectiveCard = { ...it, text: cleanExtractedPhrase(`${prefix}${subjectiveText}`), soMixed: false, soRole: 's', type: 's', projectedFrom: it, sceneId: `proj_${it.id || serial}`, ...(it.id ? { id: `${it.id}#s` } : {}) };
+        const objectiveCard = { ...it, text: cleanExtractedPhrase(`${prefix}${objective}`), soMixed: false, soRole: 'o', type: 'o', projectedFrom: it, sceneId: `proj_${it.id || serial}`, ...(it.id ? { id: `${it.id}#o` } : {}) };
         const quoteFirst = /^「/.test(body.trim());
         list.splice(i, 1, ...(quoteFirst ? [subjectiveCard, objectiveCard] : [objectiveCard, subjectiveCard]));
         i++;
@@ -2406,7 +2412,7 @@
           const text = painCurrentContextText(other.text);
           let evidence = painContextClauses(text).find(clause => rule.re.test(clause) && positivePain(clause) && detectMultipleHendersonTags(clause).includes(rule.id));
           // An extracted S/O scene preserves the explicit sequence across its sentences.
-          if (!evidence && other.sceneId && positivePain(text) && rule.re.test(text) && POSTURE_ACTIVITY_REGEX.test(text) && detectMultipleHendersonTags(text).includes(rule.id)) evidence = text;
+          if (!evidence && (other.sceneId || other.soMixed) && positivePain(text) && rule.re.test(text) && POSTURE_ACTIVITY_REGEX.test(text) && detectMultipleHendersonTags(text).includes(rule.id)) evidence = text;
           if (evidence) return [{ id: rule.id, label: rule.label, timestamp: other.timestamp, evidence }];
         }
         return [];
@@ -2585,7 +2591,7 @@
         const cleanedText = cleanExtractedPhrase(chunk.text);
         if (cleanedText.length < 2 || isBareFieldHeaderOnly(cleanedText) || isHeadingOnlyChunk(chunk, cleanedText) || out.some(i => clinicalCardDuplicateKey(i.text, i.timestamp) === clinicalCardDuplicateKey(cleanedText, chunk.timestamp))) return;
         const { detectedHIds, predictedType } = computeLocalTagsAndType(chunk, cleanedText, null);
-        out.push({ text: cleanedText, timestamp: chunk.timestamp || '日時不明', type: predictedType, hendersonIds: detectedHIds.slice().sort((a, b) => a - b), fieldLabel: chunk.fieldLabel || null, ruleDecision: automaticRuleDecision(chunk, cleanedText, predictedType), ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}) });
+        out.push({ text: cleanedText, timestamp: chunk.timestamp || '日時不明', type: predictedType, hendersonIds: detectedHIds.slice().sort((a, b) => a - b), fieldLabel: chunk.fieldLabel || null, ruleDecision: automaticRuleDecision(chunk, cleanedText, predictedType), ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.soMixed ? { soMixed: true } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}) });
       }));
       return removeCoveredCompositeCards(applyFamilyScreeningContext(applyPainContextTags(applySceneTagInheritance(out))));
     }
@@ -2747,7 +2753,7 @@
           ? classifyPatientBackground(chunk.fieldLabel)
           : null;
 
-        const newItem = { id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text: cleanedText, timestamp: chunk.timestamp || "日時不明", type: predictedType, hendersonIds: detectedHIds, assessmentCols, fieldLabel: chunk.fieldLabel || null, patientBackground, admissionPhase: chunk.admissionPhase || 'preadmission', predictionSource, ruleDecision: automaticRuleDecision(chunk, cleanedText, predictedType), ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}), _touchedAt: new Date().toISOString() };
+        const newItem = { id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text: cleanedText, timestamp: chunk.timestamp || "日時不明", type: predictedType, hendersonIds: detectedHIds, assessmentCols, fieldLabel: chunk.fieldLabel || null, patientBackground, admissionPhase: chunk.admissionPhase || 'preadmission', predictionSource, ruleDecision: automaticRuleDecision(chunk, cleanedText, predictedType), ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.soMixed ? { soMixed: true } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}), _touchedAt: new Date().toISOString() };
         addedThisRun.push(newItem);
         cp.items.push(newItem);
 
