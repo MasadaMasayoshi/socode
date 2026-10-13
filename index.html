@@ -6,15 +6,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="v.43">
-  <meta name="app-file-versions" content="01:2026-10-12.usability-context28,02:2026-10-12.usability-context34,03:2026-10-12.usability-context28,04:2026-10-12.usability-context29,05:2026-10-12.usability-context21,06:v.43,07:2026-10-12.usability-context34,08:v.43,09:v.43,10:v.43,11:2026-10-12.usability-context31,12:v.43,13:2026-10-12.usability-context34,14:2026-10-10.znavigation17,15:v.43">
+  <meta name="app-version" content="v.44">
+  <meta name="app-file-versions" content="01:2026-10-12.usability-context28,02:2026-10-12.usability-context34,03:2026-10-12.usability-context28,04:2026-10-12.usability-context29,05:2026-10-12.usability-context21,06:v.43,07:2026-10-12.usability-context34,08:v.43,09:v.43,10:v.43,11:2026-10-12.usability-context31,12:v.43,13:2026-10-12.usability-context34,14:2026-10-10.znavigation17,15:v.44">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=2026-10-12.usability-context27">
+  <link rel="stylesheet" href="style.css?v=v.44">
 
   <link rel="stylesheet" href="vendor/tailwind.css?v=2026-10-06.14">
   <script>
@@ -1220,23 +1220,37 @@
 
     <dialog id="nursing-manual-review" aria-labelledby="nursing-manual-review-title">
       <div class="manual-review-heading"><strong id="nursing-manual-review-title">原文確認・本文編集</strong><button type="button" class="btn btn-outline" onclick="this.closest('dialog').close()">閉じる</button></div>
-      <div class="manual-review-actions">
+      <div class="manual-review-actions" style="align-items:center">
         <button type="button" id="nursing-source-compare" class="btn btn-outline" aria-expanded="false" aria-controls="nursing-source-review">原文とカードを照合</button>
         <button type="button" id="nursing-undo-text" class="btn btn-outline" title="直近のカード本文の手動編集だけを取り消します">本文編集を元に戻す</button>
         <button type="button" id="nursing-redo-text" class="btn btn-outline" title="この画面で取り消した本文編集をやり直します">やり直す</button>
+        <p id="nursing-manual-review-status" role="status" aria-live="polite" style="font-size:12px;margin:0 0 0 auto;color:var(--ink-muted)">原文の照合・本文編集の取り消しができます。</p>
       </div>
-      <p id="nursing-manual-review-status" role="status" aria-live="polite" style="font-size:13px">原文の照合・本文編集の取り消しができます。</p>
       <div id="nursing-source-review" hidden style="border-top:1px solid var(--line);padding-top:10px">
-        <p style="font-size:12px;color:var(--ink-muted)">原文と情報カードを並べて確認します。個人情報を含む文章はこの画面から送信されません。原文からの省略・言い換えは手動で確認してください。</p>
-        <p id="nursing-source-coverage" style="font-size:12px" role="status"></p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-          <button type="button" id="nursing-source-prev" class="btn btn-outline" disabled>前の一致箇所</button>
-          <button type="button" id="nursing-source-next" class="btn btn-outline" disabled>次の一致箇所</button>
-          <span id="nursing-source-match-status" role="status" aria-live="polite">カードを選んで原文を確認</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+          <p id="nursing-source-coverage" style="font-size:12px;margin:0" role="status"></p>
+          <details style="font-size:12px;color:var(--ink-muted)"><summary style="cursor:pointer">見方</summary><p style="margin:4px 0 0">原文と情報カードを並べて確認します。個人情報を含む文章はこの画面から送信されません。原文からの省略・言い換えは手動で確認してください。カードを押すと原文の一致箇所を黄色で示し、原文の文を選ぶと対応するカードの候補を枠で示します。</p></details>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px">
-          <div><strong>元の文章</strong><pre id="nursing-original-text" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:420px;overflow:auto;padding:8px;border:1px solid var(--line);font-size:12px"></pre></div>
-          <div><strong>整理後のカード</strong><div id="nursing-organized-text" style="max-height:420px;overflow:auto;padding:8px;border:1px solid var(--line);font-size:12px"></div></div>
+          <div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:4px">
+              <strong>元の文章</strong>
+              <button type="button" id="nursing-source-prev" class="btn btn-outline" disabled>前の一致箇所</button>
+              <button type="button" id="nursing-source-next" class="btn btn-outline" disabled>次の一致箇所</button>
+            </div>
+            <p id="nursing-source-match-status" role="status" aria-live="polite" style="font-size:12px;margin:0 0 4px;color:var(--ink-muted)">カードを選んで原文を確認</p>
+            <pre id="nursing-original-text" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:min(58vh,520px);overflow:auto;padding:8px;border:1px solid var(--line);font-size:12px;margin:0"></pre>
+          </div>
+          <div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:4px">
+              <strong>整理後のカード</strong>
+              <button type="button" id="nursing-filter-all" class="btn btn-outline" aria-pressed="true">すべて</button>
+              <button type="button" id="nursing-filter-untagged" class="btn btn-outline" aria-pressed="false">タグ未設定</button>
+              <button type="button" id="nursing-filter-nomatch" class="btn btn-outline" aria-pressed="false">原文と一致しない</button>
+            </div>
+            <p id="nursing-card-count" role="status" style="font-size:12px;margin:0 0 4px;color:var(--ink-muted)"></p>
+            <div id="nursing-organized-text" style="max-height:min(58vh,520px);overflow:auto;padding:8px;border:1px solid var(--line);font-size:12px"></div>
+          </div>
         </div>
       </div>
     </dialog>
@@ -1255,7 +1269,7 @@
   <script src="js/12-missing-checks-and-care-plan.js?v=v.43"></script>
   <script src="js/13-compare-and-report.js?v=2026-10-12.usability-context34"></script>
   <script src="js/14-drug-reference.js?v=2026-10-10.znavigation17"></script>
-  <script src="js/15-relation-map.js?v=v.43"></script>
+  <script src="js/15-relation-map.js?v=v.44"></script>
   <script>
   // Manual source comparison and reversible text edits on the active chart.
   (function(){
@@ -1318,6 +1332,19 @@
     const sourceNext=document.getElementById('nursing-source-next');
     const sourceMatchStatus=document.getElementById('nursing-source-match-status');
     let sourceReviewSnapshot='',activeSourceMatch=null;
+    let cardRows=[],cardFilter='all';
+    const filterButtons={all:document.getElementById('nursing-filter-all'),untagged:document.getElementById('nursing-filter-untagged'),nomatch:document.getElementById('nursing-filter-nomatch')};
+    const cardCount=document.getElementById('nursing-card-count');
+    function applyCardFilter(){
+      let shown=0;
+      for(const row of cardRows){
+        const visible=cardFilter==='all'||(cardFilter==='untagged'&&row.dataset.untagged==='1')||(cardFilter==='nomatch'&&row.dataset.nomatch==='1');
+        row.style.display=visible?'':'none';if(visible)shown++;
+      }
+      for(const key of Object.keys(filterButtons))filterButtons[key].setAttribute('aria-pressed',String(key===cardFilter));
+      cardCount.textContent=shown+'／'+cardRows.length+'枚を表示';
+    }
+    for(const key of Object.keys(filterButtons))filterButtons[key].addEventListener('click',()=>{cardFilter=key;applyCardFilter();});
     const reviewCards=cp=>(cp.items||[]).filter(x=>x&&!x.deleted&&x.type!=='unnecessary'&&!x.aiSuggested);
     const reviewSnapshot=cp=>JSON.stringify([cp.id,cp.sourceText,reviewCards(cp).map(x=>[x.id,x.text])]);
     function ensureCurrentSourceReview(){
@@ -1353,20 +1380,28 @@
       const cardTexts=reviewCards(cp).map(x=>String(x.text||''));
       const unmatched=segments.filter(segment=>!cardTexts.some(card=>card.includes(segment)));
       document.getElementById('nursing-source-coverage').textContent=
-        '原文の文節 '+segments.length+'件中、完全一致が見つからない文節 '+unmatched.length+'件。言い換えや分割による不一致も含むため、抽出漏れとは断定しません。';
-      cardsOutput.replaceChildren();
+        '原文 '+segments.length+'文節中、一致なし '+unmatched.length+'件（言い換え・分割を含み、抽出漏れとは断定しません）';
+      cardsOutput.replaceChildren();cardRows=[];
       for(const item of reviewCards(cp)){
         const row=document.createElement('div');
         row.style.borderBottom='1px solid var(--line-soft)';
         row.style.padding='6px 2px';
-        const tags=(item.hendersonIds||[]).join('、')||'未分類';
+        const ids=item.hendersonIds||[];
+        const needName=id=>{const n=(typeof HENDERSON_NEEDS!=='undefined'&&HENDERSON_NEEDS.find&&HENDERSON_NEEDS.find(x=>x.id===id));return n?n.name:String(id);};
+        const basic=!ids.length&&typeof isBasicInfoItem==='function'&&isBasicInfoItem(item);
+        const tags=ids.length?ids.map(needName).join('・'):basic?'基礎情報':'タグ未設定';
+        const noMatch=!findSourceExactMatches(String(cp.sourceText||''),String(item.text||'').trim()).ranges.length;
+        row.style.borderLeft='4px solid '+(ids.length?'var(--accent)':basic?'var(--slate)':'var(--brick)');
+        row.style.paddingLeft='6px';
+        row.dataset.untagged=(!ids.length&&!basic)?'1':'';row.dataset.nomatch=noMatch?'1':'';
+        cardRows.push(row);
         const label=document.createElement('button');
         label.type='button';
         label.className='btn btn-outline';
         label.style.textAlign='left';
         label.style.whiteSpace='normal';
         label.textContent='['+tags+'] '+String(item.text||'（本文なし）');
-        label.title='クリックして元の文章内の一致箇所を探します';
+        label.title=noMatch?'元の文章と完全一致しません（言い換え・分割の可能性）。クリックして近い箇所を探します':'クリックして元の文章内の一致箇所を探します';
         label.dataset.cardText=String(item.text||'');
         label.dataset.cardId=String(item.id);
         label.addEventListener('click',()=>{
@@ -1388,6 +1423,7 @@
         row.append(label);
         cardsOutput.append(row);
       }
+      applyCardFilter();
     }
     sourceOutput.addEventListener('mouseup',()=>{
       if(!ensureCurrentSourceReview())return;

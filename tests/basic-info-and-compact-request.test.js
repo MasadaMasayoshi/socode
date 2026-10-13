@@ -31,3 +31,15 @@ test('Review request omits routine heading exclusions and boilerplate, and keeps
   assert.ok(!/カードの内容: 事例紹介|カードの内容: 《術前検査結果》/.test(out));
   assert.ok(!out.includes('タグ未設定のカード 3件'));
 });
+
+test('A past condition treated within the same operation is treated by its own procedure', () => {
+  const text = '【診断】胃がん\n予定術式：腹腔鏡下胃全摘術(R-Y再建)+胆嚢摘出術+リンパ節郭清\n【既往歴】53歳の時に胆嚢結石を指摘され、症状はなく経過観察中。\n';
+  const items = app.classifyTextByRules(text).map((i, k) => ({ ...i, id: `i${k}` }));
+  const map = app.buildRelationMapFromRecord({ id: 'p', title: 't', sourceText: text, items, carePlans: {}, selectedDiagnosisIds: [], diagnosisCandidates: [] });
+  const byId = new Map(map.nodes.map(n => [n.id, n]));
+  const history = map.nodes.find(n => /胆嚢結石/.test(n.label));
+  const proc = map.nodes.find(n => n.type === 'treatment' && /^胆嚢摘出術$/.test(n.label));
+  assert.ok(history && proc);
+  assert.ok(map.edges.some(e => e.source === proc.id && e.target === history.id && e.relation === 'treats'));
+  assert.ok(!map.edges.some(e => e.source === history.id && byId.get(e.target).type === 'treatment'));
+});

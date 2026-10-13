@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.43'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.44'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -1676,7 +1676,18 @@
         const organs = [...new Set((String(surgeryItem.text).match(/胆嚢|胆囊|胃|肺|膵|肝|腎|膀胱|子宮|卵巣|前立腺|大腿骨/g) || []))];
         clinicalRecords.filter(i => /既往歴/.test(`${i.fieldLabel || ''}${i.text}`) && organs.some(organ => i.text.includes(organ))).forEach((it, index) => {
           const history = N(`treatment_history_${index}`, 'patient_fact', `既往歴：${rmShorten(it.text, 84)}`, { items: [it], evidence: it.text, max: 90, distinctEvidence: true });
-          E(history, surgery, 'related_to', { evidence: '原文の既往歴と今回の治療部位が共通する記録。治療の選択理由や発症原因とは断定しない' });
+          // The past condition is treated by its own procedure within the same operation:
+          // procedure --treats--> condition, like surgery --treats--> disease.
+          const organ = organs.find(g => it.text.includes(g));
+          const proc = (String(surgeryItem.text).match(new RegExp(`${organ}[^+＋・、。\\s)）]{0,4}?(?:摘出|切除|全摘|部分切除|切開)術?`)) || [])[0];
+          if (proc) {
+            const procLabel = /術$/.test(proc) ? proc.replace(/^胆囊/, '胆嚢') : `${proc.replace(/^胆囊/, '胆嚢')}術`;
+            const own = N(`treatment_proc_${index}`, 'treatment', procLabel, { evidence: surgeryItem.text, max: 40 });
+            E(own, history, 'treats', { evidence: '原文の既往歴に対して、今回の手術で同時に行った処置' });
+            E(surgery, own, 'related_to', { evidence: '同じ手術の中で行った処置（別の臓器の既往に対する処置）' });
+          } else {
+            E(history, surgery, 'related_to', { evidence: '原文の既往歴と今回の治療部位が共通する記録。治療の選択理由や発症原因とは断定しない' });
+          }
         });
       }
       if (disease && /胃がん|胃癌/.test(dxLabel0)) recordedPathology.forEach((h, index) => {
@@ -2608,6 +2619,8 @@
           if (keepIds.has(e.target) && !keepIds.has(e.source) && !uniqNodes.find(n => n.id === e.source && n.type === 'nursing_problem')) { keepIds.add(e.source); grew = true; }
 
           if (e.relation === 'treats' && keepIds.has(e.source) && !keepIds.has(e.target)) { keepIds.add(e.target); grew = true; }
+          // A procedure performed within a kept operation, and the condition it treats, stay on the map.
+          if (e.relation === 'related_to' && keepIds.has(e.source) && !keepIds.has(e.target) && uniqNodes.some(n => n.id === e.source && n.type === 'treatment') && uniqNodes.some(n => n.id === e.target && n.type === 'treatment')) { keepIds.add(e.target); grew = true; }
         });
       }
 
@@ -3354,7 +3367,7 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
       map.edges.forEach(e => {
         if (!incoming.has(e.target)) incoming.set(e.target, []);
         incoming.get(e.target).push(e.source);
-        if (e.relation === 'treats' && ['disease', 'symptom', 'pathophysiology'].includes(nodes.get(e.target)?.type)) {
+        if (e.relation === 'treats' && ['disease', 'symptom', 'pathophysiology', 'patient_fact'].includes(nodes.get(e.target)?.type)) {
           if (!indications.has(e.source)) indications.set(e.source, []);
           indications.get(e.source).push(e.target);
         }
@@ -3367,6 +3380,12 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
           if (!node || keep.has(source) || (node.type === 'nursing_problem' && !selected.has(source))) return;
           keep.add(source);
           stack.push(source);
+        });
+        // Other procedures of the same operation, and the conditions they treat, stay with it.
+        if (nodes.get(id)?.type === 'treatment') map.edges.forEach(e => {
+          const t = nodes.get(e.target);
+          if (e.source === id && e.relation === 'related_to' && t?.type === 'treatment' && !keep.has(t.id)) { keep.add(t.id); stack.push(t.id); }
+          if (e.source === id && e.relation === 'treats' && t?.type === 'patient_fact' && !keep.has(t.id)) keep.add(t.id);
         });
       }
       const sub = JSON.parse(JSON.stringify({ ...map, nodes: map.nodes.filter(n => keep.has(n.id)), edges: map.edges.filter(e => keep.has(e.source) && keep.has(e.target)) }));

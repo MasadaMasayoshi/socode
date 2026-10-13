@@ -1411,3 +1411,6 @@ html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow-sel path { fill: #F59E6
 #modal-mobile-export { position: fixed; inset: 0; z-index: 75; background: rgba(0,0,0,.4); align-items: center; justify-content: center; padding: 16px; }
 #modal-mobile-export .modal-surface { max-height: 90dvh; overflow-y: auto; }
 #mobile-export-title { overflow-wrap: anywhere; }
+
+/* Active filter in the source-review window */
+.btn[aria-pressed="true"] { background: var(--accent); color: var(--on-fill, #fff); border-color: var(--accent); }
