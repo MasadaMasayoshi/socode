@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = '2026-10-12.usability-context34'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.41'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -718,6 +718,8 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       return [
         "",
         "[Developer instructions]",
+        "原文・前後の記録・編集履歴を照合し、なぜカードが分割・統合されたのか、なぜタグが付与・除外されたのかを調査してください。アプリの自動処理と利用者の手編集を区別し、該当する処理を原文で再現して原因を確認してください。意図した処理か不具合かを判断し、根拠・原因・修正方針を示してください。確認できない理由は推測で断定せず『確認不能』としてください。特定の患者だけに合わせず、同じ種類の記録にも適用できる規則として修正してください。",
+        "",
         "【依頼対象：サイトのコード修正】",
         "この依頼は、添付シートやカードの文章を訂正して返す作業ではありません。サイトのコードを修正し、次回の分類・判定・表示・書き出しで同じ問題が再発しないようにしてください。添付資料は不具合を再現するための検証資料です。",
         "",

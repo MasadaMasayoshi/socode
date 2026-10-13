@@ -15,6 +15,9 @@ const patient = () => ({ title: '架空患者', items: [
 ] });
 
 function assertCodeFixContract(out) {
+  const REQUIRED = '原文・前後の記録・編集履歴を照合し、なぜカードが分割・統合されたのか、なぜタグが付与・除外されたのかを調査してください。';
+  assert.equal(out.split(REQUIRED).length - 1, 1);
+  assert.match(out, /特定の患者だけに合わせず、同じ種類の記録にも適用できる規則として修正してください。/);
   assert.match(out, /文章を訂正して返す作業ではありません/);
   assert.match(out, /次回の分類・判定・表示・書き出し/);
   assert.match(out, /fix the actual extraction/);
