@@ -241,7 +241,7 @@ function commonChecks(map, label) {
   const probs = map.nodes.filter(n => n.type === 'nursing_problem');
   assert.ok(probs.length >= 4 && probs.length <= 10, `${label}：看護問題 ${probs.length}`);
 
-  const ids = new Set(); map.nodes.forEach(n => n.itemIds.forEach(id => { if ((n.type === 'symptom' || n.type === 'patient_fact') && !/不安の言動）$/.test(n.label)) { assert.ok(!ids.has(id), `${label}：同じカードが2つの四角に`); ids.add(id); } }));
+  const ids = new Set(); map.nodes.forEach(n => n.itemIds.forEach(id => { if ((n.type === 'symptom' || n.type === 'patient_fact') && !/^(?:家族)?S「/.test(n.label)) { assert.ok(!ids.has(id), `${label}：同じカードが2つの四角に`); ids.add(id); } }));
   map.edges.filter(e => e.relation === 'treats').forEach(e => assert.ok(['treatment', 'medication'].includes(map.nodes.find(n => n.id === e.source).type), '治療・薬剤から対象へ'));
   map.nodes.filter(n => n.type === 'future_risk').forEach(n => assert.equal(n.observed, false));
 }
@@ -443,8 +443,8 @@ test('長文事例A（COPD急性増悪・細菌性肺炎・78歳）：気道閉�
   assert.ok(['WBC', 'CRP'].every(k => find(map, new RegExp(k)).attachTo === find(map, /肺胞・気道の炎症/).id), '炎症の値は肺の炎症にくっつく');
   assert.ok(!map.nodes.some(n => /在宅酸素療法 安静時/.test(n.label) && n.type === 'symptom'), '既往の「安静時」を活動の制限にしない');
   assert.ok(linked(map, find(map, /呼吸に使うエネルギーの増加/), find(map, /^食事は息切れのため3割摂取/)));
-  const words = find(map, /不安の言動/);
-  assert.ok(/本人・家族/.test(words.label) && (words.label.match(/「/g) || []).length === (words.label.match(/」/g) || []).length, words.label);
+  const words = find(map, /^S「/);
+  assert.ok(/家族「/.test(words.label) && (words.label.match(/「/g) || []).length === (words.label.match(/」/g) || []).length, words.label);
 });
 
 test('長文事例B（S状結腸がん・腹腔鏡下手術・糖尿病）：術後イレウス・DVT（腹部の手術）・高血糖→感染・オピオイド', () => {

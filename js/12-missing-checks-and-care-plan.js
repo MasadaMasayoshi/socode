@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = '2026-10-12.usability-context34'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.43'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -355,7 +355,7 @@
     }
 
     function untaggedReviewItems(cp) {
-      return (cp.items || []).filter(i => i.type !== 'unnecessary' && !(i.hendersonIds || []).length);
+      return (cp.items || []).filter(i => i.type !== 'unnecessary' && !(i.hendersonIds || []).length && !(typeof isBasicInfoItem === 'function' && isBasicInfoItem(i)));
     }
     function untaggedReviewCounts(cp) {
       const c = { open: 0, done: 0, total: 0 };

@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.41'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.43'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -667,7 +667,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
           `分類: ${SELECTED_EXPORT_TYPE_LABELS[i.type] || i.type || '未分類'}`,
           `日時: ${i.timestamp || '日時不明'}`,
           i.fieldLabel ? `見出し: ${i.fieldLabel}` : null,
-          `タグ: ${tags || 'なし'}`
+          `タグ: ${tags || (typeof isBasicInfoItem === 'function' && isBasicInfoItem(i) ? '基礎情報（14項目外）' : 'なし')}`
         ].filter(Boolean).join(' ／ ');
         const excerpt = sourceExcerptForCard(sourceText, i.text, i);
         out += `\n■ ${idx + 1}件目\n`;
@@ -721,18 +721,15 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         "原文・前後の記録・編集履歴を照合し、なぜカードが分割・統合されたのか、なぜタグが付与・除外されたのかを調査してください。アプリの自動処理と利用者の手編集を区別し、該当する処理を原文で再現して原因を確認してください。意図した処理か不具合かを判断し、根拠・原因・修正方針を示してください。確認できない理由は推測で断定せず『確認不能』としてください。特定の患者だけに合わせず、同じ種類の記録にも適用できる規則として修正してください。",
         "",
         "【依頼対象：サイトのコード修正】",
-        "この依頼は、添付シートやカードの文章を訂正して返す作業ではありません。サイトのコードを修正し、次回の分類・判定・表示・書き出しで同じ問題が再発しないようにしてください。添付資料は不具合を再現するための検証資料です。",
+        "この依頼は、添付シートやカードの文章を訂正して返す作業ではありません。サイトのコードを修正し、次回の分類・判定・表示・書き出しで同じ問題が再発しないようにしてください。添付資料は再現用の検証資料です。",
         "",
-        "1. Reproduce: compare source, surrounding records, saved cards and edit history. Separate automatic processing from manual edits. Trace splits/merges, tag additions/removals, dates, verdict/evidence contradictions and output defects to their responsible code. Explicit split/merge records show actions, not proof of their justification. Use source/result card IDs and preserved histories to trace changes. State 『理由未記録』 or 『確認不能』 when evidence is missing; never invent a cause or clinical fact.",
-        "2. Implement: fix the actual extraction (js/03), keyword/context classification (js/01, js/07), sufficiency assessment (js/11), export (js/06) and saved-data/learning paths responsible for the defect. Rewriting a sample report, prompt or one patient is not completion. Use only the attachment for case facts. Keep source/Japanese clinical text intact; classify Henderson needs by meaning, not S/O, and assess pre/post admission separately. Keep classification local; AI is OCR only.",
-        "3. Generalize: apply confirmed rules to similar records, including meaningful normal/negative findings, chronology and relevant context. Update 学習データ管理 → 分類基準 and the notebook in js/02 when classification criteria change; document conditions, positive examples and counterexamples, remove conflicting rules and advance the criteria version. Similarity alone is not evidence for a tag or causal link.",
-        "",
-        "【タグ未設定の追加調査】",
-        "タグ未設定のカードを、抽出・原文対応・S/O・ヘンダーソンの意味・入院前後と術前後の時期・否定や正常所見・前後の記録・本人と家族の区別・手編集と学習履歴の各視点から調査し、根拠が確認できた分類漏れをコードで修正してください。その後、添付資料全体から意味や場面が類似する情報と、既にタグがあっても別のタグを追加できる情報を収集してください。原文・時期・候補タグ・根拠・不足情報を示し、付与可能・タグ不要・確認待ちを区別し、確認した一般則を分類処理と分類基準に反映してください。",
-        "",
-        "4. Preserve: repair untouched automatic saved cards without replacing IDs, source text, S/O, assessments or care plans. Preserve manual edits, learned decisions and approved『タグ不要』/『理由を了承』decisions. An explicit correction request may challenge an exclusion: investigate and explain it, but do not silently overwrite the decision or restore every excluded card.",
-        "5. Verify: independently check fresh classification, existing saved data after reload and append classification with duplicate records. Also verify displayed judgments and exported text on the actual corrected code. Test the attached failure and positive/counterexamples; never derive expected answers from app output or hide failures/missing fixtures. Inspect stale saved results, learning and asset/cache versions rather than assuming new rules reached existing data. Record runtime/rule versions, saved prediction source and before/after behavior; mark unobserved causes 『確認不能』. Passing only new sample data is insufficient.",
-        "6. Finish: report changed code/files, reproduced cause, before/after behavior, tests and unresolved source ambiguities. Follow repository release conditions. If publication is requested or already authorized, push the tested commit to GitHub, merge/publish as authorized and verify the deployed code; report commit/PR/URL and actual deployment status. Do not claim completion from a rewritten document, local-only edits, an unpushed commit or an unverified deployment.",
+        "1. Reproduce: compare source, surrounding records, saved cards and edit history; separate automatic processing from manual edits; trace splits/merges, tag changes, dates and output defects to the responsible code. Explicit split/merge records show actions, not proof of their justification. Mark missing evidence 『理由未記録』/『確認不能』; never invent causes or clinical facts.",
+        "2. Implement: fix the actual extraction (js/03), classification (js/01, js/07), sufficiency (js/11), export (js/06) and saved-data/learning paths. Rewriting a sample report, prompt or one patient is not completion. Keep Japanese clinical text intact; classify Henderson needs by meaning, not S/O; assess pre/post admission separately; classification stays local (AI is OCR only).",
+        "3. Generalize: apply confirmed rules to similar records (including normal/negative findings and chronology). When criteria change, update 学習データ管理 → 分類基準 and the js/02 notebook with conditions, positive examples and counterexamples, remove conflicting rules and advance the criteria version.",
+        "【タグ未設定】抽出・原文対応・S/O・ヘンダーソンの意味・時期・否定や正常所見・前後の記録・本人と家族・手編集履歴の観点で調査し、根拠が確認できた分類漏れをコードで修正してください。付与可能・タグ不要・確認待ちを区別し、一般則を分類処理と分類基準に反映してください。",
+        "4. Preserve: repair untouched automatic saved cards without replacing IDs, source text, S/O, assessments or care plans. Preserve manual edits, learned decisions and approved『タグ不要』/『理由を了承』decisions; a correction request may challenge them, but never overwrite silently.",
+        "5. Verify: test fresh classification, existing saved data after reload and append classification with duplicate records, plus displayed judgments and exported text, on the actual corrected code. Use the attached failure and positive/counterexamples; never derive expected answers from app output or hide failures. Check stale saved results, learning and asset/cache versions.",
+        "6. Finish: report changed files, cause, before/after behavior, tests and unresolved ambiguities. If publication is authorized, push the tested commit to GitHub and verify the deployed code; do not claim completion from local-only edits or unverified deployment.",
         ""
       ].join('\n');
     }
@@ -903,9 +900,23 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     function isEditedCard(i) {
       return Array.isArray(i.editLog) && i.editLog.some(e => e && e.kind !== 'create');
     }
+    // Drops boilerplate that repeats on every card so the request stays short.
+    function compactReviewCardBlock(block) {
+      const lines = String(block).split('\n');
+      const text = (lines.find(l => l.startsWith('カードの内容: ')) || '').slice('カードの内容: '.length);
+      return lines.filter(l => {
+        if (l.startsWith('書き換えの判定方法: ') || l === '手で編集した履歴: なし' || l === 'アプリによる書き換え: なし（元の文章のまま）') return false;
+        if (l.startsWith('元の文章: ') && l.slice('元の文章: '.length).replace(/\s+/g, '') === text.replace(/\s+/g, '')) return false;
+        return true;
+      }).map(l => {
+        if (!l.startsWith('アプリによる書き換え: ')) return l;
+        const parts = [...new Set(l.slice('アプリによる書き換え: '.length).split('、'))];
+        return `アプリによる書き換え: ${parts.join('、')}`;
+      }).join('\n');
+    }
     function reviewRequestTargets(cp) {
       const items = cp.items || [];
-      return items.filter(i => !i.deleted && (i.type === 'unnecessary' || i.correctionRequested || String(i.requestedCorrection || '').trim() || isEditedCard(i) || (typeof isUntaggedItem === 'function' && isUntaggedItem(i))));
+      return items.filter(i => !i.deleted && ((i.type === 'unnecessary' && (i.correctionRequested || !/^source\.(?:structure|date-heading|table-separator|course-staff)$/.test(i.ruleDecision?.ruleId || ''))) || i.correctionRequested || String(i.requestedCorrection || '').trim() || isEditedCard(i) || (typeof isUntaggedItem === 'function' && isUntaggedItem(i))));
     }
     function describeEditHistoryForRequest(i) {
       const log = Array.isArray(i.editLog) ? i.editLog.filter(e => e && e.kind !== 'create') : [];
@@ -934,9 +945,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       out += `出力日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
       out += `分類プログラム版: ${window.APP_FILE_VERSIONS?.['07'] || '確認不能'}／分類基準版: ${NOTEBOOK_CONTENT_VERSION_MARK}\n`;
       out += correctionRequestInstructionsText();
-      out += '【依頼の要点】\nタグ未設定のカードは、本文だけで判断せず、添付した原文全体と同じ場面の前後を読み直してください。影響先が確認できるものは根拠を示してタグを付けるルールに修正してください。昨日と本日、安静時と動作時を区別し、根拠が不足するものは必要な確認事項を示してください。今回の変更を分類基準にも反映してください。\n';
-      out += '不必要に分類されたカードも調査対象です。除外した理由と処理ルール・手編集を確認し、妥当なら根拠を示し、誤りなら分類処理と分類基準を修正してください。理由の記録がなければ「理由未記録」と明示してください。\n';
-      out += 'Edited/untagged cards are review targets, not proof of bugs. Untagged may mean intentional exclusion, insufficient evidence or a rule gap.\n';
+      out += '【対象】タグ未設定・不必要・手編集のカード。誤りの証拠ではなく調査対象です。原文全体と同じ場面の前後を読み、安静時と動作時・昨日と本日を区別し、根拠があるものは分類ルールと分類基準を修正、不足は必要な確認事項を示してください。理由の記録がなければ「理由未記録」と明記します。除外は妥当なら根拠を示し、誤りなら分類処理と分類基準を修正してください。\n';
       const originalItems = sourceText && sourceText.trim() && typeof classifyTextByRules === 'function' ? classifyTextByRules(sourceText) : [];
       items.forEach((i, idx) => {
         const edited = isEditedCard(i), untagged = typeof isUntaggedItem === 'function' && isUntaggedItem(i);
@@ -985,7 +994,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         }
         const block = buildCardsReportText(cp, [i], sourceText, '', false);
         const at = block.indexOf('\n■ ');
-        out += (at >= 0 ? block.slice(at).replace(/^\n■ [^\n]*\n/, '').replace(`修正してほしい内容: ${i.requestedCorrection || (i.correctionRequested ? '原文・前後の記録と分類結果を照合し、このカードを調査してください。' : '')}\n`, `修正してほしい内容: ${request}${i.requestedCorrection ? '\n追加の修正依頼（利用者）: ' + i.requestedCorrection : ''}\n`) : '');
+        out += compactReviewCardBlock(at >= 0 ? block.slice(at).replace(/^\n■ [^\n]*\n/, '').replace(`修正してほしい内容: ${i.requestedCorrection || (i.correctionRequested ? '原文・前後の記録と分類結果を照合し、このカードを調査してください。' : '')}\n`, `修正してほしい内容: ${request}${i.requestedCorrection ? '\n追加の修正依頼（利用者）: ' + i.requestedCorrection : ''}\n`) : '');
       });
       if (includeSourceText) {
         out += `\n【分類前の文章（カルテ・看護記録入力欄）】\n`;

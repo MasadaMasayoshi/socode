@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.42'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.43'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -1577,7 +1577,7 @@
       const recordedPathology = [];
       const tumorRecords = disease ? backgroundRecords.filter(i => patientHistory(i) && rmPositiveMatch(/腫瘍|腫瘤|病変|がん|癌/, String(i.text).replace(/^[^:：\n]{1,18}[:：]\s*/, '')) && tumorSizeRe.test(String(i.text).normalize('NFKC'))) : [];
       if (disease) {
-        const historyRecords = backgroundRecords.filter(i => i !== dxHost && patientHistory(i) && !/[「」]/.test(i.text) && (/現病歴|メディカルヒストリー|病理結果|病理所見|病期|進行度/.test(`${i.fieldLabel || ''}${i.text}`) || /健診|検診|精査|生検|内視鏡|受診/.test(i.text)));
+        const historyRecords = backgroundRecords.filter(i => i !== dxHost && patientHistory(i) && !/[「」]/.test(i.text) && (/現病歴|メディカルヒストリー|病理結果|病理所見|病期|進行度/.test(`${i.fieldLabel || ''}${i.text}`) || /健診|検診|精査|生検|内視鏡/.test(i.text) || (/受診/.test(i.text) && !/帰室|帰棟|麻酔科|術前訪問/.test(i.text))));
         const details = [...new Set([...tumorRecords, ...historyRecords])];
         const diagnosticHistory = [];
         details.forEach(it => {
@@ -2402,15 +2402,21 @@
 
         const complicationFear = i => /麻酔科/.test(i.text) && /説明/.test(i.text) && /手術/.test(i.text) && /合併症/.test(i.text) && /怖/.test(i.text);
         const quote = i => {
-          if (complicationFear(i)) return '麻酔科で手術の合併症の説明を受け、怖いと話す';
           const quotes = [...String(i.text).matchAll(/「([^」]+)」/g)];
           const q = (quotes.find(m => /不安|心配|迷惑|怖|どうなる|どうしよう|歩ける|やっていけ/.test(m[1])) || quotes[0])?.[1] || String(i.text).replace(/[「」]/g, '');
           return `「${rmShorten(q, 90)}」`;
         };
         const mixed = !familyOnly && anxItems.some(i => rmIsFamilySpeech(i.text));
-        const words = N('anx_words', 'patient_fact', `${anxItems.map(i => (rmIsFamilySpeech(i.text) && mixed ? '家族' : '') + quote(i)).join('')}（${familyOnly ? '家族の' : mixed ? '本人・家族の' : ''}不安の言動）`, { items: anxItems, max: 180, evidence: anxItems.map(i => `[${i.timestamp || '日時不明'}] ${i.text}`).join('\n\n') });
+        const words = N('anx_words', 'patient_fact', `S${anxItems.map(i => (rmIsFamilySpeech(i.text) && mixed ? '家族' : '') + quote(i)).join('')}`, { items: anxItems, max: 180, evidence: anxItems.map(i => `[${i.timestamp || '日時不明'}] ${i.text}`).join('\n\n') });
         if (anxItems.every(complicationFear)) {
-          E(words, N('p_anx', 'nursing_problem', familyOnly ? '家族の不安（手術の合併症に関連）' : '不安（手術の合併症に関連）', { cat: 'anx', note: '説明を受けた手術の合併症について不安を話している' }), 'supports', { evidence: words.evidence, noBridge: true });
+          // The statement follows a cause path (planned surgery -> explained complication risk), as in textbook maps,
+          // instead of linking straight to the nursing problem.
+          if (surgery) {
+            const risk = N('surg_risk', 'pathophysiology', '手術に伴う合併症の可能性（術前に説明を受けた）', { source: 'knowledge' });
+            E(surgery, risk, 'contributes_to', { evidence: '術前の説明（麻酔科）' });
+            E(risk, words, 'contributes_to', { evidence: words.evidence });
+          }
+          E(words, N('p_anx', 'nursing_problem', familyOnly ? '家族の不安（手術の合併症に関連）' : '不安（手術の合併症に関連）', { cat: 'anx' }), 'supports', { evidence: words.evidence, noBridge: true });
         } else {
           const change = N('life_change', 'pathophysiology', `${disease ? '診断・' : ''}${surgery ? '手術・' : ''}入院・今後の生活の変化`, { source: 'knowledge' });
           E(words, change, 'contributes_to', { evidence: '本人の言葉' });

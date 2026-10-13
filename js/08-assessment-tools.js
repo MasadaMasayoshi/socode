@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = '2026-10-12.usability-context31'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.43'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -568,7 +568,18 @@
     }
 
     function isUntaggedItem(item) {
-      return item.type !== 'unnecessary' && (!item.hendersonIds || item.hendersonIds.length === 0) && !item.tagNotNeeded && !isOtherBasicInfoItem(item);
+      return item.type !== 'unnecessary' && (!item.hendersonIds || item.hendersonIds.length === 0) && !item.tagNotNeeded && !isOtherBasicInfoItem(item) && !isBasicInfoItem(item);
+    }
+
+    // Basic patient information (identity, history, blood type) is not a Henderson need;
+    // it gets the 基礎情報 tag instead of the missing-tag warning.
+    const BASIC_INFO_FIELD_LABELS = new Set(['氏名', '性別', '年齢', '身長・体重', '保険', '診断', '診断名', '病名', '既往歴', '家族歴', 'ファミリーヒストリー', '家族構成', '学歴', '職業', '入院日', '血液型']);
+    const BASIC_INFO_TEXT_REGEX = /^[【\[]?血液型[】\]]?\s*[A-ZＡ-Ｚ]{1,2}\s*型?$/;
+    function isBasicInfoItem(item) {
+      if (!item || item.type === 'unnecessary' || (item.hendersonIds && item.hendersonIds.length)) return false;
+      if (item.fieldLabel && BASIC_INFO_FIELD_LABELS.has(item.fieldLabel)) return true;
+      const text = String(item.text || '').normalize('NFKC').trim();
+      return BASIC_INFO_TEXT_REGEX.test(text) || (typeof isPatientIdentityLine === 'function' && isPatientIdentityLine(text));
     }
 
     function isOtherBasicInfoItem(item) {

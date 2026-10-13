@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = '2026-10-12.usability-context28'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.43'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -231,7 +231,8 @@
       const untaggedWarningHtml = isUntagged ? `<span class="field-chip" style="background:var(--brick);color:var(--on-fill);cursor:help;" title="${escapeHtml(untaggedReasonOf(item))}"><i class="fa-solid fa-triangle-exclamation mr-0.5"></i>タグ未設定 <i class="fa-regular fa-circle-question ml-0.5"></i></span>` : '';
 
       const familyChipHtml = isFamilySpeech(item.text) ? '<span class="field-chip" style="background:var(--gold-soft);color:var(--gold);" title="家族の発言です（本人の発言ではありません）"><i class="fa-solid fa-people-roof mr-0.5"></i>家族</span>' : '';
-      const patientBackgroundHtml = familyChipHtml + (isOtherBasicInfoItem(item) ? `<span class="field-chip" style="background:var(--slate-soft);color:var(--slate);cursor:help;" title="ヘンダーソンの14項目に直接の項目が無い基本情報です（タグ未設定の警告にはしません）。どの項目に入れるか決めたい場合は、学習データ管理の「追加キーワード」で登録するか、下の「＋タグ追加」で選べます。"><i class="fa-solid fa-id-card mr-0.5"></i>基本情報（14項目外）</span>` : '');
+      const basicInfoChipHtml = isBasicInfoItem(item) ? '<span class="field-chip" style="background:var(--slate-soft);color:var(--slate);" title="患者の基礎情報です。ヘンダーソンの14項目には入れず、タグ未設定の警告にもしません。"><i class="fa-solid fa-id-card mr-0.5"></i>基礎情報</span>' : '';
+      const patientBackgroundHtml = familyChipHtml + basicInfoChipHtml + (isOtherBasicInfoItem(item) ? `<span class="field-chip" style="background:var(--slate-soft);color:var(--slate);cursor:help;" title="ヘンダーソンの14項目に直接の項目が無い基本情報です（タグ未設定の警告にはしません）。どの項目に入れるか決めたい場合は、学習データ管理の「追加キーワード」で登録するか、下の「＋タグ追加」で選べます。"><i class="fa-solid fa-id-card mr-0.5"></i>基本情報（14項目外）</span>` : '');
 
       const fieldDef = item.fieldLabel ? FIELD_LABELS.find(f => f.key === item.fieldLabel) : null;
       const fieldChipHtml = fieldDef ? `<span class="field-chip" style="background:${fieldDef.bg};color:${fieldDef.color};"><i class="fa-solid ${fieldDef.icon} mr-0.5"></i>${escapeHtml(fieldDef.label)}</span>` : '';

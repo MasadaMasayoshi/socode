@@ -1,7 +1,7 @@
 // Startup, references and image OCR. Validate image MIME/size; capture patient before async prompts.
 // Reference notes are not automatic classification rules; file versions detect mixed/reverted assets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = '2026-10-12.usability-context34'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = 'v.43'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -618,7 +618,7 @@ if (typeof module !== 'undefined' && module.exports) {
     PATIENT_BACKGROUND_BASIC_FIELD_LABELS,
     classifyPatientBackground,
     evaluateLabFindings, analyzeLabCard, analyzeLabData, buildLabAssessment, isLabTextUnreliable, buildLabTrendTable, computeClinicalIndices, extractSmoking, extractClinicalBasics, parseLabTrendEntries, parseLabReferenceRange, labTrendTableToTsv,
-    isUntaggedItem, isOtherBasicInfoItem, isFamilySpeech, mergeLearningDicts, filterAndSortLearningEntries, formatHistoryDetail,
+    isUntaggedItem, isOtherBasicInfoItem, isBasicInfoItem, isFamilySpeech, mergeLearningDicts, filterAndSortLearningEntries, formatHistoryDetail,
     detectAdmissionPhaseSignal,
     inferAssessmentColumn,
     FIELD_LABEL_DEFAULT_TAGS,
