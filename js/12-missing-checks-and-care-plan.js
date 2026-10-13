@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.43'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.48'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -712,6 +712,7 @@
           <div class="cp-row"><span class="my-asm-label"><i class="fa-solid fa-table-cells"></i> 関係する項目</span><div class="cp-need-btns">${needBtns}</div></div>
           <div class="cp-grid2">${field('goalLong', '<i class="fa-solid fa-flag-checkered"></i> 長期目標', 2, '例：退院までに歩行器で病棟内を自立して移動できる')}${field('goalShort', '<i class="fa-solid fa-flag"></i> 短期目標', 2, '例：3日後までに、痛みがNRS3以下でリハビリに参加できる')}</div>
           <div class="cp-grid3">${CARE_PLAN_SECTIONS.map(s => field(s.key, `<i class="fa-solid fa-list-ol"></i> ${s.label}`, 5, s.placeholder)).join('')}</div>
+          ${carePlanInlineNotesHtml(cp, p)}
           <div class="cp-actions">
             <label class="cp-status-select"><span class="my-asm-label">状態</span><select class="field" onchange="setCarePlanStatus('${pid}', this.value)">${CARE_PLAN_STATUSES.map(s => `<option value="${s.key}"${p.status === s.key ? ' selected' : ''}>${s.label}</option>`).join('')}</select></label>
             <button type="button" class="btn btn-outline my-asm-btn${carePlanReviewOpen.has(p.id) ? ' active' : ''}" onclick="toggleCarePlanReview('${pid}')" aria-expanded="${carePlanReviewOpen.has(p.id)}" title="目標・OP/TP/EPを7つの項目で確かめます"><i class="fa-solid fa-clipboard-list"></i> 計画をチェック</button>
@@ -1338,6 +1339,8 @@
       const goalExample = dom && dom.goal ? dom.goal(ctx) : '';
       const goalMsgs = [...gc.msgs];
       if (!String(p.goalLong || '').trim()) goalMsgs.push('長期目標が空欄です。退院時・退院後にどうなっていてほしいか（期限つき）を書き、短期目標はそこへ向かう途中の段階にします');
+      const inline = carePlanInlineNotes(cp, p);
+      goalMsgs.push(...inline.goal);
       push('goal', goalMsgs, { goal: gc, example: goalMsgs.length ? goalExample : '' });
 
       const opMsgs = [], add = [];
@@ -1348,6 +1351,7 @@
       }
       const vagueVital = p.op.filter(l => /^(?:バイタル(?:サイン)?(?:を|の)?(?:観察|測定|確認)(?:する)?|全身状態(?:を|の)?観察(?:する)?)$/.test(String(l).normalize('NFKC').replace(/[。\s]/g, '')));
       if (vagueVital.length) opMsgs.push(`「${vagueVital[0]}」だけでは、何を何のために見るのかがわかりません。見る値と、どうなったら報告するか（例：体温38℃以上・SpO2 93%以下で報告）を書いてみましょう`);
+      opMsgs.push(...inline.op);
       push('op', opMsgs, { add });
 
       const tpMsgs = [];
@@ -1382,9 +1386,49 @@
 
         const goalNrs = [...String(goal || '').normalize('NFKC').matchAll(/NRS\s*(\d+)/g)].map(m => Number(m[1])).pop();
         if (dom && dom.key === 'pain' && ctx.nrs != null && goalNrs != null && goalNrs >= ctx.nrs) evMsgs.push(`目標のNRSが、今の記録（NRS${ctx.nrs}）より下がっていません`);
+        evMsgs.push(...inline.evidence);
         push('evidence', evMsgs, { evidence });
       }
       return { domain: dom ? dom.key : null, items: out, goalExample, evidence, model: cpModelFor(p, ctx) };
+    }
+    // Review notes shown next to the plan text (never rewrites the user's wording).
+    function carePlanInlineNotes(cp, plan) {
+      const p = normalizeCarePlan({ ...plan });
+      const t = cpEvidenceTexts(cp);
+      const norm = a => (a || []).map(x => cpNorm(x));
+      const out = { goal: [], op: [], evidence: [] };
+      const evLines = norm(p.evidence);
+      const planLines = [...norm(p.op), ...norm(p.tp), ...norm(p.ep)];
+      const dom = cpDomainOf(p);
+      const key = dom ? dom.key : '';
+      if (key === 'inf') {
+        const bad = [...evLines, ...planLines].filter(l => /(?:血管内|ライン|ルート|点滴|硬膜外)[^\n]{0,24}(?:HCV|HBV|抗体|梅毒|感染症)|(?:HCV|HBV|抗体|梅毒)[^\n]{0,24}(?:血管内|ライン|ルート)/.test(l));
+        if (bad.length) out.evidence.push(`「${bad[0].slice(0, 36)}」：感染症検査（HCV・HBVなど）の結果は、ラインの感染リスクの根拠ではありません。A・Vライン、末梢静脈ライン、硬膜外チューブ、膀胱留置カテーテルなど、実際の挿入物の記録に置き換えてください`);
+        const wc = planLines.filter(l => /WBC|白血球|CRP/.test(l));
+        if (wc.length > 1) out.op.push('WBC・CRPの観察が複数の項目に分かれています。1つのOPにまとめられます');
+      }
+      if (key === 'act') {
+        const bad = [...evLines, ...planLines].filter(l => /短時間で済ませる|外食|朝食|昼食|夕食|食事/.test(l) && !/ADL|歩行|移動|離床|活動|体動|テニス|自立/.test(l));
+        if (bad.length) out.evidence.push(`「${bad[0].slice(0, 36)}」は食事の記録で、ADL・活動の根拠ではありません。術前の「ADLすべて自立」「週末にテニス」と、術後の「自主的な体動なし」などを比べて使ってください`);
+      }
+      if (/胃管/.test(planLines.join('\n')) && /胃管[^\n]{0,24}抜去|抜去[^\n]{0,12}胃管/.test(t.all)) out.op.push('記録では胃管は退室時に抜去されています。胃管排液の観察が、いまの計画に残っていないか確認してください');
+      if (/予定術式/.test(evLines.join('\n')) && /実施|腹腔鏡下[^\n]{0,30}実施|術式名/.test(t.all)) out.evidence.push('「予定術式」より、手術当日の実施術式（術式名）を優先して根拠にしてください');
+      const goals = [p.goalShort, p.goalLong].filter(Boolean).map(cpNorm);
+      goals.forEach(g => {
+        if (/SpO2\s*\d{2}\s*%/i.test(g) && !/酸素|室内気|RA|L\s*\/\s*分|経鼻/.test(g)) out.goal.push('SpO2の目標に、酸素の投与条件（酸素○L/分で、または室内気で）が書かれていません。酸素投与中の値と室内気の値は分けて評価します');
+        if (/(?:異常|症状)[^。\n]{0,6}(?:時|とき)[^。\n]{0,10}(?:対応できる|対処できる|対応する)/.test(g)) out.goal.push('「異常時に対応できる」は援助する側の行動です。患者が症状を伝えられる・伝えた内容に看護師が対応する、の2つに分けて書いてください');
+        if (/\d+\s*日後/.test(g) && !/術後|入院|開始|から|起点/.test(g)) out.goal.push('「○日後」の起点（術後何日目から・計画開始日から）が書かれていません');
+        if (/必要量|見込み以上|十分/.test(g) && !/\d/.test(g)) out.goal.push('「必要量」「見込み以上」は判断の基準が曖昧です。数値の目標は医師・栄養士に確認して設定してください（資料にない数値は補いません）');
+        if (key === 'pain' && /NRS\s*[3-9]\s*以下/.test(g) && /NRS\s*[0-3]\b/.test(t.now) && !/安静時|体動時|動作時|起き上がり|深呼吸/.test(g)) out.goal.push('現在すでにNRSが低いため、「NRS以下」だけでは改善を捉えにくいです。安静時と体動時を分け、深呼吸・起き上がりなど実施したい動作ができたかも目標に入れてください');
+      });
+      return out;
+    }
+    function carePlanInlineNotesHtml(cp, p) {
+      let n;
+      try { n = carePlanInlineNotes(cp, p); } catch (e) { return ''; }
+      const block = (label, list) => list.length ? `<div class="cp-inline"><b>${label}</b><ul>${list.map(m => `<li>${escapeHtml(m)}</li>`).join('')}</ul></div>` : '';
+      const html = block('目標への見直し点', n.goal) + block('根拠への見直し点', n.evidence) + block('観察計画への見直し点', n.op);
+      return html ? `<div class="cp-inline-notes" role="note"><span class="my-asm-label"><i class="fa-solid fa-lightbulb"></i> 文章はそのままです。見直す点だけ添えています</span>${html}</div>` : '';
     }
     function cpReviewCount(review) { return review.items.filter(i => i.level === 'warn').length; }
 
@@ -2103,6 +2147,8 @@
         if (p.goalLong) lines.push(`長期目標：${p.goalLong}`);
         if (p.goalShort) lines.push(`短期目標：${p.goalShort}`);
         CARE_PLAN_SECTIONS.forEach(s => { if (p[s.key].length) lines.push(`${s.label}`, ...p[s.key].map((t, n) => `  ${s.short}${n + 1}. ${t}`)); });
+        const notes = (() => { try { const n = carePlanInlineNotes(cp, p); return [...n.goal, ...n.evidence, ...n.op]; } catch (e) { return []; } })();
+        if (notes.length) lines.push('見直し点（計画の文章は変更していません）', ...notes.map(m => `  ・${m}`));
         const recs = withRecords ? p.records.filter(r => !recordFilter || recordFilter(r)) : [];
         if (recs.length) {
           lines.push('実施・評価');
@@ -2173,7 +2219,7 @@ if (typeof module !== 'undefined' && module.exports) {
     inferUntaggedReason, untaggedContextEffects, untaggedTextKey, untaggedReviewOf, setUntaggedReview, applyUntaggedReviews, untaggedReviewItems, untaggedReviewCounts, untaggedSectionHtml,
     buildCarePlansPrintHtml, buildCarePlansText, buildCarePlansByRules, autoBuildCarePlans, carePlanList, deleteCarePlan,
     formatCardTimestamp, MISSING_CHECK_STATUSES, missingInfoItems, missingCheckStatus, missingCheckCounts, setMissingCheck, missingCheckCardHtml,
-    captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
+    carePlanInlineNotes, captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
     cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf,
     CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
