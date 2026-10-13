@@ -804,7 +804,9 @@
 
     .board-layout { display: flex; flex-direction: column; gap: .75rem; }
     .board-main { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
-    @media (max-width: 767px) { .board-main { grid-template-columns: 1fr; } }
+    .board-main.has-so { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    @media (max-width: 767px) { .board-main, .board-main.has-so { grid-template-columns: 1fr; } }
+    .so-empty-hint { padding: .75rem; font-size: 11px; color: var(--ink-muted); line-height: 1.6; }
     .board-col { height: min(76vh, 820px); min-height: 460px; }
     @media (max-width: 767px) { .board-col { height: auto; max-height: 75vh; } }
     .board-aux { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }

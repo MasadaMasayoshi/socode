@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.46'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.47'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -900,9 +900,15 @@
 
       Object.keys(columns).forEach(key => { const colEl = document.getElementById(`col-${key}`); if (colEl) colEl.replaceChildren(columns[key]); });
       const soWrap = document.getElementById('board-so-wrap');
-      if (soWrap && soWrap.classList) soWrap.classList.toggle('hidden', !(totalCounts.so || window.__soMixedShown));
+      const soShown = !!(window.__soMixedShown || (totalCounts.so && window.__soMixedShown !== false));
+      if (soWrap && soWrap.classList) {
+        soWrap.classList.toggle('hidden', !soShown);
+        if (soWrap.parentElement && soWrap.parentElement.classList) soWrap.parentElement.classList.toggle('has-so', soShown);
+      }
+      const soCol = document.getElementById('col-so');
+      if (soCol && soShown && !totalCounts.so) soCol.innerHTML = '<p class="so-empty-hint">S/O混在のカードはまだありません。カードの︙から「S/O混在にする」を選ぶか、ここへドラッグしてください。</p>';
       const soBtn = document.getElementById('btn-toggle-so-mixed');
-      if (soBtn && soBtn.setAttribute) soBtn.setAttribute('aria-pressed', String(!!(totalCounts.so || window.__soMixedShown)));
+      if (soBtn && soBtn.setAttribute) { soBtn.setAttribute('aria-pressed', String(soShown)); const lbl = soBtn.querySelector && soBtn.querySelector('span'); if (lbl) lbl.textContent = totalCounts.so ? `S/O混在（${totalCounts.so}）` : 'S/O混在'; }
       if (isCardOverviewOpen()) refreshCardOverview();
       ['unclassified', 's', 'o', 'so'].forEach(key => {
         const badgeEl = document.getElementById(`badge-count-${key}`); if (badgeEl) badgeEl.textContent = boardSearchTerm ? `${shownCounts[key]}/${totalCounts[key]}` : totalCounts[key];

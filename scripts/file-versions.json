@@ -28,12 +28,12 @@
     "hash": "6fa4a65a5d2de631"
   },
   "js/08-assessment-tools.js": {
-    "version": "v.46",
-    "hash": "07bb9865fb614001"
+    "version": "v.47",
+    "hash": "cdaa9b41013744ab"
   },
   "js/09-board.js": {
-    "version": "v.46",
-    "hash": "3d77604947dd151e"
+    "version": "v.47",
+    "hash": "e002eec729e63829"
   },
   "js/10-reference-page-and-startup.js": {
     "version": "v.43",
@@ -60,8 +60,8 @@
     "hash": "ff9bab764f38dae0"
   },
   "style.css": {
-    "version": "v.44",
-    "hash": "4d9afd4ccfc08a69"
+    "version": "v.47",
+    "hash": "9f39c7b15b92346a"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",

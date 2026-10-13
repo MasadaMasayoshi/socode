@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.46'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.47'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -976,6 +976,7 @@
       if (on) {
         if (item.type === 'unclassified') item.type = /「/.test(item.text) ? 's' : 'o';
         item.soMixed = true;
+        window.__soMixedShown = true;
       } else delete item.soMixed;
       item.predictionSource = 'confirmed';
       touchItem(item);
@@ -983,7 +984,9 @@
       showToast(on ? 'S/O混在のカードにしました' : 'S/O混在を解除しました', 'success');
     };
     window.toggleSoMixedColumn = function() {
-      window.__soMixedShown = !window.__soMixedShown;
+      const col = document.getElementById('board-so-wrap');
+      const shown = !!(col && col.classList && !col.classList.contains('hidden'));
+      window.__soMixedShown = !shown;
       renderSoBoard();
     };
     window.setItemType = function(id, type) {
