@@ -38,8 +38,10 @@ test('A past condition treated within the same operation is treated by its own p
   const map = app.buildRelationMapFromRecord({ id: 'p', title: 't', sourceText: text, items, carePlans: {}, selectedDiagnosisIds: [], diagnosisCandidates: [] });
   const byId = new Map(map.nodes.map(n => [n.id, n]));
   const history = map.nodes.find(n => /胆嚢結石/.test(n.label));
-  const proc = map.nodes.find(n => n.type === 'treatment' && /^胆嚢摘出術$/.test(n.label));
+  const proc = map.nodes.find(n => n.type === 'treatment' && /胆嚢摘出術$/.test(n.label));
   assert.ok(history && proc);
   assert.ok(map.edges.some(e => e.source === proc.id && e.target === history.id && e.relation === 'treats'));
   assert.ok(!map.edges.some(e => e.source === history.id && byId.get(e.target).type === 'treatment'));
+  // The procedure is split out of the combined operation box, not shown twice.
+  assert.equal(map.nodes.filter(n => /胆嚢摘出術/.test(n.label) && n.type === 'treatment').length, 1);
 });

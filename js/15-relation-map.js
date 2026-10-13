@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.44'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.45'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -1682,7 +1682,12 @@
           const proc = (String(surgeryItem.text).match(new RegExp(`${organ}[^+＋・、。\\s)）]{0,4}?(?:摘出|切除|全摘|部分切除|切開)術?`)) || [])[0];
           if (proc) {
             const procLabel = /術$/.test(proc) ? proc.replace(/^胆囊/, '胆嚢') : `${proc.replace(/^胆囊/, '胆嚢')}術`;
-            const own = N(`treatment_proc_${index}`, 'treatment', procLabel, { evidence: surgeryItem.text, max: 40 });
+            // The procedure was already part of the recorded operation: split it out of the combined
+            // operation box instead of showing it twice.
+            const lead = /^腹腔鏡下/.test(surgery.label) ? '腹腔鏡下' : '';
+            const stripped = surgery.label.replace(new RegExp(`\\s*[+＋・]\\s*${proc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`), '').replace(/^\s*[+＋・]\s*/, '');
+            if (stripped !== surgery.label && stripped.length >= 4) surgery.label = stripped;
+            const own = N(`treatment_proc_${index}`, 'treatment', `${lead}${procLabel}`, { items: [surgeryItem], evidence: surgeryItem.text, max: 40, distinctEvidence: true });
             E(own, history, 'treats', { evidence: '原文の既往歴に対して、今回の手術で同時に行った処置' });
             E(surgery, own, 'related_to', { evidence: '同じ手術の中で行った処置（別の臓器の既往に対する処置）' });
           } else {
