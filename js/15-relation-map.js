@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = '2026-10-12.usability-context28'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.42'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -723,9 +723,21 @@
           if (!moved) break;
         }
       }
-      lastRank = Math.max(0, ...hr.values()) + 1;
+      // A nursing problem sits one rank after its latest cause, as in textbook relation maps;
+      // it is not forced into a shared right-hand column.
+      const probRank = new Map();
+      const rankOfNode = id => (probIds.has(id) ? probRank.get(id) : hr.get(head.get(id))) ?? 0;
+      for (let pass = 0; pass < 6; pass++) {
+        let changed = false;
+        probIds.forEach(id => {
+          const r = Math.max(1, ...(inn.get(id) || []).filter(q => q !== id).map(q => rankOfNode(q) + 1));
+          if (probRank.get(id) !== r) { probRank.set(id, r); changed = true; }
+        });
+        if (!changed) break;
+      }
+      lastRank = Math.max(0, ...hr.values(), ...probRank.values());
 
-      ids.forEach(id => rank.set(id, probIds.has(id) ? lastRank : hr.get(head.get(id))));
+      ids.forEach(id => rank.set(id, probIds.has(id) ? probRank.get(id) : hr.get(head.get(id))));
       const stackW = h => Math.max(...members.get(h).map(m => rmNodeSize(byId.get(m)).w));
       const stackH = h => members.get(h).reduce((sum, m) => sum + blockH(byId.get(m)), 0) + (members.get(h).length - 1) * RM_STACK_GAP;
       const cols = [];

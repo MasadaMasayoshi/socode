@@ -121,19 +121,18 @@ test('関連図：術後のWBC・CRPは感染と断定せず、手術侵襲に�
   assert.ok(!map.nodes.some(n => n.observed !== false && /^(?:創部感染|感染症)$/.test(n.label)));
 });
 
-test('関連図：看護問題は右端・#の優先順位の順に上から並び、すべてに根拠の道筋がある。浮島は無い', () => {
+test('関連図：看護問題は原因の右に置き（右端の列に固定しない）・#の優先順位の番号を持ち、すべてに根拠の道筋がある。浮島は無い', () => {
   const map = app.buildRelationMapFromRecord(patientOf(GASTRIC));
   const probs = map.nodes.filter(n => n.type === 'nursing_problem').sort((a, b) => a.priority - b.priority);
   assert.deepEqual(plain(probs.map(p => p.priority)), plain(probs.map((p, i) => i + 1)));
   assert.ok(probs.length >= 5, probs.map(p => p.label).join(' / '));
   assert.deepEqual(plain(probs.map(p => app.rmProblemCategory(p.label).key)), ['resp', 'resp', 'inf', 'pain', 'nutr', 'act', 'elim', 'anx']);
 
-  const maxX = Math.max(...map.nodes.filter(n => n.type !== 'nursing_problem' && !n.attachTo).map(n => n.x));
-  probs.forEach(p => assert.ok(p.x > maxX, '看護問題は右端'));
-  assert.equal(new Set(probs.map(p => p.x)).size, 1, '看護問題は1つの列にそろえる');
-
-  const byY = probs.slice().sort((a, b) => a.y - b.y);
-  for (let i = 1; i < byY.length; i++) assert.ok(byY[i].y >= byY[i - 1].y + app.rmRect(byY[i - 1]).h, '看護問題が重ならない');
+  // Problems follow their causes (textbook layout); they are not pinned to one right-hand column.
+  const nodeById = new Map(map.nodes.map(n => [n.id, n]));
+  probs.forEach(p => map.edges.filter(e => e.target === p.id).forEach(e => assert.ok(nodeById.get(e.source).x < p.x || nodeById.get(e.source).attachTo, `原因は看護問題より左: ${p.label}`)));
+  const rects = map.nodes.filter(n => !n.attachTo).map(n => ({ n, r: app.rmRect(n) }));
+  probs.forEach(p => rects.filter(o => o.n !== p).forEach(o => { const q = app.rmRect(p); assert.ok(p.x + q.w <= o.n.x || o.n.x + o.r.w <= p.x || p.y + q.h <= o.n.y || o.n.y + o.r.h <= p.y, `重ならない: ${p.label}`); }));
   const issues = app.validateRelationMap(map);
   assert.deepEqual(plain(issues.filter(i => i.level === 'error')), []);
   map.nodes.forEach(n => assert.ok(map.edges.some(e => e.source === n.id || e.target === n.id), `浮島：${n.label}`));
