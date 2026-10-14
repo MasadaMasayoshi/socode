@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.47'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.59'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -248,7 +248,7 @@
             <label class="card-select-wrap" title="選択（複数選択の追加/解除。タップ操作のみで複数選択できます）">
               <input type="checkbox" class="card-select-checkbox" onchange="setCardSelected(${jsArg(item.id)}, this.checked)" ${isSelected ? 'checked' : ''}>
             </label>
-            ${untaggedWarningHtml}${patientBackgroundHtml}${item.soMixed ? '<span class="field-chip" style="background:var(--gold-soft);color:var(--ink);" title="同じ場面の発言と観察をまとめたカード">S/O混在</span>' : ''}${fieldChipHtml}${timeChipHtml}${sceneChipHtml}${drugChipHtml(item)}${confidenceBadgeHtml}
+            ${untaggedWarningHtml}${patientBackgroundHtml}${item.diseaseGeneral ? '<span class="field-chip" style="background:var(--slate-soft);color:var(--slate);cursor:help;" title="疾患の一般的な症状の列挙です。内容でタグは付けますが、この患者の所見とは確認できないため、充足判定・看護計画・診断の根拠には使いません。"><i class="fa-solid fa-book-medical mr-0.5"></i>疾患の一般情報</span>' : ''}${item.soMixed ? '<span class="field-chip" style="background:var(--gold-soft);color:var(--ink);" title="同じ場面の発言と観察をまとめたカード">S/O混在</span>' : ''}${fieldChipHtml}${timeChipHtml}${sceneChipHtml}${drugChipHtml(item)}${confidenceBadgeHtml}
           </div>
           <div class="flex items-center gap-1 ml-auto shrink-0">
             ${item.type === 'unnecessary' ? `<button onclick="setItemType(${jsArg(item.id)}, 'unclassified')" class="type-btn type-btn-restore" title="未分類に戻す">復帰</button>` : ''}

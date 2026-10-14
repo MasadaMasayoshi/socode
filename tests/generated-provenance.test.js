@@ -122,7 +122,7 @@ test('disease symptom lists are separated from confirmed patient findings', () =
   const app = makeApp();
   const r = run(app, '全身症状\n発熱、倦怠感、\n体重減少など\n\n脱毛\n光線過敏症\n\n生活状況\n食事は外食が多い');
   const t = c => c.text || c.content || '';
-  assert.ok(r.filter(c => /脱毛|光線過敏症|体重減少/.test(t(c))).every(c => c.type === 'unnecessary'));
+  assert.ok(r.filter(c => /脱毛|光線過敏症|体重減少/.test(t(c))).every(c => c.diseaseGeneral && c.type !== 'unnecessary'));
   assert.ok(r.some(c => /外食/.test(t(c)) && c.type !== 'unnecessary'));
 });
 test('complication predictions need patient-specific evidence', () => {

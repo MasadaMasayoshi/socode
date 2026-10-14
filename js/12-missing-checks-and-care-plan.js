@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.58'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.59'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -426,7 +426,7 @@
     }
     // Text links require exact, unique matches. Native map links require explicit same-patient card IDs.
     function captureCarePlanEvidence(cp, plan) {
-      const cards = (cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && !i.aiSuggested);
+      const cards = (cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && !i.diseaseGeneral && !i.aiSuggested);
       const ids = new Set((Array.isArray(plan.evidenceIds) ? plan.evidenceIds : []).map(String));
 
       if (cp.id && plan.caseId === cp.id) {
@@ -442,7 +442,7 @@
       plan.evidenceSnapshot = cards.filter(i => ids.has(String(i.id))).map(i => ({ id: String(i.id), text: String(i.text || ''), timestamp: String(i.timestamp || ''), type: i.type, hendersonIds: [...(i.hendersonIds || [])], admissionPhase: i.admissionPhase || '', assessmentCols: { ...(i.assessmentCols || {}) } }));
     }
     function carePlanEvidenceChanges(cp, plan) {
-      const cards = new Map((cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && !i.aiSuggested).map(i => [String(i.id), i]));
+      const cards = new Map((cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && !i.diseaseGeneral && !i.aiSuggested).map(i => [String(i.id), i]));
       return (plan.evidenceSnapshot || []).map(before => ({ before, after: cards.get(String(before.id)) || null })).filter(x => {
         if (!x.after) return true;
         const state = c => JSON.stringify([c.text, c.timestamp || '', c.type, c.hendersonIds || [], c.admissionPhase || '', c.assessmentCols || {}]);
@@ -1269,7 +1269,7 @@
     }
 
     function cpRecordContext(cp) {
-      const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && !i.aiSuggested && i.text && i.type !== 'unnecessary');
+      const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && !i.aiSuggested && !i.diseaseGeneral && i.text && i.type !== 'unnecessary');
       const text = [String((cp && cp.sourceText) || ''), ...items.map(i => i.text)].join('\n').normalize('NFKC');
       const last = (re) => { const all = [...text.matchAll(re)]; return all.length ? all[all.length - 1] : null; };
       const nrs = last(/NRS\s*[:：]?\s*(\d{1,2})(?!\d)/g);
@@ -1565,7 +1565,7 @@
     ];
 
     function cpEvidenceTexts(cp) {
-      const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && !i.aiSuggested && i.text && i.type !== 'unnecessary');
+      const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && !i.aiSuggested && !i.diseaseGeneral && i.text && i.type !== 'unnecessary');
       const all = [String((cp && cp.sourceText) || ''), ...items.map(i => i.text)].join('\n');
       const now = items.length ? items.filter(i => i.admissionPhase !== 'preadmission' && i.assessmentColumn !== 'preadmission' && !(Object.values(i.assessmentCols || {}).length && Object.values(i.assessmentCols).every(c => c === 'preadmission')) && !/^入院前/.test(String(i.timestamp || ''))).map(i => i.text).join('\n') : all;
       return { all: cpNorm(all), now: cpNorm(now) }; // No fallback from historical-only cards into the current period.
@@ -1719,7 +1719,7 @@
       return `r${t.length}-${h.toString(16)}`;
     }
     function patientOwnText(cp) {
-      const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && i.text).map(i => i.text);
+      const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && !i.diseaseGeneral && i.text).map(i => i.text);
       const notes = ((cp && cp.referenceNotes) || []).map(n => `${n.title || ''}\n${n.text || ''}`);
       return [String((cp && cp.sourceText) || ''), ...items, ...notes].join('\n').normalize('NFKC');
     }
@@ -1861,7 +1861,7 @@
     }
 
     function cpRecSnip(cp, re, max = 36, skipRe = null) {
-      const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && !i.aiSuggested && i.text && i.type !== 'unnecessary');
+      const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && !i.aiSuggested && !i.diseaseGeneral && i.text && i.type !== 'unnecessary');
       for (const i of items) {
         if (skipRe && skipRe.test(`${i.fieldLabel || ''}${i.text}`)) continue;
         const t = cpNorm(i.text).replace(/\s+/g, ' ');

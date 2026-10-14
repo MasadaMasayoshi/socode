@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.58'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.59'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -44,7 +44,7 @@
     }
 
     function myNeedItems(cp, needId) {
-      return (cp.items || []).filter(i => i.type !== 'unnecessary' && (i.hendersonIds || []).includes(needId));
+      return (cp.items || []).filter(i => i.type !== 'unnecessary' && !i.diseaseGeneral && (i.hendersonIds || []).includes(needId));
     }
     function myNeedRecordItems(cp, needId) {
       return myNeedItems(cp, needId).filter(i => (i.assessmentCols?.[needId] || 'unclassified') !== 'missing');
@@ -340,7 +340,7 @@
       }
       return '';
     }
-    function isSurgicalPatient(cp) { return (cp.items || []).some(i => i && !i.deleted && !i.aiSuggested && i.type !== 'unnecessary' && surgPhaseOf(i) === 'post'); }
+    function isSurgicalPatient(cp) { return (cp.items || []).some(i => i && !i.deleted && !i.aiSuggested && i.type !== 'unnecessary' && !i.diseaseGeneral && surgPhaseOf(i) === 'post'); }
     function sufficiencyUiPhases(cp) {
       const base = SUFFICIENCY_UI_PHASES;
       return cp && isSurgicalPatient(cp) ? [base[0], ...SUFFICIENCY_SURG_PHASES] : base;
@@ -1015,7 +1015,7 @@
       (Array.isArray(obj.needs) ? obj.needs : []).forEach(n => {
         const id = Number(n && n.id);
         if (!Number.isInteger(id) || id < 1 || id > 14) return;
-        const mineIds = new Set((cp.items || []).filter(i => i.type !== 'unnecessary' && (i.hendersonIds || []).includes(id)).map(i => i.id));
+        const mineIds = new Set((cp.items || []).filter(i => i.type !== 'unnecessary' && !i.diseaseGeneral && (i.hendersonIds || []).includes(id)).map(i => i.id));
         const r = {};
         SUFFICIENCY_PHASES.forEach(ph => {
 
@@ -1230,7 +1230,7 @@
       const out = {};
       const surgical = isSurgicalPatient(cp);
       HENDERSON_NEEDS.forEach(need => {
-        const mine = items.filter(i => (i.hendersonIds || []).includes(need.id));
+        const mine = items.filter(i => !i.diseaseGeneral && (i.hendersonIds || []).includes(need.id));
         const colOf = i => (i.assessmentCols && i.assessmentCols[need.id]) || 'unclassified';
 
         const effCol = i => { const x = colOf(i); return x === 'unclassified' ? (placeByDate(i) || x) : x; };

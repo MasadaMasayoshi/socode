@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.58'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.59'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -289,7 +289,7 @@
 
     function buildReport(cp, { format = 'soap', layout = null, day = '' } = {}) {
       const sections = (layout || defaultReportLayout(format)).filter(s => s.on).map(s => s.key);
-      const active = (cp.items || []).filter(i => i.type !== 'unnecessary');
+      const active = (cp.items || []).filter(i => i.type !== 'unnecessary' && !i.diseaseGeneral);
       const recordFilter = reportRecordFilter(day);
       const dayNote = day ? `（${day}の記録）` : '';
       const blocks = [];
@@ -670,7 +670,7 @@
     // ==========================================================================
     function workflowStatus(cp) {
       const items = cp.items || [];
-      const active = items.filter(i => i.type !== 'unnecessary');
+      const active = items.filter(i => i.type !== 'unnecessary' && !i.diseaseGeneral);
       const unclassified = items.filter(i => i.type === 'unclassified').length;
       const untagged = active.filter(i => typeof isUntaggedItem === 'function' && isUntaggedItem(i)).length;
       const asm = cp.myAssessments && typeof cp.myAssessments === 'object' ? Object.values(cp.myAssessments).filter(Boolean) : [];

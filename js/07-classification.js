@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.58'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.59'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -860,14 +860,14 @@
       for (let i = 0; i < list.length; i++) {
         const it = list[i];
         const text = (it.text || '').trim();
-        if (it.isUnnecessaryBoilerplate || it.isLabOrVital || it.fieldLabel || !text || isSpeech(text)) continue;
+        if (it.isUnnecessaryBoilerplate || it.diseaseGeneral || it.isLabOrVital || it.fieldLabel || !text || isSpeech(text)) continue;
         const dangling = DANGLING_OBSERVATION_END_REGEX.test(text);
         const shortZu = text.length <= 20 && /ず$/.test(text);
         if (!dangling && !shortZu) continue;
         for (let j = i + 1; j < Math.min(list.length, i + 4); j++) {
           const n = list[j];
           if (n.timestamp !== it.timestamp) break;
-          if (n.isUnnecessaryBoilerplate || isSpeech(n.text || '')) continue;
+          if (n.isUnnecessaryBoilerplate || n.diseaseGeneral || isSpeech(n.text || '')) continue;
           if (n.isLabOrVital || n.fieldLabel) break;
           if (shortZu && !dangling) {
             const terms = new Set(text.match(SAME_ACTION_TERM_REGEX) || []);
@@ -981,7 +981,7 @@
         };
 
         const prevIsStaffSpeech = stripStaffQuotes(prev.text) !== prev.text || STAFF_QUESTION_LINE_REGEX.test(prev.text.trim());
-        const canMerge = isBareQuote && !prevIsStaffSpeech && !cur.isUnnecessaryBoilerplate && !prev.isUnnecessaryBoilerplate &&
+        const canMerge = isBareQuote && !prevIsStaffSpeech && !cur.isUnnecessaryBoilerplate && !cur.diseaseGeneral && !prev.isUnnecessaryBoilerplate &&
           !prev.fieldLabel && !prev.isLabOrVital && prev.timestamp === cur.timestamp && FRAGMENT_QUOTE_WITH_WORDS_REGEX.test(prev.text) &&
           (!prevIsBareQuote ? (!/(?:訴え|話|言)[^「」]{0,6}$/.test(prev.text) || sameTopic()) : sameTopic());
         if (canMerge) {
@@ -993,11 +993,11 @@
       }
       const cardsPerLine = new Map();
       list.forEach(it => { if (!it.isUnnecessaryBoilerplate && it._line !== undefined) cardsPerLine.set(it._line, (cardsPerLine.get(it._line) || 0) + 1); });
-      const isBareNounFragment = it => !it.isUnnecessaryBoilerplate && !it.fieldLabel && !it.isLabOrVital &&
+      const isBareNounFragment = it => !it.isUnnecessaryBoilerplate && !it.diseaseGeneral && !it.fieldLabel && !it.isLabOrVital &&
         (it._line === undefined || (cardsPerLine.get(it._line) || 0) <= 1) &&
         it.text.length <= 6 && !/[\d:：「」。、]/.test(it.text) && !BARE_NOUN_FRAGMENT_STATUS_REGEX.test(it.text);
 
-      const canAbsorbFragment = (target, frag) => !!target && !target.isUnnecessaryBoilerplate && !target.fieldLabel && !target.isLabOrVital &&
+      const canAbsorbFragment = (target, frag) => !!target && !target.isUnnecessaryBoilerplate && !target.diseaseGeneral && !target.fieldLabel && !target.isLabOrVital &&
         target.timestamp === frag.timestamp && !hasOwnFieldLabelPrefix(target.text) && !isBareNounFragment(target) &&
         !/^「/.test(target.text.trim());
       for (let fi = 0; fi < list.length;) {
@@ -1021,10 +1021,10 @@
       for (let ci = 1; ci < list.length;) {
         const cur = list[ci];
         const prev = list[ci - 1];
-        const isOrphan = !cur.isUnnecessaryBoilerplate && !cur.fieldLabel && !cur.isLabOrVital &&
+        const isOrphan = !cur.isUnnecessaryBoilerplate && !cur.diseaseGeneral && !cur.fieldLabel && !cur.isLabOrVital &&
           cur.text.length <= 15 && !/[「」]/.test(cur.text) && (detectMultipleHendersonTags(cur.text).length === 0 || /^ガーゼ[^。、]{0,6}汚染[^。、]{0,4}$/.test(cur.text.trim()));
         const isAdjacentLine = cur._line === undefined || prev._line === undefined || cur._line - prev._line <= 1;
-        const prevCanContinue = !prev.isUnnecessaryBoilerplate && !prev.fieldLabel && !prev.isLabOrVital &&
+        const prevCanContinue = !prev.isUnnecessaryBoilerplate && !prev.diseaseGeneral && !prev.fieldLabel && !prev.isLabOrVital &&
           prev.timestamp === cur.timestamp && isAdjacentLine && !/^「[^」]*」$/.test(prev.text.trim()) &&
           detectMultipleHendersonTags(prev.text).length > 0;
         if (isOrphan && prevCanContinue) {
@@ -1193,7 +1193,7 @@
         headLike[i] = !!isHead;
         // A noun-only heading is dropped from card text only when a labelled field follows it; other headings keep the existing
         // heading-with-its-lines grouping unless they sit inside a generic symptom list (handled below).
-        res.push(isHead && /[:：]/.test(next) ? SOURCE_TITLE_MARK + t : l);
+        res.push(isHead && (/[:：]/.test(next) || /(?:症状|状況|所見|情報|経過)$/.test(t)) ? SOURCE_TITLE_MARK + t : l);
       });
       // A section whose block is a generic symptom list (e.g. a textbook list ending in 「など」) continues through the
       // following noun-only blocks (no sentence, quote, digit, colon or case particle); those lines are the same list.
@@ -1211,7 +1211,7 @@
         const body = bodyOf(idxs);
         if (!inRegion && body.length && isGenericSymptomList(body.join(''))) inRegion = true;
         else if (inRegion && !listLike(idxs)) inRegion = false;
-        if (inRegion) idxs.forEach(i => { if (headLike[i] && !res[i].startsWith(SOURCE_TITLE_MARK)) res[i] = SOURCE_TITLE_MARK + res[i].trim(); else if (!res[i].startsWith(SOURCE_TITLE_MARK)) res[i] = GENERIC_LIST_MARK + res[i].trim(); });
+        if (inRegion) idxs.forEach(i => { if (headLike[i] && !res[i].startsWith(SOURCE_TITLE_MARK) && /(?:症状|状況|所見|項目|情報|経過|歴)\s*[:：]?$/.test(res[i].trim())) res[i] = SOURCE_TITLE_MARK + res[i].trim(); else if (!res[i].startsWith(SOURCE_TITLE_MARK)) res[i] = GENERIC_LIST_MARK + res[i].trim(); });
       });
       return res;
     }
@@ -1546,6 +1546,10 @@
 
       let currentSourceLine = -1;
       let currentNeedHint = null;
+      // A disease's general symptom list is split per symptom so each can be tagged by meaning; the pieces stay flagged as disease background, never patient evidence.
+      function splitDiseaseGeneralList(str) {
+        return String(str || '').normalize('NFKC').split(/[、,・](?![^(]*\))/).map(x => x.replace(/など$/, '').trim()).filter(x => x.length >= 2);
+      }
       function pushExtracted(obj) {
         // Background fields (name, age, history, diagnosis) are pre-admission by nature; everything else stays unknown until a dated heading says otherwise.
         const prevSameLine = extracted.length && extracted[extracted.length - 1]._line === currentSourceLine ? extracted[extracted.length - 1] : null;
@@ -1673,7 +1677,7 @@
           continue;
         }
         if (cleanLine.startsWith(GENERIC_LIST_MARK)) {
-          pushExtracted({ text: cleanExtractedPhrase(cleanLine.slice(GENERIC_LIST_MARK.length).trim()), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true, genericListRegion: true });
+          splitDiseaseGeneralList(cleanLine.slice(GENERIC_LIST_MARK.length).trim()).forEach(sym => pushExtracted({ text: cleanExtractedPhrase(sym), timestamp: globalTimestamp, diseaseGeneral: true }));
           markerOnlyRunCount = 0; timestampBeforeMarkerRun = null;
           continue;
         }
@@ -1944,6 +1948,10 @@
           }
         }
 
+        if (!isUnnecessaryBoilerplateText(cleanLine) && !isTestExplanationMemo(cleanLine) && isGenericSymptomList(cleanLine)) {
+          splitDiseaseGeneralList(cleanLine).forEach(sym => pushExtracted({ text: cleanExtractedPhrase(sym), timestamp: globalTimestamp, diseaseGeneral: true }));
+          continue;
+        }
         if (isUnnecessaryBoilerplateText(cleanLine) || isTestExplanationMemo(cleanLine) || isGenericSymptomList(cleanLine)) {
           pushExtracted({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
           continue;
@@ -2210,7 +2218,7 @@
         });
       }
 
-      const isMergeableBlockLine = (it, timestamp) => !it.isUnnecessaryBoilerplate && !it.fieldLabel && !it.isLabOrVital &&
+      const isMergeableBlockLine = (it, timestamp) => !it.isUnnecessaryBoilerplate && !it.diseaseGeneral && !it.fieldLabel && !it.isLabOrVital &&
         it.timestamp === timestamp && !hasOwnFieldLabelPrefix(it.text) && it.text.length <= 60;
       for (let hi = 0; hi < extracted.length; hi++) {
         const header = extracted[hi];
@@ -2290,7 +2298,7 @@
       splitMixedSubjectiveObjective(extracted);
       mergeDanglingObservations(extracted);
       extracted.forEach(item => {
-        if (isSourceStructureText(item.text) || isTestExplanationMemo(item.text) || isGenericSymptomList(item.text)) item.isUnnecessaryBoilerplate = true;
+        if (!item.diseaseGeneral && (isSourceStructureText(item.text) || isTestExplanationMemo(item.text) || isGenericSymptomList(item.text))) item.isUnnecessaryBoilerplate = true;
         delete item._line; delete item._lab;
       });
       return extracted;
@@ -2339,7 +2347,7 @@
         const adjacent = prev._line !== undefined && cur._line !== undefined && cur._line >= prev._line && cur._line - prev._line <= 2;
         const safe = sameTopic && adjacent && prev.timestamp === cur.timestamp && (/\d{1,2}:\d{2}/.test(cur.timestamp) || topic === 'household' && cur.timestamp === '入院前') &&
           prev.admissionPhase === cur.admissionPhase && prev.needHint === cur.needHint &&
-          !prev.isUnnecessaryBoilerplate && !cur.isUnnecessaryBoilerplate && !prev.isLabOrVital && !cur.isLabOrVital &&
+          !prev.isUnnecessaryBoilerplate && !cur.isUnnecessaryBoilerplate && !prev.diseaseGeneral && !cur.diseaseGeneral && !prev.isLabOrVital && !cur.isLabOrVital &&
           (!prev.fieldLabel || topic === 'household' && prev.fieldLabel === '家族関係') && !cur.fieldLabel && !PATIENT_EDUCATION_REGEX.test(cur.text) &&
           prev.text.length + cur.text.length <= 600;
         if (!safe) { i++; continue; }
@@ -2380,7 +2388,21 @@
         || predictSOTypeFromNarrative(cleanedText);
     }
 
+    // Symptoms named in a disease's general description map to needs by meaning; these cards stay flagged as disease background.
+    const DISEASE_SYMPTOM_NEEDS = [
+      [/発熱|熱型/, [7]], [/倦怠|疲れやす|易疲労|疲労/, [4, 5]], [/体重減少|食欲/, [2]], [/脱毛|光線過敏|凍瘡|レイノー|紅斑|皮疹|発疹|潰瘍/, [8]],
+      [/光線過敏/, [8, 9]], [/関節痛|筋肉痛|筋痛|関節炎/, [4]], [/むくみ|浮腫|腎炎|蛋白尿|腎/, [3]], [/出血|貧血|めまい|けいれん|痙攣/, [9]],
+      [/息切れ|呼吸困難|胸膜炎|胸水|咳/, [1]], [/頭痛/, [4, 5]], [/不安|抑うつ|うつ/, [10]]
+    ];
+    function diseaseSymptomNeeds(text) {
+      const t = String(text || '').normalize('NFKC');
+      return Array.from(new Set(DISEASE_SYMPTOM_NEEDS.filter(([re]) => re.test(t)).flatMap(([, ids]) => ids))).sort((a, b) => a - b);
+    }
     function computeLocalTagsAndType(chunk, cleanedText, userLearned) {
+      if (chunk.diseaseGeneral && !chunk.isUnnecessaryBoilerplate) {
+        const ids = diseaseSymptomNeeds(cleanedText);
+        if (ids.length) return { detectedHIds: ids, predictedType: 'o' };
+      }
 
       if (chunk.isUnnecessaryBoilerplate || isPatientIdentityLine(cleanedText)) {
         return { detectedHIds: [], predictedType: chunk.isUnnecessaryBoilerplate ? 'unnecessary' : 'o' };
@@ -2539,7 +2561,8 @@
         else if (isGenericSymptomList(text) || chunk.genericListRegion) { ruleId = 'source.generic-symptom-list'; reason = '疾患の一般的な症状の列挙で、この患者に認められた所見と確認できないため除外。本人の所見として別に記載されていれば、その記録を使う。'; }
         else if (isTestExplanationMemo(text, true)) { ruleId = 'source.incomplete-explanation'; reason = '検査の説明途中の文章で、患者の検査結果は書かれていないため除外。結果が別に記載されていれば、その結果は残す。'; }
         else { ruleId = 'source.structure'; reason = '資料の表題・節見出し・表の項目名で、患者の所見や測定値を含まないため除外。配下の記録は別に分類。'; }
-      } else if (isPatientIdentityLine(text)) { ruleId = 'background.identity'; reason = '氏名・年齢・性別を1枚の患者基本情報として保持。この紹介だけでは特定の欲求タグを付けない。'; }
+      } else if (chunk.diseaseGeneral) { ruleId = 'source.disease-general-info'; reason = '疾患の一般的な症状の列挙の1項目。内容でタグを付けるが、この患者に認められた所見とは確認できないため、充足判定・看護計画・診断の根拠には使わない。'; }
+      else if (isPatientIdentityLine(text)) { ruleId = 'background.identity'; reason = '氏名・年齢・性別を1枚の患者基本情報として保持。この紹介だけでは特定の欲求タグを付けない。'; }
       return ruleId ? { ruleId, reason, version: window.APP_FILE_VERSIONS['07'] } : null;
     }
     function removeCoveredCompositeCards(items) {
@@ -2619,7 +2642,7 @@
         if (/^(?:ない|なし)$/.test(item.text) && item.fieldLabel !== 'アレルギー') return;
         const tableFragment = /^(?:\|[^\n]*\|\s*正常|異常\s*\|)$/.test(item.text) &&
           sourceCards.some(i => i.type === 'unnecessary' && i.timestamp === item.timestamp && i.text.includes('正常・異常') && (rewriteNorm(i.text.replace(/\|/g, '')).startsWith(rewriteNorm(item.text.replace(/\|/g, ''))) || /異常\s*\|$/.test(item.text)));
-        const structureMatch = (isSourceStructureText(item.text) || isTestExplanationMemo(item.text) || isGenericSymptomList(item.text)) &&
+        const structureMatch = !item.diseaseGeneral && (isSourceStructureText(item.text) || isTestExplanationMemo(item.text) || isGenericSymptomList(item.text)) &&
           sourceCards.some(i => i.type === 'unnecessary' && rewriteNorm(i.text) === rewriteNorm(item.text));
         if (original?.type === 'unnecessary' || tableFragment || structureMatch) {
           item.type = 'unnecessary';
@@ -2661,7 +2684,7 @@
         const cleanedText = cleanExtractedPhrase(chunk.text);
         if (cleanedText.length < 2 || isBareFieldHeaderOnly(cleanedText) || isHeadingOnlyChunk(chunk, cleanedText) || out.some(i => clinicalCardDuplicateKey(i.text, i.timestamp) === clinicalCardDuplicateKey(cleanedText, chunk.timestamp))) return;
         const { detectedHIds, predictedType } = computeLocalTagsAndType(chunk, cleanedText, null);
-        out.push({ text: cleanedText, timestamp: chunk.timestamp || '日時不明', type: predictedType, hendersonIds: detectedHIds.slice().sort((a, b) => a - b), fieldLabel: chunk.fieldLabel || null, ruleDecision: automaticRuleDecision(chunk, cleanedText, predictedType), ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.soMixed ? { soMixed: true } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}) });
+        out.push({ text: cleanedText, timestamp: chunk.timestamp || '日時不明', type: predictedType, hendersonIds: detectedHIds.slice().sort((a, b) => a - b), fieldLabel: chunk.fieldLabel || null, ruleDecision: automaticRuleDecision(chunk, cleanedText, predictedType), ...(chunk.diseaseGeneral ? { diseaseGeneral: true } : {}), ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.soMixed ? { soMixed: true } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}) });
       }));
       return removeCoveredCompositeCards(applyFamilyScreeningContext(applyPainContextTags(applySceneTagInheritance(out))));
     }
@@ -2823,7 +2846,7 @@
           ? classifyPatientBackground(chunk.fieldLabel)
           : null;
 
-        const newItem = { id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text: cleanedText, timestamp: chunk.timestamp || "日時不明", type: predictedType, hendersonIds: detectedHIds, assessmentCols, fieldLabel: chunk.fieldLabel || null, patientBackground, admissionPhase: chunk.admissionPhase || 'preadmission', predictionSource, ruleDecision: automaticRuleDecision(chunk, cleanedText, predictedType), ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.soMixed ? { soMixed: true } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}), _touchedAt: new Date().toISOString() };
+        const newItem = { id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text: cleanedText, timestamp: chunk.timestamp || "日時不明", type: predictedType, hendersonIds: detectedHIds, assessmentCols, fieldLabel: chunk.fieldLabel || null, patientBackground, ...(chunk.diseaseGeneral ? { diseaseGeneral: true } : {}), admissionPhase: chunk.admissionPhase || 'preadmission', predictionSource, ruleDecision: automaticRuleDecision(chunk, cleanedText, predictedType), ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.soMixed ? { soMixed: true } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}), _touchedAt: new Date().toISOString() };
         addedThisRun.push(newItem);
         cp.items.push(newItem);
 
