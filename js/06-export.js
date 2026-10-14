@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.52'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.56'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1030,6 +1030,18 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         }
         if (i.type === 'unnecessary' && typeof inferUntaggedReason === 'function') {
           out += `現在の除外判断（過去の処理理由とは区別）: ${inferUntaggedReason(i, cp).reason}\n`;
+          const origU = typeof currentRuleCardForSavedItem === 'function' ? currentRuleCardForSavedItem(originalItems, i) : null;
+          const manualU = Array.isArray(i.editLog) && i.editLog.some(e => e && e.actor === 'user');
+          out += `保存済みの分類経路: ${i.predictionSource || '記録なし'}／不必要にした主体: ${manualU ? '手編集の履歴あり（理由未記録の場合は確認不能）' : i.ruleDecision ? '自動ルール' : i.predictionSource === 'confirmed' ? '利用者の確認（理由未記録）' : '確認不能（理由未記録）'}\n`;
+          out += `原文を最新ルールで再分類した結果: ${origU ? (origU.type === 'unnecessary' ? `不必要（${origU.ruleDecision?.ruleId || 'ルール記録なし'}）` : `不必要ではない（${origU.type === 's' ? 'S' : origU.type === 'o' ? 'O' : origU.type}／タグ ${origU.hendersonIds?.length ? origU.hendersonIds.map(h => hendersonNameOf(h)).join('・') : 'なし'}）→保存済みの除外と食い違うため、除外の保持か更新かを確認`) : '対応する原文カードを特定できず確認不能'}\n`;
+          const termsU = Array.from(new Set(String(i.text || '').split(/[、,・，\s（）()「」など]+/).map(t => t.trim()).filter(t => t.length >= 2)));
+          const sameU = termsU.length ? items.filter(o => o !== i && o.type !== 'unnecessary' && termsU.some(t => String(o.text || '').includes(t))).slice(0, 5) : [];
+          out += sameU.length ? `この患者の記録として別に残っている同じ語のカード（除外の妥当性の照合用）:\n${sameU.map(o => `  ・[${o.type === 's' ? 'S' : 'O'}] ${o.text}`).join('\n')}\n` : '同じ語を含む他のカード: なし（この除外で患者本人の情報が失われていないか、原文で確認してください）\n';
+          if (origU) {
+            const srcIdxU = originalItems.indexOf(origU);
+            const ctxU = originalItems.filter((o, n) => o !== origU && o.type !== 'unnecessary' && Math.abs(n - srcIdxU) <= 4);
+            if (ctxU.length) out += `原文の前後で除外されていない記録:\n${ctxU.map(o => `  ・${o.text}`).join('\n')}\n`;
+          }
         }
         if (untagged && i.type !== 'unnecessary') {
           const inf = typeof inferUntaggedReason === 'function' ? inferUntaggedReason(i, cp) : null;
