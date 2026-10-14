@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.56'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.57'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1042,6 +1042,17 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
             const ctxU = originalItems.filter((o, n) => o !== origU && o.type !== 'unnecessary' && Math.abs(n - srcIdxU) <= 4);
             if (ctxU.length) out += `原文の前後で除外されていない記録:\n${ctxU.map(o => `  ・${o.text}`).join('\n')}\n`;
           }
+        }
+        if (!['s', 'o', 'unnecessary'].includes(i.type)) {
+          const origN = typeof currentRuleCardForSavedItem === 'function' ? currentRuleCardForSavedItem(originalItems, i) : null;
+          const typeChange = (Array.isArray(i.editLog) ? i.editLog : []).filter(e => e && e.actor === 'user' && /分類を変更|type/.test(`${formatEditLogEntry(e)} ${e.kind}`)).map(e => formatEditLogEntry(e));
+          out += `未分類の理由: ${typeChange.length ? `利用者の手編集で分類を変更（${typeChange.join('、')}）。理由は${i.editLog.some(e => e && e.reason) ? '記録あり' : '理由未記録'}` : i.ruleDecision ? '自動ルールで分類が確定せず未分類（ルール記録あり）' : '分類の記録なし（確認不能）'}\n`;
+          if (i.ruleDecision) out += `変更前の自動除外: ${i.ruleDecision.reason}／ルール: ${i.ruleDecision.ruleId}／版: ${i.ruleDecision.version}。このルールが見出し・列挙の判定である場合、この文が患者本人の所見かどうかを原文の前後で確認してください\n`;
+          out += `原文を最新ルールで再分類した結果: ${origN ? (origN.type === 'unnecessary' ? `不必要（${origN.ruleDecision?.ruleId || 'ルール記録なし'}）` : `${origN.type === 's' ? 'S' : 'O'}データ／タグ ${origN.hendersonIds?.length ? origN.hendersonIds.map(h => hendersonNameOf(h)).join('・') : 'なし'}`) : '対応する原文カードを特定できず確認不能'}\n`;
+          out += '未分類のままの扱い: S/O・タグが決まるまで、総合アセスメントでは「未分類のカード」に入り、ヘンダーソン14項目には入りません。利用者が分類を決めるか、タグ不要にするまで残ります\n';
+          const termsN = Array.from(new Set(String(i.text || '').split(/[、,・，\s（）()「」など]+/).map(t => t.trim()).filter(t => t.length >= 2)));
+          const sameN = termsN.length ? items.filter(o => o !== i && ['s', 'o'].includes(o.type) && termsN.some(t => String(o.text || '').includes(t))).slice(0, 5) : [];
+          out += sameN.length ? `この患者の記録として別に残っている同じ語のカード:\n${sameN.map(o => `  ・[${o.type === 's' ? 'S' : 'O'}] ${o.text}`).join('\n')}\n` : '同じ語を含む他のカード: なし\n';
         }
         if (untagged && i.type !== 'unnecessary') {
           const inf = typeof inferUntaggedReason === 'function' ? inferUntaggedReason(i, cp) : null;
