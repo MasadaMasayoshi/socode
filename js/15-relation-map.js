@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.46'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.49'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -1388,7 +1388,8 @@
       { disease: /肝硬変|肝がん|肝癌/, factor: /飲酒|アルコール|肝炎/, mid: '肝細胞の慢性的な障害・線維化' },
       { disease: /骨折/, factor: /骨粗鬆症/, mid: '骨密度の低下・骨の脆弱化' },
       { disease: /骨折/, factor: /転倒|転落/, mid: '転倒による外力（大腿骨・脊椎などへの衝撃）' },
-      { disease: /脳梗塞|脳塞栓|心原性/, factor: /心房細動/, mid: '心房内の血栓の形成（血栓が脳の血管に詰まる）' }
+      { disease: /脳梗塞|脳塞栓|心原性/, factor: /心房細動/, mid: '心房内の血栓の形成（血栓が脳の血管に詰まる）' },
+      { disease: /慢性腎臓病|腎不全|腎症|CKD/, factor: /糖尿病|高血圧/, mid: '腎臓の細い血管・糸球体の障害（腎機能の低下）' }
     ];
 
     function rmProjectMixedCard(i) {
@@ -1956,6 +1957,21 @@
           const inr = lab('PT-INR');
           if (inr) E(labNode(inr), bleed, 'supports', { predicted: true, evidence: '凝固の状態を示す' });
           E(bleed, N('p_bleed', 'nursing_problem', '出血リスク状態', { cat: 'circ' }), 'results_in', { predicted: true });
+        }
+        {
+          // 脳梗塞の再発予防：抗凝固薬の飲み忘れ・中断は、血栓の再形成→再発のリスクにつながる
+          const nonAdh = findItem(/(?:飲み忘れ|服薬(?:でき|を)?(?:て)?いな|内服(?:を)?(?:中断|中止|自己)|自己中断|薬を(?:やめ|止め))/, notDxS);
+          const clotN = [...nodes.values()].find(n => /心房内の血栓/.test(n.label));
+          if (nonAdh && clotN) {
+            const nn = N('anticoag_nonadh', 'patient_fact', short(nonAdh, 40), { items: [nonAdh] });
+            E(nn, clotN, 'contributes_to', { evidence: '抗凝固薬が効かない時間があると血栓ができやすい' });
+            E(nn, N('p_selfmgmt', 'nursing_problem', '健康自己管理不良リスク状態', { cat: 'know' }), 'results_in', { predicted: true });
+          }
+          const clotR = [...nodes.values()].find(n => /心房内の血栓/.test(n.label));
+          if (clotR && nodes.get('brain_lesion')) {
+            E(N('recur', 'future_risk', '脳梗塞の再発・新たな脳血流の低下の可能性', { source: 'knowledge', observed: false }), N('p_perf', 'nursing_problem', '非効果的脳組織灌流リスク状態', { cat: 'circ' }), 'results_in', { predicted: true });
+            E(clotR, nodes.get('recur'), 'predicts', { predicted: true, evidence: '血栓が再び脳の血管に詰まるおそれ' });
+          }
         }
       }
 

@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.48'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.49'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1108,6 +1108,21 @@
         goal: () => '3日後までに、心配なことを自分の言葉で看護師に話せ、夜は眠れたと言える' }
     ];
 
+    // 教科書の看護計画（診断ごとのOP/TP/EP・看護目標の指標）から一般化した領域。固有の患者・語句には依存しない
+    CP_DOMAINS.unshift(
+      { key: 'perfusion', re: /脳組織灌流|脳血流|末梢組織灌流|組織灌流|心拍出量/, words: /血圧|意識|麻痺|NIHSS|MMT|抗凝固|服薬|頭痛|瞳孔|構音/,
+        op: [['意識レベル（JCS/GCS）・瞳孔・神経症状（NIHSS・麻痺・構音障害・視野）の変化', /意識|JCS|GCS|瞳孔|NIHSS|麻痺|構音|視野|神経/], ['血圧・脈拍（不整脈の有無）・体温', /血圧|脈拍|不整脈|心電図|バイタル/], ['頭痛・嘔気・めまいなど頭蓋内圧亢進や再発を疑う症状', /頭痛|嘔気|嘔吐|めまい|頭蓋内/], ['抗凝固薬・降圧薬の服薬状況（飲み忘れ・自己中断）と出血の徴候', /服薬|内服|抗凝固|飲み忘れ|出血/], ['PT-INR・Dダイマー・脱水などの検査値', /INR|ダイマー|検査|脱水|Hb|Ht/]],
+        goal: () => '入院中、新たな神経症状（意識の低下・麻痺の進行・言葉の出にくさ）が出現せず、血圧が医師の指示範囲内に保たれる' },
+      { key: 'drugAE', re: /副作用|有害事象|薬物療法|化学療法|分子標的|抗がん剤/, words: /副作用|皮疹|下痢|間質性|呼吸困難|肝機能|内服|皮膚/,
+        op: [['薬の副作用症状の出現時期・程度（皮疹・下痢・口内炎・倦怠感・咳や息切れなど）', /皮疹|下痢|口内炎|倦怠|咳|息切れ|副作用/], ['検査値（肝機能・腎機能・白血球・好中球など）', /肝機能|腎機能|AST|ALT|Cr|WBC|好中球|検査/], ['SpO2・呼吸状態（間質性肺炎など重い副作用の早期発見）', /SpO2|呼吸/], ['服薬状況（飲み忘れ・自己中断）と本人の副作用の受け止め', /服薬|内服|飲み忘れ|受け止め/], ['日常生活への影響（食事・睡眠・仕事）', /食事|睡眠|生活|仕事/]],
+        goal: () => '退院までに、薬の主な副作用と受診が必要な症状を自分の言葉で説明でき、副作用が重症化せず内服を継続できる' },
+      { key: 'renal', re: /腎機能|腎不全|腎臓|高カリウム|電解質|透析/, words: /Cr|eGFR|尿量|K|カリウム|リン|体重|浮腫|透析|食事|塩分/,
+        op: [['尿量・体重・浮腫（水分出納）と血圧', /尿量|体重|浮腫|出納|血圧/], ['検査値（Cr・BUN・eGFR・K・P・Hb）の推移', /Cr|BUN|eGFR|K|カリウム|リン|Hb|検査/], ['高カリウムの徴候（脈の乱れ・しびれ・脱力）と心電図', /カリウム|脈|不整脈|心電図|しびれ|脱力/], ['食事内容（塩分・たんぱく質・カリウム・リン・水分）の摂取状況', /塩分|たんぱく|カリウム|リン|水分|食事/], ['（透析・腹膜透析の場合）排液の性状・出口部・シャントの状態', /排液|出口部|シャント|透析/]],
+        goal: () => '退院までに、1日の塩分・水分・カリウムの目安を自分の言葉で説明でき、体重増加が指示範囲内に保たれる' },
+      { key: 'selfesteem', re: /自尊感情|自己概念|役割遂行|無力/, words: /気持ち|言動|表情|役割|家族|仕事|できる/,
+        op: [['自分についての発言（できない・迷惑をかけている等）と表情・意欲', /発言|言動|表情|意欲|気持ち/], ['できていること・できるようになったこと（小さな変化）', /できて|できる|変化/], ['家族・周囲の関わり方と本人の役割', /家族|役割|周囲/], ['リハビリ・セルフケアへの参加', /リハビリ|セルフケア|参加/]],
+        goal: () => '退院までに、できるようになったことを1つ以上自分の言葉で話せ、今後の生活について前向きな発言が聞かれる' }
+    );
     { const sd = CP_DOMAINS.splice(CP_DOMAINS.findIndex(d => d.key === 'sleep'), 1)[0]; CP_DOMAINS.splice(CP_DOMAINS.findIndex(d => d.key === 'delirium'), 0, sd); }
 
     CP_DOMAINS.splice(CP_DOMAINS.findIndex(d => d.key === 'skin'), 0, { key: 'dmfoot', re: /足潰瘍|足病変|糖尿病性足|足壊疽/, words: /足|潰瘍|滲出|免荷|発赤|靴/,
