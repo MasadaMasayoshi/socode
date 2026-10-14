@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.59'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.60'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -2585,10 +2585,19 @@
       if (review && ['none', 'accept', 'assign'].includes(review.decision)) return '了承済みのレビュー';
       return '';
     }
+    // A manual edit still belongs to the same record when only the date was resolved (or lost) between rule versions.
+    function isUnknownTimestamp(ts) { return !ts || ts === '日時不明'; }
+    function sameCardIgnoringUnknownTime(a, b) {
+      if (!a || !b || !(isUnknownTimestamp(a.timestamp) || isUnknownTimestamp(b.timestamp))) return false;
+      const k = x => String(x || '').normalize('NFKC').replace(/\s+/g, '').replace(/[。．.]+$/, '');
+      return k(a.text).length >= 4 && k(a.text) === k(b.text);
+    }
     function currentRuleCardForSavedItem(sourceCards, item) {
       const key = clinicalCardDuplicateKey(item.text, item.timestamp);
       const direct = sourceCards.find(i => clinicalCardDuplicateKey(i.text, i.timestamp) === key);
       if (direct) return direct;
+      const relaxed = sourceCards.filter(i => sameCardIgnoringUnknownTime(i, item));
+      if (relaxed.length === 1) return relaxed[0];
       if (item.fieldLabel === 'アレルギー' && /^(?:ない|なし)$/.test(item.text)) {
         const labeled = sourceCards.find(i => i.fieldLabel === item.fieldLabel && i.timestamp === item.timestamp &&
           clinicalCardDuplicateKey(i.text.replace(/^アレルギー[:：]\s*/, ''), i.timestamp) === key);
@@ -2803,6 +2812,11 @@
         if (answer === true) {
           const preserved = preservedUserCardsForClassification(cp.items, sourceCardsForRun);
           const keepIds = new Set(preserved.map(i => i.id));
+          const droppedManual = cp.items.filter(i => !keepIds.has(i.id) && !i.deleted && ((i.editLog || []).some(e => e && e.kind !== 'create') || i.predictionSource === 'confirmed' || i.tagNotNeeded));
+          if (droppedManual.length) {
+            cp.droppedManualEdits = [...(cp.droppedManualEdits || []), ...droppedManual.map(i => ({ at: new Date().toISOString(), text: i.text, timestamp: i.timestamp, type: i.type, hendersonIds: (i.hendersonIds || []).slice(), tagNotNeeded: !!i.tagNotNeeded }))].slice(-60);
+            if (typeof showToast === 'function') showToast(`原文の変更で引き継げなかった手動修正が${droppedManual.length}件あります（修正依頼に記録します）`);
+          }
           cp.items.filter(i => !keepIds.has(i.id)).forEach(i => markItemDeleted(cp, i.id));
           cp.items = preserved;
 
@@ -2820,7 +2834,7 @@
       const userCardsForRun = preservedUserCardsForClassification(cp.items, sourceCardsForRun);
       withExtractionContext(text, () => groupClinicalPhrasesWithTimestamps(text).forEach(chunk => {
         const cleanedText = cleanExtractedPhrase(chunk.text);
-        if (cleanedText.length < 2 || isBareFieldHeaderOnly(cleanedText) || isHeadingOnlyChunk(chunk, cleanedText) || cp.items.some(i => !i.deleted && clinicalCardDuplicateKey(i.text, i.timestamp) === clinicalCardDuplicateKey(cleanedText, chunk.timestamp)) || coveredByManualClassification({ text: cleanedText, timestamp: chunk.timestamp }, userCardsForRun) || hasCompleteSavedSourceCoverage(cp.items, cleanedText, chunk.timestamp)) return;
+        if (cleanedText.length < 2 || isBareFieldHeaderOnly(cleanedText) || isHeadingOnlyChunk(chunk, cleanedText) || cp.items.some(i => !i.deleted && (clinicalCardDuplicateKey(i.text, i.timestamp) === clinicalCardDuplicateKey(cleanedText, chunk.timestamp) || (((i.editLog || []).length || i.predictionSource === 'confirmed') && sameCardIgnoringUnknownTime(i, { text: cleanedText, timestamp: chunk.timestamp })))) || coveredByManualClassification({ text: cleanedText, timestamp: chunk.timestamp }, userCardsForRun) || hasCompleteSavedSourceCoverage(cp.items, cleanedText, chunk.timestamp)) return;
         let userLearned = globalAppData.learningUserDict[cleanedText];
         let predictionSource = null;
         let fuzzyMatchedText = null;

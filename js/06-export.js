@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.58'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.60'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1022,10 +1022,28 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       out += correctionRequestInstructionsText();
       out += '【対象】タグ未設定・不必要・手編集のカード。誤りの証拠ではなく調査対象です。原文全体と同じ場面の前後を読み、安静時と動作時・昨日と本日を区別し、根拠があるものは分類ルールと分類基準を修正、不足は必要な確認事項を示してください。理由の記録がなければ「理由未記録」と明記します。除外は妥当なら根拠を示し、誤りなら分類処理と分類基準を修正してください。\n';
       const originalItems = sourceText && sourceText.trim() && typeof classifyTextByRules === 'function' ? classifyTextByRules(sourceText) : [];
+      const dropped = (cp.droppedManualEdits || []).slice(-30);
+      if (dropped.length) {
+        out += `\n【引き継げなかった手動修正】分類のやり直しで、原文の変更により同じ記録として照合できず失われた手動修正です。原因（分割・統合・日時判定の変更）を調べ、引き継げるようにしてください。\n`;
+        dropped.forEach(d => { out += `  ・${d.timestamp || '日時不明'}｜${d.text}｜分類: ${d.tagNotNeeded ? 'タグ不要' : d.type === 'unnecessary' ? '不必要' : `タグ ${(d.hendersonIds || []).join('・') || 'なし'}`}\n`; });
+      }
+      const kwCandidates = [];
+      items.forEach(o => {
+        const added = Array.from(new Set((o.editLog || []).filter(e => e && e.kind === 'tagAdd' && e.hId).map(e => Number(e.hId))));
+        if (!added.length || typeof detectMultipleHendersonTags !== 'function') return;
+        const auto = detectMultipleHendersonTags(o.text) || [];
+        const missing = added.filter(h => (o.hendersonIds || []).includes(h) && !auto.includes(h));
+        if (missing.length) kwCandidates.push(`  ・${o.text}｜手動で付けたタグ ${missing.join('・')}（自動では付かない）`);
+      });
+      if (kwCandidates.length) out += `\n【手動タグから見つかった追加キーワード候補】自動判定で付かず、手動で付けたタグです。語句と意味の関係を一般ルール（キーワード・文脈規則）として反映できるか検討してください。特定の症例の語だけに合わせないこと。\n${kwCandidates.slice(0, 30).join('\n')}\n`;
+      const ruleCounts = {};
+      items.forEach(o => { const r = o.ruleDecision?.ruleId; if (r) ruleCounts[r] = (ruleCounts[r] || 0) + 1; });
       items.forEach((i, idx) => {
         const edited = isEditedCard(i), untagged = typeof isUntaggedItem === 'function' && isUntaggedItem(i);
         const kinds = [i.correctionRequested || i.requestedCorrection ? '利用者が修正依頼に追加' : null, i.type === 'unnecessary' ? '不必要に分類' : null, edited ? '手で編集済み' : null, untagged ? 'タグ未設定' : null].filter(Boolean).join('＋');
         out += `\n────────────────────────\n■ ${idx + 1}件目　問題の種類: ${kinds}\n`;
+        if (i.ruleDecision?.ruleId) out += `適用された自動ルール: ${i.ruleDecision.ruleId}（この書き出し内で同じルールのカード ${ruleCounts[i.ruleDecision.ruleId]}件）。個別に直さず、このルールの判定条件を見直してください。\n`;
+        out += `修正の方向: ${i.type === 'unnecessary' ? '除外が妥当か、本人の所見として残すべきか、原文の前後で判断' : edited ? '手編集の内容を一般ルールに反映（同じ種類の記録でも同様に直る形）' : '内容の意味でタグ・S/Oを決定'}。他の患者の記録や特定の症例の語に依存したルールにしないでください。\n`;
         let request = '原文・編集履歴と分類結果を比較し、確認できた誤りを同じ種類の記録でも直るよう修正してください。';
         if (i.type === 'unnecessary') {
           request = 'なぜ不必要に分類されたか、原文・前後の記録・編集履歴と該当ルールを照合して再現してください。理由未記録ならその旨を示し、除外の妥当性を判断してください。確認できた誤りだけを分類処理と分類基準で修正してください。';
