@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.49'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.50'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1123,6 +1123,11 @@
         op: [['自分についての発言（できない・迷惑をかけている等）と表情・意欲', /発言|言動|表情|意欲|気持ち/], ['できていること・できるようになったこと（小さな変化）', /できて|できる|変化/], ['家族・周囲の関わり方と本人の役割', /家族|役割|周囲/], ['リハビリ・セルフケアへの参加', /リハビリ|セルフケア|参加/]],
         goal: () => '退院までに、できるようになったことを1つ以上自分の言葉で話せ、今後の生活について前向きな発言が聞かれる' }
     );
+    CP_DOMAINS.unshift(
+      { key: 'pd', re: /腹膜透析|PD|在宅透析|透析.{0,6}(?:自己管理|セルフケア|手技)|バッグ交換/, words: /バッグ交換|出口部|排液|無菌|手洗い|手指衛生|混濁|腹膜炎|連絡/,
+        op: [['手指の巧緻性・視力・理解力・学び方（手技を安全に行えるか）', /巧緻|視力|理解|学び|学習|認知/], ['出口部の発赤・腫脹・疼痛・浸出液（膿の有無）', /出口部|発赤|腫脹|疼痛|浸出|膿/], ['排液の量・色・透明度（混濁）・腹痛・注排液時の痛み', /排液|混濁|透明|腹痛|注排液/], ['体重・血圧・浮腫・尿量・正味除水量の記録', /体重|血圧|浮腫|尿量|除水|記録/], ['自宅の交換場所・勤務時間・家族の支援（実施できる環境か）', /自宅|交換場所|勤務|家族|支援|環境/], ['排便状況（便秘はカテーテルの機能に影響する）', /排便|便秘/]],
+        goal: () => '退院までに、手洗いから接続・排液観察・記録までを決められた手順どおりに1人で実施でき、排液の混濁・腹痛・接続部の汚染があったときはPD施設へ連絡すると説明できる' }
+    );
     { const sd = CP_DOMAINS.splice(CP_DOMAINS.findIndex(d => d.key === 'sleep'), 1)[0]; CP_DOMAINS.splice(CP_DOMAINS.findIndex(d => d.key === 'delirium'), 0, sd); }
 
     CP_DOMAINS.splice(CP_DOMAINS.findIndex(d => d.key === 'skin'), 0, { key: 'dmfoot', re: /足潰瘍|足病変|糖尿病性足|足壊疽/, words: /足|潰瘍|滲出|免荷|発赤|靴/,
@@ -1436,6 +1441,21 @@
         if (/必要量|見込み以上|十分/.test(g) && !/\d/.test(g)) out.goal.push('「必要量」「見込み以上」は判断の基準が曖昧です。数値の目標は医師・栄養士に確認して設定してください（資料にない数値は補いません）');
         if (key === 'pain' && /NRS\s*[3-9]\s*以下/.test(g) && /NRS\s*[0-3]\b/.test(t.now) && !/安静時|体動時|動作時|起き上がり|深呼吸/.test(g)) out.goal.push('現在すでにNRSが低いため、「NRS以下」だけでは改善を捉えにくいです。安静時と体動時を分け、深呼吸・起き上がりなど実施したい動作ができたかも目標に入れてください');
       });
+      // 教科書の補足資料から一般化した確認メモ（計画の文面は書き換えない）
+      const allPlan = planLines.join('\n') + '\n' + goals.join('\n');
+      if (/180\s*\/\s*105/.test(allPlan) && /脳梗塞|脳塞栓|脳卒中/.test(t.all + allPlan)) out.goal.push('血圧「180/105mmHg以下」は再灌流治療直後の急性期の管理目標です。3日目以降は一律の目標ではなく、医師が設定した個別の目標に従い、急な上げ下げを避ける視点で書いてください');
+      if (/知識不足/.test(p.problem || '') && /飲み忘れ|服薬(?:でき|を)?(?:て)?いな|内服(?:を)?(?:中断|中止)/.test(t.all)) out.evidence.push('服薬の飲み忘れがある場合は「知識不足」と決めつけず、いつ・どんな場面（多忙・外出など）で忘れたかを確認し、生活に合う服薬の仕組みづくりまで計画に含めてください');
+      if (/失語/.test(allPlan) && /構音障害/.test(t.all) && !/失語|呼称|復唱|言語理解/.test(t.all)) out.op.push('記録は「構音障害」で、失語の評価（言葉の理解・呼称・復唱）は見当たりません。失語と構音障害は別のもので、失語の評価が未記載なら確認が必要と書いてください');
+      if (/嚥下|誤嚥/.test(allPlan) === false && /自力摂取|自分で食べ/.test(t.all) && /脳梗塞|脳出血|脳卒中/.test(t.all) && !/嚥下|むせ/.test(allPlan)) out.op.push('脳卒中では「自分で食べられる」ことが嚥下の安全を意味しません。嚥下スクリーニング・むせ・湿性嗄声の観察が計画に見当たりません');
+      if (/体液量過剰/.test(p.problem || '') && !/体重|浮腫|尿量|肺音|呼吸困難/.test(t.all)) out.evidence.push('体液量過剰の根拠になる体重・浮腫・尿量・肺音・呼吸困難の記録が見当たりません。評価が必要な「リスク」として書くか、先にそれらのデータを集めてください');
+      if (/eGFR|腎機能/.test(allPlan) && /透析|腹膜透析|PD/.test(allPlan) && /eGFR\s*[0-9.]+[^\n]{0,12}(?:だから|のため|ので)[^\n]{0,10}透析/.test(allPlan)) out.evidence.push('透析の開始は、eGFRの値だけでなく症状・体液量・検査値の異常・栄養・本人の希望を合わせて判断します。根拠にそれらを加えてください');
+      if (key === 'drugAE' && !/呼吸困難|息切れ|咳|発熱|間質性/.test(allPlan)) out.op.push('分子標的薬などの副作用では、頻度が低くても重い間質性肺疾患を見逃さないため、新しい息切れ・乾いた咳・発熱・SpO2の低下の観察と、出たらすぐ連絡する指導が必要です');
+      if (key === 'drugAE' && /副作用|症状/.test(allPlan) && !/自分の言葉|説明できる|連絡|相談/.test(allPlan)) out.goal.push('副作用の目標は「ゼロにする」ではなく、患者が重くなる前に症状に気づき、自己判断で休薬せず連絡・相談できること（自分の言葉で説明できる）にしてください');
+      if (key === 'pd' && !/混濁|腹膜炎/.test(allPlan)) out.op.push('腹膜透析では、排液の混濁や腹痛は腹膜炎を疑う最優先のサインです。排液の色・透明度の観察と、「濁ったら次の受診まで待たず施設へ連絡する」指導が計画に見当たりません');
+      if (key === 'pd' && /接続|バッグ交換|無菌/.test(allPlan) && !/汚染|触れ|外れ|漏れ/.test(allPlan)) out.op.push('接続部に触れた・外れた・漏れたなど汚染が疑われるときの対応（操作を続けず施設へ連絡）が計画（教育）に見当たりません');
+      if (key === 'renal' && !/尿蛋白|アルブミン|ACR|蛋白尿/.test(allPlan)) out.op.push('腎機能は、Cr・eGFRだけでなく尿蛋白（アルブミン尿）とその経過も合わせて観察します');
+      if (key === 'renal' && /血圧/.test(allPlan) && !/家庭血圧|起立|ふらつ|K|カリウム/.test(allPlan)) out.op.push('CKDの血圧は、数値だけでなく家庭血圧、立ちくらみ・転倒、体重・浮腫、K値、服薬状況（ACE阻害薬・ARBなど）も一緒に見ます');
+      if (/血圧|降圧/.test(allPlan) === false && key === 'perfusion') out.op.push('血圧・脈拍（不整脈の有無）の観察が計画に見当たりません');
       return out;
     }
     function carePlanInlineNotesHtml(cp, p) {

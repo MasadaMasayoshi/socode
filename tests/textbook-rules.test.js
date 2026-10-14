@@ -29,3 +29,20 @@ test('Relation map still builds for a stroke record with skipped anticoagulant d
   const map = app.buildRelationMapFromRecord(rec);
   assert.ok(map.nodes.length > 0);
 });
+
+test('Textbook supplement notes: acute BP target, knowledge deficit vs missed doses, PD domain', () => {
+  const cp = text => ({ id: 'p', title: 't', sourceText: text, items: app.classifyTextByRules(text).map((i, k) => ({ ...i, id: `i${k}` })), carePlans: {} });
+  const rec = cp('脳梗塞3日目。自力摂取可能。忙しいと抗凝固薬を飲み忘れることがあった。構音障害あり。');
+  const n = app.carePlanInlineNotes(rec, { problem: '治療計画についての知識不足', goalShort: '血圧180/105mmHg以下を保つ', op: ['血圧'], tp: [], ep: [], evidence: [] });
+  assert.ok(n.goal.some(m => /急性期/.test(m)));
+  assert.ok(n.evidence.some(m => /知識不足/.test(m)));
+  assert.equal((app.cpDomainOf({ problem: '腹膜透析のセルフケア不足' }) || {}).key, 'pd');
+});
+
+test('Drug side effect and PD plans get safety notes when key observations are missing', () => {
+  const cp = { id: 'p', title: 't', sourceText: '分子標的薬を開始', items: [], carePlans: {} };
+  const d = app.carePlanInlineNotes(cp, { problem: '薬物療法に伴う副作用のリスク', op: ['皮疹の観察'], tp: [], ep: [], evidence: [] });
+  assert.ok(d.op.some(m => /間質性肺疾患/.test(m)));
+  const pd = app.carePlanInlineNotes(cp, { problem: '腹膜透析のセルフケア不足', op: ['バッグ交換の手技'], tp: [], ep: [], evidence: [] });
+  assert.ok(pd.op.some(m => /混濁/.test(m)));
+});
