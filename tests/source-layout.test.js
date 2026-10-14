@@ -29,3 +29,9 @@ test('lab unit written with lowercase l (μl, dl) is read like μL, dL', () => {
   const r = app.analyzeLabCard('WBC 3,000/μl (減少)', null);
   assert.strictEqual(r.quality, 'valid');
 });
+
+test('autoimmune / connective-tissue diagnosis gives rest, temperature and skin tags; RA gives movement and rest', () => {
+  const t = x => (run(x)[0] || {}).hendersonIds || [];
+  assert.strictEqual(JSON.stringify(Array.from(t('数年前に全身性エリテマトーデスと診断')).sort()), '[5,7,8]');
+  assert.strictEqual(JSON.stringify(Array.from(t('数年前に関節リウマチと診断')).sort()), '[4,5]');
+});

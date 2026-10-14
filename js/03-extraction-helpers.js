@@ -1,7 +1,7 @@
 // Local record extraction. Preserve source wording, units, timestamps and admission context.
 // Headings supply context; narrative numbers are not automatically laboratory measurements.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.52'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.55'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -346,6 +346,8 @@
       { pattern: /認知症|せん妄|統合失調症|うつ病|不安障害/, tagIds: [10] },
       { pattern: /骨折|変形性|関節症|パーキンソン病|脳梗塞|脳出血|麻痺/, tagIds: [4] },
       { pattern: /褥瘡|皮膚炎/, tagIds: [8] },
+      { pattern: /エリテマトーデス|\bSLE\b|膠原病|強皮症|皮膚筋炎|多発性筋炎|シェーグレン/, tagIds: [5, 7, 8] },
+      { pattern: /関節リウマチ/, tagIds: [4, 5] },
       { pattern: /感染症|敗血症/, tagIds: [9] },
 
       { pattern: /胆石症|胆結石|胆嚢炎|胆管炎|膵炎/, tagIds: [2] },
