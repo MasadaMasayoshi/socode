@@ -63,7 +63,7 @@ test('Independent care changes keep their own cards and timestamps', () => {
 test('入院時・術後1日目の検査データは関連する項目ごとに変化の分かる1枚にまとめ、異常値も時点ごとに見つかる', () => {
   const anemia = find('貧血・出血（入院時→術後1日目）');
   assert.ok(anemia);
-  assert.match(anemia.text, /Hb \(ヘモグロビン\) 14\.0 g\/dl→10\.8g\/dl/);
+  assert.match(anemia.text, /Hb \(ヘモグロビン\) 14\.0→10\.8 g\/dl/);
   assert.equal(anemia.timestamp, '術後1日目');
   assert.ok(find('炎症（入院時→術後1日目）').text.includes('CRP'));
   const findings = app.extractAbnormalLabFindings(all.filter(c => c.type === 'o'));

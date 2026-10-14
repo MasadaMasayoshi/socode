@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.46'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.52'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -115,7 +115,7 @@
     const PAIN_TEXT_REGEX = /疼痛|痛み|痛い|痛く|痛かった|創痛|ペインスケール|NRS|VAS|鎮痛|ロキソ|レスキュー/;
     const PAIN_SCORE_REGEX = /ペインスケール|NRS|VAS|フェイススケール/;
     const ALLERGY_ABSENT_REGEX = /アレルギー(?:[:：\s]*|は|が)(?:特に)?(?:なし|ない|ありません|認めない)/;
-    const INFECTION_SCREEN_REGEX = /(?:HBV\s*抗原|HCV\s*抗体|梅毒)\s*[:：]?\s*\(\s*[-−]\s*\)/i;
+    const INFECTION_SCREEN_REGEX = /(?:HBV\s*抗原|HCV\s*抗体|梅毒)\s*[:：]?\s*[(（]\s*[-−－ー一→‐–—]\s*[)）]/i;
     const GALLBLADDER_OPERATIVE_FINDING_REGEX = /胆[嚢囊][^。]{0,50}結石[^。]{0,50}摘出した/;
     const HEALTH_SCREEN_USE_REGEX = /(?:検診|健診)[^。]{0,18}(?:欠かさ|定期的に受け|毎年受け|受けている|受けていた)/;
     const CHEST_IMAGE_REGEX = /胸部\s*(?:X\s*線|レントゲン|CT)/i;
@@ -772,16 +772,22 @@
         const cards = [];
 
         groups.forEach((gRows, name) => {
+          // One regular form per item: "name a→b unit（reference）"; the unit is written once when all values share it.
           const parts = gRows.map(row => {
             const present = phases.filter(ph => row.values[ph] !== undefined);
-            const valueText = present.length > 1
-              ? present.map(ph => row.values[ph]).join('→')
-              : `${row.values[present[0]]}（${present[0]}のみ）`;
-            return `${row.key} ${valueText}${row.ref ? ` (基準値: ${row.ref})` : ''}`;
+            const split = ph => { const m = String(row.values[ph]).match(/^(-?\d[\d,]*(?:\.\d+)?)\s*(.*)$/); return m ? { n: m[1], u: m[2].trim() } : null; };
+            const sp = present.map(split);
+            const sameUnit = sp.every(Boolean) && sp.every(s => s.u === sp[0].u);
+            const valueText = sameUnit ? `${sp.map(s => s.n).join('→')}${sp[0].u ? `${/^[A-Za-z]/.test(sp[0].u) ? ' ' : ''}${sp[0].u}` : ''}` : present.map(ph => row.values[ph]).join('→');
+            const unit = sameUnit ? sp[0].u : '';
+            const ref = row.ref ? String(row.ref).trim().replace(/^基準値[:：]\s*/, '') : '';
+            const refText = ref ? (unit && ref.endsWith(unit) && ref.length > unit.length && !/[×^]/.test(ref) ? ref.slice(0, -unit.length).trim() : ref) : '';
+            const notes = [present.length === 1 ? `${present[0]}のみ` : '', refText ? `基準 ${refText}` : ''].filter(Boolean);
+            return `${row.key} ${valueText}${notes.length ? `（${notes.join('、')}）` : ''}`;
           });
 
           const labRows = gRows.map(row => ({ key: row.key, ref: row.ref || null, values: phases.filter(ph => row.values[ph] !== undefined).map(ph => ({ phase: ph, value: row.values[ph] })) }));
-          cards.push({ text: cleanExtractedPhrase(`${name}（${phases.join('→')}）: ${parts.join('、')}`), timestamp: lastPhase, isLabOrVital: true, labRows, admissionPhase: list[idxs[0]].admissionPhase, _line: list[idxs[0]]._line });
+          cards.push({ text: `${cleanExtractedPhrase(`${name}（${phases.join('→')}）`)}\n${parts.map(s => `・${cleanExtractedPhrase(s)}`).join('\n')}`, timestamp: lastPhase, isLabOrVital: true, labRows, admissionPhase: list[idxs[0]].admissionPhase, _line: list[idxs[0]]._line });
         });
         idxs.forEach(i => remove.add(i));
         inserts.push([idxs[0], cards]);
@@ -1875,7 +1881,7 @@
           }
         }
 
-        if (isUnnecessaryBoilerplateText(cleanLine) || /^ホーマンズ[:：]\s*足を背屈させたとき[。.]?$/.test(cleanLine)) {
+        if (isUnnecessaryBoilerplateText(cleanLine) || isTestExplanationMemo(cleanLine) || isGenericSymptomList(cleanLine)) {
           pushExtracted({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
           continue;
         }
@@ -2221,7 +2227,7 @@
       splitMixedSubjectiveObjective(extracted);
       mergeDanglingObservations(extracted);
       extracted.forEach(item => {
-        if (isSourceStructureText(item.text) || /^ホーマンズ[:：]\s*足を背屈させたとき[。.]?$/.test(item.text)) item.isUnnecessaryBoilerplate = true;
+        if (isSourceStructureText(item.text) || isTestExplanationMemo(item.text) || isGenericSymptomList(item.text)) item.isUnnecessaryBoilerplate = true;
         delete item._line; delete item._lab;
       });
       return extracted;
@@ -2467,7 +2473,8 @@
         if (/^\|?\s*:?-{3,}/.test(text)) { ruleId = 'source.table-separator'; reason = '表の列を区切る罫線で、患者の測定値や所見を含まないため除外。原文の罫線は照合用に保持。'; }
         else if (/^[<＜]/.test(text) && extractDayLabelFromHeading(text)) { ruleId = 'source.date-heading'; reason = '実習日・入院日・手術時期の見出し。日時の整理に用い、患者の所見カードから除外。'; }
         else if (/^担当[:：]/.test(text)) { ruleId = 'source.course-staff'; reason = '直前の教材表題に続く担当者名で、患者の担当者や支援者を示す記録ではないため除外。'; }
-        else if (/^ホーマンズ[:：]/.test(text)) { ruleId = 'source.incomplete-explanation'; reason = '検査の説明途中の文章で、患者の検査結果は書かれていないため除外。別に記載されたホーマンズ徴候の結果は残す。'; }
+        else if (isGenericSymptomList(text)) { ruleId = 'source.generic-symptom-list'; reason = '疾患の一般的な症状の列挙で、この患者に認められた所見と確認できないため除外。本人の所見として別に記載されていれば、その記録を使う。'; }
+        else if (isTestExplanationMemo(text, true)) { ruleId = 'source.incomplete-explanation'; reason = '検査の説明途中の文章で、患者の検査結果は書かれていないため除外。結果が別に記載されていれば、その結果は残す。'; }
         else { ruleId = 'source.structure'; reason = '資料の表題・節見出し・表の項目名で、患者の所見や測定値を含まないため除外。配下の記録は別に分類。'; }
       } else if (isPatientIdentityLine(text)) { ruleId = 'background.identity'; reason = '氏名・年齢・性別を1枚の患者基本情報として保持。この紹介だけでは特定の欲求タグを付けない。'; }
       return ruleId ? { ruleId, reason, version: window.APP_FILE_VERSIONS['07'] } : null;
@@ -2529,7 +2536,7 @@
     function refreshSavedUntaggedCards(cp, sourceText = cp?.sourceText, now = new Date().toISOString(), learningDict = globalAppData.learningUserDict) {
       if (!cp || !String(sourceText || '').trim()) return 0;
       const targets = (cp.items || []).filter(i => !savedUntaggedProtection(i, cp) || i.type === 'unnecessary' && !savedUntaggedProtection({ ...i, type: 'o' }, cp) &&
-          (/^[<＜]/.test(i.text) && extractDayLabelFromHeading(i.text) || i.timestamp === '検査データ' && /^ホーマンズ[:：]\s*足を背屈させたとき[。.]?$/.test(i.text)));
+          (/^[<＜]/.test(i.text) && extractDayLabelFromHeading(i.text) || i.timestamp === '検査データ' && isTestExplanationMemo(i.text)));
 
       if (!targets.length) return 0;
       const sourceCards = classifyTextByRules(sourceText);
@@ -2549,7 +2556,7 @@
         if (/^(?:ない|なし)$/.test(item.text) && item.fieldLabel !== 'アレルギー') return;
         const tableFragment = /^(?:\|[^\n]*\|\s*正常|異常\s*\|)$/.test(item.text) &&
           sourceCards.some(i => i.type === 'unnecessary' && i.timestamp === item.timestamp && i.text.includes('正常・異常') && (rewriteNorm(i.text.replace(/\|/g, '')).startsWith(rewriteNorm(item.text.replace(/\|/g, ''))) || /異常\s*\|$/.test(item.text)));
-        const structureMatch = (isSourceStructureText(item.text) || /^ホーマンズ[:：]\s*足を背屈させたとき[。.]?$/.test(item.text)) &&
+        const structureMatch = (isSourceStructureText(item.text) || isTestExplanationMemo(item.text) || isGenericSymptomList(item.text)) &&
           sourceCards.some(i => i.type === 'unnecessary' && rewriteNorm(i.text) === rewriteNorm(item.text));
         if (original?.type === 'unnecessary' || tableFragment || structureMatch) {
           item.type = 'unnecessary';

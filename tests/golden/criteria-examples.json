@@ -1,0 +1,80 @@
+{
+  "note": "Each entry is one positive or counter example written in the classification notebook (js/02). Add a line here whenever the notebook gains an example, so the notebook and the code cannot drift apart. No whole case texts: short generic phrases only.",
+  "examples": [
+    {
+      "rule": "infection screen negative = 9",
+      "text": "HCV抗体(-)",
+      "has": [
+        9
+      ]
+    },
+    {
+      "rule": "infection screen negative = 9 (OCR minus variants)",
+      "text": "HCV抗体(一)",
+      "has": [
+        9
+      ]
+    },
+    {
+      "rule": "infection screen negative = 9 (OCR arrow variant)",
+      "text": "梅毒(→)",
+      "has": [
+        9
+      ]
+    },
+    {
+      "rule": "infection screen negative = 9 (full-width)",
+      "text": "HBV抗原（－）",
+      "has": [
+        9
+      ]
+    },
+    {
+      "rule": "pathology stage is not an environment finding",
+      "text": "【病理結果】T2 N0 M0 Stage 1B",
+      "not": [
+        9
+      ]
+    },
+    {
+      "rule": "test explanation memo without a result is excluded",
+      "text": "ホーマンズ：足を背屈させたとき",
+      "unnecessary": true
+    },
+    {
+      "rule": "same memo form for another sign",
+      "text": "ブルジンスキー徴候：頸部を前屈させたとき",
+      "unnecessary": true
+    },
+    {
+      "rule": "a documented result is kept",
+      "text": "ホーマンズ徴候(-)",
+      "unnecessary": false
+    },
+    {
+      "rule": "a result written after the memo is kept",
+      "text": "ホーマンズ：足を背屈させたとき痛みあり",
+      "unnecessary": false
+    },
+    {
+      "rule": "generic symptom enumeration copied from a disease description is excluded",
+      "text": "全身倦怠感、疲れやすい、体重減少など、脱毛、光線過敏症、心膜",
+      "unnecessary": true
+    },
+    {
+      "rule": "generic enumeration with a parenthetical disease name",
+      "text": "胸の痛み、動悸、息切れ、(胸膜炎、心外膜炎)など、神経",
+      "unnecessary": true
+    },
+    {
+      "rule": "counter: patient-specific sentence is kept",
+      "text": "疲労感が強く、最近は休みの日は寝て過ごしている、全身症状",
+      "unnecessary": false
+    },
+    {
+      "rule": "counter: list with a presence/absence statement is kept",
+      "text": "頭痛、嘔気などあり",
+      "unnecessary": false
+    }
+  ]
+}

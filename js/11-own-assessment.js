@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = '2026-10-12.usability-context31'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.52'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -1116,11 +1116,14 @@
       const metOk = sufficiencyMetAllowed(t, needId, speech);
       if (needId === 8 && metOk && /(?:シャワー浴|入浴|清拭|洗髪|口腔ケア)(?:を)?(?:する|した|実施|済|行った|できた)/.test(t) && !/予定|禁止|中止|できな/.test(t)) return { v: 'met', hit: '清潔ケアの実施' };
       if (needId === 14 && !speech && /(?:説明|オリエンテーション)[^。]{0,30}(?:受ける|受けた|実施|行った|あり)|(?:呼吸訓練|起き上がり)[^。]{0,15}(?:練習|実施)/.test(t) && !/予定|未実施|中止/.test(t) && !/理解(?:して|でき|良好)|自立|自分で/.test(t)) return { v: 'pending', hit: '説明・練習の実施' };
+      // Voicing worry is evidence that the person CAN express it; it does not by itself show unmet communication. Only communication-specific cues count for need 10.
+      if (needId === 10 && /不安|心配|怖い|恐怖/.test(t) && !/話せ|話さ|伝え(?:られ|にく)|伝わ|会話|意思疎通|聞こえ|言葉が出|構音|失語|難聴|表出|相談(?:でき|しな)|話したくな/.test(t)) return { v: 'pending', hit: '不安を言葉にできている（コミュニケーションの未充足とは別に評価）' };
       if (needId === 9 && INFECTION_SCREEN_REGEX.test(t)) return { v: 'pending', hit: '感染症検査は陰性' };
       let unmet = '', met = '';
       for (let k = 0; k < SUF_UNMET_CUES.length; k++) {
         const src = SUF_UNMET_CUES[k], sc = SUF_UNMET_SCOPE[k];
         if (needId && sc && !sc.includes(needId)) continue;
+        if (needId === 10 && k === 2 && !/話|伝|会話|言葉|意思|聞|声|表情|相談/.test(t)) continue;
         const m = t.match(new RegExp(`(${src})(${SUF_NEG_AFTER})?`));
         if (!m) continue;
         const negated = m[2] && !/^[↑↓]/.test(m[1]);
@@ -1161,7 +1164,8 @@
 
       if (!unmet && !met && needId === 10 && speech) {
         const q = (String(item.text || '').match(/「[^」]{4,}」/) || [String(item.text || '')])[0];
-        met = { v: 'met', hit: '発言', clause: q.slice(0, 30) };
+        if (/不安|心配|怖い|恐怖/.test(String(item.text || ''))) pending = { v: 'pending', hit: '不安を言葉にできている', clause: q.slice(0, 30) };
+        else met = { v: 'met', hit: '発言', clause: q.slice(0, 30) };
       }
       return unmet || met || pending || { v: '', hit: '', clause: '' };
     }

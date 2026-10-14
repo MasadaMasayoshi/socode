@@ -31,7 +31,7 @@ test('Bridge clearance masks only the underlying stroke in either paint order', 
 });
 test('All relation types use uniform strokes and unclipped terminal markers in exports', () => {
   const svg = app.relationMapSvg(crossing());
-  assert.match(svg, /stroke="#2563EB" stroke-width="1.5"[^>]*marker-end="url\(#rm-marker-\d+-arrow-blue\)"/);
+  assert.match(svg, /stroke="#2563EB" stroke-width="1"[^>]*marker-end="url\(#rm-marker-\d+-arrow-blue\)"/);
   assert.match(svg, /id="rm-marker-\d+-arrow-blue"[^>]*overflow="visible"/);
   assert.match(svg, /id="rm-marker-\d+-arrow-treat-sel"[^>]*overflow="visible"/);
 });

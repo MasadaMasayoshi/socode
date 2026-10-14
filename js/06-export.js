@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.46'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.52'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -91,9 +91,9 @@
       return ts && ts !== '日時不明' && ts !== 'AI推定' ? `<span class="tm">${escapeHtml(ts)}</span>` : '';
     }
 
-    function printAssessmentCellList(col, list, labels) {
-      const line = (i, day) => `${printTypeLabel(i, labels[i.id])}${printTime(i, day)}${printFieldLabel(i)}${escapeHtml(i.text)}`;
-      return `<ul class="cards">${assessmentDayGroups(col, list).map(g =>
+    function printAssessmentCellList(col, list, labels, needId) {
+      const line = (i, day) => `${printTypeLabel(i, labels[i.id])}${printTime(i, day)}${printFieldLabel(i)}${escapeHtml(i.text).replace(/\n/g, '<br>')}`;
+      return `<ul class="cards">${assessmentDayGroups(col, typeof collapseVitalCards === 'function' && needId ? collapseLabCards(collapseVitalCards(list, needId), needId) : list).map(g =>
         (g.day ? `<li class="day${g.background ? ' bg' : ''}">${escapeHtml(g.day)}</li>` : '') +
 
         groupItemsByScene(g.items).map(sc => (sc.paired
@@ -355,7 +355,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         const cols = ['unclassified', 'preadmission', 'postadmission', 'missing'].filter(col => col !== 'unclassified' || matching.some(i => (i.assessmentCols?.[need.id] || 'unclassified') === 'unclassified'));
         body += `<h3>${need.id}. ${escapeHtml(need.name.replace(/^\d+\.\s*/, ''))}</h3><table><thead><tr>${cols.map(c => `<th style="width:${Math.floor(100 / cols.length)}%">${PRINT_COL_LABELS[c]}</th>`).join('')}</tr></thead><tbody><tr>${cols.map(col => {
           const list = matching.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === col);
-          return list.length ? `<td>${printAssessmentCellList(col, list, labels)}</td>` : '<td class="empty">—</td>';
+          return list.length ? `<td>${printAssessmentCellList(col, list, labels, need.id)}</td>` : '<td class="empty">—</td>';
         }).join('')}</tr></tbody></table>`;
       });
       if (!anyNeed) body += '<p class="muted">（タグが付いたカードがありません）</p>';
@@ -454,7 +454,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         const matching = cp.items.filter(i => i.type !== 'unnecessary' && i.hendersonIds?.includes(need.id));
         if (matching.length === 0) return;
         out += `\n${need.id}. ${need.name}\n`;
-        out += plainList(matching.map(i => {
+        out += plainList(collapseLabCards(collapseVitalCards(matching, need.id), need.id).map(i => {
           const col = i.assessmentCols?.[need.id] || 'unclassified';
           const colName = col === 'preadmission' ? '入院前' : (col === 'postadmission' ? '入院後' : (col === 'missing' ? '不足情報' : '未分類'));
           return `[${colName}] [${i.type.toUpperCase()}]${i.fieldLabel ? ` [${i.fieldLabel}]` : ''}${i.aiSuggested ? ' [AI推定]' : ''} ${i.text}`;
@@ -724,6 +724,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         "【依頼対象：サイトのコード修正】",
         "この依頼は、添付シートやカードの文章を訂正して返す作業ではありません。サイトのコードを修正し、次回の分類・判定・表示・書き出しで同じ問題が再発しないようにしてください。添付資料は再現用の検証資料です。",
         "",
+        "0. Generalize: the attached case is only a reproduction sample, never the criterion. Do not hard-code patient names, case wording, exact values, dates or device names into rules; write conditions that apply to any patient and test them with the sample plus counterexamples from other situations (planned/performed/cancelled, present/removed/uncertain, resting/movement, before/after). Do not copy this case into the notebook or tests as the rule; use short generic examples. Remove any existing rule that only matches one case's wording.",
         "1. Reproduce: compare source, surrounding records, saved cards and edit history; separate automatic processing from manual edits; trace splits/merges, tag changes, dates and output defects to the responsible code. Explicit split/merge records show actions, not proof of their justification. Mark missing evidence 『理由未記録』/『確認不能』; never invent causes or clinical facts.",
         "2. Implement: fix the actual extraction (js/03), classification (js/01, js/07), sufficiency (js/11), export (js/06) and saved-data/learning paths. Rewriting a sample report, prompt or one patient is not completion. Keep Japanese clinical text intact; classify Henderson needs by meaning, not S/O; assess pre/post admission separately; classification stays local (AI is OCR only).",
         "3. Generalize: apply confirmed rules to similar records (including normal/negative findings and chronology). When criteria change, update 学習データ管理 → 分類基準 and the js/02 notebook with conditions, positive examples and counterexamples, remove conflicting rules and advance the criteria version.",
@@ -764,6 +765,77 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       return (m ? `    ▶${label}の判定：${m[1]}\n    ▶説明：${m[2]}\n` : `    ▶${label}の判定：${x}\n`) + dims;
     }
     const ASSESSMENT_COL_ORDER = [['unclassified', '未分類'], ['preadmission', '入院前'], ['postadmission', '入院後'], ['missing', '不足情報']];
+    // Display/export only: vital-sign cards of the same tag, period and day become ONE card.
+    // Each vital is written in one regular form: "name first→last unit（time→time）", so changes read left to right.
+    const VITAL_NAME_MAP = [[/^(?:体温|BT|KT|T)$/i, '体温', 0], [/^(?:血圧|BP)$/i, '血圧', 1], [/^(?:脈拍|心拍数?|HR|P)$/i, '脈拍', 2], [/^(?:呼吸数?|RR|R)$/i, '呼吸数', 3], [/^(?:SpO2|SPO2|Spo2|SpO₂|酸素飽和度)$/i, 'SpO2', 4]];
+    function parseVitalPart(part, time) {
+      const m = String(part).trim().match(/^(体温|血圧|脈拍|心拍数?|呼吸数?|酸素飽和度|SpO2|SPO2|Spo2|SpO₂|HR|BP|RR|BT|KT|T|P|R)\s*[:：]?\s*(\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?)\s*(mmHg|回\/分|分|度|°C|℃|%|％|bpm)?\s*([(（][^)）]*[)）])?\s*$/i);
+      if (!m) return null;
+      const def = VITAL_NAME_MAP.find(d => d[0].test(m[1]));
+      if (!def) return null;
+      return { name: def[1], order: def[2], v: m[2], unit: (m[3] || '').replace('度', '°C').replace('℃', '°C').replace('％', '%'), note: (m[4] || '').replace(/[（]/, '(').replace(/[）]/, ')'), time };
+    }
+    function formatVitalSeries(cards, timeOf) {
+      const series = new Map(); const rest = [];
+      cards.forEach(c => String(c.text).split(/、(?![^(（]*[)）])/).map(s => s.replace(/[。\s]+$/, '')).filter(Boolean).forEach(part => {
+        const v = parseVitalPart(part, timeOf(c));
+        if (!v) { const s = `${timeOf(c) ? `[${timeOf(c)}] ` : ''}${part}`; if (!rest.includes(s)) rest.push(s); return; }
+        if (!series.has(v.name)) series.set(v.name, { order: v.order, pts: [] });
+        const pts = series.get(v.name).pts;
+        if (!pts.some(p => p.v === v.v && p.time === v.time && p.note === v.note)) pts.push(v);
+      }));
+      const out = [...series.entries()].sort((a, b) => a[1].order - b[1].order).map(([name, s]) => {
+        const pts = s.pts;
+        const sameUnit = pts.every(p => p.unit === pts[0].unit) && pts.every(p => !p.note);
+        const vals = sameUnit ? pts.map(p => p.v).join('→') + pts[0].unit : pts.map(p => `${p.v}${p.unit}${p.note}`).join('→');
+        const times = pts.map(p => p.time).filter(Boolean);
+        return `${name} ${vals}${times.length ? `（${times.join('→')}）` : ''}`;
+      });
+      return [...out, ...rest].join('／');
+    }
+    function isVitalOnlyCard(i) {
+      const t = String((i && i.text) || '').trim();
+      return !!i && i.type === 'o' && !i.fieldLabel && !i.aiSuggested && typeof VITAL_SIGN_CARD_REGEX !== 'undefined' && VITAL_SIGN_CARD_REGEX.test(t) && !/[。「」]/.test(t);
+    }
+    function collapseVitalCards(list, needId) {
+      const dayOf = i => String(i.timestamp || '').replace(/\s*\d{1,2}[:：]\d{2}.*$/, '');
+      const timeOf = i => (String(i.timestamp || '').match(/(\d{1,2}[:：]\d{2})/) || [])[1] || '';
+      const groups = new Map();
+      list.forEach((i, idx) => { if (isVitalOnlyCard(i)) { const k = `${(i.assessmentCols && i.assessmentCols[needId]) || ''}|${dayOf(i)}`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(idx); } });
+      const drop = new Set(), repl = new Map();
+      groups.forEach(idxs => {
+        if (idxs.length < 2) return;
+        const cards = idxs.map(k => list[k]);
+        repl.set(idxs[0], { ...cards[0], text: formatVitalSeries(cards, timeOf), _mergedIds: cards.map(c => c.id) });
+        idxs.slice(1).forEach(k => drop.add(k));
+      });
+      return list.map((i, idx) => repl.get(idx) || i).filter((_, idx) => !drop.has(idx));
+    }
+    // Display/export only: the same lab item recorded at several times (same tag and period column) is written once as
+    // "name first→...→last unit（time→...→time）（基準値）" so changes read left to right. Items with different units are never merged.
+    const LAB_SERIES_REGEX = /^([A-Za-zα-ωΑ-Ω][A-Za-z0-9α-ωΑ-Ω\-]{0,9}|[ぁ-んァ-ヶー一-龥]{1,8})\s+(-?\d[\d,]*(?:\.\d+)?)\s*([^\s(（]*)\s*(?:[(（]基準値[:：]\s*([^)）]*)[)）])?\s*$/;
+    function collapseLabCards(list, needId) {
+      const groups = new Map();
+      list.forEach((i, idx) => {
+        const t = String((i && i.text) || '').trim();
+        if (!i || i.type !== 'o' || i.fieldLabel || i.aiSuggested || /[。「」]/.test(t) || (typeof VITAL_SIGN_CARD_REGEX !== 'undefined' && VITAL_SIGN_CARD_REGEX.test(t))) return;
+        const m = t.match(LAB_SERIES_REGEX);
+        if (!m || !(typeof LAB_GROUP_DEFS !== 'undefined' && LAB_GROUP_DEFS.some(([, re]) => re.test(m[1])))) return;
+        const key = `${m[1].toUpperCase()}|${m[3]}|${(i.assessmentCols && i.assessmentCols[needId]) || ''}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push({ idx, name: m[1], v: m[2], unit: m[3], ref: m[4] || '', ts: i.timestamp && i.timestamp !== '日時不明' ? i.timestamp : '' });
+      });
+      const drop = new Set(), repl = new Map();
+      groups.forEach(pts => {
+        if (pts.length < 2) return;
+        const refs = [...new Set(pts.map(p => p.ref).filter(Boolean))];
+        const times = pts.map(p => p.ts).filter(Boolean);
+        const text = `${pts[0].name} ${pts.map(p => p.v).join('→')}${pts[0].unit ? ` ${pts[0].unit}` : ''}${times.length ? `（${times.join('→')}）` : ''}${refs.length ? `（基準値: ${refs.join(' / ')}）` : ''}`;
+        repl.set(pts[0].idx, { ...list[pts[0].idx], text, _mergedIds: pts.map(p => list[p.idx].id) });
+        pts.slice(1).forEach(p => drop.add(p.idx));
+      });
+      return list.map((i, idx) => repl.get(idx) || i).filter((_, idx) => !drop.has(idx));
+    }
     function buildAssessmentTableText(cp, onlyIds = null) {
       if (!onlyIds) cp = { ...cp, items: sheetRecordItems(cp) };
       const activeItems = (cp.items || []).filter(i => i.type !== 'unnecessary');
@@ -778,13 +850,13 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
 
         if (shown.length === 0) { out += '  （カードなし）\n'; return; }
         ASSESSMENT_COL_ORDER.forEach(([col, label]) => {
-          const inCol = shown.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === col);
+          const inCol = collapseLabCards(shown.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === col), need.id);
           if (inCol.length === 0) return;
           out += `  [${label}]\n`;
           assessmentPeriodGroups(cp, col, inCol).forEach(pg => {
             if (pg.label) out += `   ―${pg.label}―\n`;
             if (!pg.items.length) out += '    （記録なし）\n';
-            assessmentDayGroups(col, pg.items).forEach(g => { if (g.day) out += `   〈${g.day}〉\n`; g.items.forEach(i => {
+            assessmentDayGroups(col, pg.items).forEach(g => { if (g.day) out += `   〈${g.day}〉\n`; collapseVitalCards(g.items, need.id).forEach(i => {
               const seq = seqLabels[i.id] ? `${seqLabels[i.id]} ` : '';
               const time = i.timestamp && i.timestamp !== '日時不明' ? `[${i.timestamp}] ` : '';
               const label = (i.fieldLabel ? `[${i.fieldLabel}] ` : '') + (isFamilySpeech(i.text) ? '[家族] ' : '');

@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.49'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.51'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -138,7 +138,7 @@
         for (const ch of Array.from(para)) {
           const cw = rmCharWidth(ch);
 
-          if (w + cw > maxEm && cur && !/[)）」』、。，．・ー↑↓]/.test(ch)) {
+          if (w + cw > maxEm && cur && (!/[)）」』、。，．・ー↑↓]/.test(ch) || w + cw > maxEm + 1.5)) {
 
             const open = /[(（「『]$/.test(cur) && cur.length > 1 ? cur.slice(-1) : '';
             lines.push(open ? cur.slice(0, -1) : cur); cur = open; w = open ? rmCharWidth(open) : 0;
@@ -171,7 +171,7 @@
     }
     function rmNewId(prefix) { return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`; }
     function rmSafeId(id) { return /^[\w.:-]{1,80}$/.test(String(id || '')) ? String(id) : null; }
-    function rmType(n) { return RM_TYPE_BY_KEY.get(n && n.type) || RM_TYPE_BY_KEY.get('pathophysiology'); }
+    function rmType(n) { return RM_TYPE_BY_KEY.get(n && (n.displayType || n.type)) || RM_TYPE_BY_KEY.get('pathophysiology'); }
 
     function rmDisplayLabel(n) {
       const t = rmType(n);
@@ -1122,7 +1122,7 @@
         const hl = history && r.pts && r.pts.length > 1 ? `<text class="rm-history-label" x="${Math.round((r.pts[0][0] + r.pts[1][0]) / 2) + 6}" y="${Math.round((r.pts[0][1] + r.pts[1][1]) / 2) + 3}" font-size="10" fill="#6B6458" font-weight="700">経過</text>` : '';
         return `${mask}<g class="rm-link${treat ? ' is-treat' : ''}${sel ? ' is-selected' : ''}" data-link-id="${escapeHtml(e.id)}">
           ${interactive ? `<path class="rm-link-hit" d="${d}" fill="none" stroke="transparent" stroke-width="20"/>` : ''}
-          <path class="rm-link-line"${cuts.length ? ` mask="url(#${maskId})"` : ''} d="${d}" fill="none" opacity="0.65" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#3F3B35'}" stroke-width="1.5"${screen ? ' vector-effect="non-scaling-stroke"' : ''}${e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} marker-end="url(#${markerPrefix}-${treat ? 'arrow-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"/>${tl}${hl}
+          <path class="rm-link-line"${cuts.length ? ` mask="url(#${maskId})"` : ''} d="${d}" fill="none" opacity="0.55" stroke="${treat ? '#2563EB' : e.predicted || know ? RM_PRED_LINE : '#3F3B35'}" stroke-width="1"${screen ? ' vector-effect="non-scaling-stroke"' : ''}${e.predicted ? ' stroke-dasharray="6 4"' : know ? ' stroke-dasharray="2 3"' : ''} marker-end="url(#${markerPrefix}-${treat ? 'arrow-blue' : e.predicted || know ? 'arrow-pred' : 'arrow'})"/>${tl}${hl}
         </g>`;
       }).join('');
     }
@@ -1604,6 +1604,7 @@
             if (exam) finding.label = `${exam}で確認：${site}の腫瘍（${size.replace(/\s/g, '')}）`;
           }
           if (pathology) {
+            finding.displayType = 'lab'; // 病理結果は患者の背景ではなく、検査の経過（検査データ）として表示する
             const codes = ['T', 'N', 'P', 'H', 'M'].map(prefix => [...new Set((finding.evidence.match(new RegExp(`\\b${prefix}[0-9O]+`, 'g')) || []))].join('/')).filter(Boolean);
             const differs = new Set(finding.evidence.split('\n\n').map(e => evidenceKey(e.replace(/^\[[^\]]*\] /, '')))).size > 1;
             finding.label = `病理結果：${codes.length ? codes.join('・') : rmShorten(it.text.replace(/^【[^】]+】/, ''), 70)}${differs ? '（原文の表記差あり・要確認）' : ''}`;

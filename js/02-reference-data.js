@@ -1,6 +1,6 @@
 // Japanese source examples and reference data. Generic ranges are not facility-approved values.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = '2026-10-12.usability-context34'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = 'v.52'; // Version stamp (scripts/stamp-version.js)
 
     const SAMPLE_CASES = [
  {
@@ -57,10 +57,10 @@
 [検査データ] WBC 11200, CRP 3.8, Hb 10.2, Cre 1.1, Na 136, K 4.2
 [14:30] 「少し呼吸が楽になった」と話すが、再度体温を測定すると38.2℃に上昇していた。`;
 
-    const NOTEBOOK_CONTENT_VERSION_MARK = '統合版 2026-10-12 改訂7';
+    const NOTEBOOK_CONTENT_VERSION_MARK = '統合版 2026-10-14 改訂8';
 
     const NOTEBOOK_PREVIOUS_LINE_HASHES = new Set('1rxx1s8 1n972mt 1rxzhk1 1n972mt 3oggz7 11wepfp 1ueyf9x 49fyid cktp9v 1dx8rnt 4w69aw 18yrges mz6kpv 1fxl9vm vjjqph 1na1m5x 1mm3a6p 1eegg6z xov1zd 1r2aecs 1p9asa7 ipot7j 1re2huh 33sjwu 12z0tmf lrdwgc vdcow1 31eneq 11mb2w6 t10hoq 1etsd7m 5ubyuq q42z2q 1t8xbsy 1kpypia 15hvkni 1bwlid2 ilejiw mpf6r2 1eecsip 1dkakkm 1pr7cs9 1n4b44k 2z4yug kq8d8l 1t9q52t 1cxtfpk 1bmvzo4 wf9ste 1oyarzj 1p16g52 w1hdma 1epkp3w 1g1elw8 sro6mi 13ezb12 lnvozy 12fz4ir 1uuozg2 q2k5k8 1hrhr2n 1t9nghh f1917k e0crkw j1e8d8 13rhc30 1v2xzr2 yvgn6 1qx5h46 1757o1c u83int 1nv6687 9mp1bz wrr5dv ku3lll 1284hc6 e7jic3 tu4uvg fh8e14 wk4h4o dcef5v 1tw2zb2 wfnv68 pklg0t qnr0pb 1vbrse1 ehxm2 1brwjir u319zs 1ixcp78 i4h9b 53jp4n 13njjnz 1ele74r rwuu7w cfb5kk 1niyy9p 16zgdvq 1ovb3z5 coq3bu 24dwyi 1n5xhmq ukofp0 7qvde7 1yik6ad 117e71n v54305 1d7f6u1 1c83oe0 mc5a21 4vbu7g 188wc9g ylmgxf 39187t 3yqc7v 18qsxyi 1jfl61m 19is9nl sys0jh kda9kl oi98bw 4r9yru 1nh8in0 1i94xy8 1jcmgts wjqlw9 70311g 8wukdb d73drk ysxln2 1rt8zfd rsm75j 1cy71mw 1fc2gx8 1l1dvb3 1cftclx 1epae2b 1og289u 1r8z4jp 1vk21a0 lxc9rb 14yvj9r 1bwwj4w tap586 18tgtnq 1q8n2f0 1i8sp26 1nq8mbd 1y0ddgx 1jhhrn4 1gebsqw 1ox9pmi 1p54mi5 1mh1isl njedxy w8a1pd 1a2daya 4utfxf 1cbq5a1 1vdl8io r6dyzq 1exn90y 1bocpt1 1eay80t a26n4w 1ioy22v p7xddp qtyt3m 1ecvr13 1v6ppoi 4ufv81 18oigbx 1wl1wn0 1b73s34 11avgj6 jmk6zs 90bjpt 1ch9u22 id8wik evf7p2 13i7uer w8fsyw a7uumx fevad0 tyi7ix 31f5lu ll25l5 31eqak y4dgky 1fi3pcw j4nwbp 6wnqsb pbvlhf 157ghfe 2byund lo14bk 1hitvg3 1suzyfg 1kamx2z 1bdsrow ouqo9 zj2m3c mayvhv 2e67kq 1m7v4xj 14224h9 13vzf13 t7hukc 17fmocm gqq9d3 1wilov6 1g1elw8 p7xddp id8wik 1hit4b4 151xlr6'.split(' '));
-    const DEFAULT_NOTEBOOK_CONTENT = `【看護アセスメント 基準ノート（統合版 2026-10-12 改訂7）】
+    const DEFAULT_NOTEBOOK_CONTENT = `【看護アセスメント 基準ノート（統合版 2026-10-14 改訂8）】
 このノートは、記録の分類・検査値の評価・不足情報の確認・看護問題・看護計画の基準です。確認できた修正を具体例とともに反映し、アプリで実装した分類ルールと揃えています。「学習データ管理」→「分類基準」タブで確認・編集できます。
 判断の優先順位：①第1〜4章の分類・タグ付けのルール ②第6〜7章の疾患別の判断基準 ③学習データの傾向。迷ったときは、1つの情報に複数のタグを付けてよい。
 
@@ -241,13 +241,14 @@
 ・実施した手術・術前オリエンテーションは14.学びの根拠。反例「術前オリエンテーションの予定なし」は実施・理解の根拠ではない。
 ・自主的な体動の有無は4.姿勢の観察。正例「疼痛NRS2、自主的な体動なし」は動作の観察も保持する。反例「NRS2（安静時）」だけで動作障害を推測しない。
 ・胸部X線・胸部CTの所見は1.呼吸。正例「胸部X線で明らかな病変なし」。反例「胃カメラで胃底部に腫瘍」は呼吸の検査ではなく2.飲食の疾患情報。症状との因果関係や充足を所見一つで確定しない。
-・HBV抗原・HCV抗体・梅毒の陰性結果は9.環境（感染に関する安全の評価）。正例「HCV抗体(-)」。反例「病理結果T2 N0」「血液型A型」は同じ検査欄でも自動で9を付けない。陰性所見だけで術後感染リスク全体を否定しない。
+・HBV抗原・HCV抗体・梅毒の陰性結果は9.環境（感染に関する安全の評価）。正例「HCV抗体(-)」「HCV抗体(一)」「梅毒(→)」（OCRでマイナスが漢数字の一・矢印・全角括弧に化けた表記も同じ陰性として扱う）。反例「病理結果T2 N0」「血液型A型」は同じ検査欄でも自動で9を付けない。陰性所見だけで術後感染リスク全体を否定しない。
 ・アレルギー欄の「ない」は項目名と合わせて9に分類し、出典もアレルギーの原文へ照合する。反例：既往歴の「症状がない」はアレルギーの根拠ではない。
 ・資料表題、術前検査結果・手術情報・帰室時などの見出し、表の列名・区切り行は患者の観察所見ではない。正例「項目 | 種類 | 基準値 | 正常・異常」は構造。反例「Hb 13.5g/dl」「胸部X線：病変なし」は値・所見として保持。列名の「正常・異常」を分割して異常所見を作らない。
 ・「検査データ」は日時ではなく項目名。日時は直前の日付・術前術後・時刻を保持し、実習日の見出しで切り替える。
 ・病理結果と病期は一つの医学的所見として保持し、学習タグを付けない。正例「病理結果T2 N0 P0 H0 M0、Stage IB」。反例：患者が説明を受け理解や疑問を述べた場合は、その反応を14の根拠にする。
 ・改行で切れた手術記録は明示された前文と接続するが、欠けた文字は推測で訂正しない。無症状の胆嚢結石は既往として保持し、後日の摘出と照合するが、飲食・排泄障害を推測しない。
-・「ホーマンズ：足を背屈させたとき」は説明メモで、患者の陽性・陰性結果ではない。反例「ホーマンズ徴候(-)」は患者の観察結果として保持する。
+・「検査・徴候・テスト名：やり方の説明（〜とき・場合）」で結果語（陽性・陰性・あり・なし・(+)(-)など）を含まない行は説明メモで、患者の結果ではない。正例「ホーマンズ：足を背屈させたとき」。反例「ホーマンズ徴候(-)」「ホーマンズ：足を背屈させたとき痛みあり」は患者の観察結果として保持する。
+・疾患の一般症状を「A、B、C など、D など」と並べた一覧（疾患説明の写し）は、この患者に認められた所見と確認できないため不必要にする。反例「疲労感が強く、休みの日は寝て過ごしている」「頭痛、嘔気などあり」のように本人の状態や有無が書かれた記録は残す。不安を言葉にできていること（「また再燃したらどうしよう」）だけで10.コミュニケーションを未充足にしない。
 ・原文の一部に欠落があっても、読める独立した所見まで分類を保留しない。正例「着があり剥離した。また、胆嚢内に結石が認められ、同時に摘出した」は後半の消化器治療を2.食事の根拠として保持し、欠けた前半は原本確認。反例「着があり剥離した」だけでは臓器・処置を補わない。
 ・新しい抽出規則で原文が統合されても、保存済みの分割片を同じ日時・本文の部分一致で照合する。タグは分割片自身の明示的な内容だけから判定する。正例：胆嚢の摘出記録に2を補う。反例：同じ親カードにある胃全摘・循環・創部などの別の内容から、分割片へ全タグを移さない。別日時の記録も使わない。
 ・病理の数値と病期が旧カードでは分かれていても、同じ日時の原文中の一致を確認し、医学情報として残す。単独の原文カードと一致しないだけで原文対応を確認不能にしない。反例：別日時のStageやN0/NOの表記を勝手に同じにしない。

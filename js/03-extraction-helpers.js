@@ -1,7 +1,7 @@
 // Local record extraction. Preserve source wording, units, timestamps and admission context.
 // Headings supply context; narrative numbers are not automatically laboratory measurements.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = '2026-10-12.usability-context28'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.52'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -217,6 +217,23 @@
       return !!(m && /\d/.test(m[1]));
     }
     // Detect formatting before sentence splitting; never consume a row with a value.
+    // Generic test-explanation memo: "<sign/test name>: <how the maneuver is done>" with no documented result.
+    const TEST_MEMO_LABEL_REGEX = /(?:徴候|兆候|サイン|テスト|試験|反射|ホーマンズ|Homans|test)$/i;
+    const TEST_MEMO_RESULT_REGEX = /陽性|陰性|[(（][+＋\-－−][)）]|あり|なし|認め|出現|疼痛|痛みあ|異常|所見/;
+    function isTestExplanationMemo(str, allowIncomplete) {
+      const m = String(str || '').trim().match(/^([^\s:：]{2,20})[:：]\s*(.*)$/);
+      if (!m || !TEST_MEMO_LABEL_REGEX.test(m[1]) || TEST_MEMO_RESULT_REGEX.test(m[2])) return false;
+      return allowIncomplete ? true : /(?:とき|場合|際)[。.]?$/.test(m[2]);
+    }
+    // Generic symptom enumeration copied from a disease description ("A、B、C など、D など"): not evidence about this patient until confirmed.
+    function isGenericSymptomList(str) {
+      const t = String(str || '').normalize('NFKC').trim();
+      if (!t || t.length > 90 || !/など/.test(t)) return false;
+      if (/[「」。]|あり|なし|ない|認め|訴|みられ|見られ|です|ます|[はがをにへ]/.test(t.replace(/[(][^)]*[)]/g, ''))) return false;
+      const items = t.split(/、(?![^(]*\))/).map(s => s.trim()).filter(Boolean);
+      const hasParen = /\([^)]*\)/.test(t);
+      return items.length >= 3 || (items.length >= 2 && (hasParen || (t.match(/など/g) || []).length >= 2));
+    }
     function isSourceStructureText(str) {
       const t = String(str || '').normalize('NFKC').trim();
       if (/^\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?$/.test(t)) return true;

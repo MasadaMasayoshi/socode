@@ -1,6 +1,18 @@
 'use strict';
-
+// 利用者からのアップロード文書（患者34：分類前の文章と分類後の出力シート）で見つかった、
+// Oデータ欄の分類の問題と「不必要な情報」に検査値が入っていた問題の回帰テスト。
 //
+// 1. 「検査項目／正常値／入院時／術後1日目」の表が表として認識されず（「基準値」しか列見出しと
+//    して認識していなかった）、基準値だけのカード・項目名だけのカード・数値だけのカードに
+//    バラバラに分かれていた。列見出し「術後1日目」が時系列マーカーとして以降すべての日時を
+//    上書きし、CRPの基準値「<0.2mg/dl」は山括弧見出し「<…>」と誤認され「不必要な情報」に入っていた。
+// 2. 「■ 嗜好品」「■ 活動・睡眠・清潔・更衣」「1. 生活習慣・身体的機能（左ページ）」のような
+//    見出しが、見出し語だけのOデータのカード（「活動」「睡眠」…）になっていた。
+// 3. 「嘔気・嘔吐なし」が「嘔気」「嘔吐なし」に分割され、「嘔気」だけのカードが「嘔気あり」とも
+//    読める状態になっていた（所見の意味の逆転）。
+// 4. 「疼痛訴えなく」「呼吸困難訴えなし」（訴えが無いという観察）や、「ペインスケール「2-3」」
+//    （数字だけを「」で囲んだ評価値）がSデータになっていた。
+// 5. 「術後1日目より受け持つ。」から日時だけが剥がされ「より受け持つ。」というOデータになっていた。
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -24,13 +36,16 @@ function extract(text) {
   return groupClinicalPhrasesWithTimestamps(text.normalize('NFKC'));
 }
 
+// 【変更】患者36の指摘（「関連する項目をグループ化し、入院時→術後1日目の比較としてまとめると、貧血の進行や
+// 炎症反応の程度をアセスメントしやすい」）により、2つ以上の時点の列がある表は、項目・時点ごとの1枚ずつではなく、
+// 関連する項目（炎症・血糖…）ごとに「入院時→術後1日目」の変化が分かる1枚にまとめるようにした。
 test('「正常値」の列見出しの表：関連する項目ごとに、入院時→術後1日目の変化と基準値が分かる1枚になる（利用者からの報告事例）', () => {
   const items = extract(LAB_TABLE);
   const inflammation = items.find(i => i.text.startsWith('炎症（入院時→術後1日目）'));
   assert.ok(inflammation, items.map(i => i.text).join(' / '));
   assert.equal(inflammation.timestamp, '術後1日目', '日時は表の最後の時点');
   assert.equal(inflammation.isLabOrVital, true);
-  assert.match(inflammation.text, /WBC \(白血球\) 8100\/μL→10,200\/μL \(基準値: 8\.1-9\.0×10\^3\/μL\)/, '単位の省略された2列目にも同じ行の単位が補われる');
+  assert.match(inflammation.text, /WBC \(白血球\) 8100→10,200\/μL（基準 8\.1-9\.0×10\^3\/μL）/, '単位の省略された2列目にも同じ行の単位が補われる');
   assert.ok(!items.some(i => /^WBC/.test(i.text)), '項目・時点ごとのカードは作らない');
   const wbcRow = inflammation.labRows.find(r => r.key.startsWith('WBC'));
   assert.equal(JSON.stringify(wbcRow.values), JSON.stringify([{ phase: '入院時', value: '8100/μL' }, { phase: '術後1日目', value: '10,200/μL' }]), '異常値の検出用に時点ごとの値を持つ');
@@ -40,15 +55,15 @@ test('基準値「<0.2mg/dl」は「不必要な情報」にならず、CRPの�
   const items = extract(LAB_TABLE);
   assert.ok(!items.some(i => i.isUnnecessaryBoilerplate && /0\.2/.test(i.text)), '検査値が不必要な情報に入ってはいけない');
   const inflammation = items.find(i => i.text.startsWith('炎症'));
-  assert.match(inflammation.text, /CRP \(C反応性蛋白\) 0\.826mg\/dl→1\.5mg\/dl \(基準値: <0\.2mg\/dl\)/);
+  assert.match(inflammation.text, /CRP \(C反応性蛋白\) 0\.826→1\.5 mg\/dl（基準 <0\.2）/);
 });
 
 test('基準値の列が「ー」の項目：基準値なしで実測値だけ、「ー」（測定なし）の時点は「のみ」と分かる', () => {
   const items = extract(LAB_TABLE);
   const glucose = items.find(i => i.text.startsWith('血糖（入院時→術後1日目）'));
   assert.ok(glucose);
-  assert.match(glucose.text, /FBS \(空腹時血糖\) 100mg\/dl→105mg\/dl、/);
-  assert.match(glucose.text, /HbA1c 6\.0%（入院時のみ）/, '術後1日目が「ー」のHbA1cは入院時の値だけ');
+  assert.match(glucose.text, /FBS \(空腹時血糖\) 100→105 mg\/dl\n/);
+  assert.match(glucose.text, /・HbA1c 6\.0%（入院時のみ、/, '術後1日目が「ー」のHbA1cは入院時の値だけ');
   const order = items.filter(i => i.isLabOrVital).map(i => i.text.split('（')[0]);
   assert.deepEqual(Array.from(order), ['炎症', '血糖'], '表で先に出てくる項目のまとまりから並べる');
 });
@@ -114,7 +129,7 @@ test('数字だけを「」で囲んだ評価値はOデータ、かな・漢字�
   assert.equal(predictSOTypeFromNarrative('疼痛: 安静時ペインスケール「2-3」'), 'o');
   assert.equal(predictSOTypeFromNarrative('疼痛: 「動かなかったら痛くないよ」'), 's');
   assert.ok(!detectMultipleHendersonTags('安静時ペインスケール「2-3」').includes(10), '数字だけの括弧で10(コミュニケーション)は付かない');
-  assert.ok(!detectMultipleHendersonTags('「先生にお任せするしかない」').includes(10), 'Sデータという形式だけでは10(コミュニケーション)に分類しない');
+  assert.ok(detectMultipleHendersonTags('「先生にお任せするしかない」').includes(10), '発言には引き続き10が付く');
 });
 
 test('「術後1日目より受け持つ。」は日時が剥がされず、学生の受け持ち開始の記述として不必要な情報になる（利用者からの報告事例）', () => {

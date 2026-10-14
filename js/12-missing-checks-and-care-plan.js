@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.50'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.52'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -277,7 +277,7 @@
         if (evidence.length) return set('classify', `家族のがんの記録と、同じ時期の本人の検診利用行動「${evidence[0].evidence}」が対応しています。健康管理行動の背景として14.学びへ関連付けます。`, '高', [14], ['家族の疾患を本人の疾患に置き換えず、検診を受けた行動と理解度の判定を分けてください']);
         return set('none', '家族の病歴として保持します。家族のがんや死亡だけでは、本人の疾患・悲嘆・学習行動は判断できません。', '高', [], ['本人の検診利用行動や気持ちが記録されている場合に、その明示された内容と関連付けてください']);
       }
-      if (isSourceStructureText(text) || /^ホーマンズ[:：]\s*足を背屈させたとき[。.]?$/.test(text.trim())) {
+      if (isSourceStructureText(text) || isTestExplanationMemo(text.trim())) {
         return set('none', '資料の見出し・表構造・説明メモで、患者の観察所見ではありません。日時や項目の文脈は保持します。', '高', [], ['患者所見と分け、配下の数値・観察結果を除外しないでください']);
       }
       if (item?.fieldLabel === 'アレルギー' && /^(?:ない|なし)[。.]?$/.test(text.trim())) {
@@ -712,7 +712,6 @@
           <div class="cp-row"><span class="my-asm-label"><i class="fa-solid fa-table-cells"></i> 関係する項目</span><div class="cp-need-btns">${needBtns}</div></div>
           <div class="cp-grid2">${field('goalLong', '<i class="fa-solid fa-flag-checkered"></i> 長期目標', 2, '例：退院までに歩行器で病棟内を自立して移動できる')}${field('goalShort', '<i class="fa-solid fa-flag"></i> 短期目標', 2, '例：3日後までに、痛みがNRS3以下でリハビリに参加できる')}</div>
           <div class="cp-grid3">${CARE_PLAN_SECTIONS.map(s => field(s.key, `<i class="fa-solid fa-list-ol"></i> ${s.label}`, 5, s.placeholder)).join('')}</div>
-          ${carePlanInlineNotesHtml(cp, p)}
           <div class="cp-actions">
             <label class="cp-status-select"><span class="my-asm-label">状態</span><select class="field" onchange="setCarePlanStatus('${pid}', this.value)">${CARE_PLAN_STATUSES.map(s => `<option value="${s.key}"${p.status === s.key ? ' selected' : ''}>${s.label}</option>`).join('')}</select></label>
             <button type="button" class="btn btn-outline my-asm-btn${carePlanReviewOpen.has(p.id) ? ' active' : ''}" onclick="toggleCarePlanReview('${pid}')" aria-expanded="${carePlanReviewOpen.has(p.id)}" title="目標・OP/TP/EPを7つの項目で確かめます"><i class="fa-solid fa-clipboard-list"></i> 計画をチェック</button>
@@ -1030,6 +1029,22 @@
       { key: 'evidence', label: '根拠データとの一致' }
     ];
 
+    // Infection risk under immunosuppression with no wound/line documented. Does not invent wound or line observations.
+    function CP_INF_IMMUNO() {
+      return { goalLong: '退院までに、感染の徴候（発熱・咽頭痛・咳・口腔内や皮膚の発赤など）を認めず、感染予防の行動を自分の言葉で説明できる',
+        goalShort: '計画開始から3日以内に、感染の徴候が出ていないことが確認でき、手洗い・うがいなどの予防行動を実演できる',
+        op: ['体温・発熱の有無と推移（発熱時は悪寒・発汗・随伴症状とあわせて、感染か疾患の活動性かを医師と評価する）', '咽頭痛・咳・口腔内の状態・皮膚の発赤など、感染の徴候', 'WBC・好中球・CRPの推移（原本で確認できた値のみ使い、単位や桁が不明な値は確認してから評価する）', 'ステロイド・免疫抑制薬の薬剤名・用量・開始日と、副作用の有無'],
+        tp: ['手洗い・うがい・口腔ケア・清潔保持を支援し、環境を整える', '人混みや面会の制限が必要かを医師と相談し、本人・家族と調整する', '発熱や感染の徴候があれば、院内の報告基準に沿って医師へ報告する'],
+        ep: ['手洗い・うがい・マスクの方法を説明し、実際にやってもらって確認する', '発熱・のどの痛み・咳などが出たら我慢せずすぐ伝えること、ステロイド・免疫抑制薬は自己判断で中止しないことを説明し、本人の言葉で言ってもらう'] };
+    }
+    // Nutrition model for patients with no documented surgery/fasting. No intake or weight targets are invented: they are set after confirming current values.
+    function CP_NUTR_NONSURGICAL(c) {
+      return { goalLong: '退院までに、現在の食事摂取量・体重を確認したうえで、本人に合った食事の整え方を看護師と一緒に決め、自分の言葉で説明できる',
+        goalShort: '計画開始から3日以内に、食事摂取量・食欲・体重の現在値が確認でき、摂取量と体重の目標を医療者と決められる',
+        op: ['食事・水分の摂取量（割・mL）・食欲と、摂取できない理由（症状・薬剤・口腔・疲労）', '体重の推移（同じ条件で測る）。入院前の体重・体重減少が本人の記録で確認できるか', 'Alb・TPなどの検査値（原本で確認できた値のみ使う）', '食習慣（外食の頻度・内容・食事の時間）と、治療薬（ステロイドなど）による食欲・血糖・体重の変化'],
+        tp: ['食事摂取量を確認し、少ないときは医師・栄養士へ報告して食事内容・補助食品などを相談する', '食欲や疲労に合わせて、食べやすい形態・量・時間を調整する'],
+        ep: ['退院後の食事（外食の選び方・食事の時間・治療薬との関係）を、本人の生活に合わせて一緒に整理し、自分の言葉で説明してもらう'] };
+    }
     const CP_DOMAINS = [
       { key: 'inf', re: /感染/, words: /感染|発熱|体温|創部|刺入部|発赤|WBC|CRP/,
         op: [['体温・熱型', /体温|発熱|熱型|℃/], ['創部・刺入部の発赤・腫脹・熱感・痛み', /発赤|腫脹|熱感|創部|刺入部/], ['滲出液・ドレーン排液・尿の性状', /滲出|排液|ドレーン|尿の(?:性状|色|混濁)|性状/], ['WBC・CRPなどの検査値', /WBC|CRP|白血球|検査/]],
@@ -1108,6 +1123,9 @@
         goal: () => '3日後までに、心配なことを自分の言葉で看護師に話せ、夜は眠れたと言える' }
     ];
 
+    CP_DOMAINS.unshift({ key: 'fatigue', re: /^(?!.*(?:活動耐性|息切れ|セルフケア|廃用))[^]*?(?:疲労|倦怠)/, words: /疲労|倦怠|活動|休息|睡眠|ADL|更衣|清潔/,
+      op: [['疲労の強さ・時間帯・活動との関係・休息後の変化', /疲労|倦怠|休息|回復/], ['日常生活（更衣・清潔・移動・食事）の負担', /ADL|日常生活|更衣|清潔|移動/], ['睡眠・日中の休息', /睡眠|眠|休息/], ['疲労に伴う症状（発熱・関節痛）', /発熱|関節|痛み|症状/]],
+      goal: () => '計画開始から3日以内に、疲労が強くなる活動を把握し、休息を取り入れた過ごし方を看護師と一緒に決められる' });
     // 教科書の看護計画（診断ごとのOP/TP/EP・看護目標の指標）から一般化した領域。固有の患者・語句には依存しない
     CP_DOMAINS.unshift(
       { key: 'perfusion', re: /脳組織灌流|脳血流|末梢組織灌流|組織灌流|心拍出量/, words: /血圧|意識|麻痺|NIHSS|MMT|抗凝固|服薬|頭痛|瞳孔|構音/,
@@ -1153,6 +1171,7 @@
         tp: [cpAnalgesiaTp(c, '体動・清拭・歩行'), '創部を圧迫しないよう、枕を使って膝を軽く曲げた体位に整える', '起き上がるときは創部を手で支えられるよう、ゆっくり一緒に動く'],
         ep: ['痛みは我慢せず、0〜10の数字（NRS）で伝えてよいことを説明し、今の痛みを数字で答えてもらって確認する', '創部を手で支えて起き上がる方法を実演し、1回やってもらう'] }),
       inf: c => {
+        if (c && c.immunoOnly) return CP_INF_IMMUNO();
         const line = /ドレーン|カテーテル|バルーン|膀胱留置/.test((c && c.text) || '');
         return { goalLong: '退院まで、発熱が続かず、傷に感染の徴候（発赤・腫脹・熱感・滲出液・においの増加）が出ない',
         goalShort: '3日後までに、傷のまわりの発赤・腫脹・熱感・滲出液が、初回の記録（初回所見）より増えず、発熱が続かない',
@@ -1186,10 +1205,10 @@
         tp: ['面会時に10分ほど時間をとり、困っていることを聞く', '栄養士の指導の日時を家族に伝え、同席できるよう調整する'],
         ep: ['低血糖の症状と、意識がはっきりして飲み込めるときだけブドウ糖を飲ませること、意識がおかしい・飲み込めないときは口に入れず119番に連絡すること、15分後も低いときはもう一度対応して連絡することを説明し、同じ内容を自分の言葉で言ってもらう', '献立は栄養士の指導で説明されるので、看護師は「飲酒の相談の仕方（責めずに本人の目標を一緒に決める）」と「仕事復帰後の昼食・注射の工夫」を一緒に考える'] }),
       anx: c => ({ goalLong: '退院までに、不安を感じたときに自分から看護師に話し、対処の方法を使える',
-        goalShort: `3日後までに、${/低血糖/.test(c.text || '') ? '低血糖への心配' : '心配なこと'}を自分の言葉で看護師に話せ、${/低血糖/.test(c.text || '') ? '心配への対処（ブドウ糖を手元に置く・症状が出たら知らせる）を言える' : '心配への対処を1つ言える'}`,
-        tp: ['日勤・夜勤の看護師が1日1回、決まった時間に5分以上、気持ちを聞く時間をとる', ...(/低血糖/.test(c.text || '') ? ['低血糖が起きたときの対処の手順を一緒に紙に書き、枕元に置く'] : ['心配なことを一緒に紙に書き出し、答えられるものから説明する'])],
-        ep: ['不安なときは我慢せず、いつでも看護師を呼んでよいことを説明し、呼び方を言ってもらって確認する'],
-        opFirst: '睡眠の状況（眠れているか・途中で目が覚めるか）を、まず確認する' }),
+        goalShort: `計画開始から3日以内に、${/低血糖/.test(c.text || '') ? '低血糖への心配' : '心配なこと'}を自分の言葉で看護師に話せ、${/低血糖/.test(c.text || '') ? '心配への対処（ブドウ糖を手元に置く・症状が出たら知らせる）を言える' : '心配への対処を1つ言える'}`,
+        tp: ['疲労の程度や本人の希望に合わせて、安心して話せる機会を確保し、不安を否定せずに聴く（時間を守ることより、安心して話せることを優先する）', ...(/低血糖/.test(c.text || '') ? ['低血糖が起きたときの対処の手順を一緒に紙に書き、枕元に置く'] : ['心配なことを一緒に紙に書き出し、答えられるものから説明する'])],
+        ep: ['不安なときは我慢せず、いつでも看護師を呼んでよいことを説明し、呼び方を言ってもらって確認する', '不安の内容（病気・再燃・治療・仕事・退院後の生活など）のうち、本人が知りたいことを確認し、説明が必要なことは医師・多職種と共有して、療養や退院後の生活を一緒に整理する'],
+        op: ['不安の内容（何が心配か）・強さ・強くなる場面と、睡眠・食欲・療養への影響を、まず確認する', '表情・言動（不安の言葉）を観察する', '病気・再燃・治療・仕事について、理解していることと分からないことを確認する', 'これまでの対処方法と、家族など相談できる人の有無・支援を確認する'] }),
       resp: c => ({ goalLong: '退院までに、自分で痰を出せ、SpO2 95%以上を保って病棟内を歩ける',
         goalShort: '3日後までに、深呼吸と咳で痰を自分で出すことができ、SpO2 95%以上を保てる',
         op: ['SpO2・呼吸数・呼吸の深さ（低下・増加は無気肺や肺炎の早期のサイン）', '呼吸音（副雑音・左右差・減弱）', '痰の量・性状と、自分で喀出できているか', '咳嗽の強さ（創部痛で咳を我慢していないか）と、体温・熱型', '疼痛の程度（NRS）と、深呼吸・咳嗽・体位変換への影響'],
@@ -1201,12 +1220,12 @@
         op: ['腹部膨満・腹痛の有無と程度（腸管運動の回復の遅れの早期のサイン）', '悪心・嘔吐の有無・回数・性状', '排ガス・排便の有無と時期（排ガスがないことだけでイレウスとは判断せず、腹部症状・嘔吐・痛み・術後経過と合わせて評価する）', '腸蠕動音（他の所見と合わせて評価する）', ...(/胃管|NGチューブ|ドレーン/.test(c.text || '') ? ['胃管・ドレーンの排液の量・性状'] : []), ...(/点滴|出納|絶飲食|飲水|水分/.test(c.text || '') ? ['水分出納（IN/OUT）と、飲水・食事の摂取状況'] : []), '術後経過（離床の進み具合・鎮痛薬やオピオイドの使用）'],
         tp: ['医師の許可の範囲で早期離床（端座位・歩行）を進め、実施の前後に腹部症状（膨満・腹痛・悪心）を確認する', '指示された食事開始・食上げの段階を確認し、腹部症状がなければ、一口量・食べる速さを調整して介助する', '腹部膨満・反復する嘔吐・強い腹痛などが出たら、次の食事・飲水を進めず、院内の報告基準に従って速やかに医師へ報告し、食事・補液・検査などの指示を確認する（食事の中止・変更・再開は医師の指示による）', '痛みで体動が制限されているときは、' + cpAnalgesiaTp(c, '離床')],
         ep: ['歩くことが腸の動きの回復に役立つことを説明し、離床のしかたを一緒に確認する', '腹部の張り・吐き気・痛みが出たら我慢せずすぐ知らせること、食事は看護師と確認しながら進めることを説明し、自分の言葉で言ってもらう'] }),
-      nutr: c => ({ goalLong: '退院までに、必要な摂取量を維持し、体重が減らない', goalShort: '1週間後までに、食事を毎食7割以上食べられ、体重が今より減らない',
+      nutr: c => c.surgical === false ? CP_NUTR_NONSURGICAL(c) : ({ goalLong: '退院までに、必要な摂取量を維持し、体重が減らない', goalShort: '1週間後までに、食事を毎食7割以上食べられ、体重が今より減らない',
         opExtra: [c.weightLoss ? `術前からの体重減少（${c.weightLoss}）と、術前の食習慣・食事量を踏まえて、栄養状態の弱さを評価する` : ''].filter(Boolean),
         op: ['食事・水分の摂取量（割・mL）と、摂取できない理由（悪心・疼痛・嚥下・食欲）', '体重の推移（同じ条件で測る）', 'Alb・TPなどの検査値（絶飲食・手術の影響を考えて、経過で評価する）', '絶飲食・食事開始の指示と、輸液など栄養補給の内容', '口腔内の状態・義歯・食形態が合っているか'],
         tp: ['食事開始・食上げの指示を確認し、段階に合わせた食形態・一口量で介助する', '食事の前に口腔ケアと座位の体位調整を行い、痛みや吐き気があれば、指示の範囲で鎮痛・制吐を調整してから摂取を促す', '摂取量が少ないときは医師・栄養士へ報告し、補助食品などの導入を相談する'],
         ep: ['手術後の食事の進め方（量・速さ・よく噛む）と、むかつき・膨満が出たときの知らせ方を説明し、自分の言葉で言ってもらう', ...(c.gastric ? ['食事が始まってから退院前までの回復の段階に合わせて、少量を回数多く食べること・ダンピング症候群の症状と対処・栄養外来などでの経過観察・（胃全摘の場合）ビタミンB12補充の必要性を、医師・栄養士から指示・説明があった範囲で一緒に確認する'] : [])] }),
-      act: c => c.risk ? ({ goalLong: '', goalShort: '',
+      act: c => (!c.risk && /疲労|倦怠/.test(c.text || '') && !/息切れ|呼吸困難|COPD|心不全|肺炎/.test(c.text || '')) ? CP_MODELS.fatigue(c) : c.risk ? ({ goalLong: '', goalShort: '',
         op: ['安静度の指示（ベッド上安静・離床許可の範囲）と、実際の活動状況', '離床・体位変換の前後の脈拍・血圧・SpO2と、自覚症状（息切れ・めまい・疲労）', '筋力・関節の動く範囲・ADL（できる所・介助が要る所）', '下肢の腫脹・痛み（廃用・血栓の早期発見）'],
         tp: ['医師が指示した安静度の範囲で、体位変換・関節運動・離床（ベッド上座位→端座位→立位）を段階的に進める', cpAnalgesiaTp(c, '離床') + '。離床の前に脈拍・血圧・SpO2を確認してから始める。ふらつき・息切れ・SpO2低下があれば中止し、医師へ報告する', 'ADLは、できる部分は自分で行ってもらい、介助が必要な動作を見きわめて介助する'],
         ep: ['体を動かす目的（筋力低下・肺炎・血栓の予防）と、動くときに痛みやつらさがあれば伝えてよいこと、無理せず休むことを説明し、自分の言葉で言ってもらう'] })
@@ -1218,6 +1237,12 @@
         tp: ['ナースコールを手の届く位置に置き、ベッド周りの床・履物を整える', '夜間のトイレは、就寝前に誘導し、起きるときは見守って付き添う', 'ふらつきのある日は、歩行時に腕を支えて一緒に歩く'],
         ep: ['なぜ呼んでよいか（ふらつきで転ぶと骨折する）を説明し、ナースコールの押し方を実際に押してもらって確認する'] })
     };
+    // Fatigue / activity-rest model (general). Target values are never invented; activity and rest are balanced from observed fatigue.
+    CP_MODELS.fatigue = c => ({ goalLong: '退院までに、疲労の程度に合わせて活動と休息を調整し、必要な日常生活を無理なく行う方法を説明できる',
+      goalShort: '計画開始から3日以内に、疲労が強くなる活動を把握し、休息を取り入れた過ごし方を看護師と一緒に決められる',
+      op: ['疲労の強さ、時間帯、活動との関係、休息後の変化を確認する', '更衣・清潔・移動・食事など、日常生活のどこに負担があるかを確認する', '睡眠時間・眠りの質、日中の休息と、休んだ後の回復感を確認する', '発熱・関節痛など、疲労に伴う症状と、治療開始後の変化を確認する'],
+      tp: ['本人が優先したい活動を確認し、負担の大きい活動の前後に休息を組み込む', '疲労が強い場面では必要な援助を行い、本人が無理なくできる部分は継続できるようにする', '疲労や症状の変化を医療チームと共有し、その時点の状態に合わせて活動量を調整する'],
+      ep: ['疲労や痛みを我慢して活動を続けず、早めに伝えるよう説明する', '退院後の仕事・家事について、活動を分ける、途中で休む、周囲に援助を頼む方法を一緒に考え、本人の言葉で説明してもらう', ...(/光線過敏|紫外線|蝶形紅斑/.test((c && c.text) || '') ? ['日光（紫外線）で症状が悪化しやすいことを説明し、帽子・長袖・日焼け止めなどの対策を、本人の生活に合わせて続けられる方法として一緒に確認する'] : [])] });
     function cpModelFor(plan, ctx) {
       const d = cpDomainOf(plan);
       if (!d || !CP_MODELS[d.key]) return null;
@@ -1254,7 +1279,7 @@
         stoma: /ストーマ|ストマ|人工肛門/.test(text), urinary: /膀胱留置|バルーン|尿道カテーテル/.test(text), text,
 
         pca: /PCA|硬膜外/.test(text), epidural: /硬膜外/.test(text), opioid: /フェンタニル|モルヒネ|オピオイド|オキシコドン|ペンタゾシン|トラマドール|PCA|硬膜外/.test(text),
-        gastric: /胃(?:全摘|切除|亜全摘)/.test(text), gastricTotal: /胃全摘|胃を全摘/.test(text),
+        surgical: /術後|術前|手術|術式|全摘|切除|開腹|腹腔鏡|オペ/.test(text), immunoOnly: /免疫抑制|ステロイド|プレドニゾロン|PSL|白血球(?:減少|低下)/.test(text) && !/創|傷口|ドレーン|カテーテル|褥瘡|潰瘍|刺入/.test(text.replace(/口腔潰瘍/g, '')), gastric: /胃(?:全摘|切除|亜全摘)/.test(text), gastricTotal: /胃全摘|胃を全摘/.test(text),
         weightLoss: ((text.match(/(\d+\s*(?:か月|ヶ月|カ月|週間?)(?:で|間に|間で)?\s*(?:体重(?:が)?)?\s*\d+(?:\.\d+)?\s*kg\s*(?:減|低下|やせ|減少))/) || text.match(/(体重(?:が)?\s*\d+(?:\.\d+)?\s*kg\s*(?:減|低下|減少))/) || [])[1] || '').replace(/\s+/g, '') };
     }
 
@@ -1428,7 +1453,7 @@
         if (wc.length > 1) out.op.push('WBC・CRPの観察が複数の項目に分かれています。1つのOPにまとめられます');
       }
       if (key === 'act') {
-        const bad = [...evLines, ...planLines].filter(l => /短時間で済ませる|外食|朝食|昼食|夕食|食事/.test(l) && !/ADL|歩行|移動|離床|活動|体動|テニス|自立/.test(l));
+        const bad = [...evLines, ...planLines].filter(l => /済ませる|外食|朝食|昼食|夕食|食事|間食/.test(l) && !/ADL|歩行|移動|離床|活動|体動|テニス|自立/.test(l));
         if (bad.length) out.evidence.push(`「${bad[0].slice(0, 36)}」は食事の記録で、ADL・活動の根拠ではありません。術前の「ADLすべて自立」「週末にテニス」と、術後の「自主的な体動なし」などを比べて使ってください`);
       }
       if (/胃管/.test(planLines.join('\n')) && /胃管[^\n]{0,24}抜去|抜去[^\n]{0,12}胃管/.test(t.all)) out.op.push('記録では胃管は退室時に抜去されています。胃管排液の観察が、いまの計画に残っていないか確認してください');
@@ -1624,7 +1649,7 @@
     const CP_RISK_GOALS = {
       resp: c => ({ long: '退院までに、呼吸器合併症（肺炎・無気肺）の徴候（発熱・SpO2低下・呼吸音の変化・痰の増加）を認めず、自分で深呼吸と咳嗽を行える', short: `${c.post ? '術後3日目まで' : '3日後までの観察期間中'}、発熱・SpO2低下（${c.spo2 && c.spo2 < 95 ? '現在の値から低下しない' : '95%未満になる'}ことなく）・呼吸音の変化を認めず、創部を保護しながら深呼吸と咳嗽を自分で実施できる` }),
       ileus: () => ({ long: '退院までに、消化管運動の回復が順調に経過し、食事が進められる', short: '3日後までの観察期間中、腹部膨満・反復する嘔吐・排ガス停止などの異常を認めず、異常が起きたときにすぐに対応できる' }),
-      inf: () => ({ long: '退院まで、創部・刺入部に感染の徴候（発赤・腫脹・熱感・滲出液・においの増加）を認めない', short: '3日後までの観察期間中、創部・刺入部の所見が初回の記録より悪化せず、発熱が持続せず、異常があればすぐに報告・対応できる' }),
+      inf: c => c && c.immunoOnly ? { long: CP_INF_IMMUNO().goalLong, short: CP_INF_IMMUNO().goalShort } : ({ long: '退院まで、創部・刺入部に感染の徴候（発赤・腫脹・熱感・滲出液・においの増加）を認めない', short: '3日後までの観察期間中、創部・刺入部の所見が初回の記録より悪化せず、発熱が持続せず、異常があればすぐに報告・対応できる' }),
       vte: () => ({ long: '離床が進むまで、下肢の腫脹・痛み・左右差や肺塞栓の徴候（胸痛・呼吸困難）を認めない', short: '3日後までの観察期間中、下肢の腫脹・痛みがなく、許可された範囲で足関節運動・離床を行える' }),
       bleed: () => ({ long: '入院中、出血の徴候を認めない', short: '3日後までの観察期間中、出血の徴候（創部・ドレーン排液・皮下出血・血便など）を認めず、気づいたときに看護師へ伝えられる' }),
       nutr: c => ({
@@ -2182,8 +2207,6 @@
         if (p.goalLong) lines.push(`長期目標：${p.goalLong}`);
         if (p.goalShort) lines.push(`短期目標：${p.goalShort}`);
         CARE_PLAN_SECTIONS.forEach(s => { if (p[s.key].length) lines.push(`${s.label}`, ...p[s.key].map((t, n) => `  ${s.short}${n + 1}. ${t}`)); });
-        const notes = (() => { try { const n = carePlanInlineNotes(cp, p); return [...n.goal, ...n.evidence, ...n.op]; } catch (e) { return []; } })();
-        if (notes.length) lines.push('見直し点（計画の文章は変更していません）', ...notes.map(m => `  ・${m}`));
         const recs = withRecords ? p.records.filter(r => !recordFilter || recordFilter(r)) : [];
         if (recs.length) {
           lines.push('実施・評価');
@@ -2256,7 +2279,7 @@ if (typeof module !== 'undefined' && module.exports) {
     formatCardTimestamp, MISSING_CHECK_STATUSES, missingInfoItems, missingCheckStatus, missingCheckCounts, setMissingCheck, missingCheckCardHtml,
     carePlanInlineNotes, captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
-    cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf,
+    cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf, collapseVitalCards, collapseLabCards,
     CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
     cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, carePlanSetReviewHtml, carePlanSetState, carePlanSetNextSteps
   });
