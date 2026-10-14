@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.53'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.54'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -413,7 +413,7 @@
     function normalizeLabUnit(u) {
       return String(u || '').replace(/\s+/g, '').replace(/从/g, 'μ').replace(/mEa\/L/i, 'mEq/L').replace(/万[uμµ]\/L/i, '万/μL').replace(/[µu](?=[gLl]|mol)/g, 'μ').replace(/^x(?=10)/i, '×')
         .replace(/10⁴/g, '10^4').replace(/10³/g, '10^3').replace(/10²/g, '10^2')
-        .replace(/dl$/, 'dL').replace(/ml$/, 'mL').replace(/(^|\/)l$/, '$1L').replace(/mm³/g, 'mm3')
+        .replace(/dl$/, 'dL').replace(/ml$/, 'mL').replace(/μl$/, 'μL').replace(/(^|\/)l$/, '$1L').replace(/mm³/g, 'mm3')
         .replace(/meq\/l/i, 'mEq/L').replace(/mmol\/l/i, 'mmol/L').replace(/iu\/l/i, 'IU/L').replace(/^u\/l$/i, 'U/L');
     }
 
@@ -1062,6 +1062,7 @@
 
     const SOAP_PREFIX_REGEX = /^(?:([SO])\s*[)）:：]|([AP])\s*(?:[)）]|[:：](?!\s*\d)))\s*/;
     const SOAP_ASSESSMENT_MARK = '\u0002SOAP\u0002';
+    const GENERIC_LIST_MARK = '\u0002GLIST\u0002';
 
     const STUDENT_SECTION_HEADING_REGEX = /^[【\[＜<■●◆]\s*(?:本日の|今日の|明日の|実習|学生の)?(?:目標|行動計画|看護計画|計画|考察|評価|自己評価|課題|学び|感想|振り返り|反省|気づき|明日への課題|今後の課題|指導者(?:から|より)?の?(?:助言|コメント|指導)|指導者より|助言|情報の整理)(?:[・と][^】\]＞>]{0,12})?\s*(?:[(（]\s*(?:学生|自分)[^)）]{0,6}[)）])?\s*[】\]＞>]?\s*$/;
     const STUDENT_NOTE_LINE_REGEX = /^(?:学生の(?:関わりの)?)?(?:アセスメント|考察|振り返り|感想|反省|今日の学び|学び|明日の課題|今後の課題|自己評価|看護問題|看護計画|目標|場面を選んだ理由|この場面を選んだ理由|気づいたこと|気付いたこと)\s*[:：]/;
@@ -1185,6 +1186,24 @@
         const isHead = prevBlank && next && t.length >= 2 && t.length <= 10 && !/[、。,.:：「」()（）\d%％\u0002【】\[\]<>＜＞■●◆◇□○]/.test(t) && !DAY_HEADING_ONLY_REGEX.test(t.replace(/\s+/g, '')) &&
           !t.startsWith(SOURCE_TITLE_MARK) && !/[ぁ-ん]$/.test(t) && !Array.from(detectMultipleHendersonTagsRaw(t) || []).length;
         res.push(isHead ? SOURCE_TITLE_MARK + t : l);
+      });
+      // A section whose block is a generic symptom list (e.g. a textbook list ending in 「など」) continues through the
+      // following noun-only blocks (no sentence, quote, digit, colon or case particle); those lines are the same list.
+      const blocks = [];
+      let curBlock = null;
+      res.forEach((l, i) => {
+        if (!l.trim()) { curBlock = null; return; }
+        if (!curBlock) { curBlock = []; blocks.push(curBlock); }
+        curBlock.push(i);
+      });
+      const bodyOf = idxs => idxs.filter(i => !res[i].startsWith(SOURCE_TITLE_MARK)).map(i => res[i].trim());
+      const listLike = idxs => { const b = bodyOf(idxs); return b.length > 0 && b.every(x => !/[。「」\d:：]/.test(x) && !/[はがをにへ]/.test(x.replace(/[（(][^）)]*[）)]/g, ''))); };
+      let inRegion = false;
+      blocks.forEach(idxs => {
+        const body = bodyOf(idxs);
+        if (!inRegion && body.length && isGenericSymptomList(body.join(''))) inRegion = true;
+        else if (inRegion && !listLike(idxs)) inRegion = false;
+        if (inRegion) idxs.forEach(i => { if (!res[i].startsWith(SOURCE_TITLE_MARK)) res[i] = GENERIC_LIST_MARK + res[i].trim(); });
       });
       return res;
     }
@@ -1362,7 +1381,7 @@
       for (let i = 0; i < step1.length; i++) {
         const cur = step1[i].trim();
         const nextIdx = k => { let j = k; while (j < step1.length && step1[j].trim() === '') j++; return j; };
-        const endsWithComma = /、$/.test(cur) && cur.length <= 60 && !cur.startsWith(SOURCE_TITLE_MARK) && !cur.startsWith(SOAP_ASSESSMENT_MARK);
+        const endsWithComma = /、$/.test(cur) && cur.length <= 60 && !cur.startsWith(SOURCE_TITLE_MARK) && !cur.startsWith(SOAP_ASSESSMENT_MARK) && !cur.startsWith(GENERIC_LIST_MARK);
         const isQuoteOnly = QUOTE_ONLY_LINE_REGEX.test(cur);
         if (!endsWithComma && !isQuoteOnly) { out.push(step1[i]); continue; }
         let j = nextIdx(i + 1);
@@ -1390,7 +1409,7 @@
       const result = [];
       out.forEach(line => {
         const t = line.trim();
-        if (t.length > 100 && !/^[^:：「」。]{1,14}[:：]/.test(t) && !/^\d{1,2}[:時]\d{2}/.test(t) && !t.startsWith(SOURCE_TITLE_MARK) && !t.startsWith(SOAP_ASSESSMENT_MARK)) {
+        if (t.length > 100 && !/^[^:：「」。]{1,14}[:：]/.test(t) && !/^\d{1,2}[:時]\d{2}/.test(t) && !t.startsWith(SOURCE_TITLE_MARK) && !t.startsWith(SOAP_ASSESSMENT_MARK) && !t.startsWith(GENERIC_LIST_MARK)) {
           const sentences = splitSentencesOutsideQuotes(t);
           if (sentences.length >= 3) { sentences.forEach(s => result.push(s)); return; }
         }
@@ -1403,7 +1422,7 @@
         const head = t.match(/^\u0002NEED(\d{1,2})\u0002(.*)$/);
         if (head) { currentNeed = Number(head[1]); return SOURCE_TITLE_MARK + head[2]; }
         if (/^[【\[＜<■●◆]/.test(t) || t.startsWith(SOURCE_TITLE_MARK)) currentNeed = null;
-        return currentNeed && t && !t.startsWith(SOAP_ASSESSMENT_MARK) && t !== DAY_SAVE_MARK && t !== DAY_RESTORE_MARK ? `\u0003${currentNeed}\u0003${t}` : line;
+        return currentNeed && t && !t.startsWith(SOAP_ASSESSMENT_MARK) && !t.startsWith(GENERIC_LIST_MARK) && t !== DAY_SAVE_MARK && t !== DAY_RESTORE_MARK ? `\u0003${currentNeed}\u0003${t}` : line;
       });
     }
 
@@ -1640,6 +1659,11 @@
         if (cleanLine === DAY_RESTORE_MARK) {
           if (savedDayState) { globalTimestamp = savedDayState.ts; dayLabel = savedDayState.day; lastClockMin = savedDayState.clock; }
           savedDayState = null;
+          continue;
+        }
+        if (cleanLine.startsWith(GENERIC_LIST_MARK)) {
+          pushExtracted({ text: cleanExtractedPhrase(cleanLine.slice(GENERIC_LIST_MARK.length).trim()), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true, genericListRegion: true });
+          markerOnlyRunCount = 0; timestampBeforeMarkerRun = null;
           continue;
         }
         if (cleanLine.startsWith(SOAP_ASSESSMENT_MARK)) {
@@ -2501,7 +2525,7 @@
         if (/^\|?\s*:?-{3,}/.test(text)) { ruleId = 'source.table-separator'; reason = '表の列を区切る罫線で、患者の測定値や所見を含まないため除外。原文の罫線は照合用に保持。'; }
         else if (/^[<＜]/.test(text) && extractDayLabelFromHeading(text)) { ruleId = 'source.date-heading'; reason = '実習日・入院日・手術時期の見出し。日時の整理に用い、患者の所見カードから除外。'; }
         else if (/^担当[:：]/.test(text)) { ruleId = 'source.course-staff'; reason = '直前の教材表題に続く担当者名で、患者の担当者や支援者を示す記録ではないため除外。'; }
-        else if (isGenericSymptomList(text)) { ruleId = 'source.generic-symptom-list'; reason = '疾患の一般的な症状の列挙で、この患者に認められた所見と確認できないため除外。本人の所見として別に記載されていれば、その記録を使う。'; }
+        else if (isGenericSymptomList(text) || chunk.genericListRegion) { ruleId = 'source.generic-symptom-list'; reason = '疾患の一般的な症状の列挙で、この患者に認められた所見と確認できないため除外。本人の所見として別に記載されていれば、その記録を使う。'; }
         else if (isTestExplanationMemo(text, true)) { ruleId = 'source.incomplete-explanation'; reason = '検査の説明途中の文章で、患者の検査結果は書かれていないため除外。結果が別に記載されていれば、その結果は残す。'; }
         else { ruleId = 'source.structure'; reason = '資料の表題・節見出し・表の項目名で、患者の所見や測定値を含まないため除外。配下の記録は別に分類。'; }
       } else if (isPatientIdentityLine(text)) { ruleId = 'background.identity'; reason = '氏名・年齢・性別を1枚の患者基本情報として保持。この紹介だけでは特定の欲求タグを付けない。'; }
