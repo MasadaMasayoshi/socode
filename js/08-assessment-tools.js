@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.47'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.58'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -459,7 +459,7 @@
       const selectedCount = cands.filter(c => (cp.selectedDiagnosisIds || []).includes(c.id)).length;
       const steps = [
         { key: 'missing', label: '① 不足情報を推定', done: !!run.missing, detail: run.missing ? `済・${missingCount}件（${formatAiStepTime(run.missing)}）` : '未' },
-        { key: 'diagnosis', label: '② 看護診断候補', done: !!run.diagnosis || !!cp.diagnosisResult, detail: cands.length ? `済・${cands.length}件中 ${selectedCount}件を選択` : (cp.diagnosisResult ? '済' : '未') },
+        { key: 'diagnosis', label: '② 看護診断候補', done: !!run.diagnosis || !!activeGeneratedResult(cp, 'diagnosisResult'), detail: cands.length ? `済・${cands.length}件中 ${selectedCount}件を選択` : (cp.diagnosisResult ? '済' : '未') },
 
         { key: 'careplan', label: '③ 看護計画を評価', done: typeof carePlanSetState !== 'undefined' && !!(carePlanSetState.ai && carePlanSetState.ai[cp.id]), detail: (() => { const n = typeof carePlanList === 'function' ? carePlanList(cp).length : 0; const ev = typeof carePlanSetState !== 'undefined' && carePlanSetState.ai && carePlanSetState.ai[cp.id]; return ev ? `済・計画${n}件を評価` : (n ? `計画${n}件（自動作成）・未評価` : '計画は「看護計画」タブで自動作成'); })() }
       ];
@@ -489,11 +489,11 @@
       const panel = document.getElementById('diagnosis-panel');
       const content = document.getElementById('diagnosis-content');
       if (!panel || !content) return;
-      const cands = cp.diagnosisCandidates || [];
-      if (!cp.diagnosisResult && cands.length === 0) { panel.classList.add('hidden'); content.innerHTML = ''; return; }
+      const cands = activeDiagnosisCandidates(cp);
+      if (!activeGeneratedResult(cp, 'diagnosisResult') && cands.length === 0) { panel.classList.add('hidden'); content.innerHTML = ''; return; }
       panel.classList.remove('hidden');
 
-      if (cands.length === 0) { content.innerHTML = storedAiHtml(cp.diagnosisResult); return; }
+      if (cands.length === 0) { content.innerHTML = storedAiHtml(activeGeneratedResult(cp, 'diagnosisResult')); return; }
       const sel = new Set(cp.selectedDiagnosisIds || []);
       content.innerHTML = '<p class="dx-hint">看護計画は記録から自動で作られます（「看護計画」タブ）。ここでは、計画の根拠にしたい診断にチェックを入れておくと、AIの評価で参考にします。</p>' +
         cands.map(c => `<div class="dx-candidate${sel.has(c.id) ? ' dx-selected' : ''}">

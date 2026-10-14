@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.54'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.58'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -155,6 +155,8 @@
     function detectMultipleHendersonTagsRaw(text) {
 
       text = String(text || '').replace(/（問い：[^）]*）/g, '');
+      // 意識 as attention/awareness (意識して・意識的・意識づけ) is not the level of consciousness, so it must not trigger 1.呼吸.
+      text = text.replace(/意識(?=して|し(?:た|て|ない|ませ)|的|づけ|付け|する|させ|が(?:高|低)い人)/g, '気に留め');
       if (typeof isLabTextUnreliable === 'function' && isLabTextUnreliable(text)) return [];
       const tags = new Set();
       const skipOwnDiagnosisKeywords = FAMILY_HISTORY_DISEASE_CONTEXT_REGEX.test(text);
@@ -193,6 +195,8 @@
       if (ALLERGY_ABSENT_REGEX.test(text) || INFECTION_SCREEN_REGEX.test(text)) tags.add(9);
       if (HEALTH_SCREEN_USE_REGEX.test(text)) tags.add(14);
       if (CHEST_IMAGE_REGEX.test(text)) tags.add(1);
+      // Sun/UV protection habits and awareness belong to 9.環境 (living conditions) and 14.学び (health knowledge), not to a body-system need.
+      if (/紫外線|日焼け|日光(?:対策|曝露|を避)|遮光/.test(text) && /対策|予防|日焼け止め|日傘|帽子|意識|知識|知らな|避け|浴び/.test(text)) { tags.add(9); tags.add(14); }
       if (GASTRIC_FINDING_REGEX.test(text) || GALLBLADDER_OPERATIVE_FINDING_REGEX.test(text)) tags.add(2);
 
       if (/動かなければ|動かさなければ|動かさない(?:と|限り)/.test(text) && /疼痛|痛/.test(text)) tags.add(4);
@@ -1179,13 +1183,17 @@
         out.push(cur);
       }
       const res = [];
+      const headLike = [];
       out.forEach((l, i) => {
         const t = l.trim();
         const prevBlank = i === 0 || !out[i - 1].trim();
         const next = (out[i + 1] || '').trim();
         const isHead = prevBlank && next && t.length >= 2 && t.length <= 10 && !/[、。,.:：「」()（）\d%％\u0002【】\[\]<>＜＞■●◆◇□○]/.test(t) && !DAY_HEADING_ONLY_REGEX.test(t.replace(/\s+/g, '')) &&
           !t.startsWith(SOURCE_TITLE_MARK) && !/[ぁ-ん]$/.test(t) && !Array.from(detectMultipleHendersonTagsRaw(t) || []).length;
-        res.push(isHead ? SOURCE_TITLE_MARK + t : l);
+        headLike[i] = !!isHead;
+        // A noun-only heading is dropped from card text only when a labelled field follows it; other headings keep the existing
+        // heading-with-its-lines grouping unless they sit inside a generic symptom list (handled below).
+        res.push(isHead && /[:：]/.test(next) ? SOURCE_TITLE_MARK + t : l);
       });
       // A section whose block is a generic symptom list (e.g. a textbook list ending in 「など」) continues through the
       // following noun-only blocks (no sentence, quote, digit, colon or case particle); those lines are the same list.
@@ -1196,14 +1204,14 @@
         if (!curBlock) { curBlock = []; blocks.push(curBlock); }
         curBlock.push(i);
       });
-      const bodyOf = idxs => idxs.filter(i => !res[i].startsWith(SOURCE_TITLE_MARK)).map(i => res[i].trim());
+      const bodyOf = idxs => idxs.filter(i => !res[i].startsWith(SOURCE_TITLE_MARK) && !headLike[i]).map(i => res[i].trim());
       const listLike = idxs => { const b = bodyOf(idxs); return b.length > 0 && b.every(x => !/[。「」\d:：]/.test(x) && !/[はがをにへ]/.test(x.replace(/[（(][^）)]*[）)]/g, ''))); };
       let inRegion = false;
       blocks.forEach(idxs => {
         const body = bodyOf(idxs);
         if (!inRegion && body.length && isGenericSymptomList(body.join(''))) inRegion = true;
         else if (inRegion && !listLike(idxs)) inRegion = false;
-        if (inRegion) idxs.forEach(i => { if (!res[i].startsWith(SOURCE_TITLE_MARK)) res[i] = GENERIC_LIST_MARK + res[i].trim(); });
+        if (inRegion) idxs.forEach(i => { if (headLike[i] && !res[i].startsWith(SOURCE_TITLE_MARK)) res[i] = SOURCE_TITLE_MARK + res[i].trim(); else if (!res[i].startsWith(SOURCE_TITLE_MARK)) res[i] = GENERIC_LIST_MARK + res[i].trim(); });
       });
       return res;
     }
@@ -1530,7 +1538,7 @@
 
       // ------------------------------------------------------------------------
 
-      let admissionPhase = 'preadmission';
+      let admissionPhase = 'unknown'; // Unknown stays unknown: do not default undated records to pre-admission
       function updateAdmissionPhase(text) {
         const signal = detectAdmissionPhaseSignal(text);
         if (signal) admissionPhase = signal;
@@ -1539,7 +1547,10 @@
       let currentSourceLine = -1;
       let currentNeedHint = null;
       function pushExtracted(obj) {
-        extracted.push({ ...obj, admissionPhase, _line: currentSourceLine, ...(currentNeedHint && !obj.isUnnecessaryBoilerplate ? { needHint: currentNeedHint } : {}) });
+        // Background fields (name, age, history, diagnosis) are pre-admission by nature; everything else stays unknown until a dated heading says otherwise.
+        const prevSameLine = extracted.length && extracted[extracted.length - 1]._line === currentSourceLine ? extracted[extracted.length - 1] : null;
+        const phaseNow = admissionPhase === 'unknown' && prevSameLine && prevSameLine.admissionPhase === 'preadmission' ? 'preadmission' : admissionPhase === 'unknown' && (/^(?:氏名|年齢|性別|既往歴|現病歴|生活歴|家族構成|家族関係|職業|診断名|手術術式|感染症)$/.test(obj.fieldLabel || '') || (!obj.isLabOrVital && typeof isPatientIdentityLine === 'function' && isPatientIdentityLine(obj.text))) ? 'preadmission' : admissionPhase;
+        extracted.push({ ...obj, admissionPhase: phaseNow, _line: currentSourceLine, ...(currentNeedHint && !obj.isUnnecessaryBoilerplate ? { needHint: currentNeedHint } : {}) });
       }
 
       let pendingFieldLabelKeys = null;
@@ -1693,7 +1704,7 @@
         cleanLine = cleanLine.replace(/^[SO]-\d+\s+(?=[\[【])/, '').replace(/^\[(?:未分類|入院前|入院後|不足情報)\]\s*(?=\[[SO]\])/, '').replace(/^\[[SO]\]\s+/, '');
         if (!cleanLine) continue;
 
-        if (/^【\d+\.\s*[^】]{1,40}】/.test(cleanLine)) { globalTimestamp = '日時不明'; dayLabel = null; lastClockMin = null; admissionPhase = 'preadmission'; }
+        if (/^【\d+\.\s*[^】]{1,40}】/.test(cleanLine)) { globalTimestamp = '日時不明'; dayLabel = null; lastClockMin = null; admissionPhase = 'unknown'; }
 
         if (isNumberedChapterHeading) {
           pushExtracted({ text: cleanExtractedPhrase(cleanLine), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });

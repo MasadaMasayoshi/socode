@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.52'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.58'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -480,6 +480,7 @@
       if (!cp.carePlans || typeof cp.carePlans !== 'object' || Array.isArray(cp.carePlans)) cp.carePlans = {};
       const order = carePlanList(cp).reduce((m, p) => Math.max(m, Number(p.order) || 0), 0) + 1;
       const plan = normalizeCarePlan({ ...fields, id: newRecordId('plan'), order, createdAt: now, updatedAt: now });
+      plan.patientId = cp.id; plan.sourceRev = sourceRevisionOf(cp);
       captureCarePlanEvidence(cp, plan);
       cp.carePlans[plan.id] = plan;
       return plan;
@@ -1685,6 +1686,106 @@
       return CP_CASE_TERMS.filter(([re]) => re.test(body) && !re.test(text)).map(([, name]) => name);
     }
 
+    // ==========================================================================
+    // Generated-result provenance: every stored generated result (diagnosis, plan, summary, evaluation)
+    // is bound to the patient ID and the source revision it was produced from. A result whose binding
+    // does not match the patient being shown or exported is excluded until it is regenerated.
+    // The patient's original records and manual edits are never touched by this check.
+    // ==========================================================================
+    const GENERATED_RESULT_FIELDS = [
+      { key: 'labEvaluationResult', label: '検査データ臨床評価' },
+      { key: 'contradictionResult', label: 'S/O矛盾チェック' },
+      { key: 'diagnosisResult', label: '看護診断候補' },
+      { key: 'timelineResult', label: '経時変化サマリー' },
+      { key: 'carePlanResult', label: '看護計画（AI）' }
+    ];
+    // Case-specific clinical terms. A generated text that contains them while the patient's own records do not is treated as foreign.
+    const GEN_FOREIGN_TERMS = [
+      [/大腿骨|人工骨頭|人工股関節|BHA|THA|股関節/, '大腿骨・股関節の手術'],
+      [/酸化マグネシウム|マグミット/, '酸化マグネシウム'],
+      [/歩行訓練|歩行器|荷重/, '歩行訓練・荷重'],
+      [/NRS|ペインスケール|VAS/, '疼痛スケール'],
+      [/術後\s*\d+\s*日|POD\s*\d|術後\s*[一二三四五六七八九十]+日/, '術後日数'],
+      [/長男|次男|長女|次女|キーパーソン/, '家族の支援者'],
+      [/創部痛|手術創|術創|ドレーン|PCA|硬膜外/, '術後の創部・ドレーン管理'],
+      [/ストーマ|パウチ/, 'ストーマ'],
+      [/インスリン|血糖測定/, 'インスリン'],
+      [/HBs|HCV|HBV|梅毒|感染症検査/, '感染症検査']
+    ];
+    function sourceRevisionOf(cp) {
+      const t = String((cp && cp.sourceText) || '').replace(/\s+/g, '');
+      let h = 2166136261;
+      for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+      return `r${t.length}-${h.toString(16)}`;
+    }
+    function patientOwnText(cp) {
+      const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && i.text).map(i => i.text);
+      const notes = ((cp && cp.referenceNotes) || []).map(n => `${n.title || ''}\n${n.text || ''}`);
+      return [String((cp && cp.sourceText) || ''), ...items, ...notes].join('\n').normalize('NFKC');
+    }
+    function foreignTermsInText(cp, text) {
+      const own = patientOwnText(cp);
+      const body = String(text || '').replace(/<[^>]*>/g, ' ').normalize('NFKC');
+      return GEN_FOREIGN_TERMS.filter(([re]) => re.test(body) && !re.test(own)).map(([, name]) => name);
+    }
+    // Start a generation for a patient. The ticket pins patient ID and source revision at request time.
+    function beginGeneration(cp, step) {
+      return { patientId: cp.id, sourceRev: sourceRevisionOf(cp), step: String(step || ''), startedAt: new Date().toISOString() };
+    }
+    // Commit a (possibly late) response. It is written only to the patient that requested it, only if that patient's
+    // source is unchanged, and never to whichever patient happens to be current.
+    function commitGeneratedResult(ticket, field, value) {
+      const patients = (typeof globalAppData !== 'undefined' && globalAppData.patients) || [];
+      const target = ticket && patients.find(p => p.id === ticket.patientId);
+      if (!target) return { ok: false, reason: 'patient-missing', message: '生成を依頼した患者が見つからないため、結果を保存しませんでした' };
+      if (sourceRevisionOf(target) !== ticket.sourceRev) return { ok: false, reason: 'source-changed', message: '生成中に元の記録が変わったため、結果を保存しませんでした。もう一度生成してください' };
+      const foreign = foreignTermsInText(target, value);
+      if (foreign.length >= 2) return { ok: false, reason: 'foreign-terms', message: 'この患者の記録にない内容が含まれるため、結果を保存しませんでした' };
+      target[field] = value;
+      if (!target.generatedMeta || typeof target.generatedMeta !== 'object') target.generatedMeta = {};
+      target.generatedMeta[field] = { patientId: target.id, sourceRev: ticket.sourceRev, at: new Date().toISOString() };
+      return { ok: true };
+    }
+    // Status of one stored generated result for the patient being shown or exported.
+    function generatedResultStatus(cp, field) {
+      const value = cp && cp[field];
+      if (!value || (typeof value === 'string' && !value.trim())) return { ok: false, empty: true };
+      const meta = cp.generatedMeta && cp.generatedMeta[field];
+      if (meta) {
+        if (meta.patientId !== cp.id) return { ok: false, reason: 'patient-mismatch', message: '別の患者向けに作られた結果です' };
+        if (meta.sourceRev !== sourceRevisionOf(cp)) return { ok: false, reason: 'source-changed', message: '作成後に元の記録が変わっています' };
+      }
+      const foreign = foreignTermsInText(cp, typeof value === 'string' ? value : JSON.stringify(value));
+      if (foreign.length >= 2) return { ok: false, reason: 'foreign-terms', message: 'この患者の記録にない内容が含まれています', terms: foreign };
+      return { ok: true, unbound: !meta };
+    }
+    function activeGeneratedResult(cp, field) {
+      const st = generatedResultStatus(cp, field);
+      return st.ok ? cp[field] : '';
+    }
+    function quarantinedGeneratedResults(cp) {
+      return GENERATED_RESULT_FIELDS.map(f => ({ ...f, status: generatedResultStatus(cp, f.key) })).filter(f => !f.status.ok && !f.status.empty);
+    }
+    function quarantineNoticeText(cp) {
+      const q = quarantinedGeneratedResults(cp);
+      return q.length ? `※患者の記録と合わない生成結果（${q.map(f => `${f.label}：${f.status.message}`).join('／')}）は、再生成するまで出力から除外しました。元の記録と手編集は変更していません。` : '';
+    }
+    // Diagnosis candidates: keep only candidates whose name/evidence do not rely on another patient's findings.
+    function activeDiagnosisCandidates(cp) {
+      return ((cp && cp.diagnosisCandidates) || []).filter(c => foreignTermsInText(cp, [c && c.name, c && c.reason, ...(Array.isArray(c && c.evidence) ? c.evidence : [c && c.evidence])].join('\n')).length < 2);
+    }
+    // A care plan is active unless it is bound to a different patient or relies on findings absent from this patient's records.
+    function carePlanProvenance(cp, plan) {
+      if (plan && plan.patientId && plan.patientId !== cp.id) return { ok: false, message: '別の患者の看護計画です' };
+      const foreign = cpForeignTermsAny(cp, plan);
+      if (foreign.length >= 2) return { ok: false, message: 'この患者の記録にない内容が含まれています' };
+      return { ok: true };
+    }
+    function cpForeignTermsAny(cp, plan) {
+      const body = [plan.problem, plan.goalLong, plan.goalShort, ...(plan.op || []), ...(plan.tp || []), ...(plan.ep || []), ...(plan.evidence || []), ...(plan.reasons || []).map(r => r && r.text)].join('\n');
+      return foreignTermsInText(cp, body);
+    }
+
     function cpResolvePlanId(cp, id) {
       let cur = id, n = 0;
       while (cp.carePlans && cp.carePlans[cur] && cp.carePlans[cur].deleted && cp.carePlans[cur].mergedInto && n++ < 5) cur = cp.carePlans[cur].mergedInto;
@@ -2199,7 +2300,7 @@
     };
 
     function buildCarePlansText(cp, { withRecords = true, recordFilter = null } = {}) {
-      return carePlanList(cp).map((p, k) => {
+      return carePlanList(cp).filter(p => carePlanProvenance(cp, p).ok).map((p, k) => {
         const lines = [`#${k + 1} ${p.problem || '（無題）'}（${CARE_PLAN_STATUSES.find(s => s.key === p.status).label}）`];
         if (p.relatedNeeds.length) lines.push(`関係する項目：${p.relatedNeeds.map(h => `${h}.${hendersonNameOf(h).replace(/^\d+\.\s*/, '')}`).join('・')}`);
         if (p.evidence && p.evidence.length) lines.push(`根拠データ：${p.evidence.join('／')}`);
@@ -2280,7 +2381,7 @@ if (typeof module !== 'undefined' && module.exports) {
     carePlanInlineNotes, captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
     cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf, collapseVitalCards, collapseLabCards,
-    CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
+    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
     cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, carePlanSetReviewHtml, carePlanSetState, carePlanSetNextSteps
   });
 }

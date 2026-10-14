@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.52'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.58'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -388,8 +388,10 @@
       let conf = '低（記録が少ない、または決め手がない）';
       if ((a.verdict === 'met' || a.verdict === 'unmet') && !a.restriction) conf = n >= 2 ? '高（複数の記録が同じ方向）' : n === 1 ? '中（根拠の記録が1つ）' : '低（根拠の記録が見当たらない）';
       else if (a.restriction) conf = '低（治療上の制限だけで、自立度・症状の記録が必要）';
-      const risk = SUFFICIENCY_RISKS[needId] || '';
-      return { status, independence: assist || '記録なし', symptoms: sym.join('、') || '記録なし', complications: risk ? `${risk}（確定ではなく、予防のための観察対象）` : '記録なし', confidence: conf };
+      // Complication predictions need patient-specific evidence: an unmet/pending verdict backed by at least one record with a symptom or restriction cue.
+      const hasRiskEvidence = (a.verdict === 'unmet' || a.verdict === 'conflict') && (sym.length > 0 || !!assist || evItems.length > 0 && a.verdict === 'unmet');
+      const risk = hasRiskEvidence ? (SUFFICIENCY_RISKS[needId] || '') : '';
+      return { status, independence: assist || '記録なし', symptoms: sym.join('、') || '記録なし', complications: risk ? `${risk}（確定ではなく、予防のための観察対象）` : '記録なし（この患者の記録から根拠が確認できないため記載しません）', confidence: conf };
     }
     function sufficiencyDimensionLines(cp, needId, phase) {
       const d = sufficiencyDimensions(cp, needId, phase);
@@ -1109,7 +1111,9 @@
     }
     function sufficiencyClauseVerdict(clause, needId, opts) {
       const speech = !!(opts && opts.speech);
-      const t = String(clause || '').normalize('NFKC');
+      let t = String(clause || '').normalize('NFKC');
+      // Eating habits (eating out, fast eating, food preference) are risk factors, not an unmet need by themselves; only outcome cues (weight loss, low intake) may decide.
+      if (needId === 2) t = t.replace(/外食|早食い|偏食|野菜嫌い|短時間で済ま[^。、]*|早く食べ[^。、]*/g, ' ');
       if (needId === 1 && /トライボール|ボール|呼吸訓練/.test(t) && !/呼吸困難|息苦|息切れ|チアノーゼ|SpO2|呼吸数/.test(t)) return { v: '', hit: '' };
 
       if (needId === 12 && !/仕事|職|復職|達成|役割|家事|意欲|生きがい|就労|勤務|主婦/.test(t)) return { v: '', hit: '' };
@@ -1118,7 +1122,7 @@
       if (needId === 14 && !speech && /(?:説明|オリエンテーション)[^。]{0,30}(?:受ける|受けた|実施|行った|あり)|(?:呼吸訓練|起き上がり)[^。]{0,15}(?:練習|実施)/.test(t) && !/予定|未実施|中止/.test(t) && !/理解(?:して|でき|良好)|自立|自分で/.test(t)) return { v: 'pending', hit: '説明・練習の実施' };
       // Voicing worry is evidence that the person CAN express it; it does not by itself show unmet communication. Only communication-specific cues count for need 10.
       if (needId === 10 && /不安|心配|怖い|恐怖/.test(t) && !/話せ|話さ|伝え(?:られ|にく)|伝わ|会話|意思疎通|聞こえ|言葉が出|構音|失語|難聴|表出|相談(?:でき|しな)|話したくな/.test(t)) return { v: 'pending', hit: '不安を言葉にできている（コミュニケーションの未充足とは別に評価）' };
-      if (needId === 9 && INFECTION_SCREEN_REGEX.test(t)) return { v: 'pending', hit: '感染症検査は陰性' };
+      if (needId === 9 && INFECTION_SCREEN_REGEX.test(t)) return { v: 'pending', hit: (t.match(INFECTION_SCREEN_REGEX) || [''])[0] }; // quote the record itself, never a canned phrase
       let unmet = '', met = '';
       for (let k = 0; k < SUF_UNMET_CUES.length; k++) {
         const src = SUF_UNMET_CUES[k], sc = SUF_UNMET_SCOPE[k];

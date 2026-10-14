@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.57'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.58'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -130,16 +130,17 @@
       let out = '';
 
       const sec = (title, html) => { out += `<h2>${n++}. ${escapeHtml(title)}</h2><div class="ai">${html}</div>`; };
-      if (cp.labEvaluationResult) sec('検査データ臨床評価（AI・参考）', storedAiHtml(cp.labEvaluationResult));
+      if (activeGeneratedResult(cp, 'labEvaluationResult')) sec('検査データ臨床評価（AI・参考）', storedAiHtml(activeGeneratedResult(cp, 'labEvaluationResult')));
       else if (typeof labAssessmentHtmlFor === 'function' && labAssessmentHtmlFor(cp)) sec('検査データ臨床評価', labAssessmentHtmlFor(cp));
-      if (cp.contradictionResult) sec('S/O矛盾チェック（AI・参考）', storedAiHtml(cp.contradictionResult));
-      const cands = cp.diagnosisCandidates || [];
+      if (activeGeneratedResult(cp, 'contradictionResult')) sec('S/O矛盾チェック（AI・参考）', storedAiHtml(activeGeneratedResult(cp, 'contradictionResult')));
+      const cands = activeDiagnosisCandidates(cp);
       if (cands.length) {
         const sel = new Set(cp.selectedDiagnosisIds || []);
         out += `<h2>${n++}. 看護診断候補（AI・参考）</h2>` + cands.map(c => `<div class="dx${sel.has(c.id) ? ' sel' : ''}"><div class="dx-name">${sel.has(c.id) ? '✓ ' : ''}${escapeHtml(c.name)}${sel.has(c.id) ? '<span class="tags">　（看護計画に使用）</span>' : ''}</div>${c.bodyHtml ? `<div>${storedAiHtml(c.bodyHtml)}</div>` : ''}</div>`).join('');
-      } else if (cp.diagnosisResult) sec('看護診断候補（AI・参考）', storedAiHtml(cp.diagnosisResult));
-      if (cp.timelineResult) sec('経時変化サマリー（AI・参考）', storedAiHtml(cp.timelineResult));
-      if (cp.carePlanResult) sec('看護計画（AI・叩き台）', (cp.carePlanDiagnoses?.length ? `<p><b>選んだ看護診断：</b>${escapeHtml(cp.carePlanDiagnoses.join('／'))}</p>` : '') + storedAiHtml(cp.carePlanResult));
+      } else if (activeGeneratedResult(cp, 'diagnosisResult')) sec('看護診断候補（AI・参考）', storedAiHtml(activeGeneratedResult(cp, 'diagnosisResult')));
+      if (activeGeneratedResult(cp, 'timelineResult')) sec('経時変化サマリー（AI・参考）', storedAiHtml(activeGeneratedResult(cp, 'timelineResult')));
+      if (activeGeneratedResult(cp, 'carePlanResult')) sec('看護計画（AI・叩き台）', (cp.carePlanDiagnoses?.length ? `<p><b>選んだ看護診断：</b>${escapeHtml(cp.carePlanDiagnoses.join('／'))}</p>` : '') + storedAiHtml(activeGeneratedResult(cp, 'carePlanResult')));
+      if (typeof quarantineNoticeText === 'function' && quarantineNoticeText(cp)) out += `<p class="note">${escapeHtml(quarantineNoticeText(cp))}</p>`;
       if (out) out += '<p class="note">AIによる結果は参考情報です。最終的な判断・看護診断・看護計画の決定は必ず医療従事者が行ってください。〔S …〕〔O …〕は根拠にしたカードです。</p>';
       return out;
     }
@@ -428,7 +429,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       out += `出力日時: ${new Date().toLocaleString('ja-JP')}\n`;
 
       out += plainSectionTitle('1. 検査データ臨床評価・アセスメントノート');
-      out += htmlToPlainText(cp.labEvaluationResult || (typeof labAssessmentTextFor === 'function' && labAssessmentTextFor(cp)) || '（評価できる検査値がありません）') + '\n';
+      out += htmlToPlainText(activeGeneratedResult(cp, 'labEvaluationResult') || (typeof labAssessmentTextFor === 'function' && labAssessmentTextFor(cp)) || '（評価できる検査値がありません）') + '\n';
 
       const isMissingOnly = i => typeof isMissingInfoOnlyItem === 'function' && isMissingInfoOnlyItem(i);
       out += plainSectionTitle('2. 主観的情報（Sデータ）');
@@ -467,11 +468,12 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const plansText = typeof buildCarePlansText === 'function' ? buildCarePlansText(cp, { withRecords: true }) : '';
       if (plansText) { out += plainSectionTitle('看護計画と実施・評価'); out += plansText + '\n'; }
 
-      if (cp.contradictionResult) { out += plainSectionTitle('6. S/O矛盾チェック結果（AI）'); out += htmlToPlainText(cp.contradictionResult) + '\n'; }
-      if (cp.diagnosisResult) { out += plainSectionTitle('7. 看護診断候補（AI提案）'); out += htmlToPlainText(cp.diagnosisResult) + '\n'; }
-      if (cp.timelineResult) { out += plainSectionTitle('8. 経時変化サマリー（AI）'); out += htmlToPlainText(cp.timelineResult) + '\n'; }
-      if (cp.carePlanResult) { out += plainSectionTitle('9. 看護計画（AI自動生成）'); if (cp.carePlanDiagnoses?.length) out += `選んだ看護診断：${cp.carePlanDiagnoses.join('／')}\n`; out += htmlToPlainText(cp.carePlanResult) + '\n'; }
+      if (activeGeneratedResult(cp, 'contradictionResult')) { out += plainSectionTitle('6. S/O矛盾チェック結果（AI）'); out += htmlToPlainText(activeGeneratedResult(cp, 'contradictionResult')) + '\n'; }
+      if (activeGeneratedResult(cp, 'diagnosisResult')) { out += plainSectionTitle('7. 看護診断候補（AI提案）'); out += htmlToPlainText(activeGeneratedResult(cp, 'diagnosisResult')) + '\n'; }
+      if (activeGeneratedResult(cp, 'timelineResult')) { out += plainSectionTitle('8. 経時変化サマリー（AI）'); out += htmlToPlainText(activeGeneratedResult(cp, 'timelineResult')) + '\n'; }
+      if (activeGeneratedResult(cp, 'carePlanResult')) { out += plainSectionTitle('9. 看護計画（AI自動生成）'); if (cp.carePlanDiagnoses?.length) out += `選んだ看護診断：${cp.carePlanDiagnoses.join('／')}\n`; out += htmlToPlainText(activeGeneratedResult(cp, 'carePlanResult')) + '\n'; }
 
+      if (typeof quarantineNoticeText === 'function' && quarantineNoticeText(cp)) out += '\n' + quarantineNoticeText(cp) + '\n';
       const notes = cp.referenceNotes || [];
       if (notes.length > 0) {
         out += plainSectionTitle('10. 参考データ');

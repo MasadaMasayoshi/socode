@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.46'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.58'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -383,7 +383,7 @@
         } else if (key === 'ai') {
           const lines = [];
           const add = (label, html) => { if (html) lines.push(`【${label}】`, ...htmlToPlainText(html).split('\n')); };
-          add('看護診断候補', cp.diagnosisResult); add('看護計画（AIの叩き台）', cp.carePlanResult); add('経時変化サマリー', cp.timelineResult);
+          add('看護診断候補', activeGeneratedResult(cp, 'diagnosisResult')); add('看護計画（AIの叩き台）', activeGeneratedResult(cp, 'carePlanResult')); add('経時変化サマリー', activeGeneratedResult(cp, 'timelineResult'));
           blocks.push({ title: 'AIの結果（参考）', lines });
         }
       });
