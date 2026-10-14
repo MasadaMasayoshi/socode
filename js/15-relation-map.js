@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.51'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.53'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -52,6 +52,16 @@
       { s: /\d+歳|高齢|加齢/, t: /転倒|転落/, step: '筋力・バランス・視力の低下', why: '' },
       { s: /手術|入院|診断|生活の変化/, t: /家族の不安/, step: '家族が介護や今後の生活の見通しを持てない', why: '' },
       { s: /手術|入院|診断|生活の変化/, t: /不安/, step: '先の見通しが立たない・これまでの生活や役割を続けられるかの心配', why: '' },
+      { s: /ステロイド|プレドニゾロン|免疫抑制/, t: /感染/, step: '免疫を担う細胞の働きが薬で抑えられる', why: '病原体を排除する力が落ち、感染しやすく治りにくい' },
+      { s: /白血球.*(?:減少|低下)|WBC.*減|好中球.*減/, t: /感染/, step: '病原体を処理する白血球が少ない', why: '' },
+      { s: /自己免疫|エリテマトーデス|膠原病|再燃|増悪/, t: /疲労|倦怠|だる/, step: '免疫の過剰な働きによる全身の炎症（サイトカインの放出）', why: '炎症が続くと体力が消耗しやすい' },
+      { s: /ストレス|過労|無理|忙し/, t: /再燃|増悪|疲労|倦怠/, step: '心身の負担が続き、睡眠・休養と免疫のバランスが乱れる', why: '' },
+      { s: /疲労|倦怠|だる/, t: /活動耐性|体動の制限|休養|寝て過ご/, step: '体力の消耗で動くことを控え、休息が増える', why: '' },
+      { s: /紫外線|日光|日焼け/, t: /紅斑|皮疹|皮膚|光線過敏/, step: '紫外線で皮膚に炎症が起きやすい（光線過敏）', why: '' },
+      { s: /ステロイド|プレドニゾロン/, t: /不眠|睡眠|眠れ/, step: '薬の作用で神経が興奮し寝つきにくくなる', why: '' },
+      { s: /ステロイド|プレドニゾロン/, t: /高血糖|血糖/, step: '肝臓での糖の産生が増え、インスリンが効きにくくなる', why: '' },
+      { s: /蛋白尿|尿蛋白|ネフローゼ|腎炎/, t: /むくみ|浮腫/, step: 'たんぱくが尿に漏れて血液中のたんぱくが減り、水分が血管の外へ出る', why: '' },
+      { s: /再燃|増悪|入院|診断/, t: /仕事|役割|復職|社会/, step: '療養のため仕事や役割を続けられない', why: '' },
       { s: /人工骨頭|人工股関節/, t: /脱臼/, step: '術後は関節を包む組織（関節包）が弱く、特定の姿勢で外れやすい', why: '' },
       { s: /圧迫|ずれ|皮膚の血流低下/, t: /発赤|褥瘡|皮膚/, step: '皮膚・皮下組織への酸素と栄養の不足（虚血）', why: '' },
       { s: /疼痛|痛み/, t: /睡眠|不眠|眠れ/, step: '痛みで寝つけない・目が覚める', why: '' },
@@ -3319,7 +3329,7 @@
         const wrap = document.getElementById('rm-canvas-wrap');
         const map = rmMap();
 
-        if (wrap && map && map.nodes.length) { const b = rmBounds((rmState.focusProblem && rmProblemSubmap(map, rmState.focusProblem)) || map); rmState.zoom = Math.max(factor === 'fit' ? 0.25 : 0.9, Math.min(1.2, Math.min((wrap.clientWidth - 8) / b.w, (wrap.clientHeight - 8) / b.h))); }
+        if (wrap && map && map.nodes.length) { const b = rmBounds((rmState.focusProblem && rmProblemSubmap(map, rmState.focusProblem)) || map); rmState.zoom = Math.max(factor === 'fit' ? 0.25 : 1.15, Math.min(1.7, Math.min((wrap.clientWidth - 8) / b.w, (wrap.clientHeight - 8) / b.h))); }
         else rmState.zoom = 1;
       } else rmState.zoom = Math.max(0.25, Math.min(2, Math.round(rmState.zoom * factor * 100) / 100));
       renderRelationMap();

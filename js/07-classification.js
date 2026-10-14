@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.52'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.53'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -1161,8 +1161,36 @@
       }
       return out;
     }
+    // Hard-wrapped lines (a line cut mid-sentence by the source layout) are rejoined, and short
+    // noun-only section headings without a colon are marked as headings so they do not leak into cards.
+    function repairSourceLineLayout(raw) {
+      const lines = Array.from(raw).map(l => String(l));
+      const out = [];
+      const TERMINAL = /[。.！!？?」』）)、，,:：;；]$/;
+      for (let i = 0; i < lines.length; i++) {
+        let cur = lines[i];
+        const t = cur.trim();
+        while (i + 1 < lines.length && t.length >= 20 && cur.trim().length >= 20 && !TERMINAL.test(cur.trim()) &&
+          lines[i + 1].trim() && /^[のがをにでとはもへやか]/.test(lines[i + 1].trim()) && !/^(?:か[らも]?)?[:：]/.test(lines[i + 1].trim())) {
+          cur = cur.replace(/\s+$/, '') + lines[i + 1].trim();
+          i++;
+        }
+        out.push(cur);
+      }
+      const res = [];
+      out.forEach((l, i) => {
+        const t = l.trim();
+        const prevBlank = i === 0 || !out[i - 1].trim();
+        const next = (out[i + 1] || '').trim();
+        const isHead = prevBlank && next && t.length >= 2 && t.length <= 10 && !/[、。,.:：「」()（）\d%％\u0002【】\[\]<>＜＞■●◆◇□○]/.test(t) && !DAY_HEADING_ONLY_REGEX.test(t.replace(/\s+/g, '')) &&
+          !t.startsWith(SOURCE_TITLE_MARK) && !/[ぁ-ん]$/.test(t) && !Array.from(detectMultipleHendersonTagsRaw(t) || []).length;
+        res.push(isHead ? SOURCE_TITLE_MARK + t : l);
+      });
+      return res;
+    }
+
     function preprocessFreeFormLines(raw) {
-      raw = carrySpeakerAndJoinQuotes(raw);
+      raw = repairSourceLineLayout(carrySpeakerAndJoinQuotes(raw));
       const step1 = [];
       const firstIdx = raw.findIndex(l => String(l).trim() !== '');
       let soapPart = null;
