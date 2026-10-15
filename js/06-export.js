@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.86'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.87'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -790,6 +790,31 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       return '\n【アプリが抽出済みの患者背景の因子】項目名 → 内容｜保存済みの区分｜付いているタグ（原文と比べて、足りない因子・区分やタグの誤りを確認してください。氏名は含めません）\n' +
         rows.map(i => `  ・${i.fieldLabel} → ${mask(i.text)}｜${i.patientBackground || kind(i)}｜${(i.hendersonIds || []).length ? (i.hendersonIds || []).join('・') : 'タグなし'}`).join('\n') + '\n';
     }
+    // The app's current sufficiency judgments, in the existing exported wording (sufficiencyPhaseText), with evidence references and missing-information items.
+    function sufficiencyJudgmentsText(cp) {
+      if (!cp || typeof sufficiencyPhaseText !== 'function' || typeof sufficiencyHasVerdict !== 'function' || typeof sufficiencyUiPhases !== 'function') return '';
+      // Only patient names are masked; the sentences themselves must stay exactly as the app shows them (no normalisation).
+      const names = typeof krNames === 'function' ? krNames(cp) : [];
+      const mask = t => names.reduce((acc, n) => acc.split(n).join('(患者)'), String(t));
+      const lines = [], allUnknown = [];
+      HENDERSON_NEEDS.forEach(need => {
+        if (!sufficiencyHasVerdict(cp, need.id)) return;
+        const missingItems = (cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && (i.hendersonIds || []).includes(need.id) && (i.assessmentCols || {})[need.id] === 'missing' && String(i.text || '').trim());
+        if (!missingItems.length && sufficiencyUiPhases(cp).every(ph => (typeof phaseVerdictOf === 'function' ? phaseVerdictOf(cp, need.id, ph.key) : '') === 'unknown')) { allUnknown.push(need.id); return; }
+        const labels = typeof myEvidenceLabels === 'function' ? myEvidenceLabels(cp, need.id) : {};
+        const r = typeof ruleSufficiencyFor === 'function' ? (ruleSufficiencyFor(cp)[need.id] || {}) : {};
+        lines.push(`  ■ ${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}`);
+        sufficiencyUiPhases(cp).forEach(ph => {
+          const text = sufficiencyPhaseText(cp, need.id, ph.key);
+          if (!text) return;
+          const refs = Array.from(new Set(((r[ph.key] || {}).evidence || []).map(id => (labels[id] || '').match(/^[SO]-\d+/)?.[0]).filter(Boolean)));
+          lines.push(`    ・${ph.label}｜${mask(text)}${refs.length ? `｜根拠カード：${refs.join('・')}` : ''}`);
+        });
+        missingItems.forEach(i => lines.push(`    ・不足情報／確認したい情報：${mask(i.text)}`));
+      });
+      if (allUnknown.length) lines.push(`  ・記録がなく、すべての時期が情報不足の項目：${allUnknown.join('・')}`);
+      return lines.length ? '\n【アプリの充足状態の判定】項目ごと・時期ごとの現在の判定と理由（アプリの表示・書き出しと同じ文章）、根拠カード、不足情報（原文と比べて、判定の妥当性を評価してください。氏名は含めません）\n' + lines.join('\n') + '\n' : '';
+    }
     function correctionRequestInstructionsText() {
       return [
         "",
@@ -807,6 +832,9 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         "【患者背景の因子】",
         "B. Background factors: also extract the PATIENT BACKGROUND FACTORS from the source record (年齢・性別・職業・家族構成・同居者・既往歴・生活歴（喫煙・飲酒・食習慣）・アレルギー・内服薬・入院の経緯／現病歴・ADL・社会資源 etc.) and check that each factor written in the source is captured as a card or field, with the right 基本情報／医学情報 classification (classifyPatientBackground) and, where appropriate, Henderson tags by meaning. List every factor that is missing or misclassified together with its source line. Do not infer factors that are not written; compare with the 「アプリが抽出済みの患者背景の因子」 list below when it is present; keep name masking intact.",
         "",
+        "【充足・未充足の評価】",
+        "C. Sufficiency evaluation: also EVALUATE the app's sufficiency judgments (充足 / 未充足 / 判定保留 / 情報不足) per Henderson need and per phase (入院前／入院後), listed under 「アプリの充足状態の判定」 below, against the source record and the surrounding cards. For each verdict check: is it supported by the source; is any evidence card missing or wrongly used; is each 不足情報／確認したい情報 item truly missing in the source. Where a verdict is wrong, state the generic rule change that fixes it (no case-specific wording). Do not invent facts; write 確認不能 where the evidence is absent. Do not reword the existing sufficiency sentences.",
+        "",
         "4. Preserve: repair untouched automatic saved cards without replacing IDs, source text, S/O, assessments or care plans. Preserve manual edits, learned decisions and approved『タグ不要』/『理由を了承』decisions; a correction request may challenge them, but never overwrite silently.",
         "5. Verify: test fresh classification, existing saved data after reload and append classification with duplicate records, plus displayed judgments and exported text, on the actual corrected code. Use the attached failure and positive/counterexamples; never derive expected answers from app output or hide failures. Check stale saved results, learning and asset/cache versions.",
         "6. Finish: report changed files, cause, before/after behavior, tests and unresolved ambiguities. If publication is authorized, push the tested commit to GitHub and verify the deployed code; do not claim completion from local-only edits or unverified deployment.",
@@ -817,7 +845,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const ids = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);
       const items = (cp.items || []).filter(i => ids.has(i.id));
       return buildCardsReportText(cp, items, sourceText, `修正依頼メモ：${cp.title}（選択したカード ${items.length}件）`, includeSourceText,
-        includeAssessment ? buildAssessmentTableText(cp, ids) : null, correctionRequestInstructionsText() + backgroundFactorsText(cp));
+        includeAssessment ? buildAssessmentTableText(cp, ids) : null, correctionRequestInstructionsText() + backgroundFactorsText(cp) + sufficiencyJudgmentsText(cp));
     }
 
     function assessmentPeriodGroups(cp, col, list) {
@@ -1117,7 +1145,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       let out = `修正依頼：${cp.title}（手で編集したカード ${editedN}件・タグ未設定のカード ${untaggedN}件・不必要のカード ${unnecessaryN}件／書き出し ${items.length}枚）\n`;
       out += `出力日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
       out += `分類プログラム版: ${window.APP_FILE_VERSIONS?.['07'] || '確認不能'}／分類基準版: ${NOTEBOOK_CONTENT_VERSION_MARK}\n`;
-      out += correctionRequestInstructionsText() + backgroundFactorsText(cp);
+      out += correctionRequestInstructionsText() + backgroundFactorsText(cp) + sufficiencyJudgmentsText(cp);
       out += '【対象】タグ未設定・不必要・手編集のカード。誤りの証拠ではなく調査対象です。原文全体と同じ場面の前後を読み、安静時と動作時・昨日と本日を区別し、根拠があるものは分類ルールと分類基準を修正、不足は必要な確認事項を示してください。理由の記録がなければ「理由未記録」と明記します。除外は妥当なら根拠を示し、誤りなら分類処理と分類基準を修正してください。\n';
       const originalItems = sourceText && sourceText.trim() && typeof classifyTextByRules === 'function' ? classifyTextByRules(sourceText) : [];
       const dropped = (cp.droppedManualEdits || []).slice(-30);
