@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.68'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.69'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1812,7 +1812,7 @@
       });
       // Relation map: nursing problems whose reasoning chain is too short.
       if (cp && cp.relationMap && typeof rmChainReport === 'function') {
-        try { rmChainReport(cp.relationMap).filter(r => r.kind === 'short').forEach(r => add('map', 'mechanism', r.label, `看護問題「${r.label}」はどんな原因から、どんな仕組みで起こりますか（原因→途中の変化→結果）？ この患者で確認すべき情報も教えてください。`, [krPatientSummary(cp)])); } catch (e) {  }
+        try { rmChainReport(cp.relationMap).filter(r => r.kind === 'short').forEach(r => add('map', 'mechanism', String(r.label).replace(/^#\s*[\d?？]*[.．:：]?\s*/, ''), `看護問題「${String(r.label).replace(/^#\s*[\d?？]*[.．:：]?\s*/, '')}」はどんな原因から、どんな仕組みで起こりますか（原因→途中の変化→結果）？ この患者で確認すべき情報も教えてください。`, [krPatientSummary(cp)])); } catch (e) {  }
       }
       // Care plans: problems without a plan, and plans with an empty OP/TP/EP section.
       if (cp && cp.relationMap && Array.isArray(cp.relationMap.nodes)) {
@@ -1852,8 +1852,13 @@
         g.count += r.count;
         groups.set(r.term, g);
       });
-      let out = `知識リクエスト：${cp && cp.title || ''}（${new Date().toLocaleDateString('ja-JP')}）\n患者の概要（個人情報なし）: ${krPatientSummary(cp)}\n`;
-      out += '各項目に回答と出典を書いてください。「記録」は語が使われた文脈です（氏名・日付は伏せています）。\n';
+      let out = `知識リクエスト：${cp && cp.title || ''}（${new Date().toLocaleDateString('ja-JP')}）\n`;
+      out += '【依頼の目的】看護アセスメント支援サイト全体の質を上げるための調査依頼です。下の調査テーマは、サイトが自分のルールで判断できなかった（または知識が極端に少なかった）点で、ある症例で見つかっただけです。その症例専用の答えではなく、どの患者にも使える一般的な看護・医学の知識を集めてください。\n';
+      out += `【きっかけの症例（例として）】${krPatientSummary(cp)}。個人情報は含みません。\n`;
+      out += '【調べ方】各テーマの周辺（同じ疾患群・同じ症状群・関連する薬や検査・よく併発する問題）も調べ、サイト全体に役立つものがあれば、依頼にないものも追加してください。追加したものには、なぜ必要と考えたかを1行で添えてください。\n';
+      out += '【出典】教科書（書名・版・ページ）や公的ガイドライン（名称・年）を優先し、確認できないものは「未確認」と明記してください。出典のない内容は採用できません。\n';
+      out += '【出力形式】テーマごとに、(1)内容（1〜3文、一般的な事実のみ）(2)関係するヘンダーソンの14項目（番号と理由）(3)原因→途中の変化→結果（わかる場合）(4)看護の観察OP・援助TP・教育EPの要点 (5)出典 (6)当てはまる範囲・例外。不明な点は「不明」と書き、推測で埋めないでください。\n';
+      out += '【調査テーマ】「記録」は、その語が使われた文脈です（氏名・日付は伏せています）。\n';
       let n = 0;
       Object.keys(label).forEach(k => {
         const list = Array.from(groups.values()).filter(g => g.purpose === k).slice(0, 30);
@@ -1862,7 +1867,6 @@
         list.forEach(g => {
           out += `${++n}. 「${g.term}」${g.count > 1 ? `（${g.count}か所）` : ''}：${g.aspects.join(' ／ ')}\n`;
           if (g.context.length) out += `   記録: ${g.context.join(' | ')}\n`;
-          out += '   回答： 出典：\n';
         });
       });
       return out;

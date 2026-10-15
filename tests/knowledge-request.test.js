@@ -47,5 +47,13 @@ test('overlapping needs for one term are merged into a single compact entry', ()
   const reqs = app.buildKnowledgeRequests(cp);
   const text = app.knowledgeRequestText(cp, reqs);
   assert.strictEqual((text.match(/「糖尿病」/g) || []).length, 1);
-  assert.ok(text.length < 900);
+  assert.ok(text.split("\n").filter(l => /^\d+\. /.test(l)).length === 1);
+});
+
+test('the request reads as a site-wide research brief, not a single-case question', () => {
+  const cp = { title: 'T', items: [{ id: '1', type: 'o', text: '心外膜炎の既往', hendersonIds: [] }] };
+  const text = app.knowledgeRequestText(cp, app.buildKnowledgeRequests(cp));
+  assert.ok(/サイト全体の質/.test(text) && /その症例専用の答えではなく/.test(text));
+  assert.ok(/依頼にないものも追加/.test(text) && /なぜ必要と考えたか/.test(text));
+  assert.ok(/出典/.test(text) && /出力形式/.test(text));
 });
