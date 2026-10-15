@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.88'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.89'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -423,7 +423,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
           const ach = CARE_ACHIEVEMENTS.find(a => a.key === r.achievement);
           return { at: typeof formatMyDateTime === 'function' ? formatMyDateTime(r.at) : String(r.at || ''), achievement: ach && ach.key ? ach.label : '', evaluation: r.evaluation || '', revision: r.revision || '' };
         });
-        return { no: k + 1, problem: p.problem || '（無題）', status: st, goalShort: p.goalShort || '', records: recs };
+        return { no: k + 1, problem: p.problem || '（無題）', status: st, goalShort: p.goalShort || '', records: recs, evalStatus: peEvalStatus(p).label };
       });
     }
     function buildPlanEvaluationText(cp) {
@@ -439,8 +439,10 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
           if (r.evaluation) lines.push(`    評価：${r.evaluation}`);
           if (r.revision) lines.push(`    計画の修正：${r.revision}`);
         });
+        lines.push(`  評価状態：${e.evalStatus}`);
         return lines.join('\n');
       }).join('\n\n') + '\n';
+      out += peQualityText(cp);
       return out;
     }
     function buildPlanEvaluationHtml(cp, no) {
@@ -449,7 +451,133 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const esc = t => escapeHtml(String(t == null ? '' : t));
       return `<h2>${no}. 全計画の評価</h2>` + list.map(e => `<h3>#${e.no} ${esc(e.problem)}（${esc(e.status)}）</h3>${e.goalShort ? `<p style="margin:0 0 4px;">短期目標：${esc(e.goalShort)}</p>` : ''}` + (e.records.length
         ? `<table><thead><tr><th style="width:20%">日時・目標</th><th>評価</th><th style="width:28%">計画の修正</th></tr></thead><tbody>${e.records.map(r => `<tr><td>${esc(r.at)}${r.achievement ? `<br><b>${esc(r.achievement)}</b>` : ''}</td><td style="white-space:pre-wrap;">${esc(r.evaluation) || '—'}</td><td style="white-space:pre-wrap;">${esc(r.revision) || '—'}</td></tr>`).join('')}</tbody></table>`
-        : '<p class="muted">（評価の記録なし）</p>')).join('');
+        : '<p class="muted">（評価の記録なし）</p>') + `<p style="margin:2px 0 6px;">評価状態：${esc(e.evalStatus)}</p>`).join('') + peQualityHtml(cp);
+    }
+    // ---- v.89 care-plan evaluation quality (local, generic, warnings only; never changes saved data) ----
+    const PE_UNEVAL = '評価不能（情報不足）';
+    const PE_NUM = { '１': 1, '２': 2, '３': 3, '四': 4, '二': 2, '三': 3, '五': 5, '一': 1 };
+    // Number of successes a goal asks for (consecutive / repeated). 0 = no repetition required.
+    function peRepeatNeed(goal) {
+      const t = String(goal || '').normalize('NFKC');
+      let m = t.match(/(\d+)\s*(?:回|日|度)\s*(?:連続|続けて|継続)/) || t.match(/連続\s*(\d+)\s*(?:回|日)/);
+      if (m) return Math.max(2, Number(m[1]));
+      m = t.match(/([二三四五])\s*(?:回|日)\s*(?:連続|続けて)/);
+      if (m) return PE_NUM[m[1]] || 2;
+      if (/毎日|毎回|常に|continu|続けて|連続/.test(t)) return 2;
+      return 0;
+    }
+    const PE_SELF = /できる|言える|話せる|説明でき|実演|実施でき|自分で|自己|観察でき|示せる|選べる|連絡でき|相談でき|理解でき/;
+    const PE_COND = /創(?:部)?(?:の)?(?:サイズ|大きさ|面積|縮小|治癒)|CRP|白血球|WBC|Hb|血糖|体温|血圧|脈拍|SpO2|検査値|数値|改善傾向|縮小|低下|下降|軽快|消退/;
+    function peEvalStatus(plan, nowHint) {
+      const recs = ((plan && plan.records) || []).filter(r => r && r.achievement);
+      const goal = String((plan && (plan.goalShort || plan.goalLong)) || '');
+      if (!recs.length) return { label: PE_UNEVAL, key: 'unevaluable', evidence: [], reason: '評価の記録がないため、達成とは判定できません' };
+      const last = recs[recs.length - 1];
+      const ev = recs.map(r => `${typeof formatMyDateTime === 'function' ? formatMyDateTime(r.at) : r.at}：${(CARE_ACHIEVEMENTS.find(a => a.key === r.achievement) || {}).label || ''}${r.evaluation ? `（${String(r.evaluation).slice(0, 30)}）` : ''}`);
+      if (last.achievement === 'unevaluable') return { label: PE_UNEVAL, key: 'unevaluable', evidence: ev, reason: '最新の評価が評価不能です' };
+      if (last.achievement === 'not') return { label: '未達成', key: 'not', evidence: ev, reason: '' };
+      if (last.achievement === 'partial') return { label: '一部達成', key: 'partial', evidence: ev, reason: '' };
+      const need = peRepeatNeed(goal), ok = recs.filter(r => r.achievement === 'achieved').length;
+      if (need && ok < need) return { label: '一部達成', key: 'partial', unconfirmed: true, evidence: ev, reason: `目標は${need}回以上の継続・連続を求めていますが、達成の記録は${ok}件です（達成未確認）` };
+      return { label: '達成', key: 'achieved', evidence: ev, reason: '' };
+    }
+    // Lab series: "CRP 5/1 12.0 5/3 8.0" style. Returns warnings for reversed order, contradictory trend words, and infection claims.
+    const PE_LOW_BETTER = /CRP|WBC|白血球|PCT|プロカルシトニン|体温|LDH|BUN|Cr|クレアチニン|血糖|HbA1c|AST|ALT/i;
+    const PE_HIGH_BETTER = /Alb|アルブミン|Hb|ヘモグロビン|SpO2|Plt|血小板/i;
+    function peLabSeriesWarnings(text) {
+      const out = [];
+      String(text || '').normalize('NFKC').split(/\r?\n/).forEach(line => {
+        const pts = [...line.matchAll(/(\d{1,2})\/(\d{1,2})\s*[:：(（]?\s*(-?\d+(?:\.\d+)?)/g)].map(m => ({ d: Number(m[1]) * 100 + Number(m[2]), s: `${m[1]}/${m[2]}`, v: Number(m[3]) }));
+        const head = line.slice(0, line.search(/\d{1,2}\/\d{1,2}/) < 0 ? 20 : line.search(/\d{1,2}\/\d{1,2}/)).trim();
+        const name = (head.match(/[A-Za-z0-9ぁ-んァ-ヶ一-龥]+/g) || [head]).slice(-1)[0] || '検査値';
+        let sorted = pts;
+        if (pts.length >= 2) {
+          const asc = pts.every((p, i) => !i || p.d >= pts[i - 1].d), desc = pts.every((p, i) => !i || p.d <= pts[i - 1].d);
+          if (desc && !asc) { out.push({ kind: 'labReversed', where: line.trim().slice(0, 60), basis: `日付が新しい順に並んでいます（${pts.map(p => `${p.s} ${p.v}`).join(' → ')}）`, fix: '古い日付から新しい日付の順に並べ直して、変化の向きを読み直してください', need: '各検査の採取日の確認' }); sorted = pts.slice().reverse(); }
+          else if (!asc) sorted = pts.slice().sort((a, b) => a.d - b.d);
+          const first = sorted[0], lastp = sorted[sorted.length - 1];
+          const better = PE_LOW_BETTER.test(head) ? lastp.v < first.v : PE_HIGH_BETTER.test(head) ? lastp.v > first.v : null;
+          const worse = PE_LOW_BETTER.test(head) ? lastp.v > first.v : PE_HIGH_BETTER.test(head) ? lastp.v < first.v : null;
+          if ((/改善|軽快|良好/.test(line) && worse) || (/悪化|増悪/.test(line) && better)) out.push({ kind: 'labTrend', where: line.trim().slice(0, 60), basis: `値は ${first.s} ${first.v} から ${lastp.s} ${lastp.v} です。書かれた向きと数値が合いません`, fix: '数値の向きに合わせて「改善」「悪化」を書き直す、または日付の順序を確認してください', need: `${name}の採取日と基準値` });
+        }
+        if (/(?:CRP|WBC|白血球|炎症|PCT)[^。\n]{0,20}(?:改善|低下|下降|正常化)/i.test(line) && /感染[^。\n]{0,6}(?:否定|除外|なし|ない|消失|治癒)/.test(line)) out.push({ kind: 'infectionRuledOut', where: line.trim().slice(0, 60), basis: '炎症反応の改善だけでは感染の否定にはなりません', fix: '「炎症反応は改善傾向。感染の有無は症状・培養・画像と合わせて判断」のように書き分けてください', need: '発熱・創部所見・培養・画像' });
+      });
+      return out;
+    }
+    // Problem name -> findings that define it. If none of the words appear in the records, the problem has no support.
+    const PE_PROBLEM_BASIS = [
+      [/急性疼痛|疼痛|痛み/, /痛|NRS|VAS|疼痛|鎮痛/, '痛みの訴え・NRS/VASなど'],
+      [/便秘/, /排便|便(?:通|秘|回数|性状)|下剤|腹部膨満|ブリストル/, '排便回数・性状・最終排便日'],
+      [/感染/, /発熱|熱|CRP|白血球|WBC|発赤|腫脹|排膿|培養|膿/, '体温・炎症反応・創部所見'],
+      [/嚥下|誤嚥/, /嚥下|むせ|誤嚥|経口|食事/, '嚥下・むせ・食事の記録'],
+      [/不眠|睡眠/, /睡眠|眠|不眠|入眠|中途覚醒/, '睡眠時間・入眠の状況']
+    ];
+    function peQualityWarnings(cp) {
+      const out = [], add = (kind, where, basis, fix, need) => out.push({ kind, where, basis, fix, need });
+      if (typeof carePlanList !== 'function' || !cp) return out;
+      const ctx = typeof cpRecordContext === 'function' ? cpRecordContext(cp) : { text: '' };
+      const rec = ctx.text || '';
+      const plans = carePlanList(cp);
+      const seenProblem = {};
+      plans.forEach(p => {
+        const nm = `「${p.problem || '無題'}」`;
+        const st = peEvalStatus(p);
+        const recs = p.records || [];
+        if (st.unconfirmed) add('repeatGoal', nm, st.reason + `。根拠：${st.evidence.join(' / ')}`, '連続・継続の条件を満たす記録が揃うまで「一部達成」または「達成未確認」として扱ってください', '各回の日時と結果');
+        // condition improvement vs self-care goal
+        const goal = String(p.goalShort || p.goalLong || '');
+        const lastAch = recs.filter(r => r.achievement === 'achieved').slice(-1)[0];
+        if (lastAch && PE_SELF.test(goal)) {
+          const evalText = [lastAch.evaluation, lastAch.response, lastAch.doneText].filter(Boolean).join(' ').normalize('NFKC');
+          if (PE_COND.test(evalText) && !PE_SELF.test(evalText) && !/実演|説明|確認|自分で|できた|言えた/.test(evalText)) add('conditionVsSelfCare', nm, '目標は患者ができること（セルフケア）ですが、達成の根拠が状態の改善（検査値・創の状態など）だけです', '状態の改善と、患者が観察・実演・説明できたことを分けて評価に書いてください', '患者が自分でできたことの観察記録');
+        }
+        // done without implementation record
+        if (p.status === 'done' && !recs.some(r => (r.doneItems && r.doneItems.length) || r.doneText)) add('noImplementation', nm, '状態は「実施済み」ですが、実施した内容の記録がありません', '実施日時と内容を記録するか、状態を「実施予定」などに戻してください', '実施の記録');
+        recs.filter(r => r.achievement === 'achieved' && !(r.doneItems && r.doneItems.length) && !r.doneText && !r.evaluation).forEach(r => add('noImplementation', nm, `${typeof formatMyDateTime === 'function' ? formatMyDateTime(r.at) : r.at}に「達成」とありますが、実施内容も評価の文もありません`, '何を実施し何が確認できたかを記録してください', '実施内容と確認した事実'));
+        // problem without support
+        const pb = PE_PROBLEM_BASIS.find(([re]) => re.test(p.problem || '') && !/リスク|risk/i.test(p.problem || ''));
+        if (pb && rec) {
+          const painZero = /疼痛|痛み/.test(p.problem) && ctx.nrs === 0 && !/痛い|痛む|痛み(?:が|を)?(?:訴|強|あり)/.test(rec.replace(/痛みなし|痛みはない|痛みの訴えなし/g, ''));
+          if (!pb[1].test(rec) || painZero) add('noSupport', nm, `記録に、この問題を支える所見（${pb[2]}）が${painZero ? '見当たりません（NRSは0で、痛みの訴えもありません）' : '見当たりません'}`, '所見がそろうまでは「根拠不足」として扱うか、リスク型の問題に書き換えを検討してください', pb[2]);
+        }
+        // plan mentions findings absent from records
+        const body = [p.goalShort, p.goalLong, ...(p.op || []), ...(p.tp || []), ...(p.ep || [])].join('\n').normalize('NFKC');
+        [[/創部痛|創痛/, /創/, '創部の痛み'], [/ドレーン排液/, /ドレーン/, 'ドレーンの記録'], [/ストーマ/, /ストーマ|ストマ|人工肛門/, 'ストーマの記録']].forEach(([bre, rre, label]) => {
+          if (rec && bre.test(body) && !(rre.test(rec) && (label !== '創部の痛み' || /創.{0,6}痛|痛.{0,6}創/.test(rec)))) add('planBeyondRecords', nm, `計画に「${label}」への内容がありますが、記録に${label}が見当たりません`, '記録にある所見に合わせて計画を見直すか、所見を確認して記録に追加してください', label);
+        });
+        // duplicates within plan / across plans
+        const lines = [...(p.op || []), ...(p.tp || []), ...(p.ep || [])].map(l => String(l).normalize('NFKC').replace(/[\s。、]/g, ''));
+        if (lines.some((l, i) => l && lines.indexOf(l) !== i)) add('duplicate', nm, '同じ内容の行が同じ計画内に重複しています', '重複を1つにまとめてください', '');
+        const key = String(p.problem || '').normalize('NFKC').replace(/\s/g, '');
+        if (key && seenProblem[key]) add('duplicate', nm, '同じ名前の看護問題が複数あります', '1つにまとめるか、目的と達成条件を分けてください', '');
+        seenProblem[key] = 1;
+        const days = {};
+        recs.forEach(r => { if (r.achievement && r.at) { const d = String(r.at).slice(0, 10); (days[d] = days[d] || new Set()).add(r.achievement); } });
+        Object.keys(days).forEach(d => { if (days[d].has('achieved') && days[d].has('not')) add('contradiction', nm, `${d}に「達成」と「未達成」の両方の評価があります`, 'どちらが正しいか確認し、片方を直してください', '当日の観察記録'); });
+      });
+      peLabSeriesWarnings(rec).forEach(w => out.push(w));
+      // sufficiency "met" with no evidence
+      if (typeof ruleSufficiencyFor === 'function' && typeof HENDERSON_NEEDS !== 'undefined') {
+        let suf = {};
+        try { suf = ruleSufficiencyFor(cp) || {}; } catch (e) { suf = {}; }
+        HENDERSON_NEEDS.forEach(need => Object.keys(suf[need.id] || {}).forEach(ph => {
+          const x = suf[need.id][ph];
+          if (x && x.verdict === 'met' && !((x.evidence || []).length)) add('metWithoutEvidence', `${need.id}. ${String(need.name).replace(/^\d+\.\s*/, '')}`, '充足と判定されていますが、根拠になるカードがありません（情報不足の可能性）', '根拠カードを確認し、なければ「情報不足」として扱ってください', '該当項目の記録');
+        }));
+      }
+      return out;
+    }
+    function peQualityHtml(cp) {
+      const w = peQualityWarnings(cp);
+      if (!w.length) return '';
+      const esc = t => escapeHtml(String(t == null ? '' : t));
+      return `<h3>評価の質の確認（自動・看護師の確認用）</h3><table><thead><tr><th>種類</th><th>問題箇所</th><th>根拠</th><th>修正案</th><th>確認が必要な情報</th></tr></thead><tbody>${w.map(x => `<tr><td>${esc(PE_KIND_LABEL[x.kind] || x.kind)}</td><td>${esc(x.where)}</td><td>${esc(x.basis)}</td><td>${esc(x.fix)}</td><td>${esc(x.need)}</td></tr>`).join('')}</tbody></table>`;
+    }
+    const PE_KIND_LABEL = { repeatGoal: '目標と記録のずれ', conditionVsSelfCare: '状態の改善とセルフケアの混同', noImplementation: '実施記録なし', noSupport: '根拠不足', planBeyondRecords: '記録にない内容', duplicate: '重複', contradiction: '矛盾', labReversed: '検査値の並び順', labTrend: '検査値の向き', infectionRuledOut: '感染の否定の言い過ぎ', metWithoutEvidence: '情報不足の充足判定' };
+    function peQualityText(cp) {
+      const w = peQualityWarnings(cp);
+      if (!w.length) return '';
+      return '\n【評価の質の確認（自動・看護師の確認用）】\n' + w.map(x => `・${PE_KIND_LABEL[x.kind] || x.kind}\n  問題箇所：${x.where}\n  根拠：${x.basis}\n  修正案：${x.fix}\n  確認が必要な情報：${x.need || '（なし）'}`).join('\n') + '\n';
     }
     function plainSectionTitle(title) {
       return `\n【${title}】\n`;
