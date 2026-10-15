@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.58'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.63'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -567,8 +567,16 @@
       });
     }
 
+    // Classification health gate: a run that leaves a large share of cards without a tag is reported instead of silently flooding the review lists.
+    const HEALTH_MAX_UNTAGGED_RATIO = 0.3, HEALTH_MIN_CARDS = 10;
+    function classificationHealth(items) {
+      const live = (items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && !i.diseaseGeneral);
+      const untagged = live.filter(i => isUntaggedItem(i));
+      const ratio = live.length ? untagged.length / live.length : 0;
+      return { total: live.length, untagged: untagged.length, ratio, degraded: live.length >= HEALTH_MIN_CARDS && ratio > HEALTH_MAX_UNTAGGED_RATIO };
+    }
     function isUntaggedItem(item) {
-      return item.type !== 'unnecessary' && (!item.hendersonIds || item.hendersonIds.length === 0) && !item.tagNotNeeded && !isOtherBasicInfoItem(item) && !isBasicInfoItem(item);
+      return item.type !== 'unnecessary' && !item.diseaseGeneral && (!item.hendersonIds || item.hendersonIds.length === 0) && !item.tagNotNeeded && !isOtherBasicInfoItem(item) && !isBasicInfoItem(item);
     }
 
     // Basic patient information (identity, history, blood type) is not a Henderson need;
@@ -910,7 +918,7 @@
       const soBtn = document.getElementById('btn-toggle-so-mixed');
       if (soBtn && soBtn.setAttribute) { soBtn.setAttribute('aria-pressed', String(soShown)); const lbl = soBtn.querySelector && soBtn.querySelector('span'); if (lbl) lbl.textContent = totalCounts.so ? `S/O混在（${totalCounts.so}）` : 'S/O混在'; }
       if (isCardOverviewOpen()) refreshCardOverview();
-      ['unclassified', 's', 'o', 'so'].forEach(key => {
+      ['unclassified', 's', 'o', 'so'].forEach(key => {
         const badgeEl = document.getElementById(`badge-count-${key}`); if (badgeEl) badgeEl.textContent = boardSearchTerm ? `${shownCounts[key]}/${totalCounts[key]}` : totalCounts[key];
       });
 

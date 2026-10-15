@@ -24,12 +24,12 @@
     "hash": "30dc0df19adde5d6"
   },
   "js/07-classification.js": {
-    "version": "v.60",
-    "hash": "8a19e823268688c2"
+    "version": "v.63",
+    "hash": "cdc3bbb1d6955694"
   },
   "js/08-assessment-tools.js": {
-    "version": "v.58",
-    "hash": "90f07ed0fa0f3234"
+    "version": "v.63",
+    "hash": "e53ed2aef3d1dd68"
   },
   "js/09-board.js": {
     "version": "v.59",
@@ -44,8 +44,8 @@
     "hash": "6dfddffd31cb497f"
   },
   "js/12-missing-checks-and-care-plan.js": {
-    "version": "v.62",
-    "hash": "1c99b3bce4d57f6a"
+    "version": "v.63",
+    "hash": "73d52e1f94a3e081"
   },
   "js/13-compare-and-report.js": {
     "version": "v.59",

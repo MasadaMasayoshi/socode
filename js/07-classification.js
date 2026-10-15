@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.60'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.63'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -2881,6 +2881,11 @@
       saveDataAndSync();
       queueClassificationDelivery(cp);
       showToast(`${addedCount}件のデータを分類・カード化しました${userCardsForRun.length ? `／${userCardsForRun.length}枚の手編集判断を保持しました` : ''}${updatedCount ? `／${updatedCount}枚のタグを更新しました` : ''}`, 'success');
+      try {
+        const health = classificationHealth(cp.items);
+        cp.classificationHealth = { at: new Date().toISOString(), total: health.total, untagged: health.untagged, degraded: health.degraded };
+        if (health.degraded) setTimeout(() => showToast(`タグ未設定のカードが${health.untagged}/${health.total}枚と多くなっています。分類ルールの不具合の可能性があるため、修正依頼を書き出して確認してください`, 'warn'), 1500);
+      } catch (e) {  }
     });
 
     // Initial patient rendering can precede the review module; retry after all scripts load.
