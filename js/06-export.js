@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.87'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.88'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -833,7 +833,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         "B. Background factors: also extract the PATIENT BACKGROUND FACTORS from the source record (年齢・性別・職業・家族構成・同居者・既往歴・生活歴（喫煙・飲酒・食習慣）・アレルギー・内服薬・入院の経緯／現病歴・ADL・社会資源 etc.) and check that each factor written in the source is captured as a card or field, with the right 基本情報／医学情報 classification (classifyPatientBackground) and, where appropriate, Henderson tags by meaning. List every factor that is missing or misclassified together with its source line. Do not infer factors that are not written; compare with the 「アプリが抽出済みの患者背景の因子」 list below when it is present; keep name masking intact.",
         "",
         "【充足・未充足の評価】",
-        "C. Sufficiency evaluation: also EVALUATE the app's sufficiency judgments (充足 / 未充足 / 判定保留 / 情報不足) per Henderson need and per phase (入院前／入院後), listed under 「アプリの充足状態の判定」 below, against the source record and the surrounding cards. For each verdict check: is it supported by the source; is any evidence card missing or wrongly used; is each 不足情報／確認したい情報 item truly missing in the source. Where a verdict is wrong, state the generic rule change that fixes it (no case-specific wording). Do not invent facts; write 確認不能 where the evidence is absent. Do not reword the existing sufficiency sentences.",
+        "C. Sufficiency evaluation: also EVALUATE the app's sufficiency judgments (充足 / 未充足 / 判定保留 / 情報不足) per Henderson need and per phase (入院前／入院後), listed under 「アプリの充足状態の判定」 below, against the source record and the surrounding cards. For each verdict check: is it supported by the source; is any evidence card missing or wrongly used; is each 不足情報／確認したい情報 item truly missing in the source. Where a verdict is wrong, state the generic rule change that fixes it (no case-specific wording). Do not invent facts; write 確認不能 where the evidence is absent. Do not reword the existing sufficiency sentences. Do not evaluate goal deadlines or evaluation start points (「〇日後までに」「起点」 etc.); judge only sufficiency of information.",
         "",
         "4. Preserve: repair untouched automatic saved cards without replacing IDs, source text, S/O, assessments or care plans. Preserve manual edits, learned decisions and approved『タグ不要』/『理由を了承』decisions; a correction request may challenge them, but never overwrite silently.",
         "5. Verify: test fresh classification, existing saved data after reload and append classification with duplicate records, plus displayed judgments and exported text, on the actual corrected code. Use the attached failure and positive/counterexamples; never derive expected answers from app output or hide failures. Check stale saved results, learning and asset/cache versions.",
