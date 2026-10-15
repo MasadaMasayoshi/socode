@@ -37,3 +37,13 @@ test('lab-table vocabulary, report metadata and decimals are not turned into top
 test('krTerms drops lab vocabulary and timing fragments', () => {
   assert.deepEqual(Array.from(app.krTerms('白血球数 コレステロール 毎日飲 帰室時 心窩部')), ['心窩部']);
 });
+
+test('the original-record section drops report header lines and staff or signer names', () => {
+  const { loadApp } = require('./app-helpers.js');
+  const app = loadApp();
+  const src = 'さくら太郎クリニック\n担当医 青山 花子\n責任者 岡田 次郎\nカルテNo. 123\n発熱と咳が続く。';
+  const cp = { title: 'T', sourceText: src, items: [{ id: '1', type: 'o', text: '発熱と咳が続く', hendersonIds: [] }] };
+  const text = app.knowledgeRequestText(cp, app.buildKnowledgeRequests(cp));
+  assert.ok(/発熱と咳が続く/.test(text));
+  assert.ok(!/青山|花子|岡田|次郎|さくら太郎|カルテNo/.test(text));
+});

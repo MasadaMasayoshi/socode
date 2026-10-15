@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.73'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.74'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1787,7 +1787,9 @@
     // The record as it was before classification, de-identified, so an outside AI can see the real context.
     function krSourceText(cp) {
       const raw = String((cp && cp.sourceText) || '').trim() || ((cp && cp.items) || []).filter(i => i && !i.deleted && !i.diseaseGeneral && i.text).map(i => i.text).join('\n');
-      return raw ? krDeidentify(raw, cp, 6000) : '';
+      // Document header/footer lines (institution, staff and signer names, ids, report dates) carry no clinical context and can identify people.
+      const kept = raw.split('\n').filter(l => !(typeof isReportMetadataLine === 'function' && isReportMetadataLine(l.trim())) && !/(?:責任者|担当医|主治医|検査技師|報告者|記載者|執刀医|検査者)/.test(l)).join('\n');
+      return kept ? krDeidentify(kept, cp, 6000) : '';
     }
     function krPatientSummary(cp) {
       const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && i.text);
