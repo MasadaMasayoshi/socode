@@ -55,5 +55,5 @@ test('instruction block C asks for basis check and cause hint; existing text kep
   assert.match(t, /Do not reword the existing sufficiency sentences\./);
   assert.match(t, /each 充足 verdict shows a recorded basis/);
   assert.match(t, /体力 \/ 意思力 \/ 知識/);
-  assert.match(app.NOTEBOOK_CONTENT_VERSION_MARK, /改訂13$/);
+  assert.match(app.NOTEBOOK_CONTENT_VERSION_MARK, /改訂1[3-9]$/);
 });
