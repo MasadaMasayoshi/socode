@@ -2,7 +2,7 @@
 // Confirmations and Undo verify the captured patient/target; local writes require full readback.
 // AI transport accepts image OCR only; classification and clinical generation stay local.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = 'v.61'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = 'v.82'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -686,7 +686,7 @@
       if (globalAppData.apiKey) return Promise.resolve('ok');
       const modal = document.getElementById('modal-api-required');
       if (!modal || !modal.querySelector) {
-        showToast(`「${featureName}」はAIを使います。右上の「︙」→「設定」→「画像の読み取り設定」でGemini APIキーを設定してください`, 'warn');
+        showToast(`「${featureName}」はAIを使います。右上の「︙」→「設定」→「画像の読み取り設定（API）」でGemini APIキーを設定してください`, 'warn');
         return Promise.resolve(false);
       }
       document.getElementById('api-required-feature').textContent = `「${featureName}」はAI（Gemini）を使います。まだAPIキーが設定されていません。次の手順で設定してください。`;
@@ -1042,7 +1042,7 @@
     let lastGeminiModelUsed = null;
     async function requestGemini(rawKey, body) {
       const key = normalizeApiKey(rawKey);
-      if (!key) throw new Error('APIキーが設定されていません。右上の︙→「設定」→「画像の読み取り設定」でキーを保存してください。');
+      if (!key) throw new Error('APIキーが設定されていません。右上の︙→「設定」→「画像の読み取り設定（API）」でキーを保存してください。');
       const kind = detectApiKeyKind(key).kind;
       if (kind === 'oauth') throw new Error('入力されているのはAPIキーではなく一時的なアクセストークン（ya29.…）です。Google AI Studio の「Get API key」でAPIキーを作って貼ってください。');
       const order = geminiEndpointOrder(key);

@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="v.81">
-  <meta name="app-file-versions" content="01:v.76,02:v.73,03:v.76,04:2026-10-12.usability-context29,05:v.61,06:v.81,07:v.79,08:v.81,09:v.77,10:v.81,11:v.73,12:v.80,13:v.59,14:2026-10-10.znavigation17,15:v.79">
+  <meta name="app-version" content="v.82">
+  <meta name="app-file-versions" content="01:v.76,02:v.73,03:v.76,04:2026-10-12.usability-context29,05:v.82,06:v.81,07:v.79,08:v.81,09:v.77,10:v.81,11:v.73,12:v.80,13:v.59,14:2026-10-10.znavigation17,15:v.79">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -146,7 +146,7 @@
           <button id="btn-rename-patient" class="text-[10px] text-[var(--ink-muted)] hover:text-[var(--accent)] font-sans font-medium"><i class="fa-solid fa-pen"></i> 名称変更</button>
         </h2>
 
-        <div id="ocr-dropzone" class="ocr-drop border border-dashed border-[var(--line)] hover:border-[var(--accent)] bg-[var(--paper)] hover:bg-[var(--accent-soft)] rounded-[var(--radius)] p-3 text-center cursor-pointer transition" role="button" tabindex="0" title="記録メモや検査結果の写真をここへドラッグ＆ドロップするか、押してファイルを選ぶと文字起こしします">
+        <div id="ocr-dropzone" class="ocr-drop border border-dashed border-[var(--line)] hover:border-[var(--accent)] bg-[var(--paper)] hover:bg-[var(--accent-soft)] rounded-[var(--radius)] p-3 text-center cursor-pointer transition" role="button" tabindex="0" title="記録メモや検査結果の写真をここへドラッグ＆ドロップするか、押してファイルを選ぶと文字起こしします（画像読み取り（API）：写真を外部のAPIに送ります）">
           <input type="file" id="ocr-file-input" accept="image/*" multiple class="hidden">
           <i class="fa-solid fa-camera text-[var(--ink-muted)] text-base mb-1"></i>
           <p class="text-xs font-medium text-[var(--ink)]">記録メモ・検査結果写真をドラッグ＆ドロップ</p>
@@ -436,7 +436,7 @@
           </button>
           <a href="clinical-knowledge/index.html" target="_blank" rel="noopener noreferrer" class="btn btn-outline">看護知識資料集</a>
           <button id="btn-reference-ocr" class="btn btn-outline">
-            <i class="fa-solid fa-camera"></i> 画像から読み込む
+            <i class="fa-solid fa-camera"></i> 画像から読み込む（API）
             <input type="file" id="reference-ocr-input" accept="image/*" class="hidden">
           </button>
           <button id="btn-reference-add" class="btn btn-primary">
@@ -448,7 +448,7 @@
 
       </div>
       <p id="reference-empty" class="hidden text-xs text-[var(--ink-muted)] text-center py-8 border border-dashed border-[var(--line)] rounded-[var(--radius)]">
-        まだ参考データがありません。「新規追加」または「画像から読み込む」で登録してください。
+        まだ参考データがありません。「新規追加」または「画像から読み込む（API）」で登録してください。
       </p>
     </div>
   </main>
@@ -752,7 +752,7 @@
       </div>
       <button type="button" id="btn-toggle-font" class="settings-action" onclick="toggleAppFont()">書体 <b id="font-current-label">明朝</b> <span>切り替え</span></button>
       <button type="button" id="btn-open-admin" class="settings-action" onclick="document.getElementById('modal-settings').classList.add('hidden')">学習データ管理 <span>パスワードが必要です</span></button>
-      <details id="settings-ocr" class="settings-detail"><summary>画像の読み取り設定</summary>
+      <details id="settings-ocr" class="settings-detail"><summary>画像の読み取り設定（API）</summary>
       <div>
         <label class="block text-xs font-medium text-[var(--ink)] mb-1">Gemini API Key</label>
         <input type="password" id="input-api-key" class="field font-mono mb-1" placeholder="AQ.… または AIza…" autocomplete="off" spellcheck="false">
@@ -769,7 +769,7 @@
           <option value="flash">標準（Flash）</option>
         </select>
         <p class="text-[10px] text-[var(--ink-muted)] mb-2">「混雑しています」が続くときは「軽量（Flash-Lite）」も試してください。応答の速さ・混み具合はGoogle側の状況で変わり、どのモデルでも保証はできません。</p>
-        <p class="text-[10px] text-[var(--ink-muted)]">写真の文字起こし（OCR）のみに使用します。AIによる分類・文章生成・関連図生成・看護計画生成・評価は使用しません（このブラウザだけに保存）。HTMLファイルを直接開いて使っても動きます。ただし、ブラウザの種類や開き方（ファイルから／サーバーから）が変わると保存場所も別になるため、もう一度入力が必要です。</p>
+        <p class="text-[10px] text-[var(--ink-muted)]">画像読み取り（API）：写真は外部のAPI（Google Gemini）に送って文字起こしします。利用にはAPIキーが必要です。写真の文字起こし（OCR）のみに使用します。AIによる分類・文章生成・関連図生成・看護計画生成・評価は使用しません（このブラウザだけに保存）。HTMLファイルを直接開いて使っても動きます。ただし、ブラウザの種類や開き方（ファイルから／サーバーから）が変わると保存場所も別になるため、もう一度入力が必要です。</p>
       </div>
 
       <div class="border-t border-[var(--line-soft)] pt-3">
@@ -982,9 +982,9 @@
           <ul>
             <li>書いた内容はまず<b>このブラウザ</b>に保存し、続けて<b>共有先（サーバー）</b>にも保存します。画面右上の表示で状態が分かります：「このブラウザに保存済み」「共有先に保存済み」「共有先への保存に失敗（押すと再送）」。</li>
             <li>共有先に保存できないときも、このブラウザには残っています。自動で送り直すほか、表示を押すとすぐ送り直します。</li>
-            <li>AI（Gemini）の機能は、右上の「︙」→「設定」→「画像の読み取り設定」でキーを入れたときだけ使えます。分類・手直し・アセスメント・看護計画・書き出しは記録をもとに処理します。</li>
+            <li>AI（Gemini）の機能は、右上の「︙」→「設定」→「画像の読み取り設定（API）」でキーを入れたときだけ使えます。分類・手直し・アセスメント・看護計画・書き出しは記録をもとに処理します。</li>
             <li>書き出しは保存先を選んで保存します。保存先の選択に対応していないブラウザでは、ブラウザの設定で「ダウンロード前に保存場所を確認する」を有効にしてください。PDFは印刷画面で保存先を選びます。</li>
-            <li>画像OCRの読取結果は必ず原画像と照合してください。画像は送信前に個人を特定できる情報を除いてください。</li>
+            <li>画像読み取り（API）の読取結果は必ず原画像と照合してください。画像は送信前に個人を特定できる情報を除いてください。</li>
           </ul>
         </section>
       </div>
@@ -1273,7 +1273,7 @@
   <script src="js/02-reference-data.js?v=v.73"></script>
   <script src="js/03-extraction-helpers.js?v=v.76"></script>
   <script src="js/04-server-sync.js?v=2026-10-12.usability-context29"></script>
-  <script src="js/05-app-state-and-ui.js?v=v.61"></script>
+  <script src="js/05-app-state-and-ui.js?v=v.82"></script>
   <script src="js/06-export.js?v=v.81"></script>
   <script src="js/07-classification.js?v=v.79"></script>
   <script src="js/08-assessment-tools.js?v=v.81"></script>
