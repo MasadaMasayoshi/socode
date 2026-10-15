@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.53'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.61'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -299,11 +299,41 @@
       });
       return rmPrepareClinicalMap(map, cp);
     }
+    // Chain-length report: flags nursing problems whose reasoning chain is too short (no recorded mechanism) or too long to follow, and names the information that would complete it.
+    const RM_CHAIN_SHORT = 1, RM_CHAIN_LONG = 7;
+    function rmChainReport(map) {
+      const nodes = (map && map.nodes) || [];
+      const up = new Map();
+      rmFlowEdges(map || { edges: [] }).forEach(e => { if (!up.has(e.to)) up.set(e.to, []); up.get(e.to).push(e.from); });
+      const memo = new Map();
+      const depth = (id, path = new Set()) => {
+        if (memo.has(id)) return memo.get(id);
+        if (path.has(id)) return 0;
+        const next = new Set(path).add(id);
+        const d = (up.get(id) || []).reduce((m, f) => Math.max(m, 1 + depth(f, next)), 0);
+        if (path.size === 0) memo.set(id, d);
+        return d;
+      };
+      const out = [];
+      nodes.filter(n => n.type === 'nursing_problem').forEach(n => {
+        const d = depth(n.id);
+        const label = rmDisplayLabel(n);
+        const cat = n.cat || rmProblemCategory(label).key;
+        if (d <= RM_CHAIN_SHORT) out.push({ id: n.id, label, depth: d, kind: 'short', need: RM_PROBLEM_MECHANISM[cat] ? `「${RM_PROBLEM_MECHANISM[cat]}」ことを示す記録（いつから・どの程度・何がきっかけか）` : 'この問題につながる原因・きっかけと、その程度を示す記録' });
+        else if (d >= RM_CHAIN_LONG) out.push({ id: n.id, label, depth: d, kind: 'long', need: '途中の段階のうち、看護で確認・介入できる要所を絞って読む（全体は下の一覧で確認）' });
+      });
+      return out;
+    }
+    function rmChainReportHtml(map) {
+      const r = rmChainReport(map);
+      if (!r.length) return '';
+      return `<section aria-label="推論の連鎖の確認"><h4>推論の連鎖の確認</h4><ul>${r.map(x => `<li>${escapeHtml(x.label)}：${x.kind === 'short' ? '根拠から問題までの連鎖が短い（仕組みの記録が少ない）' : `連鎖が長い（${x.depth}段）`}。確認したい情報：${escapeHtml(x.need)}</li>`).join('')}</ul></section>`;
+    }
     function relationMapTextHtml(map, cp) {
       const byId = new Map(map.nodes.map(n => [n.id, n]));
       const esc = escapeHtml;
       const events = { order: '処方・指示', administered: '投与済み', reported: '申告', stopped: '中止', unknown: '状態未確認' };
-      return `<p>矢印の意味と根拠を一覧で確認できます。項目を選ぶと上の操作ボタンで編集できます。</p><ol>${map.nodes.map(n => `<li><button type="button" class="btn btn-outline" data-rm-action="select-node" data-node-id="${esc(n.id)}">${esc(rmType(n).label)}：${esc(rmDisplayLabel(n))}</button><p>${esc(RM_STATUSES[rmEpistemicStatus(n)])}／${esc(RM_CERTAINTIES[n.certainty] || '未確認')}${n.effectiveTime ? `／${esc(n.effectiveTime)}` : ''}${n.medication ? `／${esc(events[n.medication.eventType] || events.unknown)}` : ''}</p>${n.evidence ? `<p>根拠：${esc(n.evidence)}</p>` : ''}${(n.sourceRefs || []).length ? `<p>参照：${(n.sourceRefs || []).map(r => esc(`${r.sourceType}:${r.sourceId}`)).join('、')}</p>` : ''}${n.type === 'nursing_problem' ? `<p>根拠カード：${findRelationEvidence(map, n.id, cp).sourceRefs.map(r => esc(`${r.sourceType}:${r.sourceId}`)).join('、') || '根拠がありません'}</p>` : ''}</li>`).join('')}</ol><h3>矢印の意味</h3><ul>${map.edges.map(e => `<li><button type="button" class="btn btn-outline" data-rm-action="select-edge" data-edge-id="${esc(e.id)}">${esc(byId.get(e.source)?.label || '不明')} → ${esc(byId.get(e.target)?.label || '不明')}</button>：${esc(RM_RELATIONS.find(r => r.key === e.relation)?.label || '関連する')}${e.predicted ? '（予測）' : ''}${e.evidence ? `／${esc(e.evidence)}` : ''}</li>`).join('')}</ul>`;
+      return `<p>矢印の意味と根拠を一覧で確認できます。項目を選ぶと上の操作ボタンで編集できます。</p>${rmChainReportHtml(map)}<ol>${map.nodes.map(n => `<li><button type="button" class="btn btn-outline" data-rm-action="select-node" data-node-id="${esc(n.id)}">${esc(rmType(n).label)}：${esc(rmDisplayLabel(n))}</button><p>${esc(RM_STATUSES[rmEpistemicStatus(n)])}／${esc(RM_CERTAINTIES[n.certainty] || '未確認')}${n.effectiveTime ? `／${esc(n.effectiveTime)}` : ''}${n.medication ? `／${esc(events[n.medication.eventType] || events.unknown)}` : ''}</p>${n.evidence ? `<p>根拠：${esc(n.evidence)}</p>` : ''}${(n.sourceRefs || []).length ? `<p>参照：${(n.sourceRefs || []).map(r => esc(`${r.sourceType}:${r.sourceId}`)).join('、')}</p>` : ''}${n.type === 'nursing_problem' ? `<p>根拠カード：${findRelationEvidence(map, n.id, cp).sourceRefs.map(r => esc(`${r.sourceType}:${r.sourceId}`)).join('、') || '根拠がありません'}</p>` : ''}</li>`).join('')}</ol><h3>矢印の意味</h3><ul>${map.edges.map(e => `<li><button type="button" class="btn btn-outline" data-rm-action="select-edge" data-edge-id="${esc(e.id)}">${esc(byId.get(e.source)?.label || '不明')} → ${esc(byId.get(e.target)?.label || '不明')}</button>：${esc(RM_RELATIONS.find(r => r.key === e.relation)?.label || '関連する')}${e.predicted ? '（予測）' : ''}${e.evidence ? `／${esc(e.evidence)}` : ''}</li>`).join('')}</ul>`;
     }
 
     function normalizeRelationMap(raw) {
@@ -3804,5 +3834,5 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
     if (typeof document !== 'undefined' && document.getElementById && document.getElementById('view-relation')) initRelationMapUi();
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, rmClinicalFields, rmEpistemicStatus, rmPrepareClinicalMap, findRelationEvidence, relationMapTextHtml, rmImportClinicalEntities, layoutRelationMap, buildRelationMapFromRecord, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmDragRoutes, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel, rmShorten, rmProblemSubmap, rmReduceShortcuts, rmNodeSize, RM_PROBLEM_NOTES, rmPlainNote, rmLifeStage, rmMergeDuplicateProblems, rmLabsAsEvidence, layoutRelationMapOnce });
+  Object.assign(module.exports, { rmChainReport, RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, rmClinicalFields, rmEpistemicStatus, rmPrepareClinicalMap, findRelationEvidence, relationMapTextHtml, rmImportClinicalEntities, layoutRelationMap, buildRelationMapFromRecord, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmDragRoutes, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel, rmShorten, rmProblemSubmap, rmReduceShortcuts, rmNodeSize, RM_PROBLEM_NOTES, rmPlainNote, rmLifeStage, rmMergeDuplicateProblems, rmLabsAsEvidence, layoutRelationMapOnce });
 }

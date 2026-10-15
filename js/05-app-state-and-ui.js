@@ -2,7 +2,7 @@
 // Confirmations and Undo verify the captured patient/target; local writes require full readback.
 // AI transport accepts image OCR only; classification and clinical generation stay local.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = '2026-10-12.usability-context21'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = 'v.61'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -2360,6 +2360,26 @@
       await saveCustomTagRules([...rules, { keyword, mode, hendersonIds: [hId], note, updatedAt: new Date().toISOString() }]);
       document.getElementById('customrule-keyword').value = '';
       document.getElementById('customrule-note').value = '';
+    };
+    // Self-improvement cycle: the app proposes shared keyword rules from the user's own manual tags; nothing is saved without approval.
+    window.runImprovementCycle = async function() {
+      const cp = getCurrentPatient();
+      const proposals = buildImprovementProposals(cp);
+      if (!proposals.length) return showToast('今の患者の手動修正から出せる改善提案はありません', 'info');
+      const approved = [];
+      for (let k = 0; k < proposals.length; k++) {
+        const pr = proposals[k];
+        const answer = await openDialog({
+          title: `改善提案 ${k + 1}/${proposals.length}`,
+          message: `「${pr.keyword}」を含むとき ${pr.hendersonId}.${hendersonNameOf(pr.hendersonId).replace(/^\d+\.\s*/, '')} のタグを付けるルールを追加しますか？\n根拠: 手動でタグを付けたカード ${pr.count}件（例：${pr.example}）\n登録すると全員のタグ付けに使われます。承認しない提案は何も変更しません。`,
+          confirmLabel: '承認して登録', secondaryLabel: '見送る'
+        });
+        if (answer === null) break;
+        if (answer === true) approved.push(pr);
+      }
+      if (!approved.length) return showToast('登録した提案はありません', 'info');
+      if (!(await confirmSharedChange(`承認した追加キーワード${approved.length}件を登録します（全員に共有されます）。`))) return;
+      await saveCustomTagRules([...(globalAppData.customTagRules || []), ...approved.map(pr => ({ keyword: pr.keyword, mode: 'add', hendersonIds: [pr.hendersonId], note: '改善提案（承認済み）', updatedAt: new Date().toISOString() }))]);
     };
     window.deleteCustomTagRule = async function(id) {
       const rule = (globalAppData.customTagRules || []).find(r => r.id === id);

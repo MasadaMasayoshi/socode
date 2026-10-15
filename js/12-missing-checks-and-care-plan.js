@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.59'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.61'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1718,6 +1718,28 @@
       for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
       return `r${t.length}-${h.toString(16)}`;
     }
+    // Keyword proposals derived only from this patient's manual tag additions; the user approves each one before it becomes a shared rule.
+    const IMPROVEMENT_STOP_WORDS = /^(?:患者|本人|状況|入院|退院|現在|以前|普段|最近|症状|状態|生活|記録|訴え|食事|睡眠|排泄|発言|様子)$/;
+    function buildImprovementProposals(cp) {
+      const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && !i.diseaseGeneral && i.text);
+      const rules = (typeof globalAppData !== 'undefined' && globalAppData.customTagRules) || [];
+      const byKey = new Map();
+      items.forEach(i => {
+        const added = Array.from(new Set((i.editLog || []).filter(e => e && e.kind === 'tagAdd' && e.hId).map(e => Number(e.hId))));
+        added.filter(h => (i.hendersonIds || []).includes(h) && !(detectMultipleHendersonTags(i.text) || []).includes(h)).forEach(h => {
+          const text = String(i.text).normalize('NFKC');
+          const runs = (text.match(/[一-龥ァ-ヶー]{2,8}/g) || []).filter(r => !IMPROVEMENT_STOP_WORDS.test(r));
+          const keyword = runs.sort((a, b) => b.length - a.length)[0];
+          if (!keyword) return;
+          if (isBuiltInKeywordOf(h, keyword) || rules.some(r => r.keyword === keyword && r.hendersonIds.includes(h))) return;
+          const key = `${h}:${keyword}`;
+          const cur = byKey.get(key) || { keyword, hendersonId: h, count: 0, example: text.slice(0, 40) };
+          cur.count++; byKey.set(key, cur);
+        });
+      });
+      // A keyword whose tag the user also removed from a card containing it is contested and is never proposed.
+      return Array.from(byKey.values()).filter(pr => !items.some(i => String(i.text).normalize('NFKC').includes(pr.keyword) && (i.editLog || []).some(e => e && e.kind === 'tagRemove' && Number(e.hId) === pr.hendersonId))).slice(0, 10);
+    }
     function patientOwnText(cp) {
       const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && !i.diseaseGeneral && i.text).map(i => i.text);
       const notes = ((cp && cp.referenceNotes) || []).map(n => `${n.title || ''}\n${n.text || ''}`);
@@ -2381,7 +2403,7 @@ if (typeof module !== 'undefined' && module.exports) {
     carePlanInlineNotes, captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
     cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf, collapseVitalCards, collapseLabCards,
-    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
+    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, buildImprovementProposals, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
     cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, carePlanSetReviewHtml, carePlanSetState, carePlanSetNextSteps
   });
 }
