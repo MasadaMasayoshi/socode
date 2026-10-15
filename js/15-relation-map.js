@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.62'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.68'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -3833,7 +3833,6 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
     window.renderRelationMap = renderRelationMap;
     if (typeof document !== 'undefined' && document.getElementById && document.getElementById('view-relation')) initRelationMapUi();
 
-if (typeof applyKnowledgePacks === 'function' && typeof localStorage !== 'undefined') applyKnowledgePacks();
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, { rmChainReport, RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, rmClinicalFields, rmEpistemicStatus, rmPrepareClinicalMap, findRelationEvidence, relationMapTextHtml, rmImportClinicalEntities, layoutRelationMap, buildRelationMapFromRecord, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmDragRoutes, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel, rmShorten, rmProblemSubmap, rmReduceShortcuts, rmNodeSize, RM_PROBLEM_NOTES, rmPlainNote, rmLifeStage, rmMergeDuplicateProblems, rmLabsAsEvidence, layoutRelationMapOnce });
 }

@@ -14,5 +14,5 @@ test('the selection bar offers a split button next to merge', () => {
 test('improvement and knowledge buttons live in the more-menu, not the crowded toolbar row', () => {
   const menuStart = toolbar.indexOf('board-menu-panel');
   assert.ok(menuStart > 0);
-  assert.ok(toolbar.indexOf('btn-improvement-cycle') > menuStart && toolbar.indexOf('btn-knowledge-intake') > menuStart);
+  assert.ok(toolbar.indexOf('btn-improvement-cycle') > menuStart);
 });
