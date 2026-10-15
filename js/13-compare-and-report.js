@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.83'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.84'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -613,6 +613,19 @@
         delete c.sceneId;
         touchItem(c);
         return c;
+      });
+      // A card made by a merge carries the union of its sources' tags. When it is split again, each piece keeps only the tags its own
+      // text supports (or that the user added by hand); other splits keep the source tags as before. The union must not stay on a piece that no longer contains the evidence.
+      const userAddedTags = new Set((src.editLog || []).filter(e => e && e.kind === 'tagAdd').map(e => Number(e.hId)));
+      const fromMerge = (src.editLog || []).some(e => e && e.kind === 'merge');
+      [src, ...added].forEach(piece => {
+        if (!fromMerge || !(piece.hendersonIds || []).length || piece.contextTagEvidence) return;
+        const own = new Set(isPatientIdentityLine(piece.text) ? [] : detectMultipleHendersonTags(piece.text));
+        const keep = piece.hendersonIds.filter(h => own.has(h) || userAddedTags.has(h));
+        if (keep.length === piece.hendersonIds.length) return;
+        const cols = {};
+        keep.forEach(h => { cols[h] = (piece.assessmentCols || {})[h] || 'unclassified'; });
+        piece.hendersonIds = keep; piece.assessmentCols = cols;
       });
       const resultIds = [src, ...added].map(i => i.id);
       [src, ...added].forEach(i => { i.editLog[i.editLog.length - 1].resultIds = resultIds.slice(); });

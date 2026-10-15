@@ -1,7 +1,7 @@
 // Startup, references and image OCR. Validate image MIME/size; capture patient before async prompts.
 // Reference notes are not automatic classification rules; file versions detect mixed/reverted assets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = 'v.83'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = 'v.84'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -669,7 +669,7 @@ if (typeof module !== 'undefined' && module.exports) {
     mergeShortFragmentCards,
     labCategoryTags,
     familyScreeningEvidence, applyFamilyScreeningContext, removeCoveredCompositeCards,
-    classifyTextByRules, refreshSavedUntaggedCards, savedUntaggedProtection, isRejectedExclusionOnly, preservedUserCardsForClassification, coveredByManualClassification,
+    classifyTextByRules, refreshSavedUntaggedCards, coveredBySavedWholeLine, listLineParts, isStaleAutoGenericExclusion, savedUntaggedProtection, isRejectedExclusionOnly, preservedUserCardsForClassification, coveredByManualClassification,
     applyPainContextTags, painContextTagEvidence, painContextClauses,
     maskPersonalInfo,
     restoreMaskedText,

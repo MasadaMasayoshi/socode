@@ -75,6 +75,13 @@
       "rule": "counter: list with a presence/absence statement is kept",
       "text": "頭痛、嘔気などあり",
       "unnecessary": false
+    },
+    {
+      "rule": "category heading before list lines is a heading; list items stay findings",
+      "text": "全身症状\n発熱、倦怠感、\n疲れやすい、\n体重減少など\n\n神経\nけいれん、頭痛、不安感、\n抑うつ状態など",
+      "has": [
+        10
+      ]
     }
   ]
-}
+}

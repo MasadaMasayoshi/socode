@@ -1,6 +1,6 @@
 // Japanese source examples and reference data. Generic ranges are not facility-approved values.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = 'v.73'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = 'v.84'; // Version stamp (scripts/stamp-version.js)
 
     const SAMPLE_CASES = [
  {
@@ -57,10 +57,10 @@
 [検査データ] WBC 11200, CRP 3.8, Hb 10.2, Cre 1.1, Na 136, K 4.2
 [14:30] 「少し呼吸が楽になった」と話すが、再度体温を測定すると38.2℃に上昇していた。`;
 
-    const NOTEBOOK_CONTENT_VERSION_MARK = '統合版 2026-10-15 改訂10';
+    const NOTEBOOK_CONTENT_VERSION_MARK = '統合版 2026-10-15 改訂11';
 
     const NOTEBOOK_PREVIOUS_LINE_HASHES = new Set('1rxx1s8 1n972mt 1rxzhk1 1n972mt 3oggz7 11wepfp 1ueyf9x 49fyid cktp9v 1dx8rnt 4w69aw 18yrges mz6kpv 1fxl9vm vjjqph 1na1m5x 1mm3a6p 1eegg6z xov1zd 1r2aecs 1p9asa7 ipot7j 1re2huh 33sjwu 12z0tmf lrdwgc vdcow1 31eneq 11mb2w6 t10hoq 1etsd7m 5ubyuq q42z2q 1t8xbsy 1kpypia 15hvkni 1bwlid2 ilejiw mpf6r2 1eecsip 1dkakkm 1pr7cs9 1n4b44k 2z4yug kq8d8l 1t9q52t 1cxtfpk 1bmvzo4 wf9ste 1oyarzj 1p16g52 w1hdma 1epkp3w 1g1elw8 sro6mi 13ezb12 lnvozy 12fz4ir 1uuozg2 q2k5k8 1hrhr2n 1t9nghh f1917k e0crkw j1e8d8 13rhc30 1v2xzr2 yvgn6 1qx5h46 1757o1c u83int 1nv6687 9mp1bz wrr5dv ku3lll 1284hc6 e7jic3 tu4uvg fh8e14 wk4h4o dcef5v 1tw2zb2 wfnv68 pklg0t qnr0pb 1vbrse1 ehxm2 1brwjir u319zs 1ixcp78 i4h9b 53jp4n 13njjnz 1ele74r rwuu7w cfb5kk 1niyy9p 16zgdvq 1ovb3z5 coq3bu 24dwyi 1n5xhmq ukofp0 7qvde7 1yik6ad 117e71n v54305 1d7f6u1 1c83oe0 mc5a21 4vbu7g 188wc9g ylmgxf 39187t 3yqc7v 18qsxyi 1jfl61m 19is9nl sys0jh kda9kl oi98bw 4r9yru 1nh8in0 1i94xy8 1jcmgts wjqlw9 70311g 8wukdb d73drk ysxln2 1rt8zfd rsm75j 1cy71mw 1fc2gx8 1l1dvb3 1cftclx 1epae2b 1og289u 1r8z4jp 1vk21a0 lxc9rb 14yvj9r 1bwwj4w tap586 18tgtnq 1q8n2f0 1i8sp26 1nq8mbd 1y0ddgx 1jhhrn4 1gebsqw 1ox9pmi 1p54mi5 1mh1isl njedxy w8a1pd 1a2daya 4utfxf 1cbq5a1 1vdl8io r6dyzq 1exn90y 1bocpt1 1eay80t a26n4w 1ioy22v p7xddp qtyt3m 1ecvr13 1v6ppoi 4ufv81 18oigbx 1wl1wn0 1b73s34 11avgj6 jmk6zs 90bjpt 1ch9u22 id8wik evf7p2 13i7uer w8fsyw a7uumx fevad0 tyi7ix 31f5lu ll25l5 31eqak y4dgky 1fi3pcw j4nwbp 6wnqsb pbvlhf 157ghfe 2byund lo14bk 1hitvg3 1suzyfg 1kamx2z 1bdsrow ouqo9 zj2m3c mayvhv 2e67kq 1m7v4xj 14224h9 13vzf13 t7hukc 17fmocm gqq9d3 1wilov6 1g1elw8 p7xddp id8wik 1hit4b4 151xlr6'.split(' '));
-    const DEFAULT_NOTEBOOK_CONTENT = `【看護アセスメント 基準ノート（統合版 2026-10-15 改訂10）】
+    const DEFAULT_NOTEBOOK_CONTENT = `【看護アセスメント 基準ノート（統合版 2026-10-15 改訂11）】
 このノートは、記録の分類・検査値の評価・不足情報の確認・看護問題・看護計画の基準です。確認できた修正を具体例とともに反映し、アプリで実装した分類ルールと揃えています。「学習データ管理」→「分類基準」タブで確認・編集できます。
 判断の優先順位：①第1〜4章の分類・タグ付けのルール ②第6〜7章の疾患別の判断基準 ③学習データの傾向。迷ったときは、1つの情報に複数のタグを付けてよい。
 
@@ -74,6 +74,9 @@
 ・統合・分割を繰り返した履歴は元の記録までたどる。分割片が後の統合に含まれている場合も照合するが、片方が削除された不完全な分割や別日時の記録を復元済みと扱わない。
 ・S/Oや列の学習があっても、最新の原文に基づくタグ根拠を無効にしない。手編集のない学習済み自動カードも不足タグを更新する。反例：手編集・了承済みのレビュー・明示的なタグ削除は上書きしない。
 ・同じ患者を再分類するとき、手で統合・編集・不要判定したカードは、元カードの本文と日時が今回の原文で照合できる場合にID・判断・履歴を保つ。統合前のカードを重ねて作らない。例：同じ日時の氏名・年齢・性別を統合したカードは原文が一致する再分類でも保持する。反例：原文から削除された記録や、同じ文章でも別の日時・別の患者に、その判断を引き継がない。
+・疾患の一般的な症状の列挙で、神経・粘膜・皮膚・肺・心膜などの臓器・部位の分類名が列挙の行の前に1行だけ置かれている場合は、その行を見出し（除外）とし、配下の症状を1項目ずつ疾患一般情報のカードにする。正例「神経」の次にけいれん・頭痛が続く。反例：「脱毛」「関節痛」のような症状名の行は見出しにしない。
+・保存済みの1枚のカードが列挙の1行（「A、B、」「Cなど」）を丸ごと含み、最新の分類では項目ごとのカードになる場合は、行の各項目が最新カードと一致するときに対応するとみなす（行末の読点・など・括弧は無視）。手で編集したカードはIDと判断を保ち、最新カードのタグの和集合を足す。自動で除外されたまま編集のないカードは、疾患一般情報として更新する。追加分類では、すでに保存済みの行カードに含まれる項目を重ねて作らない。
+・統合で作られたカードをもう一度分割したとき、各片には、その片の本文が根拠になるタグと、利用者が手で付けたタグだけを残す（統合で足し合わされたタグを根拠のない片に残さない）。統合を経ていないカードの分割は、これまでどおり元のタグを引き継ぐ。氏名・年齢・性別だけの片にはタグを付けない。
 ・修正依頼の書き出しは調査指示を作る機能であり、それだけで実装ルールが更新されるものではない。確認した汎用ルールはコードに実装し、新規・保存済み・追加分類で検証する。
 ・表の罫線・空セルは情報カードにしない。検査名、実測値、単位、資料内の基準値、測定時期を保った文章にする。例：WBCの表行は値を残す。反例：入院時と術後の値を同じ時期にまとめない。
 ・充足理由は各欲求の状態と根拠カードを自然な文章で示す。禁煙歴だけで呼吸の充足を確定しない。

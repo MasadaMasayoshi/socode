@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.83'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.84'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -1255,11 +1255,15 @@
       });
       const bodyOf = idxs => idxs.filter(i => !res[i].startsWith(SOURCE_TITLE_MARK) && !headLike[i]).map(i => res[i].trim());
       const listLike = idxs => { const b = bodyOf(idxs); return b.length > 0 && b.every(x => !/[。「」\d:：]/.test(x) && !/[はがをにへ]/.test(x.replace(/[（(][^）)]*[）)]/g, ''))); };
+      // A body-system / body-part category name that opens a block of list lines (神経, 粘膜, 手指の皮膚, 肺・心膜 ...) is a heading of the list, not a finding.
+      const CAT = '(?:[一-龥]{1,3}の)?(?:神経|粘膜|皮膚|心臓|心膜|心|肺|腎臓|腎|肝臓|肝|血液|消化器|呼吸器|循環器|筋肉|骨|眼|耳|鼻|口腔|泌尿器|内分泌)';
+      const CATEGORY_HEADING_REGEX = new RegExp(`^${CAT}(?:[・･]${CAT})*(?:系)?$`);
       let inRegion = false;
       blocks.forEach(idxs => {
         const body = bodyOf(idxs);
         if (!inRegion && body.length && isGenericSymptomList(body.join(''))) inRegion = true;
         else if (inRegion && !listLike(idxs)) inRegion = false;
+        if (inRegion && idxs.length >= 2 && !res[idxs[0]].startsWith(SOURCE_TITLE_MARK) && CATEGORY_HEADING_REGEX.test(res[idxs[0]].trim())) res[idxs[0]] = SOURCE_TITLE_MARK + res[idxs[0]].trim();
         if (inRegion) idxs.forEach(i => { if (headLike[i] && !res[i].startsWith(SOURCE_TITLE_MARK) && /(?:症状|状況|所見|項目|情報|経過|歴)\s*[:：]?$/.test(res[i].trim())) res[i] = SOURCE_TITLE_MARK + res[i].trim(); else if (!res[i].startsWith(SOURCE_TITLE_MARK)) res[i] = GENERIC_LIST_MARK + res[i].trim(); });
       });
       return res;
@@ -2453,7 +2457,7 @@
       [/心外膜炎|心膜炎|心膜液|タンポナーデ/, [1, 4, 5, 9]], [/蝶形紅斑|円板状/, [9]], [/神経精神|NPSLE|精神神経|神経症状|^神経|神経[、,・]/, [4, 9, 10, 14]],
       [/頭痛/, [9, 10]], [/感染|日和見/, [7, 9, 14]], [/抗リン脂質|血栓|APS/, [9]],
       // v.78 site research (ledger): disease-level associations only; drug names are not pasted onto one item.
-      [/膵頭部(?:がん|癌)|膵(?:がん|癌)/, [2, 3, 4, 9, 14]], [/胃全摘|胃切除/, [2, 3, 4, 8, 9, 14]], [/S状結腸(?:がん|癌)|結腸(?:がん|癌)/, [2, 3, 4, 9, 14]],
+      [/胸痛|胸の痛み/, [1, 9]], [/膵頭部(?:がん|癌)|膵(?:がん|癌)/, [2, 3, 4, 9, 14]], [/胃全摘|胃切除/, [2, 3, 4, 8, 9, 14]], [/S状結腸(?:がん|癌)|結腸(?:がん|癌)/, [2, 3, 4, 9, 14]],
       [/大腿骨(?:頸|頚)部骨折/, [3, 4, 5, 9, 14]], [/糖尿病/, [2, 3, 4, 8, 9, 14]], [/高血圧/, [4, 9, 14]], [/脂質異常症/, [2, 4, 14]],
       [/陳旧性心筋梗塞/, [1, 4, 9, 14]], [/子宮筋腫|過多月経/, [3, 9, 12]], [/白内障/, [4, 9, 14]],
       // v.79 Part C symptom table (docs/research-notes/2026-10-15-sitewide.md): only terms the keyword lists did not already tag with every listed item (multi-tag kept).
@@ -2674,6 +2678,12 @@
       const edits = (item.editLog || []).filter(e => e && e.kind !== 'create');
       return edits.length > 0 && edits.every(e => e.kind === 'type' && e.from === 'unnecessary' && e.to !== 'unnecessary');
     }
+    // A card the app itself excluded under an older rule (never edited, not approved) that the current rules keep as a finding.
+    function isStaleAutoGenericExclusion(item) {
+      return !!item && !item.deleted && item.type === 'unnecessary' && !item.tagNotNeeded && !item.aiSuggested &&
+        !(item.editLog || []).some(e => e && e.kind !== 'create') && (!item.predictionSource || item.predictionSource === 'rule') &&
+        !!item.ruleDecision && item.ruleDecision.ruleId === 'source.generic-symptom-list';
+    }
     function savedUntaggedProtection(item, cp) {
       if (item.deleted || item.type === 'unnecessary' || item.aiSuggested) return '更新対象外のカード';
       if (item.tagNotNeeded) return 'タグ不要の指定';
@@ -2696,12 +2706,31 @@
       const k = x => String(x || '').normalize('NFKC').replace(/\s+/g, '').replace(/[。．.]+$/, '');
       return k(a.text).length >= 4 && k(a.text) === k(b.text);
     }
+    // A list line saved as ONE card ("A、B、") now classifies as one card per item. The saved card corresponds to the fresh cards
+    // when every item of the line equals a fresh card (trailing 、/。/など and enclosing parentheses ignored; same or unknown time).
+    function listLineParts(text) {
+      const strip = x => x.replace(/(?:[、,。．.]|など)+$/, '').replace(/^[(（]([^()（）]*)[)）]$/, '$1').trim();
+      return String(text || '').normalize('NFKC').replace(/\s+/g, '').split(/[、,・](?![^(（]*[)）])/).map(strip).filter(x => x.length >= 2);
+    }
+    function sameTimeOrUnknown(a, b) { return a === b || isUnknownTimestamp(a) || isUnknownTimestamp(b); }
+    function splitLineCounterparts(sourceCards, item) {
+      const parts = listLineParts(item.text);
+      if (!parts.length) return null;
+      const fresh = sourceCards.filter(c => c.type !== 'unnecessary' && sameTimeOrUnknown(c.timestamp, item.timestamp));
+      const found = parts.map(p => fresh.find(c => listLineParts(c.text).join('、') === p || listLineParts(c.text)[0] === p));
+      return found.every(Boolean) ? Array.from(new Set(found)) : null;
+    }
     function currentRuleCardForSavedItem(sourceCards, item) {
       const key = clinicalCardDuplicateKey(item.text, item.timestamp);
       const direct = sourceCards.find(i => clinicalCardDuplicateKey(i.text, i.timestamp) === key);
       if (direct) return direct;
       const relaxed = sourceCards.filter(i => sameCardIgnoringUnknownTime(i, item));
       if (relaxed.length === 1) return relaxed[0];
+      const lineCards = splitLineCounterparts(sourceCards, item);
+      if (lineCards) {
+        const ids = Array.from(new Set(lineCards.flatMap(c => c.hendersonIds || []))).sort((a, b) => a - b);
+        return { ...lineCards[0], hendersonIds: ids, type: lineCards.some(c => c.type === 's') && !lineCards.some(c => c.type === 'o') ? 's' : 'o', _sourceMatchKind: 'split-line', sourceParentText: item.text, _counterparts: lineCards.map(c => c.text) };
+      }
       if (item.fieldLabel === 'アレルギー' && /^(?:ない|なし)$/.test(item.text)) {
         const labeled = sourceCards.find(i => i.fieldLabel === item.fieldLabel && i.timestamp === item.timestamp &&
           clinicalCardDuplicateKey(i.text.replace(/^アレルギー[:：]\s*/, ''), i.timestamp) === key);
@@ -2716,6 +2745,13 @@
       const known = String(item.text).match(GALLBLADDER_OPERATIVE_FINDING_REGEX)?.[0];
       return { ...item, hendersonIds: ids, _sourceMatchKind: 'fragment', sourceParentText: parent.text, _sourceMatchAmbiguous: new Set(parents.map(p => rewriteNorm(p.text))).size > 1,
         ...(known && ids.includes(2) ? { contextTagEvidence: [{ id: 2, label: '食事', timestamp: item.timestamp, evidence: known }] } : {}) };
+    }
+    // A fresh per-item card is already covered by a saved card that holds the whole list line.
+    function coveredBySavedWholeLine(items, text, timestamp) {
+      const mine = listLineParts(text).join('、');
+      if (!mine) return false;
+      return (items || []).some(i => i && !i.deleted && sameTimeOrUnknown(i.timestamp, timestamp) && i.text !== text && listLineParts(i.text).length >= 1 && listLineParts(i.text).includes(mine) ||
+        i && !i.deleted && sameTimeOrUnknown(i.timestamp, timestamp) && listLineParts(i.text).join('、') === mine && i.text !== text);
     }
     function hasCompleteSavedSourceCoverage(items, text, timestamp) {
       const norm = rewriteNorm(text);
@@ -2734,13 +2770,27 @@
     // Reuse complete source context; append runs may omit every surrounding duplicate card.
     function refreshSavedUntaggedCards(cp, sourceText = cp?.sourceText, now = new Date().toISOString(), learningDict = globalAppData.learningUserDict) {
       if (!cp || !String(sourceText || '').trim()) return 0;
-      const targets = (cp.items || []).filter(i => !savedUntaggedProtection(i, cp) || i.type === 'unnecessary' && !savedUntaggedProtection({ ...i, type: 'o' }, cp) &&
+      const targets = (cp.items || []).filter(i => !savedUntaggedProtection(i, cp) || isStaleAutoGenericExclusion(i) || i.type === 'unnecessary' && !savedUntaggedProtection({ ...i, type: 'o' }, cp) &&
           (/^[<＜]/.test(i.text) && extractDayLabelFromHeading(i.text) || i.timestamp === '検査データ' && isTestExplanationMemo(i.text)));
 
       if (!targets.length) return 0;
       const sourceCards = classifyTextByRules(sourceText);
       let updated = 0;
       targets.forEach(item => {
+        if (isStaleAutoGenericExclusion(item)) {
+          const fresh = currentRuleCardForSavedItem(sourceCards, item);
+          if (fresh && fresh.type !== 'unnecessary') {
+            item.type = fresh.type;
+            item.diseaseGeneral = true;
+            item.hendersonIds = (fresh.hendersonIds || []).slice();
+            item.assessmentCols = {};
+            item.hendersonIds.forEach(id => { item.assessmentCols[id] = inferAssessmentColumn(item.fieldLabel, item.timestamp, item.admissionPhase) || 'unclassified'; });
+            item.ruleDecision = fresh._sourceMatchKind === 'split-line' ? { ruleId: 'source.disease-general-info', reason: '疾患の一般的な症状の列挙の項目。内容でタグを付けるが、この患者に認められた所見かどうかは原文の前後で確認する。', version: window.APP_FILE_VERSIONS['07'] } : (fresh.ruleDecision || item.ruleDecision);
+            item.ruleCorrectionReason = '古い規則で自動除外された列挙の記録を、最新ルールで疾患一般情報として更新（原文の同じ行と照合）。ID・本文・手編集の履歴は保持。';
+            item.ruleTagUpdatedAt = now; item._touchedAt = now; updated++;
+          }
+          return;
+        }
         if (item.type === 'unnecessary') {
           const matches = sourceCards.filter(i => i.type === 'unnecessary' && rewriteNorm(i.text) === rewriteNorm(item.text));
           const heading = new Set(matches.map(i => i.timestamp)).size === 1 ? matches[0] : null;
@@ -2931,7 +2981,7 @@
       const userCardsForRun = preservedUserCardsForClassification(cp.items, sourceCardsForRun);
       withExtractionContext(text, () => groupClinicalPhrasesWithTimestamps(text).forEach(chunk => {
         const cleanedText = cleanExtractedPhrase(chunk.text);
-        if (cleanedText.length < 2 || isBareFieldHeaderOnly(cleanedText) || isHeadingOnlyChunk(chunk, cleanedText) || cp.items.some(i => !i.deleted && (clinicalCardDuplicateKey(i.text, i.timestamp) === clinicalCardDuplicateKey(cleanedText, chunk.timestamp) || (((i.editLog || []).length || i.predictionSource === 'confirmed') && sameCardIgnoringUnknownTime(i, { text: cleanedText, timestamp: chunk.timestamp })))) || coveredByManualClassification({ text: cleanedText, timestamp: chunk.timestamp }, userCardsForRun) || hasCompleteSavedSourceCoverage(cp.items, cleanedText, chunk.timestamp)) return;
+        if (cleanedText.length < 2 || isBareFieldHeaderOnly(cleanedText) || isHeadingOnlyChunk(chunk, cleanedText) || cp.items.some(i => !i.deleted && (clinicalCardDuplicateKey(i.text, i.timestamp) === clinicalCardDuplicateKey(cleanedText, chunk.timestamp) || (((i.editLog || []).length || i.predictionSource === 'confirmed') && sameCardIgnoringUnknownTime(i, { text: cleanedText, timestamp: chunk.timestamp })))) || coveredByManualClassification({ text: cleanedText, timestamp: chunk.timestamp }, userCardsForRun) || coveredBySavedWholeLine(cp.items, cleanedText, chunk.timestamp) || hasCompleteSavedSourceCoverage(cp.items, cleanedText, chunk.timestamp)) return;
         let userLearned = globalAppData.learningUserDict[cleanedText];
         let predictionSource = null;
         let fuzzyMatchedText = null;
