@@ -26,7 +26,7 @@ test('Education delivery and infection screening retain evidence while naming re
 test('Stable breathing is assessed from current findings; cessation alone does not prove fulfillment',()=>{
  assert.equal(app.sufficiencyCardVerdict(card('a','10年前に禁煙した',1),1).v,'');
  const cp=patient([card('b','10年前に禁煙した。呼吸数18回/分、SpO2 96%、呼吸困難なし。',1)]);
- assert.match(app.sufficiencySentence(cp,1,'preop'),/呼吸状態を保てている.*充足/);assert.doesNotMatch(app.sufficiencySentence(cp,1,'preop'),/満たされているため/);
+ assert.match(app.sufficiencySentence(cp,1,'preop'),/呼吸は充足している。$/);assert.doesNotMatch(app.sufficiencySentence(cp,1,'preop'),/満たされているため/);
 });
 test('Communication uses expressed concerns without treating anxiety as communication failure',()=>{
  assert.equal(app.sufficiencyCardVerdict(card('a','「手術っていろいろな合併症があるんだね。怖いね」と話す。',10,'手術前日',{type:'s'}),10).v,'pending','voicing worry shows the person can express it: not unmet, but not enough to call met');

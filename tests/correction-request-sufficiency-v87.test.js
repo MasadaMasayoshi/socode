@@ -19,7 +19,7 @@ test('the judgments section uses the unchanged sufficiency sentences, evidence r
   assert.ok(out.includes('【アプリの充足状態の判定】'));
   assert.ok(out.includes('■ 3. 排泄') && !out.includes('■ 1. 呼吸'));
   assert.ok(out.includes(app.sufficiencyPhaseText(c, 3, 'postop')), 'same text as the existing exported wording');
-  assert.ok(out.includes('判定：未充足／判定根拠：O-1（術後1日目：術後排便なし 腹部膨満あり）により、排泄が現在は十分に満たされていない状態と判断し、未充足。'));
+  assert.ok(out.includes('判定：未充足／判定根拠：O-1（術後排便なし 腹部膨満あり）のため、排泄は未充足である。'));
   assert.match(out, /根拠カード：O-1/);
   assert.ok(out.includes('不足情報／確認したい情報：普段の排便の間隔'));
 });

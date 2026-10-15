@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.92'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.93'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -397,6 +397,8 @@
       const d = sufficiencyDimensions(cp, needId, phase);
       return d ? [`現在の充足状況：${d.status}`, `自立度・介助：${d.independence}`, `現在の症状・制限：${d.symptoms}`, `起こりうる合併症：${d.complications}`, `根拠の確かさ：${d.confidence}`] : [];
     }
+    // v.93 (user-authorised 2026-10-16): the rationale integrates the recorded findings of the phase:
+    // 「<所見>は〜であるが、<補う/悪化させる記録>なので、<ニード>は充足している／未充足である／判定保留／情報不足。」
     function sufficiencySentence(cp, needId, phase, labelMap) {
       labelMap = labelMap || myEvidenceLabels(cp, needId);
       const r = ruleSufficiencyFor(cp)[needId];
@@ -404,8 +406,10 @@
       if (!a || !a.verdict) return '';
       const need = HENDERSON_NEEDS.find(n => n.id === needId);
       const name = need ? need.name.replace(/^\d+\.\s*/, '') : '';
-
       const byId = new Map((cp.items || []).map(i => [i.id, i]));
+      const ref = id => { const lb = (labelMap || {})[id]; return lb ? (lb.match(/^[SO]-\d+/) || [lb])[0] : ''; };
+      const one = f => { const r0 = ref(f.id), t = cleanSheetRecordText(f.text).replace(/\s+/g, ' ').trim(); return r0 ? `${r0}（${t}）` : t; };
+      const sum = list => list.slice(0, 3).map(one).join('・');
       const labs = (a.evidence || []).slice(0, 3).map(id => {
         const lb = (labelMap || {})[id]; if (!lb) return '';
         const it = byId.get(id); if (!it) return lb;
@@ -413,27 +417,30 @@
         const when = it.timestamp && it.timestamp !== '日時不明' ? `${it.timestamp}：` : '';
         return `${lb}（${when}${t}）`;
       }).filter(Boolean);
-      const by = labs.length ? `${labs.join('・')}により` : `${a.reason}より`;
+      const f = a.facts || { against: [], for: [] };
+      const ag = (f.against || []).filter(x => x && x.text), fo = (f.for || []).filter(x => x && x.text);
+      const agVal = ag.some(x => x.kind === 'value'), foVal = fo.some(x => x.kind === 'value');
+      const basis = labs.length ? labs.join('・') : String(a.reason || '');
+      // v.93: the wording is chosen to fit the evidence (compensated, contradicted, one-sided, state-based, missing);
+      // the only fixed rule is the ending: a definite verdict phrase that matches the label.
       if (a.verdict === 'met') {
-        const conclusions = { 1: '呼吸状態を保てている', 2: '食事・水分摂取ができている', 3: '排泄が保たれている', 4: '移動や姿勢の保持ができている', 5: '休息・睡眠がとれている', 6: '衣服の着脱ができている', 7: '体温が保たれている', 8: '身体の清潔を保てている', 9: '記録された安全上の問題に対処できている', 10: '思いや希望を伝えられている', 11: '信仰・価値観に沿って過ごせている', 12: '役割や活動に取り組めている', 13: '余暇や楽しみの機会がある', 14: '必要な知識を理解し、行動に結びつけている' };
-        return `${labs.length ? labs.join('・') : a.reason}。${conclusions[needId] || `${name}が保たれている`}と判断し、充足。`;
+        if (ag.length && fo.length) return agVal ? `${sum(ag)}は参考基準の範囲外であるが、${sum(fo)}なので、${name}は充足している。` : `${sum(ag)}がみられるものの、${sum(fo)}ため、${name}は充足している。`;
+        if (fo.length > 1) return `${sum(fo)}がそろっており、${name}は充足している。`;
+        if (fo.length) return `${sum(fo)}のため、${name}は充足している。`;
+        return `${basis}から、${name}は充足している。`;
       }
-      if (a.needsConfirmation) return `${labs.length ? labs.join('・') + '。' : ''}${a.reason}。判定保留。`;
       if (a.verdict === 'unmet') {
-
-        let risk = SUFFICIENCY_RISKS[needId] || '合併症';
-        if (needId === 9) {
-          const rs = [];
-          if (/転倒|転落|ふらつき|不安定|せん妄|不穏|めまい|介助|見守り|安静/.test(a.reason)) rs.push('転倒・転落');
-          if (/ドレーン|チューブ|創部|ガーゼ|刺入部|挿入部|発赤|発熱|排膿|感染/.test(a.reason)) rs.push('感染');
-          risk = rs.join('・');
-        }
-
-        return risk ? `${by}、${name}が現在は十分に満たされていない状態と判断し、未充足。（起こりうる合併症：${risk}。確定ではなく、予防のための観察対象）` : `${by}、環境面の問題があるため、未充足。`;
+        if (ag.length && fo.length) return foVal ? `${sum(fo)}は基準内であるが、${sum(ag)}の記録があるため、${name}は未充足である。` : `${sum(fo)}は良好な一方、${sum(ag)}の記録があり、${name}は未充足である。`;
+        if (ag.length > 1) return `${sum(ag)}がみられ、${name}は未充足である。`;
+        if (ag.length) return `${sum(ag)}のため、${name}は未充足である。`;
+        return `${basis}から、${name}は未充足である。`;
       }
-      if (a.verdict === 'conflict' && a.restriction) return `${labs.length ? labs.join('・') + 'により、' : ''}治療上の制限（${String(a.reason).replace(/（.*$/, '')}）が確認できるが、制限や処置そのものは充足・未充足を決めないため、実際の自立度・介助の必要・症状を確認する必要があり、判定保留。`;
-      if (a.verdict === 'conflict') return `${labs.length ? `${labs.join('・')}により、充足を示す記録と未充足を示す記録が並んでおり` : `${a.reason}が並んでおり`}、どちらとも決められないため、判定保留。`;
-      return a.need ? `${a.need}ため、情報不足。` : '記録が少なく判断できないため、情報不足。';
+      if (a.verdict === 'conflict' && a.restriction) return `${labs.length ? labs.join('・') + 'により、' : ''}治療上の制限（${String(a.reason).replace(/（.*$/, '')}）は確認できるが、実際の自立度・介助の必要・症状の記録がないので、${name}は判定保留。`;
+      if (a.verdict === 'conflict') {
+        if (ag.length && fo.length) return `${sum(fo)}がある一方で${sum(ag)}もあり、どちらとも決められないため、${name}は判定保留。`;
+        return a.needsConfirmation ? `${labs.length ? labs.join('・') + 'で、' : ''}${String(a.reason || '').replace(/[。\s]+$/, '')}ため、${name}は判定保留。` : `${basis}が並んでおり、どちらとも決められないため、${name}は判定保留。`;
+      }
+      return `${a.need ? a.need.replace(/ため$/, '') : '記録が少なく判断できない'}ので、${name}は情報不足。`;
     }
 
     function phaseVerdictOf(cp, needId, phaseKey) {
@@ -490,7 +497,7 @@
       const rows = sufficiencyUiPhases(cp).map(ph => {
         const v = phaseVerdictOf(cp, needId, ph.key);
         const icon = v === 'met' ? 'fa-circle-check' : v === 'unmet' ? 'fa-triangle-exclamation' : v === 'conflict' ? 'fa-scale-unbalanced' : 'fa-circle-question';
-        return `<div class="suf-hline suf-b-${v}"><span class="suf-line"><span class="suf-phase">${ph.label}</span><span class="suf-badge suf-${v}"><i class="fa-solid ${icon}"></i> ${SUFFICIENCY_LABELS[v]}</span></span><span class="suf-hwhy">${escapeHtml(sufficiencySentence(cp, needId, ph.key, labels)).replace(/([SO])-(\d+)（([^）]*)）/g, (m, t, n, rest) => `<span class="suf-cref suf-cref-${t}"><b>${t}-${n}</b>（${rest}）</span>`).replace(/(未充足|充足|情報不足|判定保留)。$/, '<b class="suf-end suf-end-$1">$1</b>。')}</span></div>`;
+        return `<div class="suf-hline suf-b-${v}"><span class="suf-line"><span class="suf-phase">${ph.label}</span><span class="suf-badge suf-${v}"><i class="fa-solid ${icon}"></i> ${SUFFICIENCY_LABELS[v]}</span></span><span class="suf-hwhy">${escapeHtml(sufficiencySentence(cp, needId, ph.key, labels)).replace(/([SO])-(\d+)（([^）]*)）/g, (m, t, n, rest) => `<span class="suf-cref suf-cref-${t}"><b>${t}-${n}</b>（${rest}）</span>`).replace(/(未充足である|充足している|情報不足|判定保留)。$/, (m0, w) => `<b class="suf-end suf-end-${w.replace(/である$|している$/, '')}">${w}</b>。`)}</span></div>`;
       }).join('');
       return `<div class="suf-header" role="group" aria-label="充足・未充足">${rows}</div>`;
     }
@@ -1234,32 +1241,65 @@
       if (a1c !== null && a1c >= 9 && a1c <= 20) [2, 14].forEach(n => out.push({ need: n, v: 'unmet', hit: (t.match(/HbA1c\s*(?:\(NGSP\))?\s*[:：=]?\s*\d{1,2}(?:\.\d+)?\s*%?/i) || [''])[0], ref: 'HbA1c 9%以上は血糖管理不良の目安。食事・自己管理（学習）の確認が必要（参考基準）' }));
       return out;
     }
-    function sufficiencyScoreOverrides(items, res, isPre, rulesFn, tagged) {
+    // Value rules (not tag-gated) + per-need criteria (only on cards tagged for that need), evaluated together so supporting and problematic findings are weighed in one place.
+    function sufficiencyAllRules(text) { return [...(/[「」]/.test(String(text || '')) ? [] : sufficiencyScoreRules(text)), ...sufficiencyPerNeedRules(text).map(x => ({ ...x, tag: true }))]; }
+    const SUF_SOFT_REF = /HbA1c|Alb|Hb低値|eGFR|BMI|体重減少/;
+    const SUF_COMPENSATE = /改善傾向|改善(?:して)?(?:いる|した|あり)|コントロール良好|管理良好|安定している|治療により|内服により|症状(?:は)?(?:なし|ない)|自覚症状(?:は)?(?:なし|ない)|無症状|問題なく|支障なし/;
+    const sufNums = t => String(t || '').normalize('NFKC').match(/\d+(?:\.\d+)?/g) || [];
+    // Same observation? (a compensating fact must be a different record/clause than the problem itself.)
+    const sufSameFact = (a, b) => { const x = sufNums(a), y = sufNums(b); return (!!a && !!b && (String(a).includes(String(b)) || String(b).includes(String(a)))) || x.some(n => y.includes(n)); };
+    // v.93: integrate the recorded value rules with the card-level findings of the same phase (supporting vs problematic).
+    function sufficiencyScoreOverrides(items, res, isPre, rulesFn, tagged, subOf) {
       const rulesOf = rulesFn || sufficiencyScoreRules;
-      const post = items.filter(i => !isPre(i) && (tagged || !/[「」]/.test(String(i.text || ''))));
-      const pre = items.filter(i => isPre(i) && (tagged || !/[「」]/.test(String(i.text || ''))));
+      const okCard = i => tagged || !/[「」]/.test(String(i.text || ''));
+      const post = items.filter(i => !isPre(i) && okCard(i));
+      const pre = items.filter(i => isPre(i) && okCard(i));
       const apply = (list, phaseKeys) => {
         const byNeed = {};
-        list.forEach(i => rulesOf(i.text).forEach(r => { if (r.v && (!tagged || (i.hendersonIds || []).includes(r.need))) (byNeed[r.need] = byNeed[r.need] || []).push({ ...r, id: i.id }); }));
+        list.forEach(i => rulesOf(i.text).forEach(r => { if (r.v && (!r.tag || (i.hendersonIds || []).includes(r.need))) (byNeed[r.need] = byNeed[r.need] || []).push({ ...r, id: i.id }); }));
         Object.keys(byNeed).forEach(n => {
           const r = res[n]; if (!r) return;
           const rs = byNeed[n];
           const um = rs.filter(x => x.v === 'unmet'), mt = rs.filter(x => x.v === 'met'), pt = rs.filter(x => x.v === 'partial');
           const pick = um.length ? um : (!um.length && pt.length) ? pt : mt;
-          const verdict = um.length ? 'unmet' : pt.length ? 'conflict' : 'met';
+          let verdict = um.length ? 'unmet' : pt.length ? 'conflict' : 'met';
           const g = pick[0];
           const cur = phaseKeys.map(k => r[k]).find(Boolean) || {};
-          // never overwrite a verdict that already rests on other recorded evidence unless the score shows a problem (unmet) over a 充足
-          if (cur.verdict === 'unmet' && !cur.restriction && verdict !== 'unmet') return;
-          if (cur.verdict === 'met' && verdict === 'met') return;
-          if (cur.verdict && cur.verdict !== 'unknown' && cur.verdict !== 'met' && verdict === 'met') return;
-          if (cur.verdict === 'unmet' && !cur.restriction && verdict === 'unmet') return;
-          const v = { verdict, reason: `「${g.hit}」`, evidence: pick.map(x => x.id).slice(0, 5), need: '', refStandard: g.ref, ...(verdict === 'conflict' ? { needsConfirmation: true } : {}) };
+          const mkFact = x => ({ id: x.id, text: x.hit, kind: /\d/.test(x.hit) ? 'value' : 'obs', ref: x.ref });
+          const newAgainst = um.map(mkFact).concat(pt.map(mkFact));
+          const newFor = mt.map(mkFact);
+          const curF = cur.facts || { against: [], for: [] };
+          const dedupe = arr => { const seen = new Set(); return arr.filter(f => { const k = f.id + '|' + f.text; if (seen.has(k)) return false; seen.add(k); return true; }); };
+          const cleanFor = (fors, ag) => fors.filter(f => !ag.some(a => sufSameFact(f.text, a.text)));
+          const ag = dedupe([...newAgainst, ...(curF.against || [])]);
+          const facts = { against: ag, for: cleanFor(dedupe([...newFor, ...(curF.for || [])]), ag) };
+          let compensated = null;
+          // Compensation: only soft laboratory/anthropometric values, outweighed by a recorded compensating fact of another clause.
+          if (verdict === 'unmet' && um.every(x => /\d/.test(x.hit) && SUF_SOFT_REF.test(x.ref || '')) && !(cur.verdict === 'unmet' && !cur.restriction)) {
+            let comp = cleanFor([...newFor, ...(cur.verdict === 'met' ? (curF.for || []) : [])], newAgainst)[0];
+            if (!comp) {
+              const hit = list.filter(i => (i.hendersonIds || []).includes(Number(n))).map(i => ({ i, m: String(i.text || '').normalize('NFKC').split(/[。\n、,，]/).find(c => SUF_COMPENSATE.test(c) && !um.some(x => sufSameFact(c, x.hit))) })).find(x => x.m);
+              if (hit) comp = { id: hit.i.id, text: hit.m.trim().slice(0, 40), kind: 'obs' };
+            }
+            if (comp) { compensated = comp; verdict = 'met'; if (!facts.for.some(f => f.id === comp.id && f.text === comp.text)) facts.for.push(comp); }
+          }
+          // never overwrite a verdict that already rests on other recorded evidence unless a problem is recorded over a 充足
+          const keep = () => { if (cur.verdict) cur.facts = facts; };
+          if (cur.verdict === 'unmet' && !cur.restriction && verdict !== 'unmet') return keep();
+          if (cur.verdict === 'met' && verdict === 'met' && !compensated) return keep();
+          if (cur.verdict && cur.verdict !== 'unknown' && cur.verdict !== 'met' && verdict === 'met' && !compensated) return keep();
+          if (cur.verdict === 'unmet' && !cur.restriction && verdict === 'unmet') return keep();
+          const evidence = compensated ? Array.from(new Set([...um.map(x => x.id), compensated.id])).slice(0, 5) : pick.map(x => x.id).slice(0, 5);
+          const v = { verdict, reason: `「${g.hit}」`, evidence, need: '', refStandard: g.ref, facts, ...(compensated ? { compensated: true } : {}), ...(verdict === 'conflict' ? { needsConfirmation: true } : {}) };
           phaseKeys.forEach(k => { if (r[k] || k === 'all') r[k] = v; });
         });
       };
       apply(post, ['post', 'all']);
       apply(pre, ['pre', 'all']);
+      if (typeof subOf === 'function') {
+        apply(post.filter(i => subOf(i) === 'pre'), ['preop']);
+        apply(post.filter(i => ['post', 'op'].includes(subOf(i))), ['postop']);
+      }
     }
     // v.92 per-need criteria (参考資料 2026-10-16b, 出典未確認). Recorded observations/values only; no inference from disease name, age or comorbidity.
     // Unmet cues are skipped when negated (なし/ない). 'met' cues are ignored inside quotes. Missing -> no verdict (情報不足).
@@ -1357,7 +1397,7 @@
           r.post = v0; if (r.postop) r.postop = v0; if (!r.all || r.all.verdict !== 'unmet') r.all = v0;
           return;
         }
-        const v = { verdict: 'unmet', reason, evidence: evIds, need: '' };
+        const v = { verdict: 'unmet', reason, evidence: evIds, need: '', facts: { against: ev.slice(0, 5).map(i => ({ id: i.id, text: nz(i.text).slice(0, 40), kind: 'obs' })), for: [] } };
         r.post = v; if (r.postop) r.postop = v; if (!r.all || r.all.verdict !== 'unmet') r.all = v;
       };
       SUF_STATE_RULES.forEach(rule => {
@@ -1400,9 +1440,11 @@
           const um = rs.filter(x => x.r.v === 'unmet'), mt = rs.filter(x => x.r.v === 'met');
           const short = x => { const c = x.r.clause.slice(0, 30); return /^「.*」$/.test(c) ? c : `「${c}」`; };
 
-          if (um.length && mt.length && um.length === mt.length && !um.some(x => x.r.severe)) return { verdict: 'conflict', reason: `充足を示す${mt.slice(0, 2).map(short).join('')}と、未充足を示す${um.slice(0, 2).map(short).join('')}`, evidence: [...mt.slice(0, 3), ...um.slice(0, 3)].map(x => x.i.id), need: '' };
-          if (um.length && (um.some(x => x.r.severe) || um.length * 2 >= mt.length)) return { verdict: 'unmet', reason: `${um.slice(0, 3).map(short).join('')}`, evidence: um.slice(0, 5).map(x => x.i.id), need: '' };
-          if (mt.length) return { verdict: 'met', reason: `${mt.slice(0, 3).map(short).join('')}`, evidence: mt.slice(0, 5).map(x => x.i.id), need: '' };
+          const fct = list => list.slice(0, 5).map(x => ({ id: x.i.id, text: String(x.r.clause || x.r.hit || '').replace(/^[「『]|[」』]$/g, '').slice(0, 40), kind: 'obs' }));
+          const facts = () => ({ against: fct(um), for: fct(mt) });
+          if (um.length && mt.length && um.length === mt.length && !um.some(x => x.r.severe)) return { verdict: 'conflict', facts: facts(), reason: `充足を示す${mt.slice(0, 2).map(short).join('')}と、未充足を示す${um.slice(0, 2).map(short).join('')}`, evidence: [...mt.slice(0, 3), ...um.slice(0, 3)].map(x => x.i.id), need: '' };
+          if (um.length && (um.some(x => x.r.severe) || um.length * 2 >= mt.length)) return { verdict: 'unmet', facts: facts(), reason: `${um.slice(0, 3).map(short).join('')}`, evidence: um.slice(0, 5).map(x => x.i.id), need: '' };
+          if (mt.length) return { verdict: 'met', facts: facts(), reason: `${mt.slice(0, 3).map(short).join('')}`, evidence: mt.slice(0, 5).map(x => x.i.id), need: '' };
           const pending = rs.filter(x => x.r.v === 'pending');
           if (pending.length) return { verdict: 'conflict', needsConfirmation: true, reason: need.id === 14 ? '説明・練習は実施されているが、理解の程度や自分で実施できるかの確認が必要' : need.id === 10 ? '不安や思いを言葉にできているが、伝達上の困りごとがないかは別に確認する必要がある' : '感染症検査の陰性結果は確認できるが、転倒など他の安全面は別に確認する必要がある', evidence: pending.slice(0, 5).map(x => x.i.id), need: '' };
           if (need.id === 11 && cards.some(i => /宗教|信仰|信条|祈|礼拝/.test(String(i.text || '')) && !/記載なし|情報なし|不明|未確認/.test(String(i.text || '')))) return { verdict: 'met', reason: '信仰による問題の記載なし', evidence: cards.slice(0, 3).map(i => i.id), need: '' };
@@ -1419,9 +1461,8 @@
         Object.keys(phases).forEach(k => { res[k] = judge(mine.filter(i => phases[k][1](effCol(i), i)), phases[k][0], k === 'preop' ? 'pre' : k === 'postop' ? 'post' : k); });
         out[need.id] = res;
       });
-      try { sufficiencyScoreOverrides(items, out, i => /^入院前/.test(String(i.timestamp || '')) || (Object.values(i.assessmentCols || {}).length > 0 && Object.values(i.assessmentCols).every(c => c === 'preadmission'))); } catch (err) { console.warn('score rules failed:', err); }
-      try { sufficiencyScoreOverrides(items, out, i => /^入院前/.test(String(i.timestamp || '')) || (Object.values(i.assessmentCols || {}).length > 0 && Object.values(i.assessmentCols).every(c => c === 'preadmission')), sufficiencyPerNeedRules, true); } catch (err) { console.warn('per-need rules failed:', err); }
       try { sufficiencyStateOverrides(items, out, i => /^入院前/.test(String(i.timestamp || '')) || (Object.values(i.assessmentCols || {}).length > 0 && Object.values(i.assessmentCols).every(c => c === 'preadmission'))); } catch (e) { console.warn('Restriction check failed:', e); }
+      try { sufficiencyScoreOverrides(items, out, i => /^入院前/.test(String(i.timestamp || '')) || (Object.values(i.assessmentCols || {}).length > 0 && Object.values(i.assessmentCols).every(c => c === 'preadmission')), sufficiencyAllRules, true, surgical ? (i => surgPhaseOf(i, cp)) : null); } catch (err) { console.warn('score/per-need rules failed:', err); }
       // v.91: a 充足 verdict must rest on a recorded basis; without evidence it is 情報不足 (the need text is kept, only the verdict changes).
       Object.keys(out).forEach(n => Object.keys(out[n]).forEach(k => { const v = out[n][k]; if (v && v.verdict === 'met' && !(v.evidence || []).length) out[n][k] = { verdict: 'unknown', reason: '', evidence: [], need: v.need || '記録に基づく根拠がなく、満たされているか判断できない' }; }));
       return out;

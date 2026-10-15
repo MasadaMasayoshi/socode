@@ -10,7 +10,7 @@ test('Full judgment explanations preserve distinct evidence links without duplic
   const before = JSON.stringify(cp.items);
   const output = app.sufficiencyPhaseHtml(cp, 1, 'pre');
   assert.doesNotMatch(output, /「呼吸困難なし」/);
-  assert.match(output, /O-1（入院前：呼吸困難なし）・O-2（入院前：呼吸困難なし）。呼吸状態を保てていると判断し、充足。/);
+  assert.match(output, /O-1（呼吸困難なし）・O-2（呼吸困難なし）がそろっており、呼吸は充足している。/);
   assert.equal((output.match(/class="suf-evidence-chip"/g) || []).length, 2);
   assert.equal(JSON.stringify(cp.items), before);
   assert.equal(app.getSufficiency(cp, 1, 'pre'), 'met');
@@ -29,12 +29,12 @@ test('充足・未充足はサイトが決める：選ぶ欄は無く、記録�
   assert.match(pre + post, /class="suf-phase-block suf-expanded/);
   assert.match(pre, /入院前.*情報不足.*判定理由/);
   assert.match(post, /術後.*未充足.*根拠カード/);
-  assert.match(post, /O-1（術後1日目：術後排便なし 腹部膨満あり）により、排泄が現在は十分に満たされていない状態と判断し、未充足。/);
+  assert.match(post, /O-1（術後排便なし 腹部膨満あり）のため、排泄は未充足である。/);
   assert.ok(post.includes(app.sufficiencyPhaseText(cp, 3, 'postop').split('／判定根拠：')[1]), 'On-screen explanation matches the existing exported rationale');
   const head = app.sufficiencyHeaderHtml(cp, 3);
-  assert.match(head, /入院前.*情報不足.*術後.*未充足.*suf-cref-O.*O-1<\/b>（術後1日目：術後排便なし/, '見出しに、O-1によりの形で根拠を出す');
+  assert.match(head, /入院前.*情報不足.*術後.*未充足.*suf-cref-O.*O-1<\/b>（術後排便なし/, '見出しに、O-1によりの形で根拠を出す');
   app.ensureMyAssessment(cp, 3).interpretation = '排便がない';
-  assert.match(app.buildMyAssessmentsText(cp), /3\. 排泄\n・入院前：情報不足.*\n・術前：.*\n・術後：未充足.*現在は十分に満たされていない状態と判断し、未充足。/);
+  assert.match(app.buildMyAssessmentsText(cp), /3\. 排泄\n・入院前：情報不足.*\n・術前：.*\n・術後：未充足.*排泄は未充足である。/);
   assert.match(app.sufficiencySummaryHtml(cp), /未充足 1/);
 });
 
@@ -84,7 +84,7 @@ test('書き出した整理シートを貼り直しても、「O-1 [入院前]�
 test('教員の指導：結論を言い切る理由文と、未充足のときは考えられるリスクまで書く', () => {
   const cp = { id: 'p', myAssessments: {}, items: [{ id: 'a', type: 'o', text: '術後排便なし 腹部膨満あり', timestamp: '術後1日目', hendersonIds: [3], assessmentCols: { 3: 'postadmission' } }] };
   const s = app.sufficiencySentence(cp, 3, 'post');
-  assert.match(s, /より、.*未充足。（起こりうる合併症：.*予防のための観察対象）$/);
+  assert.match(s, /排泄は未充足である。$/);
   assert.match(app.sufficiencySentence(cp, 3, 'pre'), /情報不足。$/);
 });
 
