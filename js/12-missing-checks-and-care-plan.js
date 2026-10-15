@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.64'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.65'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1807,6 +1807,43 @@
       try { localStorage.setItem(KNOWLEDGE_PACKS_KEY, JSON.stringify(packs)); } catch (e) { return showToast('この端末に保存できませんでした', 'warn'); }
       showToast(`${applyKnowledgePacks([res.pack])}件の知識を取り込みました（今のカードに反映するには「分類」をやり直してください）`, 'success');
     };
+    // Knowledge requests: the app inspects where its own rules fall short for this patient and asks the user for the missing medical knowledge.
+    // Only medical terms are listed (never whole patient sentences, names or dates).
+    const KR_STOP = /^(?:患者|本人|状況|入院|退院|現在|以前|普段|最近|記録|様子|自分|家族|今日|昨日|明日|病院|病棟|看護師|医師|午前|午後|生活|仕事|必要|確認|予定)$/;
+    function krTerms(text) {
+      return Array.from(new Set((String(text || '').normalize('NFKC').match(/[一-龥ァ-ヶー]{2,12}/g) || []).filter(t => !KR_STOP.test(t))));
+    }
+    function buildKnowledgeRequests(cp) {
+      const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && i.text && !(typeof isPatientIdentityLine === 'function' && isPatientIdentityLine(i.text)) && !/^(?:氏名|年齢|性別)$/.test(i.fieldLabel || ''));
+      const reqs = [], seen = new Set();
+      const add = (kind, term, question, count = 1) => { const key = `${kind}|${term}`; if (seen.has(key)) { const r = reqs.find(x => x.key === key); if (r) r.count += count; return; } seen.add(key); reqs.push({ key, kind, term, question, count }); };
+      // 1. Words on cards that no rule could tag.
+      items.filter(i => i.type !== 'unnecessary' && !(i.hendersonIds || []).length && !i.tagNotNeeded && !(typeof isBasicInfoItem === 'function' && isBasicInfoItem(i)))
+        .forEach(i => krTerms(i.text).filter(t => !(detectMultipleHendersonTags(t) || []).length).slice(0, 3)
+          .forEach(t => add('tag', t, `「${t}」は看護でどんな意味がありますか？ ヘンダーソンの14項目のどれに関係しますか（番号と理由）？`)));
+      // 2. Diagnoses without a nursing-focus rule.
+      items.filter(i => /^(?:診断|診断名|病名|既往歴)$/.test(i.fieldLabel || '')).forEach(i => String(i.text).normalize('NFKC').replace(/^[^:：]{1,6}[:：]\s*/, '').split(/[、,・\/]/).map(x => x.replace(/[()（）].*$/, '').trim()).filter(x => x.length >= 2 && x.length <= 20)
+        .forEach(d => { if (!DIAGNOSIS_TAG_HINTS.some(h => h.pattern.test(d))) add('diagnosis', d, `「${d}」の看護で注目する項目（14項目の番号）と、よく見られる症状・合併症・治療を教えてください。`); }));
+      // 3. Nursing problems whose reasoning chain is too short in the relation map.
+      if (cp && cp.relationMap && typeof rmChainReport === 'function') {
+        try { rmChainReport(cp.relationMap).filter(r => r.kind === 'short').forEach(r => add('mechanism', r.label, `「${r.label}」はどんな原因から、どんな仕組みで起こりますか（原因→途中の変化→結果）？`)); } catch (e) {  }
+      }
+      // 4. Symptoms from a disease description that have no need mapping yet.
+      items.filter(i => i.diseaseGeneral && !(i.hendersonIds || []).length).forEach(i => krTerms(i.text).slice(0, 2).forEach(t => add('symptom', t, `症状「${t}」は、14項目のどれに関係しますか？ 看護で観察すること・注意することは何ですか？`)));
+      return reqs.sort((a, b) => b.count - a.count).slice(0, 40);
+    }
+    function knowledgeRequestText(cp, reqs) {
+      const label = { tag: 'タグが付かない語', diagnosis: '看護の注目点が未登録の診断', mechanism: '成り立ちが不足している看護問題', symptom: '項目が未登録の症状' };
+      let out = `知識リクエスト：${cp && cp.title || ''}\n出力日時: ${new Date().toLocaleString('ja-JP')}\n`;
+      out += '分類・関連図のルールで判断できなかった点です。わかる範囲で答えて、出典（教科書名など）を添えてください。答えはClaudeに渡すと、サイトのルールに組み込めます。患者さんの個人情報は書かないでください。\n';
+      Object.keys(label).forEach(k => {
+        const list = reqs.filter(r => r.kind === k);
+        if (!list.length) return;
+        out += `\n【${label[k]}】\n`;
+        list.forEach((r, n) => { out += `${n + 1}. ${r.question}${r.count > 1 ? `（${r.count}枚で出現）` : ''}\n   回答：\n   出典：\n`; });
+      });
+      return out;
+    }
     function patientOwnText(cp) {
       const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && !i.diseaseGeneral && i.text).map(i => i.text);
       const notes = ((cp && cp.referenceNotes) || []).map(n => `${n.title || ''}\n${n.text || ''}`);
@@ -2470,7 +2507,7 @@ if (typeof module !== 'undefined' && module.exports) {
     carePlanInlineNotes, captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
     cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf, collapseVitalCards, collapseLabCards,
-    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildImprovementProposals, validateKnowledgePack, applyKnowledgePacks, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
+    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, validateKnowledgePack, applyKnowledgePacks, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
     cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, carePlanSetReviewHtml, carePlanSetState, carePlanSetNextSteps
   });
 }

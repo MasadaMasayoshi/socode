@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.60'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.65'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1118,6 +1118,14 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       }
       return out;
     }
+    window.exportKnowledgeRequest = async function() {
+      const cp = getCurrentPatient();
+      const reqs = buildKnowledgeRequests(cp);
+      if (!reqs.length) return showToast('今の患者について、サイトが判断できなかった知識はありません', 'success');
+      const safeTitle = (cp.title || 'カルテ').replace(/[\\/:*?"<>|]/g, '_');
+      const blob = new Blob([knowledgeRequestText(cp, reqs)], { type: 'text/plain;charset=utf-8' });
+      if (await downloadTextBlob(blob, `${safeTitle}_知識リクエスト_${reqs.length}件.txt`)) showToast(`サイトが知りたい知識${reqs.length}件を書き出しました`, 'success');
+    };
     window.exportReviewRequestText = async function() {
       const cp = getCurrentPatient();
       const targets = reviewRequestTargets(cp);
