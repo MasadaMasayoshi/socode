@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.75'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.78'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1024,6 +1024,9 @@
     // Used only to show non-binding suggestions in the plan review and to count as existing knowledge; it never edits a plan.
     // Each point is [short text, regex that recognises the point already written in that section].
     const CPK_SRC = { nanbyo: '難病情報センター 指定難病49（全身性エリテマトーデス）', sle: '2025 ACR SLE guideline', ln: '2024 ACR/KDIGO lupus nephritis', raynaud: '2025 ACR Raynaud', pericarditis: '2025 ESC pericarditis' };
+    // v.78 site research ingestion (docs/knowledge-guideline.md ledger). General nursing points, not diagnoses; each row carries its check date and next review.
+    const CPK_SRC78 = { epidural: '日本臨床麻酔学会誌 2017 区域麻酔と抗血栓療法', pmda: 'PMDA 添付文書', dm: '日本糖尿病学会 診療ガイドライン2024', cdc: 'CDC SSI 予防ガイドライン', pain: '日本緩和医療学会 がん疼痛の薬物療法GL2020', gastric: '胃癌治療ガイドライン第7版2025', colon: '大腸癌治療ガイドライン2026年版', femur: '大腿骨頚部/転子部骨折診療GL2021（改訂第3版）', gyn: '産婦人科診療ガイドライン婦人科外来編2023', htn: '高血圧管理・治療ガイドライン2025', lipid: '動脈硬化性疾患予防ガイドライン2022', eye: '日本眼科学会' };
+    const CPK78_META = { checked: '2026-10-15', next: '2027-10' };
     const CARE_PLAN_KNOWLEDGE = [
       { key: 'arthralgia', re: /関節痛|関節炎/, label: '関節痛', source: [CPK_SRC.nanbyo, CPK_SRC.sle],
         op: [['痛みの部位・程度（NRS）と朝のこわばり', /NRS|部位|程度|こわばり/], ['腫脹・熱感・可動域', /腫脹|熱感|可動/]],
@@ -1092,7 +1095,68 @@
       { key: 'aps', re: /抗リン脂質|血栓|塞栓|DVT/, label: '抗リン脂質抗体・血栓', source: [CPK_SRC.nanbyo, CPK_SRC.sle],
         op: [['下肢の腫脹・痛み・左右差、突然の息苦しさ・胸痛・神経症状', /下肢|腫脹|左右差|息苦|胸痛|神経/]],
         tp: [['早期離床・下肢の運動・弾性ストッキングなどの血栓予防の援助', /離床|運動|弾性|ストッキング|フットポンプ|予防/]],
-        ep: [['片側のはれ・痛み、突然の息苦しさや麻痺はすぐ知らせること、抗凝固薬服用中の出血に注意すること', /知らせ|すぐ|受診|出血/]] }
+        ep: [['片側のはれ・痛み、突然の息苦しさや麻痺はすぐ知らせること、抗凝固薬服用中の出血に注意すること', /知らせ|すぐ|受診|出血/]] },
+      // ---- v.78 rows
+      { key: 'epidural-removal', re: /硬膜外(?:カテーテル)?.{0,6}(?:抜去|抜管|除去)|硬膜外.{0,4}カテ.{0,4}抜去/, label: '硬膜外カテーテル抜去', source: [CPK_SRC78.epidural], ...CPK78_META,
+        op: [['抜去時刻と、抗血栓薬の薬剤名・最終投与／再開の時刻', /抜去時刻|時刻|抗血栓|抗凝固|最終投与|再開/], ['穿刺部の出血・背部痛・新規のしびれ／筋力低下・排尿障害', /穿刺部|出血|背部痛|しびれ|筋力|排尿/]],
+        tp: [['施設の手順に沿った抜去後の観察と、神経の異常があれば速やかに報告', /手順|抜去後|観察|報告/]],
+        ep: [['背中の痛み・しびれ・足の動かしにくさ・排尿のしにくさをすぐ知らせること', /背中|背部痛|しびれ|足|排尿|知らせ/]] },
+      { key: 'flomoxef', re: /フルマリン|フロモキセフ/, label: 'フルマリン（フロモキセフ）', source: [CPK_SRC78.pmda], ...CPK78_META,
+        op: [['投与直後の呼吸困難・喘鳴・発疹・血圧、体温・感染局所', /呼吸困難|喘鳴|発疹|血圧|体温|感染/], ['便回数・血便・尿量、Cr/BUN・AST/ALT・CBC', /便|血便|尿量|Cr|BUN|AST|ALT|CBC|検査値/]],
+        tp: [['アレルギー歴の照合・投与速度の確認、異常時は中止して報告', /アレルギー|速度|中止|報告/]],
+        ep: [['呼吸の苦しさ・発疹・強い下痢や血便を知らせること', /呼吸|発疹|下痢|血便|知らせ/]] },
+      { key: 'oxycodone', re: /オキシコドン|オキシコンチン|オキノーム|オキファスト|オキシコンチン/, label: 'オキシコドン', source: [CPK_SRC78.pmda, CPK_SRC78.pain], ...CPK78_META,
+        op: [['疼痛（投与前後）・レスキュー回数・呼吸数／SpO2・意識／傾眠', /疼痛|痛み|NRS|レスキュー|呼吸数|SpO2|意識|傾眠/], ['悪心・排便・尿閉・転倒', /悪心|嘔気|排便|便秘|尿閉|転倒/]],
+        tp: [['鎮痛と副作用をセットで評価し、便秘対策を行う', /副作用|便秘|緩下|排便/]],
+        ep: [['自己判断で増量・中止しないこと、他の人に譲らないこと、保管の仕方（追加服用の自己判断も禁止）', /自己判断|増量|中止|譲|保管|追加/]] },
+      { key: 'insulin', re: /インスリン/, label: 'インスリン', source: [CPK_SRC78.dm], ...CPK78_META,
+        op: [['製剤名・単位・投与時刻（製剤が未特定なら作用時間は推定しない）、血糖・食事摂取量', /製剤|単位|時刻|血糖|摂取量|食事/], ['発汗・振戦・動悸・意識の変化（低血糖症状）', /発汗|振戦|動悸|意識|低血糖/]],
+        tp: [['患者・薬剤・単位・タイミングの照合、食事がとれないときは指示を確認', /照合|確認|指示|単位/]],
+        ep: [['低血糖症状・自己測定・手技・携帯する糖質・シックデイの対応', /低血糖|自己測定|手技|糖質|シックデイ/]] },
+      { key: 'diabetes', re: /糖尿病/, label: '糖尿病', source: [CPK_SRC78.dm], ...CPK78_META,
+        op: [['血糖・食事・低血糖症状・口渇／尿量', /血糖|食事|低血糖|口渇|尿量/], ['足の皮膚・感染・腎機能', /足|皮膚|感染|腎機能|Cr|eGFR/]],
+        tp: [['食事・内服／注射の確認と、低血糖時の対応の準備', /食事|内服|注射|低血糖|対応/]],
+        ep: [['シックデイの対応と、足の観察・血糖測定の習慣', /シックデイ|足|血糖測定|自己測定/]] },
+      { key: 'wound-redness', re: /(?:手術創|創部|創).{0,6}(?:発赤|熱感|腫脹)|(?:発赤|熱感).{0,6}(?:手術創|創部)|SSI|創感染/, label: '手術創の発赤（感染評価）', source: [CPK_SRC78.cdc], ...CPK78_META,
+        op: [['発赤・熱感・腫脹・疼痛、排液の量・性状・臭い、創の離開、体温（発赤だけで感染と決めず、他の原因も含めて評価）', /発赤|熱感|腫脹|疼痛|排液|離開|体温/]],
+        tp: [['手指衛生と創処置、異常があれば報告', /手指|手洗い|創処置|処置|報告/]],
+        ep: [['創を清潔に保つこと、発熱・膿のような排液・痛みの悪化があれば受診すること', /清潔|発熱|排液|痛み|受診|知らせ/]] },
+      { key: 'dull-pain', re: /鈍痛|突出痛/, label: '鈍痛・突出痛', source: [CPK_SRC78.pain], ...CPK78_META,
+        op: [['NRS・部位・性状・安静時／体動時、突出痛・睡眠・ADLへの影響', /NRS|部位|性状|安静|体動|突出痛|睡眠|ADL/], ['鎮痛薬の効果・副作用と、投薬後の再評価', /効果|副作用|再評価/]],
+        tp: [['安楽な体位・非薬物的な援助と、再評価', /体位|非薬物|罨法|再評価/]],
+        ep: [['痛みを我慢せず伝えること、定時薬とレスキュー薬の役割の違い', /我慢|伝え|知らせ|定時|レスキュー/]] },
+      { key: 'gastrectomy', re: /胃全摘|胃切除|幽門側胃/, label: '胃切除後', source: [CPK_SRC78.gastric], ...CPK78_META,
+        op: [['バイタル・腹痛・創・ドレーン・呼吸、排ガス・排便・悪心', /バイタル|腹痛|創|ドレーン|呼吸|排ガス|排便|悪心/], ['摂食量・食後症状・体重', /摂食|摂取|食後|体重/]],
+        tp: [['早期離床・呼吸ケアと、少量頻回の食事の援助', /離床|呼吸|少量|頻回/]],
+        ep: [['食事の方法・体重の測り方・食後症状・受診の目安', /食事|体重|食後|受診/]] },
+      { key: 'sigmoid', re: /S状結腸(?:がん|癌)|結腸(?:がん|癌)|大腸(?:がん|癌)/, label: '結腸がん（術後）', source: [CPK_SRC78.colon], ...CPK78_META,
+        op: [['排便・血便・腹満・嘔吐、Hb、術後の経過', /排便|血便|腹満|嘔吐|Hb|術後/]],
+        tp: [['腹部症状の観察と、排便状況に合わせた援助', /腹部|観察|排便|援助/]],
+        ep: [['持続する腹痛・膨満・嘔吐・排便排ガスの停止は早めに申告すること', /腹痛|膨満|嘔吐|排ガス|申告|知らせ/]] },
+      { key: 'femoral-neck', re: /大腿骨頸部骨折|大腿骨頚部骨折|大腿骨転子部骨折/, label: '大腿骨近位部骨折', source: [CPK_SRC78.femur], ...CPK78_META,
+        op: [['疼痛・患肢の神経血管所見・移動能力・せん妄', /疼痛|痛み|神経|血管|しびれ|移動|せん妄/], ['呼吸・排泄・栄養・創・深部静脈血栓の徴候', /呼吸|排泄|栄養|創|血栓|腫脹/]],
+        tp: [['疼痛管理・安全な移乗・早期離床・転倒予防', /疼痛|移乗|離床|転倒/]],
+        ep: [['荷重制限・補助具の使い方、再転倒・二次骨折の予防', /荷重|補助具|杖|歩行器|転倒|骨折/]] },
+      { key: 'pancreatic-head', re: /膵頭部(?:がん|癌)|膵(?:がん|癌)/, label: '膵頭部がん', source: [CPK_SRC78.pain], ...CPK78_META,
+        op: [['黄疸・掻痒・尿便の色・発熱・腹背部痛', /黄疸|掻痒|かゆみ|尿|便の色|発熱|腹痛|背部痛/], ['食欲・体重・血糖・肝胆道系の検査値', /食欲|体重|血糖|AST|ALT|Bil|検査値/]],
+        tp: [['疼痛・掻痒・栄養・血糖の援助と、胆道感染が疑われるときの早期報告', /疼痛|掻痒|栄養|血糖|報告/]],
+        ep: [['発熱と黄疸・痛みの悪化・食べられないときは申告すること', /発熱|黄疸|痛み|申告|知らせ/]] },
+      { key: 'fibroid', re: /子宮筋腫|過多月経/, label: '子宮筋腫（過多月経）', source: [CPK_SRC78.gyn], ...CPK78_META,
+        op: [['出血量、Hb／MCV、めまい、排尿症状', /出血量|出血|Hb|MCV|めまい|排尿/]],
+        tp: [['立ち上がりをゆっくりにするなど貧血時の安全の援助', /ゆっくり|転倒|安全|休息/]],
+        ep: [['出血が多いとき・ふらつきが強いときは知らせること', /出血|ふらつき|めまい|知らせ|受診/]] },
+      { key: 'hypertension', re: /高血圧/, label: '高血圧症', source: [CPK_SRC78.htn], ...CPK78_META,
+        op: [['血圧と測定条件、起立時の症状、服薬、体重・浮腫（単回の高値で診断としない）', /血圧|測定|起立|服薬|内服|体重|浮腫/]],
+        tp: [['降圧薬による血圧低下（起立性低血圧）と転倒の予防', /起立|転倒|ゆっくり|ふらつき/]],
+        ep: [['服薬を続けること、家庭血圧の測り方、ふらつきを知らせること', /服薬|内服|家庭血圧|ふらつき|知らせ/]] },
+      { key: 'dyslipidemia', re: /脂質異常症|高脂血症|高コレステロール/, label: '脂質異常症', source: [CPK_SRC78.lipid], ...CPK78_META,
+        op: [['食事・運動・服薬と、検査値の推移（一律の目標値は用いない）', /食事|運動|服薬|内服|検査値|推移/]],
+        tp: [['食事・運動の継続を支える援助', /食事|運動|援助/]],
+        ep: [['食事・運動・服薬の継続の意味を本人の生活に合わせて説明すること', /食事|運動|服薬|内服|継続/]] },
+      { key: 'cataract', re: /白内障/, label: '白内障手術', source: [CPK_SRC78.eye], ...CPK78_META,
+        op: [['視力の変化・眼痛・発赤・分泌物、転倒、点眼', /視力|眼痛|発赤|分泌物|転倒|点眼/]],
+        tp: [['点眼の確認と転倒予防の援助', /点眼|転倒/]],
+        ep: [['急な視力低下や強い眼痛があればすぐ連絡すること、点眼の方法', /視力|眼痛|連絡|知らせ|点眼/]] }
     ];
     function cpKnowledgeRowsFor(text) {
       const t = String(text || '').normalize('NFKC');
@@ -1114,6 +1178,25 @@
       return out;
     }
 
+    // v.78 high-risk combinations (reference only; they outrank single-word hints and never change a plan). Every pattern must match.
+    const CP_HIGH_RISK_COMBOS = [
+      { key: 'opioid-resp', all: [/オキシコドン|オピオイド|モルヒネ|フェンタニル|オキノーム|オキシコンチン/, /呼吸数.{0,6}(?:低下|減少)|傾眠|SpO2.{0,6}低下/], msg: 'オピオイドと呼吸数低下／傾眠の記載があります。呼吸抑制の可能性を考え、呼吸数・SpO2・意識を続けて観察し、基準に沿って報告できるようにしましょう（参考）。' },
+      { key: 'insulin-poor-intake', all: [/インスリン/, /摂取(?:量)?(?:不良|低下|減少)|食事.{0,4}(?:摂れ|とれ|摂取).{0,4}(?:ない|少)|食欲(?:不振|低下)|低血糖|冷汗|振戦|動悸/], msg: 'インスリンと摂取不良／低血糖症状の記載があります。血糖・摂取量を確認し、投与の可否は指示を確認しましょう（参考）。' },
+      { key: 'epidural-anticoag-neuro', all: [/硬膜外/, /抜去/, /抗凝固|抗血小板|ヘパリン|ワルファリン|ワーファリン|エドキサバン|リクシアナ|アピキサバン|エリキュース|リバーロキサバン|イグザレルト|アスピリン|バイアスピリン|クロピドグレル|プラビックス/, /しびれ|筋力低下|背部痛|麻痺|排尿障害/], msg: '硬膜外カテーテル抜去と抗血栓薬と神経症状の記載があります。硬膜外血腫の可能性があるため、速やかに報告して判断を仰ぎましょう（参考）。' },
+      { key: 'wound-infection', all: [/手術創|創部|創/, /発赤/, /膿|排液.{0,4}(?:混濁|増)|発熱|熱感/], msg: '創部の発赤に、熱感・膿性排液・発熱のいずれかが加わっています。感染の評価を優先して、報告を検討しましょう（参考。発赤だけで感染とは決めません）。' },
+      { key: 'immobile-leg-swelling', all: [/不動|臥床|離床(?:低下|困難)|安静/, /(?:片側|左|右).{0,4}下肢.{0,6}(?:腫脹|腫れ|はれ)|下肢.{0,6}(?:左右差|片側)/], msg: '不動と片側の下肢腫脹の記載があります。深部静脈血栓の可能性があるため、突然の息苦しさ・胸痛とあわせて報告を検討しましょう（参考）。' },
+      { key: 'pancreatic-jaundice-fever', all: [/膵頭部(?:がん|癌)/, /黄疸/, /発熱/], msg: '膵頭部がんと黄疸と発熱の記載があります。胆道感染の可能性があるため、早めの報告を検討しましょう（参考）。' }
+    ];
+    function cpHighRiskCombos(text) {
+      const t = String(text || '').normalize('NFKC');
+      return CP_HIGH_RISK_COMBOS.filter(c => c.all.every(re => re.test(t))).map(c => ({ key: c.key, level: 'info', msg: c.msg }));
+    }
+    // Words that are not standard terms must not be silently replaced; they are reported for checking against the source text.
+    const KR_UNKNOWN_TERMS = [{ re: /今検査/, reason: '標準用語として特定できません。「検査」へ置き換えず、原文を確認してください（知識リクエストの対象外としても理由を報告できます）。' }];
+    function krUnknownTerms(text) {
+      const t = String(text || '').normalize('NFKC');
+      return KR_UNKNOWN_TERMS.filter(u => u.re.test(t)).map(u => ({ term: (t.match(u.re) || [''])[0], kind: 'unknown_term', reason: u.reason }));
+    }
     const CP_REVIEW_ITEMS = [
       { key: 'fit', label: '看護問題との整合性' },
       { key: 'goal', label: '目標の具体性・評価可能性' },
@@ -1532,6 +1615,8 @@
       }
       const kn = cpKnowledgeSuggestions({ ...p, evidence });
       if (kn.length) push('knowledge', kn.map(k => k.msg), { level: 'info', knowledge: kn });
+      const hr = cpHighRiskCombos([p.problem, ...(Array.isArray(evidence) ? evidence : [evidence]), p.note, ...(p.op || []), ...(p.tp || [])].join('\n'));
+      if (hr.length) push('knowledge', hr.map(h => h.msg), { level: 'info', highRisk: hr });
       return { domain: dom ? dom.key : null, items: out, goalExample, evidence, model: cpModelFor(p, ctx) };
     }
     // Review notes shown next to the plan text (never rewrites the user's wording).
@@ -2692,7 +2777,7 @@ if (typeof module !== 'undefined' && module.exports) {
     carePlanInlineNotes, captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
     cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf, collapseVitalCards, collapseLabCards,
-    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, krTerms, krNames, krIsMedicalTerm, CARE_PLAN_KNOWLEDGE, cpKnowledgeSuggestions, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
+    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, krTerms, krNames, krIsMedicalTerm, CARE_PLAN_KNOWLEDGE, cpKnowledgeSuggestions, CP_HIGH_RISK_COMBOS, cpHighRiskCombos, krUnknownTerms, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
     cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, carePlanSetReviewHtml, carePlanSetState, carePlanSetNextSteps
   });
 }

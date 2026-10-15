@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.75'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.78'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -2451,7 +2451,11 @@
       [/関節痛|関節炎|筋肉痛|筋痛/, [5, 12]], [/脱毛|蝶形紅斑|円板状|瘢痕/, [8, 10]], [/光線過敏/, [14]], [/凍瘡/, [8, 9]], [/レイノー/, [4, 8, 9]],
       [/ループス腎炎|腎炎|蛋白尿/, [2, 9, 14]], [/出血傾向|出血/, [8, 9]], [/貧血/, [1, 4, 5, 12]], [/息切れ|呼吸困難|胸膜炎|胸水/, [4, 5]],
       [/心外膜炎|心膜炎|心膜液|タンポナーデ/, [1, 4, 5, 9]], [/蝶形紅斑|円板状/, [9]], [/神経精神|NPSLE|精神神経|神経症状|^神経|神経[、,・]/, [4, 9, 10, 14]],
-      [/頭痛/, [9, 10]], [/感染|日和見/, [7, 9, 14]], [/抗リン脂質|血栓|APS/, [9]]
+      [/頭痛/, [9, 10]], [/感染|日和見/, [7, 9, 14]], [/抗リン脂質|血栓|APS/, [9]],
+      // v.78 site research (ledger): disease-level associations only; drug names are not pasted onto one item.
+      [/膵頭部(?:がん|癌)|膵(?:がん|癌)/, [2, 3, 4, 9, 14]], [/胃全摘|胃切除/, [2, 3, 4, 8, 9, 14]], [/S状結腸(?:がん|癌)|結腸(?:がん|癌)/, [2, 3, 4, 9, 14]],
+      [/大腿骨(?:頸|頚)部骨折/, [3, 4, 5, 9, 14]], [/糖尿病/, [2, 3, 4, 8, 9, 14]], [/高血圧/, [4, 9, 14]], [/脂質異常症/, [2, 4, 14]],
+      [/陳旧性心筋梗塞/, [1, 4, 9, 14]], [/子宮筋腫|過多月経/, [3, 9, 12]], [/白内障/, [4, 9, 14]]
     ];
     function diseaseSymptomNeeds(text) {
       const t = String(text || '').normalize('NFKC');

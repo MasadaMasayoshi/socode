@@ -24,8 +24,8 @@
     "hash": "a140ed4bbd17ab21"
   },
   "js/07-classification.js": {
-    "version": "v.75",
-    "hash": "3cfc11de1febf68c"
+    "version": "v.78",
+    "hash": "d95b57995b3a6137"
   },
   "js/08-assessment-tools.js": {
     "version": "v.77",
@@ -44,8 +44,8 @@
     "hash": "db3918565368fa76"
   },
   "js/12-missing-checks-and-care-plan.js": {
-    "version": "v.75",
-    "hash": "b014b5e2a676d224"
+    "version": "v.78",
+    "hash": "ee047b658c30333e"
   },
   "js/13-compare-and-report.js": {
     "version": "v.59",
@@ -56,8 +56,8 @@
     "hash": "ddd095be9f67a182"
   },
   "js/15-relation-map.js": {
-    "version": "v.71",
-    "hash": "e8315dd1460d97b2"
+    "version": "v.78",
+    "hash": "b8504058052ac5fe"
   },
   "style.css": {
     "version": "v.52",
