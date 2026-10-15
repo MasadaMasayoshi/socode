@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.69'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.70'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1747,13 +1747,19 @@
       return Array.from(new Set((String(text || '').normalize('NFKC').match(/[一-龥ァ-ヶー]{2,12}/g) || []).filter(t => !KR_STOP.test(t))));
     }
     // De-identified context so an AI answering the request can see how a term was used, without names or dates.
-    function krDeidentify(text, cp) {
+    function krDeidentify(text, cp, limit) {
       let t = String(text || '').normalize('NFKC');
       const nameItem = ((cp && cp.items) || []).find(i => i && /^氏名$/.test(i.fieldLabel || ''));
       const name = nameItem ? String(nameItem.text).normalize('NFKC').replace(/^氏名[:：]\s*/, '').trim() : '';
       if (name.length >= 2) t = t.split(name).join('(患者)');
+      t = t.replace(/(^|[\s　:：])[一-龥]{2,4}(?=[\s　]*\d{1,3}\s*(?:歳|才))/g, '$1(患者)').replace(/(氏名|名前|患者名)[:：]?[\s　]*[一-龥ぁ-んァ-ヶ]{2,8}/g, '$1: (患者)');
       return t.replace(/\d{2,4}[\/年.-]\d{1,2}(?:[\/月.-]\d{1,2}日?)?|\d{1,2}月\d{1,2}日|\d{1,2}\/\d{1,2}/g, '(日付)')
-        .replace(/[一-龥]{1,4}(?:さん|様|氏)/g, '(人物)').replace(/\d{2,4}-\d{2,4}-\d{3,4}/g, '(番号)').slice(0, 160);
+        .replace(/[一-龥]{1,4}(?:さん|様|氏)/g, '(人物)').replace(/\d{2,4}-\d{2,4}-\d{3,4}/g, '(番号)').slice(0, limit || 160);
+    }
+    // The record as it was before classification, de-identified, so an outside AI can see the real context.
+    function krSourceText(cp) {
+      const raw = String((cp && cp.sourceText) || '').trim() || ((cp && cp.items) || []).filter(i => i && !i.deleted && !i.diseaseGeneral && i.text).map(i => i.text).join('\n');
+      return raw ? krDeidentify(raw, cp, 6000) : '';
     }
     function krPatientSummary(cp) {
       const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && i.text);
@@ -1853,12 +1859,23 @@
         groups.set(r.term, g);
       });
       let out = `知識リクエスト：${cp && cp.title || ''}（${new Date().toLocaleDateString('ja-JP')}）\n`;
-      out += '【依頼の目的】看護アセスメント支援サイト全体の質を上げるための調査依頼です。下の調査テーマは、サイトが自分のルールで判断できなかった（または知識が極端に少なかった）点で、ある症例で見つかっただけです。その症例専用の答えではなく、どの患者にも使える一般的な看護・医学の知識を集めてください。\n';
-      out += `【きっかけの症例（例として）】${krPatientSummary(cp)}。個人情報は含みません。\n`;
-      out += '【調べ方】各テーマの周辺（同じ疾患群・同じ症状群・関連する薬や検査・よく併発する問題）も調べ、サイト全体に役立つものがあれば、依頼にないものも追加してください。追加したものには、なぜ必要と考えたかを1行で添えてください。\n';
-      out += '【出典】教科書（書名・版・ページ）や公的ガイドライン（名称・年）を優先し、確認できないものは「未確認」と明記してください。出典のない内容は採用できません。\n';
-      out += '【出力形式】テーマごとに、(1)内容（1〜3文、一般的な事実のみ）(2)関係するヘンダーソンの14項目（番号と理由）(3)原因→途中の変化→結果（わかる場合）(4)看護の観察OP・援助TP・教育EPの要点 (5)出典 (6)当てはまる範囲・例外。不明な点は「不明」と書き、推測で埋めないでください。\n';
-      out += '【調査テーマ】「記録」は、その語が使われた文脈です（氏名・日付は伏せています）。\n';
+      out += '[Purpose] This is a research request to raise the quality of a Japanese nursing-assessment support website as a whole. The topics below are only points where the site could not decide by its own rules (or held very little knowledge); they were found in one case. Do NOT answer for that case alone: collect general nursing and medical knowledge that applies to any patient.\n';
+      out += `[Trigger case, as an example only] ${krPatientSummary(cp)}. No personal information is included.\n`;
+      out += '[How to research] For each topic, also look at its surroundings (same disease group, same symptom group, related drugs and lab tests, commonly co-occurring problems). If you find knowledge useful to the site that was not requested, add it, with one line on why you thought it was needed (なぜ必要と考えたか).\n';
+      out += '[Sources] Prefer textbooks (title, edition, page) and official guidelines (name, year). Mark anything you cannot verify as 未確認. Content without a source cannot be used.\n';
+      out += '[Language] Write the answers in Japanese. Keep nursing terms as they are (看護問題, ヘンダーソンの14項目, OP/TP/EP).\n';
+      out += '[Answer format] Use exactly this template, once per topic, in the same order as the topic list. Be concise; do not pad.\n';
+      out += '  Topic: 「term」\n';
+      out += '  1. 内容: 1-3 sentences, general facts only.\n';
+      out += '  2. ヘンダーソン14項目: item numbers with a short reason for each.\n';
+      out += '  3. 因果: cause → intermediate change → result (only if known).\n';
+      out += '  4. 看護: OP (observe) / TP (care) / EP (educate), a few short points each.\n';
+      out += '  5. 出典: title, edition, page / guideline name, year.\n';
+      out += '  6. 範囲: conditions or exceptions where it does not apply.\n';
+      out += '  Write 不明 where unknown. Never fill gaps with guesses. Put added topics last, under the heading 追加提案.\n';
+      const src = krSourceText(cp);
+      if (src) out += `\n[Original record before classification (names and dates masked)]\nUse it only to understand the context of the topics; do not answer about this patient.\n\n${src}\n`;
+      out += '\n[Topics] 記録 shows how the term was used in the record (names and dates masked).\n';
       let n = 0;
       Object.keys(label).forEach(k => {
         const list = Array.from(groups.values()).filter(g => g.purpose === k).slice(0, 30);

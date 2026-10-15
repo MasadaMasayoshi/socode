@@ -53,7 +53,16 @@ test('overlapping needs for one term are merged into a single compact entry', ()
 test('the request reads as a site-wide research brief, not a single-case question', () => {
   const cp = { title: 'T', items: [{ id: '1', type: 'o', text: '心外膜炎の既往', hendersonIds: [] }] };
   const text = app.knowledgeRequestText(cp, app.buildKnowledgeRequests(cp));
-  assert.ok(/サイト全体の質/.test(text) && /その症例専用の答えではなく/.test(text));
-  assert.ok(/依頼にないものも追加/.test(text) && /なぜ必要と考えたか/.test(text));
-  assert.ok(/出典/.test(text) && /出力形式/.test(text));
+  assert.ok(/quality of a Japanese nursing-assessment support website as a whole/.test(text) && /Do NOT answer for that case alone/.test(text));
+  assert.ok(/add it, with one line on why/.test(text) && /なぜ必要と考えたか/.test(text));
+  assert.ok(/\[Sources\]/.test(text) && /\[Answer format\]/.test(text) && /Write the answers in Japanese/.test(text));
+  assert.ok(/1\. 内容/.test(text) && /6\. 範囲/.test(text) && /追加提案/.test(text));
+});
+
+test('the original record before classification is included with names masked', () => {
+  const cp = { title: 'T', sourceText: '山田 28歳 女性\n心外膜炎の既往あり。2026/10/01 入院。', items: [{ id: '1', type: 'o', text: '心外膜炎の既往', hendersonIds: [] }] };
+  const text = app.knowledgeRequestText(cp, app.buildKnowledgeRequests(cp));
+  assert.ok(/Original record before classification/.test(text));
+  assert.ok(/心外膜炎の既往あり/.test(text));
+  assert.ok(!/山田/.test(text) && !/2026\/10\/01/.test(text));
 });
