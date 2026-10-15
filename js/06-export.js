@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.65'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.81'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -125,21 +125,22 @@
       return labels;
     }
 
-    function buildPrintAiSectionsHtml(cp, startNo) {
+    function buildPrintAiSectionsHtml(cp, startNo, want) {
+      const on = k => exportSectionOn(want, k);
       let n = startNo;
       let out = '';
 
       const sec = (title, html) => { out += `<h2>${n++}. ${escapeHtml(title)}</h2><div class="ai">${html}</div>`; };
-      if (activeGeneratedResult(cp, 'labEvaluationResult')) sec('検査データ臨床評価（AI・参考）', storedAiHtml(activeGeneratedResult(cp, 'labEvaluationResult')));
-      else if (typeof labAssessmentHtmlFor === 'function' && labAssessmentHtmlFor(cp)) sec('検査データ臨床評価', labAssessmentHtmlFor(cp));
-      if (activeGeneratedResult(cp, 'contradictionResult')) sec('S/O矛盾チェック（AI・参考）', storedAiHtml(activeGeneratedResult(cp, 'contradictionResult')));
+      if (on('labs') && activeGeneratedResult(cp, 'labEvaluationResult')) sec('検査データ臨床評価（AI・参考）', storedAiHtml(activeGeneratedResult(cp, 'labEvaluationResult')));
+      else if (on('labs') && typeof labAssessmentHtmlFor === 'function' && labAssessmentHtmlFor(cp, { forPrint: true })) sec('検査データ臨床評価', labAssessmentHtmlFor(cp, { forPrint: true }));
+      if (on('contradiction') && activeGeneratedResult(cp, 'contradictionResult')) sec('S/O矛盾チェック（AI・参考）', storedAiHtml(activeGeneratedResult(cp, 'contradictionResult')));
       const cands = activeDiagnosisCandidates(cp);
-      if (cands.length) {
+      if (on('diagnosis') && cands.length) {
         const sel = new Set(cp.selectedDiagnosisIds || []);
         out += `<h2>${n++}. 看護診断候補（AI・参考）</h2>` + cands.map(c => `<div class="dx${sel.has(c.id) ? ' sel' : ''}"><div class="dx-name">${sel.has(c.id) ? '✓ ' : ''}${escapeHtml(c.name)}${sel.has(c.id) ? '<span class="tags">　（看護計画に使用）</span>' : ''}</div>${c.bodyHtml ? `<div>${storedAiHtml(c.bodyHtml)}</div>` : ''}</div>`).join('');
-      } else if (activeGeneratedResult(cp, 'diagnosisResult')) sec('看護診断候補（AI・参考）', storedAiHtml(activeGeneratedResult(cp, 'diagnosisResult')));
-      if (activeGeneratedResult(cp, 'timelineResult')) sec('経時変化サマリー（AI・参考）', storedAiHtml(activeGeneratedResult(cp, 'timelineResult')));
-      if (activeGeneratedResult(cp, 'carePlanResult')) sec('看護計画（AI・叩き台）', (cp.carePlanDiagnoses?.length ? `<p><b>選んだ看護診断：</b>${escapeHtml(cp.carePlanDiagnoses.join('／'))}</p>` : '') + storedAiHtml(activeGeneratedResult(cp, 'carePlanResult')));
+      } else if (on('diagnosis') && activeGeneratedResult(cp, 'diagnosisResult')) sec('看護診断候補（AI・参考）', storedAiHtml(activeGeneratedResult(cp, 'diagnosisResult')));
+      if (on('timeline') && activeGeneratedResult(cp, 'timelineResult')) sec('経時変化サマリー（AI・参考）', storedAiHtml(activeGeneratedResult(cp, 'timelineResult')));
+      if (on('aiPlan') && activeGeneratedResult(cp, 'carePlanResult')) sec('看護計画（AI・叩き台）', (cp.carePlanDiagnoses?.length ? `<p><b>選んだ看護診断：</b>${escapeHtml(cp.carePlanDiagnoses.join('／'))}</p>` : '') + storedAiHtml(activeGeneratedResult(cp, 'carePlanResult')));
       if (typeof quarantineNoticeText === 'function' && quarantineNoticeText(cp)) out += `<p class="note">${escapeHtml(quarantineNoticeText(cp))}</p>`;
       if (out) out += '<p class="note">AIによる結果は参考情報です。最終的な判断・看護診断・看護計画の決定は必ず医療従事者が行ってください。〔S …〕〔O …〕は根拠にしたカードです。</p>';
       return out;
@@ -326,7 +327,8 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       showToast(isMobilePrintTarget() ? '印刷用の見本を開きました。上の「印刷・PDFに保存」を押してください' : '印刷画面を開きます。「送信先」で「PDFに保存」を選ぶとPDFになります', 'info');
     };
 
-    function buildExportBodyHtml(cp) {
+    function buildExportBodyHtml(cp, want) {
+      const on = k => exportSectionOn(want, k);
       cp = { ...cp, items: sheetRecordItems(cp) };
       const items = cp.items || [];
       const dataTable = list => list.length === 0 ? '<p class="muted">（登録なし）</p>' :
@@ -335,16 +337,17 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       let body = printDocHead('看護アセスメント・記録整理シート', cp);
 
       const isMissingOnly = i => typeof isMissingInfoOnlyItem === 'function' && isMissingInfoOnlyItem(i);
-      body += `<h2>${n++}. 主観的情報（Sデータ）</h2>` + dataTable(items.filter(i => i.type === 's' && !isMissingOnly(i)));
-      body += `<h2>${n++}. 客観的情報（Oデータ）</h2>` + dataTable(items.filter(i => i.type === 'o' && !isMissingOnly(i)));
+      if (on('s')) body += `<h2>${n++}. 主観的情報（Sデータ）</h2>` + dataTable(items.filter(i => i.type === 's' && !isMissingOnly(i)));
+      if (on('o')) body += `<h2>${n++}. 客観的情報（Oデータ）</h2>` + dataTable(items.filter(i => i.type === 'o' && !isMissingOnly(i)));
       const missingOnly = items.filter(i => i.type !== 'unnecessary' && isMissingOnly(i));
-      if (missingOnly.length) {
+      if (on('missing') && missingOnly.length) {
         const status = i => (typeof missingCheckStatus === 'function' ? ({ unchecked: '未確認', checked: '確認済み', na: '該当なし' })[missingCheckStatus(cp, i.id)] : '未確認');
         const result = i => { const c = typeof getMissingCheck === 'function' ? getMissingCheck(cp, i.id) : null; return c && c.result ? `<br><span class="muted">→ ${escapeHtml(c.result)}${c.method ? `（${escapeHtml(c.method)}）` : ''}</span>` : ''; };
         body += `<h2>${n++}. 不足情報と確認状況</h2><table><colgroup><col style="width:14%"><col><col style="width:20%"></colgroup><thead><tr><th>状況</th><th>確かめたい情報</th><th>項目</th></tr></thead><tbody>${missingOnly.map(i => `<tr><td>${escapeHtml(status(i))}${i.aiSuggested ? '<br><span class="lb lb-x">AI推定</span>' : ''}</td><td>${escapeHtml(i.text.replace(/^原因:\s*/, ''))}${result(i)}</td><td class="tags">${escapeHtml(printTagNames(i))}</td></tr>`).join('')}</tbody></table>`;
       }
       const unclassified = items.filter(i => i.type === 'unclassified');
-      if (unclassified.length) body += `<h2>${n++}. 未分類のカード</h2>` + dataTable(unclassified);
+      if (on('unclassified') && unclassified.length) body += `<h2>${n++}. 未分類のカード</h2>` + dataTable(unclassified);
+      if (on('henderson')) {
       body += `<h2>${n++}. ヘンダーソン14項目別アセスメント整理</h2>`;
       const active = items.filter(i => i.type !== 'unnecessary');
       let anyNeed = false;
@@ -360,14 +363,16 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         }).join('')}</tr></tbody></table>`;
       });
       if (!anyNeed) body += '<p class="muted">（タグが付いたカードがありません）</p>';
+      }
       const own = typeof buildMyAssessmentsPrintHtml === 'function' ? buildMyAssessmentsPrintHtml(cp, n) : '';
-      if (own) { body += own; n++; }
+      if (on('own') && own) { body += own; n++; }
 
       const plansText = typeof buildCarePlansText === 'function' ? buildCarePlansText(cp, { withRecords: true }) : '';
-      if (plansText) body += `<h2>${n++}. 看護計画と実施・評価</h2><p style="white-space:pre-wrap;margin:0;">${escapeHtml(plansText)}</p>`;
-      body += buildPrintAiSectionsHtml(cp, n);
+      if (on('plans') && plansText) body += `<h2>${n++}. 看護計画と実施・評価</h2><p style="white-space:pre-wrap;margin:0;">${escapeHtml(plansText)}</p>`;
+      if (on('planEval')) { const pe = buildPlanEvaluationHtml(cp, n); if (pe) { body += pe; n++; } }
+      body += buildPrintAiSectionsHtml(cp, n, want);
       const notes = cp.referenceNotes || [];
-      if (notes.length > 0) {
+      if (notes.length > 0 && on('notes')) {
         body += '<h2>参考データ</h2>';
         notes.forEach(note => { body += `<h3>${escapeHtml(note.title)}</h3><p style="white-space:pre-wrap;margin:0;">${escapeHtml(note.text)}</p>`; });
       }
@@ -395,6 +400,71 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         .trim();
       return text || '（未実施）';
     }
+    // Export section selection. A selection is a Set of keys, or null/undefined for "everything" (the default, so output is unchanged).
+    const EXPORT_SECTIONS_STORAGE_KEY = 'export_sections_v1';
+    const EXPORT_SECTIONS = [
+      { key: 'labs', label: '検査データ臨床評価' },
+      { key: 's', label: '主観的情報（Sデータ）' },
+      { key: 'o', label: '客観的情報（Oデータ）' },
+      { key: 'missing', label: '不足情報と確認状況' },
+      { key: 'unclassified', label: '未分類のカード' },
+      { key: 'henderson', label: 'ヘンダーソン14項目別アセスメント整理' },
+      { key: 'own', label: '自分のアセスメント' },
+      { key: 'plans', label: '看護計画と実施・評価' },
+      { key: 'planEval', label: '全計画の評価' },
+      { key: 'contradiction', label: 'S/O矛盾チェック（AI）' },
+      { key: 'diagnosis', label: '看護診断候補（AI）' },
+      { key: 'timeline', label: '経時変化サマリー（AI）' },
+      { key: 'aiPlan', label: '看護計画（AI叩き台）' },
+      { key: 'notes', label: '参考データ' }
+    ];
+    function exportSectionOn(want, key) { return !want || (typeof want.has === 'function' ? want.has(key) : Array.from(want).includes(key)); }
+    function exportSelectionFromKeys(keys) {
+      const valid = new Set(EXPORT_SECTIONS.map(x => x.key));
+      return new Set(Array.from(keys || []).filter(k => valid.has(k)));
+    }
+    // Remembered as the keys switched OFF, so a section added later is on by default.
+    function loadExportSectionsOff() {
+      try { const a = JSON.parse(localStorage.getItem(EXPORT_SECTIONS_STORAGE_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+    }
+    function saveExportSectionsOff(keys) { try { localStorage.setItem(EXPORT_SECTIONS_STORAGE_KEY, JSON.stringify(keys)); } catch (e) { } }
+    // Evaluation across all care plans: one block per plan with every evaluation record (date, achievement, evaluation, revision).
+    function planEvaluationEntries(cp) {
+      if (typeof carePlanList !== 'function') return [];
+      return carePlanList(cp).filter(p => typeof carePlanProvenance !== 'function' || carePlanProvenance(cp, p).ok).map((p, k) => {
+        const st = (CARE_PLAN_STATUSES.find(x => x.key === p.status) || {}).label || '';
+        const recs = (p.records || []).filter(r => r.evaluation || r.achievement || r.revision).map(r => {
+          const ach = CARE_ACHIEVEMENTS.find(a => a.key === r.achievement);
+          return { at: typeof formatMyDateTime === 'function' ? formatMyDateTime(r.at) : String(r.at || ''), achievement: ach && ach.key ? ach.label : '', evaluation: r.evaluation || '', revision: r.revision || '' };
+        });
+        return { no: k + 1, problem: p.problem || '（無題）', status: st, goalShort: p.goalShort || '', records: recs };
+      });
+    }
+    function buildPlanEvaluationText(cp) {
+      const list = planEvaluationEntries(cp);
+      if (!list.length) return '';
+      let out = plainSectionTitle('全計画の評価');
+      out += list.map(e => {
+        const lines = [`#${e.no} ${e.problem}（${e.status}）`];
+        if (e.goalShort) lines.push(`短期目標：${e.goalShort}`);
+        if (!e.records.length) lines.push('  （評価の記録なし）');
+        e.records.forEach(r => {
+          lines.push(`  【${r.at}】${r.achievement ? `目標：${r.achievement}` : ''}`);
+          if (r.evaluation) lines.push(`    評価：${r.evaluation}`);
+          if (r.revision) lines.push(`    計画の修正：${r.revision}`);
+        });
+        return lines.join('\n');
+      }).join('\n\n') + '\n';
+      return out;
+    }
+    function buildPlanEvaluationHtml(cp, no) {
+      const list = planEvaluationEntries(cp);
+      if (!list.length) return '';
+      const esc = t => escapeHtml(String(t == null ? '' : t));
+      return `<h2>${no}. 全計画の評価</h2>` + list.map(e => `<h3>#${e.no} ${esc(e.problem)}（${esc(e.status)}）</h3>${e.goalShort ? `<p style="margin:0 0 4px;">短期目標：${esc(e.goalShort)}</p>` : ''}` + (e.records.length
+        ? `<table><thead><tr><th style="width:20%">日時・目標</th><th>評価</th><th style="width:28%">計画の修正</th></tr></thead><tbody>${e.records.map(r => `<tr><td>${esc(r.at)}${r.achievement ? `<br><b>${esc(r.achievement)}</b>` : ''}</td><td style="white-space:pre-wrap;">${esc(r.evaluation) || '—'}</td><td style="white-space:pre-wrap;">${esc(r.revision) || '—'}</td></tr>`).join('')}</tbody></table>`
+        : '<p class="muted">（評価の記録なし）</p>')).join('');
+    }
     function plainSectionTitle(title) {
       return `\n【${title}】\n`;
     }
@@ -421,24 +491,31 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         seen.add(key); return true;
       }).map(i => ({ ...i, text: cleanSheetRecordText(i.text) }));
     }
-    function buildExportPlainText(cp) {
+    function buildExportPlainText(cp, want) {
+      const on = k => exportSectionOn(want, k);
       cp = { ...cp, items: sheetRecordItems(cp) };
       const formatLine = i => `[${i.timestamp}]${i.fieldLabel ? ` [${i.fieldLabel}]` : ''} ${i.text}`;
 
       let out = `看護アセスメント・記録整理シート：${cp.title}\n`;
       out += `出力日時: ${new Date().toLocaleString('ja-JP')}\n`;
 
+      if (on('labs')) {
       out += plainSectionTitle('1. 検査データ臨床評価・アセスメントノート');
       out += htmlToPlainText(activeGeneratedResult(cp, 'labEvaluationResult') || (typeof labAssessmentTextFor === 'function' && labAssessmentTextFor(cp)) || '（評価できる検査値がありません）') + '\n';
+      }
 
       const isMissingOnly = i => typeof isMissingInfoOnlyItem === 'function' && isMissingInfoOnlyItem(i);
+      if (on('s')) {
       out += plainSectionTitle('2. 主観的情報（Sデータ）');
       out += plainList(cp.items.filter(i => i.type === 's' && !isMissingOnly(i)).map(formatLine));
+      }
 
+      if (on('o')) {
       out += plainSectionTitle('3. 客観的情報（Oデータ）');
       out += plainList(cp.items.filter(i => i.type === 'o' && !isMissingOnly(i)).map(formatLine));
+      }
       const missingOnly = cp.items.filter(i => i.type !== 'unnecessary' && isMissingOnly(i));
-      if (missingOnly.length) {
+      if (on('missing') && missingOnly.length) {
         out += plainSectionTitle('不足情報と確認状況');
         out += plainList(missingOnly.map(i => {
           const st = typeof missingCheckStatus === 'function' ? ({ unchecked: '未確認', checked: '確認済み', na: '該当なし' })[missingCheckStatus(cp, i.id)] : '未確認';
@@ -447,9 +524,12 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         }));
       }
 
+      if (on('unclassified')) {
       out += plainSectionTitle('4. 未分類のカード');
       out += plainList(cp.items.filter(i => i.type === 'unclassified').map(formatLine));
+      }
 
+      if (on('henderson')) {
       out += plainSectionTitle('5. ヘンダーソン14項目別アセスメント整理');
       HENDERSON_NEEDS.forEach(need => {
         const matching = cp.items.filter(i => i.type !== 'unnecessary' && i.hendersonIds?.includes(need.id));
@@ -461,21 +541,23 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
           return `[${colName}] [${i.type.toUpperCase()}]${i.fieldLabel ? ` [${i.fieldLabel}]` : ''}${i.aiSuggested ? ' [AI推定]' : ''} ${i.text}`;
         }));
       });
+      }
 
       const own = typeof buildMyAssessmentsText === 'function' ? buildMyAssessmentsText(cp) : '';
-      if (own) { out += plainSectionTitle('自分のアセスメント'); out += own + '\n'; }
+      if (on('own') && own) { out += plainSectionTitle('自分のアセスメント'); out += own + '\n'; }
 
       const plansText = typeof buildCarePlansText === 'function' ? buildCarePlansText(cp, { withRecords: true }) : '';
-      if (plansText) { out += plainSectionTitle('看護計画と実施・評価'); out += plansText + '\n'; }
+      if (on('plans') && plansText) { out += plainSectionTitle('看護計画と実施・評価'); out += plansText + '\n'; }
+      if (on('planEval')) out += buildPlanEvaluationText(cp);
 
-      if (activeGeneratedResult(cp, 'contradictionResult')) { out += plainSectionTitle('6. S/O矛盾チェック結果（AI）'); out += htmlToPlainText(activeGeneratedResult(cp, 'contradictionResult')) + '\n'; }
-      if (activeGeneratedResult(cp, 'diagnosisResult')) { out += plainSectionTitle('7. 看護診断候補（AI提案）'); out += htmlToPlainText(activeGeneratedResult(cp, 'diagnosisResult')) + '\n'; }
-      if (activeGeneratedResult(cp, 'timelineResult')) { out += plainSectionTitle('8. 経時変化サマリー（AI）'); out += htmlToPlainText(activeGeneratedResult(cp, 'timelineResult')) + '\n'; }
-      if (activeGeneratedResult(cp, 'carePlanResult')) { out += plainSectionTitle('9. 看護計画（AI自動生成）'); if (cp.carePlanDiagnoses?.length) out += `選んだ看護診断：${cp.carePlanDiagnoses.join('／')}\n`; out += htmlToPlainText(activeGeneratedResult(cp, 'carePlanResult')) + '\n'; }
+      if (on('contradiction') && activeGeneratedResult(cp, 'contradictionResult')) { out += plainSectionTitle('6. S/O矛盾チェック結果（AI）'); out += htmlToPlainText(activeGeneratedResult(cp, 'contradictionResult')) + '\n'; }
+      if (on('diagnosis') && activeGeneratedResult(cp, 'diagnosisResult')) { out += plainSectionTitle('7. 看護診断候補（AI提案）'); out += htmlToPlainText(activeGeneratedResult(cp, 'diagnosisResult')) + '\n'; }
+      if (on('timeline') && activeGeneratedResult(cp, 'timelineResult')) { out += plainSectionTitle('8. 経時変化サマリー（AI）'); out += htmlToPlainText(activeGeneratedResult(cp, 'timelineResult')) + '\n'; }
+      if (on('aiPlan') && activeGeneratedResult(cp, 'carePlanResult')) { out += plainSectionTitle('9. 看護計画（AI自動生成）'); if (cp.carePlanDiagnoses?.length) out += `選んだ看護診断：${cp.carePlanDiagnoses.join('／')}\n`; out += htmlToPlainText(activeGeneratedResult(cp, 'carePlanResult')) + '\n'; }
 
       if (typeof quarantineNoticeText === 'function' && quarantineNoticeText(cp)) out += '\n' + quarantineNoticeText(cp) + '\n';
       const notes = cp.referenceNotes || [];
-      if (notes.length > 0) {
+      if (notes.length > 0 && on('notes')) {
         out += plainSectionTitle('10. 参考データ');
         notes.forEach(n => { out += `\n${n.title}\n${n.text}\n`; });
       }
@@ -872,7 +954,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     }
 
     const EXPORT_OPTIONS_STORAGE_KEY = 'export_options_v1';
-    function askExportOptions(title, allowSource = true) {
+    function askExportOptions(title, allowSource = true, opts = {}) {
       return new Promise(resolve => {
         const modal = document.getElementById('modal-export-options');
         const optAssessment = document.getElementById('export-opt-assessment');
@@ -881,7 +963,22 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         try { saved = JSON.parse(localStorage.getItem(EXPORT_OPTIONS_STORAGE_KEY) || '{}') || {}; } catch (e) { saved = {}; }
         optAssessment.checked = !!saved.includeAssessment;
         optSource.checked = allowSource && !!saved.includeSourceText;
-        if (optSource.closest) optSource.closest('label').hidden = !allowSource;
+        if (optSource.closest) optSource.closest('label').hidden = !allowSource || !!opts.sectionsOnly;
+        if (optAssessment.closest) optAssessment.closest('label').hidden = !!opts.sectionsOnly;
+        let box = document.getElementById('export-sections-box');
+        if (!box) {
+          box = document.createElement('div');
+          box.id = 'export-sections-box';
+          box.className = 'flex flex-col gap-1 text-xs border-t border-[var(--line-soft)] pt-2';
+          const actions = document.getElementById('btn-confirm-export-options').parentNode;
+          actions.parentNode.insertBefore(box, actions);
+        }
+        box.hidden = !opts.sections;
+        if (opts.sections) {
+          const off = new Set(loadExportSectionsOff());
+          box.innerHTML = '<div class="flex items-center justify-between"><b>書き出す項目</b><span><button type="button" class="btn btn-outline text-[11px] py-0.5" data-export-all="1">全選択</button> <button type="button" class="btn btn-outline text-[11px] py-0.5" data-export-all="0">全解除</button></span></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1" style="max-height:38vh;overflow-y:auto;">' + EXPORT_SECTIONS.map(x => `<label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" data-export-section="${x.key}"${off.has(x.key) ? '' : ' checked'}><span>${escapeHtml(x.label)}</span></label>`).join('') + '</div>';
+          box.querySelectorAll('[data-export-all]').forEach(b => { b.onclick = () => box.querySelectorAll('input[data-export-section]').forEach(c => { c.checked = b.getAttribute('data-export-all') === '1'; }); });
+        }
         document.getElementById('export-options-title').textContent = title;
         modal.classList.remove('hidden');
         const finish = (result) => {
@@ -894,7 +991,14 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         };
         document.getElementById('btn-confirm-export-options').onclick = () => {
           const result = { includeAssessment: optAssessment.checked, includeSourceText: optSource.checked };
-          try { localStorage.setItem(EXPORT_OPTIONS_STORAGE_KEY, JSON.stringify(result)); } catch (e) {   }
+          if (opts.sections) {
+            const boxes = Array.from(box.querySelectorAll('input[data-export-section]'));
+            const on = boxes.filter(c => c.checked).map(c => c.getAttribute('data-export-section'));
+            if (!on.length) { showToast('書き出す項目を1つ以上選んでください', 'warn'); return; }
+            saveExportSectionsOff(boxes.filter(c => !c.checked).map(c => c.getAttribute('data-export-section')));
+            result.sections = exportSelectionFromKeys(on);
+          }
+          if (!opts.sectionsOnly) { try { localStorage.setItem(EXPORT_OPTIONS_STORAGE_KEY, JSON.stringify(result)); } catch (e) {   } }
           finish(result);
         };
         document.getElementById('btn-cancel-export-options').onclick = () => finish(null);
@@ -1136,31 +1240,33 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       if (await downloadTextBlob(blob, `${safeTitle}_修正依頼_編集済み・未設定_${targets.length}枚.txt`)) showToast(`編集済み・タグ未設定の${targets.length}枚を、問題の説明つきで書き出しました`, 'success');
     };
 
-    function buildExportDocument(cp) {
+    function buildExportDocument(cp, want) {
       const title = escapeHtml(`${cp.title || ''}_看護アセスメント`);
       return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${title}</title><style>${PRINT_BASE_CSS}
   @page { size: A4 portrait; }
   tr { break-inside: auto; page-break-inside: auto; }
   td { break-inside: auto; }
-</style></head><body>${buildExportBodyHtml(cp)}</body></html>`;
+</style></head><body>${buildExportBodyHtml(cp, want)}</body></html>`;
     }
 
     document.getElementById('btn-export-docs').addEventListener('click', async () => {
       const cp = getCurrentPatient();
-      const options = await askExportOptions('テキスト書き出し', false);
+      const options = await askExportOptions('テキスト書き出し', false, { sections: true });
       if (!options) return;
       const safeTitle = (cp.title || 'カルテ').replace(/[\\/:*?"<>|]/g, '_');
 
-      const sheet = buildExportPlainText(cp) +
+      const sheet = buildExportPlainText(cp, options.sections) +
         (options.includeAssessment ? `\n【総合アセスメント表】\n${buildAssessmentTableText(cp)}` : '');
       const blob = new Blob([sheet], { type: 'text/plain;charset=utf-8' });
 
       if (await downloadTextBlob(blob, `${safeTitle}_看護アセスメント.txt`)) showToast('看護アセスメントを書き出しました', 'success');
     });
 
-    document.getElementById('btn-export-pdf').addEventListener('click', () => {
+    document.getElementById('btn-export-pdf').addEventListener('click', async () => {
       const cp = getCurrentPatient();
+      const options = await askExportOptions('PDF書き出し', false, { sections: true, sectionsOnly: true });
+      if (!options) return;
 
-      printHtmlDocument(buildExportDocument(cp));
+      printHtmlDocument(buildExportDocument(cp, options.sections));
       showToast(isMobilePrintTarget() ? '印刷用の見本を開きました。上の「印刷・PDFに保存」を押してください' : '印刷画面を開きます。「送信先」で「PDFに保存」を選ぶとPDFになります', 'info');
     });

@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.79'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.81'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1850,11 +1850,11 @@
       return { has: true, text: out, html, labs, broken, resp, vitals, thoughts, checks };
     }
 
-    function labAssessmentHtmlFor(cp) {
+    function labAssessmentHtmlFor(cp, opts) {
       if (cp.labEvaluationResult) return cp.labEvaluationResult;
       try {
         const built = buildLabAssessment(cp).html || '';
-        return built ? renderCompareValuesHtml(cp.items, { open: true, sourceText: cp.sourceText || '', title: '検査値・バイタルの比較（基準を外れた値に色、前→最新の変化）' }) + built : '';
+        return built && !(opts && opts.forPrint) ? renderCompareValuesHtml(cp.items, { open: true, sourceText: cp.sourceText || '', title: '検査値・バイタルの比較（基準を外れた値に色、前→最新の変化）' }) + built : built;
       } catch (e) { console.warn('Lab assessment failed:', e); return ''; }
     }
     function labAssessmentTextFor(cp) {

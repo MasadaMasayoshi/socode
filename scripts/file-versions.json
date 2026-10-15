@@ -20,24 +20,24 @@
     "hash": "1f551662048f1d18"
   },
   "js/06-export.js": {
-    "version": "v.65",
-    "hash": "a140ed4bbd17ab21"
+    "version": "v.81",
+    "hash": "2cd108dc749e92c4"
   },
   "js/07-classification.js": {
     "version": "v.79",
     "hash": "d8e975c5f9122e01"
   },
   "js/08-assessment-tools.js": {
-    "version": "v.79",
-    "hash": "64b1559ca1ca0fe7"
+    "version": "v.81",
+    "hash": "3f268090f5b59d5b"
   },
   "js/09-board.js": {
     "version": "v.77",
     "hash": "293278a5c6d0a9f5"
   },
   "js/10-reference-page-and-startup.js": {
-    "version": "v.77",
-    "hash": "fd0dde504f74270c"
+    "version": "v.81",
+    "hash": "f533481ce88f3305"
   },
   "js/11-own-assessment.js": {
     "version": "v.73",
