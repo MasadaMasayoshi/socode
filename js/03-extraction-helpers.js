@@ -1,7 +1,7 @@
 // Local record extraction. Preserve source wording, units, timestamps and admission context.
 // Headings supply context; narrative numbers are not automatically laboratory measurements.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.73'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.76'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -24,7 +24,8 @@
       ['ALP', '\\d+\\.?\\d*'], ['T-Bil', '\\d+\\.?\\d*'], ['血糖', '\\d+\\.?\\d*'], ['アミラーゼ', '\\d+\\.?\\d*'],
       ['D-Bil', '\\d+\\.?\\d*'], ['MCHC', '\\d+\\.?\\d*'], ['MCH', '\\d+\\.?\\d*'], ['MCV', '\\d+\\.?\\d*'],
       ['γ-GT', '\\d+\\.?\\d*'], ['AMY', '\\d+\\.?\\d*'], ['LD', '\\d+\\.?\\d*'], ['e-GFR', '\\d+\\.?\\d*'],
-      ['UN', '\\d+\\.?\\d*'], ['UA', '\\d+\\.?\\d*'], ['血小板', '\\d+\\.?\\d*']
+      ['UN', '\\d+\\.?\\d*'], ['UA', '\\d+\\.?\\d*'], ['血小板', '\\d+\\.?\\d*'],
+      ['LDH', '\\d+\\.?\\d*'], ['Ca', '\\d+\\.?\\d*'], ['好中球数', '\\d+[\\d,]*']
     ];
 
     const LAB_NUMBER_SOURCE = '\\d(?:[\\d,]*\\d)?(?:\\.\\d+)?';
@@ -54,6 +55,7 @@
       '呼吸数?\\s*\\d{1,3}\\s*回\\s*\\/\\s*分',
 
       '(?<![A-Za-z])BP\\s*\\d{2,3}\\/\\d{2,3}\\s*(?:mmHg)?',
+      '(?<![A-Za-z])P\\s*\\d+\\.?\\d*\\s*mg\\/dL',
       '(?<![A-Za-z])P\\s*\\d{2,3}\\s*回\\s*\\/\\s*分',
       '(?<![A-Za-z])R\\s*\\d{1,2}\\s*回\\s*\\/\\s*分',
       '(?<![A-Za-z])T\\s*\\d{2}(?:\\.\\d)?\\s*(?:℃|°C|°c|度(?:\\s*\\d\\s*分)?)',
@@ -71,6 +73,7 @@
       const lead = (m.match(/^[A-Za-z][A-Za-z\-]*/) || [''])[0];
       if (lead && lead.length <= 2 && /^[a-z]+$/.test(lead)) return false;
       if (LAB_COUNTER_WORD_AFTER_REGEX.test(String(afterText || ''))) return false;
+      if (/^\s*(?:mg|g|kcal)(?![A-Za-z\/])/.test(String(afterText || ''))) return false;
       if (/^(?:TP|PT)\s*\d{1,2}$/i.test(m.trim()) && !/^\s*(?:[.,]\d|%|秒|g\/)/.test(String(afterText || ''))) {
 
         if (!/\s/.test(m.trim())) return false;
@@ -372,6 +375,7 @@
       { pattern: /エリテマトーデス|\bSLE\b|膠原病|強皮症|皮膚筋炎|多発性筋炎|シェーグレン/, tagIds: [5, 7, 8] },
       { pattern: /関節リウマチ/, tagIds: [4, 5] },
       { pattern: /感染症|敗血症/, tagIds: [9] },
+      { pattern: /白血病|悪性リンパ腫|多発性骨髄腫|骨髄異形成/, tagIds: [1, 9] },
 
       { pattern: /胆石症|胆結石|胆嚢炎|胆管炎|膵炎/, tagIds: [2] },
 

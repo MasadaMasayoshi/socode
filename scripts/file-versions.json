@@ -1,15 +1,15 @@
 {
   "js/01-henderson-keywords.js": {
-    "version": "2026-10-12.usability-context28",
-    "hash": "74dc29632df48a45"
+    "version": "v.76",
+    "hash": "e3e656c4c92fd487"
   },
   "js/02-reference-data.js": {
     "version": "v.73",
     "hash": "094a721e0c50feda"
   },
   "js/03-extraction-helpers.js": {
-    "version": "v.73",
-    "hash": "3edf25ab2e62b3da"
+    "version": "v.76",
+    "hash": "89170062315de52a"
   },
   "js/04-server-sync.js": {
     "version": "2026-10-12.usability-context29",

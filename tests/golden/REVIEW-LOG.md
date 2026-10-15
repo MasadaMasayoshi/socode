@@ -17,3 +17,6 @@ Only the grouped lab cards changed (19 cards): one regular form per item, "name 
 
 ## 2026-10-15 (v.73) coagulation / platelet lab cards
 5 cards (患者34, 患者36, 胃がん_A氏58歳): PT%, APTT, D-dimer, PLT, PT changed 2.食事 → 9.環境. Intended: the notebook puts coagulation and platelet values under 9 (bleeding/safety) and not 2; `labCategoryTags` had still returned 2. Approved with `golden:update`.
+
+## 2026-10-15 (v.76) new cases 事例8–10
+Added three fictional cases (血液透析導入, パーキンソン病, 急性骨髄性白血病) as new golden cases; no existing case changed. Generic fixes found by them: lab names Ca / P(mg/dL) / LDH / 好中球数 are recognised; "K 1,500mg以下" (diet limit) is no longer read as a blood value; パーキンソン症状 words (筋固縮・振戦・すくみ足・小刻み歩行…) tag 4; 白血病・リンパ腫・骨髄腫 diagnosis hints tag 1,9.
