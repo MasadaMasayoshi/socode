@@ -1,0 +1,39 @@
+'use strict';
+// Knowledge-request file: person names never appear (whole labelled value incl. spaces and honorifics, also in items and
+// the original-record section); identity/metadata lines and lab-table vocabulary do not become topics.
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { loadApp } = require('./app-helpers');
+const app = loadApp();
+const build = text => {
+  const items = Array.from(app.classifyTextByRules(text)).map((i, k) => ({ ...i, id: `i${k}` }));
+  const cp = { title: 'T', items, sourceText: text, carePlans: {} };
+  const reqs = app.buildKnowledgeRequests(cp);
+  return { cp, reqs, out: app.knowledgeRequestText(cp, reqs) };
+};
+
+test('a spaced kana/kanji name with an honorific is masked everywhere, never becomes a topic', () => {
+  const src = '氏名 サンプル タロウ 様\nカルテNo. 12345\n男性\n40歳\n診断名: 糖尿病\n「タロウさんは甘い物が好き」と話す。\n山田 花子 様\n体温 37.8℃、倦怠感あり。';
+  const { reqs, out } = build(src);
+  ['サンプル', 'タロウ', '花子'].forEach(n => assert.ok(!out.includes(n), `${n} leaked`));
+  assert.ok(!reqs.some(r => /サンプル|タロウ|花子/.test(r.term)));
+  assert.match(out, /氏名: \(患者\)/);
+  assert.match(out, /男性/, 'sex words are not masked as names');
+});
+
+test('kanji family/given names separated by a space are masked as a whole', () => {
+  const { out } = build('名前 佐藤 次郎 さん\n40歳 男性\n発熱あり。');
+  assert.ok(!/佐藤|次郎/.test(out), out);
+});
+
+test('lab-table vocabulary, report metadata and decimals are not turned into topics or dates', () => {
+  const src = '1234567\nさくらクリニック\n担当医\n項目名 | 基準値 | 単位 | 結 果\n--- | --- | --- | ---\nHb | 13.6～18.3 | g/dL | Hb 15.9\n総 コ レ ス テ ロ ー ル | 150～219 | mg/dL | T-Cho\nビリルビン | (-) | | ビリルビン';
+  const { reqs, out } = build(src);
+  assert.equal(reqs.length, 0, reqs.map(r => r.term).join(','));
+  assert.ok(!/\(日付\)/.test(out), 'reference ranges are not dates');
+  assert.match(out, /13\.6/);
+});
+
+test('krTerms drops lab vocabulary and timing fragments', () => {
+  assert.deepEqual(Array.from(app.krTerms('白血球数 コレステロール 毎日飲 帰室時 心窩部')), ['心窩部']);
+});

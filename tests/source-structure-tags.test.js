@@ -30,7 +30,7 @@ test('Repeated course titles and detached headings never become patient findings
 });
 
 test('Allergy short values use the field label and export the correct source sentence', () => {
-  const source = '入院前\n既往歴:胆嚢結石で症状がない\nADL:全て自立 アレルギーはない。';
+  const source = '架空の記録\n入院前\n既往歴:胆嚢結石で症状がない\nADL:全て自立 アレルギーはない。';
   const allergy = cards(source).find(i => i.fieldLabel === 'アレルギー');
   assert.deepEqual(Array.from(allergy.hendersonIds), [9]);
   const legacy = { id: 'a', text: 'ない', fieldLabel: 'アレルギー', timestamp: '入院前', type: 'o', hendersonIds: [], predictionSource: 'rule' };

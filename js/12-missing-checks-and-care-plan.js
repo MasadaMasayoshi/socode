@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.71'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.73'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1742,18 +1742,46 @@
     }
     // Knowledge requests: the app inspects where its own rules fall short for this patient and asks the user for the missing medical knowledge.
     // Only medical terms are listed (never whole patient sentences, names or dates).
-    const KR_STOP = /^(?:患者|本人|状況|入院|退院|現在|以前|普段|最近|記録|様子|自分|家族|今日|昨日|明日|病院|病棟|看護師|医師|午前|午後|生活|仕事|必要|確認|予定|女性|男性)$/;
+    const KR_STOP = /^(?:患者|本人|状況|入院|退院|現在|以前|普段|最近|記録|様子|自分|家族|今日|昨日|明日|病院|病棟|看護師|医師|午前|午後|生活|仕事|必要|確認|予定|女性|男性|長女|次女|長男|次男|三男|三女|母親|父親|両親|息子|友達|友人|先生|一人|先週|今週|来週|夜中|自宅|学校|準備|大丈夫|返答|心配|希望|気分|笑顔|問題|完全|往復|回診|安静時|帰室時|外来|診療科|担当医|備考)$/;
+    // Fragments cut out of a verb/time phrase ("毎日飲", "分後") and timing words are not medical terms.
+    const KR_STOP_SHAPE = /^(?:毎日|毎回|毎朝|毎晩|先週|今週|来週|数日|何日|日内|分後|時間後|日後|週間)|(?:時|頃|ごろ)$/;
+    // Lab-table vocabulary (item names, table headings, units) is handled by the lab tools, not by knowledge requests.
+    const KR_LAB_VOCAB = /^(?:項目名|基準値|単位|結果|定性|定量|白血球|赤血球|血小板|血色素|網状赤血球|ヘマトクリット|ヘモグロビン|ダイマー|コレステロール|中性脂肪|ビリルビン|グロブリン|アルブミン|アミラーゼ|コリンエステラーゼ|ウロビリノーゲン|クレアチニン|ナトリウム|カリウム|クロール|カルシウム|マグネシウム|無機リン|フィブリノゲン|プロトロンビン|グルコース|尿素窒素|尿酸|総蛋白|蛋白定性|比重|潜血反応)(?:数|量|値)?$|(?:定性|定量|基準値|検査値|検査結果|検査センター)$/;
+    const KR_NON_DRUG = /^(?:ビール|ワイン|ウイスキー|焼酎|コーヒー|ジュース|コーラ|ミルク|ヨーグルト|アイス|ダイマー)$/;
+    const KR_HONORIFIC = '(?:様|さん|殿|氏)';
+    // Person names on a labelled line ("氏名 ヤマモト ヒカル 様") or a bare "family given 様" line: the whole value and each token.
+    function krNames(cp) {
+      const values = [];
+      const fromLine = l => {
+        const t = String(l || '').normalize('NFKC').trim();
+        const lab = t.match(/^(?:氏名|名前|患者名|お名前|ふりがな|フリガナ)\s*[:：]?\s*(.+)$/);
+        if (lab) { values.push(lab[1]); return; }
+        const bare = t.match(new RegExp(`^([^\\s\\d、。:：「」]{1,10}[\\s　][^\\s\\d、。:：「」]{1,10})\\s*${KR_HONORIFIC}$`));
+        if (bare) values.push(bare[1]);
+      };
+      String((cp && cp.sourceText) || '').split(/\r?\n/).forEach(fromLine);
+      ((cp && cp.items) || []).forEach(i => { if (i && i.text) { fromLine(i.text); if (/^氏名$/.test(i.fieldLabel || '')) values.push(String(i.text)); } });
+      const names = new Set();
+      values.forEach(v => {
+        const clean = String(v).normalize('NFKC').replace(new RegExp(`\\s*${KR_HONORIFIC}$`), '').trim();
+        if (clean.length >= 2) names.add(clean);
+        clean.split(/[\s　・]+/).forEach(tok => { if (tok.length >= 2) names.add(tok); });
+      });
+      return Array.from(names).sort((a, b) => b.length - a.length);
+    }
     function krTerms(text) {
-      return Array.from(new Set((String(text || '').normalize('NFKC').match(/[一-龥ァ-ヶー]{2,12}/g) || []).filter(t => !KR_STOP.test(t))));
+      return Array.from(new Set((String(text || '').normalize('NFKC').match(/[一-龥ァ-ヶー]{2,12}/g) || []).filter(t => !KR_STOP.test(t) && !KR_STOP_SHAPE.test(t) && !KR_LAB_VOCAB.test(t))));
     }
     // De-identified context so an AI answering the request can see how a term was used, without names or dates.
     function krDeidentify(text, cp, limit) {
       let t = String(text || '').normalize('NFKC');
-      const nameItem = ((cp && cp.items) || []).find(i => i && /^氏名$/.test(i.fieldLabel || ''));
-      const name = nameItem ? String(nameItem.text).normalize('NFKC').replace(/^氏名[:：]\s*/, '').trim() : '';
-      if (name.length >= 2) t = t.split(name).join('(患者)');
-      t = t.replace(/(^|[\s　:：])[一-龥]{2,4}(?=[\s　]*\d{1,3}\s*(?:歳|才))/g, '$1(患者)').replace(/(氏名|名前|患者名)[:：]?[\s　]*[一-龥ぁ-んァ-ヶ]{2,8}/g, '$1: (患者)');
-      return t.replace(/\d{2,4}[\/年.-]\d{1,2}(?:[\/月.-]\d{1,2}日?)?|\d{1,2}月\d{1,2}日|\d{1,2}\/\d{1,2}/g, '(日付)')
+      // Names: whole labelled value (family and given name with a space, honorific) and every name token, wherever they appear.
+      t = t.replace(new RegExp(`(氏名|名前|患者名|お名前|ふりがな|フリガナ)\\s*[:：]?[ \\t　]*[^\\n]*`, 'g'), '$1: (患者)');
+      krNames(cp).forEach(n => { t = t.split(n).join('(患者)'); });
+      t = t.replace(new RegExp(`\\(患者\\)(?:[ \\t　]*\\(患者\\))*[ \\t　]*${KR_HONORIFIC}?`, 'g'), '(患者)');
+      // A kanji name just before an age ("山田 26歳"); sex words are not names.
+      t = t.replace(/(^|[\s　:：])(?!男性|女性|男児|女児)[一-龥]{2,4}(?=[\s　]*\d{1,3}\s*(?:歳|才))/g, '$1(患者)');
+      return t.replace(/(?:19|20)\d{2}[\/年.-]\d{1,2}(?:[\/月.-]\d{1,2}日?)?|'?\d{2}\/\d{1,2}\/\d{1,2}|\d{1,2}月\d{1,2}日|\d{1,2}\/\d{1,2}/g, '(日付)')
         .replace(/[一-龥]{1,4}(?:さん|様|氏)/g, '(人物)').replace(/\d{2,4}-\d{2,4}-\d{3,4}/g, '(番号)').slice(0, limit || 160);
     }
     // The record as it was before classification, de-identified, so an outside AI can see the real context.
@@ -1780,13 +1808,13 @@
     }
     function buildKnowledgeRequests(cp) {
       const all = ((cp && cp.items) || []).filter(i => i && !i.deleted && i.text);
-      const items = all.filter(i => !(typeof isPatientIdentityLine === 'function' && isPatientIdentityLine(i.text)) && !/^(?:氏名|年齢|性別)$/.test(i.fieldLabel || ''));
+      const items = all.filter(i => !(typeof isPatientIdentityLine === 'function' && isPatientIdentityLine(i.text)) && !/^(?:氏名|年齢|性別)$/.test(i.fieldLabel || '') &&
+        !(typeof isReportMetadataLine === 'function' && isReportMetadataLine(i.text)) && !(typeof isBareHonorificName === 'function' && isBareHonorificName(i.text)));
       const reqs = [], byKey = new Map();
       const ctxOf = i => { const k = items.indexOf(i); return items.slice(Math.max(0, k - 1), k + 2).filter(x => x.type !== 'unnecessary').map(x => krDeidentify(x.text, cp)); };
-      const nameItem = all.find(i => /^氏名$/.test(i.fieldLabel || ''));
-      const pname = nameItem ? String(nameItem.text).normalize('NFKC').replace(/^氏名[:：]\s*/, '').trim() : '';
+      const pnames = krNames(cp);
       const add = (purpose, kind, term, question, context = []) => {
-        if (pname.length >= 2 && (term.includes(pname) || pname.includes(term))) return;
+        if (pnames.some(n => term.includes(n) || n.includes(term))) return;
         const key = `${kind}|${term}`;
         const cur = byKey.get(key);
         if (cur) { cur.count++; context.forEach(c => { if (cur.context.length < 3 && !cur.context.includes(c)) cur.context.push(c); }); return; }
@@ -1801,7 +1829,7 @@
           .forEach(t => add('tag', i.diseaseGeneral ? 'symptom' : 'term', t, `「${t}」は看護でどんな意味がありますか？ ヘンダーソンの14項目のどれに関係しますか（番号と理由）？ 観察すべき点も教えてください。`, ctxOf(i))));
       // Diagnoses: what the rules, care plan and relation map need to know about each one.
       const dxList = [];
-      items.filter(i => /^(?:診断|診断名|病名|既往歴)$/.test(i.fieldLabel || '')).forEach(i => String(i.text).normalize('NFKC').replace(/^[^:：]{1,6}[:：]\s*/, '').split(/[、,・\/]/).map(x => x.replace(/[()（）].*$/, '').trim()).filter(x => x.length >= 2 && x.length <= 20).forEach(d => dxList.push({ d, i })));
+      items.filter(i => /^(?:診断|診断名|病名|既往歴)$/.test(i.fieldLabel || '')).forEach(i => String(i.text).normalize('NFKC').replace(/^[^:：]{1,6}[:：]\s*/, '').split(/[、,・\/]/).map(x => x.replace(/[()（）].*$/, '').replace(/^\d{1,3}歳\s*/, '').trim()).filter(x => x.length >= 2 && x.length <= 20 && !/(?:なし|無し|ない|あり|中|ため|いる|ます|です)$/.test(x)).forEach(d => dxList.push({ d, i })));
       dxList.forEach(({ d, i }) => {
         const cov = krCoverage(d);
         if (cov.hints > 0 && cov.total <= KR_THIN) add('tag', 'thin-diagnosis', d, `「${d}」について登録済みの知識が少なめです（項目の目安 ${cov.hints}件・関連図の仕組み ${cov.bridges}件・症状の対応 ${cov.symptoms}件）。看護で注目する項目、典型的な症状・合併症・治療とその副作用、関連図でつなげる仕組みを補ってください。`, ctxOf(i));
@@ -1813,7 +1841,7 @@
         const found = typeof findDrugsInText === 'function' ? findDrugsInText(i.text) : [];
         found.forEach(({ drug, term }) => { if (mapText && !mapText.includes(term)) add('map', 'map-drug', term, `「${term}」（${drug.name || drug.id || '薬剤'}）の作用・主な副作用と、関連図・看護計画で観察すべきことを教えてください。`, ctxOf(i)); });
         (String(i.text).normalize('NFKC').match(/[ァ-ヶー]{3,12}(?=\s*(?:錠|カプセル|散|注|\d+(?:\.\d+)?\s*(?:mg|g|mL|μg|単位)))/g) || [])
-          .filter(t => !found.some(f => f.term.includes(t) || t.includes(f.term)))
+          .filter(t => !found.some(f => f.term.includes(t) || t.includes(f.term)) && !KR_NON_DRUG.test(t) && !KR_LAB_VOCAB.test(t) && !(typeof mentionsLabItemName === 'function' && mentionsLabItemName(i.text)))
           .forEach(t => add('map', 'drug', t, `薬剤「${t}」は何の薬ですか？ 作用・主な副作用・看護で観察することを教えてください。`, ctxOf(i)));
       });
       // Relation map: nursing problems whose reasoning chain is too short.
@@ -2551,7 +2579,7 @@ if (typeof module !== 'undefined' && module.exports) {
     carePlanInlineNotes, captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
     cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf, collapseVitalCards, collapseLabCards,
-    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
+    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, krTerms, krNames, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
     cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, carePlanSetReviewHtml, carePlanSetState, carePlanSetNextSteps
   });
 }

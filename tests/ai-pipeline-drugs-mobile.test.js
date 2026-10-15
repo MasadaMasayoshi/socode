@@ -1,5 +1,11 @@
 'use strict';
-
+// 利用者からの要望への対応の確認
+//  ・薬の情報（js/14）：記録の中の薬の名前（一般名・商品名）を見つけ、分類・観ること・添付文書へのリンクを出す
+//  ・ボタン1つで ①不足情報 → ②看護診断候補 → ③看護計画 → 看護計画タブへの取り込み まで進める
+//  ・APIキーが無いときは、取得のページと設定へ案内する
+//  ・スマホでは、印刷用のページを新しいタブで開いてPDFに保存できるようにする
+//  ・カードの「︙」を目立たせる、経時変化サマリーの名前を戻す
+//  ・子どもの記録では、脈拍・呼吸数を年齢の目安で見て、大人の基準値を書き足さない
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -20,9 +26,9 @@ test('薬の情報：一般名・商品名・書き方の揺れで見つけ、�
   assert.deepEqual(names('セファメジンα 1g 点滴'), ['セファゾリン']);
   assert.deepEqual(names('ワーファリンとアムロジピン'), ['ワルファリン', 'アムロジピン']);
   ['ベランダで洗濯物を干す', 'RBC 4.2', 'グランドゴルフが趣味', 'PCI後', 'PT 12.0秒'].forEach(t => assert.deepEqual(names(t), [], t));
-
+  // 1件ずつ、分類・使い道・観ることが書いてある
   app.DRUG_REFERENCE.forEach(d => { assert.ok(d.name && d.cls && d.use && d.watch, d.name); });
-
+  // 最新の添付文書を確かめるリンク（KEGG MEDICUS の薬の名前での検索）
   assert.equal(app.drugLabelSearchUrl(app.DRUG_REFERENCE.find(d => d.name === 'フロセミド')), 'https://www.kegg.jp/medicus-bin/search_drug?search_keyword=' + encodeURIComponent('フロセミド'));
   assert.match(html, /https:\/\/www\.pmda\.go\.jp\/PmdaSearch\/iyakuSearch\//);
 });
@@ -41,15 +47,36 @@ test('薬の情報：AIへの指示に記録の薬を添え、カードに「薬
   assert.match(html, /id="modal-drug-info"/);
 });
 
+test('The one-button AI pipeline to the care plan is retired (AI is image-OCR only)', () => {
+  assert.doesNotMatch(src, /runAiPipelineToCarePlan|evaluateMissingInfoAI|suggestNursingDiagnosesAI|generateCarePlanAI/);
+  assert.doesNotMatch(html, /runAiPipelineToCarePlan/);
+});
+test('API key guidance remains for the features that still use AI (photo transcription, AI classification option)', () => {
+  assert.match(html, /id="modal-api-required"/);
+  assert.match(html, /href="https:\/\/aistudio\.google\.com\/app\/apikey"/);
+  assert.match(html, /href="https:\/\/ai\.google\.dev\/gemini-api\/docs\/api-key\?hl=ja"/);
+  assert.match(src, /requireApiKey\('写真の文字起こし'/);
+  assert.match(src, /requireApiKey\('AIありで分類', \{ fallbackLabel: '記録を基に分類する' \}\)/);
+  // retired AI analysis features no longer ask for a key
+  ['検査値の評価', '不足情報の推定', 'S/O矛盾チェック', '看護診断候補', '看護計画の叩き台'].forEach(f =>
+    assert.ok(!src.includes(`requireApiKey('${f}'`), f));
+});
 test('スマホでは印刷用の文書を同じ画面の上に重ねて開き、「印刷・PDFに保存」のボタンと保存のしかたを出す', () => {
   assert.match(src, /function isMobilePrintTarget\(\)/);
-
+  // スマホは新しいタブ（blob）を開かず、同じ画面の上に文書を重ねて印刷する（ホーム画面のアプリ等で開けなかったため）
   assert.match(src, /if \(isMobilePrintTarget\(\)\) return showMobilePrintView\(html, options\);/);
   assert.doesNotMatch(src, /window\.open\(url, '_blank'\)/);
   assert.match(src, /html\.print-view-open body > \*:not\(#print-view\) \{ display: none !important; \}/);
   assert.match(src, /印刷・PDFに保存/);
   assert.match(src, /"ファイル"に保存/);
   assert.match(src, /PDFとして保存/);
+});
+
+test('カードの︙は枠と色で目立たせる。「経時変化サマリー」の名前で出す', () => {
+  assert.match(css, /\.card-menu-btn \{[^}]*background: var\(--accent-soft\);[^}]*border: 1px solid var\(--accent-line\)/);
+  // the summary name is kept for saved results in exports and the report list
+  assert.match(src, /key: 'timelineResult', label: '経時変化サマリー'/);
+  assert.doesNotMatch(src, /'経過のまとめ'/);
 });
 
 test('子どもの記録：年齢の区分を見分け（家族の年齢は読まない）、脈拍・呼吸数は子どもの目安で判定し、大人の基準値を書き足さない', () => {
@@ -73,4 +100,9 @@ test('子どもの記録：年齢の区分を見分け（家族の年齢は読�
   const kid = Array.from(app.classifyTextByRules('患児：K ちゃん 3歳 女児\n血液検査：WBC 12400/μL、CRP 4.8 mg/dL'), c => c.text);
   assert.ok(kid.includes('WBC 12400 /μL'), JSON.stringify(kid));
   assert.ok(kid.some(t => /^CRP 4\.8 mg\/dL \(基準値:/.test(t)), 'CRP は年齢で変わらないので書き足す');
+});
+
+test('AI wording rules stay available for parsing generated text; analysis prompts are retired', () => {
+  assert.match(src, /const AI_ACCURACY_RULES = '【正確さの決まり】記録に書かれていない事実/);
+  assert.doesNotMatch(src, /NANDA-I看護診断（日本語版）の正式な名称/);
 });

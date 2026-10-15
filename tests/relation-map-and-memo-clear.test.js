@@ -353,7 +353,7 @@ test('関連図の読みやすさ：文字14pxのゴシック体・作った直�
   assert.match(svg, /font-size="14"[^>]*fill="#1C1917"/);
   assert.match(svg, /font-family="[^"]*Noto Sans JP[^"]*sans-serif"/);
   assert.match(css, /\.rm-svg text, \.rm-svg tspan \{ font-family: 'Noto Sans JP'[^}]*sans-serif; \}/, 'ページ全体の明朝体より優先');
-  assert.match(src, /factor === 'fit' \? 0\.25 : 0\.9/, 'Automatic views keep at least 90% scale; explicit overview can fit the whole map');
+  assert.match(src, /factor === 'fit' \? 0\.25 : 1\.15/, 'Readable views keep at least 115% scale; explicit overview (fit) can shrink to the whole map');
   assert.match(html, /data-rm-action="zoom-100"/);
   assert.match(src, /m\.layoutStyle !== RM_LAYOUT_STYLE\) layoutRelationMap\(m\)/);
   const old = app.normalizeRelationMap({ version: 2, nodes: [{ id: 'a', type: 'symptom', label: 'x', x: 0, y: 0 }], edges: [] });
@@ -439,7 +439,8 @@ test('長文事例A（COPD急性増悪・細菌性肺炎・78歳）：気道閉�
   const obst = find(map, /末梢気道の閉塞/), co2 = find(map, /CO2の貯留/), paco2 = find(map, /PaCO2/);
   assert.ok(hasEdge(map, obst, co2) && paco2.attachTo === co2.id, 'PaCO2 は CO2貯留にくっつく');
   const st = find(map, /^ステロイド（プレドニゾロン30mg）/), hg = find(map, /ステロイドの副作用による高血糖/);
-  assert.ok(hasEdge(map, st, hg) && map.edges.some(e => e.source === st.id && e.relation === 'treats'), 'ステロイドは治療、副作用で高血糖');
+  // The side-effect chain now goes through an intermediate step (no jump arrow), so test reachability instead of a direct edge.
+  assert.ok(linked(map, st, hg) && map.edges.some(e => e.source === st.id && e.relation === 'treats'), 'ステロイドは治療、副作用で高血糖');
   assert.ok(['WBC', 'CRP'].every(k => find(map, new RegExp(k)).attachTo === find(map, /肺胞・気道の炎症/).id), '炎症の値は肺の炎症にくっつく');
   assert.ok(!map.nodes.some(n => /在宅酸素療法 安静時/.test(n.label) && n.type === 'symptom'), '既往の「安静時」を活動の制限にしない');
   assert.ok(linked(map, find(map, /呼吸に使うエネルギーの増加/), find(map, /^食事は息切れのため3割摂取/)));

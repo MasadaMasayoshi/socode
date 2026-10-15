@@ -1,5 +1,8 @@
 'use strict';
-
+// 利用者からの見直しの一覧への対応の確認
+//  ・文言（AIの注意書き・検査値の簡易チェック・モデルの表記・保存先と状態）
+//  ・通知（成功は短く消える／失敗は×を押すまで残る／入力の不足は注意）
+//  ・手直し（元に戻す・カードを分ける）、作業の流れ、AIの結果が別の患者の画面に出ない
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -21,10 +24,11 @@ test('文言：NotebookLM に問い合わせているような表示・性能や
   assert.match(src, /すべての項目を判定できるわけではありません/);
 });
 
-test('Retired AI results leave no warning panels; board help is reachable from its menu', () => {
-  assert.doesNotMatch(html, /class="ai-note"|id="ai-results"/);
-  assert.match(html, /<details id="lab-evaluation-panel"[\s\S]*?<summary>検査値の評価<\/summary>/);
-  assert.match(html, /<details id="board-actions"[\s\S]*?onclick="openHelp\('board'\)"/);
+test('文言：AIの結果の注意書きは1つの文にそろえ、詳しい説明はたたむ。カード操作の説明は短くし、詳しくは「操作方法」', () => {
+  // The AI result panels (and their collapsible notes) were retired with AI text analysis.
+  assert.equal((html.match(/<details class="ai-note"/g) || []).length, 0);
+  // The long card-operation sentence is gone from the page; the card's own title is short and details live in 操作方法.
+  assert.match(src, /title="選択（複数選択の追加\/解除。タップ操作のみで複数選択できます）"/);
   assert.doesNotMatch(html, /Ctrl\(⌘\)\+クリックで複数選択、またはカード左上/);
   assert.match(html, /id="modal-help"/);
   assert.match(html, /data-help-section="keys"/);
@@ -68,7 +72,7 @@ test('通知：成功は数秒で消える／失敗は×を押すまで残り、
   const err = container.children[container.children.length - 1];
   assert.ok(err.children.some(c => c.className === 'toast-close'), '×（閉じる）がある');
   assert.equal(err.attr_role, 'alert');
-
+  // 失敗の通知には、次にすることの行（detail）が付いている
   const failures = src.match(/showToast\(\[[^\]]*?できませんでした[^\]]*?\{ text: [^\]]+\], 'error'\)/g) || [];
   assert.ok(failures.length >= 10, `失敗の通知に次にすること（${failures.length}件）`);
   assert.doesNotMatch(src, /showToast\('(?:内容|名前|文章|キーワード)を入力してください', 'error'\)/, '入力の不足は error ではなく warn');
@@ -83,7 +87,7 @@ test('手直し：カードを分ける（1行目は元のカード・日時と�
   assert.deepEqual(clone(cp.items.map(i => [i.text, i.timestamp, i.hendersonIds])), [['疼痛NRS4。', '術後1日目', [9]], ['創部に発赤なし。', '術後1日目', [9]]]);
   assert.equal(cp.items[0].id, 'a');
   assert.equal(app.splitCardIntoParts(cp, 'a', ['1行だけ']), null, '1行だけでは分けない');
-  app.pushUndo('P', before, 'カードを分ける', cp);
+  app.pushUndo('P', before, 'カードを分ける', cp); // the patient is passed explicitly when it is not in the shared list
   const last = app.undoLast(cp);
   assert.equal(last.label, 'カードを分ける');
   assert.deepEqual(clone(cp.items.map(i => i.text)), ['疼痛NRS4。創部に発赤なし。']);
@@ -91,19 +95,23 @@ test('手直し：カードを分ける（1行目は元のカード・日時と�
   assert.equal(app.undoLast(cp), null);
 });
 
-test('作業の流れ：次に進む所に印（情報収集 → アセスメント → 看護計画 → 書き出し。記録を貼る・分類・手直しは「情報収集」に1つ）', () => {
+test('AI results: the retired analysis labels no longer use finishAiResult; the helper stays for the remaining result panels', () => {
+  assert.match(src, /function finishAiResult\(cp, applyToScreen, label\)/);
+  ['S/O矛盾チェック', '看護診断候補', '経時変化サマリー', '看護計画の叩き台', '不足情報の推定'].forEach(l =>
+    assert.doesNotMatch(src, new RegExp(`finishAiResult\\(cp, [\\s\\S]{0,120}'${l.replace('/', '\\/')}'\\)`), l));
+});
+
+test('作業の流れ：次に進む所に印（情報収集 → アセスメント → 看護計画 → 書き出し）', () => {
   const app = loadApp();
   const st = app.__testHooks.state();
   const cp = st.patients[0];
   cp.items = []; cp.sourceText = '';
   const cur = () => app.workflowStatus(cp).find(s => s.current).key;
-  assert.deepEqual(JSON.parse(JSON.stringify(app.workflowStatus(cp).map(s => s.label))), ['情報収集', 'アセスメント', '看護計画', '書き出し']);
-  assert.equal(cur(), 'collect');
-  cp.sourceText = '体温37.8℃';
+  assert.deepEqual(Array.from(app.workflowStatus(cp), s => s.key), ['collect', 'assess', 'plan', 'export']);
   assert.equal(cur(), 'collect');
   cp.items = [{ id: 'a', type: 'unclassified', text: '体温37.8℃', hendersonIds: [7] }];
-  assert.equal(cur(), 'collect');
-  assert.match(app.workflowStatus(cp).find(s => s.key === 'collect').note, /1枚・未分類1/);
+  assert.equal(cur(), 'collect', '未分類が残る間は情報収集');
+  assert.match(app.workflowStatus(cp).find(s => s.key === 'collect').note, /未分類1/);
   cp.items[0].type = 'o';
   assert.equal(cur(), 'assess');
   const e = app.ensureMyAssessment(cp, 7); e.interpretation = '発熱している'; app.linkMyEvidenceIds(cp, 7, ['a']); app.confirmMyAssessmentEntry(cp, 7);

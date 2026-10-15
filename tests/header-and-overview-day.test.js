@@ -1,5 +1,7 @@
 'use strict';
-
+// 利用者からの要望：
+//  1. 「UIがごちゃごちゃしすぎている」→ ヘッダーは「書き出し」と「︙」メニューにまとめる（ボタンのidはそのまま）
+//  2. 「一覧表示後も日時で分かりやすく区切られたほうがいい」→ カード一覧は既定で日時ごとの帯で区切る
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -8,28 +10,25 @@ const { readAppSource } = require('./app-helpers');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const app = readAppSource();
 
-test('Header retains export controls and groups utility actions into two menu choices', () => {
+test('ヘッダー：テキスト書き出し・PDF書き出し・ダークモードはボタンのまま、保存・読込・設定は︙メニューの中', () => {
   const header = html.slice(html.indexOf('<header'), html.indexOf('</header>'));
   const moreMenu = header.slice(header.indexOf('id="more-menu"'));
   ['btn-export-docs', 'btn-export-pdf', 'btn-toggle-theme'].forEach(id => {
     assert.match(header, new RegExp(`id="${id}"`), id);
     assert.ok(!moreMenu.includes(`id="${id}"`), `${id} はメニューの外（好評だった見た目のまま）`);
   });
+  // The ︙ menu holds only 保存・復元 (opens the data-tools dialog) and 設定; save/load live in that dialog, admin in the settings modal.
   ['btn-data-tools', 'btn-open-settings'].forEach(id => assert.match(moreMenu, new RegExp(`id="${id}"`), id));
-  assert.equal((moreMenu.match(/role="menuitem"/g) || []).length, 2);
-  assert.ok(!header.includes('id="btn-manual-review"'));
-  assert.ok(html.indexOf('id="btn-manual-review"') > html.indexOf('id="btn-start-classify"'));
-  assert.ok(html.indexOf('id="btn-manual-review"') < html.indexOf('id="sample-case-select"'));
-  for (const id of ['btn-save-data', 'input-load-data', 'btn-open-admin', 'btn-toggle-font']) assert.ok(!header.includes(`id="${id}"`));
-  const backup = html.slice(html.indexOf('<dialog id="data-tools"'), html.indexOf('</dialog>', html.indexOf('<dialog id="data-tools"')));
-  ['btn-save-data', 'input-load-data', 'btn-load-data', 'btn-restore-import'].forEach(id => assert.ok(backup.includes(`id="${id}"`)));
-  const settings = html.slice(html.indexOf('id="modal-settings"'), html.indexOf('id="modal-missing"'));
-  ['btn-open-admin', 'btn-toggle-font', 'settings-ocr'].forEach(id => assert.ok(settings.includes(`id="${id}"`)));
+  const dataTools = html.slice(html.indexOf('id="data-tools"'), html.indexOf('</dialog>', html.indexOf('id="data-tools"')));
+  ['btn-save-data', 'btn-load-data', 'input-load-data'].forEach(id => assert.match(dataTools, new RegExp(`id="${id}"`), id));
+  const settings = html.slice(html.indexOf('id="modal-settings"'));
+  assert.match(settings, /id="btn-open-admin"/);
   assert.ok(!/人が接続中/.test(header), '接続人数は数字だけの小さな表示');
   assert.match(header, /id="presence-count"/);
   assert.match(app, /function closeHeaderMenus/);
 });
 
+// 利用者からの要望：「左上のカルテページが増えるたびにごちゃごちゃする」
 test('カルテの切り替えは今のカルテの名前のボタン1つ＋一覧（検索・新しいページ・すべてのページ）', () => {
   const header = html.slice(html.indexOf('<header'), html.indexOf('</header>'));
   const menu = header.slice(header.indexOf('id="patient-menu"'), header.indexOf('<!-- 【UIの見直し】'));

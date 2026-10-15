@@ -14,3 +14,6 @@ Process: after any classification change run `npm run golden`, read each differe
 
 ## 2026-10-14 (v.52) lab-group card format
 Only the grouped lab cards changed (19 cards): one regular form per item, "name a→b unit（reference）", unit written once when shared, items separated by " ／ ", "（入院時のみ）" kept for single points. Values, units, references and card IDs are unchanged; the structured labRows used for abnormal-value detection are untouched.
+
+## 2026-10-15 (v.73) coagulation / platelet lab cards
+5 cards (患者34, 患者36, 胃がん_A氏58歳): PT%, APTT, D-dimer, PLT, PT changed 2.食事 → 9.環境. Intended: the notebook puts coagulation and platelet values under 9 (bleeding/safety) and not 2; `labCategoryTags` had still returned 2. Approved with `golden:update`.

@@ -1,5 +1,11 @@
 'use strict';
-
+// 利用者からの要望と、確認項目（繰り返し入力・キーボード操作・AIの途中でページを閉じたとき）への対応の確認
+//  ・分類ボードのカードの検査値にも、検査値の推移と同じ色分け（高い＝赤↑・低い＝青↓）を付ける
+//  ・分類ボードの並びは、分類の前も後も同じ（自動で入力欄を広げない）
+//  ・総合アセスメント表：自分のアセスメントは既定では挟まない／AIのボタンは1列、結果はタブで1つだけ
+//  ・記録に書かれた基準値は、値と同じカードに残す（アプリの基準値に置き換えない）
+//  ・「Day1（入院時）」「Day2」の見出しの下のカードに日を付ける
+//  ・AIの処理の途中でページを閉じたら、次に開いたときに知らせる
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -25,12 +31,12 @@ test('カードの検査値の色分け：検査値の推移の表と同じ判�
   const b = app.cardTextWithLabFlagsHtml(cp.items[1]);
   assert.match(b, /lt-low card-lab-flag[^>]*>134</);
   assert.doesNotMatch(b, /card-lab-flag[^>]*>4\.0/, 'Kは基準内なので色を付けない');
-
+  // 文の途中の値は表に入れないので、色も付けない。基準内の値にも付けない
   assert.doesNotMatch(app.cardTextWithLabFlagsHtml(cp.items[2]), /card-lab-flag/);
   assert.doesNotMatch(app.cardTextWithLabFlagsHtml(cp.items[3]), /card-lab-flag/);
-
+  // 文字は安全な形にする
   assert.equal(app.cardTextWithLabFlagsHtml({ id: 'zz', text: '<b>x</b>' }), '&lt;b&gt;x&lt;/b&gt;');
-
+  // 分類ボードと総合アセスメント表のカードで使う
   assert.match(src, /card-text[^`]*\$\{cardTextWithLabFlagsHtml\(item\)\}/);
   assert.equal((src.match(/\$\{cardTextWithLabFlagsHtml\(item\)\}/g) || []).length, 2);
 });
@@ -40,7 +46,7 @@ test('記録に書かれた基準値は値と同じカードに残し、アプ�
   const texts = s => Array.from(app.groupClinicalPhrasesWithTimestamps(s.normalize('NFKC')), i => i.text);
   assert.deepEqual(texts('WBC 12000/μL (基準値: 3300〜8600)'), ['WBC 12000/μL (基準値: 3300〜8600)']);
   assert.deepEqual(texts('Hb 11.8 g/dL（基準値：13.7-16.8）'), ['Hb 11.8 g/dL (基準値: 13.7-16.8)']);
-
+  // 基準値の書かれていない値には、これまでどおりアプリの基準値を付ける
   assert.deepEqual(texts('WBC 12000/μL'), ['WBC 12000 /μL (基準値: 4,000〜9,000 /μL)']);
 });
 
@@ -56,23 +62,30 @@ test('分類ボードの並びは分類の前も後も同じ（カードが無�
   assert.match(src, /function updateSourcePaneLayout\(\) \{[\s\S]*?const wide = sourcePaneManual === 'wide';[\s\S]*?view\.classList\.remove\('no-cards'\)/);
   assert.doesNotMatch(src, /sourcePaneManual = null; \/\/ 患者を切り替えたら/);
   assert.doesNotMatch(src, /sourcePaneManual = 'wide'; updateSourcePaneLayout\(\);/);
-
+  // Around the input: large photo drop frame, a single 「分類開始」 button (rules only; the AI/no-AI split was removed) and the sample button.
   assert.match(html, /記録メモ・検査結果写真をドラッグ＆ドロップ/);
-  assert.doesNotMatch(html, /AIなしで分類<\/button>/);
+  assert.match(html, /<i class="fa-solid fa-bolt"><\/i> 分類開始\s*<\/button>/);
   assert.match(html, /id="btn-load-sample"[^>]*>例文をセット</);
 });
 
-test('総合アセスメント表：自分のアセスメントは「表示／非表示」の2つ（既定は非表示。1行だけの形は無い）', () => {
+test('総合アセスメント表：自分のアセスメントは既定では表の各欲求の間に挟まず、1つの欲求のページでは1行だけ', () => {
   const app = loadApp();
   assert.equal(app.myAssessmentAlwaysShown(), false);
   assert.match(html, /id="btn-my-asm-show"[^>]*onclick="toggleMyAssessmentShown\(\)"/);
-  assert.match(html, /自分のアセスメント：<span class="my-asm-show-state">非表示<\/span>/);
   assert.match(src, /selectedNeed === 'all' && myAssessmentAlwaysShown\(\)/);
-  assert.match(src, /renderMyAssessmentRowHtml === 'function' && myAssessmentAlwaysShown\(\) \? `<div class="asm-own">\$\{renderMyAssessmentRowHtml\(cp, need, false\)\}/);
-  assert.match(src, /label\.textContent = myAsmAlwaysShown \? '表示' : '非表示'/);
+  // all-needs table: the row is added only when always-shown; single-need page: exactly one row of the selected need
+  assert.match(src, /renderMyAssessmentRowHtml\(cp, need, selectedNeed === 'all'\)/);
+  assert.match(src, /myAssessmentAlwaysShown\(\) \? `<div class="asm-own">\$\{renderMyAssessmentRowHtml\(cp, need, false\)\}<\/div>`/);
   assert.match(src, /localStorage\.setItem\('nursing_my_asm_show'/);
 });
 
+test('総合アセスメント表：AIの結果をタブで積み重ねる欄と、分析AIのボタンは無い。検査値の評価だけ残る', () => {
+  assert.doesNotMatch(html, /id="ai-tools-menu"|id="ai-results"|id="ai-results-tabs"/);
+  assert.match(html, /id="lab-evaluation-panel"/);
+  assert.ok(src.includes('evaluateLabValuesAI()'));
+  ['evaluateMissingInfoAI()', 'suggestNursingDiagnosesAI()', 'generateCarePlanAI()', 'checkContradictionsAI()', 'generateTimelineSummaryAI()', 'openAiReview()'].forEach(a => assert.ok(!src.includes(a), a));
+  assert.doesNotMatch(src, /function refreshAiResults|window\.showAiResult = function/);
+});
 test('AIの処理の途中でページを閉じたら、次に開いたときに知らせる（ほかのタブで実行中の新しい記録には触れない）', () => {
   const store = new Map();
   const localStorage = { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) };
@@ -91,7 +104,7 @@ test('AIの処理の途中でページを閉じたら、次に開いたときに
 test('キーボード：ボードを描き直しても、同じカードの同じ部品へフォーカスを戻す。︙メニューで移したカードへも戻す', () => {
   assert.match(src, /const focusBefore = captureBoardFocus\(\);/);
   assert.match(src, /restoreBoardFocus\(focusBefore\);/);
-
+  // （レビューの修正で、IDは属性用に変換して入れるようになった：escapeHtml(item.id)）
   assert.match(src, /class="card-menu-btn" data-card-id="\$\{(?:escapeHtml\()?item\.id\)?\}"/);
   assert.match(src, /if \(e\.detail === 0\) document\.getElementById\(id\)\?\.querySelector\('\.card-menu-btn'\)\?\.focus\(\);/);
 });

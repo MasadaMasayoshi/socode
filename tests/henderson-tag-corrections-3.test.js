@@ -1,4 +1,5 @@
 'use strict';
+// 利用者からのヘンダーソン14項目の分類の指摘（患者38）と、同じ記録で見つかった関連の不具合の回帰テスト。
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -12,6 +13,7 @@ test('1.呼吸：弾性ストッキング・フットポンプ（血栓予防）
   assert.deepEqual(tags('弾性ストッキング着用し、フットポンプ装着'), [9]);
 });
 
+// 改善点ファイル（患者36）で、脱臼予防は4.姿勢と9.安全の両方にした
 test('1.呼吸：外転枕（脱臼予防）は1ではなく4・9', () => {
   assert.deepEqual(tags('側臥位時は外転枕使用すること'), [4, 9]);
   assert.deepEqual(tags('両下肢のあいだに外転枕を挟んでいる'), [4, 9]);
@@ -31,19 +33,23 @@ test('2.食事：「体重をかける」（荷重）は2ではなく4・9', () 
   assert.ok(tags('体重 45kg').includes(2), '体格としての体重は引き続き2');
 });
 
-test('4.姿勢：ペインスケール「3」(安静時)は4にも9にもしない', () => {
+// Current criteria: pain is not 9.環境 and 「安静時」 (measurement condition) is not 4; an isolated pain-scale card gets no tag.
+test('4.姿勢：ペインスケール「3」(安静時)は4にも9にもならない（単独の疼痛カードはタグなし）', () => {
   assert.deepEqual(tags('ペインスケール「3」(安静時)'), []);
   assert.ok(tags('ベッド上安静').includes(4), '安静度の指示は引き続き4');
 });
 
-test('4.姿勢・7.体温：創部の発赤・熱感（局所の炎症所見）は9', () => {
-  assert.ok(!tags('創部 軽度腫脹と熱感あるが、発赤・出血・排膿なし').includes(9));
+// Current criteria: wound findings are not 9.環境; local inflammation findings are skin protection (8), not 4 or 7.
+test('4.姿勢・7.体温：創部の発赤・熱感（局所の炎症所見）は9にせず8（皮膚の保護）', () => {
+  assert.deepEqual(tags('創部 軽度腫脹と熱感あるが、発赤・出血・排膿なし'), [8]);
 });
 
 test('5.睡眠：「不安」は10、「不安定」（移乗のふらつき）は4だけ', () => {
   const a = tags('痛みや動くことへの不安が生じている。');
-  assert.ok(!a.includes(5) && a.includes(10) && !a.includes(9));
-
+  // pain is not 9.環境 in the current criteria; the movement-related worry is 4 and 10
+  assert.ok(!a.includes(5) && a.includes(10) && a.includes(4) && !a.includes(9));
+  // 「トイレ」は後の修正で3.排泄のキーワードになった（henderson-tag-corrections-4）。ここで確かめたいのは
+  // 「不安定」で10.コミュニケーションが付かないこと。
   assert.deepEqual(tags('トイレまで行き、移乗してみる。ゆっくり自力での移乗できるが、やや不安定。'), [3, 4]);
 });
 
@@ -69,7 +75,7 @@ test('「セファゾリンNa 1g」は検査値（Na）にならない。「血�
 test('「PTとともに訓練」（理学療法士）は凝固検査のPTにならない。「PT 12.0秒」は検査', () => {
   assert.ok(!tags('本日、PTとともにベッド上でSLR・足関節ROMの訓練実施。').includes(9));
   assert.ok(tags('本日、PTとともにベッド上でSLR・足関節ROMの訓練実施。').includes(4));
-  assert.deepEqual(Array.from(labCategoryTags('PT 12.0秒')), [2]);
+  assert.deepEqual(Array.from(labCategoryTags('PT 12.0秒')), [9]);
 });
 
 test('「、」で続く文の最後の「嘔気・嘔吐なし」「発赤・出血・排膿なし」は分割しない（「嘔気」「出血」だけが残ると意味が逆になる）', () => {
@@ -89,6 +95,6 @@ test('改行をまたぐ発言は1枚のカードになり、別の話題の発�
 });
 
 test('同じ話題の発言だけの行が続く場合はまとまる（回帰確認）', () => {
-  const c = cards(['術後', '「痛み止めって我慢できなくなってから使うものでしょう?」', '「痛みのため昨晩は眠れなかった」'].join('\n'));
-  assert.ok(c.filter(t => t.includes('痛み')).length <= 2, JSON.stringify(c));
+  const c = cards(['術後', '「痛みのため昨晩は眠れなかった」', '「夜中に何度も目が覚めた」'].join('\n'));
+  assert.equal(c.filter(t => t.includes('眠れなかった') || t.includes('目が覚めた')).length, 1, JSON.stringify(c));
 });

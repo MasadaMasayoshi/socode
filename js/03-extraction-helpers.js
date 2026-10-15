@@ -1,7 +1,7 @@
 // Local record extraction. Preserve source wording, units, timestamps and admission context.
 // Headings supply context; narrative numbers are not automatically laboratory measurements.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.55'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.73'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -21,14 +21,17 @@
 
       ['Ht', '\\d+\\.?\\d*'], ['PT', '\\d+\\.?\\d*'],
 
-      ['ALP', '\\d+\\.?\\d*'], ['T-Bil', '\\d+\\.?\\d*'], ['血糖', '\\d+\\.?\\d*'], ['アミラーゼ', '\\d+\\.?\\d*']
+      ['ALP', '\\d+\\.?\\d*'], ['T-Bil', '\\d+\\.?\\d*'], ['血糖', '\\d+\\.?\\d*'], ['アミラーゼ', '\\d+\\.?\\d*'],
+      ['D-Bil', '\\d+\\.?\\d*'], ['MCHC', '\\d+\\.?\\d*'], ['MCH', '\\d+\\.?\\d*'], ['MCV', '\\d+\\.?\\d*'],
+      ['γ-GT', '\\d+\\.?\\d*'], ['AMY', '\\d+\\.?\\d*'], ['LD', '\\d+\\.?\\d*'], ['e-GFR', '\\d+\\.?\\d*'],
+      ['UN', '\\d+\\.?\\d*'], ['UA', '\\d+\\.?\\d*'], ['血小板', '\\d+\\.?\\d*']
     ];
 
     const LAB_NUMBER_SOURCE = '\\d(?:[\\d,]*\\d)?(?:\\.\\d+)?';
     const LAB_UNIT_WORDS = ['mL/min/1.73m2', 'mL/分/1.73m2', '×10^6/μL', '×10^4/μL', '×10^3/μL', '×10^2/μL', '×10^4/uL', '×10^3/uL', 'x10^4/μL', 'x10^3/μL',
       '×10⁴/μL', '×10³/μL', '万/μL', '万/uL', '万/µL', '万/mm3', '万/mm³', '千/μL', '千/uL', '/μL', '/uL', '/µL', '/mm3', '/mm³',
       'μg/mL', 'ug/mL', 'µg/mL', 'μg/dL', 'ng/mL', 'pg/mL', 'mg/dL', 'mg/L', 'g/dL', 'g/L', 'mEq/L', 'mmol/L', 'μmol/L', 'umol/L', 'µmol/L',
-      'IU/L', 'U/L', 'fL', '%', '秒', '万', '/mL',
+      'IU/L', 'U/L', 'fL', 'pg', '%', '秒', '万', '/mL',
 
       '万/从L', '/从L', '万u/L', '万μ/L', 'mEa/L'];
     const LAB_UNIT_SOURCE = LAB_UNIT_WORDS.slice().sort((a, b) => b.length - a.length)
@@ -97,10 +100,10 @@
     const LAB_CATEGORY_TAG_RULES = [
 
       { tags: [1], regex: /(SpO2|SpO₂|SPO2|酸素飽和度|PaO2|PaCO2|呼吸数|呼吸\s*\d|血圧|脈拍|心拍|\bBNP\b|NT-proBNP|\bBP\s*\d|(?<![A-Za-z])[PR]\s*\d+\s*回|(?<![A-Za-z])(?:HR|PR|RR)\s*\d)/i },
-      { tags: [3], regex: /(\bCr(?:e)?\b|クレアチニン|\bBUN\b|尿素窒素|eGFR|尿酸|尿蛋白|尿糖|尿比重)/i },
+      { tags: [3], regex: /(\bCr(?:e)?\b|クレアチニン|\bBUN\b|\bUN\b|尿素窒素|e-?GFR|尿酸|\bUA\b|尿蛋白|尿糖|尿比重)/i },
       { tags: [7], regex: /(\bWBC\b|白血球|\bCRP\b|C反応性|体温|(?<![A-Za-z])B?T\s*\d{2})/i },
 
-      { tags: [2], regex: /(APTT|PT-INR|PT%|\bPT(?=\s*[\d%(（])|プロトロンビン|Dダイマー|D-ダイマー|\bFDP\b|フィブリノ|\bPLT\b|血小板)/i }
+      { tags: [9], regex: /(APTT|PT-INR|PT%|\bPT(?=\s*[\d%(（])|プロトロンビン|Dダイマー|D-ダイマー|\bFDP\b|フィブリノ|\bPLT\b|血小板)/i }
     ];
     function labCategoryTags(text) {
       if (typeof isLabTextUnreliable === 'function' && isLabTextUnreliable(text)) return [];
@@ -234,8 +237,28 @@
       const hasParen = /\([^)]*\)/.test(t);
       return items.length >= 3 || (items.length >= 2 && (hasParen || (t.match(/など/g) || []).length >= 2));
     }
+    // Report header/footer metadata (document ids, institution/department labels, collection/reception/report dates, signer, billing points).
+    function isReportMetadataLine(str) {
+      const t = String(str || '').normalize('NFKC').replace(/^[・･\s]+/, '').trim();
+      if (!t || t.length > 40) return false;
+      const LABELS = '担当医|主治医|依頼医|病棟|診療科|依頼科|依頼元|備考|外来|責任者|検査者|報告者|技師|カルテNo\\.?|受付No\\.?';
+      if (/^\d{5,}$/.test(t)) return true;
+      if (/^[^\s、。:：\d]{1,24}(?:クリニック|病院|医院|診療所|医師会|検査センター|医療センター|健診センター|研究所)$/.test(t)) return true;
+      if (new RegExp(`^(?:${LABELS})$`).test(t)) return true;
+      if (/^(?:カルテ|診察券|患者|受付|検体|依頼|整理|オーダー)\s*(?:No\.?|NO\.?|番号|ID)\s*[:：]?\s*\S.*$/i.test(t)) return true;
+      if (/^(?:採取|採血|受付|報告|依頼|発行|印刷|提出)日(?:時)?\s*[:：]?\s*\S*$/.test(t)) return true;
+      if (/^(?:診療科|病棟|担当医|主治医|依頼医|責任者|検査者|報告者|技師)\s*[:：]?\s+(?!(?:より|から|に|は|が|の|と|を|も))[^\s。、「」\d]{1,12}(?:\s[^\s。、「」\d]{1,12})?$/.test(t)) return true;
+      if (/^完了(?:\s*\d+)?$/.test(t)) return true;
+      if (/^[内外小児産婦人眼耳鼻咽喉皮膚泌尿器精神神経循環器消化器呼吸器整形脳形成放射線麻酔歯口腔]{1,8}科$/.test(t)) return true;
+      return /^[^\s、。:：]{2,24}\s*\d{1,4}点$/.test(t);
+    }
+    // "family given 様": a bare patient-name line from a report header.
+    function isBareHonorificName(str) {
+      return /^[^\s\d、。:：「」]{1,10}[\s　][^\s\d、。:：「」]{1,10}\s*(?:様|殿|さん)$/.test(String(str || '').normalize('NFKC').trim());
+    }
     function isSourceStructureText(str) {
       const t = String(str || '').normalize('NFKC').trim();
+      if (isReportMetadataLine(t)) return true;
       if (/^\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?$/.test(t)) return true;
       if (t.includes('|') && /項目/.test(t) && /基準値|正常・異常/.test(t) && !/\d/.test(t)) return true;
       if (/^\d+\s*期生\s+[^。:：]{0,60}(?:看護過程|援助技術)[^。:：]*$/.test(t)) return true;

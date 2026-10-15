@@ -12,6 +12,10 @@ for (const ex of examples) {
     const ids = new Set(cards.flatMap(c => Array.from(c.hendersonIds || [])));
     (ex.has || []).forEach(id => assert.ok(ids.has(id), `need ${id} missing`));
     (ex.not || []).forEach(id => assert.ok(!ids.has(id), `need ${id} must not be set`));
+    // Since v.59 a disease-description symptom list is split into one card per symptom, each flagged diseaseGeneral.
+    if (ex.diseaseGeneral) {
+      assert.ok(cards.length > 1 && cards.every(c => c.diseaseGeneral === true && c.type !== 'unnecessary'));
+    }
     if (typeof ex.unnecessary === 'boolean') {
       assert.equal(cards.every(c => c.type === 'unnecessary'), ex.unnecessary);
     }

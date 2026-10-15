@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.67'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.73'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1488,6 +1488,9 @@
 
     // ==========================================================================
     const LAB_VAL_KEY_REGEX_SOURCE = LAB_FIND_KEYS.map(escapeRegExp).join('|');
+    // Any lab name the app recognises (value-check dictionary, card-recognition keys, trend-table names), matched case-insensitively:
+    // a card with a known name and a unit is not "OCR-corrupted" just because it has no standard range of its own.
+    const LAB_ANY_KNOWN_KEY_REGEX = new RegExp(`(?<![A-Za-z])(?:${Array.from(new Set([...LAB_FIND_KEYS, ...LAB_KEY_NUM_PATTERNS.map(([k]) => k), ...LAB_TREND_EXTRA_KEYS])).sort((a, b) => b.length - a.length).map(escapeRegExp).join('|')})(?![A-Za-z])`, 'i');
     const LAB_VAL_START_REGEX = new RegExp(`^(?:【[^】]{0,12}】\\s*)?(${LAB_VAL_KEY_REGEX_SOURCE})(?![A-Za-z])\\s*(?:[(（{][^)）}]{0,16}[)）}])?\\s*[:：=]?\\s*([-+]?\\d[\\d,]*(?:\\.\\d+)?)\\s*([^\\s(（↑↓]*)\\s*([↑↓])?(.*)$`);
     const LAB_VAL_CHANGE_EXEMPT = ['CRP', 'BNP', 'Dダイマー'];
     const LAB_VAL_RELATED_NEEDS = { Hb: '1.呼吸（酸素の運搬）・4.姿勢（活動時のふらつき）', Ht: '1.呼吸（酸素の運搬）・4.姿勢', RBC: '1.呼吸（酸素の運搬）・4.姿勢', Alb: '2.食事（栄養状態）', TP: '2.食事（栄養状態）',
@@ -1513,7 +1516,7 @@
       if (!m) {
 
         const looksLab = /\d\s*(?:U\/L|mg\/dL|g\/dL|mEq\/L|\/[μu]L|×\s*10)/i.test(t);
-        const hasKnownKey = new RegExp(`(?<![A-Za-z])(?:${LAB_VAL_KEY_REGEX_SOURCE})(?![A-Za-z])`).test(t);
+        const hasKnownKey = LAB_ANY_KNOWN_KEY_REGEX.test(t);
         if (looksLab && !hasKnownKey) return { kind: 'broken', source: src, quality: 'corrupted', reasons: ['検査項目名または数値がOCRで崩れている可能性があります'], reasonKinds: ['broken'] };
         return null;
       }

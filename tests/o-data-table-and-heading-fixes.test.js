@@ -129,7 +129,9 @@ test('数字だけを「」で囲んだ評価値はOデータ、かな・漢字�
   assert.equal(predictSOTypeFromNarrative('疼痛: 安静時ペインスケール「2-3」'), 'o');
   assert.equal(predictSOTypeFromNarrative('疼痛: 「動かなかったら痛くないよ」'), 's');
   assert.ok(!detectMultipleHendersonTags('安静時ペインスケール「2-3」').includes(10), '数字だけの括弧で10(コミュニケーション)は付かない');
-  assert.ok(detectMultipleHendersonTags('「先生にお任せするしかない」').includes(10), '発言には引き続き10が付く');
+  // 10 now needs an explicit cue in the notebook (feeling, question, wish); a bare quotation no longer gets 10 by itself.
+  assert.ok(detectMultipleHendersonTags('「早く歩けるようになりたい」').includes(10), '願い・希望の発言には引き続き10が付く');
+  assert.ok(detectMultipleHendersonTags('「情けないわ」').includes(10), '気持ちの表出には引き続き10が付く');
 });
 
 test('「術後1日目より受け持つ。」は日時が剥がされず、学生の受け持ち開始の記述として不必要な情報になる（利用者からの報告事例）', () => {

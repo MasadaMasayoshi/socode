@@ -57,14 +57,14 @@
       "unnecessary": false
     },
     {
-      "rule": "generic symptom enumeration copied from a disease description is excluded",
+      "rule": "generic symptom enumeration copied from a disease description is split per symptom and marked diseaseGeneral",
       "text": "全身倦怠感、疲れやすい、体重減少など、脱毛、光線過敏症、心膜",
-      "unnecessary": true
+      "diseaseGeneral": true
     },
     {
       "rule": "generic enumeration with a parenthetical disease name",
       "text": "胸の痛み、動悸、息切れ、(胸膜炎、心外膜炎)など、神経",
-      "unnecessary": true
+      "diseaseGeneral": true
     },
     {
       "rule": "counter: patient-specific sentence is kept",
@@ -77,4 +77,4 @@
       "unnecessary": false
     }
   ]
-}
+}

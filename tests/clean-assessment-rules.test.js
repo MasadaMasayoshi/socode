@@ -29,9 +29,10 @@ test('Stable breathing is assessed from current findings; cessation alone does n
  assert.match(app.sufficiencySentence(cp,1,'preop'),/呼吸状態を保てている.*充足/);assert.doesNotMatch(app.sufficiencySentence(cp,1,'preop'),/満たされているため/);
 });
 test('Communication uses expressed concerns without treating anxiety as communication failure',()=>{
- assert.equal(app.sufficiencyCardVerdict(card('a','「手術っていろいろな合併症があるんだね。怖いね」と話す。',10,'手術前日',{type:'s'}),10).v,'met');
+ assert.equal(app.sufficiencyCardVerdict(card('a','「手術っていろいろな合併症があるんだね。怖いね」と話す。',10,'手術前日',{type:'s'}),10).v,'pending','voicing worry shows the person can express it: not unmet, but not enough to call met');
+ assert.equal(app.sufficiencyCardVerdict(card('a2','「早くリハビリを始めたいです」と話す。',10,'手術前日',{type:'s'}),10).v,'met');
  assert.equal(app.sufficiencyCardVerdict(card('b','説明が伝わらない。',10),10).v,'unmet');
- const cp=patient([card('c','「手術っていろいろな合併症があるんだね。怖いね」と話す。',10,'手術前日',{type:'s'})]);assert.match(app.sufficiencySentence(cp,10,'preop'),/「手術っていろいろな合併症があるんだね。怖いね」と話す。/);
+ const cp=patient([card('c','「手術っていろいろな合併症があるんだね。怖いね」と話す。',10,'手術前日',{type:'s'})]);assert.match(app.sufficiencySentence(cp,10,'preop'),/「手術っていろいろな合併症があるんだね。怖いね」と話す。.*判定保留/);
 });
 test('Existing sheet records are cleaned and deduplicated only within the same date and classification',()=>{
  const one=card('a','| WBC(白血球数) | | | 5880/μL | |',7,'入院1日目');
@@ -42,7 +43,7 @@ test('Existing sheet records are cleaned and deduplicated only within the same d
 test('Source headings place admission-day exams before surgery without guessing unrelated day numbers',()=>{
  const cp=patient([card('a','HCV 抗体(-)',9,'入院1日目'),card('b','「合併症があるんだね。怖いね」と話す。',10,'入院1日目',{type:'s'}),card('c','看護師から手術オリエンテーションを受ける。',14)]);
  cp.sourceText='＜実習1日目(入院1日目、手術前々日)＞\nHCV 抗体(-)';
- assert.match(app.sufficiencySentence(cp,9,'preop'),/HCV.*判定保留/);assert.match(app.sufficiencySentence(cp,10,'preop'),/思いや希望を伝えられている/);
+ assert.match(app.sufficiencySentence(cp,9,'preop'),/HCV.*判定保留/);assert.match(app.sufficiencySentence(cp,10,'preop'),/合併症があるんだね.*言葉にできている.*判定保留/);
  cp.sourceText='＜実習1日目(入院1日目)＞\nHCV 抗体(-)';assert.match(app.sufficiencySentence(cp,9,'preop'),/情報不足/);
 });
 test('Training difficulty and fear do not establish breathing failure or lack of knowledge',()=>{

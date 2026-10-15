@@ -69,8 +69,10 @@ test('test-explanation memos are excluded generally, results are kept', () => {
 test('generic symptom enumerations are not patient evidence; patient sentences are kept', () => {
   const app = loadApp();
   const un = t => app.classifyTextByRules(t).every(c => c.type === 'unnecessary');
-  assert.ok(un('全身倦怠感、疲れやすい、体重減少など、脱毛、光線過敏症、心膜'));
-  assert.ok(un('胸の痛み、動悸、息切れ、(胸膜炎、心外膜炎)など、神経'));
+  // Since v.59 a disease-description list is split per symptom; every card is flagged diseaseGeneral (not patient evidence).
+  const dg = t => { const c = Array.from(app.classifyTextByRules(t)); return c.length > 1 && c.every(x => x.diseaseGeneral === true); };
+  assert.ok(dg('全身倦怠感、疲れやすい、体重減少など、脱毛、光線過敏症、心膜'));
+  assert.ok(dg('胸の痛み、動悸、息切れ、(胸膜炎、心外膜炎)など、神経'));
   assert.ok(!un('疲労感が強く、最近は休みの日は寝て過ごしている、全身症状'));
   assert.ok(!un('頭痛、嘔気などあり'));
   assert.ok(!un('咳や痰などがみられる'));

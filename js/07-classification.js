@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.72'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.73'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -1144,15 +1144,64 @@
       }
       return out;
     }
+    // OCR'd report tables letter-space item names ("M C V", "白 血 球 数"): join single-character tokens back together.
+    function squeezeSpacedLabName(str) {
+      const toks = String(str || '').normalize('NFKC').trim().split(/\s+/).filter(Boolean);
+      let out = toks[0] || '';
+      for (let i = 1; i < toks.length; i++) out += (toks[i - 1].length === 1 || toks[i].length === 1 ? '' : ' ') + toks[i];
+      return out;
+    }
+    function labSexFromLines(lines) {
+      for (const l of lines) {
+        const m = String(l).normalize('NFKC').trim().match(/^(?:性別\s*[:：]?\s*)?(男性|女性)$|^\d{1,3}歳\s*(男性|女性)$/);
+        if (m) return (m[1] || m[2]) === '男性' ? 'M' : 'F';
+      }
+      return null;
+    }
+    // A reference like "M 83~101 F 80~101" is sex-specific: use the patient's range when the record states the sex, otherwise show both.
+    function labReferenceText(ref, sex) {
+      let t = String(ref || '').normalize('NFKC').replace(/\s+/g, ' ').trim().replace(/^参考値\s*[(（]\s*(.*?)\s*[)）]$/, '$1').replace(/[~～]/g, '〜').replace(/\s*〜\s*/g, '〜');
+      if (!t || /^[-ー－―‐]+$/.test(t)) return '';
+      const mf = t.match(/^M\s*(.+?)\s+F\s*(.+)$/);
+      if (mf) return sex === 'M' ? mf[1].trim() : sex === 'F' ? mf[2].trim() : `男性 ${mf[1].trim()}／女性 ${mf[2].trim()}`;
+      return t;
+    }
+    const LAB_STANDALONE_NUMBER_REGEX = /(?<![A-Za-z\d.])[<>]?\d[\d,]*(?:\.\d+)?(?![A-Za-z])/;
+    const LAB_TEMPLATE_MARK = '\u0004TPL\u0004';
     function normalizeMarkdownLabTables(lines) {
       const out = [];
       let header = null;
       let emittedHeader = false;
+      const seenValueRows = new Set();
+      const sex = labSexFromLines(lines);
       for (const original of lines) {
         const line = String(original).trim();
         if ((line.match(/\|/g) || []).length < 2) { header = null; emittedHeader = false; out.push(original); continue; }
         const cells = line.replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
         if (cells.every(c => !c || /^:?-{2,}:?$/.test(c))) { out.push(SOURCE_TITLE_MARK + line); continue; }
+        // Report layout: item | reference | unit | result. Only a row whose result cell holds a measured number is a finding;
+        // rows with a blank result or just an abbreviation echo are unfilled template rows.
+        const flat = cells.map(c => c.normalize('NFKC').replace(/\s+/g, ''));
+        if (/^(?:項目名?|検査項目名?|検査名)$/.test(flat[0]) && flat.some(c => /^結果$/.test(c)) && flat.some(c => /^基準値/.test(c))) {
+          header = cells; emittedHeader = false; out.push(SOURCE_TITLE_MARK + cells.join(' '));
+          header.reportLayout = { ref: flat.findIndex(c => /^基準値/.test(c)), unit: flat.findIndex(c => /^単位$/.test(c)), res: flat.findIndex(c => /^結果$/.test(c)) };
+          continue;
+        }
+        if (header && header.reportLayout) {
+          const lay = header.reportLayout;
+          const name = squeezeSpacedLabName(cells[0]);
+          if (!name || !cells.slice(1).some(Boolean)) continue;
+          const res = String(cells[lay.res] || '').normalize('NFKC').trim();
+          const num = res.match(LAB_STANDALONE_NUMBER_REGEX);
+          if (!num) { out.push(SOURCE_TITLE_MARK + LAB_TEMPLATE_MARK + cells.join(' ').replace(/\s+/g, ' ')); continue; }
+          const abbr = res.slice(0, num.index).trim() || name;
+          const arrow = (res.slice(num.index + num[0].length).match(/[↑↓]/) || [''])[0];
+          const unit = lay.unit >= 0 ? String(cells[lay.unit] || '').normalize('NFKC').replace(/\s+/g, '') : '';
+          const ref = labReferenceText(cells[lay.ref], sex);
+          const row = `${abbr} ${num[0]}${unit ? ` ${unit}` : ''}${arrow ? ` ${arrow}` : ''}${ref ? ` (基準値: ${ref})` : ''}`;
+          if (!seenValueRows.has(row)) { seenValueRows.add(row); out.push(row); }
+          continue;
+        }
         if (/^(?:項目|検査項目)$/.test(cells[0])) { header = cells; emittedHeader = false; out.push(SOURCE_TITLE_MARK + cells.join(' ')); continue; }
         const keep = header ? header.map((c, k) => k).filter(k => k === 0 || !/^(?:種類|正常・異常|正常|異常)$/.test(header[k])) : cells.map((c, k) => k);
         const values = keep.filter(k => k > 0 && cells[k]);
@@ -1688,7 +1737,9 @@
           continue;
         }
         if (cleanLine.startsWith(SOURCE_TITLE_MARK)) {
-          pushExtracted({ text: cleanExtractedPhrase(cleanLine.slice(SOURCE_TITLE_MARK.length)), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true });
+          const afterMark = cleanLine.slice(SOURCE_TITLE_MARK.length);
+          const isLabTemplate = afterMark.startsWith(LAB_TEMPLATE_MARK);
+          pushExtracted({ text: cleanExtractedPhrase(isLabTemplate ? afterMark.slice(LAB_TEMPLATE_MARK.length) : afterMark), timestamp: globalTimestamp, isUnnecessaryBoilerplate: true, ...(isLabTemplate ? { unnecessaryKind: 'lab-template' } : {}) });
           continue;
         }
 
@@ -1705,7 +1756,10 @@
           !/\d/.test(numberedChapterHeadingMatch[1].replace(/(?:術後|術前|入院|産褥)?\s*\d+\s*日目/g, ''));
         cleanLine = cleanLine.replace(/^(?:[・○●◯◎□■▪▫◆◇][\s　]*)+/, '');
 
+        const beforeSheetPrefix = cleanLine;
         cleanLine = cleanLine.replace(/^[SO]-\d+\s+(?=[\[【])/, '').replace(/^\[(?:未分類|入院前|入院後|不足情報)\]\s*(?=\[[SO]\])/, '').replace(/^\[[SO]\]\s+/, '');
+        // Re-imported sheet line: a leading background label in brackets ("[既往歴] 60歳 …") is the field label, so it stays pre-admission.
+        if (cleanLine !== beforeSheetPrefix) cleanLine = cleanLine.replace(/^\[(氏名|年齢|性別|既往歴|現病歴|生活歴|家族構成|家族関係|職業|診断名)\]\s*/, '$1: ');
         if (!cleanLine) continue;
 
         if (/^【\d+\.\s*[^】]{1,40}】/.test(cleanLine)) { globalTimestamp = '日時不明'; dayLabel = null; lastClockMin = null; admissionPhase = 'unknown'; }
@@ -2564,6 +2618,8 @@
         else if (/^[<＜]/.test(text) && extractDayLabelFromHeading(text)) { ruleId = 'source.date-heading'; reason = '実習日・入院日・手術時期の見出し。日時の整理に用い、患者の所見カードから除外。'; }
         else if (/^担当[:：]/.test(text)) { ruleId = 'source.course-staff'; reason = '直前の教材表題に続く担当者名で、患者の担当者や支援者を示す記録ではないため除外。'; }
         else if (isGenericSymptomList(text) || chunk.genericListRegion) { ruleId = 'source.generic-symptom-list'; reason = '疾患の一般的な症状の列挙で、この患者に認められた所見と確認できないため除外。本人の所見として別に記載されていれば、その記録を使う。'; }
+        else if (chunk.unnecessaryKind === 'lab-template') { ruleId = 'source.lab-template-row'; reason = '検査表の項目名・基準値・単位だけで測定値の無い行（未記入の様式の行）で、患者の所見ではないため除外。測定値のある行は別に検査値のカードにする。'; }
+        else if (isReportMetadataLine(text)) { ruleId = 'source.report-metadata'; reason = '検査・報告書の見出しや末尾の事務情報（書類番号・施設名・担当医や診療科などの欄名・採取/受付/報告日・責任者・点数）で、患者の所見ではないため除外。'; }
         else if (isTestExplanationMemo(text, true)) { ruleId = 'source.incomplete-explanation'; reason = '検査の説明途中の文章で、患者の検査結果は書かれていないため除外。結果が別に記載されていれば、その結果は残す。'; }
         else { ruleId = 'source.structure'; reason = '資料の表題・節見出し・表の項目名で、患者の所見や測定値を含まないため除外。配下の記録は別に分類。'; }
       } else if (chunk.diseaseGeneral) { ruleId = 'source.disease-general-info'; reason = '疾患の一般的な症状の列挙の1項目。内容でタグを付けるが、この患者に認められた所見とは確認できないため、充足判定・看護計画・診断の根拠には使わない。'; }
