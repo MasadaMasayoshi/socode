@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.83'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.85'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -442,6 +442,37 @@
       return v === 'met' || v === 'unmet' || v === 'conflict' ? v : 'unknown';
     }
 
+    // Scannable view of one judgement: a short summary line first, then grouped lists (確認済み / 不足 / 次に確認すること), and the full
+    // explanatory sentence under 「詳細」. It only re-presents the stored judgement (verdict, reason, evidence, need); nothing is decided here.
+    const SUF_VERDICT_ICON = { met: 'fa-circle-check', unmet: 'fa-triangle-exclamation', conflict: 'fa-scale-unbalanced', unknown: 'fa-circle-question' };
+    function sufficiencyGroupsHtml(cp, needId, phase, labelMap, fullHtml) {
+      const a = (ruleSufficiencyFor(cp)[needId] || {})[phase];
+      if (!a || !a.verdict) return '';
+      const v = phaseVerdictOf(cp, needId, phase);
+      const byId = new Map((cp.items || []).map(i => [i.id, i]));
+      const done = (a.evidence || []).slice(0, 3).map(id => {
+        const lb = (labelMap || {})[id]; if (!lb) return '';
+        const it = byId.get(id); if (!it) return lb;
+        const when = it.timestamp && it.timestamp !== '日時不明' ? `${it.timestamp}：` : '';
+        return `${lb}（${when}${cleanSheetRecordText(it.text).replace(/\s+/g, ' ').trim()}）`;
+      }).filter(Boolean);
+      const gaps = [], next = [];
+      const reason = String(a.reason || '').replace(/（.*$/, '').trim();
+      if (v === 'unmet') {
+        if (reason && !/^「/.test(reason)) gaps.push(reason);
+        if (needId !== 9 && SUFFICIENCY_RISKS[needId]) gaps.push(`起こりうる合併症：${SUFFICIENCY_RISKS[needId]}（確定ではなく、予防のための観察対象）`);
+      }
+      if (v === 'conflict') gaps.push(a.restriction ? `治療上の制限：${reason}` : '充足を示す記録と未充足を示す記録が並んでいる');
+      if (v === 'conflict') next.push(a.restriction ? '実際の自立度・介助の必要・症状を確認する' : 'どちらが現在の状態かを確認する');
+      if (v === 'unknown') next.push(a.need ? String(a.need) : '記録を追加して確認する');
+      if (a.needsConfirmation && reason && v !== 'unknown') next.push(reason);
+      const summary = v === 'met' ? '記録から、保たれていると判断' : v === 'unmet' ? '現在は十分に満たされていない状態と判断' : v === 'conflict' ? '記録が割れていて、決められない（判定保留）' : (next[0] || '記録が少なく判断できない');
+      const grp = (cls, icon, title, items) => items.length ? `<div class="suf-grp suf-grp-${cls}"><div class="suf-grp-title"><i class="fa-solid ${icon}"></i> ${title}</div><ul>${items.map(t => `<li>${escapeHtml(t)}</li>`).join('')}</ul></div>` : '';
+      return `<div class="suf-sumline suf-sumline-${v}"><i class="fa-solid ${SUF_VERDICT_ICON[v]}"></i> ${escapeHtml(summary)}</div>` +
+        grp('ok', 'fa-circle-check', '確認済み（根拠）', done) + grp('gap', 'fa-triangle-exclamation', '不足・気になる点', gaps) + grp('next', 'fa-list-check', '次に確認すること', next) +
+        `<details class="suf-detail"><summary>詳細</summary>${fullHtml}</details>`;
+    }
+
     function sufficiencyPhaseHtml(cp, needId, phaseKey) {
       if (!sufficiencyHasVerdict(cp, needId)) return '';
       const ph = sufficiencyUiPhases(cp).find(p => p.key === phaseKey);
@@ -454,7 +485,8 @@
 
       const head = `<span class="suf-phase-name">${ph.label}</span><span class="suf-badge suf-${v}"><i class="fa-solid ${icon}"></i> ${SUFFICIENCY_LABELS[v]}</span>`;
       const reason = sufficiencySentence(cp, needId, phaseKey, labels);
-      const why = `<div class="suf-phase-why"><span class="suf-reason-label">判定理由</span><p>${escapeHtml(reason)}</p>${ev ? `<div class="suf-ev"><span>根拠カード</span>${ev}</div>` : ''}</div>`;
+      const full = `<div class="suf-phase-why"><span class="suf-reason-label">判定理由</span><p>${escapeHtml(reason)}</p></div>`;
+      const why = `<div class="suf-body">${sufficiencyGroupsHtml(cp, needId, phaseKey, labels, full)}${ev ? `<div class="suf-ev"><span>根拠カード</span>${ev}</div>` : ''}</div>`;
       return `<section class="suf-phase-block suf-expanded suf-b-${v}" data-suf-phase="${phaseKey}"><div class="suf-phase-head">${head}</div>${why}</section>`;
     }
 
@@ -462,7 +494,7 @@
       if (!sufficiencyHasVerdict(cp, needId)) return '';
       const rows = sufficiencyUiPhases(cp).map(ph => {
         const v = phaseVerdictOf(cp, needId, ph.key);
-        return `<span class="suf-mini suf-mini-${v}"><span class="suf-mini-ph">${ph.label}</span><span class="suf-mini-v">${SUFFICIENCY_LABELS[v]}</span></span>`;
+        return `<span class="suf-mini suf-mini-${v}"><span class="suf-mini-ph">${ph.label}</span><span class="suf-mini-v"><i class="fa-solid ${SUF_VERDICT_ICON[v]}" aria-hidden="true"></i> ${SUFFICIENCY_LABELS[v]}</span></span>`;
       }).join('');
       return `<div class="suf-mini-wrap" aria-label="充足状況の一覧">${rows}</div>`;
     }
@@ -490,7 +522,7 @@
       const rows = sufficiencyUiPhases(cp).map(ph => {
         const v = phaseVerdictOf(cp, needId, ph.key);
         const icon = v === 'met' ? 'fa-circle-check' : v === 'unmet' ? 'fa-triangle-exclamation' : v === 'conflict' ? 'fa-scale-unbalanced' : 'fa-circle-question';
-        return `<div class="suf-hline suf-b-${v}"><span class="suf-line"><span class="suf-phase">${ph.label}</span><span class="suf-badge suf-${v}"><i class="fa-solid ${icon}"></i> ${SUFFICIENCY_LABELS[v]}</span></span><span class="suf-hwhy">${escapeHtml(sufficiencySentence(cp, needId, ph.key, labels)).replace(/([SO])-(\d+)（([^）]*)）/g, (m, t, n, rest) => `<span class="suf-cref suf-cref-${t}"><b>${t}-${n}</b>（${rest}）</span>`).replace(/(未充足|充足|情報不足|判定保留)。$/, '<b class="suf-end suf-end-$1">$1</b>。')}</span></div>`;
+        return `<div class="suf-hline suf-b-${v}"><span class="suf-line"><span class="suf-phase">${ph.label}</span><span class="suf-badge suf-${v}"><i class="fa-solid ${icon}"></i> ${SUFFICIENCY_LABELS[v]}</span></span><span class="suf-hbody">${sufficiencyGroupsHtml(cp, needId, ph.key, labels, `<span class="suf-hwhy">${escapeHtml(sufficiencySentence(cp, needId, ph.key, labels)).replace(/([SO])-(\d+)（([^）]*)）/g, (m, t, n, rest) => `<span class="suf-cref suf-cref-${t}"><b>${t}-${n}</b>（${rest}）</span>`).replace(/(未充足|充足|情報不足|判定保留)。$/, '<b class="suf-end suf-end-$1">$1</b>。')}</span>`)}</span></div>`;
       }).join('');
       return `<div class="suf-header" role="group" aria-label="充足・未充足">${rows}</div>`;
     }
