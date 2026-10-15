@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.94'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.95'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -933,11 +933,11 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       // Only patient names are masked; the sentences themselves must stay exactly as the app shows them (no normalisation).
       const names = typeof krNames === 'function' ? krNames(cp) : [];
       const mask = t => names.reduce((acc, n) => acc.split(n).join('(患者)'), String(t));
-      const lines = [], allUnknown = [];
+      const lines = [], allUnknown = [], unknownChecks = [];
       HENDERSON_NEEDS.forEach(need => {
         if (!sufficiencyHasVerdict(cp, need.id)) return;
         const missingItems = (cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && (i.hendersonIds || []).includes(need.id) && (i.assessmentCols || {})[need.id] === 'missing' && String(i.text || '').trim());
-        if (!missingItems.length && sufficiencyUiPhases(cp).every(ph => (typeof phaseVerdictOf === 'function' ? phaseVerdictOf(cp, need.id, ph.key) : '') === 'unknown')) { allUnknown.push(need.id); return; }
+        if (!missingItems.length && sufficiencyUiPhases(cp).every(ph => (typeof phaseVerdictOf === 'function' ? phaseVerdictOf(cp, need.id, ph.key) : '') === 'unknown')) { allUnknown.push(need.id); const kc = typeof sufficiencyKnowledgeChecks === 'function' ? sufficiencyKnowledgeChecks(cp, need.id) : []; if (kc.length) unknownChecks.push(`  ・${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}｜知識の利用：確認したい情報（${kc[0].label}）＝${kc[0].points.join('・')}`); return; }
         const labels = typeof myEvidenceLabels === 'function' ? myEvidenceLabels(cp, need.id) : {};
         const r = typeof ruleSufficiencyFor === 'function' ? (ruleSufficiencyFor(cp)[need.id] || {}) : {};
         lines.push(`  ■ ${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}`);
@@ -953,10 +953,12 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
             if (hint.length) lines.push(`      原因のヒント（参考）：${hint.join('／')}の不足の可能性`);
           }
           if (ph0.refStandard) lines.push(`      参考基準：${ph0.refStandard}`);
+          if (typeof sufficiencyKnowledgeLine === 'function') { const kl = sufficiencyKnowledgeLine(cp, need.id, ph.key); if (kl) lines.push(`      知識の利用：${mask(kl)}`); }
         });
         missingItems.forEach(i => lines.push(`    ・不足情報／確認したい情報：${mask(i.text)}`));
       });
       if (allUnknown.length) lines.push(`  ・記録がなく、すべての時期が情報不足の項目：${allUnknown.join('・')}`);
+      unknownChecks.forEach(l => lines.push(mask(l)));
       return lines.length ? '\n【アプリの充足状態の判定】項目ごと・時期ごとの現在の判定と理由（アプリの表示・書き出しと同じ文章）、根拠カード、不足情報（原文と比べて、判定の妥当性を評価してください。氏名は含めません）\n' + lines.join('\n') + '\n' : '';
     }
     function correctionRequestInstructionsText() {

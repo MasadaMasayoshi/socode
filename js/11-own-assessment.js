@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.94'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.95'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -462,7 +462,9 @@
       const head = `<span class="suf-phase-name">${ph.label}</span><span class="suf-badge suf-${v}"><i class="fa-solid ${icon}"></i> ${SUFFICIENCY_LABELS[v]}</span>`;
       const reason = sufficiencySentence(cp, needId, phaseKey, labels);
       const why = `<div class="suf-phase-why"><span class="suf-reason-label">判定理由</span><p>${escapeHtml(reason)}</p>${ev ? `<div class="suf-ev"><span>根拠カード</span>${ev}</div>` : ''}</div>`;
-      return `<section class="suf-phase-block suf-expanded suf-b-${v}" data-suf-phase="${phaseKey}"><div class="suf-phase-head">${head}</div>${why}</section>`;
+      const kl = sufficiencyKnowledgeLine(cp, needId, phaseKey);
+      const know = kl ? `<div class="suf-know"><span class="suf-reason-label">知識の利用</span><p>${escapeHtml(kl)}</p></div>` : '';
+      return `<section class="suf-phase-block suf-expanded suf-b-${v}" data-suf-phase="${phaseKey}"><div class="suf-phase-head">${head}</div>${why}${know}</section>`;
     }
 
     function sufficiencyMiniHtml(cp, needId) {
@@ -1242,15 +1244,153 @@
       if (a1c !== null && a1c >= 9 && a1c <= 20) [2, 14].forEach(n => out.push({ need: n, v: 'unmet', hit: (t.match(/HbA1c\s*(?:\(NGSP\))?\s*[:：=]?\s*\d{1,2}(?:\.\d+)?\s*%?/i) || [''])[0], ref: 'HbA1c 9%以上は血糖管理不良の目安。食事・自己管理（学習）の確認が必要（参考基準）' }));
       return out;
     }
+    // ===== v.95: registered knowledge made usable by the sufficiency judgment (参考資料 sources keep their own provenance labels) =====
+    // Context for rules that depend on the record as a whole (set by judgeSufficiencyByRules; children use the child vital ranges).
+    const SUF_CTX = { ageGroup: null };
+    // lab key -> needs it informs, the abnormal direction that is a problem, and whether the value is chronic/soft (may be compensated).
+    // HbA1c / Alb (v.91) and temperature / SpO2 / respiration (v.91, v.92) keep their explicit rules; this table adds the rest.
+    const SUF_LAB_NEEDS = {
+      Hb: { needs: [1], bad: 'low', soft: true }, Ht: { needs: [1], bad: 'low', soft: true }, RBC: { needs: [1], bad: 'low', soft: true },
+      WBC: { needs: [7, 9], bad: 'both' }, CRP: { needs: [7, 9], bad: 'high' }, Plt: { needs: [9], bad: 'low' },
+      BUN: { needs: [3], bad: 'high', soft: true }, Cre: { needs: [3], bad: 'high', soft: true }, Cr: { needs: [3], bad: 'high', soft: true },
+      Na: { needs: [2, 3], bad: 'both' }, K: { needs: [2, 3], bad: 'both' }, Cl: { needs: [2, 3], bad: 'both' },
+      BNP: { needs: [1, 4], bad: 'high' }, 'PT-INR': { needs: [9], bad: 'high' }, PT: { needs: [9], bad: 'high' }, 'Dダイマー': { needs: [4], bad: 'high' },
+      TP: { needs: [2], bad: 'low', soft: true }, AST: { needs: [2], bad: 'high', soft: true }, ALT: { needs: [2], bad: 'high', soft: true },
+      ALP: { needs: [2], bad: 'high', soft: true }, 'γGTP': { needs: [2], bad: 'high', soft: true }, 'T-Bil': { needs: [2], bad: 'high', soft: true },
+      'アミラーゼ': { needs: [2], bad: 'high', soft: true }, '血糖': { needs: [2], bad: 'both', soft: true }
+    };
+    const SUF_COMBO_NEEDS = { 'opioid-resp': [1], 'insulin-poor-intake': [2], 'epidural-anticoag-neuro': [4, 9], 'wound-infection': [7, 8], 'immobile-leg-swelling': [4, 9], 'pancreatic-jaundice-fever': [2, 7], 'dvt-sudden-dyspnea': [1], 'postop-immobile-leg': [4] };
+    const SUF_COMBO_LABEL = { 'opioid-resp': 'オピオイドと呼吸数低下・傾眠', 'insulin-poor-intake': 'インスリンと摂取不良', 'epidural-anticoag-neuro': '硬膜外抜去と抗凝固薬', 'wound-infection': '創部の発赤と熱感・膿・発熱', 'immobile-leg-swelling': '不動と片側下肢の腫脹', 'pancreatic-jaundice-fever': '黄疸と発熱', 'dvt-sudden-dyspnea': '突然の呼吸困難と下肢症状', 'postop-immobile-leg': '術後の不動と下肢症状' };
+    // Values need their name AND unit (labs) or name (vitals); a bare number is never parsed. Single source of bounds: LAB_STANDARDS / LAB_VITAL_DEFS / CHILD_VITAL_GUIDES.
+    function sufficiencyLabRules(text) {
+      const t = String(text || '').normalize('NFKC'), out = [];
+      const child = !!SUF_CTX.ageGroup;
+      if (typeof analyzeLabCard === 'function') String(t).split(/[、,，。\n]/).forEach(clause => {
+        const c = clause.trim(); if (!c) return;
+        let r = null; try { r = analyzeLabCard(c, null); } catch (e) { r = null; }
+        if (!r || r.kind !== 'lab' || r.quality !== 'valid' || !r.unitRaw) return;
+        const m = SUF_LAB_NEEDS[r.key]; if (!m) return;
+        if (child && !(typeof CHILD_SAFE_LAB_REFERENCE_KEYS !== 'undefined' && CHILD_SAFE_LAB_REFERENCE_KEYS.has(r.key))) return;
+        if (!['high', 'low', 'normal'].includes(r.status)) return;
+        const refText = r.ref ? String(r.ref.text || '') : '';
+        const ref = `${r.key}の基準（${refText}）${m.soft ? '・検査値（慢性）' : ''}（参考基準）`;
+        m.needs.forEach(need => {
+          if (r.status === 'normal') out.push({ need, v: 'met', hit: c, ref, supportOnly: true });
+          else out.push({ need, v: (m.bad === 'both' || m.bad === r.status) ? 'unmet' : 'partial', hit: c, ref });
+        });
+      });
+      // vitals (pulse, blood pressure); temperature / SpO2 / respiration are handled by the v.91 / v.92 rules
+      const pulse = typeof LAB_VITAL_DEFS !== 'undefined' ? LAB_VITAL_DEFS.find(d => d.key === '脈拍') : null;
+      const pm = pulse && t.match(pulse.regex);
+      if (pm) {
+        const v = Number(pm[1]), g = SUF_CTX.ageGroup && typeof CHILD_VITAL_GUIDES !== 'undefined' ? CHILD_VITAL_GUIDES[SUF_CTX.ageGroup] : null;
+        const lo = g ? g.pulse[0] : 60, hi = g ? g.pulse[1] : 100, ref = g ? `脈拍の基準（${g.label} ${lo}〜${hi}回/分）（参考基準）` : `脈拍の基準（${lo}〜${hi}回/分）（参考基準）`;
+        if (v >= 30 && v <= 220) [1, 4].forEach(need => {
+          if (v >= lo && v <= hi) out.push({ need, v: 'met', hit: pm[0].trim(), ref, supportOnly: true });
+          else if (!g && (v > 120 || v < 50)) out.push({ need, v: 'unmet', hit: pm[0].trim(), ref });
+          else out.push({ need, v: 'partial', hit: pm[0].trim(), ref });
+        });
+      }
+      const bp = !child && t.match(/(?:血圧|(?<![A-Za-z])BP)\s*[:：]?\s*(\d{2,3})\s*[\/／]\s*(\d{2,3})/);
+      if (bp) {
+        const s = Number(bp[1]), d = Number(bp[2]), hit = bp[0].trim(), ref = '血圧の基準（収縮期140未満かつ拡張期90未満。90未満または180以上は要対応）（参考基準）';
+        if (s >= 60 && s <= 260 && d >= 30 && d <= 160 && s > d) {
+          if (s < 90 || s >= 180 || d >= 110) [1, 4].forEach(need => out.push({ need, v: 'unmet', hit, ref }));
+          else if (s >= 140 || d >= 90) out.push({ need: 1, v: 'partial', hit, ref });
+          else [1, 4].forEach(need => out.push({ need, v: 'met', hit, ref, supportOnly: true }));
+        }
+      }
+      return out;
+    }
+    // Cross-card knowledge for one phase's cards: high-risk combinations (a risk is not an event: at most 判定保留) and recorded symptom words.
+    function sufficiencyListRules(list) {
+      const nz = x => String(x || '').normalize('NFKC');
+      const out = [];
+      if (typeof cpHighRiskCombos === 'function' && typeof CP_HIGH_RISK_COMBOS !== 'undefined') {
+        const text = list.map(i => nz(i.text)).join('\n');
+        cpHighRiskCombos(text).forEach(c => {
+          const def = CP_HIGH_RISK_COMBOS.find(x => x.key === c.key);
+          const ids = def ? list.filter(i => def.all.some(re => re.test(typeof cpStripNegated === 'function' ? cpStripNegated(i.text) : nz(i.text)))).slice(0, 3) : [];
+          (SUF_COMBO_NEEDS[c.key] || []).forEach(need => ids.forEach(i => out.push({ need, v: 'partial', hit: SUF_COMBO_LABEL[c.key] || c.key, ref: `高リスクの組合せ（参考）：${c.msg}`, id: i.id, risk: true })));
+        });
+      }
+      // symptom words recorded in a card but not tagged for the need they inform (DISEASE_SYMPTOM_NEEDS); never from disease-general cards (excluded earlier)
+      if (typeof DISEASE_SYMPTOM_NEEDS !== 'undefined') list.forEach(i => {
+        if (i.fieldLabel || i.diseaseGeneral) return;
+        const t = typeof cpStripNegated === 'function' ? cpStripNegated(i.text) : nz(i.text);
+        DISEASE_SYMPTOM_NEEDS.forEach(([re, ids]) => { const m = t.match(re); if (m) ids.forEach(need => { if (!(i.hendersonIds || []).includes(need)) out.push({ need, v: 'partial', hit: m[0], ref: '記録された症状と14項目の対応（参考）', id: i.id, fillOnly: true, tag: false, symptom: true }); }); });
+      });
+      return out;
+    }
+    // Reference lines only (never change a verdict): chains between recorded cards, triggered knowledge rows, combinations, standards.
+    function sufficiencyKnowledgeAttach(items, res, isPre, subOf) {
+      const nz = x => String(x || '').normalize('NFKC');
+      const lists = { post: items.filter(i => !isPre(i)), pre: items.filter(isPre) };
+      if (typeof subOf === 'function') { lists.preop = lists.post.filter(i => subOf(i) === 'pre'); lists.postop = lists.post.filter(i => ['post', 'op'].includes(subOf(i))); }
+      const chains = typeof RM_BRIDGE_RULES !== 'undefined' ? RM_BRIDGE_RULES : [];
+      Object.keys(lists).forEach(k => {
+        const list = lists[k]; if (!list.length) return;
+        const joined = list.map(i => nz(i.text)).join('\n');
+        HENDERSON_NEEDS.forEach(need => {
+          const r = res[need.id] && res[need.id][k]; if (!r) return;
+          const mine = list.filter(i => (i.hendersonIds || []).includes(need.id));
+          const know = { standards: [], rows: [], combos: [], chains: [] };
+          const add = (arr, s) => { if (s && !arr.includes(s) && arr.length < 3) arr.push(s); };
+          chains.forEach(rule => {
+            if (know.chains.length >= 3 || (rule.ctx && !rule.ctx.test(joined))) return;
+            const tm = mine.find(i => rule.t.test(nz(i.text)));
+            const sm = tm && list.find(i => i !== tm && rule.s.test(nz(i.text)));
+            if (sm) add(know.chains, `${(nz(sm.text).match(rule.s) || [''])[0]}→${rule.step}→${(nz(tm.text).match(rule.t) || [''])[0]}`);
+          });
+          const f = r.facts || {};
+          [...(f.against || []), ...(f.for || [])].forEach(x => { if (!x.ref) return; if (/^高リスクの組合せ/.test(x.ref)) add(know.combos, `${x.text}`); else add(know.standards, x.ref.replace(/（参考基準）$/, '')); });
+          if (r.refStandard) add(know.standards, String(r.refStandard).replace(/（参考基準）$/, ''));
+          if (typeof cpKnowledgeRowsFor === 'function') {
+            const byId = new Map(items.map(i => [i.id, i]));
+            (r.evidence || []).forEach(id => { const it = byId.get(id); if (it) cpKnowledgeRowsFor(it.text).forEach(row => add(know.rows, row.label)); });
+          }
+          if (know.standards.length || know.rows.length || know.combos.length || know.chains.length) r.knowledge = know;
+        });
+      });
+    }
+    // OP items of triggered knowledge rows that are not yet recorded, for the needs that are 情報不足 / 判定保留 (what to check; not part of the sentence).
+    const sufOpNeedCache = new Map();
+    function sufficiencyKnowledgeChecks(cp, needId) {
+      if (!cp || typeof CARE_PLAN_KNOWLEDGE === 'undefined') return [];
+      const recorded = (cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && !i.aiSuggested).map(i => String(i.text || '').normalize('NFKC')).join('\n');
+      if (!recorded) return [];
+      const out = [];
+      CARE_PLAN_KNOWLEDGE.forEach(row => {
+        if (out.length >= 3 || !row.re.test(recorded)) return;
+        const points = row.op.filter(([text, re]) => {
+          if (re.test(recorded)) return false;
+          if (!sufOpNeedCache.has(text)) sufOpNeedCache.set(text, typeof detectMultipleHendersonTags === 'function' ? Array.from(detectMultipleHendersonTags(text)) : []);
+          return sufOpNeedCache.get(text).includes(needId);
+        }).map(([text]) => text).slice(0, 3);
+        if (points.length) out.push({ label: row.label, points, source: (row.source || []).join('／') });
+      });
+      return out;
+    }
+    function sufficiencyKnowledgeLine(cp, needId, phase) {
+      const r = ruleSufficiencyFor(cp)[needId], a = r && r[phase];
+      if (!a || !a.verdict) return '';
+      const parts = [], k = a.knowledge || {};
+      if ((k.standards || []).length) parts.push(`基準＝${k.standards.join('・')}`);
+      if ((k.rows || []).length) parts.push(`知識の行＝${k.rows.join('・')}`);
+      if ((k.combos || []).length) parts.push(`高リスクの組合せ＝${k.combos.join('・')}`);
+      if ((k.chains || []).length) parts.push(`関連：${k.chains.join('／')}`);
+      if (a.verdict === 'unknown' || a.verdict === 'conflict') sufficiencyKnowledgeChecks(cp, needId).forEach(c => parts.push(`確認したい情報（${c.label}）＝${c.points.join('・')}`));
+      return parts.join('｜');
+    }
     // Value rules (not tag-gated) + per-need criteria (only on cards tagged for that need), evaluated together so supporting and problematic findings are weighed in one place.
-    function sufficiencyAllRules(text) { return [...(/[「」]/.test(String(text || '')) || SUF_NOT_CONFIRMED.test(String(text || '')) ? [] : [...sufficiencyScoreRules(text), ...sufficiencyScaleRules(text)]), ...sufficiencyPerNeedRules(text).map(x => ({ ...x, tag: true }))]; }
-    const SUF_SOFT_REF = /HbA1c|Alb|Hb低値|eGFR|BMI|体重減少/;
+    function sufficiencyAllRules(text) { return [...(/[「」]/.test(String(text || '')) || SUF_NOT_CONFIRMED.test(String(text || '')) ? [] : [...sufficiencyScoreRules(text), ...sufficiencyScaleRules(text), ...sufficiencyLabRules(text)]), ...sufficiencyPerNeedRules(text).map(x => ({ ...x, tag: true }))]; }
+    const SUF_SOFT_REF = /HbA1c|Alb|Hb低値|eGFR|BMI|体重減少|検査値（慢性）/;
     const SUF_COMPENSATE = /改善傾向|改善(?:して)?(?:いる|した|あり)|コントロール良好|管理良好|安定している|治療により|内服により|症状(?:は)?(?:なし|ない)|自覚症状(?:は)?(?:なし|ない)|無症状|問題なく|支障なし/;
     const sufNums = t => String(t || '').normalize('NFKC').match(/\d+(?:\.\d+)?/g) || [];
     // Same observation? (a compensating fact must be a different record/clause than the problem itself.)
     const sufSameFact = (a, b) => { const x = sufNums(a), y = sufNums(b); return (!!a && !!b && (String(a).includes(String(b)) || String(b).includes(String(a)))) || x.some(n => y.includes(n)); };
     // v.93: integrate the recorded value rules with the card-level findings of the same phase (supporting vs problematic).
-    function sufficiencyScoreOverrides(items, res, isPre, rulesFn, tagged, subOf) {
+    function sufficiencyScoreOverrides(items, res, isPre, rulesFn, tagged, subOf, listRulesFn) {
       const rulesOf = rulesFn || sufficiencyScoreRules;
       const okCard = i => tagged || !/[「」]/.test(String(i.text || ''));
       const post = items.filter(i => !isPre(i) && okCard(i));
@@ -1258,9 +1398,13 @@
       const apply = (list, phaseKeys) => {
         const byNeed = {};
         list.forEach(i => rulesOf(i.text).forEach(r => { if (r.v && (!r.tag || (i.hendersonIds || []).includes(r.need))) (byNeed[r.need] = byNeed[r.need] || []).push({ ...r, id: i.id }); }));
+        if (listRulesFn) listRulesFn(list).forEach(r => { if (r.v && res[r.need]) (byNeed[r.need] = byNeed[r.need] || []).push({ ...r }); });
         Object.keys(byNeed).forEach(n => {
           const r = res[n]; if (!r) return;
-          const rs = byNeed[n];
+          const cur0 = phaseKeys.map(k => r[k]).find(Boolean) || {};
+          const has0 = !!(cur0.verdict && cur0.verdict !== 'unknown');
+          const rs = byNeed[n].filter(x => !x.fillOnly || !has0);
+          if (!rs.length || (rs.every(x => x.supportOnly) && !has0)) return;
           const um = rs.filter(x => x.v === 'unmet'), mt = rs.filter(x => x.v === 'met'), pt = rs.filter(x => x.v === 'partial');
           const pick = um.length ? um : (!um.length && pt.length) ? pt : mt;
           let verdict = um.length ? 'unmet' : pt.length ? 'conflict' : 'met';
@@ -1468,6 +1612,7 @@
       const items = (cp.items || []).filter(i => i && !i.deleted && !i.aiSuggested && i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i) && !HISTORY_LABELS.includes(i.fieldLabel));
       const out = {};
       const surgical = isSurgicalPatient(cp);
+      SUF_CTX.ageGroup = typeof detectAgeGroupFromText === 'function' ? detectAgeGroupFromText([cp.sourceText || '', ...(cp.items || []).slice(0, 40).map(i => i && i.text)].join('\n')) : null;
       HENDERSON_NEEDS.forEach(need => {
         const mine = items.filter(i => !i.diseaseGeneral && (i.hendersonIds || []).includes(need.id));
         const colOf = i => (i.assessmentCols && i.assessmentCols[need.id]) || 'unclassified';
@@ -1506,7 +1651,8 @@
         out[need.id] = res;
       });
       try { sufficiencyStateOverrides(items, out, i => /^入院前/.test(String(i.timestamp || '')) || (Object.values(i.assessmentCols || {}).length > 0 && Object.values(i.assessmentCols).every(c => c === 'preadmission'))); } catch (e) { console.warn('Restriction check failed:', e); }
-      try { sufficiencyScoreOverrides(items, out, i => /^入院前/.test(String(i.timestamp || '')) || (Object.values(i.assessmentCols || {}).length > 0 && Object.values(i.assessmentCols).every(c => c === 'preadmission')), sufficiencyAllRules, true, surgical ? (i => surgPhaseOf(i, cp)) : null); } catch (err) { console.warn('score/per-need rules failed:', err); }
+      try { sufficiencyScoreOverrides(items, out, i => /^入院前/.test(String(i.timestamp || '')) || (Object.values(i.assessmentCols || {}).length > 0 && Object.values(i.assessmentCols).every(c => c === 'preadmission')), sufficiencyAllRules, true, surgical ? (i => surgPhaseOf(i, cp)) : null, sufficiencyListRules); } catch (err) { console.warn('score/per-need rules failed:', err); }
+      try { sufficiencyKnowledgeAttach(items, out, i => /^入院前/.test(String(i.timestamp || '')) || (Object.values(i.assessmentCols || {}).length > 0 && Object.values(i.assessmentCols).every(c => c === 'preadmission')), surgical ? (i => surgPhaseOf(i, cp)) : null); } catch (err) { console.warn('knowledge notes failed:', err); }
       // v.91: a 充足 verdict must rest on a recorded basis; without evidence it is 情報不足 (the need text is kept, only the verdict changes).
       Object.keys(out).forEach(n => Object.keys(out[n]).forEach(k => { const v = out[n][k]; if (v && v.verdict === 'met' && !(v.evidence || []).length) out[n][k] = { verdict: 'unknown', reason: '', evidence: [], need: v.need || '記録に基づく根拠がなく、満たされているか判断できない' }; }));
       return out;
@@ -1545,7 +1691,7 @@ if (typeof module !== 'undefined' && module.exports) {
     MY_ASSESSMENT_FIELDS,
     ensureMyAssessment, getMyAssessment, ruleSufficiencyFor, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
     myAssessmentStatus, myAssessmentNeedsReview, confirmMyAssessmentEntry, restoreMyAssessmentFromHistory,
-    hasRuleSufficiency, sufficiencyDimensions, sufficiencyDimensionLines, phaseVerdictOf, sufficiencyUiPhases, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyScoreRules, sufficiencyPerNeedRules, sufficiencyScaleRules, sufficiencyCauseHint, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, sufficiencyMiniHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
+    hasRuleSufficiency, sufficiencyDimensions, sufficiencyDimensionLines, phaseVerdictOf, sufficiencyUiPhases, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyScoreRules, sufficiencyPerNeedRules, sufficiencyScaleRules, sufficiencyLabRules, sufficiencyListRules, sufficiencyKnowledgeChecks, sufficiencyKnowledgeLine, SUF_LAB_NEEDS, SUF_COMBO_NEEDS, sufficiencyCauseHint, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, sufficiencyMiniHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
     renderMyAssessmentRowHtml, evidencePickerCandidates, myAssessmentAlwaysShown
   });
   if (module.exports.__testHooks) Object.assign(module.exports.__testHooks, { flushMyAssessmentSaves, saveMyAssessmentsSoon });

@@ -124,3 +124,17 @@
 | 基準ノート | `js/02`（改訂16） |
 | 事例の型 | `tests/sufficiency-per-need-v94.test.js` |
 | 信仰表明なし＝未充足、FICA点数、生活満足度・QOL点数、低体温の境界 | 採用せず／見送り（メモに理由） |
+
+## 11. 取りこぼし確認表（この回：未使用の知識を充足・未充足の判定に使えるようにする → v.95）
+
+使用状況は `node scripts/knowledge-usage.js` で確認できる（各知識の登録数と、判定が参照している数）。
+
+| 知識 | 使い方（`js/11`） |
+|---|---|
+| LAB_STANDARDS（26項目） | `sufficiencyLabRules` と `SUF_LAB_NEEDS`：名前と単位がある値を基準表で判定し、問題の所見／支える所見としてv.93の統合に渡す |
+| バイタルの基準・小児の基準 | 脈拍・血圧（成人）、小児は `CHILD_VITAL_GUIDES` の脈拍。急性の指標は補わない |
+| CARE_PLAN_KNOWLEDGE（56行） | `sufficiencyKnowledgeChecks`：当てはまる行のOPのうち未記録を「確認したい情報」に（文章の外）。行の名前は参考行にも出す |
+| CP_HIGH_RISK_COMBOS（8件） | `sufficiencyListRules`：関係する欲求を判定保留まで（リスクは出来事ではない） |
+| RM_BRIDGE_RULES（112件） | `sufficiencyKnowledgeAttach`：上流と下流の記録がそろったときの「関連」参考行のみ。判定は変えない |
+| DISEASE_SYMPTOM_NEEDS | 記録された症状の語だけ判定保留の手がかり（疾患一般カードは除外） |
+| DIAGNOSIS_TAG_HINTS／PAIN_EFFECT_RULES／基準ノート | 分類のタグ・計画のチェック用のまま（診断名だけでは判定しない）。基準ノートは改訂17に条件を記載 |
