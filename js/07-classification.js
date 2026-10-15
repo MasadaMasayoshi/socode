@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.71'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.72'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -2580,9 +2580,21 @@
     function clinicalCardDuplicateKey(text, timestamp) {
       return `${String(timestamp || '日時不明').normalize('NFKC').replace(/\s+/g, '')}\u0000${String(text || '').normalize('NFKC').replace(/\s+/g, '').replace(/[。．.]+$/, '')}`;
     }
+    // A card whose only manual edit was taking it out of 不必要 (no tag chosen, no 「タグ不要」, nothing typed) records a rejected exclusion,
+    // not a classification decision: the latest rules may add tags, and nothing is lost if the card cannot be matched again.
+    function isRejectedExclusionOnly(item) {
+      if (!item || item.deleted || item.tagNotNeeded || item.aiSuggested || (item.hendersonIds || []).length || item.type === 'unnecessary') return false;
+      const edits = (item.editLog || []).filter(e => e && e.kind !== 'create');
+      return edits.length > 0 && edits.every(e => e.kind === 'type' && e.from === 'unnecessary' && e.to !== 'unnecessary');
+    }
     function savedUntaggedProtection(item, cp) {
       if (item.deleted || item.type === 'unnecessary' || item.aiSuggested) return '更新対象外のカード';
       if (item.tagNotNeeded) return 'タグ不要の指定';
+      if (isRejectedExclusionOnly(item)) {
+        if (item.predictionSource && !['rule', 'learned', 'fuzzy', 'tied', 'confirmed'].includes(item.predictionSource)) return '分類経路の確認が必要';
+        const review = typeof untaggedReviewOf === 'function' ? untaggedReviewOf(cp, item) : null;
+        return review && ['none', 'accept', 'assign'].includes(review.decision) ? '了承済みのレビュー' : '';
+      }
       if ((item.editLog || []).length || item.predictionSource === 'confirmed') return '手で編集・確認した分類';
       if (item.predictionSource && !['rule', 'learned', 'fuzzy', 'tied'].includes(item.predictionSource)) return '分類経路の確認が必要';
       if (typeof untaggedReviewOf !== 'function' && Object.keys(cp?.untaggedReviews || {}).length) return 'レビューの読込待ち';
@@ -2675,6 +2687,7 @@
           (!Object.hasOwn(learned?.hendersonVotes || {}, id) || learned.hendersonVotes[id] > 0));
         if (!additions.length) return;
         item.hendersonIds = Array.from(new Set([...(item.hendersonIds || []), ...additions])).sort((a, b) => a - b);
+        if (isRejectedExclusionOnly({ ...item, hendersonIds: [] }) && item.type === 'unclassified' && (original.type === 'o' || original.type === 's')) item.type = original.type;
         item.patientBackground = null;
         item.assessmentCols = { ...(item.assessmentCols || {}) };
         item.hendersonIds.forEach(id => {
@@ -2817,7 +2830,7 @@
         if (answer === true) {
           const preserved = preservedUserCardsForClassification(cp.items, sourceCardsForRun);
           const keepIds = new Set(preserved.map(i => i.id));
-          const droppedManual = cp.items.filter(i => !keepIds.has(i.id) && !i.deleted && ((i.editLog || []).some(e => e && e.kind !== 'create') || i.predictionSource === 'confirmed' || i.tagNotNeeded));
+          const droppedManual = cp.items.filter(i => !keepIds.has(i.id) && !i.deleted && !isRejectedExclusionOnly(i) && ((i.editLog || []).some(e => e && e.kind !== 'create') || i.predictionSource === 'confirmed' || i.tagNotNeeded));
           if (droppedManual.length) {
             cp.droppedManualEdits = [...(cp.droppedManualEdits || []), ...droppedManual.map(i => ({ at: new Date().toISOString(), text: i.text, timestamp: i.timestamp, type: i.type, hendersonIds: (i.hendersonIds || []).slice(), tagNotNeeded: !!i.tagNotNeeded }))].slice(-60);
             if (typeof showToast === 'function') showToast(`原文の変更で引き継げなかった手動修正が${droppedManual.length}件あります（修正依頼に記録します）`);
