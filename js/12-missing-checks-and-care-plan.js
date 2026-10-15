@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.66'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.67'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1830,6 +1830,15 @@
       const dx = items.filter(i => /^(?:診断|診断名|病名)$/.test(i.fieldLabel || '')).map(i => String(i.text).replace(/^[^:：]{1,6}[:：]\s*/, '')).join('、');
       return `${age ? `${Math.floor(Number(age) / 10) * 10}代` : '年代不明'}${sex ? `・${sex}` : ''}${dx ? `／診断: ${dx}` : ''}`;
     }
+    // How much the app already knows about a term: tag hints, relation-map mechanisms and symptom-need rows that touch it. Very little is treated like nothing.
+    const KR_THIN = 2;
+    function krCoverage(term) {
+      const t = String(term || '').normalize('NFKC');
+      const hints = typeof DIAGNOSIS_TAG_HINTS !== 'undefined' ? DIAGNOSIS_TAG_HINTS.filter(h => h.pattern.test(t)).length : 0;
+      const bridges = typeof RM_BRIDGE_RULES !== 'undefined' ? RM_BRIDGE_RULES.filter(r => r.s.test(t) || r.t.test(t)).length : 0;
+      const symptoms = typeof DISEASE_SYMPTOM_NEEDS !== 'undefined' ? DISEASE_SYMPTOM_NEEDS.filter(([re]) => re.test(t)).length : 0;
+      return { hints, bridges, symptoms, total: hints + bridges + symptoms };
+    }
     function buildKnowledgeRequests(cp) {
       const all = ((cp && cp.items) || []).filter(i => i && !i.deleted && i.text);
       const items = all.filter(i => !(typeof isPatientIdentityLine === 'function' && isPatientIdentityLine(i.text)) && !/^(?:氏名|年齢|性別)$/.test(i.fieldLabel || ''));
@@ -1855,6 +1864,8 @@
       const dxList = [];
       items.filter(i => /^(?:診断|診断名|病名|既往歴)$/.test(i.fieldLabel || '')).forEach(i => String(i.text).normalize('NFKC').replace(/^[^:：]{1,6}[:：]\s*/, '').split(/[、,・\/]/).map(x => x.replace(/[()（）].*$/, '').trim()).filter(x => x.length >= 2 && x.length <= 20).forEach(d => dxList.push({ d, i })));
       dxList.forEach(({ d, i }) => {
+        const cov = krCoverage(d);
+        if (cov.hints > 0 && cov.total <= KR_THIN) add('tag', 'thin-diagnosis', d, `「${d}」について登録済みの知識が少なめです（項目の目安 ${cov.hints}件・関連図の仕組み ${cov.bridges}件・症状の対応 ${cov.symptoms}件）。看護で注目する項目、典型的な症状・合併症・治療とその副作用、関連図でつなげる仕組みを補ってください。`, ctxOf(i));
         if (!DIAGNOSIS_TAG_HINTS.some(h => h.pattern.test(d))) add('tag', 'diagnosis', d, `「${d}」で看護が注目する14項目（番号）と、よく見られる症状・検査所見を教えてください。`, ctxOf(i));
         if (mapText && !mapText.includes(d.slice(0, 4))) add('map', 'map-diagnosis', d, `関連図に「${d}」がありません。この疾患の病態（原因→体の変化→症状）と、起こりうる合併症・看護問題へのつながりを教えてください。`, ctxOf(i));
       });
@@ -1877,6 +1888,12 @@
           if (label && !plans.some(p => String(p.problem || '').includes(label.slice(0, 6)))) add('plan', 'plan-missing', label, `看護問題「${label}」の看護計画を立てるために、目標の目安と、OP（観察）・TP（援助）・EP（教育）の要点を教えてください。`, [krPatientSummary(cp)]);
         });
       }
+      if (cp && cp.relationMap && Array.isArray(cp.relationMap.nodes) && typeof RM_BRIDGE_RULES !== 'undefined') {
+        cp.relationMap.nodes.filter(n => n.type === 'nursing_problem').forEach(n => {
+          const label = String(n.label || '').trim();
+          if (label && RM_BRIDGE_RULES.filter(r => r.t.test(label)).length <= 1) add('map', 'thin-problem', label, `看護問題「${label}」につながる原因や途中の仕組みの知識が少なめです。原因→途中の変化→結果の流れと、関連図に足すべき要因（疾患・薬・生活）を教えてください。`, [krPatientSummary(cp)]);
+        });
+      }
       plans.forEach(p => {
         const empty = CARE_PLAN_SECTIONS.filter(sec => !(p[sec.key] || []).length).map(sec => sec.short);
         if (p.problem && empty.length) add('plan', 'plan-section', p.problem, `看護計画「${p.problem}」の ${empty.join('・')} が空です。この問題で一般的に行う内容と、その根拠を教えてください。`, [krPatientSummary(cp)]);
@@ -1884,18 +1901,35 @@
       const order = { tag: 0, plan: 1, map: 2 };
       return reqs.sort((a, b) => order[a.purpose] - order[b.purpose] || b.count - a.count).slice(0, 50);
     }
+    // One entry per term: several kinds of need for the same term are merged into a single compact line so the file stays short.
+    const KR_ASPECT = { term: '14項目のどれに関係するか（番号・理由）と観察点', symptom: '14項目のどれに関係するか（番号・理由）と観察点', diagnosis: '注目する14項目・典型症状・検査所見', 'thin-diagnosis': '登録済みの知識を補う：注目項目・合併症・治療と副作用', 'map-diagnosis': '病態（原因→体の変化→症状）・合併症・看護問題への流れ', 'map-drug': '作用・主な副作用・観察点', drug: '薬の種類・作用・主な副作用・観察点', mechanism: '原因→途中の変化→結果、患者で確認すべき情報', 'thin-problem': '原因→途中の変化→結果、関連図に足す要因', 'plan-missing': '目標の目安とOP・TP・EPの要点' };
+    function krAspect(r) {
+      if (r.kind === 'plan-section') { const m = /の ([OPTE・]+) が空/.exec(r.question); return `${m ? m[1] : ''}が空：一般的な内容と根拠`; }
+      return KR_ASPECT[r.kind] || '看護での意味と観察点';
+    }
     function knowledgeRequestText(cp, reqs) {
-      const label = { tag: 'タグ付け・分類に必要な知識', plan: '看護計画に落とし込むための知識', map: '関連図を広げるための知識' };
-      let out = `知識リクエスト：${cp && cp.title || ''}\n出力日時: ${new Date().toLocaleString('ja-JP')}\n患者の概要（個人を特定する情報は除いています）: ${krPatientSummary(cp)}\n`;
-      out += 'サイトのルールで判断できなかった点です。各質問の「元の記録」は、その語が使われた文脈です（氏名・日付は伏せています）。わかる範囲で答え、出典（教科書名など）を添えてください。答えをClaudeに渡すと、サイトのルールに組み込めます。\n';
+      const label = { tag: 'タグ付け・分類', plan: '看護計画', map: '関連図' };
+      const groups = new Map();
+      reqs.forEach(r => {
+        const g = groups.get(r.term) || { term: r.term, purpose: r.purpose, aspects: [], context: [], count: 0 };
+        if (({ tag: 0, plan: 1, map: 2 })[r.purpose] < ({ tag: 0, plan: 1, map: 2 })[g.purpose]) g.purpose = r.purpose;
+        const asp = krAspect(r);
+        if (!g.aspects.includes(asp)) g.aspects.push(asp);
+        r.context.forEach(c => { const short = c.slice(0, 70); if (g.context.length < 2 && !g.context.includes(short)) g.context.push(short); });
+        g.count += r.count;
+        groups.set(r.term, g);
+      });
+      let out = `知識リクエスト：${cp && cp.title || ''}（${new Date().toLocaleDateString('ja-JP')}）\n患者の概要（個人情報なし）: ${krPatientSummary(cp)}\n`;
+      out += '各項目に回答と出典を書いてください。「記録」は語が使われた文脈です（氏名・日付は伏せています）。\n';
+      let n = 0;
       Object.keys(label).forEach(k => {
-        const list = reqs.filter(r => r.purpose === k);
+        const list = Array.from(groups.values()).filter(g => g.purpose === k).slice(0, 30);
         if (!list.length) return;
         out += `\n【${label[k]}】\n`;
-        list.forEach((r, n) => {
-          out += `${n + 1}. ${r.question}${r.count > 1 ? `（${r.count}か所で出現）` : ''}\n`;
-          if (r.context.length) out += `   元の記録:\n${r.context.map(c => `     ・${c}`).join('\n')}\n`;
-          out += '   回答：\n   出典：\n';
+        list.forEach(g => {
+          out += `${++n}. 「${g.term}」${g.count > 1 ? `（${g.count}か所）` : ''}：${g.aspects.join(' ／ ')}\n`;
+          if (g.context.length) out += `   記録: ${g.context.join(' | ')}\n`;
+          out += '   回答： 出典：\n';
         });
       });
       return out;

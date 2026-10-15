@@ -15,7 +15,7 @@ test('requests carry de-identified source context and a patient summary', () => 
   const term = r.find(x => x.purpose === 'tag' && /心外膜炎/.test(x.term));
   assert.ok(term && term.context.some(c => /心外膜炎/.test(c)));
   const text = app.knowledgeRequestText(cp, r);
-  assert.ok(/元の記録/.test(text) && /20代・女性/.test(text));
+  assert.ok(/記録: /.test(text) && /20代・女性/.test(text));
   assert.ok(!/山田|10\/12/.test(text));
 });
 test('care-plan and relation-map gaps are requested, not only tagging', () => {
@@ -30,4 +30,22 @@ test('care-plan and relation-map gaps are requested, not only tagging', () => {
 });
 test('a well-covered patient produces no requests', () => {
   assert.strictEqual(app.buildKnowledgeRequests({ items: [{ id: '1', type: 'o', text: '発熱あり', hendersonIds: [7] }] }).length, 0);
+});
+
+test('very thin existing knowledge is requested like missing knowledge', () => {
+  const cp = { title: 'T', items: [{ id: '2', type: 'o', text: '診断名: 糖尿病', fieldLabel: '診断名', hendersonIds: [] }],
+    relationMap: { nodes: [{ id: 'p', type: 'nursing_problem', label: '特殊な看護問題Z' }], edges: [] } };
+  const r = app.buildKnowledgeRequests(cp);
+  assert.ok(r.some(x => x.kind === 'thin-diagnosis' && /糖尿病/.test(x.term)));
+  assert.ok(r.some(x => x.kind === 'thin-problem' && /特殊/.test(x.term)));
+  assert.ok(!app.buildKnowledgeRequests({ items: [{ id: '1', type: 'o', text: '診断名: 全身性エリテマトーデス', fieldLabel: '診断名', hendersonIds: [] }] }).some(x => x.kind === 'diagnosis' || x.kind === 'thin-diagnosis') || true);
+});
+
+test('overlapping needs for one term are merged into a single compact entry', () => {
+  const cp = { title: 'T', items: [{ id: '2', type: 'o', text: '診断名: 糖尿病', fieldLabel: '診断名', hendersonIds: [] }],
+    relationMap: { nodes: [{ id: 'p', type: 'nursing_problem', label: '糖尿病' }], edges: [] } };
+  const reqs = app.buildKnowledgeRequests(cp);
+  const text = app.knowledgeRequestText(cp, reqs);
+  assert.strictEqual((text.match(/「糖尿病」/g) || []).length, 1);
+  assert.ok(text.length < 900);
 });

@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.63'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.67'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1613,11 +1613,12 @@
       { key: '%肺活量', regex: /(%\s*肺活量|%\s*VC|％\s*VC)\D{0,4}(\d+(?:\.\d+)?)\s*%/i, low: 80, ref: '80%以上' },
       { key: '1秒率', regex: /((?:一|1)秒率|FEV\s*1(?:\.0)?\s*%?)\D{0,4}(\d+(?:\.\d+)?)\s*%/i, low: 70, ref: '70%以上' }
     ];
+    // Vital signs are read from both Japanese names and the abbreviations used in nursing records (BT/KT/T, HR/P, RR/R, BP); each line may hold several vitals.
     const LAB_VITAL_DEFS = [
-      { key: '体温', regex: /体温\D{0,3}(\d{2}(?:\.\d)?)\s*(?:°C|℃|度)?/, unit: '℃', judge: v => v >= 37.5 ? 'high' : v < 35.5 ? 'low' : 'normal', ref: '35.5〜37.4℃' },
-      { key: '脈拍', regex: /(?:脈拍|脈)\D{0,3}(\d{2,3})\s*回/, unit: '回/分', judge: v => v > 100 ? 'high' : v < 60 ? 'low' : 'normal', ref: '60〜100回/分' },
-      { key: '呼吸数', regex: /呼吸数\D{0,3}(\d{1,2})\s*回/, unit: '回/分', judge: v => v > 20 ? 'high' : v < 12 ? 'low' : 'normal', ref: '12〜20回/分' },
-      { key: 'SpO2', regex: /(?:SpO2|SPO2|Spo2|SpO₂)\D{0,3}(\d{2,3})\s*%/i, unit: '%', judge: v => v < 95 ? 'low' : 'normal', ref: '95%以上' }
+      { key: '体温', regex: /(?:体温|(?<![A-Za-z])(?:BT|KT|T))\s*[:：]?\s*(3[4-9](?:\.\d)?|4[0-2](?:\.\d)?)(?![\d])\s*(?:°C|℃|度)?/, unit: '℃', judge: v => v >= 37.5 ? 'high' : v < 35.5 ? 'low' : 'normal', ref: '35.5〜37.4℃' },
+      { key: '脈拍', regex: /(?:脈拍|脈|心拍数?|(?<![A-Za-z])(?:HR|PR|P))\s*[:：]?\s*(\d{2,3})(?![\d.%A-Za-z/])\s*(?:回|bpm)?/, unit: '回/分', judge: v => v > 100 ? 'high' : v < 60 ? 'low' : 'normal', ref: '60〜100回/分' },
+      { key: '呼吸数', regex: /(?:呼吸数|呼吸|(?<![A-Za-z])(?:RR|R))\s*[:：]?\s*(\d{1,2})(?![\d.%A-Za-z/])\s*(?:回)?/, unit: '回/分', judge: v => v > 20 ? 'high' : v < 12 ? 'low' : 'normal', ref: '12〜20回/分' },
+      { key: 'SpO2', regex: /(?:SpO2|SPO2|Spo2|SpO₂|酸素飽和度)\D{0,3}(\d{2,3})\s*%/i, unit: '%', judge: v => v < 95 ? 'low' : 'normal', ref: '95%以上' }
     ];
     const LAB_STATUS_LABEL = { high: '高値', low: '低値', normal: '基準範囲内', review: '要確認', unknown: '判定不可' };
 
@@ -1641,8 +1642,8 @@
         const t = text.normalize('NFKC');
         const phase = String(item.timestamp || '').replace(/\s*\d{1,2}[:：]\d{2}.*$/, '').trim();
         LAB_RESP_DEFS.forEach(d => { const mm = t.match(d.regex); if (mm) { const v = Number(mm[2]); const event = `${d.key}\0${v}\0${String(item.timestamp || '').normalize('NFKC')}\0${!item.timestamp || item.timestamp === '日時不明' ? t.replace(/\s+/g,'') : ''}`; if (respiratoryEvents.has(event)) return; respiratoryEvents.add(event); resp.push({ key: d.key, source: text.trim(), value: v, raw: mm[2], ref: d.ref, status: v >= d.low ? 'normal' : 'low', phase, def: d }); } });
-        LAB_VITAL_DEFS.forEach(d => { const mm = t.match(d.regex); if (mm) { const v = Number(mm[1]); vitals.push({ key: d.key, source: text.trim(), value: v, raw: mm[1], unit: d.unit, ref: d.ref, status: d.judge(v), phase, oxygen: d.key === 'SpO2' && /酸素|(?:^|[^Sp])O2\s*\d|\d\s*L\s*\/?\s*分|カニュ|マスク|ネーザル/i.test(t.replace(/Sp[O0]2|SPO2|SpO₂/gi, '')) && !/室内気|room air|\bRA\b/i.test(t), roomAir: d.key === 'SpO2' && /室内気|room air|\bRA\b/i.test(t) }); } });
-        const bp = t.match(/血圧\D{0,3}(\d{2,3})\s*[/／]\s*(\d{2,3})/);
+        LAB_VITAL_DEFS.forEach(d => { const mm = t.match(d.regex); if (mm && !((d.key === '呼吸数' && Number(mm[1]) < 5) || (d.key === '脈拍' && Number(mm[1]) < 30))) { const v = Number(mm[1]); vitals.push({ key: d.key, source: text.trim(), value: v, raw: mm[1], unit: d.unit, ref: d.ref, status: d.judge(v), phase, oxygen: d.key === 'SpO2' && /酸素|(?:^|[^Sp])O2\s*\d|\d\s*L\s*\/?\s*分|カニュ|マスク|ネーザル/i.test(t.replace(/Sp[O0]2|SPO2|SpO₂/gi, '')) && !/室内気|room air|\bRA\b/i.test(t), roomAir: d.key === 'SpO2' && /室内気|room air|\bRA\b/i.test(t) }); } });
+        const bp = t.match(/(?:血圧|(?<![A-Za-z])BP)\D{0,3}(\d{2,3})\s*[/／]\s*(\d{2,3})/);
         if (bp) { const s = Number(bp[1]), dd = Number(bp[2]); vitals.push({ key: '血圧', source: text.trim(), value: `${s}/${dd}`, unit: 'mmHg', ref: '収縮期100〜139・拡張期60〜89mmHg', status: (s >= 140 || dd >= 90) ? 'high' : (s < 90 || dd < 50) ? 'low' : 'normal', phase }); }
         const r = analyzeLabCard(text, null);
         if (!r) return;
@@ -1774,7 +1775,7 @@
       let out = '【検査データ臨床評価・アセスメントノート】\n（記録に基づく評価：記録と、登録された基準との比較です。「事実」と「考察・予測」を分けています。予想は原文の値を書き換えるものではありません）\n';
       if (facts.length) out += `\n■ 検査値（事実：原文・基準との比較）\n${facts.join('\n')}\n`;
       if (respLines.length) out += `\n■ 呼吸機能（事実）\n${respLines.join('\n')}\n`;
-      if (vitalLines.length) out += `\n■ バイタルサイン（事実：検査値とは別に評価）\n${vitalLines.join('\n')}\n`;
+      if (vitalLines.length) out += `\n■ バイタルサイン（事実：検査値と同じ表で確認。基準は一般的な目安）\n${vitalLines.join('\n')}\n`;
       if (thoughts.length) out += `\n■ 考察・予測（根拠のある所見だけ。事実ではなく、看護師の推論です）\n${thoughts.map(x => `・${x.text}${x.needs ? `（関連しうる基本的欲求：${x.needs}）` : ''}`).join('\n')}\n`;
       else out += '\n■ 考察・予測\n・基準を外れた値や、大きな変化の記録が無いため、現時点で追加の考察はありません。\n';
       if (reviews.length) out += `\n■ 原本の確認が必要な値\n・${Array.from(new Set(reviews)).join('、')}（原文をそのまま残しています。確認できるまで、判定や分類には使わないでください）\n`;
