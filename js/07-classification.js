@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.63'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.71'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -2392,7 +2392,12 @@
     const DISEASE_SYMPTOM_NEEDS = [
       [/発熱|熱型/, [7]], [/倦怠|疲れやす|易疲労|疲労/, [4, 5]], [/体重減少|食欲/, [2]], [/脱毛|光線過敏|凍瘡|レイノー|紅斑|皮疹|発疹|潰瘍/, [8]],
       [/光線過敏/, [8, 9]], [/関節痛|筋肉痛|筋痛|関節炎/, [4]], [/むくみ|浮腫|腎炎|蛋白尿|腎/, [3]], [/出血|貧血|めまい|けいれん|痙攣/, [9]],
-      [/息切れ|呼吸困難|胸膜炎|胸水|咳/, [1]], [/頭痛/, [4, 5]], [/不安|抑うつ|うつ/, [10]]
+      [/息切れ|呼吸困難|胸膜炎|胸水|咳/, [1]], [/頭痛/, [4, 5]], [/不安|抑うつ|うつ/, [10]],
+      // v.71 knowledge ingestion (SLE research brief; see docs/knowledge-guideline.md ledger). Numbers are nursing-assessment associations, not a source table.
+      [/関節痛|関節炎|筋肉痛|筋痛/, [5, 12]], [/脱毛|蝶形紅斑|円板状|瘢痕/, [8, 10]], [/光線過敏/, [14]], [/凍瘡/, [8, 9]], [/レイノー/, [4, 8, 9]],
+      [/ループス腎炎|腎炎|蛋白尿/, [2, 9, 14]], [/出血傾向|出血/, [8, 9]], [/貧血/, [1, 4, 5, 12]], [/息切れ|呼吸困難|胸膜炎|胸水/, [4, 5]],
+      [/心外膜炎|心膜炎|心膜液|タンポナーデ/, [1, 4, 5, 9]], [/蝶形紅斑|円板状/, [9]], [/神経精神|NPSLE|精神神経|神経症状|^神経|神経[、,・]/, [4, 9, 10, 14]],
+      [/頭痛/, [9, 10]], [/感染|日和見/, [7, 9, 14]], [/抗リン脂質|血栓|APS/, [9]]
     ];
     function diseaseSymptomNeeds(text) {
       const t = String(text || '').normalize('NFKC');
