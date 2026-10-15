@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.59'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.64'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -424,6 +424,15 @@
       bar.classList.remove('hidden');
       document.getElementById('bulk-action-count').textContent = `${selectedCardIds.size}件選択中`;
 
+      const splitBtn = document.getElementById('btn-bulk-split');
+      if (splitBtn) {
+        const off = selectedCardIds.size !== 1;
+        splitBtn.disabled = off;
+        splitBtn.style.opacity = off ? '0.45' : '1';
+        splitBtn.style.pointerEvents = off ? 'none' : '';
+        splitBtn.style.cursor = off ? 'not-allowed' : 'pointer';
+        splitBtn.title = off ? '切り分けるカードを1件だけ選んでください' : '選択した1件のカードを、複数のカードに切り分ける';
+      }
       const mergeBtn = document.getElementById('btn-bulk-merge');
       if (mergeBtn) {
         const disabled = selectedCardIds.size < 2;
@@ -433,6 +442,11 @@
         mergeBtn.style.cursor = disabled ? 'not-allowed' : 'pointer';
       }
     }
+
+    window.splitSelectedCard = function() {
+      if (selectedCardIds.size !== 1) return showToast('切り分けるカードを1件だけ選んでください', 'warn');
+      openSplitCard(Array.from(selectedCardIds)[0]);
+    };
 
     window.bulkSetType = function(type) {
       const cp = getCurrentPatient();

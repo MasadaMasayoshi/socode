@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="v.63">
-  <meta name="app-file-versions" content="01:2026-10-12.usability-context28,02:v.55,03:v.55,04:2026-10-12.usability-context29,05:v.61,06:v.60,07:v.63,08:v.63,09:v.59,10:v.43,11:v.59,12:v.63,13:v.59,14:2026-10-10.znavigation17,15:v.62">
+  <meta name="app-version" content="v.64">
+  <meta name="app-file-versions" content="01:2026-10-12.usability-context28,02:v.55,03:v.55,04:2026-10-12.usability-context29,05:v.61,06:v.60,07:v.63,08:v.63,09:v.64,10:v.43,11:v.59,12:v.64,13:v.59,14:2026-10-10.znavigation17,15:v.62">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -208,8 +208,6 @@
           </div>
           <button type="button" id="btn-toggle-so-mixed" onclick="toggleSoMixedColumn()" class="btn btn-outline" aria-pressed="false" title="S/O混在カードの枠を表示・非表示にします"><i class="fa-solid fa-columns"></i><span>S/O混在</span></button>
           <button type="button" id="btn-board-export-review" onclick="exportReviewRequestText()" class="btn btn-outline" aria-label="修正依頼を書き出す" title="修正依頼を書き出す"><i class="fa-solid fa-file-export"></i><span>修正依頼<span class="toolbar-label-tail">を書き出す</span></span></button>
-          <button type="button" id="btn-improvement-cycle" onclick="runImprovementCycle()" class="btn btn-outline" aria-label="改善提案を作る" title="手動で付けたタグから追加キーワードを提案します。承認したものだけ登録されます"><i class="fa-solid fa-wand-magic-sparkles"></i><span>改善提案</span></button>
-          <button type="button" id="btn-knowledge-intake" onclick="openKnowledgeIntake()" class="btn btn-outline" aria-label="医学知識を取り込む" title="出典付きの医学知識パックを検証して取り込みます"><i class="fa-solid fa-book-medical"></i><span>知識取込</span></button>
           <details id="board-actions" class="board-actions-menu">
             <summary class="btn btn-outline toolbar-more" aria-label="分類ボードのその他の操作" title="その他の操作"><i class="fa-solid fa-ellipsis"></i></summary>
             <div class="board-menu-panel">
@@ -217,6 +215,8 @@
               <button type="button" id="btn-undo" onclick="undoLastEdit()" disabled title="元に戻せる操作はありません"><i class="fa-solid fa-rotate-left"></i> 元に戻す</button>
               <button type="button" id="btn-redo" onclick="undoLastEdit(true)" disabled title="やり直す（Ctrl+Shift+Z）"><i class="fa-solid fa-rotate-right"></i> やり直す</button>
               <button type="button" id="btn-open-compare" onclick="openCompare()" title="記録した時点と今のカードを比べます"><i class="fa-solid fa-code-compare"></i> 変更点の比較</button>
+              <button type="button" id="btn-improvement-cycle" onclick="runImprovementCycle()" title="手動で付けたタグから追加キーワードを提案します。承認したものだけ登録されます"><i class="fa-solid fa-wand-magic-sparkles"></i> 改善提案</button>
+              <button type="button" id="btn-knowledge-intake" onclick="openKnowledgeIntake()" title="出典付きの医学知識パックを検証して取り込みます"><i class="fa-solid fa-book-medical"></i> 医学知識を取り込む</button>
               <button type="button" onclick="openHelp('board')"><i class="fa-regular fa-circle-question"></i> 操作方法</button>
             </div>
           </details>
@@ -1071,6 +1071,7 @@
     <button onclick="bulkSetType('s')" class="btn" style="background:var(--gold);color:var(--on-fill);">→S</button>
     <button onclick="bulkSetType('o')" class="btn" style="background:var(--slate);color:var(--on-fill);">→O</button>
     <select id="bulk-tag-select" onchange="bulkAddTag(this.value); this.value='';" class="text-[10px] rounded-[var(--radius-sm)] px-1.5 py-1.5 border-0" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;"><option value="">＋タグ追加</option></select>
+    <button id="btn-bulk-split" onclick="splitSelectedCard()" class="btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;" title="選択した1件のカードを、複数のカードに切り分ける"><i class="fa-solid fa-scissors mr-1"></i>切り分け</button>
     <button id="btn-bulk-merge" onclick="openMergeModal()" class="btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;" title="選択した2件以上のカードを1枚にまとめる"><i class="fa-solid fa-layer-group mr-1"></i>統合</button>
     <button onclick="bulkSetType('unnecessary')" class="btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;">不要にする</button>
 
@@ -1276,10 +1277,10 @@
   <script src="js/06-export.js?v=v.60"></script>
   <script src="js/07-classification.js?v=v.63"></script>
   <script src="js/08-assessment-tools.js?v=v.63"></script>
-  <script src="js/09-board.js?v=v.59"></script>
+  <script src="js/09-board.js?v=v.64"></script>
   <script src="js/10-reference-page-and-startup.js?v=v.43"></script>
   <script src="js/11-own-assessment.js?v=v.59"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=v.63"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=v.64"></script>
   <script src="js/13-compare-and-report.js?v=v.59"></script>
   <script src="js/14-drug-reference.js?v=2026-10-10.znavigation17"></script>
   <script src="js/15-relation-map.js?v=v.62"></script>

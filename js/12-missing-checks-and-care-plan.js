@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.63'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.64'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1796,7 +1796,7 @@
       return `「${res.pack.title}」${res.entries.length}件（${Object.entries(counts).map(([k, n]) => `${label[k]} ${n}`).join('・')}）`;
     }
     window.openKnowledgeIntake = async function() {
-      const raw = await openDialog({ title: '医学知識を取り込む', message: '知識パック（JSON）を貼り付けてください。出典付きの「症状→項目」「診断→項目」「関連図の仕組み」だけを受け付けます。取り込みはこの端末だけに保存され、承認するまで何も変わりません。', inputValue: '', placeholder: '{"title":"…","entries":[{"kind":"symptom_need","pattern":"…","needs":[8],"source":"…"}]}', confirmLabel: '検証する' });
+      const raw = await openDialog({ title: '医学知識を取り込む', message: 'これは、医学の知識を「出典付きの決まった書式（JSON）」で渡して、分類や関連図のルールに加える機能です。普通の文章をそのまま貼る欄ではありません。知識パックはClaudeに「この医学知識を知識パックにして」と頼むと作れます。受け付けるのは「症状→看護項目」「診断→看護項目」「関連図の仕組み」だけで、承認するまで何も変わらず、取り込みはこの端末だけに保存されます。', inputValue: '', placeholder: '{"title":"…","entries":[{"kind":"symptom_need","pattern":"…","needs":[8],"source":"…"}]}', confirmLabel: '検証する' });
       if (!raw) return;
       const res = validateKnowledgePack(raw);
       if (!res.ok) return showToast(`取り込めません：${res.errors.slice(0, 3).join(' ／ ')}${res.errors.length > 3 ? ` ほか${res.errors.length - 3}件` : ''}`, 'warn');
