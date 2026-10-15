@@ -10,3 +10,4 @@
 - Do not generate missing expected answers from app output, hide failures or claim clinical approval.
 - Runtime asset changes require `npm run stamp -- <version>`. Run relevant checks; publication evidence must match the latest candidate commit.
 - The owner grants standing authorization (2026-10-11) to merge and publish requested changes automatically after the latest candidate passes the required public regression and real-browser checks. Do not ask for publication confirmation again. Keep failing candidates unpublished. Current publication criteria and authorization are in `docs/release-conditions.json`.
+- Knowledge ingestion (research answers → code): follow `docs/knowledge-ingestion-procedure.md`. Never skip knowledge for missing sources; label the provenance instead.

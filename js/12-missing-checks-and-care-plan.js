@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.78'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.79'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1158,6 +1158,115 @@
         tp: [['点眼の確認と転倒予防の援助', /点眼|転倒/]],
         ep: [['急な視力低下や強い眼痛があればすぐ連絡すること、点眼の方法', /視力|眼痛|連絡|知らせ|点眼/]] }
     ];
+    // v.79 ingestion of docs/research-notes/2026-10-15-sitewide.md. No source gating: unnamed sources carry the provenance label below.
+    // Every row has source, edition, checked, next. Wording stays conditional; rows are reference suggestions, never diagnoses.
+    const CPK_PROV79 = '深層調査 2026-10-15（出典未確認）';
+    const CPK79_META = { edition: '2026-10-15 深層調査メモ（docs/research-notes/2026-10-15-sitewide.md）', checked: '2026-10-15', next: '2027-10' };
+    const CPK_JUDGE = ['悪化・改善とみなす基準（いつ・何をもって）を決めて記録すること', /基準|悪化|改善|目標値|いつ|経時|推移/];
+    const cp79 = (key, re, label, source, op, tp, ep) => ({ key, re, label, source: source.length ? source : [CPK_PROV79], ...CPK79_META, op, tp, ep });
+    const CPK_ROWS_79 = [
+      // ---- Part A rows skipped in v.78
+      cp79('liver-meta', /肝転移/, '肝転移', [],
+        [['倦怠感・食欲／体重・右上腹部痛・黄疸・浮腫／腹水・意識変化', /倦怠|食欲|体重|右上腹部|黄疸|浮腫|腹水|意識/], ['AST/ALT/ALP/γ-GTP/ビリルビン/Alb/凝固', /AST|ALT|ALP|GTP|ビリルビン|Bil|Alb|凝固|検査値/]],
+        [['疼痛・栄養・皮膚・腹水に対する症状緩和の援助（原発性肝癌の知識は流用しない）', /疼痛|栄養|皮膚|腹水|緩和|援助/]],
+        [['黄疸・腹部膨満・意識の変化・出血しやすさを報告すること', /黄疸|腹部|膨満|意識|出血|報告|知らせ/]]),
+      cp79('peritoneal', /腹膜播種/, '腹膜播種', [],
+        [['腹囲・腹満・疼痛・悪心嘔吐・食事量・排便排ガス・尿量・体重・脱水', /腹囲|腹満|疼痛|悪心|嘔吐|食事量|摂取|排便|排ガス|尿量|体重|脱水/]],
+        [['少量頻回などは指示に応じて行い、閉塞が疑われるときは経口摂取を促さず報告する（播種があれば必ず腹水・腸閉塞とは判断しない）', /少量|指示|経口|閉塞|報告/]],
+        [['嘔吐の増加・排便排ガスの停止・腹満の急な増加を報告すること', /嘔吐|排便|排ガス|腹満|報告|知らせ/]]),
+      cp79('old-mi', /陳旧性心筋梗塞|陳旧性MI/, '陳旧性心筋梗塞', ['日本循環器学会 安定冠動脈疾患GL'],
+        [['胸部症状・呼吸困難・浮腫・体重・脈拍の不整・血圧・活動耐容能・処方薬（急性心筋梗塞とは決めつけず、新規の胸痛・呼吸困難は別に評価）', /胸部|胸痛|呼吸困難|浮腫|体重|脈|血圧|活動|処方|内服/]],
+        [['心負荷に配慮した活動の支援と、二次予防薬の服薬確認', /活動|負荷|二次予防|服薬|内服/]],
+        [['新規の胸痛・呼吸困難は自己判断せず早めに申告すること', /胸痛|呼吸困難|自己判断|申告|知らせ/]]),
+      // ---- Part B: cross-cutting areas
+      cp79('postop-complication', /無気肺|術後肺炎|術後合併症|深部静脈血栓|肺塞栓|肺血栓|DVT|イレウス|腸閉塞|術後せん妄/, '急性期術後合併症（無気肺・肺炎・SSI・イレウス・せん妄・DVT/PE）', ['日本循環器学会2025 PE/DVT GL'],
+        [['呼吸数・SpO2・呼吸音・咳痰（麻酔・疼痛→浅呼吸→無気肺・肺炎）', /呼吸数|SpO2|呼吸音|痰|咳/], ['下肢の腫脹・痛み・左右差、突然の呼吸困難（不動→血栓）', /下肢|腫脹|左右差|呼吸困難|胸痛/], ['創部・排ガス・腹満・悪心（創→感染、麻酔→腸運動低下）、意識・見当識（せん妄）', /創|排ガス|腹満|悪心|意識|見当識/]],
+        [['疼痛管理を行いながら深呼吸・咳嗽・早期離床・弾性ストッキング等を援助する', /深呼吸|咳|離床|弾性|疼痛/]],
+        [['深呼吸・咳の方法と、下肢の腫れ・突然の息苦しさをすぐ知らせること', /深呼吸|咳|下肢|息苦|知らせ/]]),
+      cp79('heart-failure', /心不全/, '心不全', ['日本循環器学会／日本心不全学会 2025改訂'],
+        [['呼吸困難・体重・浮腫・体液量（水分出納）・活動耐容能・服薬・増悪の兆候', /呼吸困難|体重|浮腫|水分|出納|活動|服薬|内服|増悪/]],
+        [['塩分・水分の管理、活動と休息の調整、服薬の確認', /塩分|水分|活動|休息|服薬|内服/]],
+        [['毎日の体重測定、むくみ・息苦しさの悪化の兆候、服薬の継続をまとめて説明すること', /体重|むくみ|浮腫|息苦|服薬|内服|増悪/]]),
+      cp79('copd', /COPD|慢性閉塞性肺疾患/, 'COPD', ['日本呼吸器学会 COPD GL第6版2022'],
+        [['息切れの程度・活動との関係・SpO2・呼吸数・痰（息切れ→活動制限→廃用→耐容能低下の循環）', /息切れ|活動|SpO2|呼吸数|痰/]],
+        [['口すぼめ呼吸・動作の工夫・段階的な活動とリハビリの援助', /口すぼめ|動作|段階|リハ|活動/]],
+        [['息切れ時の対処と、増悪（痰の増加・発熱）を知らせること', /息切れ|対処|増悪|痰|発熱|知らせ/]]),
+      cp79('ckd', /CKD|慢性腎臓病|腎機能低下|腎不全/, '慢性腎臓病', ['日本腎臓学会 CKD診療ガイド2024／GL2023'],
+        [['eGFR・蛋白尿・血圧・電解質・貧血・体液状態（尿量・浮腫・体重）', /eGFR|蛋白尿|血圧|電解質|K|貧血|尿量|浮腫|体重/], ['薬物の排泄への影響（腎機能と薬剤の関係）', /薬|排泄|腎機能/]],
+        [['指示された塩分・水分・たんぱくの管理の援助', /塩分|水分|たんぱく|食事/]],
+        [['血圧・体重の自己管理と、腎臓に負担のある薬を自己判断で使わないこと', /血圧|体重|自己判断|薬/]]),
+      cp79('stroke', /脳梗塞|脳出血|脳卒中|くも膜下/, '脳卒中', ['脳卒中治療GL2021（改訂2025）'],
+        [['意識・運動麻痺・嚥下・構音・認知・排泄・転倒の危険', /意識|麻痺|嚥下|構音|認知|排泄|転倒/]],
+        [['誤嚥・転倒の予防、早期からのリハビリと日常動作の援助', /誤嚥|転倒|リハ|離床|援助/]],
+        [['再発予防（血圧・服薬・生活習慣）と、症状が出たらすぐ知らせること', /再発|血圧|服薬|内服|知らせ|受診/]]),
+      cp79('parkinson', /パーキンソン/, 'パーキンソン病', ['日本神経学会 2018（鮮度要確認）'],
+        [['運動症状（振戦・固縮・歩行）に加え、嚥下・便秘・起立性低血圧・睡眠などの非運動症状', /振戦|固縮|歩行|嚥下|便秘|起立性|睡眠/]],
+        [['服薬時刻の確認、転倒・誤嚥の予防、排便の援助', /服薬|内服|時刻|転倒|誤嚥|排便/]],
+        [['薬を決まった時間に続けること、立ちくらみ・むせを知らせること', /時間|続け|立ちくらみ|むせ|知らせ/]]),
+      cp79('cancer-fatigue', /悪液質|(?:がん|癌).{0,8}倦怠|倦怠.{0,8}(?:がん|癌)|がん関連疲労/, 'がんに伴う倦怠感・悪液質', ['国立がん研究センター'],
+        [['倦怠感の原因候補を横断して確認（疼痛・貧血・不眠・栄養状態・筋力低下・感染・脱水・電解質異常・悪液質・不安）', /疼痛|貧血|不眠|栄養|筋力|感染|脱水|電解質|悪液質|不安/]],
+        [['休息と活動の配分、原因に応じた症状緩和と栄養の援助', /休息|活動|配分|栄養|緩和/]],
+        [['エネルギーの温存の工夫と、つらさを我慢せず伝えること', /温存|工夫|我慢|伝え|知らせ/]]),
+      cp79('opioid-set', /オピオイド|麻薬性鎮痛|モルヒネ|フェンタニル|トラマドール/, 'オピオイド使用時の副作用セット', ['日本緩和医療学会 がん疼痛の薬物療法GL2020'],
+        [['疼痛だけでなく、便秘・悪心・鎮静（傾眠）・呼吸（数・SpO2）を必ず一緒に確認', /便秘|排便|悪心|嘔気|鎮静|傾眠|呼吸数|SpO2/]],
+        [['便秘対策・制吐・転倒予防を鎮痛とセットで行う', /便秘|緩下|制吐|転倒/]],
+        [['副作用（眠気・吐き気・便秘）を我慢せず伝えること、自己判断で増減しないこと', /副作用|眠気|吐き気|便秘|自己判断|伝え/]]),
+      cp79('geriatric-drug', /高齢者.{0,10}(?:薬|転倒|多剤)|ポリファーマシー|多剤併用|ベンゾジアゼピン|睡眠薬|眠剤|せん妄/, '高齢者の薬剤・転倒・せん妄', ['日本老年医学会 高齢者の安全な薬物療法GL2025'],
+        [['薬剤数・睡眠薬／鎮静薬・降圧薬・利尿薬と、ふらつき・起立時症状・認知・夜間の状態', /薬剤|睡眠薬|鎮静|降圧|利尿|ふらつき|起立|認知|夜間/]],
+        [['転倒予防（環境・移動介助・夜間のトイレ）と、薬の見直しの相談', /転倒|環境|介助|トイレ|見直し|相談/]],
+        [['薬の飲み方・ふらつきの知らせ方、ナースコールの使い方', /薬|ふらつき|知らせ|ナースコール/]]),
+      cp79('pediatric-asthma', /小児喘息|小児気管支喘息/, '小児喘息', ['JPGL2023'],
+        [['年齢別の正常値（呼吸数・脈拍）・喘鳴・咳・SpO2・発達段階・生活への影響', /呼吸数|脈拍|喘鳴|咳|SpO2|年齢|発達|生活/]],
+        [['発作時の体位・吸入の援助と、発達段階に合わせた関わり', /体位|吸入|発達|関わり/]],
+        [['家族への教育（発作の見分け方・吸入・環境整備・受診の目安）', /家族|発作|吸入|環境|受診/]]),
+      cp79('psychiatric', /うつ病|統合失調症|不安障害|精神科|抑うつ|幻覚|妄想/, '精神状態の看護（症状から診断名を逆推定しない）', [],
+        [['気分・思考・睡眠・安全（自傷他害の危険）・社会機能・コミュニケーション（診断名は医師が判断し、症状から逆推定しない）', /気分|思考|睡眠|安全|自傷|社会|コミュニケーション/]],
+        [['安全な環境と信頼関係をつくる関わり、睡眠・休息の援助', /安全|信頼|関わり|傾聴|睡眠|休息/]],
+        [['不安や困りごとを話してよいこと、服薬の意味と継続', /話し|相談|服薬|内服|不安/]]),
+      cp79('drug-class', /降圧薬|利尿薬|抗凝固薬|ステロイド|睡眠薬|眠剤|抗血小板薬/, '薬の分類（薬剤→作用→有害事象→観察）', [],
+        [['薬剤名を直接1つの項目に結ばず、「作用→起こりうる有害事象→観察項目」の順に確認（降圧薬：血圧低下・ふらつき、利尿薬：脱水・電解質、抗凝固薬：出血、ステロイド：感染・血糖、睡眠薬：転倒・せん妄）', /作用|有害事象|副作用|血圧|ふらつき|脱水|電解質|出血|感染|血糖|転倒|せん妄/]],
+        [['与薬前後の観察と、有害事象が出たときの報告', /与薬|観察|報告/]],
+        [['薬の目的と副作用、自己判断で中止しないこと', /目的|副作用|自己判断|中止/]]),
+      // ---- common nursing problems: cause chain + OP/TP/EP + commonly missed points
+      cp79('activity-intolerance', /活動耐性|耐容能低下/, '活動耐性低下', [],
+        [['HR・BP・RR・SpO2・息切れ・疲労・活動量（安静時だけで判断しない。労作時と回復時間も見る）', /HR|脈|BP|血圧|RR|呼吸数|SpO2|息切れ|疲労|労作|活動量/], CPK_JUDGE],
+        [['段階的な活動と休息の配分、リハビリとの連携', /段階|休息|リハ/]],
+        [['負荷の調整と、症状が出たら中止して知らせること', /負荷|中止|知らせ/]]),
+      cp79('infection-general', /感染リスク|術後感染|易感染/, '感染リスク（一般）', [],
+        [['体温・局所の徴候・WBC・デバイスの刺入部（発熱だけを監視しない）', /体温|局所|発赤|WBC|刺入部|デバイス|カテーテル/], CPK_JUDGE],
+        [['手指衛生と、創・デバイスの管理', /手指|手洗い|創|デバイス|管理/]],
+        [['感染の徴候を自分で観察し、気づいたら知らせること', /徴候|観察|知らせ|気づ/]]),
+      cp79('fall-risk', /転倒/, '転倒リスク', [],
+        [['歩行・筋力・視力・起立時症状・薬剤（鎮静薬・降圧薬など。薬剤と起立性低血圧を見落とさない）', /歩行|筋力|視力|起立|薬剤|鎮静|降圧/], CPK_JUDGE],
+        [['環境の整備と移動の介助', /環境|整備|介助|ベッド柵/]],
+        [['ナースコールの使い方と補助具の使用', /ナースコール|補助具|杖|歩行器/]]),
+      cp79('pressure-injury', /褥瘡/, '褥瘡リスク', [],
+        [['皮膚・圧迫やずれ・湿潤・栄養・可動性（皮膚だけで栄養を見落とさない）', /皮膚|圧迫|ずれ|湿潤|栄養|可動/], CPK_JUDGE],
+        [['体位の工夫と除圧、皮膚の管理', /体位|除圧|体圧|皮膚|スキンケア/]],
+        [['体位変換の必要性と、皮膚の変化を知らせること', /体位変換|変化|知らせ/]]),
+      cp79('nutrition-deficit', /栄養摂取|低栄養|栄養不足|栄養障害/, '栄養摂取不足', [],
+        [['摂取量・体重・嚥下・悪心・口腔（Alb単独で判定しない）', /摂取|体重|嚥下|悪心|口腔/], CPK_JUDGE],
+        [['食形態と症状の調整、栄養士など多職種との連携', /食形態|形態|症状|栄養士|多職種/]],
+        [['少量頻回など食べ方の工夫', /少量|頻回|工夫/]]),
+      cp79('urinary-disorder', /排尿障害|尿閉|尿失禁|残尿|排尿困難/, '排尿障害', [],
+        [['尿量・回数・残尿感・膀胱症状（尿量だけで評価しない）', /尿量|回数|残尿|膀胱|症状/], CPK_JUDGE],
+        [['排尿しやすい環境と、必要時の測定', /環境|測定|導尿|プライバシー/]],
+        [['水分のとり方と排尿記録', /水分|記録|排尿日誌/]]),
+      cp79('pain-general', /疼痛|急性痛|慢性痛/, '疼痛（一般）', ['日本緩和医療学会 がん疼痛の薬物療法GL2020'],
+        [['強度（NRS）に加え、部位・性状・日常生活への影響', /NRS|強度|部位|性状|影響|ADL|睡眠/], ['投薬後の再評価（再評価が抜けやすい）', /再評価|投薬後|効果/]],
+        [['薬物・非薬物の援助と再評価', /薬物|非薬物|体位|罨法|再評価/]],
+        [['痛みを早く伝えること、薬の使い方', /早|伝え|申告|知らせ|使い方|レスキュー/]]),
+      cp79('anxiety', /不安/, '不安', [],
+        [['不安の内容・強さ・睡眠・理解度・支えとなる人（「不安あり」で終わらせない）', /内容|強さ|程度|睡眠|理解|支え|家族/], CPK_JUDGE],
+        [['傾聴と情報の整理、意思決定の支援', /傾聴|情報|意思決定/]],
+        [['質問や相談の仕方を伝えること', /質問|相談|聞|伝え/]]),
+      // ---- perioperative timeline (events, not day counts)
+      cp79('periop-timeline', /周術期|術前|麻酔覚醒|麻酔後|離床開始|初回離床|経口(?:摂取)?再開|食事再開|飲水開始|創経過|退院移行|退院準備/, '周術期の時期（出来事ごとの観察）', [],
+        [['術前：基礎疾患・抗凝固／抗血小板薬・栄養・血糖・感染・呼吸機能・ADL', /基礎疾患|抗凝固|抗血小板|栄養|血糖|感染|呼吸機能|ADL/], ['麻酔直後〜早期：気道・呼吸・循環・意識・疼痛・出血・悪心嘔吐・尿量', /気道|呼吸|循環|意識|疼痛|出血|悪心|嘔吐|尿量/], ['離床開始期：疼痛・起立時の変化・呼吸状態・DVT・転倒・せん妄', /起立|呼吸|DVT|血栓|転倒|せん妄/], ['経口摂取再開期：嚥下・悪心・腸蠕動・排ガス排便・摂取量・血糖', /嚥下|悪心|蠕動|排ガス|排便|摂取|血糖/], ['創経過観察期：発赤・熱感・腫脹・排液・離開・発熱', /発赤|熱感|腫脹|排液|離開|発熱/], ['退院移行期：ADL・服薬・創管理・食事・再受診の徴候・自己管理能力', /ADL|服薬|内服|創管理|食事|受診|自己管理/]],
+        [['時期は日数ではなく、離床・食事再開・創の経過などの出来事で区切って援助を選ぶ', /離床|食事|創|経過|出来事|時期/]],
+        [['退院後の服薬・創の管理・食事・再受診の目安を、自己管理できる形で説明すること', /服薬|創|食事|受診|自己管理/]])
+    ];
+    CARE_PLAN_KNOWLEDGE.push(...CPK_ROWS_79);
     function cpKnowledgeRowsFor(text) {
       const t = String(text || '').normalize('NFKC');
       return CARE_PLAN_KNOWLEDGE.filter(r => r.re.test(t));
@@ -1185,11 +1294,26 @@
       { key: 'epidural-anticoag-neuro', all: [/硬膜外/, /抜去/, /抗凝固|抗血小板|ヘパリン|ワルファリン|ワーファリン|エドキサバン|リクシアナ|アピキサバン|エリキュース|リバーロキサバン|イグザレルト|アスピリン|バイアスピリン|クロピドグレル|プラビックス/, /しびれ|筋力低下|背部痛|麻痺|排尿障害/], msg: '硬膜外カテーテル抜去と抗血栓薬と神経症状の記載があります。硬膜外血腫の可能性があるため、速やかに報告して判断を仰ぎましょう（参考）。' },
       { key: 'wound-infection', all: [/手術創|創部|創/, /発赤/, /膿|排液.{0,4}(?:混濁|増)|発熱|熱感/], msg: '創部の発赤に、熱感・膿性排液・発熱のいずれかが加わっています。感染の評価を優先して、報告を検討しましょう（参考。発赤だけで感染とは決めません）。' },
       { key: 'immobile-leg-swelling', all: [/不動|臥床|離床(?:低下|困難)|安静/, /(?:片側|左|右).{0,4}下肢.{0,6}(?:腫脹|腫れ|はれ)|下肢.{0,6}(?:左右差|片側)/], msg: '不動と片側の下肢腫脹の記載があります。深部静脈血栓の可能性があるため、突然の息苦しさ・胸痛とあわせて報告を検討しましょう（参考）。' },
-      { key: 'pancreatic-jaundice-fever', all: [/膵頭部(?:がん|癌)/, /黄疸/, /発熱/], msg: '膵頭部がんと黄疸と発熱の記載があります。胆道感染の可能性があるため、早めの報告を検討しましょう（参考）。' }
+      { key: 'pancreatic-jaundice-fever', all: [/膵頭部(?:がん|癌)/, /黄疸/, /発熱/], msg: '膵頭部がんと黄疸と発熱の記載があります。胆道感染の可能性があるため、早めの報告を検討しましょう（参考）。' },
+      { key: 'dvt-sudden-dyspnea', all: [/DVT|深部静脈血栓|血栓/, /突然の?呼吸困難|突然の?息苦しさ|急な息苦しさ/], msg: 'DVTのリスクに突然の呼吸困難の記載があります。肺塞栓の可能性を考え、すぐ報告しましょう（参考）。' },
+      { key: 'postop-immobile-leg', all: [/手術|術後/, /不動|臥床|安静/, /下肢.{0,6}(?:腫脹|腫れ|はれ|疼痛|痛み)/], msg: '手術後・不動に下肢の腫れや痛みの記載があります。深部静脈血栓の可能性があるため、左右差を確認して報告を検討しましょう（参考）。' }
     ];
-    function cpHighRiskCombos(text) {
+    // Negated clauses ("呼吸数低下なし") and history-only wording must not fire a warning; suspected/risk wording is marked, not dropped.
+    function cpStripNegated(text) {
+      return String(text || '').normalize('NFKC').replace(/[^。、,\n]{1,16}?(?:は|を|も|が)?(?:なし|ない|認めず|認めない|みられず|見られず|否定|なかった|ありません|(?:-|－))(?=[。、,\n\s]|$)/g, '');
+    }
+    function cpEvidenceKind(text) {
       const t = String(text || '').normalize('NFKC');
-      return CP_HIGH_RISK_COMBOS.filter(c => c.all.every(re => re.test(t))).map(c => ({ key: c.key, level: 'info', msg: c.msg }));
+      if (/疑い|可能性|r\/o|否定できない/i.test(t)) return 'suspected';
+      if (/リスク|危険|予防|おそれ|恐れ/.test(t)) return 'risk';
+      return 'present';
+    }
+    function cpHighRiskCombos(text) {
+      const t = cpStripNegated(text);
+      const out = CP_HIGH_RISK_COMBOS.filter(c => c.all.every(re => re.test(t))).map(c => ({ key: c.key, level: 'info', certainty: cpEvidenceKind(t), msg: c.msg }));
+      // 陳旧性 (old) myocardial infarction is history: only a NEW chest symptom raises a reference note, never an acute-MI warning.
+      if (/陳旧性心筋梗塞|陳旧性MI/.test(t) && /新規.{0,4}(?:胸痛|胸部症状|呼吸困難)|(?:胸痛|胸部圧迫感).{0,4}(?:出現|あり|訴え|増悪)|突然の呼吸困難/.test(t)) out.push({ key: 'old-mi-new-symptom', level: 'info', certainty: cpEvidenceKind(t), msg: '陳旧性心筋梗塞の既往に、新しい胸の症状や呼吸困難の記載があります。急性の病態を含めて別に評価し、早めに報告しましょう（参考）。' });
+      return out;
     }
     // Words that are not standard terms must not be silently replaced; they are reported for checking against the source text.
     const KR_UNKNOWN_TERMS = [{ re: /今検査/, reason: '標準用語として特定できません。「検査」へ置き換えず、原文を確認してください（知識リクエストの対象外としても理由を報告できます）。' }];
@@ -2025,6 +2149,8 @@
       items.filter(i => i.type !== 'unnecessary' && !(i.hendersonIds || []).length && !i.tagNotNeeded && !(typeof isBasicInfoItem === 'function' && isBasicInfoItem(i)))
         .forEach(i => krTerms(i.text).filter(t => !(detectMultipleHendersonTags(t) || []).length && (i.diseaseGeneral || krIsMedicalTerm(t))).slice(0, 2)
           .forEach(t => add('tag', i.diseaseGeneral ? 'symptom' : 'term', t, `「${t}」は看護でどんな意味がありますか？ ヘンダーソンの14項目のどれに関係しますか（番号と理由）？ 観察すべき点も教えてください。`, ctxOf(i))));
+      // Words that are not standard terms: reported with their context for human review, never replaced.
+      items.forEach(i => krUnknownTerms(i.text).forEach(u => add('tag', 'unknown_term', u.term, `「${u.term}」は標準用語として特定できません。${u.reason}（前後の文脈：原文を確認し、意味を教えてください）`, ctxOf(i))));
       // Diagnoses: what the rules, care plan and relation map need to know about each one.
       const dxList = [];
       items.filter(i => /^(?:診断|診断名|病名|既往歴)$/.test(i.fieldLabel || '')).forEach(i => String(i.text).normalize('NFKC').replace(/^[^:：]{1,6}[:：]\s*/, '').split(/[、,・\/]/).map(x => x.replace(/[()（）].*$/, '').replace(/^\d{1,3}歳\s*/, '').trim()).filter(x => x.length >= 2 && x.length <= 20 && !/(?:なし|無し|ない|あり|中|ため|いる|ます|です)$/.test(x) && !/指摘|されて|していた|ている|^[のにをがはで]|を.|たが$|が$/.test(x)).forEach(d => dxList.push({ d, i })));
@@ -2067,7 +2193,7 @@
       return reqs.sort((a, b) => order[a.purpose] - order[b.purpose] || b.count - a.count).slice(0, 50);
     }
     // One entry per term: several kinds of need for the same term are merged into a single compact line so the file stays short.
-    const KR_ASPECT = { term: '14項目のどれに関係するか（番号・理由）と観察点', symptom: '14項目のどれに関係するか（番号・理由）と観察点', diagnosis: '注目する14項目・典型症状・検査所見', 'thin-diagnosis': '登録済みの知識を補う：注目項目・合併症・治療と副作用', 'map-diagnosis': '病態（原因→体の変化→症状）・合併症・看護問題への流れ', 'map-drug': '作用・主な副作用・観察点', drug: '薬の種類・作用・主な副作用・観察点', mechanism: '原因→途中の変化→結果、患者で確認すべき情報', 'thin-problem': '原因→途中の変化→結果、関連図に足す要因', 'plan-missing': '目標の目安とOP・TP・EPの要点' };
+    const KR_ASPECT = { term: '14項目のどれに関係するか（番号・理由）と観察点', symptom: '14項目のどれに関係するか（番号・理由）と観察点', diagnosis: '注目する14項目・典型症状・検査所見', 'thin-diagnosis': '登録済みの知識を補う：注目項目・合併症・治療と副作用', 'map-diagnosis': '病態（原因→体の変化→症状）・合併症・看護問題への流れ', 'map-drug': '作用・主な副作用・観察点', drug: '薬の種類・作用・主な副作用・観察点', mechanism: '原因→途中の変化→結果、患者で確認すべき情報', 'thin-problem': '原因→途中の変化→結果、関連図に足す要因', 'plan-missing': '目標の目安とOP・TP・EPの要点', unknown_term: '標準用語として特定できない語（置き換えず、原文と前後の文脈を人が確認）' };
     function krAspect(r) {
       if (r.kind === 'plan-section') { const m = /の ([OPTE・]+) が空/.exec(r.question); return `${m ? m[1] : ''}が空：一般的な内容と根拠`; }
       return KR_ASPECT[r.kind] || '看護での意味と観察点';
@@ -2777,7 +2903,7 @@ if (typeof module !== 'undefined' && module.exports) {
     carePlanInlineNotes, captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
     cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf, collapseVitalCards, collapseLabCards,
-    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, krTerms, krNames, krIsMedicalTerm, CARE_PLAN_KNOWLEDGE, cpKnowledgeSuggestions, CP_HIGH_RISK_COMBOS, cpHighRiskCombos, krUnknownTerms, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
+    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, krTerms, krNames, krIsMedicalTerm, CARE_PLAN_KNOWLEDGE, cpKnowledgeSuggestions, CP_HIGH_RISK_COMBOS, cpHighRiskCombos, cpStripNegated, cpEvidenceKind, krUnknownTerms, CPK_ROWS_79, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
     cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, carePlanSetReviewHtml, carePlanSetState, carePlanSetNextSteps
   });
 }

@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.77'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.79'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1814,6 +1814,19 @@
         if (r.key === '1秒率' && r.status === 'low') thoughts.push({ key: '1秒率', text: `1秒率が一般的な目安（70%）を下回っているため、閉塞性の換気パターンの可能性が考えられるが、年齢・基準の違いもあり、診断は医師の判断です。${ctx.smoking ? '喫煙歴の影響の可能性も考えられるが、現時点では推測に留まります。' : ''}術後の呼吸器合併症のリスク評価として、呼吸状態の観察が必要です。`, needs: '1.呼吸' });
         if (r.key === '%肺活量' && r.status === 'low') thoughts.push({ key: '%肺活量', text: '%肺活量が一般的な目安（80%）を下回っているため、拡張しにくい（拘束性の）換気パターンの可能性が考えられるが、診断は医師の判断です。', needs: '1.呼吸' });
       });
+      // v.79 lab-reading rules (context links; change and context over a single value; the facility's own reference range comes first)
+      {
+        const lastOf = k => { const a = byKey[k]; return a && a[a.length - 1]; };
+        const drugsOn = typeof findDrugsInText === 'function' && findDrugsInText(allText).length > 0;
+        const kidney = ['BUN', 'Cre', 'Cr', 'eGFR'].map(lastOf).filter(Boolean);
+        if (kidney.some(l => l.status === 'high' || (l.key === 'eGFR' && l.status === 'low')) && drugsOn) thoughts.push({ key: '腎機能と薬剤', text: '腎機能の指標が基準を外れ、薬剤の記録もあるため、腎臓から排泄される薬の安全性（量・間隔）を医師・薬剤師に確認する材料になります。基準範囲外は疾患の確定ではなく、変化量・前回値・症状と合わせて見ます。', needs: '9.安全' });
+        const glu = lastOf('血糖');
+        if (glu && glu.status !== 'normal' && /インスリン|糖尿病|血糖降下|SU薬|ステロイド/.test(allText)) thoughts.push({ key: '血糖と治療', text: '血糖が基準を外れ、糖尿病・インスリンなどの記載があります。食事摂取量・投与時刻・低血糖症状と合わせ、前回値からの変化で見ます。', needs: '2.飲食' });
+        const hb = lastOf('Hb');
+        if (hb && hb.status === 'low' && /出血|子宮筋腫|過多月経|がん|癌|ドレーン/.test(allText)) thoughts.push({ key: 'Hbと背景', text: 'Hbが低く、出血・子宮筋腫・がんなどの記載があります。出血量・めまい・息切れと合わせ、変化量（前回値との差）で見ます。', needs: '9.安全' });
+        const liver = ['AST', 'ALT', 'ALP', 'γGTP', 'T-Bil'].map(lastOf).filter(Boolean);
+        if (liver.some(l => l.status === 'high') && /膵頭部|肝転移|胆管|胆道|黄疸/.test(allText)) thoughts.push({ key: '肝胆道系と背景', text: '肝胆道系の値が高く、膵頭部・肝転移・黄疸などの記載があります。黄疸・掻痒・尿便の色・発熱と合わせて見ます（胆道感染の可能性は医師が判断します）。', needs: '3.排泄' });
+      }
       if (resp.some(r => r.status === 'normal') && !resp.some(r => r.status === 'low')) thoughts.push({ key: '呼吸機能', text: '術前の呼吸機能は、一般的な目安では保たれていると考えられる。', needs: '1.呼吸' });
 
       const vitalLines = [];

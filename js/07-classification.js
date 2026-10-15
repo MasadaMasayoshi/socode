@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.78'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.79'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -2455,7 +2455,34 @@
       // v.78 site research (ledger): disease-level associations only; drug names are not pasted onto one item.
       [/膵頭部(?:がん|癌)|膵(?:がん|癌)/, [2, 3, 4, 9, 14]], [/胃全摘|胃切除/, [2, 3, 4, 8, 9, 14]], [/S状結腸(?:がん|癌)|結腸(?:がん|癌)/, [2, 3, 4, 9, 14]],
       [/大腿骨(?:頸|頚)部骨折/, [3, 4, 5, 9, 14]], [/糖尿病/, [2, 3, 4, 8, 9, 14]], [/高血圧/, [4, 9, 14]], [/脂質異常症/, [2, 4, 14]],
-      [/陳旧性心筋梗塞/, [1, 4, 9, 14]], [/子宮筋腫|過多月経/, [3, 9, 12]], [/白内障/, [4, 9, 14]]
+      [/陳旧性心筋梗塞/, [1, 4, 9, 14]], [/子宮筋腫|過多月経/, [3, 9, 12]], [/白内障/, [4, 9, 14]],
+      // v.79 Part C symptom table (docs/research-notes/2026-10-15-sitewide.md): only terms the keyword lists did not already tag with every listed item (multi-tag kept).
+      [/頻尿|濃色尿|灰白色便|頻便/, [3]],
+      [/運動耐容能低下|疼痛|鈍痛|鋭痛|腰痛|跛行|巧緻運動障害|体動時痛/, [4]],
+      [/早朝覚醒|悪夢/, [5]],
+      [/発赤|湿潤|びらん/, [8]],
+      [/失神|意識障害|薬剤副作用/, [9]],
+      [/動悸|浮腫|めまい|立ちくらみ|ふらつき/, [4,9]],
+      [/胸部圧迫感|アナフィラキシー/, [1,9]],
+      [/嚥下困難|むせ/, [1,2]],
+      [/嘔吐|口渇/, [2,3]],
+      [/体重増加|低血糖/, [2,9]],
+      [/血便|黒色便|乏尿|無尿|尿閉|排ガス停止/, [3,9]],
+      [/腹水/, [3,4]],
+      [/夜間頻尿/, [3,5]],
+      [/更衣困難/, [4,6]],
+      [/安静時痛|疼痛で眠れない/, [4,5]],
+      [/傾眠|日中眠気|夜間せん妄/, [5,9]],
+      [/熱感/, [7,8]],
+      [/皮疹|褥瘡|創部排液/, [8,9]],
+      [/口内炎|口腔乾燥/, [2,8]],
+      [/せん妄|錯乱|視力低下|幻覚/, [9,10]],
+      [/抑うつ/, [10,12,13]],
+      [/社会的孤立/, [10,13]],
+      [/肝転移/, [2, 3, 4, 9]],
+      [/腹膜播種/, [2, 3, 4, 9]],
+      [/うつ病|統合失調症|不安障害|精神科/, [5, 9, 10, 12, 13, 14]],
+      [/心不全/, [1, 2, 4, 9]]
     ];
     function diseaseSymptomNeeds(text) {
       const t = String(text || '').normalize('NFKC');
