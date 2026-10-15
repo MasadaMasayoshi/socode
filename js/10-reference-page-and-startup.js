@@ -1,7 +1,7 @@
 // Startup, references and image OCR. Validate image MIME/size; capture patient before async prompts.
 // Reference notes are not automatic classification rules; file versions detect mixed/reverted assets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = 'v.84'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = 'v.86'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -663,7 +663,7 @@ if (typeof module !== 'undefined' && module.exports) {
     cleanSheetRecordText, sheetRecordItems, buildExportPlainText, EXPORT_SECTIONS, exportSectionOn, exportSelectionFromKeys, planEvaluationEntries, buildPlanEvaluationText, buildPlanEvaluationHtml, htmlToPlainText, isUntouchedAiMissing, cleanAiText, notifyLostAiRequests, cardTextWithLabFlagsHtml, resetCardLabFlags, detectAgeGroupFromText,
     buildExportBodyHtml,
     findSourceHighlightRanges,
-    buildPatientBackupData, queueClassificationDelivery, flushClassificationDeliveries, buildSelectedCardsExportText, buildReviewRequestText, reviewRequestTargets, isEditedCard, downloadTextBlob, chooseExportFile, clinicalCardDuplicateKey, currentRuleCardForSavedItem, hasCompleteSavedSourceCoverage,
+    buildPatientBackupData, queueClassificationDelivery, flushClassificationDeliveries, buildSelectedCardsExportText, buildReviewRequestText, correctionRequestInstructionsText, backgroundFactorsText, reviewRequestTargets, isEditedCard, downloadTextBlob, chooseExportFile, clinicalCardDuplicateKey, currentRuleCardForSavedItem, hasCompleteSavedSourceCoverage,
     buildAssessmentTableText,
     describeAutoRewrite,
     mergeShortFragmentCards,

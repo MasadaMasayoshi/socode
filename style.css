@@ -1436,21 +1436,3 @@ html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow-sel path { fill: #F59E6
 .cmp-note{margin:4px 8px;font-size:.72rem;opacity:.7}
 tr.cmp-row>td.cmp-cell{padding:2px 6px}
 @media (max-width:640px){.cmp-table{font-size:.72rem}.cmp-wrap{max-height:280px}}
-
-/* v.85 scannable sufficiency / judgement cards: summary line, grouped lists, details under 「詳細」 */
-.suf-body, .suf-hbody { display: flex; flex-direction: column; gap: .4rem; margin-top: .4rem; }
-.suf-sumline { display: flex; align-items: flex-start; gap: .4rem; font-size: 12.5px; font-weight: 700; line-height: 1.5; color: var(--ink); }
-.suf-sumline i { margin-top: .2em; }
-.suf-sumline-met i { color: var(--accent-dark); } .suf-sumline-unmet i { color: var(--brick); } .suf-sumline-conflict i { color: var(--gold); } .suf-sumline-unknown i { color: var(--ink-muted); }
-.suf-grp { padding: .3rem .5rem; border-left: 3px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
-.suf-grp-ok { border-left-color: var(--accent); } .suf-grp-gap { border-left-color: var(--brick); } .suf-grp-next { border-left-color: var(--gold); }
-.suf-grp-title { font-size: 11px; font-weight: 800; color: var(--ink-muted); letter-spacing: .02em; }
-.suf-grp ul { margin: .2rem 0 0; padding-left: 1.1rem; list-style: disc; font-size: 12px; line-height: 1.6; color: var(--ink); overflow-wrap: anywhere; }
-.suf-grp li + li { margin-top: .15rem; }
-.suf-detail { font-size: 11.5px; color: var(--ink-muted); }
-.suf-detail > summary { cursor: pointer; font-weight: 700; padding: .15rem 0; list-style: none; }
-.suf-detail > summary::-webkit-details-marker { display: none; }
-.suf-detail > summary::before { content: '▸ '; } .suf-detail[open] > summary::before { content: '▾ '; }
-.suf-detail .suf-phase-why { margin-top: .2rem; } .suf-detail .suf-hwhy { margin-top: .2rem; }
-.suf-mini-v i { margin-right: .15em; font-size: 10px; }
-@media (max-width: 640px) { .suf-grp ul { font-size: 12.5px; } .suf-sumline { font-size: 13px; } .suf-detail > summary { padding: .35rem 0; } }

@@ -25,9 +25,9 @@ test('充足・未充足はサイトが決める：選ぶ欄は無く、記録�
   assert.equal(app.getSufficiency(cp, 1), 'met');
   assert.equal(app.getSufficiency(cp, 6), '');
   const pre = app.sufficiencyPhaseHtml(cp, 3, 'pre'), post = app.sufficiencyPhaseHtml(cp, 3, 'postop');
-  assert.doesNotMatch(pre + post, /<select|ルール判定|サイト内|AIなし/);
+  assert.doesNotMatch(pre + post, /<select|<details|<summary|ルール判定|サイト内|AIなし/);
   assert.match(pre + post, /class="suf-phase-block suf-expanded/);
-  assert.match(pre, /入院前.*情報不足.*次に確認すること.*判定理由/);
+  assert.match(pre, /入院前.*情報不足.*判定理由/);
   assert.match(post, /術後.*未充足.*根拠カード/);
   assert.match(post, /O-1（術後1日目：術後排便なし 腹部膨満あり）により、排泄が現在は十分に満たされていない状態と判断し、未充足。/);
   assert.ok(post.includes(app.sufficiencyPhaseText(cp, 3, 'postop').split('／判定根拠：')[1]), 'On-screen explanation matches the existing exported rationale');
