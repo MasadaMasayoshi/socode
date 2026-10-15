@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.90'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.91'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -1203,6 +1203,67 @@
       { need: 4, re: /床上安静|ベッド上安静|絶対安静|ベッド安静/, lift: /安静(?:度)?[^。、]{0,4}(?:解除|拡大|フリー)|歩行(?:が)?可能|自力歩行|室内歩行|トイレ歩行|病棟歩行|離床(?:した|でき|を開始|開始)/, label: '術後の床上安静（治療のため、動くこと・姿勢を保つことが制限されている）' }
     ];
     const SUF_RESP_DIRECT = /酸素\s*[0-9]|酸素(?:投与|吸入)|(?<![A-Za-z])O2\s*[0-9]|湿性咳嗽|息遣い(?:は)?浅|浅い呼吸|呼吸(?:が)?浅|浅表性|顔色(?:やや)?(?:不良|蒼白)|蒼白|チアノーゼ|喘鳴|呼吸困難(?:感)?(?:あり|を訴|が強)|痰(?:が)?(?:多|絡)/g;
+    // v.91 reference-document rules (参考資料 2026-10-16, 出典未確認). Recorded scores/values only; thresholds are 参考基準, never a diagnosis.
+    // Missing or unreadable values change nothing; normal values never make a need 未充足.
+    function sufficiencyScoreRules(text) {
+      const t = String(text || '').normalize('NFKC');
+      const out = [];
+      const num = re => { const m = t.match(re); return m ? Number(m[1]) : null; };
+      const bi = num(/(?:バーセル(?:インデックス)?|Barthel(?:\s*Index)?|(?<![A-Za-z])BI)\s*[:：=は]?\s*(\d{1,3})\s*(?:点|\/\s*100)?/i);
+      if (bi !== null && bi <= 100) {
+        const hit = (t.match(/(?:バーセル(?:インデックス)?|Barthel(?:\s*Index)?|(?<![A-Za-z])BI)\s*[:：=は]?\s*\d{1,3}\s*(?:点|\/\s*100)?/i) || [''])[0];
+        [3, 4, 6, 8].forEach(n => out.push({ need: n, v: bi >= 100 ? 'met' : bi < 60 ? 'unmet' : bi < 85 ? 'partial' : '', hit, ref: 'Barthel Index：100点＝自立、60点未満＝要介助、60〜84点＝部分自立（参考基準）' }));
+      }
+      const br = num(/(?:ブレーデン(?:スケール)?|Braden(?:\s*Scale)?)\s*[:：=は]?\s*(\d{1,2})\s*点?/i);
+      if (br !== null && br >= 6 && br <= 23) {
+        const home = /在宅|訪問|施設/.test(t);
+        if (br <= (home ? 17 : 14)) out.push({ need: 8, v: 'unmet', hit: (t.match(/(?:ブレーデン(?:スケール)?|Braden(?:\s*Scale)?)\s*[:：=は]?\s*\d{1,2}\s*点?/i) || [''])[0], ref: `Braden：${home ? '在宅17点以下' : '病院14点以下'}は褥瘡の高リスク（参考基準）` });
+      }
+      const sp = num(/SpO2\s*[:：=]?\s*(\d{2,3})\s*%/i);
+      if (sp !== null && sp <= 100) out.push({ need: 1, v: sp < 90 ? 'unmet' : sp >= 95 ? 'met' : '', hit: (t.match(/SpO2\s*[:：=]?\s*\d{2,3}\s*%/i) || [''])[0], ref: 'SpO2：90%未満は呼吸の未充足を疑う、95%以上は通常範囲（参考基準）' });
+      if (/頻呼吸|呼吸数\s*[:：]?\s*(?:2[5-9]|[3-9]\d)\s*回/.test(t) && !/頻呼吸(?:なし|ない)/.test(t)) out.push({ need: 1, v: 'unmet', hit: (t.match(/頻呼吸|呼吸数\s*[:：]?\s*\d+\s*回/) || [''])[0], ref: '頻呼吸（参考基準）' });
+      const wl = t.match(/(?:体重)[^。、\d]{0,6}(\d+(?:\.\d+)?)\s*%\s*(?:以上の)?(?:減少|減|低下)|(\d+(?:\.\d+)?)\s*%\s*(?:の)?体重(?:減少|減)/);
+      const wlp = wl ? Number(wl[1] || wl[2]) : null;
+      const bmi = num(/BMI\s*[:：=]?\s*(\d{1,2}(?:\.\d+)?)/i), alb = num(/(?:Alb|アルブミン)\s*[:：=]?\s*(\d(?:\.\d+)?)/i);
+      if (wlp !== null && wlp >= 5 && /(?:6\s*か月|6\s*ヶ月|半年|6\s*カ月)/.test(t)) out.push({ need: 2, v: 'unmet', hit: wl[0], ref: '体重減少5%以上/6か月（参考基準）' });
+      if (bmi !== null && bmi > 0 && bmi < 18.5) out.push({ need: 2, v: 'unmet', hit: `BMI ${bmi}`, ref: 'BMI18.5未満は低体重（参考基準）' });
+      if (alb !== null && alb > 0 && alb < 3.5 && !/Alb\s*[:：=]?\s*\d(?:\.\d+)?\s*(?:mg|μ)/i.test(t)) out.push({ need: 2, v: 'unmet', hit: (t.match(/(?:Alb|アルブミン)\s*[:：=]?\s*\d(?:\.\d+)?/i) || [''])[0], ref: 'Alb低値は栄養状態の参考（参考基準）' });
+      const a1c = num(/HbA1c\s*(?:\(NGSP\))?\s*[:：=]?\s*(\d{1,2}(?:\.\d+)?)\s*%?/i);
+      if (a1c !== null && a1c >= 9 && a1c <= 20) [2, 14].forEach(n => out.push({ need: n, v: 'unmet', hit: (t.match(/HbA1c\s*(?:\(NGSP\))?\s*[:：=]?\s*\d{1,2}(?:\.\d+)?\s*%?/i) || [''])[0], ref: 'HbA1c 9%以上は血糖管理不良の目安。食事・自己管理（学習）の確認が必要（参考基準）' }));
+      return out;
+    }
+    function sufficiencyScoreOverrides(items, res, isPre) {
+      const post = items.filter(i => !isPre(i) && !/[「」]/.test(String(i.text || '')));
+      const pre = items.filter(i => isPre(i) && !/[「」]/.test(String(i.text || '')));
+      const apply = (list, phaseKeys) => {
+        const byNeed = {};
+        list.forEach(i => sufficiencyScoreRules(i.text).forEach(r => { if (r.v) (byNeed[r.need] = byNeed[r.need] || []).push({ ...r, id: i.id }); }));
+        Object.keys(byNeed).forEach(n => {
+          const r = res[n]; if (!r) return;
+          const rs = byNeed[n];
+          const um = rs.filter(x => x.v === 'unmet'), mt = rs.filter(x => x.v === 'met'), pt = rs.filter(x => x.v === 'partial');
+          const pick = um.length ? um : (!um.length && pt.length) ? pt : mt;
+          const verdict = um.length ? 'unmet' : pt.length ? 'conflict' : 'met';
+          const g = pick[0];
+          const cur = phaseKeys.map(k => r[k]).find(Boolean) || {};
+          // never overwrite a verdict that already rests on other recorded evidence unless the score shows a problem (unmet) over a 充足
+          if (cur.verdict === 'unmet' && !cur.restriction && verdict !== 'unmet') return;
+          if (cur.verdict === 'met' && verdict === 'met') return;
+          if (cur.verdict && cur.verdict !== 'unknown' && cur.verdict !== 'met' && verdict === 'met') return;
+          if (cur.verdict === 'unmet' && !cur.restriction && verdict === 'unmet') return;
+          const v = { verdict, reason: `「${g.hit}」`, evidence: pick.map(x => x.id).slice(0, 5), need: '', refStandard: g.ref, ...(verdict === 'conflict' ? { needsConfirmation: true } : {}) };
+          phaseKeys.forEach(k => { if (r[k] || k === 'all') r[k] = v; });
+        });
+      };
+      apply(post, ['post', 'all']);
+      apply(pre, ['pre', 'all']);
+    }
+    const SUF_CAUSE_RULES = [['体力', /麻痺|筋力|痛|創|安静|息苦|息切れ|疲|倦怠|全介助|要介助|困難|ふらつ|低下|SpO2|Barthel|バーセル|ブレーデン|Braden/i], ['意思力', /意欲|不安|恐怖|面倒|めんどう|拒否|気兼ね|羞恥|やる気|中断|落ち込|抑うつ/], ['知識', /知らな|わからな|分からな|理解|間違|誤|手技|指導|説明|不規則|自己判断|HbA1c/i]];
+    // Optional hint for 未充足 (体力／意思力／知識 の不足). Shown beside the verdict, never inside the sufficiency sentences.
+    function sufficiencyCauseHint(text) {
+      const t = String(text || '').normalize('NFKC');
+      return SUF_CAUSE_RULES.filter(([, re]) => re.test(t)).map(([n]) => n);
+    }
     function sufficiencyStateOverrides(items, res, isPre) {
       const post = items.filter(i => !isPre(i) && !/[「」]/.test(String(i.text || '')));
       const nz = x => String(x || '').normalize('NFKC');
@@ -1280,7 +1341,10 @@
         Object.keys(phases).forEach(k => { res[k] = judge(mine.filter(i => phases[k][1](effCol(i), i)), phases[k][0], k === 'preop' ? 'pre' : k === 'postop' ? 'post' : k); });
         out[need.id] = res;
       });
+      try { sufficiencyScoreOverrides(items, out, i => /^入院前/.test(String(i.timestamp || '')) || (Object.values(i.assessmentCols || {}).length > 0 && Object.values(i.assessmentCols).every(c => c === 'preadmission'))); } catch (err) { console.warn('score rules failed:', err); }
       try { sufficiencyStateOverrides(items, out, i => /^入院前/.test(String(i.timestamp || '')) || (Object.values(i.assessmentCols || {}).length > 0 && Object.values(i.assessmentCols).every(c => c === 'preadmission'))); } catch (e) { console.warn('Restriction check failed:', e); }
+      // v.91: a 充足 verdict must rest on a recorded basis; without evidence it is 情報不足 (the need text is kept, only the verdict changes).
+      Object.keys(out).forEach(n => Object.keys(out[n]).forEach(k => { const v = out[n][k]; if (v && v.verdict === 'met' && !(v.evidence || []).length) out[n][k] = { verdict: 'unknown', reason: '', evidence: [], need: v.need || '記録に基づく根拠がなく、満たされているか判断できない' }; }));
       return out;
     }
     window.runSufficiencyRules = function() {
@@ -1317,7 +1381,7 @@ if (typeof module !== 'undefined' && module.exports) {
     MY_ASSESSMENT_FIELDS,
     ensureMyAssessment, getMyAssessment, ruleSufficiencyFor, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
     myAssessmentStatus, myAssessmentNeedsReview, confirmMyAssessmentEntry, restoreMyAssessmentFromHistory,
-    hasRuleSufficiency, sufficiencyDimensions, sufficiencyDimensionLines, phaseVerdictOf, sufficiencyUiPhases, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, sufficiencyMiniHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
+    hasRuleSufficiency, sufficiencyDimensions, sufficiencyDimensionLines, phaseVerdictOf, sufficiencyUiPhases, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyScoreRules, sufficiencyCauseHint, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, sufficiencyMiniHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
     renderMyAssessmentRowHtml, evidencePickerCandidates, myAssessmentAlwaysShown
   });
   if (module.exports.__testHooks) Object.assign(module.exports.__testHooks, { flushMyAssessmentSaves, saveMyAssessmentsSoon });
