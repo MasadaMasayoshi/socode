@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.79'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.80'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -2214,7 +2214,7 @@
       out += '[Purpose] This is a research request to raise the quality of a Japanese nursing-assessment support website as a whole. The topics below are only points where the site could not decide by its own rules (or held very little knowledge); they were found in one case. Do NOT answer for that case alone: collect general nursing and medical knowledge that applies to any patient.\n';
       out += `[Trigger case, as an example only] ${krPatientSummary(cp)}. No personal information is included.\n`;
       out += '[How to research] For each topic, also look at its surroundings (same disease group, same symptom group, related drugs and lab tests, commonly co-occurring problems). If you find knowledge useful to the site that was not requested, add it, with one line on why you thought it was needed (なぜ必要と考えたか).\n';
-      out += '[Sources] Prefer textbooks (title, edition, page) and official guidelines (name, year). Mark anything you cannot verify as 未確認. Content without a source cannot be used.\n';
+      out += '[Sources] Prefer textbooks (title, edition, page) and official guidelines (name, year). Mark anything you cannot verify as 未確認 but still include it; missing sources are not a reason to leave something out.\n';
       out += '[Language] Write the answers in Japanese. Keep nursing terms as they are (看護問題, ヘンダーソンの14項目, OP/TP/EP).\n';
       out += '[Answer format] Use exactly this template, once per topic, in the same order as the topic list. Be concise; do not pad.\n';
       out += '  Topic: 「term」\n';
