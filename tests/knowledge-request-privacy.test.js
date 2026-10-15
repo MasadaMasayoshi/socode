@@ -47,3 +47,14 @@ test('the original-record section drops report header lines and staff or signer 
   assert.ok(/発熱と咳が続く/.test(text));
   assert.ok(!/青山|花子|岡田|次郎|さくら太郎|カルテNo/.test(text));
 });
+
+test('only medical terms become topics: plain nouns, body parts and feeling words do not', () => {
+  ['気持', '横向', '背中', '最期', '増量', 'レスキュー'].forEach(w => assert.equal(app.krIsMedicalTerm(w), false, w));
+  ['光線過敏症', 'オキシコドン徐放錠', '鈍痛', '心外膜炎', 'ワーファリン'].forEach(w => assert.equal(app.krIsMedicalTerm(w), true, w));
+});
+
+test('sentence-like history entries are not requested as diagnoses', () => {
+  const src = '既往歴: 10歳の時に胆結石を指摘されていたが、糖尿病\n診断名: 胃がん';
+  const { reqs } = build(src);
+  assert.ok(!reqs.some(r => /指摘/.test(r.term)), reqs.map(r => r.term).join(','));
+});

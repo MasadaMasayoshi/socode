@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.74'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.75'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1020,6 +1020,100 @@
     // ==========================================================================
 
     // ==========================================================================
+    // Care-plan knowledge table: standard nursing points per symptom/problem (general guidance, not a diagnosis).
+    // Used only to show non-binding suggestions in the plan review and to count as existing knowledge; it never edits a plan.
+    // Each point is [short text, regex that recognises the point already written in that section].
+    const CPK_SRC = { nanbyo: '難病情報センター 指定難病49（全身性エリテマトーデス）', sle: '2025 ACR SLE guideline', ln: '2024 ACR/KDIGO lupus nephritis', raynaud: '2025 ACR Raynaud', pericarditis: '2025 ESC pericarditis' };
+    const CARE_PLAN_KNOWLEDGE = [
+      { key: 'arthralgia', re: /関節痛|関節炎/, label: '関節痛', source: [CPK_SRC.nanbyo, CPK_SRC.sle],
+        op: [['痛みの部位・程度（NRS）と朝のこわばり', /NRS|部位|程度|こわばり/], ['腫脹・熱感・可動域', /腫脹|熱感|可動/]],
+        tp: [['鎮痛薬の与薬と効果の確認', /鎮痛|与薬|効果/], ['痛みの少ない動作・体位の工夫、温めるなどの援助', /動作|体位|温|罨法|安静/]],
+        ep: [['痛みを我慢せず伝えること', /我慢|伝え|知らせ/], ['関節に負担の少ない動き方', /関節|負担|無理|動き方/]] },
+      { key: 'alopecia', re: /脱毛|抜け毛/, label: '脱毛', source: [CPK_SRC.nanbyo, CPK_SRC.sle],
+        op: [['脱毛の範囲・進み方と頭皮の発赤・皮疹', /範囲|進|頭皮|発赤|皮疹/]],
+        tp: [['頭皮を刺激しない洗髪・ブラッシングの援助', /洗髪|ブラッシング|頭皮|刺激/], ['外見の変化への気持ちの傾聴（帽子・ウィッグの相談）', /傾聴|気持ち|ウィッグ|帽子|相談/]],
+        ep: [['脱毛は病気や治療で起こりうること、不安は相談してよいこと', /病気|治療|相談|不安/]] },
+      { key: 'photosensitivity', re: /光線過敏|日光過敏|紫外線/, label: '光線過敏症', source: [CPK_SRC.nanbyo, CPK_SRC.sle],
+        op: [['日光にあたった状況と、発疹が出るまでの時間・分布・全身症状（発熱・倦怠感）', /日光|紫外線|曝露|分布|発疹|全身症状/]],
+        tp: [['日焼け止め・帽子・長袖など遮光の援助と皮膚の保護', /遮光|日焼け|帽子|長袖|保護/]],
+        ep: [['季節を問わない継続した遮光', /継続|季節|遮光|日焼け/], ['日光にあたったあとの症状の記録', /記録|メモ|日誌/]] },
+      { key: 'chilblain', re: /凍瘡様|しもやけ|凍瘡/, label: '凍瘡様紅斑', source: [CPK_SRC.nanbyo, CPK_SRC.sle],
+        op: [['紅斑の部位・色調・痛みやかゆみ、寒冷との関係', /部位|色調|紅斑|痛み|かゆみ|寒冷/]],
+        tp: [['手袋・靴下などの保温と皮膚の保護', /保温|手袋|靴下|保護/]],
+        ep: [['寒冷を避けること、悪化したら知らせること', /寒冷|冷|知らせ|悪化/]] },
+      { key: 'raynaud', re: /レイノー/, label: 'レイノー現象', source: [CPK_SRC.raynaud, CPK_SRC.nanbyo],
+        op: [['指趾の色調変化（白→紫→赤）と誘因（寒冷・ストレス）、しびれ・潰瘍', /色調|誘因|寒冷|しびれ|潰瘍/]],
+        tp: [['手袋・靴下による保温と、冷水に触れないための援助', /保温|手袋|靴下|冷水/]],
+        ep: [['寒冷や喫煙を避けること、潰瘍や痛みが続くときは知らせること', /寒冷|喫煙|潰瘍|知らせ|受診/]] },
+      { key: 'nephritis', re: /ループス腎炎|腎炎|蛋白尿/, label: 'ループス腎炎', source: [CPK_SRC.ln, CPK_SRC.nanbyo],
+        op: [['尿量・尿の性状（泡立ち・血尿）・体重・浮腫・血圧', /尿量|尿の|血尿|体重|浮腫|血圧/], ['尿蛋白・腎機能の検査値', /尿蛋白|蛋白尿|腎機能|Cre|eGFR|検査値/]],
+        tp: [['指示された塩分・水分の管理の援助', /塩分|水分|食事/]],
+        ep: [['むくみ・尿の変化に気づいたら知らせること、服薬を続けること', /むくみ|浮腫|尿の変化|服薬|内服/]] },
+      { key: 'bleeding', re: /出血傾向|出血|紫斑|点状出血/, label: '出血傾向・出血', source: [CPK_SRC.nanbyo, CPK_SRC.sle],
+        op: [['出血部位・量、紫斑、血小板・凝固の検査値', /部位|量|紫斑|血小板|凝固|検査値/]],
+        tp: [['やわらかい歯ブラシ・電動シェーバーなど出血予防と、出血時の圧迫止血', /歯ブラシ|シェーバー|予防|圧迫|止血/]],
+        ep: [['出血したときの対応と受診の目安、自己判断で薬を中止しないこと', /対応|受診|自己判断|中止|知らせ/]] },
+      { key: 'anemia', re: /貧血/, label: '貧血', source: [CPK_SRC.nanbyo, CPK_SRC.sle],
+        op: [['顔色・めまい・動悸・息切れとHb値', /顔色|めまい|動悸|息切れ|Hb/]],
+        tp: [['立ち上がりをゆっくりにする、活動と休息の調整、転倒予防', /ゆっくり|休息|転倒|活動/]],
+        ep: [['ふらつき・動悸が強いときは動かず知らせること', /ふらつき|動悸|知らせ|ナースコール/]] },
+      { key: 'dyspnea', re: /息切れ|呼吸困難|労作時呼吸/, label: '息切れ', source: [CPK_SRC.nanbyo, CPK_SRC.sle],
+        op: [['呼吸数・SpO2・息切れの程度（動作との関係）・胸痛・咳', /呼吸数|SpO2|程度|動作|胸痛|咳/]],
+        tp: [['楽な体位と、休息をはさんだ動作の援助', /体位|ファウラー|休息|ゆっくり/]],
+        ep: [['動作をゆっくり行うこと、息苦しさが増したらすぐ知らせること', /ゆっくり|知らせ|ナースコール/]] },
+      { key: 'pleuritis', re: /胸膜炎|胸水|胸膜痛/, label: '胸膜炎', source: [CPK_SRC.nanbyo, CPK_SRC.sle],
+        op: [['深呼吸や咳で強まる胸痛・呼吸数・SpO2・呼吸音・発熱', /胸痛|深呼吸|呼吸数|SpO2|呼吸音|発熱/]],
+        tp: [['痛みの少ない体位と、鎮痛・深呼吸の援助', /体位|鎮痛|深呼吸/]],
+        ep: [['痛みを我慢せず伝えること、息苦しさが悪化したら知らせること', /我慢|伝え|知らせ/]] },
+      { key: 'pericarditis', re: /心外膜炎|心膜炎|心膜液/, label: '心外膜炎', source: [CPK_SRC.pericarditis, CPK_SRC.nanbyo],
+        op: [['前かがみで和らぐ胸痛・発熱・脈拍・血圧・息苦しさ', /胸痛|発熱|脈拍|血圧|息苦|前かがみ/]],
+        tp: [['安静と楽な体位（前傾位など）・鎮痛の援助', /安静|体位|前傾|鎮痛/]],
+        ep: [['胸痛・息苦しさ・動悸が強まったらすぐ知らせること、指示された期間の安静や運動制限', /知らせ|安静|運動|制限/]] },
+      { key: 'neuro', re: /神経症状|けいれん|痙攣|しびれ|意識障害|精神症状/, label: '神経症状', source: [CPK_SRC.nanbyo, CPK_SRC.sle],
+        op: [['意識レベル・頭痛・けいれん・しびれ・麻痺・気分や言動の変化', /意識|頭痛|けいれん|痙攣|しびれ|麻痺|言動|気分/]],
+        tp: [['転倒・けいれん時に備えた安全な環境の調整', /安全|転倒|環境|ベッド柵/]],
+        ep: [['症状が出たら知らせること、家族への変化の気づき方', /知らせ|家族|変化/]] },
+      { key: 'headache', re: /頭痛/, label: '頭痛', source: [CPK_SRC.nanbyo, CPK_SRC.sle],
+        op: [['痛みの部位・程度・持続と、嘔気・発熱・視覚の異常・意識の変化', /部位|程度|持続|嘔気|発熱|視覚|意識/]],
+        tp: [['静かで暗い環境での安静と、与薬・効果の確認', /安静|環境|与薬|鎮痛|効果/]],
+        ep: [['我慢せず伝えること、強い頭痛やけいれん・意識の変化はすぐ知らせること', /我慢|伝え|知らせ|すぐ/]] },
+      { key: 'rash', re: /蝶形紅斑|円板状|頬部紅斑|皮疹/, label: '蝶形紅斑・円板状皮疹', source: [CPK_SRC.nanbyo, CPK_SRC.sle],
+        op: [['皮疹の部位・範囲・色調・かゆみや痛み、日光との関係', /部位|範囲|色調|かゆみ|痛み|日光/]],
+        tp: [['遮光と、刺激の少ない洗顔・保湿など皮膚の保護', /遮光|保湿|洗顔|保護|刺激/]],
+        ep: [['継続した遮光と、皮疹の変化を伝えること', /遮光|継続|変化|伝え|知らせ/]] },
+      { key: 'myalgia', re: /筋肉痛|筋痛|筋力低下/, label: '筋肉痛', source: [CPK_SRC.nanbyo, CPK_SRC.sle],
+        op: [['痛みの部位・程度、筋力低下、動作との関係、CKなどの検査値', /部位|程度|筋力|動作|CK|検査値/]],
+        tp: [['無理のない動作の援助と、休息・鎮痛', /動作|休息|安静|鎮痛|温/]],
+        ep: [['無理をせず休むこと、痛みや脱力が強まったら知らせること', /無理|休|知らせ|伝え/]] },
+      { key: 'infection', re: /感染リスク|易感染|免疫抑制/, label: '感染リスク', source: [CPK_SRC.nanbyo, CPK_SRC.sle],
+        op: [['体温・倦怠感・咳・排尿時痛・皮膚粘膜の変化・WBC/CRP', /体温|倦怠|咳|排尿|皮膚|WBC|CRP/]],
+        tp: [['手洗い・口腔ケア・清潔の援助', /手洗い|手指|口腔|清潔/]],
+        ep: [['発熱時は自己判断せず連絡すること（感染か病気の再燃かは医師が判断）、自己判断で薬を止めないこと', /発熱|連絡|知らせ|自己判断|中止/]] },
+      { key: 'aps', re: /抗リン脂質|血栓|塞栓|DVT/, label: '抗リン脂質抗体・血栓', source: [CPK_SRC.nanbyo, CPK_SRC.sle],
+        op: [['下肢の腫脹・痛み・左右差、突然の息苦しさ・胸痛・神経症状', /下肢|腫脹|左右差|息苦|胸痛|神経/]],
+        tp: [['早期離床・下肢の運動・弾性ストッキングなどの血栓予防の援助', /離床|運動|弾性|ストッキング|フットポンプ|予防/]],
+        ep: [['片側のはれ・痛み、突然の息苦しさや麻痺はすぐ知らせること、抗凝固薬服用中の出血に注意すること', /知らせ|すぐ|受診|出血/]] }
+    ];
+    function cpKnowledgeRowsFor(text) {
+      const t = String(text || '').normalize('NFKC');
+      return CARE_PLAN_KNOWLEDGE.filter(r => r.re.test(t));
+    }
+    // Non-binding suggestions: points of a matching row that the plan's own OP/TP/EP do not yet contain.
+    function cpKnowledgeSuggestions(plan) {
+      const p = plan || {};
+      const trigger = [p.problem, ...(Array.isArray(p.evidence) ? p.evidence : [p.evidence]), p.note].join('\n');
+      const out = [];
+      cpKnowledgeRowsFor(trigger).forEach(row => {
+        [['op', 'OP'], ['tp', 'TP'], ['ep', 'EP']].forEach(([sec, short]) => {
+          const have = (p[sec] || []).join('\n').normalize('NFKC');
+          const miss = row[sec].filter(([, has]) => !has.test(have)).map(([text]) => text);
+          if (miss.length) out.push({ row: row.key, label: row.label, section: short, points: miss, source: row.source,
+            msg: `知識（参考）：「${row.label}」の計画では、${short}に「${miss.join('」「')}」を加えることを検討できます（出典：${row.source.join('／')}。一般的な案内であり、診断ではありません。計画は自動では変わりません）` });
+        });
+      });
+      return out;
+    }
+
     const CP_REVIEW_ITEMS = [
       { key: 'fit', label: '看護問題との整合性' },
       { key: 'goal', label: '目標の具体性・評価可能性' },
@@ -1027,7 +1121,8 @@
       { key: 'tp', label: 'TP（援助計画）の具体性' },
       { key: 'ep', label: 'EP（教育計画）の適切さ' },
       { key: 'individual', label: '患者の個別性' },
-      { key: 'evidence', label: '根拠データとの一致' }
+      { key: 'evidence', label: '根拠データとの一致' },
+      { key: 'knowledge', label: '知識からの提案（参考）' }
     ];
 
     // Infection risk under immunosuppression with no wound/line documented. Does not invent wound or line observations.
@@ -1435,6 +1530,8 @@
         evMsgs.push(...inline.evidence);
         push('evidence', evMsgs, { evidence });
       }
+      const kn = cpKnowledgeSuggestions({ ...p, evidence });
+      if (kn.length) push('knowledge', kn.map(k => k.msg), { level: 'info', knowledge: kn });
       return { domain: dom ? dom.key : null, items: out, goalExample, evidence, model: cpModelFor(p, ctx) };
     }
     // Review notes shown next to the plan text (never rewrites the user's wording).
@@ -1769,6 +1866,19 @@
       });
       return Array.from(names).sort((a, b) => b.length - a.length);
     }
+    // A word is worth a knowledge request only if it is a medical term: a known disease/symptom/drug/test/plan-knowledge entry,
+    // or shaped like one (disease, symptom, procedure, drug-form endings). Plain nouns, body parts and feeling words are not.
+    const KR_MEDICAL_SHAPE = /(?:症|炎|痛|障害|不全|腫|癌|がん|病|疹|熱|血|圧|麻痺|浮腫|出血|閉塞|梗塞|狭窄|潰瘍|術|錠|薬|療法|検査|麻酔|注射|吐|嘔|咳|痰|便秘|下痢|黄疸|脱水|褥瘡|感染|発作|ショック|低下|異常|徐放|カプセル|ドレーン|カテーテル|ストーマ|症候群)$/;
+    function krIsMedicalTerm(term) {
+      const t = String(term || '').normalize('NFKC');
+      if (KR_MEDICAL_SHAPE.test(t)) return true;
+      if (typeof DIAGNOSIS_TAG_HINTS !== 'undefined' && DIAGNOSIS_TAG_HINTS.some(h => h.pattern.test(t))) return true;
+      if (typeof DISEASE_SYMPTOM_NEEDS !== 'undefined' && DISEASE_SYMPTOM_NEEDS.some(([re]) => re.test(t))) return true;
+      if (typeof RM_BRIDGE_RULES !== 'undefined' && RM_BRIDGE_RULES.some(r => r.s.test(t) || r.t.test(t))) return true;
+      if (cpKnowledgeRowsFor(t).length) return true;
+      if (typeof findDrugsInText === 'function' && findDrugsInText(t).length) return true;
+      return typeof mentionsLabItemName === 'function' && mentionsLabItemName(t);
+    }
     function krTerms(text) {
       return Array.from(new Set((String(text || '').normalize('NFKC').match(/[一-龥ァ-ヶー]{2,12}/g) || []).filter(t => !KR_STOP.test(t) && !KR_STOP_SHAPE.test(t) && !KR_LAB_VOCAB.test(t))));
     }
@@ -1806,7 +1916,8 @@
       const hints = typeof DIAGNOSIS_TAG_HINTS !== 'undefined' ? DIAGNOSIS_TAG_HINTS.filter(h => h.pattern.test(t)).length : 0;
       const bridges = typeof RM_BRIDGE_RULES !== 'undefined' ? RM_BRIDGE_RULES.filter(r => r.s.test(t) || r.t.test(t)).length : 0;
       const symptoms = typeof DISEASE_SYMPTOM_NEEDS !== 'undefined' ? DISEASE_SYMPTOM_NEEDS.filter(([re]) => re.test(t)).length : 0;
-      return { hints, bridges, symptoms, total: hints + bridges + symptoms };
+      const plans = cpKnowledgeRowsFor(t).length;
+      return { hints, bridges, symptoms, plans, total: hints + bridges + symptoms + plans };
     }
     function buildKnowledgeRequests(cp) {
       const all = ((cp && cp.items) || []).filter(i => i && !i.deleted && i.text);
@@ -1827,11 +1938,11 @@
       const plans = typeof carePlanList === 'function' ? carePlanList(cp || {}) : [];
       // Tagging: words no rule could tag, and disease-list symptoms without a need.
       items.filter(i => i.type !== 'unnecessary' && !(i.hendersonIds || []).length && !i.tagNotNeeded && !(typeof isBasicInfoItem === 'function' && isBasicInfoItem(i)))
-        .forEach(i => krTerms(i.text).filter(t => !(detectMultipleHendersonTags(t) || []).length).slice(0, 2)
+        .forEach(i => krTerms(i.text).filter(t => !(detectMultipleHendersonTags(t) || []).length && (i.diseaseGeneral || krIsMedicalTerm(t))).slice(0, 2)
           .forEach(t => add('tag', i.diseaseGeneral ? 'symptom' : 'term', t, `「${t}」は看護でどんな意味がありますか？ ヘンダーソンの14項目のどれに関係しますか（番号と理由）？ 観察すべき点も教えてください。`, ctxOf(i))));
       // Diagnoses: what the rules, care plan and relation map need to know about each one.
       const dxList = [];
-      items.filter(i => /^(?:診断|診断名|病名|既往歴)$/.test(i.fieldLabel || '')).forEach(i => String(i.text).normalize('NFKC').replace(/^[^:：]{1,6}[:：]\s*/, '').split(/[、,・\/]/).map(x => x.replace(/[()（）].*$/, '').replace(/^\d{1,3}歳\s*/, '').trim()).filter(x => x.length >= 2 && x.length <= 20 && !/(?:なし|無し|ない|あり|中|ため|いる|ます|です)$/.test(x)).forEach(d => dxList.push({ d, i })));
+      items.filter(i => /^(?:診断|診断名|病名|既往歴)$/.test(i.fieldLabel || '')).forEach(i => String(i.text).normalize('NFKC').replace(/^[^:：]{1,6}[:：]\s*/, '').split(/[、,・\/]/).map(x => x.replace(/[()（）].*$/, '').replace(/^\d{1,3}歳\s*/, '').trim()).filter(x => x.length >= 2 && x.length <= 20 && !/(?:なし|無し|ない|あり|中|ため|いる|ます|です)$/.test(x) && !/指摘|されて|していた|ている|^[のにをがはで]|を.|たが$|が$/.test(x)).forEach(d => dxList.push({ d, i })));
       dxList.forEach(({ d, i }) => {
         const cov = krCoverage(d);
         if (cov.hints > 0 && cov.total <= KR_THIN) add('tag', 'thin-diagnosis', d, `「${d}」について登録済みの知識が少なめです（項目の目安 ${cov.hints}件・関連図の仕組み ${cov.bridges}件・症状の対応 ${cov.symptoms}件）。看護で注目する項目、典型的な症状・合併症・治療とその副作用、関連図でつなげる仕組みを補ってください。`, ctxOf(i));
@@ -1854,7 +1965,7 @@
       if (cp && cp.relationMap && Array.isArray(cp.relationMap.nodes)) {
         cp.relationMap.nodes.filter(n => n.type === 'nursing_problem').forEach(n => {
           const label = String(n.label || '').trim();
-          if (label && !plans.some(p => String(p.problem || '').includes(label.slice(0, 6)))) add('plan', 'plan-missing', label, `看護問題「${label}」の看護計画を立てるために、目標の目安と、OP（観察）・TP（援助）・EP（教育）の要点を教えてください。`, [krPatientSummary(cp)]);
+          if (label && !cpKnowledgeRowsFor(label).length && !plans.some(p => String(p.problem || '').includes(label.slice(0, 6)))) add('plan', 'plan-missing', label, `看護問題「${label}」の看護計画を立てるために、目標の目安と、OP（観察）・TP（援助）・EP（教育）の要点を教えてください。`, [krPatientSummary(cp)]);
         });
       }
       if (cp && cp.relationMap && Array.isArray(cp.relationMap.nodes) && typeof RM_BRIDGE_RULES !== 'undefined') {
@@ -1865,7 +1976,7 @@
       }
       plans.forEach(p => {
         const empty = CARE_PLAN_SECTIONS.filter(sec => !(p[sec.key] || []).length).map(sec => sec.short);
-        if (p.problem && empty.length) add('plan', 'plan-section', p.problem, `看護計画「${p.problem}」の ${empty.join('・')} が空です。この問題で一般的に行う内容と、その根拠を教えてください。`, [krPatientSummary(cp)]);
+        if (p.problem && empty.length && !cpKnowledgeRowsFor(p.problem).length) add('plan', 'plan-section', p.problem, `看護計画「${p.problem}」の ${empty.join('・')} が空です。この問題で一般的に行う内容と、その根拠を教えてください。`, [krPatientSummary(cp)]);
       });
       const order = { tag: 0, plan: 1, map: 2 };
       return reqs.sort((a, b) => order[a.purpose] - order[b.purpose] || b.count - a.count).slice(0, 50);
@@ -2581,7 +2692,7 @@ if (typeof module !== 'undefined' && module.exports) {
     carePlanInlineNotes, captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
     cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf, collapseVitalCards, collapseLabCards,
-    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, krTerms, krNames, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
+    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, krTerms, krNames, krIsMedicalTerm, CARE_PLAN_KNOWLEDGE, cpKnowledgeSuggestions, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
     cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, carePlanSetReviewHtml, carePlanSetState, carePlanSetNextSteps
   });
 }

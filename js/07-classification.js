@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.73'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.75'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -1237,7 +1237,7 @@
         const t = l.trim();
         const prevBlank = i === 0 || !out[i - 1].trim();
         const next = (out[i + 1] || '').trim();
-        const isHead = prevBlank && next && t.length >= 2 && t.length <= 10 && !/[、。,.:：「」()（）\d%％\u0002【】\[\]<>＜＞■●◆◇□○]/.test(t) && !DAY_HEADING_ONLY_REGEX.test(t.replace(/\s+/g, '')) &&
+        const isHead = prevBlank && next && t.length >= 2 && t.length <= 10 && !/[、。,.:：「」()（）\d%％\u0002【】\[\]<>＜＞■●◆◇□○]/.test(t) && !DAY_HEADING_ONLY_REGEX.test(t.replace(/\s+/g, '')) && !/^(?:入院前|入院時|入院後|術前|術中|術後)$/.test(t) &&
           !t.startsWith(SOURCE_TITLE_MARK) && !/[ぁ-ん]$/.test(t) && !Array.from(detectMultipleHendersonTagsRaw(t) || []).length;
         headLike[i] = !!isHead;
         // A noun-only heading is dropped from card text only when a labelled field follows it; other headings keep the existing

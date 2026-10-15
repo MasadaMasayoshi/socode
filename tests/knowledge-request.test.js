@@ -20,10 +20,10 @@ test('requests carry de-identified source context and a patient summary', () => 
 });
 test('care-plan and relation-map gaps are requested, not only tagging', () => {
   const cp = base();
-  cp.relationMap = { nodes: [{ id: 'p', type: 'nursing_problem', label: '感染リスク状態' }], edges: [] };
+  cp.relationMap = { nodes: [{ id: 'p', type: 'nursing_problem', label: '褥瘡リスク状態' }], edges: [] };
   cp.carePlans = { a: { id: 'a', problem: '活動耐性低下', op: ['疲労感'], tp: [], ep: [], order: 1 } };
   const r = app.buildKnowledgeRequests(cp);
-  assert.ok(r.some(x => x.purpose === 'plan' && x.kind === 'plan-missing' && /感染/.test(x.term)));
+  assert.ok(r.some(x => x.purpose === 'plan' && x.kind === 'plan-missing' && /褥瘡/.test(x.term)));
   assert.ok(r.some(x => x.purpose === 'plan' && x.kind === 'plan-section' && /TP/.test(x.question)));
   assert.ok(r.some(x => x.purpose === 'map' && x.kind === 'map-diagnosis' && /スチル病/.test(x.term)));
   assert.ok(r.some(x => x.purpose === 'map' && x.kind === 'mechanism'));
