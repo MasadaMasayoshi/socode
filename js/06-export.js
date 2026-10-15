@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.89'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.90'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -910,13 +910,22 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     }
     // Background factors the app already holds as labelled cards (field label → value), names masked, for comparison with the source.
     const BACKGROUND_FACTOR_LABELS = new Set(['年齢', '性別', '職業', '家族構成', '家族関係', '家族歴', '同居者', '既往歴', '現病歴', '生活歴', '喫煙', '飲酒', '食習慣', 'アレルギー', '内服薬', '常用薬', '入院の経緯', '入院目的', '診断名', '病名', 'ADL', '社会資源', '保険', '学歴']);
+    // v.90: background factors written without a field label (職業・飲酒・喫煙・運動・食習慣・同居) are named by their words, for pre-admission/undated cards only.
+    const BACKGROUND_FACTOR_WORDS = [['職業', /営業職|事務職|会社員|職業|外回り|自営|農業|主婦|無職|教員|看護師として|勤務(?:先|形態)|仕事(?:は|が|を)/], ['飲酒', /飲酒|アルコール|晩酌|お酒|ビール|日本酒/], ['喫煙', /喫煙|タバコ|煙草|ブリンクマン/], ['運動', /運動(?:習慣|は|を)|ウォーキング|スポーツ習慣/], ['食習慣', /食習慣|間食|外食|早食い|偏食|甘いもの/], ['同居・家族', /(?:妻|夫|子|娘|息子|母|父)と(?:二人|2人|同居|暮らし)|独居|一人暮らし|二人暮らし|同居/]];
+    function backgroundFactorName(i) {
+      if (i.fieldLabel && BACKGROUND_FACTOR_LABELS.has(i.fieldLabel)) return i.fieldLabel;
+      if (i.fieldLabel || !/^(?:入院前|日時不明)$/.test(String(i.timestamp || '日時不明'))) return '';
+      const t = String(i.text || '').normalize('NFKC');
+      const names = BACKGROUND_FACTOR_WORDS.filter(([, re]) => re.test(t)).map(([n]) => n);
+      return names.length ? `生活歴（${names.join('・')}）` : '';
+    }
     function backgroundFactorsText(cp) {
-      const rows = ((cp && cp.items) || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && i.fieldLabel && BACKGROUND_FACTOR_LABELS.has(i.fieldLabel) && String(i.text || '').trim());
+      const rows = ((cp && cp.items) || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && String(i.text || '').trim() && backgroundFactorName(i));
       if (!rows.length) return '';
       const mask = t => typeof krDeidentify === 'function' ? krDeidentify(t, cp, 80) : String(t).slice(0, 80);
-      const kind = i => typeof classifyPatientBackground === 'function' ? classifyPatientBackground(i.fieldLabel) : '';
+      const kind = i => typeof classifyPatientBackground === 'function' ? classifyPatientBackground(backgroundFactorName(i).replace(/（.*）$/, '')) : '';
       return '\n【アプリが抽出済みの患者背景の因子】項目名 → 内容｜保存済みの区分｜付いているタグ（原文と比べて、足りない因子・区分やタグの誤りを確認してください。氏名は含めません）\n' +
-        rows.map(i => `  ・${i.fieldLabel} → ${mask(i.text)}｜${i.patientBackground || kind(i)}｜${(i.hendersonIds || []).length ? (i.hendersonIds || []).join('・') : 'タグなし'}`).join('\n') + '\n';
+        rows.map(i => `  ・${backgroundFactorName(i)} → ${mask(i.text)}｜${i.patientBackground || kind(i)}｜${(i.hendersonIds || []).length ? (i.hendersonIds || []).join('・') : 'タグなし'}`).join('\n') + '\n';
     }
     // The app's current sufficiency judgments, in the existing exported wording (sufficiencyPhaseText), with evidence references and missing-information items.
     function sufficiencyJudgmentsText(cp) {
@@ -1265,6 +1274,19 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       if (others.length) lines.push(`その他の編集：${others.map(e => formatEditLogEntry(e)).join('、')}`);
       return lines;
     }
+    // v.90: the lost-manual-edit store lives on the patient record and can hold edits from an earlier, different source text; list only edits that belong to the current source.
+    function droppedEditsForCase(cp, sourceText) {
+      const list = (cp && cp.droppedManualEdits) || [];
+      const src = String(sourceText || (cp && cp.sourceText) || '').normalize('NFKC').replace(/[\s、。,.・「」（）()]/g, '');
+      if (!src) return list.slice();
+      return list.filter(d => {
+        const t = String((d && d.text) || '').normalize('NFKC').replace(/[\s、。,.・「」（）()]/g, '');
+        if (t.length < 4) return true;
+        if (src.includes(t)) return true;
+        const grams = []; for (let k = 0; k + 2 <= t.length; k++) grams.push(t.slice(k, k + 2));
+        return grams.filter(g => src.includes(g)).length / grams.length >= 0.6;
+      });
+    }
     function buildReviewRequestText(cp, sourceText, includeSourceText = true) {
       const items = reviewRequestTargets(cp);
       const untaggedN = items.filter(i => typeof isUntaggedItem === 'function' && isUntaggedItem(i)).length;
@@ -1276,7 +1298,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       out += correctionRequestInstructionsText() + backgroundFactorsText(cp) + sufficiencyJudgmentsText(cp);
       out += '【対象】タグ未設定・不必要・手編集のカード。誤りの証拠ではなく調査対象です。原文全体と同じ場面の前後を読み、安静時と動作時・昨日と本日を区別し、根拠があるものは分類ルールと分類基準を修正、不足は必要な確認事項を示してください。理由の記録がなければ「理由未記録」と明記します。除外は妥当なら根拠を示し、誤りなら分類処理と分類基準を修正してください。\n';
       const originalItems = sourceText && sourceText.trim() && typeof classifyTextByRules === 'function' ? classifyTextByRules(sourceText) : [];
-      const dropped = (cp.droppedManualEdits || []).slice(-30);
+      const dropped = droppedEditsForCase(cp, sourceText).slice(-30);
       if (dropped.length) {
         out += `\n【引き継げなかった手動修正】分類のやり直しで、原文の変更により同じ記録として照合できず失われた手動修正です。原因（分割・統合・日時判定の変更）を調べ、引き継げるようにしてください。\n`;
         dropped.forEach(d => { out += `  ・${d.timestamp || '日時不明'}｜${d.text}｜分類: ${d.tagNotNeeded ? 'タグ不要' : d.type === 'unnecessary' ? '不必要' : `タグ ${(d.hendersonIds || []).join('・') || 'なし'}`}\n`; });

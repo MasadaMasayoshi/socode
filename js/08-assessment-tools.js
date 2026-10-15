@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.83'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.90'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1542,7 +1542,7 @@
     // Any lab name the app recognises (value-check dictionary, card-recognition keys, trend-table names), matched case-insensitively:
     // a card with a known name and a unit is not "OCR-corrupted" just because it has no standard range of its own.
     const LAB_ANY_KNOWN_KEY_REGEX = new RegExp(`(?<![A-Za-z])(?:${Array.from(new Set([...LAB_FIND_KEYS, ...LAB_KEY_NUM_PATTERNS.map(([k]) => k), ...LAB_TREND_EXTRA_KEYS])).sort((a, b) => b.length - a.length).map(escapeRegExp).join('|')})(?![A-Za-z])`, 'i');
-    const LAB_VAL_START_REGEX = new RegExp(`^(?:【[^】]{0,12}】\\s*)?(${LAB_VAL_KEY_REGEX_SOURCE})(?![A-Za-z])\\s*(?:[(（{][^)）}]{0,16}[)）}])?\\s*[:：=]?\\s*([-+]?\\d[\\d,]*(?:\\.\\d+)?)\\s*([^\\s(（↑↓]*)\\s*([↑↓])?(.*)$`);
+    const LAB_VAL_START_REGEX = new RegExp(`^(?:【[^】]{0,12}】\\s*)?(${LAB_VAL_KEY_REGEX_SOURCE})(?![A-Za-z])\\s*(?:[(（{][^)）}]{0,16}[)）}])?\\s*[:：=]?\\s*([-+]?\\d[\\d,]*(?:\\.\\d+)?)\\s*([^\\s(（↑↓、，,。;；]*)\\s*([↑↓])?(.*)$`);
     const LAB_VAL_CHANGE_EXEMPT = ['CRP', 'BNP', 'Dダイマー'];
     const LAB_VAL_RELATED_NEEDS = { Hb: '1.呼吸（酸素の運搬）・4.姿勢（活動時のふらつき）', Ht: '1.呼吸（酸素の運搬）・4.姿勢', RBC: '1.呼吸（酸素の運搬）・4.姿勢', Alb: '2.食事（栄養状態）', TP: '2.食事（栄養状態）',
       WBC: '7.体温・8.清潔（創部の感染予防）', CRP: '7.体温・8.清潔（創部の感染予防）', BUN: '3.排泄・2.食事（水分）', Cre: '3.排泄', Cr: '3.排泄', Na: '2.食事（水分・電解質）', K: '2.食事（水分・電解質）', Cl: '2.食事（水分・電解質）' };

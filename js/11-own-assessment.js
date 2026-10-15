@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.86'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.90'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -1138,12 +1138,27 @@
       for (let k = 0; k < SUF_MET_CUES.length; k++) { const sc = SUF_MET_SCOPE[k]; if (needId && sc && !sc.includes(needId)) continue; const m = t.match(new RegExp(SUF_MET_CUES[k])); if (m) return { v: 'met', hit: m[0] }; }
       return { v: '', hit: '' };
     }
+    const SUF_LEARN_PROBLEM = /(?:通院|受診|外来|治療|服薬|内服|投薬)[^。、]{0,6}(?:を)?(?:自己)?中断|自己中断|(?:内服|服薬|薬)[^。、]{0,8}(?:不規則|不良|不十分|不定期)|アドヒアランス(?:不良|低下)|(?:自己注射|自己血糖測定|血糖測定|吸入|手技|単位)[^。]{0,24}(?:間違|誤|できな|不十分|不正確|忘れ)|(?:観察|管理|セルフケア|測定|記録|注射|服薬)[^。]{0,12}[「『]?(?:面倒|めんどう)/;
+    const SUF_SKIN_LESION = /潰瘍|褥瘡|びらん|壊疽|水疱|発赤|熱感|滲出|排膿|膿|腫脹|浸軟|皮膚(?:トラブル|障害|損傷)/g;
+    const SUF_PROBLEM_CUE = /痛|苦しい|できない|困難|不能|悪心|嘔|膨満|不眠|眠れ|不安|ふらつ|発熱|発赤|腫脹|熱感|排膿|潰瘍|低下|増強|悪化|拒否|不規則|中断|間違/;
     const SUF_SEVERE = /難聴|伝わらない|全介助|要介助|できない|不可|禁止|不眠|眠れ[なず]|転倒|せん妄|不穏|チアノーゼ|呼吸困難(?:感)?(?:あり|を訴)|息苦しい|SpO2/;
     const SUF_MILD = /やや|軽度|少量|わずか|軽い|軽度/;
     function sufficiencyCardVerdict(item, needId, phase) {
       if (needId === 1 && /トライボール|呼吸訓練/.test(String(item.text || '')) && !/呼吸困難|息苦|息切れ|チアノーゼ|SpO2|呼吸数/.test(String(item.text || ''))) return { v: '', hit: '', clause: '' };
 
       if (needId === 11 && /記載なし|情報なし|不明|未確認|聴取(?:して)?(?:い)?ない|確認(?:でき|して)ない/.test(String(item.text || '').normalize('NFKC'))) return { v: '', hit: '', clause: '' };
+      // v.90: verdict-choice rules (the sufficiency sentences are untouched).
+      const whole = String(item.text || '').normalize('NFKC');
+      const isOrder = item.fieldLabel === '治療' || /^(?:治療|処方|指示|オーダー|治療方針)[:：]/.test(whole);
+      const parts0 = whole.split(/[。\n、,，]|\s{2,}|(?<=[)）])/).map(s => s.trim()).filter(Boolean);
+      if (needId === 14 && !isOrder) {
+        const m = whole.match(SUF_LEARN_PROBLEM);
+        if (m) return { v: 'unmet', hit: m[0], clause: (parts0.find(p => SUF_LEARN_PROBLEM.test(p)) || m[0]), severe: false };
+      }
+      if (needId === 8 && !isOrder) {
+        const m = [...whole.matchAll(SUF_SKIN_LESION)].find(x => !new RegExp('^' + SUF_NEG_AFTER).test(whole.slice(x.index + x[0].length)));
+        if (m) return { v: 'unmet', hit: m[0], clause: (parts0.find(p => p.includes(m[0])) || m[0]), severe: false };
+      }
       const parts = String(item.text || '').normalize('NFKC').split(/[。\n、,，]|\s{2,}|(?<=[)）])/).map(s => s.trim()).filter(Boolean);
       let met = null, unmet = null, pending = null;
 
@@ -1166,6 +1181,11 @@
         const q = (String(item.text || '').match(/「[^」]{4,}」/) || [String(item.text || '')])[0];
         if (/不安|心配|怖い|恐怖/.test(String(item.text || ''))) pending = { v: 'pending', hit: '不安を言葉にできている', clause: q.slice(0, 30) };
         else met = { v: 'met', hit: '発言', clause: q.slice(0, 30) };
+      }
+      if (isOrder) {
+        // A treatment/order line is an intervention, not a patient state: only a stated problem may make it unmet, and it never shows 充足.
+        if (unmet && !SUF_PROBLEM_CUE.test(unmet.clause)) unmet = null;
+        met = null; pending = null;
       }
       return unmet || met || pending || { v: '', hit: '', clause: '' };
     }

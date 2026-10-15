@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.84'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.90'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -249,6 +249,11 @@
       if (/(?:動く|動かす|歩く|立つ|起き上が(?:る|り)|体重をかけ)(?:と|時|とき)[^。、]{0,8}痛/.test(text)) tags.add(4);
 
       if (/薬/.test(text) && /忘れ/.test(text)) tags.add(14);
+      // v.90: non-adherence, self-care practice errors and reluctance about self-care are 14.学び・健康管理; a lab-based admission reason is 2.食事 (and 14 for 教育入院/指導).
+      if (/自己中断|(?:通院|受診|外来|治療|服薬|内服|投薬)[^。、]{0,6}(?:を)?中断|(?:内服|服薬|薬)[^。、]{0,8}(?:不規則|不良|不十分|不定期)|アドヒアランス(?:不良|低下)/.test(text) && !/中断(?:なし|せず|していない)|規則的|きちんと/.test(text)) tags.add(14);
+      if (/(?:自己注射|自己血糖測定|血糖自己測定|吸入|手技)[^。]{0,16}(?:練習|指導|間違|誤|できな|不十分|不安)/.test(text) || /(?:観察|管理|セルフケア|測定|記録|注射|服薬)[^。「」]{0,12}[「『]?(?:面倒|めんどう)/.test(text)) tags.add(14);
+      if (/(?:営業|事務|技術|販売|運転|製造|介護|教)職|外回り|会社員|自営業/.test(text) && !/妻|夫|母|父|兄|姉|弟|妹|息子|娘|長男|次男|長女|次女|祖母|祖父|孫|家族/.test(text)) tags.add(12);
+      if (/(?:血糖|HbA1c)/i.test(text) && /\d/.test(text) && /(?:入院(?:と|に)?(?:なる|なっ|し)|入院となる|教育入院|緊急入院|血糖コントロール)/.test(text)) { tags.add(2); if (/教育入院|指導|教育/.test(text)) tags.add(14); }
 
       if (/(?:手術|治療|病状)の説明を(?:う|受)け/.test(text)) tags.add(14);
 
@@ -1870,6 +1875,11 @@
         let strippedClockOnly = true;
 
         const timestampBeforeMarkers = { ts: globalTimestamp, day: dayLabel, clock: lastClockMin };
+        // A bracketed or bare date/day header line (＜10/5 入院3日目＞) is a marker only: rewrite it so the marker loop consumes it and it never joins a record.
+        {
+          const hdr = cleanLine.match(/^[＜<【\[]?\s*(?:(\d{1,2})[\/月]\s*(\d{1,2})日?)?\s*((?:入院|術後|産褥)\s*\d+\s*日目|入院当日|手術当日)?\s*(?:[(（][月火水木金土日祝][)）])?\s*[＞>】\]]?$/);
+          if (hdr && (hdr[1] || hdr[3]) && (!hdr[1] || (Number(hdr[1]) >= 1 && Number(hdr[1]) <= 12 && Number(hdr[2]) >= 1 && Number(hdr[2]) <= 31)) && (/^[＜<【\[]/.test(cleanLine) === /[＞>】\]]$/.test(cleanLine))) cleanLine = [hdr[1] ? `${Number(hdr[1])}月${Number(hdr[2])}日` : '', (hdr[3] || '').replace(/\s+/g, '')].filter(Boolean).join(' ');
+        }
         const timePhraseIsPartOfSentence = /^[\[【]?(?:(?:入院時|入院前|入院当日|入院\d+日目|手術当日|術前|術中|術後|\d+日目)\s*)+[\]】]?\s*(?:より|から|まで)/.test(cleanLine)
 
           || /^\d{1,2}[:時]\d{2}分?\s*(?:ごろ|頃|過ぎ)?\s*(?:に|から|まで|の)/.test(cleanLine)
