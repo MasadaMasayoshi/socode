@@ -1422,3 +1422,17 @@ html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow-sel path { fill: #F59E6
 
 /* Active filter in the source-review window */
 .btn[aria-pressed="true"] { background: var(--accent); color: var(--on-fill, #fff); border-color: var(--accent); }
+
+/* v.77 shared compare-values table */
+.cmp-details{margin:8px 0;border:1px solid var(--border,#d6dbe3);border-radius:8px;background:var(--card,#fff)}
+.cmp-details>summary{cursor:pointer;padding:6px 10px;font-size:.85rem;font-weight:600;display:flex;gap:6px;align-items:center}
+.cmp-wrap{overflow:auto;max-height:340px;padding:0 6px 6px}
+.cmp-table{font-size:.78rem;border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
+.cmp-table th,.cmp-table td{padding:3px 6px;white-space:nowrap}
+.cmp-table th.cmp-col small{display:block;font-weight:400;opacity:.7}
+.cmp-table td.cmp-change{font-weight:600}
+.cmp-up{color:#c2410c}.cmp-down{color:#1d4ed8}.cmp-same{color:#6b7280}
+.cmp-table td.cmp-change.lt-high{color:#b91c1c}.cmp-table td.cmp-change.lt-low{color:#1d4ed8}
+.cmp-note{margin:4px 8px;font-size:.72rem;opacity:.7}
+tr.cmp-row>td.cmp-cell{padding:2px 6px}
+@media (max-width:640px){.cmp-table{font-size:.72rem}.cmp-wrap{max-height:280px}}

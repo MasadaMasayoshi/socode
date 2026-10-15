@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.73'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.77'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1274,6 +1274,57 @@
       html += '</tbody></table>';
       wrap.innerHTML = html;
     }
+    // ==========================================================================
+    // Shared compact comparison of lab values / vital signs for pages other than 検査値の推移 (assessment table, lab panel).
+    // Built from buildLabTrendTable so flags, units and reference ranges are identical to the trend page.
+    // ==========================================================================
+    function compareValueNumber(cell) {
+      const m = String((cell && cell.value) || '').replace(/,/g, '').match(/^-?\d+(?:\.\d+)?$/);
+      return m ? Number(m[0]) : null;
+    }
+    // Previous -> latest change of one row: the last two columns that hold a plain number.
+    function compareValueChange(row, columns) {
+      const nums = [];
+      columns.forEach(c => { const list = row.cells[c.key]; if (!list || !list.length) return; const n = compareValueNumber(list[list.length - 1]); if (n !== null) nums.push({ n, cell: list[list.length - 1] }); });
+      if (nums.length < 2) return null;
+      const prev = nums[nums.length - 2], last = nums[nums.length - 1];
+      const d = Math.round((last.n - prev.n) * 100) / 100;
+      return { delta: d, dir: d > 0 ? 'up' : d < 0 ? 'down' : 'same', flag: last.cell.flag || '', text: d === 0 ? '変化なし' : `${d > 0 ? '▲' : '▼'}${Math.abs(d)}` };
+    }
+    function compareValuesTableHtml(table, options = {}) {
+      if (!table || !table.rows || !table.rows.length) return '';
+      const maxCols = options.maxCols || 6;
+      const cols = table.columns.slice(-maxCols);
+      const hidden = table.columns.length - cols.length;
+      const head = cols.map(c => `<th class="cmp-col" scope="col">${escapeHtml(c.day || '日時不明')}${c.time ? `<small>${escapeHtml(c.time)}</small>` : ''}</th>`).join('');
+      let body = '';
+      let group = null;
+      table.rows.forEach(r => {
+        if (r.group !== group) { group = r.group; body += `<tr class="lt-group"><th colspan="${cols.length + 2}">${escapeHtml(group)}</th></tr>`; }
+        const ch = compareValueChange(r, cols);
+        const cells = cols.map(c => {
+          const list = r.cells[c.key];
+          if (!list) return '<td class="lt-empty"></td>';
+          return `<td>${list.map(x => `<button type="button" class="lt-val ${x.flag ? 'lt-' + x.flag : ''}" ${x.itemId && options.jump !== false ? `onclick="jumpToBoardCard('${safeDomId(x.itemId)}')"` : ''} title="${escapeHtml(x.text || '')}${x.flag ? (x.flag === 'high' ? '（基準より高い値）' : '（基準より低い値）') : ''}">${escapeHtml(x.value)}${x.flag ? `<span class="lt-arrow">${x.flag === 'high' ? '↑' : '↓'}</span>` : ''}${x.note ? `<small>${escapeHtml(x.note)}</small>` : ''}</button>`).join('')}</td>`;
+        }).join('');
+        body += `<tr><th class="lt-item" scope="row"><span class="lt-name">${escapeHtml(r.key)}</span>${r.unit ? `<span class="lt-unit">${escapeHtml(r.unit)}</span>` : ''}${r.ref ? `<span class="lt-ref">${r.refIsGuide ? '目安 ' : '基準 '}${escapeHtml(r.ref)}</span>` : ''}</th>${cells}` +
+          `<td class="cmp-change${ch ? ` cmp-${ch.dir}${ch.flag ? ' lt-' + ch.flag : ''}` : ''}">${ch ? escapeHtml(ch.text) : ''}</td></tr>`;
+      });
+      return `<div class="cmp-wrap${options.className ? ' ' + options.className : ''}"><table class="lab-trend-table cmp-table"><thead><tr><th class="lt-item" scope="col">項目</th>${head}<th class="cmp-col" scope="col">前→最新</th></tr></thead><tbody>${body}</tbody></table>` +
+        `${hidden > 0 ? `<p class="cmp-note">古い${hidden}列は「検査値の推移」で見られます</p>` : ''}</div>`;
+    }
+    // Items -> comparison HTML (empty string when no lab/vital values are present).
+    function renderCompareValuesHtml(items, options = {}) {
+      let table;
+      try { table = buildLabTrendTable(items || [], { includeVitals: options.includeVitals !== false, sourceText: options.sourceText || '' }); } catch (e) { return ''; }
+      const html = compareValuesTableHtml(table, options);
+      if (!html) return '';
+      const n = table.rows.length;
+      const title = options.title || '検査値・バイタルの比較';
+      if (options.plain) return html;
+      return `<details class="cmp-details"${options.open ? ' open' : ''}><summary><i class="fa-solid fa-table-list"></i> ${escapeHtml(title)}<span class="my-asm-muted">${n}項目</span></summary>${html}</details>`;
+    }
+
     window.renderLabTrend = renderLabTrend;
     window.toggleLabTrendVitals = function(on) {
       labTrendIncludeVitals = !!on;
@@ -1788,7 +1839,10 @@
 
     function labAssessmentHtmlFor(cp) {
       if (cp.labEvaluationResult) return cp.labEvaluationResult;
-      try { return buildLabAssessment(cp).html || ''; } catch (e) { console.warn('Lab assessment failed:', e); return ''; }
+      try {
+        const built = buildLabAssessment(cp).html || '';
+        return built ? renderCompareValuesHtml(cp.items, { open: true, sourceText: cp.sourceText || '', title: '検査値・バイタルの比較（基準を外れた値に色、前→最新の変化）' }) + built : '';
+      } catch (e) { console.warn('Lab assessment failed:', e); return ''; }
     }
     function labAssessmentTextFor(cp) {
       try { return buildLabAssessment(cp).text || ''; } catch (e) { return ''; }

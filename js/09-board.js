@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.64'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.77'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1184,6 +1184,16 @@
         if (hiddenRow) tr.classList.add('hidden');
         frag.appendChild(tr);
 
+        if (typeof renderCompareValuesHtml === 'function' && !hiddenRow) {
+          const cmp = renderCompareValuesHtml(matching, { sourceText: cp.sourceText || '', title: `${needLabel}の検査値・バイタルの比較` });
+          if (cmp) {
+            const cmpRow = document.createElement('tr');
+            cmpRow.className = 'cmp-row';
+            cmpRow.dataset.needId = String(need.id);
+            cmpRow.innerHTML = `<td colspan="5" class="cmp-cell">${cmp}</td>`;
+            frag.appendChild(cmpRow);
+          }
+        }
         if (ownAsm && !hiddenRow && selectedNeed === 'all' && myAssessmentAlwaysShown()) {
           const own = document.createElement('tr');
           own.className = 'my-asm-row';
@@ -1224,8 +1234,10 @@
       const drop = col => `ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, '${col}')"`;
       const name = need.name.replace(/^\d+\.\s*/, '');
 
+      const cmpSingle = typeof renderCompareValuesHtml === 'function' ? renderCompareValuesHtml(matching, { open: true, sourceText: cp.sourceText || '', title: `${name}の検査値・バイタルの比較` }) : '';
       const own = typeof renderMyAssessmentRowHtml === 'function' && myAssessmentAlwaysShown() ? `<div class="asm-own">${renderMyAssessmentRowHtml(cp, need, false)}</div>` : '';
       return `<div class="asm-single-head"><span class="need-number asm-single-no">${need.id}</span><i class="fa-solid ${need.icon} text-[var(--accent)]"></i><b>${escapeHtml(name)}</b><span class="my-asm-muted">カード ${matching.length}枚</span></div>
+        ${cmpSingle}
         <div class="asm-center">
           <section class="asm-col asm-col-pre" ${drop('preadmission')}><div class="asm-col-title"><span>入院前 <b>${nPre}</b></span></div><div class="space-y-1.5">${categorize('preadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div></section>
           <section class="asm-col asm-col-post" ${drop('postadmission')}><div class="asm-col-title"><span>入院後 <b>${nPost}</b></span></div><div class="space-y-1.5">${categorize('postadmission') || '<p class="my-asm-muted">カードをここへドラッグできます</p>'}</div></section>
