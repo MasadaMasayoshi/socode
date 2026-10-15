@@ -9,3 +9,5 @@
 - 未充足の原因分析：体力・意思力・知識の不足に分類。
 - 能力と自己管理は別：ADL自立でも自己管理（服薬・食事・血糖）は未充足になりうる。ニードごとに判断し、他のニードへ一般化しない。
 - 記録の質：充足には根拠を示す。
+
+Deploy retrigger note (2026-10-16): Pages runs #265/#266 failed transiently; no content change.
