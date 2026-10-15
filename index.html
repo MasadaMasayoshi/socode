@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="v.61">
-  <meta name="app-file-versions" content="01:2026-10-12.usability-context28,02:v.55,03:v.55,04:2026-10-12.usability-context29,05:v.61,06:v.60,07:v.60,08:v.58,09:v.59,10:v.43,11:v.59,12:v.61,13:v.59,14:2026-10-10.znavigation17,15:v.61">
+  <meta name="app-version" content="v.62">
+  <meta name="app-file-versions" content="01:2026-10-12.usability-context28,02:v.55,03:v.55,04:2026-10-12.usability-context29,05:v.61,06:v.60,07:v.60,08:v.58,09:v.59,10:v.43,11:v.59,12:v.62,13:v.59,14:2026-10-10.znavigation17,15:v.62">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -209,6 +209,7 @@
           <button type="button" id="btn-toggle-so-mixed" onclick="toggleSoMixedColumn()" class="btn btn-outline" aria-pressed="false" title="S/O混在カードの枠を表示・非表示にします"><i class="fa-solid fa-columns"></i><span>S/O混在</span></button>
           <button type="button" id="btn-board-export-review" onclick="exportReviewRequestText()" class="btn btn-outline" aria-label="修正依頼を書き出す" title="修正依頼を書き出す"><i class="fa-solid fa-file-export"></i><span>修正依頼<span class="toolbar-label-tail">を書き出す</span></span></button>
           <button type="button" id="btn-improvement-cycle" onclick="runImprovementCycle()" class="btn btn-outline" aria-label="改善提案を作る" title="手動で付けたタグから追加キーワードを提案します。承認したものだけ登録されます"><i class="fa-solid fa-wand-magic-sparkles"></i><span>改善提案</span></button>
+          <button type="button" id="btn-knowledge-intake" onclick="openKnowledgeIntake()" class="btn btn-outline" aria-label="医学知識を取り込む" title="出典付きの医学知識パックを検証して取り込みます"><i class="fa-solid fa-book-medical"></i><span>知識取込</span></button>
           <details id="board-actions" class="board-actions-menu">
             <summary class="btn btn-outline toolbar-more" aria-label="分類ボードのその他の操作" title="その他の操作"><i class="fa-solid fa-ellipsis"></i></summary>
             <div class="board-menu-panel">
@@ -1278,10 +1279,10 @@
   <script src="js/09-board.js?v=v.59"></script>
   <script src="js/10-reference-page-and-startup.js?v=v.43"></script>
   <script src="js/11-own-assessment.js?v=v.59"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=v.61"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=v.62"></script>
   <script src="js/13-compare-and-report.js?v=v.59"></script>
   <script src="js/14-drug-reference.js?v=2026-10-10.znavigation17"></script>
-  <script src="js/15-relation-map.js?v=v.61"></script>
+  <script src="js/15-relation-map.js?v=v.62"></script>
   <script>
   // Manual source comparison and reversible text edits on the active chart.
   (function(){

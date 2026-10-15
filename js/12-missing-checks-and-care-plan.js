@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.61'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.62'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1740,6 +1740,73 @@
       // A keyword whose tag the user also removed from a card containing it is contested and is never proposed.
       return Array.from(byKey.values()).filter(pr => !items.some(i => String(i.text).normalize('NFKC').includes(pr.keyword) && (i.editLog || []).some(e => e && e.kind === 'tagRemove' && Number(e.hId) === pr.hendersonId))).slice(0, 10);
     }
+    // Medical-knowledge intake: a knowledge pack (JSON) is validated, previewed, approved by the user, stored on this device and merged into the rule tables.
+    const KNOWLEDGE_PACKS_KEY = 'nursing_knowledge_packs';
+    const KNOWLEDGE_KINDS = ['symptom_need', 'diagnosis_tag', 'bridge'];
+    function validateKnowledgePack(raw) {
+      const errors = [], entries = [];
+      let pack = raw;
+      if (typeof raw === 'string') { try { pack = JSON.parse(raw); } catch (e) { return { ok: false, errors: ['JSONとして読めません（括弧・引用符を確認してください）'], pack: null, entries }; } }
+      if (!pack || typeof pack !== 'object' || !Array.isArray(pack.entries)) return { ok: false, errors: ['「entries」の配列がありません'], pack: null, entries };
+      if (!String(pack.title || '').trim()) errors.push('「title」（知識の題名）が必要です');
+      const regexOk = src => {
+        if (typeof src !== 'string' || src.length < 2 || src.length > 80) return false;
+        if (/\d|歳|さん|氏/.test(src)) return false;
+        if (/\([^)]*[+*][^)]*\)[+*]|\.\*\.\*/.test(src)) return false;
+        try { new RegExp(src); return true; } catch (e) { return false; }
+      };
+      const needsOk = n => Array.isArray(n) && n.length >= 1 && n.length <= 4 && n.every(x => Number.isInteger(x) && x >= 1 && x <= 14);
+      pack.entries.slice(0, 200).forEach((e, i) => {
+        const at = `${i + 1}件目`;
+        if (!e || !KNOWLEDGE_KINDS.includes(e.kind)) return errors.push(`${at}：kind は ${KNOWLEDGE_KINDS.join('・')} のいずれかです`);
+        if (!String(e.source || '').trim()) return errors.push(`${at}：出典（source）が必要です。出典のない知識は取り込みません`);
+        if (e.kind === 'bridge') {
+          if (!regexOk(e.from) || !regexOk(e.to)) return errors.push(`${at}：from/to は2〜80字の正規表現にしてください（数字・年齢・個人を示す語は不可）`);
+          if (!String(e.step || '').trim() || String(e.step).length > 120) return errors.push(`${at}：step（途中の仕組み）を120字以内で書いてください`);
+          entries.push({ kind: 'bridge', from: e.from, to: e.to, step: String(e.step).trim(), why: String(e.why || '').trim().slice(0, 120), source: String(e.source).trim() });
+        } else {
+          if (!regexOk(e.pattern)) return errors.push(`${at}：pattern は2〜80字の正規表現にしてください（数字・年齢・個人を示す語は不可）`);
+          if (!needsOk(e.needs)) return errors.push(`${at}：needs は 1〜14 の番号を1〜4個にしてください`);
+          entries.push({ kind: e.kind, pattern: e.pattern, needs: e.needs.slice().sort((a, b) => a - b), source: String(e.source).trim() });
+        }
+      });
+      if (pack.entries.length > 200) errors.push('一度に取り込めるのは200件までです');
+      if (!entries.length && !errors.length) errors.push('取り込める知識がありません');
+      return { ok: !errors.length, errors, pack: { id: String(pack.id || '').trim() || `pack_${Date.now().toString(36)}`, title: String(pack.title || '').trim(), entries }, entries };
+    }
+    function loadKnowledgePacks() {
+      try { const v = JSON.parse(localStorage.getItem(KNOWLEDGE_PACKS_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+    }
+    function applyKnowledgePacks(packs = loadKnowledgePacks()) {
+      let added = 0;
+      const seen = (arr, key) => arr.some(x => x.__pack && x.__key === key);
+      (packs || []).forEach(pack => (pack.entries || []).forEach(e => {
+        const key = `${pack.id}|${e.kind}|${e.pattern || e.from}|${e.to || ''}`;
+        try {
+          if (e.kind === 'symptom_need' && typeof DISEASE_SYMPTOM_NEEDS !== 'undefined' && !seen(DISEASE_SYMPTOM_NEEDS, key)) { const row = [new RegExp(e.pattern), e.needs.slice()]; row.__pack = true; row.__key = key; DISEASE_SYMPTOM_NEEDS.push(row); added++; }
+          else if (e.kind === 'diagnosis_tag' && typeof DIAGNOSIS_TAG_HINTS !== 'undefined' && !seen(DIAGNOSIS_TAG_HINTS, key)) { DIAGNOSIS_TAG_HINTS.push({ pattern: new RegExp(e.pattern), tagIds: e.needs.slice(), __pack: true, __key: key }); added++; }
+          else if (e.kind === 'bridge' && typeof RM_BRIDGE_RULES !== 'undefined' && !seen(RM_BRIDGE_RULES, key)) { RM_BRIDGE_RULES.push({ s: new RegExp(e.from), t: new RegExp(e.to), step: e.step, why: e.why || '', __pack: true, __key: key }); added++; }
+        } catch (err) {  }
+      }));
+      return added;
+    }
+    function knowledgePackPreviewText(res) {
+      const label = { symptom_need: '症状→項目', diagnosis_tag: '診断→項目', bridge: '関連図の仕組み' };
+      const counts = res.entries.reduce((m, e) => (m[e.kind] = (m[e.kind] || 0) + 1, m), {});
+      return `「${res.pack.title}」${res.entries.length}件（${Object.entries(counts).map(([k, n]) => `${label[k]} ${n}`).join('・')}）`;
+    }
+    window.openKnowledgeIntake = async function() {
+      const raw = await openDialog({ title: '医学知識を取り込む', message: '知識パック（JSON）を貼り付けてください。出典付きの「症状→項目」「診断→項目」「関連図の仕組み」だけを受け付けます。取り込みはこの端末だけに保存され、承認するまで何も変わりません。', inputValue: '', placeholder: '{"title":"…","entries":[{"kind":"symptom_need","pattern":"…","needs":[8],"source":"…"}]}', confirmLabel: '検証する' });
+      if (!raw) return;
+      const res = validateKnowledgePack(raw);
+      if (!res.ok) return showToast(`取り込めません：${res.errors.slice(0, 3).join(' ／ ')}${res.errors.length > 3 ? ` ほか${res.errors.length - 3}件` : ''}`, 'warn');
+      const ok = await openDialog({ title: '取り込みの確認', message: `${knowledgePackPreviewText(res)}を、この端末の分類・関連図のルールに追加します。出典：${Array.from(new Set(res.entries.map(e => e.source))).slice(0, 3).join('、')}`, confirmLabel: '承認して取り込む', secondaryLabel: 'やめる' });
+      if (ok !== true) return;
+      const packs = loadKnowledgePacks().filter(p => p.id !== res.pack.id);
+      packs.push(res.pack);
+      try { localStorage.setItem(KNOWLEDGE_PACKS_KEY, JSON.stringify(packs)); } catch (e) { return showToast('この端末に保存できませんでした', 'warn'); }
+      showToast(`${applyKnowledgePacks([res.pack])}件の知識を取り込みました（今のカードに反映するには「分類」をやり直してください）`, 'success');
+    };
     function patientOwnText(cp) {
       const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && !i.diseaseGeneral && i.text).map(i => i.text);
       const notes = ((cp && cp.referenceNotes) || []).map(n => `${n.title || ''}\n${n.text || ''}`);
@@ -2403,7 +2470,7 @@ if (typeof module !== 'undefined' && module.exports) {
     carePlanInlineNotes, captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
     cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf, collapseVitalCards, collapseLabCards,
-    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, buildImprovementProposals, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
+    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, buildImprovementProposals, validateKnowledgePack, applyKnowledgePacks, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
     cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, carePlanSetReviewHtml, carePlanSetState, carePlanSetNextSteps
   });
 }
