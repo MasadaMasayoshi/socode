@@ -1,7 +1,7 @@
 // Startup, references and image OCR. Validate image MIME/size; capture patient before async prompts.
 // Reference notes are not automatic classification rules; file versions detect mixed/reverted assets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = 'v.81'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = 'v.83'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -296,7 +296,7 @@
     }
     document.getElementById('btn-open-settings').addEventListener('click', () => {
       document.getElementById('input-api-key').value = globalAppData.apiKey;
-      document.getElementById('input-mask-terms').value = loadUserMaskTerms().join('\n');
+      const maskBox = document.getElementById('input-mask-terms'); if (maskBox) maskBox.value = loadUserMaskTerms().join('\n');
       document.getElementById('select-gemini-model').value = geminiModelPref();
       document.getElementById('api-test-result')?.classList.add('hidden');
       renderApiKeyKind();
@@ -329,7 +329,7 @@
       globalAppData.apiKey = newKey;
 
       try { localStorage.setItem('gemini_api_key', globalAppData.apiKey); } catch (e) { showToast(['APIキーをこのブラウザに保存できませんでした', { text: 'このページを開いている間は使えますが、閉じると消えます。保存容量やブラウザの設定を確かめてください。', detail: true }], 'warn'); }
-      try { localStorage.setItem(MASK_TERMS_STORAGE_KEY, document.getElementById('input-mask-terms').value); } catch (e) {   }
+      try { const maskBox = document.getElementById('input-mask-terms'); if (maskBox) localStorage.setItem(MASK_TERMS_STORAGE_KEY, maskBox.value); } catch (e) {   }
       try { localStorage.setItem('gemini_model_pref', document.getElementById('select-gemini-model').value); } catch (e) {   }
       renderClassifyModeSwitch();
       document.getElementById('modal-settings').classList.add('hidden');
@@ -625,7 +625,7 @@ if (typeof module !== 'undefined' && module.exports) {
     GASTRIC_POSTOP_EXPECTED_CHECKS,
     LAB_ALIAS_FALLBACK_TESTS,
     LAB_ITEM_NAME_REGEX,
-    normalizeApiKey, detectApiKeyKind, geminiEndpointOrder, describeGeminiError, isEndpointMismatch, requestGemini, testGeminiConnection, GEMINI_ENDPOINTS, chooseBestFlashModel, isGeminiModelProblem,
+    normalizeApiKey, callGeminiAI, normalizeImportedPatient, detectApiKeyKind, geminiEndpointOrder, describeGeminiError, isEndpointMismatch, requestGemini, testGeminiConnection, GEMINI_ENDPOINTS, chooseBestFlashModel, isGeminiModelProblem,
     nextDayLabel, normalizeDayLabel, extractDayLabelFromHeading, timestampDayPart, timestampClockPart, groupItemsByDay, assessmentDayGroups, isAssessmentBackgroundItem, assessmentDisplayOrder, dayRank, groupItemsByScene, assessmentSceneKey, applySceneTagInheritance, expandCombinedLabItems,
     LAB_VALUE_TEST_REGEX,
     LAB_STANDARDS,

@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.79'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.83'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -2874,10 +2874,7 @@
       });
       const note = document.getElementById('classify-mode-note');
       if (note) {
-        note.textContent = mode === 'ai'
-          ? (globalAppData.apiKey ? 'Gemini が基準ノートを根拠に分類します（個人情報は伏せ字にして送ります。失敗したらルールで分類）' : 'APIキーが未設定です。「API設定」でキーを保存してください')
-          : '原文と前後の記録をもとに、S/O・14項目のタグを整理します';
-        note.classList.toggle('text-[var(--brick)]', mode === 'ai' && !globalAppData.apiKey);
+        note.textContent = '原文と前後の記録をもとに、S/O・14項目のタグを整理します';
       }
     }
     window.setClassifyMode = function(mode) {
@@ -2894,11 +2891,6 @@
       const cp = getCurrentPatient();
       const sourceCardsForRun = classifyTextByRules(text);
 
-      if (getClassifyMode() === 'ai' && !globalAppData.apiKey) {
-        const st = await requireApiKey('AIありで分類', { fallbackLabel: '記録を基に分類する' });
-        if (st !== 'fallback') return;
-        window.setClassifyMode('rules');
-      }
 
       if (cp.items.length > 0) {
 

@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.81'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.83'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -11,7 +11,7 @@
       const cp = getCurrentPatient();
       cp.items.push({
         id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-        text, timestamp: "AI算出", type: 'o',
+        text, timestamp: "自動算出", type: 'o',
         hendersonIds: [hendersonId],
         assessmentCols: { [hendersonId]: 'unclassified' },
         aiSuggested: true,
@@ -559,7 +559,7 @@
       const cp = target || getCurrentPatient();
       cp.items.push({
         id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-        text, timestamp: "AI推定", type: 'o',
+        text, timestamp: "自動推定", type: 'o',
         hendersonIds: [hendersonId],
         assessmentCols: { [hendersonId]: 'missing' },
         aiSuggested: true,

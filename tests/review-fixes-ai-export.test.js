@@ -81,7 +81,7 @@ test('BMI・ブリンクマン指数の自動カード：薬の本数と別の�
   const brinkman = texts => {
     run(`globalAppData.patients=[{id:'p1',title:'A',referenceNotes:[],items:${JSON.stringify(texts.map((t, i) => ({ id: 'b' + i, type: 'o', text: t })))}}];globalAppData.currentPatientId='p1';`);
     run('calculateAndAddDerivedMetricCards()');
-    return plain(run("getCurrentPatient().items.filter(i => i.timestamp === 'AI算出').map(i => i.text)"));
+    return plain(run("getCurrentPatient().items.filter(i => i.timestamp === '自動算出').map(i => i.text)"));
   };
   assert.deepEqual(brinkman(['ラシックス 2本/日 点滴', '5年前に胃がん手術']), []);
   assert.deepEqual(brinkman(['喫煙歴なし', '輸液 3本/日、2年前から糖尿病']), []);
@@ -170,7 +170,7 @@ test('印刷・PDF：保存されたAIの結果の動く部品は入れない。
     diagnosisCandidates: [{ id: 'dx_1', name: '急性疼痛', bodyHtml: '<b onmouseover="alert(3)">根拠</b>' }], selectedDiagnosisIds: ['dx_1'] };
   const html = app.buildPrintAiSectionsHtml(cp, 1);
   assert.doesNotMatch(html, /onerror|onmouseover|<script|alert\(/);
-  assert.match(html, /選んだ看護診断：<\/b>急性疼痛/);
+  assert.doesNotMatch(html, /選んだ看護診断/, '保存された診断候補は書き出さなくなった');
   assert.match(app.buildAssessmentPrintHtml(cp), /<title>A&lt;&amp;&gt;&quot;_総合アセスメント表<\/title>/);
   assert.equal(app.safeDomId("x');alert(1);//"), '');
   assert.equal(app.safeDomId('item_123_ab'), 'item_123_ab');

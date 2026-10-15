@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.59'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.83'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -232,8 +232,7 @@
           { key: 'missing', label: '不足情報と確認結果', on: true },
           { key: 'problems', label: '看護問題（優先順位）', on: true },
           { key: 'plans', label: '看護計画（目標・OP/TP/EP）', on: true },
-          { key: 'records', label: '実施・評価', on: true },
-          { key: 'ai', label: 'AIの結果（参考）', on: false }
+          { key: 'records', label: '実施・評価', on: true }
         ]
       }
     };
@@ -380,11 +379,6 @@
             return recs.length ? { title: `#${k + 1} ${p.problem || '（無題）'}`, lines: recs.flatMap(careRecordLines) } : null;
           }).filter(Boolean);
           blocks.push({ title: `実施・評価${recordFilter ? dayNote : ''}`, groups });
-        } else if (key === 'ai') {
-          const lines = [];
-          const add = (label, html) => { if (html) lines.push(`【${label}】`, ...htmlToPlainText(html).split('\n')); };
-          add('看護診断候補', activeGeneratedResult(cp, 'diagnosisResult')); add('看護計画（AIの叩き台）', activeGeneratedResult(cp, 'carePlanResult')); add('経時変化サマリー', activeGeneratedResult(cp, 'timelineResult'));
-          blocks.push({ title: 'AIの結果（参考）', lines });
         }
       });
       return { title: `実習記録${dayNote}`, blocks };

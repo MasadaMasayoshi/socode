@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.73'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.83'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -558,11 +558,7 @@
         </label>` : '';
       const confirmLabel = st.version > 0 ? `再評価として確定（第${st.version + 1}版）` : '評価を確定（第1版）';
 
-      const ai = e && e.aiFeedback ? `
-        <div class="my-asm-ai">
-          <div class="my-asm-ai-head"><span><i class="fa-solid fa-wand-magic-sparkles"></i> AIの助言（参考）${e.aiFeedbackAt ? `・${escapeHtml(formatMyDateTime(e.aiFeedbackAt))}` : ''}</span><button type="button" class="my-asm-link" onclick="clearMyAssessmentAi(${needId})">閉じる</button></div>
-          <div class="my-asm-ai-body">${sanitizeStoredHtml(e.aiFeedback)}</div>
-        </div>` : '';
+      const ai = ''; // Stored AI feedback from older data is kept silently but no longer shown.
       const historyCount = (e && e.history || []).length;
       const history = historyCount && myAsmHistoryOpen.has(needId) ? myAssessmentHistoryHtml(cp, needId, e) : '';
 
@@ -1086,7 +1082,7 @@
       if (!r) return '';
       const lines = '';
       const rv = e && e.aiReview && e.aiReview.all;
-      const rvHtml = rv ? `<span class="suf-ev"><b>AIの評価：${rv.agree === true ? '賛成' : rv.agree === false ? `反対（AIは${SUFFICIENCY_LABELS[rv.verdict] || '情報不足'}と判断）` : SUFFICIENCY_LABELS[rv.verdict] || '情報不足'}</b> ${escapeHtml(rv.reason || rv.need || '')}</span>` : '';
+      const rvHtml = '';
       if (!lines && !rvHtml) return '';
       return `<div class="suf-reason">${lines}${rvHtml}</div>`;
     }

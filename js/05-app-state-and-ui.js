@@ -2,7 +2,7 @@
 // Confirmations and Undo verify the captured patient/target; local writes require full readback.
 // AI transport accepts image OCR only; classification and clinical generation stay local.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = 'v.82'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = 'v.83'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -686,10 +686,10 @@
       if (globalAppData.apiKey) return Promise.resolve('ok');
       const modal = document.getElementById('modal-api-required');
       if (!modal || !modal.querySelector) {
-        showToast(`「${featureName}」はAIを使います。右上の「︙」→「設定」→「画像の読み取り設定（API）」でGemini APIキーを設定してください`, 'warn');
+        showToast(`「${featureName}」は画像読み取り（API）を使います。右上の「︙」→「設定」→「画像の読み取り設定（API）」でGemini APIキーを設定してください`, 'warn');
         return Promise.resolve(false);
       }
-      document.getElementById('api-required-feature').textContent = `「${featureName}」はAI（Gemini）を使います。まだAPIキーが設定されていません。次の手順で設定してください。`;
+      document.getElementById('api-required-feature').textContent = `「${featureName}」は画像読み取り（API・Gemini）を使います。まだAPIキーが設定されていません。次の手順で設定してください。`;
       const fb = document.getElementById('api-required-fallback');
       fb.textContent = fallbackLabel;
       fb.classList.toggle('hidden', !fallbackLabel);
@@ -2129,7 +2129,7 @@
       const allRows = computeLearningTrendRows();
       let rows = allRows;
       if (term) rows = rows.filter(r => r.text.toLowerCase().includes(term));
-      countEl.textContent = `${rows.length}件（全${allRows.length}件・AIの指示に使われるのは得票の多い上位${LEARNING_TREND_MAX_FOR_PROMPT}件まで）`;
+      countEl.textContent = `${rows.length}件（全${allRows.length}件）`;
 
       if (rows.length === 0) {
         listEl.innerHTML = '<p class="text-xs text-[var(--ink-muted)] text-center py-6">まだ、同じ文言への同じ修正が2回以上繰り返されて確立した傾向がありません。</p>';
@@ -2145,7 +2145,6 @@
           <div class="flex items-center gap-1.5 flex-wrap">
             <span class="time-chip">合計${r.totalVotes}回の一致</span>
             ${r.typeLabel ? `<span class="tag-chip">分類: ${escapeHtml(r.typeLabel)}</span>` : ''}
-            ${!usedInPrompt ? '<span class="field-chip" style="background:var(--ink-muted);color:var(--on-fill);">件数が多いためAIの指示には未反映</span>' : ''}
           </div>
           <div class="text-xs text-[var(--ink)] break-words">${escapeHtml(r.text)}</div>
           ${r.tagNames.length ? `<div class="flex items-center gap-1 flex-wrap">${r.tagNames.map(n => `<span class="field-chip">${escapeHtml(n)}</span>`).join('')}</div>` : ''}

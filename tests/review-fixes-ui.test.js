@@ -191,7 +191,7 @@ test('②保存されたAIの結果は、表示の前に sanitizeStoredHtml を�
     assert.doesNotMatch(src05, new RegExp(`innerHTML = cp\\.${f}`), f);
   });
   assert.match(src05, /innerHTML = sanitizeStoredHtml\(cp\.labEvaluationResult\)/);
-  assert.match(src11, /\$\{sanitizeStoredHtml\(e\.aiFeedback\)\}/);
+  assert.doesNotMatch(src11, /aiFeedback\)\}/, 'AI助言は表示しなくなった（古いデータは黙って残す）');
   const env = await readyEnv();
   withPatients(env, [{ ...P('A', '患者A', ''), labEvaluationResult: '<img src=x onerror="alert(1)">結果' }], 'A');
   assert.doesNotMatch(env.byId('lab-evaluation-content').innerHTML, /onerror|<img/);

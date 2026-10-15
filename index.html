@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="v.82">
-  <meta name="app-file-versions" content="01:v.76,02:v.73,03:v.76,04:2026-10-12.usability-context29,05:v.82,06:v.81,07:v.79,08:v.81,09:v.77,10:v.81,11:v.73,12:v.80,13:v.59,14:2026-10-10.znavigation17,15:v.79">
+  <meta name="app-version" content="v.83">
+  <meta name="app-file-versions" content="01:v.76,02:v.73,03:v.76,04:2026-10-12.usability-context29,05:v.83,06:v.83,07:v.83,08:v.83,09:v.83,10:v.83,11:v.83,12:v.80,13:v.83,14:2026-10-10.znavigation17,15:v.79">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -428,7 +428,7 @@
           <h2 class="font-display font-semibold text-[15px] text-[var(--ink)] flex items-center">
             <i class="fa-solid fa-folder-open text-[var(--accent)] mr-2 text-sm"></i> 参考データ
           </h2>
-          <p class="text-[11px] text-[var(--ink-muted)] mt-0.5">看護基準・院内プロトコル・参考文献など自由に登録できるメモです。「不足情報をAI推定」の判断材料としても使われます。</p>
+          <p class="text-[11px] text-[var(--ink-muted)] mt-0.5">看護基準・院内プロトコル・参考文献など自由に登録できるメモです。「不足情報」の判断材料としても使われます。</p>
         </div>
         <div class="flex items-center gap-1.5">
           <button type="button" class="btn btn-outline" onclick="openDrugInfo(null)" title="記録に出てくる薬の情報（分類・使い道・看護で観ること）と、最新の添付文書へのリンク">
@@ -726,7 +726,7 @@
 
   <div id="modal-api-required" class="hidden fixed inset-0 z-[62] bg-[var(--ink)]/40 backdrop-blur-[2px] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="api-required-title">
     <div class="modal-surface w-full max-w-md p-5 flex flex-col gap-3">
-      <h3 id="api-required-title" class="font-display font-semibold text-sm text-[var(--ink)] flex items-center gap-2"><i class="fa-solid fa-key text-[var(--gold)]"></i> AIを使うにはAPIキーの設定が必要です</h3>
+      <h3 id="api-required-title" class="font-display font-semibold text-sm text-[var(--ink)] flex items-center gap-2"><i class="fa-solid fa-key text-[var(--gold)]"></i> 画像読み取り（API）を使うにはAPIキーの設定が必要です</h3>
       <p id="api-required-feature" class="text-xs text-[var(--ink)] leading-relaxed"></p>
       <ol class="api-req-steps">
         <li><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square"></i> Google AI Studio の「APIキー」のページ</a>を開き、Googleアカウントでログインして「APIキーを作成」を押します（無料で作れます）。</li>
@@ -762,7 +762,7 @@
           <span class="text-[10px] text-[var(--ink-muted)]">入力中のキーで短い依頼を1回送ります</span>
         </div>
         <p id="api-test-result" class="hidden text-[11px] leading-relaxed whitespace-pre-wrap rounded-md border px-2 py-1.5 mb-2"></p>
-        <label for="select-gemini-model" class="block text-xs font-medium text-[var(--ink)] mb-1">使うAIのモデル</label>
+        <label for="select-gemini-model" class="block text-xs font-medium text-[var(--ink)] mb-1">画像読み取りに使うモデル</label>
         <select id="select-gemini-model" class="field mb-1">
           <option value="auto">自動：つながらないときは軽量モデルに切り替えて送り直す</option>
           <option value="lite">軽量（Flash-Lite）</option>
@@ -772,12 +772,6 @@
         <p class="text-[10px] text-[var(--ink-muted)]">画像読み取り（API）：写真は外部のAPI（Google Gemini）に送って文字起こしします。利用にはAPIキーが必要です。写真の文字起こし（OCR）のみに使用します。AIによる分類・文章生成・関連図生成・看護計画生成・評価は使用しません（このブラウザだけに保存）。HTMLファイルを直接開いて使っても動きます。ただし、ブラウザの種類や開き方（ファイルから／サーバーから）が変わると保存場所も別になるため、もう一度入力が必要です。</p>
       </div>
 
-      <div class="border-t border-[var(--line-soft)] pt-3">
-        <label class="block text-xs font-medium text-[var(--ink)] mb-1"><i class="fa-solid fa-user-shield text-[var(--accent)] mr-1"></i>AIに送る前に伏せる語句</label>
-        <textarea id="input-mask-terms" rows="3" class="field text-xs" placeholder="1行に1つ（例：自分の氏名、実習先の病院名、患者さんの本名）"></textarea>
-        <p class="text-[10px] text-[var(--ink-muted)] leading-relaxed mt-1">AIに送る前に、ここの語句と、氏名・学籍番号・病院名・電話番号・「〇〇さん」などの個人情報らしい語句を自動で〈伏せ字〉にします。AIの答えは元の語句に戻して表示します。ここの語句はこのブラウザだけに保存されます。</p>
-        <button type="button" onclick="previewAiMasking()" class="btn btn-outline text-[11px] py-1 mt-1.5"><i class="fa-solid fa-eye"></i> 今の文章で伏せ字を確認</button>
-      </div>
       </details>
       <details class="settings-detail"><summary>学習内容のリセット</summary>
         <button onclick="resetLearningData()" class="btn btn-danger-ghost border border-[var(--brick-soft)]">このブラウザの学習内容を消去</button>
@@ -982,7 +976,7 @@
           <ul>
             <li>書いた内容はまず<b>このブラウザ</b>に保存し、続けて<b>共有先（サーバー）</b>にも保存します。画面右上の表示で状態が分かります：「このブラウザに保存済み」「共有先に保存済み」「共有先への保存に失敗（押すと再送）」。</li>
             <li>共有先に保存できないときも、このブラウザには残っています。自動で送り直すほか、表示を押すとすぐ送り直します。</li>
-            <li>AI（Gemini）の機能は、右上の「︙」→「設定」→「画像の読み取り設定（API）」でキーを入れたときだけ使えます。分類・手直し・アセスメント・看護計画・書き出しは記録をもとに処理します。</li>
+            <li>画像の読み取り（API）は、右上の「︙」→「設定」→「画像の読み取り設定（API）」でキーを入れたときだけ使えます。分類・手直し・アセスメント・看護計画・書き出しは、記録をもとにサイト内のルールで処理します（AIは使いません）。</li>
             <li>書き出しは保存先を選んで保存します。保存先の選択に対応していないブラウザでは、ブラウザの設定で「ダウンロード前に保存場所を確認する」を有効にしてください。PDFは印刷画面で保存先を選びます。</li>
             <li>画像読み取り（API）の読取結果は必ず原画像と照合してください。画像は送信前に個人を特定できる情報を除いてください。</li>
           </ul>
@@ -1273,15 +1267,15 @@
   <script src="js/02-reference-data.js?v=v.73"></script>
   <script src="js/03-extraction-helpers.js?v=v.76"></script>
   <script src="js/04-server-sync.js?v=2026-10-12.usability-context29"></script>
-  <script src="js/05-app-state-and-ui.js?v=v.82"></script>
-  <script src="js/06-export.js?v=v.81"></script>
-  <script src="js/07-classification.js?v=v.79"></script>
-  <script src="js/08-assessment-tools.js?v=v.81"></script>
-  <script src="js/09-board.js?v=v.77"></script>
-  <script src="js/10-reference-page-and-startup.js?v=v.81"></script>
-  <script src="js/11-own-assessment.js?v=v.73"></script>
+  <script src="js/05-app-state-and-ui.js?v=v.83"></script>
+  <script src="js/06-export.js?v=v.83"></script>
+  <script src="js/07-classification.js?v=v.83"></script>
+  <script src="js/08-assessment-tools.js?v=v.83"></script>
+  <script src="js/09-board.js?v=v.83"></script>
+  <script src="js/10-reference-page-and-startup.js?v=v.83"></script>
+  <script src="js/11-own-assessment.js?v=v.83"></script>
   <script src="js/12-missing-checks-and-care-plan.js?v=v.80"></script>
-  <script src="js/13-compare-and-report.js?v=v.59"></script>
+  <script src="js/13-compare-and-report.js?v=v.83"></script>
   <script src="js/14-drug-reference.js?v=2026-10-10.znavigation17"></script>
   <script src="js/15-relation-map.js?v=v.79"></script>
   <script>

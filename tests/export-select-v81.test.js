@@ -14,7 +14,7 @@ test('section list includes 全計画の評価 and all current sections', () => 
   const keys = app.EXPORT_SECTIONS.map(x => x.key);
   assert.ok(keys.includes('planEval'));
   assert.ok(app.EXPORT_SECTIONS.find(x => x.key === 'planEval').label.includes('全計画の評価'));
-  ['labs', 's', 'o', 'missing', 'unclassified', 'henderson', 'own', 'plans', 'contradiction', 'diagnosis', 'timeline', 'aiPlan', 'notes'].forEach(k => assert.ok(keys.includes(k), k));
+  ['labs', 's', 'o', 'missing', 'unclassified', 'henderson', 'own', 'plans', 'notes'].forEach(k => assert.ok(keys.includes(k), k));
 });
 
 test('selection helper: null means everything, unknown keys are dropped', () => {

@@ -84,5 +84,5 @@ test('書き出し：不足情報はS/Oの表に混ぜず、確認状況とい�
   const txt = app.buildExportPlainText(cp);
   const oSection = txt.slice(txt.indexOf('【3. 客観的情報（Oデータ）】'), txt.indexOf('【不足情報と確認状況】'));
   assert.doesNotMatch(oSection, /睡眠の記録がない/);
-  assert.match(txt, /【不足情報と確認状況】\n・\[未確認\] \[AI推定\] 睡眠の記録がない → 夜間の睡眠時間を確かめる/);
+  assert.match(txt, /【不足情報と確認状況】\n・\[未確認\] \[自動推定\] 睡眠の記録がない → 夜間の睡眠時間を確かめる/);
 });

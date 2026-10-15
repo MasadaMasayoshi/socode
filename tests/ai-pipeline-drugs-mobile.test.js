@@ -56,7 +56,7 @@ test('API key guidance remains for the features that still use AI (photo transcr
   assert.match(html, /href="https:\/\/aistudio\.google\.com\/app\/apikey"/);
   assert.match(html, /href="https:\/\/ai\.google\.dev\/gemini-api\/docs\/api-key\?hl=ja"/);
   assert.match(src, /requireApiKey\('写真の文字起こし'/);
-  assert.match(src, /requireApiKey\('AIありで分類', \{ fallbackLabel: '記録を基に分類する' \}\)/);
+  assert.doesNotMatch(src, /requireApiKey\('AIありで分類'/, 'AI分類の選択肢は廃止');
   // retired AI analysis features no longer ask for a key
   ['検査値の評価', '不足情報の推定', 'S/O矛盾チェック', '看護診断候補', '看護計画の叩き台'].forEach(f =>
     assert.ok(!src.includes(`requireApiKey('${f}'`), f));

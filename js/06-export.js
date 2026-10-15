@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.81'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.83'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -80,7 +80,7 @@
 `;
     const PRINT_COL_LABELS = { unclassified: '未分類', preadmission: '入院前', postadmission: '入院後', missing: '不足情報' };
     function printTypeLabel(item, seqLabel) {
-      if (item.aiSuggested) return '<span class="lb lb-x">AI推定</span>';
+      if (item.aiSuggested) return '<span class="lb lb-x">自動推定</span>';
       if (item.soMixed && (item.type === 's' || item.type === 'o')) return `<span class="lb lb-s">${escapeHtml(seqLabel || 'S/O')}</span>`;
       if (item.type === 's') return `<span class="lb lb-s">${escapeHtml(seqLabel || 'S')}${isFamilySpeech(item.text) ? '（家族）' : ''}</span>`;
       if (item.type === 'o') return `<span class="lb lb-o">${escapeHtml(seqLabel || 'O')}</span>`;
@@ -88,7 +88,7 @@
     }
     function printTime(item, dayHeading) {
       const ts = dayHeading && timestampDayPart(item.timestamp) === dayHeading ? timestampClockPart(item.timestamp) : item.timestamp;
-      return ts && ts !== '日時不明' && ts !== 'AI推定' ? `<span class="tm">${escapeHtml(ts)}</span>` : '';
+      return ts && ts !== '日時不明' && ts !== '自動推定' && ts !== 'AI推定' ? `<span class="tm">${escapeHtml(ts)}</span>` : '';
     }
 
     function printAssessmentCellList(col, list, labels, needId) {
@@ -131,18 +131,8 @@
       let out = '';
 
       const sec = (title, html) => { out += `<h2>${n++}. ${escapeHtml(title)}</h2><div class="ai">${html}</div>`; };
-      if (on('labs') && activeGeneratedResult(cp, 'labEvaluationResult')) sec('検査データ臨床評価（AI・参考）', storedAiHtml(activeGeneratedResult(cp, 'labEvaluationResult')));
+      if (on('labs') && activeGeneratedResult(cp, 'labEvaluationResult')) sec('検査データ臨床評価', storedAiHtml(activeGeneratedResult(cp, 'labEvaluationResult')));
       else if (on('labs') && typeof labAssessmentHtmlFor === 'function' && labAssessmentHtmlFor(cp, { forPrint: true })) sec('検査データ臨床評価', labAssessmentHtmlFor(cp, { forPrint: true }));
-      if (on('contradiction') && activeGeneratedResult(cp, 'contradictionResult')) sec('S/O矛盾チェック（AI・参考）', storedAiHtml(activeGeneratedResult(cp, 'contradictionResult')));
-      const cands = activeDiagnosisCandidates(cp);
-      if (on('diagnosis') && cands.length) {
-        const sel = new Set(cp.selectedDiagnosisIds || []);
-        out += `<h2>${n++}. 看護診断候補（AI・参考）</h2>` + cands.map(c => `<div class="dx${sel.has(c.id) ? ' sel' : ''}"><div class="dx-name">${sel.has(c.id) ? '✓ ' : ''}${escapeHtml(c.name)}${sel.has(c.id) ? '<span class="tags">　（看護計画に使用）</span>' : ''}</div>${c.bodyHtml ? `<div>${storedAiHtml(c.bodyHtml)}</div>` : ''}</div>`).join('');
-      } else if (on('diagnosis') && activeGeneratedResult(cp, 'diagnosisResult')) sec('看護診断候補（AI・参考）', storedAiHtml(activeGeneratedResult(cp, 'diagnosisResult')));
-      if (on('timeline') && activeGeneratedResult(cp, 'timelineResult')) sec('経時変化サマリー（AI・参考）', storedAiHtml(activeGeneratedResult(cp, 'timelineResult')));
-      if (on('aiPlan') && activeGeneratedResult(cp, 'carePlanResult')) sec('看護計画（AI・叩き台）', (cp.carePlanDiagnoses?.length ? `<p><b>選んだ看護診断：</b>${escapeHtml(cp.carePlanDiagnoses.join('／'))}</p>` : '') + storedAiHtml(activeGeneratedResult(cp, 'carePlanResult')));
-      if (typeof quarantineNoticeText === 'function' && quarantineNoticeText(cp)) out += `<p class="note">${escapeHtml(quarantineNoticeText(cp))}</p>`;
-      if (out) out += '<p class="note">AIによる結果は参考情報です。最終的な判断・看護診断・看護計画の決定は必ず医療従事者が行ってください。〔S …〕〔O …〕は根拠にしたカードです。</p>';
       return out;
     }
 
@@ -186,7 +176,7 @@
   table.asm .pjn { font-size:7.8pt; color:#888; }
 </style></head><body>
 ${printDocHead('総合アセスメント表（ヘンダーソン14項目）', cp)}
-<p class="legend"><span class="lb lb-s">S</span>主観的情報（患者の発言）　<span class="lb lb-o">O</span>客観的情報（観察・検査）　<span class="lb lb-x">AI推定</span>不足している可能性のある情報　／　番号（S-1・O-1）は画面の総合アセスメント表と同じです。</p>
+<p class="legend"><span class="lb lb-s">S</span>主観的情報（患者の発言）　<span class="lb lb-o">O</span>客観的情報（観察・検査）　<span class="lb lb-x">自動推定</span>不足している可能性のある情報　／　番号（S-1・O-1）は画面の総合アセスメント表と同じです。</p>
 <table class="asm"><colgroup>${widths.map(w => `<col style="width:${w}">`).join('')}</colgroup>
 <thead><tr><th>基本的欲求</th>${cols.map(c => `<th>${PRINT_COL_LABELS[c]}</th>`).join('')}</tr></thead>
 <tbody>${rows}</tbody></table>
@@ -343,7 +333,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       if (on('missing') && missingOnly.length) {
         const status = i => (typeof missingCheckStatus === 'function' ? ({ unchecked: '未確認', checked: '確認済み', na: '該当なし' })[missingCheckStatus(cp, i.id)] : '未確認');
         const result = i => { const c = typeof getMissingCheck === 'function' ? getMissingCheck(cp, i.id) : null; return c && c.result ? `<br><span class="muted">→ ${escapeHtml(c.result)}${c.method ? `（${escapeHtml(c.method)}）` : ''}</span>` : ''; };
-        body += `<h2>${n++}. 不足情報と確認状況</h2><table><colgroup><col style="width:14%"><col><col style="width:20%"></colgroup><thead><tr><th>状況</th><th>確かめたい情報</th><th>項目</th></tr></thead><tbody>${missingOnly.map(i => `<tr><td>${escapeHtml(status(i))}${i.aiSuggested ? '<br><span class="lb lb-x">AI推定</span>' : ''}</td><td>${escapeHtml(i.text.replace(/^原因:\s*/, ''))}${result(i)}</td><td class="tags">${escapeHtml(printTagNames(i))}</td></tr>`).join('')}</tbody></table>`;
+        body += `<h2>${n++}. 不足情報と確認状況</h2><table><colgroup><col style="width:14%"><col><col style="width:20%"></colgroup><thead><tr><th>状況</th><th>確かめたい情報</th><th>項目</th></tr></thead><tbody>${missingOnly.map(i => `<tr><td>${escapeHtml(status(i))}${i.aiSuggested ? '<br><span class="lb lb-x">自動推定</span>' : ''}</td><td>${escapeHtml(i.text.replace(/^原因:\s*/, ''))}${result(i)}</td><td class="tags">${escapeHtml(printTagNames(i))}</td></tr>`).join('')}</tbody></table>`;
       }
       const unclassified = items.filter(i => i.type === 'unclassified');
       if (on('unclassified') && unclassified.length) body += `<h2>${n++}. 未分類のカード</h2>` + dataTable(unclassified);
@@ -412,10 +402,6 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       { key: 'own', label: '自分のアセスメント' },
       { key: 'plans', label: '看護計画と実施・評価' },
       { key: 'planEval', label: '全計画の評価' },
-      { key: 'contradiction', label: 'S/O矛盾チェック（AI）' },
-      { key: 'diagnosis', label: '看護診断候補（AI）' },
-      { key: 'timeline', label: '経時変化サマリー（AI）' },
-      { key: 'aiPlan', label: '看護計画（AI叩き台）' },
       { key: 'notes', label: '参考データ' }
     ];
     function exportSectionOn(want, key) { return !want || (typeof want.has === 'function' ? want.has(key) : Array.from(want).includes(key)); }
@@ -520,7 +506,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         out += plainList(missingOnly.map(i => {
           const st = typeof missingCheckStatus === 'function' ? ({ unchecked: '未確認', checked: '確認済み', na: '該当なし' })[missingCheckStatus(cp, i.id)] : '未確認';
           const c = typeof getMissingCheck === 'function' ? getMissingCheck(cp, i.id) : null;
-          return `[${st}]${i.aiSuggested ? ' [AI推定]' : ''} ${i.text.replace(/^原因:\s*/, '')}${c && c.result ? ` → ${c.result}` : ''}`;
+          return `[${st}]${i.aiSuggested ? ' [自動推定]' : ''} ${i.text.replace(/^原因:\s*/, '')}${c && c.result ? ` → ${c.result}` : ''}`;
         }));
       }
 
@@ -538,7 +524,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         out += plainList(collapseLabCards(collapseVitalCards(matching, need.id), need.id).map(i => {
           const col = i.assessmentCols?.[need.id] || 'unclassified';
           const colName = col === 'preadmission' ? '入院前' : (col === 'postadmission' ? '入院後' : (col === 'missing' ? '不足情報' : '未分類'));
-          return `[${colName}] [${i.type.toUpperCase()}]${i.fieldLabel ? ` [${i.fieldLabel}]` : ''}${i.aiSuggested ? ' [AI推定]' : ''} ${i.text}`;
+          return `[${colName}] [${i.type.toUpperCase()}]${i.fieldLabel ? ` [${i.fieldLabel}]` : ''}${i.aiSuggested ? ' [自動推定]' : ''} ${i.text}`;
         }));
       });
       }
@@ -550,12 +536,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       if (on('plans') && plansText) { out += plainSectionTitle('看護計画と実施・評価'); out += plansText + '\n'; }
       if (on('planEval')) out += buildPlanEvaluationText(cp);
 
-      if (on('contradiction') && activeGeneratedResult(cp, 'contradictionResult')) { out += plainSectionTitle('6. S/O矛盾チェック結果（AI）'); out += htmlToPlainText(activeGeneratedResult(cp, 'contradictionResult')) + '\n'; }
-      if (on('diagnosis') && activeGeneratedResult(cp, 'diagnosisResult')) { out += plainSectionTitle('7. 看護診断候補（AI提案）'); out += htmlToPlainText(activeGeneratedResult(cp, 'diagnosisResult')) + '\n'; }
-      if (on('timeline') && activeGeneratedResult(cp, 'timelineResult')) { out += plainSectionTitle('8. 経時変化サマリー（AI）'); out += htmlToPlainText(activeGeneratedResult(cp, 'timelineResult')) + '\n'; }
-      if (on('aiPlan') && activeGeneratedResult(cp, 'carePlanResult')) { out += plainSectionTitle('9. 看護計画（AI自動生成）'); if (cp.carePlanDiagnoses?.length) out += `選んだ看護診断：${cp.carePlanDiagnoses.join('／')}\n`; out += htmlToPlainText(activeGeneratedResult(cp, 'carePlanResult')) + '\n'; }
 
-      if (typeof quarantineNoticeText === 'function' && quarantineNoticeText(cp)) out += '\n' + quarantineNoticeText(cp) + '\n';
       const notes = cp.referenceNotes || [];
       if (notes.length > 0 && on('notes')) {
         out += plainSectionTitle('10. 参考データ');
@@ -944,7 +925,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
               const seq = seqLabels[i.id] ? `${seqLabels[i.id]} ` : '';
               const time = i.timestamp && i.timestamp !== '日時不明' ? `[${i.timestamp}] ` : '';
               const label = (i.fieldLabel ? `[${i.fieldLabel}] ` : '') + (isFamilySpeech(i.text) ? '[家族] ' : '');
-              out += `    ・${seq}${time}${label}${cleanSheetRecordText(i.text)}${i.aiSuggested ? '（AI推定）' : ''}\n`;
+              out += `    ・${seq}${time}${label}${cleanSheetRecordText(i.text)}${i.aiSuggested ? '（自動推定）' : ''}\n`;
             }); });
             if (!onlyIds) pg.judge.forEach(([k, l]) => { out += periodJudgeText(cp, need.id, k, l); });
           });
