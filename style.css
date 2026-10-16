@@ -1869,3 +1869,8 @@ option:checked { background: var(--accent-soft); color: var(--accent-dark); font
 .suf-evidence-chip { border-width: 1px; font-weight: 600; font-size: 11.5px; padding: .1rem .45rem; box-shadow: none; }
 .suf-ev span:first-child { font-size: 11px; color: var(--ink-muted); }
 .suf-phase-why p { font-size: 13.5px; line-height: 1.8; color: var(--ink); font-weight: 400; }
+
+/* --- v.120 quieter value segments --- */
+.card-seg { display: inline; margin: 0 2px 0 0; padding: 1px 6px; border: 0; border-radius: 4px; font-size: .93em; line-height: 1.9; background: color-mix(in srgb, var(--slate-soft) 55%, transparent); box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.card-seg:nth-of-type(even) { background: color-mix(in srgb, var(--accent-soft) 55%, transparent); border: 0; }
+.card-seg:nth-of-type(3n) { background: color-mix(in srgb, var(--slate-soft) 55%, transparent); border: 0; }
