@@ -1992,8 +1992,9 @@ html[data-theme="dark"] .rm-cl-prob{color:#5a1428}
 
 /* v.137 phone: selection action bar grouped into a compact 3-column grid pinned above the bottom nav */
 @media (max-width:640px){
-  #bulk-action-bar:not(.hidden){display:grid !important;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;left:8px !important;right:8px;bottom:4.6rem !important;transform:none !important;max-width:none !important;width:auto;padding:8px}
-  #bulk-action-bar .btn,#bulk-action-bar select{min-height:36px;height:36px;padding:0 6px;font-size:12px;white-space:nowrap;justify-content:center;width:100%}
+  #bulk-action-bar:not(.hidden){display:grid !important;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;left:8px !important;right:8px;bottom:calc(5.6rem + env(safe-area-inset-bottom)) !important;transform:none !important;max-width:none !important;width:auto;padding:8px}
+  #bulk-action-bar .btn,#bulk-action-bar select{min-height:36px;height:auto;padding:4px 6px;font-size:11px;line-height:1.2;white-space:normal;text-align:center;justify-content:center;gap:4px;width:100%}
+  #bulk-action-bar select{height:36px}
   #bulk-action-bar #bulk-action-count{margin:0;align-self:center;text-align:center;font-size:12px}
   #bulk-action-bar #bulk-tag-select{grid-column:1 / -1}
 }
