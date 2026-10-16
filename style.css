@@ -1810,3 +1810,28 @@ body { font-family: 'IBM Plex Sans JP', 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo
   #view-careplan .cp-toolbar > .btn { flex: 0 0 auto; width: auto; font-size: 13px; padding: 0 12px; }
   #view-labs > p, #view-labs > div > p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 }
+
+/* --- v.113 depth for buttons, dropdowns and sufficiency badges (presentation only) --- */
+.btn { box-shadow: 0 1px 2px rgba(36,71,61,.14), inset 0 1px 0 rgba(255,255,255,.35); transition: box-shadow .12s, transform .12s, background-color .12s, border-color .12s; }
+.btn:hover { box-shadow: 0 3px 8px rgba(36,71,61,.2); transform: translateY(-1px); }
+.btn:active { transform: translateY(0); box-shadow: inset 0 1px 3px rgba(0,0,0,.18); }
+.btn-primary { background-image: linear-gradient(180deg, var(--accent), var(--accent-dark)); }
+.btn-outline { border-color: var(--line-strong); }
+select { border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background-color: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.08); cursor: pointer; }
+select:hover { border-color: var(--accent); }
+select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+option { padding: 6px 10px; background: var(--surface); color: var(--ink); }
+option:checked { background: var(--accent-soft); color: var(--accent-dark); font-weight: 700; }
+.hdr-menu { border-color: var(--line-strong); box-shadow: 0 14px 34px rgba(0,0,0,.2), 0 2px 6px rgba(0,0,0,.08); }
+.hdr-menu-item { border-radius: var(--radius-sm); }
+.hdr-menu-item:hover, .hdr-menu-item:focus-visible { background: var(--accent-soft); color: var(--accent-dark); }
+.suf-badge { border: 1px solid currentColor; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.suf-b-met { border-color: var(--accent) !important; color: var(--accent-dark); }
+.suf-b-unmet { border-color: var(--brick) !important; color: var(--brick); }
+.suf-b-conflict { border-color: var(--gold) !important; color: var(--gold); }
+.suf-b-unknown { border-color: var(--slate) !important; color: var(--slate); }
+.suf-phase-block { box-shadow: 0 1px 3px rgba(0,0,0,.08); border-color: var(--line-strong); border-left-width: 4px; }
+.suf-mini { border: 1px solid transparent; }
+.suf-mini-met { border-color: var(--accent-line); } .suf-mini-unmet { border-color: var(--brick-line); }
+.suf-btn { box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.suf-btn.is-on { box-shadow: inset 0 1px 3px rgba(0,0,0,.15); font-weight: 700; }
