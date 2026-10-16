@@ -48,5 +48,5 @@ test('v97 verdict sentences stay frozen in shape (definite ending) with the new 
 });
 
 test('v97 notebook revision 18 mentions the added criteria', () => {
-  assert.match(String(app.NOTEBOOK_CONTENT_VERSION_MARK || app.DEFAULT_NOTEBOOK_CONTENT || ''), /改訂18/);
+  assert.match(String(app.NOTEBOOK_CONTENT_VERSION_MARK || app.DEFAULT_NOTEBOOK_CONTENT || ''), /改訂(?:18|19)/);
 });

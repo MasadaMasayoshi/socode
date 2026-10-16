@@ -1,6 +1,6 @@
 // Japanese drug reference vocabulary. Names indicate references, not administration or clinical approval.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['14'] = '2026-10-10.znavigation17'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['14'] = 'v.98'; // Version stamp (scripts/stamp-version.js)
 
     const DRUG_REFERENCE_ROWS = [
 
@@ -395,6 +395,202 @@
     };
     window.closeDrugInfo = function() { document.getElementById('modal-drug-info')?.classList.add('hidden'); };
 
+    // ======================================================================
+    // v.98 drug information layer (reuses DRUG_REFERENCE above; nothing is rewritten in the record text).
+    // Metadata is derived on demand from the card text (item.drugs, if present, is only a cache); old saved cards load unchanged.
+    // Every dictionary-derived field carries DRUG_PROVENANCE. Wording is conservative: observation points and "confirm with the order" only, no dosing advice.
+    // ======================================================================
+    const DRUG_PROVENANCE = '内蔵辞書 2026-10-16（出典未確認・臨床レビュー未実施）';
+    // class -> default route / usual dose unit / needs informed / observation points / cautions. Matched on DRUG_REFERENCE cls.
+    const DRUG_CLASS_INFO = [
+      [/インスリン|GLP-1|GIP/, { route: '皮下注', unit: '単位', needs: [2, 14], op: '血糖値の推移・食事摂取量・低血糖症状（冷汗・ふるえ・空腹感）・注射部位・自己注射の手技', caution: '投与量・時間は必ず指示で確認する' }],
+      [/ビグアナイド|スルホニル|SU薬|DPP-4|SGLT2|α-グルコシダーゼ|チアゾリジン|血糖上昇/, { route: '経口', unit: 'mg', needs: [2, 14], op: '血糖値・食事摂取量・低血糖症状・飲み忘れの有無', caution: '食事がとれないときの扱いは指示で確認する' }],
+      [/カルシウム拮抗|ARB|アンジオテンシン|ACE|β遮断|α遮断|αβ遮断|降圧/, { route: '経口', unit: 'mg', needs: [1], op: '血圧・脈拍・めまいやふらつき・飲み忘れの有無', caution: '指示された用量・時間を確認する' }],
+      [/利尿/, { route: '経口', unit: 'mg', needs: [3, 1], op: '尿量・体重・浮腫・血圧・電解質（K・Na）・口渇', caution: '指示された用量・時間を確認する' }],
+      [/抗凝固|DOAC|ヘパリン|抗血小板|血栓溶解/, { route: '経口', unit: 'mg', needs: [9], op: '出血のサイン（歯肉・鼻・皮下出血・便の色）・転倒・外傷・採血データ', caution: '手術や処置の前後の扱いは指示で確認する' }],
+      [/スタチン|コレステロール/, { route: '経口', unit: 'mg', needs: [2, 14], op: '筋肉痛・脱力・飲み忘れ・食事の記録', caution: '指示された用量を確認する' }],
+      [/解熱鎮痛|NSAIDs|非ステロイド|アセトアミノフェン|神経障害性疼痛/, { route: '経口', unit: 'mg', needs: [4, 5], op: '痛みの部位・程度（NRS）・使用前後の変化・胃部症状・使用間隔', caution: '1日の上限や間隔は指示で確認する' }],
+      [/オピオイド|麻薬/, { route: '経口', unit: 'mg', needs: [4, 5, 3], op: '痛みの程度・呼吸の回数・眠気・便秘・悪心', caution: '用量・間隔は指示で確認する' }],
+      [/抗菌薬|ニューキノロン|ST合剤|セフェム|ペニシリン|カルバペネム|マクロライド|グリコペプチド|抗真菌|抗ウイルス|抗ヘルペス|抗インフルエンザ/, { route: '経口・点滴', unit: 'mg', needs: [7, 1], op: '体温・炎症所見・下痢・発疹・投与の継続状況', caution: '投与期間・用量は指示で確認する' }],
+      [/ステロイド/, { route: '経口', unit: 'mg', needs: [7, 2, 5, 14], op: '血糖値・血圧・睡眠・気分の変化・感染の徴候・自己中断の有無', caution: '自己判断で中止しないよう、指示を確認する' }],
+      [/睡眠薬|抗不安|ベンゾジアゼピン|オレキシン|メラトニン|鎮静/, { route: '経口', unit: 'mg', needs: [5, 9], op: '睡眠の状況・日中の眠気・ふらつきと転倒・服用の時間', caution: '服用時間・頓用の条件は指示で確認する' }],
+      [/抗精神病|気分安定|抗うつ|SSRI|SNRI|NaSSA|抗てんかん/, { route: '経口', unit: 'mg', needs: [10, 5, 9], op: '精神症状・睡眠・ふらつき・眠気・飲み忘れや自己中断の有無', caution: '自己判断で中止しないよう、指示を確認する' }],
+      [/下剤|整腸|止痢|浸透圧|クロライド|グアニル|胆汁酸/, { route: '経口', unit: 'mg', needs: [3, 2], op: '排便の回数・性状・腹部症状・水分摂取量', caution: '調整の仕方は指示で確認する' }],
+      [/制吐|5-HT3|NK1/, { route: '経口・点滴', unit: 'mg', needs: [2], op: '悪心・嘔吐の程度と回数・食事摂取量・水分摂取量', caution: '使用の条件は指示で確認する' }],
+      [/PPI|プロトンポンプ|アシッドブロッカー|H2|胃粘膜/, { route: '経口', unit: 'mg', needs: [2], op: '胃部症状・食事摂取・黒色便の有無', caution: '服用時間は指示で確認する' }],
+      [/β2刺激|吸入|抗コリン薬（吸入）|ロイコトリエン|キサンチン|去痰|鎮咳/, { route: '吸入・経口', unit: '回', needs: [1], op: '呼吸状態（呼吸数・SpO2・喘鳴）・吸入の手技・使用回数・口腔内の状態', caution: '使用回数や頓用の条件は指示で確認する' }],
+      [/パーキンソン|レボドパ|ドパミン/, { route: '経口', unit: 'mg', needs: [4, 2, 9], op: '服薬時間の遅れ・症状の変動・ふらつき・悪心・幻覚', caution: '服薬時間は指示を厳守できているか確認する' }],
+      [/抗がん|免疫チェックポイント|分子標的|代謝拮抗|アルキル化|タキサン|白金|アントラサイクリン|トポイソメラーゼ|G-CSF|免疫抑制|抗リウマチ|ホルモン療法/, { route: '点滴・経口', unit: 'mg', needs: [7, 2, 8, 14], op: '副作用の症状（悪心・口内炎・発熱・皮疹・倦怠感）・血液データ・感染予防の実施', caution: 'レジメンと投与日は指示で確認する' }],
+      [/ビタミン|カリウム|カルシウム|リン吸着|鉄剤|電解質|輸液/, { route: '経口・点滴', unit: 'mg', needs: [2, 3], op: '血液データ（K・Ca・Pなど）・食事摂取量・症状', caution: '用量は指示で確認する' }]
+    ];
+    const DRUG_ASCII_ALIASES = { lantus: 'ランタス', tresiba: 'トレシーバ', novorapid: 'ノボラピッド', humalog: 'ヒューマログ', levemir: 'レベミル', metgluco: 'メトグルコ', norvasc: 'ノルバスク', amlodipine: 'アムロジピン', blopress: 'ブロプレス', lasix: 'ラシックス', warfarin: 'ワルファリン', aspirin: 'アスピリン', calonal: 'カロナール', loxonin: 'ロキソニン', prednisolone: 'プレドニゾロン', predonine: 'プレドニン', myslee: 'マイスリー', insulin: 'インスリン', furosemide: 'フロセミド', metformin: 'メトホルミン', candesartan: 'カンデサルタン' };
+    const DRUG_NOT_A_DRUG = /^(?:インスリン注射|ビタミン)$/;
+    function drugClassInfo(drug) {
+      const row = DRUG_CLASS_INFO.find(([re]) => re.test(drug.cls || ''));
+      return row ? row[1] : { route: '', unit: '', needs: drug.tags || [], op: '', caution: '用量・投与方法は指示で確認する' };
+    }
+    function drugLineHtml(item) {
+      const ds = drugsOfItem(item);
+      if (!ds.length) return '';
+      const esc = typeof escapeHtml === 'function' ? escapeHtml : x => String(x);
+      return `<details class="drug-line" onclick="event.stopPropagation()" style="font-size:10px;margin-top:2px;color:var(--ink-muted);"><summary style="cursor:pointer;">薬剤 ${ds.length}件（記録から読み取り）</summary>${ds.map(d => `<div>${esc(drugLineText(d))}</div>`).join('')}<div style="opacity:.7;">${esc(DRUG_PROVENANCE)}</div></details>`;
+    }
+    function drugDictionaryRow(drug) {
+      const info = drugClassInfo(drug);
+      return { generic: drug.name, brands: drug.brands.slice(), cls: drug.cls, use: drug.use, route: info.route, unit: info.unit, needs: (info.needs && info.needs.length ? info.needs : drug.tags || []).slice(), op: [info.op, drug.watch].filter(Boolean).join('／'), caution: info.caution, highAlert: !!drug.highAlert, provenance: DRUG_PROVENANCE };
+    }
+    // hiragana -> katakana so ひらがな表記の薬名も拾う（長さは変わらない）
+    const drugFold = t => String(t || '').normalize('NFKC').replace(/\s+/g, ' ').replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60));
+    const DRUG_ASCII_REGEX = new RegExp('(?<![A-Za-z])(' + Object.keys(DRUG_ASCII_ALIASES).join('|') + ')(?![A-Za-z])', 'gi');
+    const DRUG_ROUTE_RE = /皮下注射?|皮下|静注|点滴静注|点滴|経口|内服|吸入|貼付|貼る|坐薬|座薬|外用|点眼|筋注|経鼻|舌下/;
+    const DRUG_DOSE_RE = /(\d+(?:\.\d+)?)\s*(単位|IU|U(?![A-Za-z])|mg|μg|mcg|g|mL|ml|錠|包|カプセル|滴|mEq|パフ|吸入|枚|T(?![A-Za-z]))/;
+    const DRUG_FREQ_RE = /1日\s*\d\s*回|\d\s*回\s*\/\s*日|毎食(?:前|後|直前)?|週\s*\d\s*回|週1回|隔日|頓用|頓服|必要時|疼痛時|不眠時|発熱時|眠剤|定期|持続/;
+    const DRUG_TIMING_RE = /朝食(?:前|後|直前)|昼食(?:前|後|直前)|夕食(?:前|後|直前)|就寝前|寝る前|眠前|起床時|食直前|食前|食後|朝|昼|夕|夜|寝る時/;
+    // status priority: the first matching pattern wins
+    const DRUG_STATUS_RULES = [
+      ['内服なし', /(?:内服|服用|使用|投薬|常用薬|服薬)(?:は|も)?(?:なし|無し|していない|せず)|薬(?:は)?(?:飲んで|使って)いない/],
+      ['既往（現在は未使用）', /既往|以前(?:は|に)?|過去に|かつて|昔|\d+年前(?:に|まで|は)|以前から.{0,6}(?:やめ|中止)/],
+      ['予定', /予定|検討|考慮|開始(?:する)?(?:かも|か)|導入(?:を)?(?:検討|予定)/],
+      ['拒否', /拒否|拒み|拒んだ|飲まない|飲みたくない|使いたくない|打ちたくない|嫌がっ/],
+      ['飲み忘れ', /飲み忘れ|服薬忘れ|内服忘れ|打ち忘れ|注射忘れ|使い忘れ|忘れ(?:て|た|る)/],
+      ['自己中断', /自己中断|自己判断(?:で)?(?:中止|やめ|止め|中断|飲まな|減ら)|勝手に(?:中止|やめ|止め|減ら)|自分で(?:やめ|止め|中止)/],
+      ['用量間違い', /(?:単位|量|用量|時間|薬)(?:を|が)?(?:間違|誤)|誤投与|誤って|過量服用|2回(?:内服|飲)してしまっ|間違えて/],
+      ['中止', /中止|休薬|停止|終了|中断|止め(?:た|る|ます)|やめ(?:た|る)/],
+      ['変更', /変更|増量|減量|切り替え|切替|調整|へ移行|に変更/],
+      ['開始', /開始|新規|導入|処方された|処方あり|追加|始め(?:た|る)/],
+      ['頓用', /頓用|頓服|必要時|疼痛時|不眠時|発熱時|屯用/],
+      ['継続', /継続|内服中|服用中|使用中|投与中|自己注射|飲んで(?:いる|います)|内服して(?:いる|います)|(?:内服|使用|服用)して(?:いる|います)|定期|常用|持続|毎日/]
+    ];
+    const DRUG_PROBLEM_STATUS = new Set(['拒否', '飲み忘れ', '自己中断', '用量間違い']);
+    const DRUG_ADVERSE_RE = /副作用|薬疹|アレルギー反応|発疹が出|嘔気が出|眠気が(?:強|出)|ふらつきが出|低血糖症状/;
+    function drugMentionsRaw(text) {
+      const flat = drugFold(text);
+      const hits = [];
+      DRUG_FIND_REGEX.lastIndex = 0;
+      let m;
+      while ((m = DRUG_FIND_REGEX.exec(flat)) !== null) { const d = DRUG_BY_TERM.get(m[0]); if (d) hits.push({ drug: d, term: m[0], index: m.index }); }
+      DRUG_ASCII_REGEX.lastIndex = 0;
+      while ((m = DRUG_ASCII_REGEX.exec(flat)) !== null) {
+        const kana = DRUG_ASCII_ALIASES[m[1].toLowerCase()]; const d = kana && DRUG_BY_TERM.get(kana);
+        if (d) hits.push({ drug: d, term: kana, index: m.index, ascii: m[1] });
+      }
+      return { flat, hits: hits.sort((a, b) => a.index - b.index) };
+    }
+    // structured drugs of one text (a card): [{generic, brand, class, display, dose, unit, route, freq, timing, status, adverse, needs, raw}]
+    function drugsOfText(text) {
+      const { hits } = drugMentionsRaw(text);
+      const flat = String(text || '').normalize('NFKC').replace(/\s+/g, ' '); // same length as the folded text; kana kept as written for the status words
+      const out = [], seen = new Set();
+      hits.forEach((h, k) => {
+        if (seen.has(h.drug.id)) return; seen.add(h.drug.id);
+        const segStart = Math.max(flat.lastIndexOf('。', h.index), flat.lastIndexOf('\n', h.index)) + 1;
+        let segEnd = flat.slice(h.index).search(/[。\n]/); segEnd = segEnd < 0 ? flat.length : h.index + segEnd;
+        const prev = hits[k - 1], next = hits[k + 1];
+        const from = Math.max(segStart, prev && prev.index >= segStart ? prev.index + prev.term.length : segStart, h.index - 14);
+        const to = Math.min(segEnd, next && next.index <= segEnd ? next.index : segEnd, h.index + h.term.length + 34);
+        const cut = Math.max(flat.lastIndexOf('、', h.index), flat.lastIndexOf('，', h.index), flat.lastIndexOf(',', h.index));
+        const win = flat.slice(cut >= from ? cut + 1 : from, to), after = flat.slice(h.index + h.term.length, to);
+        const clause = flat.slice(segStart, segEnd);
+        const dose = after.match(DRUG_DOSE_RE), route = win.match(DRUG_ROUTE_RE), freq = win.match(DRUG_FREQ_RE), timing = win.match(DRUG_TIMING_RE);
+        let status = '記載のみ（状態の記載なし）';
+        for (const [name, re] of DRUG_STATUS_RULES) { if (re.test(win) || (name === '内服なし' && re.test(clause) && clause.length < 40)) { status = name; break; } }
+        const info = drugClassInfo(h.drug);
+        const brand = h.drug.brands.some(b => drugFold(b) === h.term) ? h.term : '';
+        const generic = h.drug.name;
+        out.push({
+          id: h.drug.id, generic, brand, class: h.drug.cls,
+          display: brand ? `${brand}（${generic.replace(/（.*?）/g, '')}）` : generic,
+          dose: dose ? dose[1] : '', unit: dose ? dose[2] : '', route: route ? route[0] : '', freq: freq ? freq[0].replace(/\s+/g, '') : '', timing: timing && !(freq && freq[0].includes(timing[0])) ? timing[0] : '',
+          status, adverse: DRUG_ADVERSE_RE.test(clause), needs: (info.needs || h.drug.tags || []).slice(), provenance: DRUG_PROVENANCE, raw: flat.slice(h.index, Math.min(to, h.index + h.term.length + 34)).trim()
+        });
+      });
+      return out;
+    }
+    function drugsOfItem(item) {
+      if (!item || item.type === 'unnecessary') return [];
+      if (Array.isArray(item.drugs) && item.drugs.length && item.drugsFor === item.text) return item.drugs;
+      return drugsOfText(item.text);
+    }
+    // cache onto the card (additive; recomputed whenever the text differs)
+    function refreshCardDrugs(items) {
+      (items || []).forEach(i => { if (!i || typeof i.text !== 'string') return; const d = drugsOfText(i.text); if (d.length) { i.drugs = d; i.drugsFor = i.text; } else if (i.drugs) { delete i.drugs; delete i.drugsFor; } });
+      return items;
+    }
+    function drugLineText(d) {
+      const parts = [d.display];
+      const dose = d.dose ? `${d.dose}${d.unit}` : '';
+      [dose, d.route, d.freq, d.timing].filter(Boolean).forEach(x => parts.push(x));
+      if (d.status && !/^記載のみ/.test(d.status)) parts.push(`状態：${d.status}`);
+      if (d.adverse) parts.push('副作用の記載あり');
+      return parts.join('／');
+    }
+    // unregistered drug-looking katakana words (never replaced, only listed)
+    function drugUnknownCandidates(text) {
+      const t = drugFold(text), found = drugsOfText(text).map(d => d.display + d.generic);
+      const out = [];
+      (t.match(/[ァ-ヶー]{3,12}(?=\s*(?:錠|カプセル|散|注射|注|軟膏|点眼|テープ|パッチ|シロップ|\d+(?:\.\d+)?\s*(?:mg|g|mL|μg|単位|錠)))/g) || []).forEach(w => {
+        if (DRUG_BY_TERM.has(w) || found.some(f => f.includes(w))) return;
+        if (typeof KR_NON_DRUG !== 'undefined' && KR_NON_DRUG.test(w)) return;
+        if (typeof KR_LAB_VOCAB !== 'undefined' && KR_LAB_VOCAB.test(w)) return;
+        if (DRUG_NOT_A_DRUG.test(w) || /^(?:インスリン|ビタミン|ミキサー|ゼリー|プリン|カロリー|エネルギー|ナース|ベッド|リハビリ|オムツ|ガーゼ|シーネ|ソリタ)$/.test(w)) return;
+        if (!out.includes(w)) out.push(w);
+      });
+      return out;
+    }
+    // patient-level list grouped by class
+    function drugOverview(cp) {
+      const byId = new Map(), unknown = new Set();
+      ((cp && cp.items) || []).forEach(i => {
+        if (!i || i.type === 'unnecessary' || i.deleted) return;
+        drugsOfItem(i).forEach(d => {
+          const e = byId.get(d.id) || { drug: d, statuses: [], cards: 0 };
+          e.cards++; if (!e.statuses.includes(d.status)) e.statuses.push(d.status);
+          if (d.dose && !e.drug.dose) e.drug = Object.assign({}, e.drug, { dose: d.dose, unit: d.unit, route: e.drug.route || d.route, freq: e.drug.freq || d.freq, timing: e.drug.timing || d.timing });
+          byId.set(d.id, e);
+        });
+        drugUnknownCandidates(i.text).forEach(w => unknown.add(w));
+      });
+      const groups = new Map();
+      byId.forEach(e => { const g = groups.get(e.drug.class) || []; g.push(e); groups.set(e.drug.class, g); });
+      return { groups, unknown: Array.from(unknown), total: byId.size };
+    }
+    function drugInfoSectionText(cp, mask) {
+      const ov = drugOverview(cp);
+      const m = typeof mask === 'function' ? mask : x => x;
+      if (!ov.total && !ov.unknown.length) return '';
+      let out = `薬剤の情報（${DRUG_PROVENANCE}）\n`;
+      ov.groups.forEach((list, cls) => {
+        out += `■ ${cls}\n`;
+        list.forEach(e => { out += `　・${m(drugLineText(Object.assign({}, e.drug, { status: e.statuses.filter(s => !/^記載のみ/.test(s)).join('・') })))}（記録 ${e.cards}件）\n`; });
+      });
+      if (ov.unknown.length) out += `■ 未登録薬剤候補\n　・${ov.unknown.map(m).join('、')}\n`;
+      out += '※用量・投与方法の判断には使わない。記録の薬名と数字の読み取りを確認する資料。\n';
+      return out;
+    }
+    // problem statuses / adherence for the sufficiency judgment: [{need, v: 'unmet'|'met', hit, ref, id}]
+    function drugSufficiencyRules(text) {
+      const out = [];
+      drugsOfText(text).forEach(d => {
+        const ref = `薬剤の状況（${DRUG_PROVENANCE}）`;
+        const needs = Array.from(new Set([14, ...(d.needs || []).slice(0, 2)]));
+        if (DRUG_PROBLEM_STATUS.has(d.status)) needs.forEach(need => out.push({ need, v: 'unmet', hit: `${d.display}の${d.status}`, ref, drug: true }));
+        else if (d.adverse && d.status !== '内服なし') (d.needs || []).slice(0, 1).forEach(need => out.push({ need, v: 'unmet', hit: `${d.display}の副作用の記載`, ref, drug: true }));
+        else if (d.status === '継続' && d.dose && /(?:自己管理|飲み忘れなし|欠かさず|きちんと|確実に|決められた)/.test(drugFold(text))) out.push({ need: 14, v: 'met', hit: `${d.display}の継続`, ref, drug: true });
+      });
+      return out;
+    }
+    // observation points to ask for when a need has no verdict yet but a related drug is on the record
+    function drugObservationPoints(cp, need) {
+      const ids = new Set(), ops = [];
+      ((cp && cp.items) || []).forEach(i => drugsOfItem(i).forEach(d => {
+        if (ids.has(d.id) || !(d.needs || []).includes(need) || /^(?:内服なし|既往|中止)/.test(d.status)) return;
+        ids.add(d.id);
+        const row = DRUG_REFERENCE.find(x => x.id === d.id); const info = row ? drugClassInfo(row) : null;
+        if (info && info.op) ops.push({ drug: d.display, op: info.op });
+      }));
+      return ops;
+    }
+
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { DRUG_REFERENCE, findDrugsInText, drugTagsForText, drugPromptSection, drugLabelSearchUrl, PMDA_DRUG_SEARCH_URL });
+  Object.assign(module.exports, { DRUG_REFERENCE, findDrugsInText, drugTagsForText, drugPromptSection, drugLabelSearchUrl, PMDA_DRUG_SEARCH_URL, DRUG_PROVENANCE, DRUG_CLASS_INFO, drugClassInfo, drugLineHtml, drugDictionaryRow, drugMentionsRaw, drugsOfText, drugsOfItem, refreshCardDrugs, drugLineText, drugUnknownCandidates, drugOverview, drugInfoSectionText, drugSufficiencyRules, drugObservationPoints });
 }

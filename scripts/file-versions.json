@@ -4,8 +4,8 @@
     "hash": "e3e656c4c92fd487"
   },
   "js/02-reference-data.js": {
-    "version": "v.97",
-    "hash": "3ef7f1e673938645"
+    "version": "v.98",
+    "hash": "38f8704912d24b0e"
   },
   "js/03-extraction-helpers.js": {
     "version": "v.76",
@@ -20,28 +20,28 @@
     "hash": "cfd4884b0b58f03a"
   },
   "js/06-export.js": {
-    "version": "v.97",
-    "hash": "bc42c13716556ffd"
+    "version": "v.98",
+    "hash": "c8428b3de315bc5f"
   },
   "js/07-classification.js": {
-    "version": "v.97",
+    "version": "v.98",
     "hash": "ca83c11e66c21e9f"
   },
   "js/08-assessment-tools.js": {
-    "version": "v.97",
+    "version": "v.98",
     "hash": "aff381cae5209c72"
   },
   "js/09-board.js": {
-    "version": "v.83",
-    "hash": "32b7786e7cd6b460"
+    "version": "v.98",
+    "hash": "5a9d5e65efb23c07"
   },
   "js/10-reference-page-and-startup.js": {
-    "version": "v.97",
-    "hash": "2a57ca0bf230c5a0"
+    "version": "v.98",
+    "hash": "ca6cf1234fe1c3b8"
   },
   "js/11-own-assessment.js": {
-    "version": "v.97",
-    "hash": "3535aff92ebf0b8d"
+    "version": "v.98",
+    "hash": "478189f9e5963836"
   },
   "js/12-missing-checks-and-care-plan.js": {
     "version": "v.80",
@@ -52,8 +52,8 @@
     "hash": "c525cb4313c8b8b7"
   },
   "js/14-drug-reference.js": {
-    "version": "2026-10-10.znavigation17",
-    "hash": "ddd095be9f67a182"
+    "version": "v.98",
+    "hash": "ad24ae92252a5519"
   },
   "js/15-relation-map.js": {
     "version": "v.79",

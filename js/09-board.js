@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.83'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.98'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -255,7 +255,7 @@
             <button type="button" onclick="openCardMenu(event, ${jsArg(item.id)})" class="card-menu-btn" data-card-id="${escapeHtml(item.id)}" aria-haspopup="menu" aria-label="このカードの操作" title="操作（S/Oの変更・編集・不要・削除・報告）"><i class="fa-solid fa-ellipsis-vertical"></i></button>
           </div>
         </div>
-        <p class="card-text font-medium leading-snug break-words text-[var(--ink)]">${cardTextWithLabFlagsHtml(item)}</p>
+        <p class="card-text font-medium leading-snug break-words text-[var(--ink)]">${cardTextWithLabFlagsHtml(item)}</p>${typeof drugLineHtml === 'function' ? drugLineHtml(item) : ''}
         <div class="flex flex-wrap gap-1 items-center">
           ${tagsHtml}
           <select onchange="addHendersonTagFromDropdown(${jsArg(item.id)}, this.value); this.value='';" aria-label="タグを追加" class="max-w-[92px] w-auto text-[9px] bg-[var(--paper)] hover:bg-[var(--line-soft)] border ${isUntagged ? 'border-[var(--brick)]' : 'border-[var(--line)]'} rounded-[var(--radius-sm)] px-1 py-0.5 text-[var(--ink-muted)] cursor-pointer focus:outline-none mt-0.5" style="max-width:92px;"><option value="">＋ タグ</option>${HENDERSON_NEEDS.map(n => `<option value="${n.id}">${n.name}</option>`).join('')}</select>
@@ -1353,7 +1353,7 @@
           ondragleave="event.currentTarget.classList.remove('drag-over');"
           ondrop="handleAssessmentCardDrop(event, ${jsArg(item.id)}, ${hId})"
           class="asc-card px-1.5 py-1 rounded-[var(--radius-sm)] border ${item.aiSuggested ? 'border-dashed' : ''} border-[var(--line)] text-[10.5px] cursor-grab active:cursor-grabbing hover:border-[var(--accent)] transition" style="background:${cardBg};border-left-width:3px;border-left-color:${accentColor};">
-          <div class="leading-snug break-words text-[var(--ink)]"><span class="inline-flex items-center gap-0.5 mr-1 align-[1px]">${badge}${evidenceTag}${familyMark}${aiTag}${fieldTag}${time}${drugChipHtml(item)}</span>${cardTextWithLabFlagsHtml(item)}</div>
+          <div class="leading-snug break-words text-[var(--ink)]"><span class="inline-flex items-center gap-0.5 mr-1 align-[1px]">${badge}${evidenceTag}${familyMark}${aiTag}${fieldTag}${time}${drugChipHtml(item)}</span>${cardTextWithLabFlagsHtml(item)}${typeof drugLineHtml === 'function' ? drugLineHtml(item) : ''}</div>
           ${isMissingCol && typeof missingCheckCardHtml === 'function' ? `<div class="mc-in-card">${missingCheckCardHtml(getCurrentPatient(), item)}</div>` : ''}
           <div class="asc-actions">
             <button onclick="moveAssessmentCard(${jsArg(item.id)}, ${hId}, 'up')" ${isFirst ? 'disabled' : ''} class="icon-btn" title="この欄の中で1つ上へ移動" style="${isFirst ? 'opacity:.3;cursor:not-allowed;' : ''}"><i class="fa-solid fa-chevron-up text-[9px]"></i></button>

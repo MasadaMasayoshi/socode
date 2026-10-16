@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.97'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.98'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -1379,7 +1379,10 @@
       if ((k.rows || []).length) parts.push(`知識の行＝${k.rows.join('・')}`);
       if ((k.combos || []).length) parts.push(`高リスクの組合せ＝${k.combos.join('・')}`);
       if ((k.chains || []).length) parts.push(`関連：${k.chains.join('／')}`);
-      if (a.verdict === 'unknown' || a.verdict === 'conflict') sufficiencyKnowledgeChecks(cp, needId).forEach(c => parts.push(`確認したい情報（${c.label}）＝${c.points.join('・')}`));
+      if (a.verdict === 'unknown' || a.verdict === 'conflict') {
+        sufficiencyKnowledgeChecks(cp, needId).forEach(c => parts.push(`確認したい情報（${c.label}）＝${c.points.join('・')}`));
+        if (typeof drugObservationPoints === 'function') drugObservationPoints(cp, needId).slice(0, 2).forEach(d => parts.push(`確認したい情報（薬剤：${d.drug}）＝${d.op}`));
+      }
       return parts.join('｜');
     }
     // Value rules (not tag-gated) + per-need criteria (only on cards tagged for that need), evaluated together so supporting and problematic findings are weighed in one place.
@@ -1543,6 +1546,8 @@
       if (SUF_NOT_CONFIRMED.test(t)) return [];
       const out = [], quoted = /[「」]/.test(t);
       const find = (re, flags) => { const g = new RegExp(re.source, 'g'); return [...t.matchAll(g)].find(m => !PN.unmetNeg.test(t.slice(m.index + m[0].length))); };
+      // v.98: a recorded drug status problem (飲み忘れ・自己中断・用量間違い・拒否・副作用) is a finding; a drug name alone is not
+      if (typeof drugSufficiencyRules === 'function') drugSufficiencyRules(t).forEach(r => out.push(r));
       PN_UNMET.forEach(([need, re, ref]) => {
         if (need === 10 && PN.consc.test(t)) return; // unconscious / no speech: not observable -> 情報不足, not 未充足
         const m = find(re);
