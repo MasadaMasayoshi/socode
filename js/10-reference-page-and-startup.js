@@ -1,7 +1,7 @@
 // Startup, references and image OCR. Validate image MIME/size; capture patient before async prompts.
 // Reference notes are not automatic classification rules; file versions detect mixed/reverted assets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = 'v.95'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = 'v.96'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -660,7 +660,7 @@ if (typeof module !== 'undefined' && module.exports) {
     detectPneumoniaMissingChecks,
     normalizeFieldLabelHeadingWord,
     FIELD_LABEL_HEADING_ALIASES,
-    cleanSheetRecordText, sheetRecordItems, buildExportPlainText, EXPORT_SECTIONS, exportSectionOn, exportSelectionFromKeys, planEvaluationEntries, DISEASE_SYMPTOM_NEEDS, droppedEditsForCase, backgroundFactorName, peEvalStatus, peRepeatNeed, peLabSeriesWarnings, peQualityWarnings, peQualityText, buildPlanEvaluationText, buildPlanEvaluationHtml, htmlToPlainText, isUntouchedAiMissing, cleanAiText, notifyLostAiRequests, cardTextWithLabFlagsHtml, resetCardLabFlags, detectAgeGroupFromText,
+    cleanSheetRecordText, sheetRecordItems, buildExportPlainText, EXPORT_SECTIONS, exportSectionOn, exportSelectionFromKeys, planEvaluationEntries, DISEASE_SYMPTOM_NEEDS, sufficiencySourceCandidates, droppedEditsForCase, backgroundFactorName, peEvalStatus, peRepeatNeed, peLabSeriesWarnings, peQualityWarnings, peQualityText, buildPlanEvaluationText, buildPlanEvaluationHtml, htmlToPlainText, isUntouchedAiMissing, cleanAiText, notifyLostAiRequests, cardTextWithLabFlagsHtml, resetCardLabFlags, detectAgeGroupFromText,
     buildExportBodyHtml,
     findSourceHighlightRanges,
     buildPatientBackupData, queueClassificationDelivery, flushClassificationDeliveries, buildSelectedCardsExportText, buildReviewRequestText, correctionRequestInstructionsText, backgroundFactorsText, sufficiencyJudgmentsText, reviewRequestTargets, isEditedCard, downloadTextBlob, chooseExportFile, clinicalCardDuplicateKey, currentRuleCardForSavedItem, hasCompleteSavedSourceCoverage,

@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.95'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.96'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -928,16 +928,74 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         rows.map(i => `  ・${backgroundFactorName(i)} → ${mask(i.text)}｜${i.patientBackground || kind(i)}｜${(i.hendersonIds || []).length ? (i.hendersonIds || []).join('・') : 'タグなし'}`).join('\n') + '\n';
     }
     // The app's current sufficiency judgments, in the existing exported wording (sufficiencyPhaseText), with evidence references and missing-information items.
+    // v.96: sentences of the original record (分類前文章) that bear on a need but are not cited as evidence in that need/phase verdict.
+    // Developer-facing candidates for new generic criteria; shown as separate lines, never inside the verdict sentence.
+    function sufficiencySourceCandidates(cp, limits) {
+      const out = { byKey: new Map(), omitted: 0 };
+      const src = String((cp && cp.sourceText) || '');
+      if (!src.trim() || typeof sufficiencyUiPhases !== 'function' || typeof ruleSufficiencyFor !== 'function') return out;
+      const perNeed = (limits && limits.perNeed) || 5, total = (limits && limits.total) || 40;
+      const nz = x => String(x || '').normalize('NFKC').replace(/\s+/g, '');
+      const sentences = src.split(/\r?\n/).flatMap(l => l.split(/(?<=。)/)).map(s => s.trim()).filter(s => s.length >= 6
+        && !/^[＜<【\[].*[＞>】\]]$/.test(s) && !(typeof isDateOnlyText === 'function' && isDateOnlyText(s)) && !(typeof isSourceStructureText === 'function' && isSourceStructureText(s)));
+      const items = ((cp.items) || []).filter(i => i && !i.deleted && i.type !== 'unnecessary');
+      const phases = sufficiencyUiPhases(cp), phaseKeys = phases.map(p => p.key);
+      const surgical = typeof isSurgicalPatient === 'function' && isSurgicalPatient(cp);
+      const res = ruleSufficiencyFor(cp);
+      const phaseOfItem = i => {
+        const pre = /^入院前/.test(String(i.timestamp || '')) || (Object.values(i.assessmentCols || {}).length > 0 && Object.values(i.assessmentCols).every(c => c === 'preadmission'));
+        if (pre) return 'pre';
+        if (surgical && typeof surgPhaseOf === 'function') { const sp = surgPhaseOf(i, cp); if (sp === 'pre') return 'preop'; if (sp === 'post' || sp === 'op') return 'postop'; }
+        return 'post';
+      };
+      let used = 0;
+      const seen = new Set();
+      sentences.forEach(s => {
+        const sn = nz(s);
+        if (seen.has(sn)) return; seen.add(sn);
+        const card = items.find(i => { const t = nz(i.text); return t.length >= 6 && (t.includes(sn) || sn.includes(t)); });
+        let phase = card ? phaseOfItem(card) : (/^(?:入院前|半年前|以前)/.test(s) ? 'pre' : 'post');
+        if (!phaseKeys.includes(phase)) phase = phaseKeys.includes('post') ? 'post' : phaseKeys[phaseKeys.length - 1];
+        // needs the sentence bears on: criteria that exist (cue tables, scales, labs, symptoms) or the classification helpers
+        const cue = new Set();
+        const addAll = list => list.forEach(r => { if (r && r.need) cue.add(r.need); });
+        try { addAll(sufficiencyPerNeedRules(s)); addAll(sufficiencyScoreRules(s)); addAll(sufficiencyScaleRules(s)); addAll(sufficiencyLabRules(s)); } catch (e) { /* ignore */ }
+        HENDERSON_NEEDS.forEach(n => { try { const parts = s.normalize('NFKC').split(/[。\n、,，]/).map(x => x.trim()).filter(Boolean); if (parts.some(p => { const v = sufficiencyClauseVerdict(p, n.id, { speech: /[「」]/.test(s) }); return v && (v.v === 'unmet' || v.v === 'met'); })) cue.add(n.id); } catch (e) { /* ignore */ } });
+        if (typeof DISEASE_SYMPTOM_NEEDS !== 'undefined') DISEASE_SYMPTOM_NEEDS.forEach(([re, ids]) => { if (re.test(s.normalize('NFKC'))) ids.forEach(id => cue.add(id)); });
+        let tags = [];
+        try { tags = Array.from(detectMultipleHendersonTags(s)); } catch (e) { tags = []; }
+        const needs = Array.from(new Set([...cue, ...tags])).sort((a, b) => a - b);
+        needs.forEach(nid => {
+          const r = res[nid]; if (!r) return;
+          const a = r[phase] || {};
+          const cited = (a.evidence || []).some(id => { const it = items.find(x => x.id === id); const t = it ? nz(it.text) : ''; return t.length >= 6 && (t.includes(sn) || sn.includes(t)); });
+          if (cited) return;
+          const state = a.verdict === 'unknown' || !a.verdict ? '原文に記載あり（判定に未反映）' : (cue.has(nid) ? '判定に未使用' : '基準に未登録');
+          const key = `${nid}|${phase}`;
+          const list = out.byKey.get(key) || [];
+          if (list.length >= perNeed || used >= total) { out.omitted++; return; }
+          const need = HENDERSON_NEEDS.find(n => n.id === nid);
+          list.push({ text: s.length > 60 ? s.slice(0, 60) + '…' : s, need: `${nid}. ${need ? need.name.replace(/^\d+\.\s*/, '') : ''}`, state });
+          out.byKey.set(key, list); used++;
+        });
+      });
+      return out;
+    }
+    function sufficiencyCandidateLines(cand, needId, phaseKey, mask) {
+      return ((cand.byKey.get(`${needId}|${phaseKey}`)) || []).map(c => `　　・分類前文章の未使用記録（判断基準の追加候補）：${mask(c.text)}｜関係しそうな欲求：${c.need}｜状態：${c.state}`);
+    }
     function sufficiencyJudgmentsText(cp) {
       if (!cp || typeof sufficiencyPhaseText !== 'function' || typeof sufficiencyHasVerdict !== 'function' || typeof sufficiencyUiPhases !== 'function') return '';
       // Only patient names are masked; the sentences themselves must stay exactly as the app shows them (no normalisation).
       const names = typeof krNames === 'function' ? krNames(cp) : [];
       const mask = t => names.reduce((acc, n) => acc.split(n).join('(患者)'), String(t));
       const lines = [], allUnknown = [], unknownChecks = [];
+      let cand = { byKey: new Map(), omitted: 0 };
+      try { cand = sufficiencySourceCandidates(cp); } catch (e) { cand = { byKey: new Map(), omitted: 0 }; }
       HENDERSON_NEEDS.forEach(need => {
         if (!sufficiencyHasVerdict(cp, need.id)) return;
         const missingItems = (cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && (i.hendersonIds || []).includes(need.id) && (i.assessmentCols || {})[need.id] === 'missing' && String(i.text || '').trim());
-        if (!missingItems.length && sufficiencyUiPhases(cp).every(ph => (typeof phaseVerdictOf === 'function' ? phaseVerdictOf(cp, need.id, ph.key) : '') === 'unknown')) { allUnknown.push(need.id); const kc = typeof sufficiencyKnowledgeChecks === 'function' ? sufficiencyKnowledgeChecks(cp, need.id) : []; if (kc.length) unknownChecks.push(`  ・${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}｜知識の利用：確認したい情報（${kc[0].label}）＝${kc[0].points.join('・')}`); return; }
+        if (!missingItems.length && sufficiencyUiPhases(cp).every(ph => (typeof phaseVerdictOf === 'function' ? phaseVerdictOf(cp, need.id, ph.key) : '') === 'unknown')) { allUnknown.push(need.id); const kc = typeof sufficiencyKnowledgeChecks === 'function' ? sufficiencyKnowledgeChecks(cp, need.id) : []; if (kc.length) unknownChecks.push(`  ・${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}｜知識の利用：確認したい情報（${kc[0].label}）＝${kc[0].points.join('・')}`); const cl = sufficiencyUiPhases(cp).flatMap(ph => sufficiencyCandidateLines(cand, need.id, ph.key, mask).map(l => `${l}（${ph.label}）`)); if (cl.length) { unknownChecks.push(`  ■ ${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}（記録なし・情報不足）`); cl.forEach(l => unknownChecks.push(l)); } return; }
         const labels = typeof myEvidenceLabels === 'function' ? myEvidenceLabels(cp, need.id) : {};
         const r = typeof ruleSufficiencyFor === 'function' ? (ruleSufficiencyFor(cp)[need.id] || {}) : {};
         lines.push(`  ■ ${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}`);
@@ -954,11 +1012,13 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
           }
           if (ph0.refStandard) lines.push(`      参考基準：${ph0.refStandard}`);
           if (typeof sufficiencyKnowledgeLine === 'function') { const kl = sufficiencyKnowledgeLine(cp, need.id, ph.key); if (kl) lines.push(`      知識の利用：${mask(kl)}`); }
+          sufficiencyCandidateLines(cand, need.id, ph.key, mask).forEach(l => lines.push(l));
         });
         missingItems.forEach(i => lines.push(`    ・不足情報／確認したい情報：${mask(i.text)}`));
       });
       if (allUnknown.length) lines.push(`  ・記録がなく、すべての時期が情報不足の項目：${allUnknown.join('・')}`);
       unknownChecks.forEach(l => lines.push(mask(l)));
+      if (cand.omitted) lines.push(`　　・分類前文章の未使用記録：他${cand.omitted}件省略`);
       return lines.length ? '\n【アプリの充足状態の判定】項目ごと・時期ごとの現在の判定と理由（アプリの表示・書き出しと同じ文章）、根拠カード、不足情報（原文と比べて、判定の妥当性を評価してください。氏名は含めません）\n' + lines.join('\n') + '\n' : '';
     }
     function correctionRequestInstructionsText() {
@@ -979,7 +1039,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         "B. Background factors: also extract the PATIENT BACKGROUND FACTORS from the source record (年齢・性別・職業・家族構成・同居者・既往歴・生活歴（喫煙・飲酒・食習慣）・アレルギー・内服薬・入院の経緯／現病歴・ADL・社会資源 etc.) and check that each factor written in the source is captured as a card or field, with the right 基本情報／医学情報 classification (classifyPatientBackground) and, where appropriate, Henderson tags by meaning. List every factor that is missing or misclassified together with its source line. Do not infer factors that are not written; compare with the 「アプリが抽出済みの患者背景の因子」 list below when it is present; keep name masking intact.",
         "",
         "【充足・未充足の評価】",
-        "C. Sufficiency evaluation: also EVALUATE the app's sufficiency judgments (充足 / 未充足 / 判定保留 / 情報不足) per Henderson need and per phase (入院前／入院後), listed under 「アプリの充足状態の判定」 below, against the source record and the surrounding cards. For each verdict check: is it supported by the source; is any evidence card missing or wrongly used; is each 不足情報／確認したい情報 item truly missing in the source. Where a verdict is wrong, state the generic rule change that fixes it (no case-specific wording). Do not invent facts; write 確認不能 where the evidence is absent. Do not reword the existing sufficiency sentences. Judgments are comprehensive per phase (入院前／入院後, and 術前／術後 for surgical patients): all recorded findings of that phase are weighed together, the wording is chosen to fit the evidence (e.g. 「<所見・数値>は〜であるが、<補う記録>なので…」 for compensated mixed evidence, a plain 「〜のため…」 for one-sided evidence, what to confirm for 判定保留), and the sentence always ends with a definite verdict (充足している／未充足である／判定保留／情報不足) that matches the label — check that a problematic value is only outweighed by a recorded compensating fact, and that a normal value does not hide a recorded problem. Check that each 充足 verdict shows a recorded basis (a value or an observation; 'no problem' without evidence is 情報不足), and for each 未充足 give a cause hint (体力 / 意思力 / 知識 shortfall) and keep the need-specific judgment (ADL independence does not make self-management 充足). Do not evaluate goal deadlines or evaluation start points (「〇日後までに」「起点」 etc.); judge only sufficiency of information.",
+        "C. Sufficiency evaluation: also EVALUATE the app's sufficiency judgments (充足 / 未充足 / 判定保留 / 情報不足) per Henderson need and per phase (入院前／入院後), listed under 「アプリの充足状態の判定」 below, against the source record and the surrounding cards. For each verdict check: is it supported by the source; is any evidence card missing or wrongly used; is each 不足情報／確認したい情報 item truly missing in the source. Where a verdict is wrong, state the generic rule change that fixes it (no case-specific wording). Do not invent facts; write 確認不能 where the evidence is absent. Do not reword the existing sufficiency sentences. Also review the 分類前文章-based candidates listed under each phase (「分類前文章の未使用記録（判断基準の追加候補）」) and add generic judgment criteria (cue words / values / scales) for 基準に未登録 items and fix the tagging for 判定に未使用 items; judgments must still end with a definite verdict (…充足している／未充足である／判定保留／情報不足), the sentence wording must not be changed except per the user's rule, and no patient-specific wording may be added. Judgments are comprehensive per phase (入院前／入院後, and 術前／術後 for surgical patients): all recorded findings of that phase are weighed together, the wording is chosen to fit the evidence (e.g. 「<所見・数値>は〜であるが、<補う記録>なので…」 for compensated mixed evidence, a plain 「〜のため…」 for one-sided evidence, what to confirm for 判定保留), and the sentence always ends with a definite verdict (充足している／未充足である／判定保留／情報不足) that matches the label — check that a problematic value is only outweighed by a recorded compensating fact, and that a normal value does not hide a recorded problem. Check that each 充足 verdict shows a recorded basis (a value or an observation; 'no problem' without evidence is 情報不足), and for each 未充足 give a cause hint (体力 / 意思力 / 知識 shortfall) and keep the need-specific judgment (ADL independence does not make self-management 充足). Do not evaluate goal deadlines or evaluation start points (「〇日後までに」「起点」 etc.); judge only sufficiency of information.",
         "",
         "4. Preserve: repair untouched automatic saved cards without replacing IDs, source text, S/O, assessments or care plans. Preserve manual edits, learned decisions and approved『タグ不要』/『理由を了承』decisions; a correction request may challenge them, but never overwrite silently.",
         "5. Verify: test fresh classification, existing saved data after reload and append classification with duplicate records, plus displayed judgments and exported text, on the actual corrected code. Use the attached failure and positive/counterexamples; never derive expected answers from app output or hide failures. Check stale saved results, learning and asset/cache versions.",

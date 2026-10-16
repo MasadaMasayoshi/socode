@@ -4,7 +4,7 @@
     "hash": "e3e656c4c92fd487"
   },
   "js/02-reference-data.js": {
-    "version": "v.95",
+    "version": "v.96",
     "hash": "c4ab4a190cd9d15f"
   },
   "js/03-extraction-helpers.js": {
@@ -20,15 +20,15 @@
     "hash": "cfd4884b0b58f03a"
   },
   "js/06-export.js": {
-    "version": "v.95",
-    "hash": "4e53880b97fa3dd0"
+    "version": "v.96",
+    "hash": "e3da325b5ef3477c"
   },
   "js/07-classification.js": {
-    "version": "v.95",
+    "version": "v.96",
     "hash": "ca83c11e66c21e9f"
   },
   "js/08-assessment-tools.js": {
-    "version": "v.95",
+    "version": "v.96",
     "hash": "aff381cae5209c72"
   },
   "js/09-board.js": {
@@ -36,11 +36,11 @@
     "hash": "32b7786e7cd6b460"
   },
   "js/10-reference-page-and-startup.js": {
-    "version": "v.95",
-    "hash": "7e272c01abed0709"
+    "version": "v.96",
+    "hash": "2a57ca0bf230c5a0"
   },
   "js/11-own-assessment.js": {
-    "version": "v.95",
+    "version": "v.96",
     "hash": "4d8e006923cac0f2"
   },
   "js/12-missing-checks-and-care-plan.js": {
