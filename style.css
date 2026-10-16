@@ -1611,7 +1611,7 @@ tr.cmp-row>td.cmp-cell{padding:2px 6px}
 #view-labs .lab-evaluation > summary { font-size: 16px; font-weight: 700; }
 #view-labs .lab-trend-table th.lt-item { text-align: left; min-width: 9rem; }
 @media (min-width: 1000px) {
-  #view-labs:not(.hidden) { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-auto-flow: row dense; column-gap: 20px; row-gap: .75rem; align-items: start; }
+  #view-labs:not(.hidden) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 34%); grid-auto-flow: row dense; column-gap: 20px; row-gap: .75rem; align-items: start; }
   #view-labs > * { grid-column: 1 / -1; }
   #view-labs > .lab-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   #view-labs > #lab-evaluation-panel { grid-column: 2; }
@@ -1666,7 +1666,7 @@ tr.cmp-row>td.cmp-cell{padding:2px 6px}
 #gg-panel .field, #gg-panel select.field:not(.gg-sex-select) { width: 100% !important; max-width: none; min-height: 40px; }
 #gg-panel .btn { min-height: 40px; width: 100%; }
 #gg-panel .gg-edit { margin-top: .75rem; padding-top: .75rem; border-top: 1px solid var(--line-soft); }
-#view-genogram .gg-canvas { min-height: 420px; background: var(--paper); }
+#view-genogram .gg-canvas { min-height: 420px; background: #fff; }
 @media (min-width: 1000px) {
   #view-genogram:not(.hidden) { display: grid; grid-template-columns: 320px minmax(0, 1fr); column-gap: 20px; row-gap: .75rem; align-items: start; }
   #view-genogram > * { grid-column: 1 / -1; }
