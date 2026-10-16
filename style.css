@@ -1835,3 +1835,9 @@ option:checked { background: var(--accent-soft); color: var(--accent-dark); font
 .suf-evidence-S { color: var(--gold); border-color: var(--gold); background: var(--gold-soft); }
 .suf-evidence-O { color: var(--slate); border-color: var(--slate); background: var(--slate-soft); }
 .suf-evidence-chip:hover { box-shadow: 0 3px 8px rgba(0,0,0,.18); }
+
+/* --- v.115 tablet portrait: let the step tabs wrap so 看護計画 is never cut off --- */
+@media (min-width: 641px) and (max-width: 1099px) {
+  .nav-groups { flex-wrap: wrap !important; overflow: visible; row-gap: 4px; }
+  .nav-grp { flex: 0 0 auto; }
+}
