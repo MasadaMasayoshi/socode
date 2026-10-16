@@ -32,8 +32,8 @@
     "hash": "a785b864d1c85b88"
   },
   "js/09-board.js": {
-    "version": "v.110",
-    "hash": "75778d901f841b7a"
+    "version": "v.112",
+    "hash": "19bec4db0425d81b"
   },
   "js/10-reference-page-and-startup.js": {
     "version": "v.108",
@@ -48,8 +48,8 @@
     "hash": "5f62941e8e480488"
   },
   "js/13-compare-and-report.js": {
-    "version": "v.111",
-    "hash": "153d0d16eef48783"
+    "version": "v.112",
+    "hash": "08bd4a394bf52f48"
   },
   "js/14-drug-reference.js": {
     "version": "v.108",
@@ -60,8 +60,8 @@
     "hash": "5048ae3d483e61e4"
   },
   "style.css": {
-    "version": "v.111",
-    "hash": "d0c52b57816e13d3"
+    "version": "v.112",
+    "hash": "77bbda8f43d30d39"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",

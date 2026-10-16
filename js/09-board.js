@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.110'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.112'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -267,7 +267,7 @@
         const ps = item.predictionSource || 'rule';
         const origin = edited || ps === 'confirmed' ? '手で確認' : (['learned', 'fuzzy', 'tied'].includes(ps) ? '学習' : 'ルール');
         const row = card.querySelector('.flex.items-center.gap-1.flex-wrap');
-        if (row) { const chip = document.createElement('span'); chip.className = 'card-origin'; chip.textContent = origin; chip.title = '分類のもと（保存済みの分類経路）'; row.appendChild(chip); }
+        // origin chip removed (user request)
       } catch (e) { /* presentation only */ }
       return card;
     }

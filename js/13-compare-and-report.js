@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.111'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.112'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -829,18 +829,7 @@
         nav.append(toggle, lbl, ul);
       }
       // labs: counts of values outside the reference, and the evaluation panel kept open beside the table on wide screens
-      function labSummary() {
-        const wrap = $('lab-trend-table-wrap'), view = $('view-labs'); if (!wrap || !view) return;
-        let box = $('lab-summary'); if (!box) { box = document.createElement('div'); box.id = 'lab-summary'; box.className = 'lab-summary'; const ci = $('clinical-indices'); ci.parentNode.insertBefore(box, ci); }
-        const names = flag => { const out = []; wrap.querySelectorAll('.lt-val.lt-' + flag).forEach(v => { const tr = v.closest('tr'), n = tr && tr.querySelector('.lt-name'); const t = n ? n.textContent.trim() : ''; if (t && !out.includes(t)) out.push(t); }); return out; };
-        const hi = names('high'), lo = names('low');
-        const mk = (cls, label, n, list) => '<div class="lab-stat ' + cls + '"><span class="lab-stat-l">' + label + '</span><span class="lab-stat-v">' + n + '項目</span><span class="lab-stat-n">' + (list.length ? list.join('・') : 'なし') + '</span></div>';
-        const html = wrap.querySelector('table') ? mk('is-high', '基準より高い値', hi.length, hi) + mk('is-low', '基準より低い値', lo.length, lo) : '';
-        if (box.getAttribute('data-sig') !== html) { box.innerHTML = html; box.setAttribute('data-sig', html); }
-        box.classList.toggle('hidden', !html);
-        const ev = $('lab-evaluation-panel');
-        if (ev && window.matchMedia && window.matchMedia('(min-width: 1000px)').matches && !ev.open) ev.open = true;
-      }
+      function labSummary() { const old = $('lab-summary'); if (old) old.remove(); }
       // board: bar that leads on to the assessment table (counts read from the saved cards)
       function boardProceedBar() {
         const grid = $('so-board-grid'); if (!grid || typeof getCurrentPatient !== 'function') return;

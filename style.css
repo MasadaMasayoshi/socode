@@ -1610,17 +1610,7 @@ tr.cmp-row>td.cmp-cell{padding:2px 6px}
 #view-labs .ci-missing { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); font-size: 13px; line-height: 1.6; }
 #view-labs .lab-evaluation > summary { font-size: 16px; font-weight: 700; }
 #view-labs .lab-trend-table th.lt-item { text-align: left; min-width: 9rem; }
-@media (min-width: 1000px) {
-  #view-labs:not(.hidden) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 34%); grid-auto-flow: row dense; column-gap: 20px; row-gap: .75rem; align-items: start; }
-  #view-labs > * { grid-column: 1 / -1; }
-  #view-labs > .lab-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  #view-labs > #lab-evaluation-panel { grid-column: 2; }
-  #view-labs > #lab-trend-table-wrap { grid-column: 1; min-width: 0; }
-  #view-labs .lab-evaluation > summary { pointer-events: none; list-style: none; }
-  #view-labs .lab-evaluation > summary::-webkit-details-marker { display: none; }
-}
 @media (max-width: 640px) {
-  .lab-stat { padding: 10px 12px; } .lab-stat-v { font-size: 20px; }
   #view-labs .lab-trend-table th.lt-item, #view-labs .lab-trend-table td.lt-item { position: sticky; left: 0; background: var(--surface); z-index: 1; }
   #view-labs .lab-evaluation > summary { min-height: 44px; display: flex; align-items: center; }
 }
@@ -1630,7 +1620,6 @@ tr.cmp-row>td.cmp-cell{padding:2px 6px}
 }
 
 /* --- v.108 分類ボード: source origin on cards, bar leading to the assessment table --- */
-.card-origin { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 999px; background: var(--line-soft); color: var(--ink-muted); font-size: 10.5px; font-weight: 600; white-space: nowrap; }
 .board-proceed-bar { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; padding: .7rem 1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 14px; }
 .board-proceed-bar.hidden { display: none; }
 .board-proceed-bar .bpb-ng { color: var(--brick); }
@@ -1762,7 +1751,7 @@ body { font-family: 'IBM Plex Sans JP', 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo
 .rec-card > .card-text { order: -1; font-size: 15px; line-height: 1.6; font-weight: 400; }
 .rec-card > div:first-child { order: 3; }
 .tag-chip { height: 24px; padding: 0 8px; border-radius: 6px; border: 0; font-size: 12px; font-weight: 600; }
-.time-chip, .card-origin { height: 24px; display: inline-flex; align-items: center; padding: 0 8px; border-radius: 6px; background: transparent; border: 1px solid var(--line); color: var(--ink-muted); font-size: 12px; font-weight: 500; }
+.time-chip { height: 24px; display: inline-flex; align-items: center; padding: 0 8px; border-radius: 6px; background: transparent; border: 1px solid var(--line); color: var(--ink-muted); font-size: 12px; font-weight: 500; }
 @media (hover: hover) and (pointer: fine) {
   .rec-card .card-select-wrap, .rec-card select[aria-label="タグを追加"], .rec-card .card-menu-btn { opacity: 0; transition: opacity .12s; }
   .rec-card:hover .card-select-wrap, .rec-card:focus-within .card-select-wrap, .card-select-wrap:has(input:checked),
