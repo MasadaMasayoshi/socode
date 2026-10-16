@@ -1915,3 +1915,20 @@ option:checked { background: var(--accent-soft); color: var(--accent-dark); font
   .assess-table td:nth-child(5)::before { content: "不足情報"; }
   .assess-table td:nth-child(n+2):empty { display: none; }
 }
+
+/* v.126 relation map: per-problem cause chains */
+.rm-cl{display:flex;flex-direction:column;gap:12px}
+.rm-cl-card{background:var(--surface,#fff);border:1px solid var(--line,#e5e0d5);border-radius:16px;padding:16px}
+.rm-cl-card summary{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;list-style:none}
+.rm-cl-card summary::-webkit-details-marker{display:none}
+.rm-cl-prob{display:inline-block;font-weight:700;color:#8a2a45;background:#fbe9ee;border:2px solid #b03a55;border-radius:10px;padding:6px 12px}
+.rm-cl-count{font-size:13px;color:#6b665c;white-space:nowrap}
+.rm-cl-chain{list-style:none;margin:12px 0 0;padding:0 0 0 14px;border-left:3px solid #e1dccf;display:flex;flex-direction:column;gap:4px}
+.rm-cl-chain>li{margin:0;padding:0;border:0}
+.rm-cl-cause,.rm-cl-arrow{font-size:13px;color:#6b665c;padding-left:12px!important}
+.rm-cl-node{display:inline-block;border:1.5px solid;border-radius:6px;padding:6px 12px;margin-left:0;font-size:15px;overflow-wrap:anywhere}
+.rm-cl-node.is-ellipse{border-radius:999px}
+.rm-cl-detail{margin-top:12px}.rm-cl-detail>summary{cursor:pointer;font-size:13px;color:#6b665c;padding:8px 0}
+html[data-theme="dark"] .rm-cl-card{background:#26241f;border-color:#3a372f}
+html[data-theme="dark"] .rm-cl-node{color:#222}
+html[data-theme="dark"] .rm-cl-prob{color:#5a1428}

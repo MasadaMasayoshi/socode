@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.108'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.126'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -384,11 +384,41 @@
       if (!r.length) return '';
       return `<section aria-label="推論の連鎖の確認"><h4>推論の連鎖の確認</h4><ul>${r.map(x => `<li>${escapeHtml(x.label)}：${x.kind === 'short' ? '根拠から問題までの連鎖が短い（仕組みの記録が少ない）' : `連鎖が長い（${x.depth}段）`}。確認したい情報：${escapeHtml(x.need)}</li>`).join('')}</ul></section>`;
     }
+    // v.126: per-problem cause chains (nearest cause first, "↑ 原因" between steps)
+    function rmCauseChains(map, pid) {
+      const into = new Map();
+      map.edges.forEach(e => { if (!into.has(e.target)) into.set(e.target, []); into.get(e.target).push(e.source); });
+      const byId = new Map(map.nodes.map(n => [n.id, n]));
+      const out = [];
+      const walk = (id, path) => {
+        if (out.length >= 8) return;
+        const ups = (into.get(id) || []).filter(x => byId.has(x) && !path.includes(x));
+        if (!ups.length || path.length >= 8) { if (path.length) out.push(path.slice()); return; }
+        ups.forEach(u => { path.push(u); walk(u, path); path.pop(); });
+      };
+      walk(pid, []);
+      return out.map(ids => ids.map(i => byId.get(i)));
+    }
+    function rmChainListHtml(map) {
+      const esc = escapeHtml;
+      const probs = map.nodes.filter(n => n.type === 'nursing_problem').sort((a, b) => (a.priority || 999) - (b.priority || 999));
+      if (!probs.length) return '';
+      const cards = probs.map((p, i) => {
+        const chains = rmCauseChains(map, p.id);
+        const head = `<span class="rm-cl-prob">${esc(rmDisplayLabel(p))}</span>`;
+        if (!chains.length) return `<section class="rm-cl-card">${head}</section>`;
+        const body = chains.map(ch => `<ol class="rm-cl-chain"><li class="rm-cl-cause">↑ 原因</li>${ch.map((n, k) => { const t = rmType(n); return `${k ? '<li class="rm-cl-arrow" aria-hidden="true">↑</li>' : ''}<li><span class="rm-cl-node${t.shape === 'ellipse' ? ' is-ellipse' : ''}" style="border-color:${t.stroke};background:${t.fill}">${esc(rmDisplayLabel(n))}</span></li>`; }).join('')}</ol>`).join('');
+        return i === 0
+          ? `<section class="rm-cl-card">${head}${body}</section>`
+          : `<details class="rm-cl-card"><summary>${head}<span class="rm-cl-count">原因 ${chains.length} ›</span></summary>${body}</details>`;
+      }).join('');
+      return `<div class="rm-cl">${cards}</div>`;
+    }
     function relationMapTextHtml(map, cp) {
       const byId = new Map(map.nodes.map(n => [n.id, n]));
       const esc = escapeHtml;
       const events = { order: '処方・指示', administered: '投与済み', reported: '申告', stopped: '中止', unknown: '状態未確認' };
-      return `<p>矢印の意味と根拠を一覧で確認できます。項目を選ぶと上の操作ボタンで編集できます。</p>${rmChainReportHtml(map)}<ol>${map.nodes.map(n => `<li><button type="button" class="btn btn-outline" data-rm-action="select-node" data-node-id="${esc(n.id)}">${esc(rmType(n).label)}：${esc(rmDisplayLabel(n))}</button><p>${esc(RM_STATUSES[rmEpistemicStatus(n)])}／${esc(RM_CERTAINTIES[n.certainty] || '未確認')}${n.effectiveTime ? `／${esc(n.effectiveTime)}` : ''}${n.medication ? `／${esc(events[n.medication.eventType] || events.unknown)}` : ''}</p>${n.evidence ? `<p>根拠：${esc(n.evidence)}</p>` : ''}${(n.sourceRefs || []).length ? `<p>参照：${(n.sourceRefs || []).map(r => esc(`${r.sourceType}:${r.sourceId}`)).join('、')}</p>` : ''}${n.type === 'nursing_problem' ? `<p>根拠カード：${findRelationEvidence(map, n.id, cp).sourceRefs.map(r => esc(`${r.sourceType}:${r.sourceId}`)).join('、') || '根拠がありません'}</p>` : ''}</li>`).join('')}</ol><h3>矢印の意味</h3><ul>${map.edges.map(e => `<li><button type="button" class="btn btn-outline" data-rm-action="select-edge" data-edge-id="${esc(e.id)}">${esc(byId.get(e.source)?.label || '不明')} → ${esc(byId.get(e.target)?.label || '不明')}</button>：${esc(RM_RELATIONS.find(r => r.key === e.relation)?.label || '関連する')}${e.predicted ? '（予測）' : ''}${e.evidence ? `／${esc(e.evidence)}` : ''}</li>`).join('')}</ul>`;
+      return `${rmChainListHtml(map)}<details class="rm-cl-detail"><summary>項目と矢印の意味・根拠（詳細）</summary><p>矢印の意味と根拠を一覧で確認できます。項目を選ぶと上の操作ボタンで編集できます。</p>${rmChainReportHtml(map)}<ol>${map.nodes.map(n => `<li><button type="button" class="btn btn-outline" data-rm-action="select-node" data-node-id="${esc(n.id)}">${esc(rmType(n).label)}：${esc(rmDisplayLabel(n))}</button><p>${esc(RM_STATUSES[rmEpistemicStatus(n)])}／${esc(RM_CERTAINTIES[n.certainty] || '未確認')}${n.effectiveTime ? `／${esc(n.effectiveTime)}` : ''}${n.medication ? `／${esc(events[n.medication.eventType] || events.unknown)}` : ''}</p>${n.evidence ? `<p>根拠：${esc(n.evidence)}</p>` : ''}${(n.sourceRefs || []).length ? `<p>参照：${(n.sourceRefs || []).map(r => esc(`${r.sourceType}:${r.sourceId}`)).join('、')}</p>` : ''}${n.type === 'nursing_problem' ? `<p>根拠カード：${findRelationEvidence(map, n.id, cp).sourceRefs.map(r => esc(`${r.sourceType}:${r.sourceId}`)).join('、') || '根拠がありません'}</p>` : ''}</li>`).join('')}</ol><h3>矢印の意味</h3><ul>${map.edges.map(e => `<li><button type="button" class="btn btn-outline" data-rm-action="select-edge" data-edge-id="${esc(e.id)}">${esc(byId.get(e.source)?.label || '不明')} → ${esc(byId.get(e.target)?.label || '不明')}</button>：${esc(RM_RELATIONS.find(r => r.key === e.relation)?.label || '関連する')}${e.predicted ? '（予測）' : ''}${e.evidence ? `／${esc(e.evidence)}` : ''}</li>`).join('')}</ul></details>`;
     }
 
     function normalizeRelationMap(raw) {
@@ -3057,6 +3087,7 @@
       const view = document.getElementById('view-relation');
       if (!view) return;
       const cp = getCurrentPatient();
+      if (rmState.textDefault === undefined) { rmState.textDefault = true; try { if (window.matchMedia('(max-width:640px)').matches) rmState.textView = true; } catch (e) {} }
       if (rmState.patientId !== cp.id) { rmSelectHistory(cp); rmState.selected = null; rmState.connectFrom = null; rmState.focusProblem = null; }
       const map = rmMap(cp);
       const wrap = document.getElementById('rm-canvas-wrap');
