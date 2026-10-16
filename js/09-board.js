@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.107'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.108'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -261,6 +261,14 @@
           <select onchange="addHendersonTagFromDropdown(${jsArg(item.id)}, this.value); this.value='';" aria-label="タグを追加" class="max-w-[92px] w-auto text-[9px] bg-[var(--paper)] hover:bg-[var(--line-soft)] border ${isUntagged ? 'border-[var(--brick)]' : 'border-[var(--line)]'} rounded-[var(--radius-sm)] px-1 py-0.5 text-[var(--ink-muted)] cursor-pointer focus:outline-none mt-0.5" style="max-width:92px;"><option value="">＋ タグ</option>${HENDERSON_NEEDS.map(n => `<option value="${n.id}">${n.name}</option>`).join('')}</select>
         </div>
       `;
+      // v.108: where the classification came from (presentation only; read from the saved fields)
+      try {
+        const edited = Array.isArray(item.editLog) && item.editLog.some(e => e && e.kind !== 'create');
+        const ps = item.predictionSource || 'rule';
+        const origin = edited || ps === 'confirmed' ? '手で確認' : (['learned', 'fuzzy', 'tied'].includes(ps) ? '学習' : 'ルール');
+        const row = card.querySelector('.flex.items-center.gap-1.flex-wrap');
+        if (row) { const chip = document.createElement('span'); chip.className = 'card-origin'; chip.textContent = origin; chip.title = '分類のもと（保存済みの分類経路）'; row.appendChild(chip); }
+      } catch (e) { /* presentation only */ }
       return card;
     }
 

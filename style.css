@@ -1473,3 +1473,217 @@ tr.cmp-row>td.cmp-cell{padding:2px 6px}
 .lab-trend-table th.lt-item { width:16rem; text-align:left; }
 #view-genogram .rm-group .field { width:auto; max-width:12rem; }
 @media (max-width:640px) { .nav-groups{flex-basis:100%;} .nav-gl{font-size:0;gap:0;} .nav-grp{padding:0 .35rem;} .nav-grp.is-next .nav-gl::after{display:none;} .export-group-label{padding:0 .5rem;} .hdr-save-status{font-size:11px;max-width:9rem;} }
+
+/* ==========================================================================
+   v.108 design refresh (Design canvas 「看護アセスメント支援 デザイン改善」)
+   Presentation only: wrappers, grids and colours. Uses existing theme variables.
+   ========================================================================== */
+/* --- v.108 shared: phone bottom step nav and assessment sub-nav --- */
+.mobile-step-nav, .assess-subnav { display: none; }
+.asm-verdict-summary { display: block; margin-top: .15rem; font-size: 12.5px; color: var(--ink-muted); }
+.asm-verdict-summary b { font-weight: 700; }
+.asm-verdict-summary .avs-ng { color: var(--brick); }
+@media (max-width: 640px) {
+  .nav-groups { display: none; }
+  header > div.border-t { display: none; }
+  .mobile-step-nav { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; background: var(--surface); border-top: 1px solid var(--line); padding: 4px 8px calc(8px + env(safe-area-inset-bottom, 0px)); }
+  .mobile-step-nav button { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 56px; border: 0; background: transparent; color: var(--ink-muted); font-size: 11px; font-weight: 500; cursor: pointer; }
+  .msn-no { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--line-soft); color: var(--ink); font-size: 12px; font-weight: 700; }
+  .mobile-step-nav button.is-done .msn-no { background: var(--accent-soft); color: var(--accent); }
+  .mobile-step-nav button.is-cur { color: var(--accent-dark); font-weight: 700; }
+  .mobile-step-nav button.is-cur .msn-no { background: var(--accent); color: #FFFFFF; }
+  .assess-subnav.is-shown { display: flex; gap: 6px; overflow-x: auto; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .assess-subnav button { flex: 0 0 auto; min-height: 44px; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+  .assess-subnav button.is-cur { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); font-weight: 700; }
+  body { overflow-x: hidden; }
+}
+
+/* --- v.108 総合アセスメント表: left need list, side-by-side phases, right-hand missing information --- */
+.need-nav-btn[data-verdict]::before { content: ""; flex: none; width: 9px; height: 9px; border-radius: 50%; box-sizing: border-box; background: var(--surface); border: 2px solid var(--ink-muted); }
+.need-nav-btn[data-verdict="met"]::before { background: #2F8A5F; border-color: #2F8A5F; }
+.need-nav-btn[data-verdict="unmet"]::before { background: var(--brick); border-color: var(--brick); }
+.need-nav-btn.active[data-verdict]::before { box-shadow: 0 0 0 2px var(--on-fill); }
+.need-nav-legend { display: none; }
+#assessment-single .asc-card { font-size: 14px; line-height: 1.6; padding: .55rem .7rem; border-radius: var(--radius-sm); }
+#assessment-single .asm-col-title { font-size: 15px; }
+#assessment-single .asm-single-head b { font-size: 18px; }
+@media (min-width: 1100px) {
+  #view-assessment:not(.hidden) { display: grid; grid-template-columns: 240px minmax(0, 1fr); column-gap: 20px; row-gap: 14px; align-items: start; }
+  #view-assessment > * { grid-column: 1 / -1; }
+  #view-assessment > .need-nav { grid-column: 1; grid-row: span 3; position: sticky; top: var(--need-nav-top, 0px); flex-direction: column; align-items: stretch; padding: 8px; gap: 4px; }
+  #view-assessment > #suf-summary, #view-assessment > #assessment-layout { grid-column: 2; min-width: 0; }
+  .need-nav .need-nav-list { display: flex; flex-direction: column; gap: 2px; }
+  .need-nav .need-nav-btn { min-height: 44px; padding: 0 12px; border: 0; background: transparent; font-size: 14px; }
+  .need-nav .need-nav-btn:hover { background: var(--line-soft); }
+  .need-nav .need-nav-btn.active { background: var(--accent-soft); color: var(--accent-dark); font-weight: 700; }
+  .need-nav .need-nav-btn.active .need-nav-no { background: var(--accent); color: #FFFFFF; }
+  .need-nav .need-nav-name { flex: 1; }
+  .need-nav .need-nav-step { display: none; }
+  .need-nav .need-nav-all { height: 40px; }
+  #assessment-single { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+  #assessment-single > * { grid-column: 1; min-width: 0; }
+  #assessment-single > .asm-single-head { grid-column: 1 / -1; }
+  #assessment-single .asm-followup { display: contents; }
+  #assessment-single .asm-aux-miss { grid-column: 2; grid-row: 2 / span 4; position: sticky; top: calc(var(--need-nav-top, 0px) + 8px); }
+}
+@media (max-width: 640px) {
+  .need-nav { position: static; padding: 6px; }
+  .need-nav .need-nav-list { display: flex; grid-template-columns: none; overflow-x: auto; flex-wrap: nowrap; gap: 6px; order: 0; flex-basis: auto; }
+  .need-nav .need-nav-btn { flex: 0 0 auto; min-height: 44px; padding: 0 12px; }
+  .need-nav .need-nav-name { display: inline; }
+  .need-nav .need-nav-step { display: none; }
+  .need-nav .need-nav-all { min-height: 44px; }
+  #assessment-single .asm-center { grid-template-columns: 1fr; }
+}
+
+/* --- v.108 参考データ: link cards, count + search, empty state --- */
+.ref-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.ref-link-card { display: flex; align-items: center; gap: .75rem; min-height: 56px; padding: .6rem .9rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); text-align: left; text-decoration: none; cursor: pointer; }
+.ref-link-card:hover { border-color: var(--accent); }
+.ref-link-ico { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: var(--radius-sm); font-weight: 700; background: var(--slate-soft); color: var(--slate); }
+.ref-link-ico-know { background: var(--accent-soft); color: var(--accent-dark); }
+.ref-link-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ref-link-body b { font-size: 15px; }
+.ref-link-body span { font-size: 12.5px; color: var(--ink-muted); }
+.ref-link-go { color: var(--ink-muted); }
+.ref-filter { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.ref-count-chip { display: inline-flex; align-items: center; min-height: 32px; padding: 0 .8rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent-dark); font-size: 13px; font-weight: 700; }
+.ref-search { margin-left: auto; width: min(100%, 260px); min-height: 40px; }
+#view-reference #reference-empty { padding: 2rem 1rem; font-size: 14px; line-height: 1.7; border-width: 1.5px; background: var(--paper); }
+@media (max-width: 640px) {
+  .ref-links { grid-template-columns: 1fr; }
+  .ref-search { width: 100%; margin-left: 0; }
+  .ref-actions { width: 100%; }
+  .ref-actions .btn { flex: 1; min-height: 44px; }
+}
+
+/* --- v.108 看護計画: priority list (left) + selected plan in detail (right) --- */
+.cp-prio { display: none; }
+#view-careplan.cp-md .cp-prio { display: flex; flex-direction: column; gap: 2px; padding: 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.cp-prio-toggle { display: none; }
+.cp-prio-label { margin: 0; padding: 8px 12px 4px; font-size: 12px; font-weight: 700; color: var(--ink-muted); letter-spacing: .04em; }
+.cp-prio-list { display: flex; flex-direction: column; gap: 2px; }
+.cp-prio-btn { display: flex; gap: 10px; align-items: flex-start; width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--ink); text-align: left; font-size: 14px; cursor: pointer; }
+.cp-prio-btn:hover { background: var(--line-soft); }
+.cp-prio-btn.is-cur { background: var(--accent-soft); border-color: var(--accent); }
+.cp-prio-no { flex: none; width: 26px; font-weight: 700; color: var(--ink-muted); }
+.cp-prio-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cp-prio-body span { font-size: 12px; color: var(--ink-muted); }
+#view-careplan.cp-md .cp-card:not(.cp-sel) { display: none; }
+#view-careplan.cp-md .cp-card.cp-sel { border-left-width: 1px; padding: .4rem .6rem .6rem; }
+#view-careplan.cp-md .cp-card.cp-sel .cp-body { display: flex; }
+#view-careplan.cp-md .cp-card.cp-sel .cp-title { font-size: 20px; pointer-events: none; }
+#view-careplan.cp-md .cp-card.cp-sel .cp-title i { display: none; }
+#view-careplan .cpr-ev span { display: inline-flex; align-items: center; min-height: 26px; padding: 0 9px; border-radius: 6px; font-size: 12px; background: var(--paper); border: 1px solid var(--line); color: var(--ink); }
+.cp-ev > b { font-size: 12px; font-weight: 700; color: var(--ink-muted); }
+@media (min-width: 1000px) {
+  #view-careplan.cp-md:not(.hidden) { display: grid; grid-template-columns: 300px minmax(0, 1fr); column-gap: 20px; row-gap: .75rem; align-items: start; }
+  #view-careplan.cp-md > * { grid-column: 1 / -1; }
+  #view-careplan.cp-md > .cp-prio { grid-column: 1; position: sticky; top: 8px; }
+  #view-careplan.cp-md > #careplan-list { grid-column: 2; min-width: 0; }
+  #view-careplan .cp-toolbar { justify-content: flex-end; }
+}
+@media (max-width: 999px) {
+  #view-careplan.cp-md .cp-prio-list { display: none; }
+  #view-careplan.cp-md .cp-prio.is-open .cp-prio-list { display: flex; }
+  #view-careplan.cp-md .cp-prio-label { display: none; }
+  #view-careplan.cp-md .cp-prio-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 52px; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); text-align: left; cursor: pointer; }
+  #view-careplan.cp-md .cp-prio-toggle span { font-size: 12px; color: var(--ink-muted); display: block; }
+  #view-careplan.cp-md .cp-prio-toggle { flex-wrap: wrap; align-content: center; }
+  #view-careplan.cp-md .cp-prio-toggle b { font-size: 16px; flex-basis: 100%; }
+}
+@media (max-width: 640px) {
+  #view-careplan .cp-toolbar .btn, #view-careplan .cp-actions .btn { min-height: 44px; }
+  #view-careplan .cp-grid2, #view-careplan .cp-grid3 { grid-template-columns: 1fr; }
+}
+
+/* --- v.108 検査値の推移: summary boxes, persistent evaluation panel on the right --- */
+.lab-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.lab-stat { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.lab-stat-l { font-size: 12px; font-weight: 700; color: var(--ink-muted); }
+.lab-stat-v { font-size: 24px; font-weight: 700; line-height: 1.2; }
+.lab-stat.is-high .lab-stat-v { color: var(--brick); }
+.lab-stat.is-low .lab-stat-v { color: var(--slate); }
+.lab-stat-n { font-size: 12px; color: var(--ink-muted); overflow-wrap: anywhere; }
+#view-labs .clinical-indices { border-radius: var(--radius); }
+#view-labs .ci-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+#view-labs .ci-missing { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); font-size: 13px; line-height: 1.6; }
+#view-labs .lab-evaluation > summary { font-size: 16px; font-weight: 700; }
+#view-labs .lab-trend-table th.lt-item { text-align: left; min-width: 9rem; }
+@media (min-width: 1000px) {
+  #view-labs:not(.hidden) { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-auto-flow: row dense; column-gap: 20px; row-gap: .75rem; align-items: start; }
+  #view-labs > * { grid-column: 1 / -1; }
+  #view-labs > .lab-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #view-labs > #lab-evaluation-panel { grid-column: 2; }
+  #view-labs > #lab-trend-table-wrap { grid-column: 1; min-width: 0; }
+  #view-labs .lab-evaluation > summary { pointer-events: none; list-style: none; }
+  #view-labs .lab-evaluation > summary::-webkit-details-marker { display: none; }
+}
+@media (max-width: 640px) {
+  .lab-stat { padding: 10px 12px; } .lab-stat-v { font-size: 20px; }
+  #view-labs .lab-trend-table th.lt-item, #view-labs .lab-trend-table td.lt-item { position: sticky; left: 0; background: var(--surface); z-index: 1; }
+  #view-labs .lab-evaluation > summary { min-height: 44px; display: flex; align-items: center; }
+}
+@media (min-width: 1000px) {
+  #view-labs > #lab-evaluation-panel { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow: auto; }
+  #view-labs #lab-evaluation-panel .cmp-wrap { overflow-x: auto; }
+}
+
+/* --- v.108 分類ボード: source origin on cards, bar leading to the assessment table --- */
+.card-origin { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 999px; background: var(--line-soft); color: var(--ink-muted); font-size: 10.5px; font-weight: 600; white-space: nowrap; }
+.board-proceed-bar { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; padding: .7rem 1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 14px; }
+.board-proceed-bar.hidden { display: none; }
+.board-proceed-bar .bpb-ng { color: var(--brick); }
+@media (max-width: 640px) {
+  .board-proceed-bar { position: sticky; bottom: 76px; z-index: 30; box-shadow: var(--shadow); }
+  .board-proceed-bar .btn { width: 100%; min-height: 44px; }
+  #view-so-board .btn, #view-so-board select { min-height: 44px; }
+}
+
+/* --- v.108 関連図: grouped toolbar, segmented display switch, collapsible legend --- */
+#view-relation .rm-toolbar { gap: .5rem .5rem; }
+#view-relation .rm-group { padding-right: .6rem; margin-right: .1rem; border-right: 1px solid var(--line); }
+#view-relation .rm-group.rm-view-controls { border-right: 0; margin-left: auto; padding-right: 0; }
+#view-relation .rm-view-controls > .btn, #view-relation .rm-view-controls > .rm-prob-menu > .btn { min-height: 38px; }
+.rm-legend-wrap { padding: .5rem .8rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+.rm-legend-wrap > summary { cursor: pointer; font-size: 13px; font-weight: 700; min-height: 28px; display: flex; align-items: center; }
+.rm-legend-wrap[open] > .rm-legend { margin-top: .5rem; }
+@media (min-width: 1000px) { #view-relation .rm-canvas-frame { min-height: 560px; } }
+@media (max-width: 640px) {
+  #view-relation .rm-group { border-right: 0; padding-right: 0; width: 100%; }
+  #view-relation .rm-group .btn, #view-relation .rm-group .icon-btn { min-height: 44px; }
+  #view-relation .rm-group.rm-view-controls { margin-left: 0; }
+}
+
+/* --- v.108 ジェノグラム: left input panel + chart --- */
+.gg-seg { display: flex; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; width: 100%; }
+.gg-seg button { flex: 1; min-height: 38px; border: 0; border-right: 1px solid var(--line-soft); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 500; cursor: pointer; }
+.gg-seg button:last-child { border-right: 0; }
+.gg-seg button.is-sel { background: var(--accent-soft); color: var(--accent-dark); font-weight: 700; }
+.gg-sex-select { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+#gg-panel { padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+#gg-panel .rm-group, #gg-panel .gg-edit { flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: .5rem; padding-right: 0; border-right: 0; }
+#gg-panel .field, #gg-panel select.field:not(.gg-sex-select) { width: 100% !important; max-width: none; min-height: 40px; }
+#gg-panel .btn { min-height: 40px; width: 100%; }
+#gg-panel .gg-edit { margin-top: .75rem; padding-top: .75rem; border-top: 1px solid var(--line-soft); }
+#view-genogram .gg-canvas { min-height: 420px; background: var(--paper); }
+@media (min-width: 1000px) {
+  #view-genogram:not(.hidden) { display: grid; grid-template-columns: 320px minmax(0, 1fr); column-gap: 20px; row-gap: .75rem; align-items: start; }
+  #view-genogram > * { grid-column: 1 / -1; }
+  #view-genogram > #gg-panel { grid-column: 1; grid-row: 3 / span 5; }
+  #view-genogram > #gg-empty, #view-genogram > #gg-canvas, #view-genogram > #gg-text-view, #view-genogram > #gg-legend { grid-column: 2; min-width: 0; }
+}
+@media (max-width: 999px) { #view-genogram > #gg-panel { order: 5; } }
+@media (max-width: 640px) { #view-genogram .btn { min-height: 44px; } }
+@media (max-width: 640px) {
+  #view-genogram .rm-toolbar { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
+  #view-genogram .rm-toolbar .rm-group { display: contents; }
+  #view-genogram .rm-toolbar .btn { width: 100%; }
+  #view-genogram .rm-toolbar .btn-primary { grid-column: 1 / -1; }
+}
+@media (max-width: 640px) {
+  .need-nav { flex-wrap: nowrap !important; }
+  .need-nav .need-nav-list { flex: 1; min-width: 0; }
+  .need-nav .need-nav-all { flex: none; }
+  #view-careplan.cp-md .cp-prio { padding: 0; border: 0; background: transparent; }
+}

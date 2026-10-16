@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="v.107">
-  <meta name="app-file-versions" content="01:v.107,02:v.107,03:v.107,04:2026-10-12.usability-context29,05:v.107,06:v.107,07:v.107,08:v.107,09:v.107,10:v.107,11:v.107,12:v.107,13:v.107,14:v.107,15:v.107,16:v.107">
+  <meta name="app-version" content="v.108">
+  <meta name="app-file-versions" content="01:v.108,02:v.108,03:v.108,04:2026-10-12.usability-context29,05:v.108,06:v.108,07:v.108,08:v.108,09:v.108,10:v.108,11:v.108,12:v.108,13:v.108,14:v.108,15:v.108,16:v.108">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -143,6 +143,19 @@
       </div>
     </div>
   </header>
+
+  <nav id="assess-subnav" class="assess-subnav" aria-label="アセスメントの画面" hidden>
+    <button type="button" data-tab-target="tab-assessment">総合アセスメント表</button>
+    <button type="button" data-tab-target="tab-labs">検査値</button>
+    <button type="button" data-tab-target="tab-relation">関連図</button>
+    <button type="button" data-tab-target="tab-genogram">ジェノグラム</button>
+  </nav>
+  <nav id="mobile-step-nav" class="mobile-step-nav" aria-label="作業の段階">
+    <button type="button" data-step-key="collect" data-tab-target="tab-so-board"><span class="msn-no">1</span><span>情報収集</span></button>
+    <button type="button" data-step-key="assess" data-tab-target="tab-assessment"><span class="msn-no">2</span><span>アセスメント</span></button>
+    <button type="button" data-step-key="plan" data-tab-target="tab-careplan"><span class="msn-no">3</span><span>看護計画</span></button>
+    <button type="button" data-step-key="ref" data-tab-target="tab-reference"><span class="msn-no">参</span><span>参考データ</span></button>
+  </nav>
 
   <main class="flex-1 max-w-7xl w-full mx-auto p-4 flex flex-col gap-4">
 
@@ -301,6 +314,7 @@
           <h2 class="font-display font-semibold text-[15px] text-[var(--ink)] flex items-center">
             <i class="fa-solid fa-table-cells text-[var(--accent)] mr-2 text-sm"></i> 総合アセスメント表
           </h2>
+          <span id="asm-verdict-summary" class="asm-verdict-summary" aria-live="polite"></span>
         </div>
         <div class="asm-toolbar flex flex-wrap items-center gap-2">
           <button type="button" id="btn-my-asm-show" class="btn btn-outline my-asm-show-btn" onclick="toggleMyAssessmentShown()" aria-pressed="false">
@@ -460,7 +474,9 @@
       </div>
 
       <div id="rm-ctx" class="rm-ctx hidden" role="menu" aria-label="関連図の右クリックメニュー"></div>
-      <div id="rm-legend" class="rm-legend" aria-label="四角の種類"></div>
+      <details id="rm-legend-wrap" class="rm-legend-wrap" open><summary>凡例</summary>
+        <div id="rm-legend" class="rm-legend" aria-label="四角の種類"></div>
+      </details>
     </div>
 
     <div id="view-reference" class="hidden surface p-4 flex flex-col gap-4">
@@ -471,11 +487,7 @@
           </h2>
           <p class="text-[11px] text-[var(--ink-muted)] mt-0.5">看護基準・院内プロトコル・参考文献など自由に登録できるメモです。「不足情報」の判断材料としても使われます。</p>
         </div>
-        <div class="flex items-center gap-1.5">
-          <button type="button" class="btn btn-outline" onclick="openDrugInfo(null)" title="記録に出てくる薬の情報（分類・使い道・看護で観ること）と、最新の添付文書へのリンク">
-            <i class="fa-solid fa-capsules"></i> 薬の情報
-          </button>
-          <a href="clinical-knowledge/index.html" target="_blank" rel="noopener noreferrer" class="btn btn-outline">看護知識資料集</a>
+        <div class="ref-actions flex items-center gap-1.5">
           <button id="btn-reference-ocr" class="btn btn-outline">
             <i class="fa-solid fa-camera"></i> 画像から読み込む（API）
             <input type="file" id="reference-ocr-input" accept="image/*" class="hidden">
@@ -484,6 +496,23 @@
             <i class="fa-solid fa-plus"></i> 新規追加
           </button>
         </div>
+      </div>
+      <div class="ref-links" aria-label="資料へのリンク">
+        <button type="button" class="ref-link-card" onclick="openDrugInfo(null)" title="記録に出てくる薬の情報（分類・使い道・看護で観ること）と、最新の添付文書へのリンク">
+          <span class="ref-link-ico ref-link-ico-drug" aria-hidden="true">薬</span>
+          <span class="ref-link-body"><b>薬の情報</b><span>添付文書の要点 ・ 原文へのリンク</span></span>
+          <span class="ref-link-go" aria-hidden="true">›</span>
+        </button>
+        <a href="clinical-knowledge/index.html" target="_blank" rel="noopener noreferrer" class="ref-link-card">
+          <span class="ref-link-ico ref-link-ico-know" aria-hidden="true">知</span>
+          <span class="ref-link-body"><b>看護知識資料集</b><span>外部サイトを開きます</span></span>
+          <span class="ref-link-go" aria-hidden="true">↗</span>
+        </a>
+      </div>
+      <div class="ref-filter">
+        <span id="reference-count" class="ref-count-chip" aria-live="polite">すべて 0</span>
+        <label for="reference-search" class="sr-only">参考データを検索</label>
+        <input id="reference-search" type="search" class="field ref-search" placeholder="タイトル・本文で検索" autocomplete="off">
       </div>
       <div id="reference-list" class="grid grid-cols-1 md:grid-cols-2 gap-3">
 
@@ -1304,22 +1333,22 @@
       </div>
     </dialog>
 
-  <script src="js/01-henderson-keywords.js?v=v.107"></script>
-  <script src="js/02-reference-data.js?v=v.107"></script>
-  <script src="js/03-extraction-helpers.js?v=v.107"></script>
+  <script src="js/01-henderson-keywords.js?v=v.108"></script>
+  <script src="js/02-reference-data.js?v=v.108"></script>
+  <script src="js/03-extraction-helpers.js?v=v.108"></script>
   <script src="js/04-server-sync.js?v=2026-10-12.usability-context29"></script>
-  <script src="js/05-app-state-and-ui.js?v=v.107"></script>
-  <script src="js/06-export.js?v=v.107"></script>
-  <script src="js/07-classification.js?v=v.107"></script>
-  <script src="js/08-assessment-tools.js?v=v.107"></script>
-  <script src="js/09-board.js?v=v.107"></script>
-  <script src="js/10-reference-page-and-startup.js?v=v.107"></script>
-  <script src="js/11-own-assessment.js?v=v.107"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=v.107"></script>
-  <script src="js/13-compare-and-report.js?v=v.107"></script>
-  <script src="js/14-drug-reference.js?v=v.107"></script>
-  <script src="js/15-relation-map.js?v=v.107"></script>
-  <script src="js/16-genogram.js?v=v.107"></script>
+  <script src="js/05-app-state-and-ui.js?v=v.108"></script>
+  <script src="js/06-export.js?v=v.108"></script>
+  <script src="js/07-classification.js?v=v.108"></script>
+  <script src="js/08-assessment-tools.js?v=v.108"></script>
+  <script src="js/09-board.js?v=v.108"></script>
+  <script src="js/10-reference-page-and-startup.js?v=v.108"></script>
+  <script src="js/11-own-assessment.js?v=v.108"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=v.108"></script>
+  <script src="js/13-compare-and-report.js?v=v.108"></script>
+  <script src="js/14-drug-reference.js?v=v.108"></script>
+  <script src="js/15-relation-map.js?v=v.108"></script>
+  <script src="js/16-genogram.js?v=v.108"></script>
   <script>
   // Manual source comparison and reversible text edits on the active chart.
   (function(){

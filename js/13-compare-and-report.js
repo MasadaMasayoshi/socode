@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.107'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.108'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -744,6 +744,146 @@
       window.aiPipelineStatus = { running, label };
       if (typeof renderAiSteps === 'function') renderAiSteps(getCurrentPatient());
     }
+
+    // ---- v.108 presentation layer (no data or logic changes): phone step nav, verdict dots, reference search ----
+    (function v108Presentation() {
+      if (typeof document === 'undefined' || !document.getElementById) return;
+      const $ = id => document.getElementById(id);
+      const VIEW_TABS = ['tab-so-board', 'tab-assessment', 'tab-labs', 'tab-relation', 'tab-genogram', 'tab-careplan', 'tab-reference'];
+      const ASSESS_TABS = ['tab-assessment', 'tab-labs', 'tab-relation', 'tab-genogram'];
+      const STEP_OF = { 'tab-so-board': 'collect', 'tab-assessment': 'assess', 'tab-labs': 'assess', 'tab-relation': 'assess', 'tab-genogram': 'assess', 'tab-careplan': 'plan', 'tab-reference': 'ref' };
+      function currentTab() { return VIEW_TABS.find(id => $(id) && $(id).classList.contains('active')) || 'tab-so-board'; }
+      function syncStepNav() {
+        const cur = currentTab(), step = STEP_OF[cur];
+        document.querySelectorAll('#mobile-step-nav button').forEach(b => {
+          const k = b.getAttribute('data-step-key'), grp = document.querySelector('.nav-grp[data-step="' + k + '"]');
+          b.classList.toggle('is-cur', k === step);
+          if (k === step) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+          b.classList.toggle('is-done', !!(grp && grp.classList.contains('is-done')));
+          const no = b.querySelector('.msn-no'); if (no && k !== 'ref') no.textContent = b.classList.contains('is-done') && k !== step ? '✓' : ({ collect: '1', assess: '2', plan: '3' })[k];
+        });
+        const sub = $('assess-subnav');
+        if (sub) {
+          const show = ASSESS_TABS.includes(cur);
+          sub.classList.toggle('is-shown', show); sub.hidden = !show;
+          sub.querySelectorAll('button').forEach(b => { const on = b.getAttribute('data-tab-target') === cur; b.classList.toggle('is-cur', on); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+        }
+      }
+      document.addEventListener('click', e => {
+        const b = e.target && e.target.closest ? e.target.closest('[data-tab-target]') : null;
+        if (!b) return;
+        const t = $(b.getAttribute('data-tab-target')); if (t) t.click();
+      });
+      // assessment: verdict dot on each need button and the 充足/未充足/情報不足 count line (read from the existing sufficiency state)
+      function decorateNeedNav() {
+        const nav = $('assessment-need-nav'); if (!nav || typeof getSufficiency !== 'function' || typeof getCurrentPatient !== 'function') return;
+        let cp; try { cp = getCurrentPatient(); } catch (e) { return; }
+        if (!cp || typeof sufficiencyUiPhases !== 'function') return;
+        let met = 0, unmet = 0, na = 0;
+        nav.querySelectorAll('.need-nav-btn').forEach(b => {
+          const id = Number(b.getAttribute('data-need-id')); let v = 'na';
+          try { const ph = sufficiencyUiPhases(cp).map(p => getSufficiency(cp, id, p.key)); v = ph.includes('unmet') ? 'unmet' : (ph.includes('met') ? 'met' : 'na'); } catch (e) { }
+          if (b.getAttribute('data-verdict') !== v) b.setAttribute('data-verdict', v);
+          if (v === 'met') met++; else if (v === 'unmet') unmet++; else na++;
+        });
+        const el = $('asm-verdict-summary');
+        if (el) { const html = '14項目中 <b class="avs-ng">未充足 ' + unmet + '</b> ・ 充足 ' + met + ' ・ 情報不足 ' + na; if (el.innerHTML !== html) el.innerHTML = html; }
+      }
+      // reference: count chip and search over the rendered cards (display only)
+      function applyReferenceFilter() {
+        const list = $('reference-list'); if (!list) return;
+        const q = String(($('reference-search') || {}).value || '').normalize('NFKC').toLowerCase().trim();
+        const cards = Array.from(list.children); let shown = 0;
+        cards.forEach(c => { const hit = !q || String(c.textContent || '').normalize('NFKC').toLowerCase().includes(q); c.style.display = hit ? '' : 'none'; if (hit) shown++; });
+        const chip = $('reference-count'); if (chip) chip.textContent = (q ? '該当 ' + shown + ' / ' : 'すべて ') + cards.length;
+      }
+      // care plan: left priority list + one selected plan in detail (the existing cards stay in the DOM; only their visibility changes)
+      let cpSel = null;
+      function cpRebuild() {
+        const list = $('careplan-list'), view = $('view-careplan'); if (!list || !view) return;
+        const cards = Array.from(list.children).filter(c => c.classList && c.classList.contains('cp-card'));
+        let nav = $('cp-prio');
+        if (!nav) { nav = document.createElement('nav'); nav.id = 'cp-prio'; nav.className = 'cp-prio'; nav.setAttribute('aria-label', '看護問題の一覧'); list.parentNode.insertBefore(nav, list); }
+        if (!cards.length) { nav.textContent = ''; view.classList.remove('cp-md'); return; }
+        view.classList.add('cp-md');
+        if (!cards.some(c => c.getAttribute('data-care-plan-id') === cpSel)) cpSel = cards[0].getAttribute('data-care-plan-id');
+        const txt = (c, sel) => { const e = c.querySelector(sel); return e ? String(e.textContent || '').replace(/\s+/g, ' ').trim() : ''; };
+        const idx = cards.findIndex(c => c.getAttribute('data-care-plan-id') === cpSel), cur = cards[idx];
+        cards.forEach(c => { const on = c === cur; c.classList.toggle('cp-sel', on); if (on) c.classList.add('open'); });
+        nav.textContent = '';
+        const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'cp-prio-toggle'; toggle.setAttribute('aria-expanded', nav.classList.contains('is-open') ? 'true' : 'false');
+        const t1 = document.createElement('span'); t1.textContent = '看護問題 ' + (idx + 1) + ' / ' + cards.length; const b = document.createElement('b'); b.textContent = txt(cur, '.cp-no') + ' ' + txt(cur, '.cp-title');
+        toggle.append(t1, b); toggle.addEventListener('click', () => { const o = nav.classList.toggle('is-open'); toggle.setAttribute('aria-expanded', o ? 'true' : 'false'); });
+        const lbl = document.createElement('p'); lbl.className = 'cp-prio-label'; lbl.textContent = '優先順位（上下の矢印で並べ替え）';
+        const ul = document.createElement('div'); ul.className = 'cp-prio-list';
+        cards.forEach(c => {
+          const bt = document.createElement('button'); bt.type = 'button'; bt.className = 'cp-prio-btn'; const id = c.getAttribute('data-care-plan-id');
+          if (id === cpSel) { bt.classList.add('is-cur'); bt.setAttribute('aria-current', 'true'); }
+          const no = document.createElement('span'); no.className = 'cp-prio-no'; no.textContent = txt(c, '.cp-no');
+          const body = document.createElement('span'); body.className = 'cp-prio-body'; const ti = document.createElement('b'); ti.textContent = txt(c, '.cp-title');
+          const sub = document.createElement('span'); sub.textContent = [txt(c, '.cp-status'), txt(c, '.cp-meta .my-asm-muted')].filter(Boolean).join(' ・ ');
+          body.append(ti, sub); bt.append(no, body);
+          bt.addEventListener('click', () => { cpSel = id; nav.classList.remove('is-open'); cpRebuild(); });
+          ul.appendChild(bt);
+        });
+        nav.append(toggle, lbl, ul);
+      }
+      // labs: counts of values outside the reference, and the evaluation panel kept open beside the table on wide screens
+      function labSummary() {
+        const wrap = $('lab-trend-table-wrap'), view = $('view-labs'); if (!wrap || !view) return;
+        let box = $('lab-summary'); if (!box) { box = document.createElement('div'); box.id = 'lab-summary'; box.className = 'lab-summary'; const ci = $('clinical-indices'); ci.parentNode.insertBefore(box, ci); }
+        const names = flag => { const out = []; wrap.querySelectorAll('.lt-val.lt-' + flag).forEach(v => { const tr = v.closest('tr'), n = tr && tr.querySelector('.lt-name'); const t = n ? n.textContent.trim() : ''; if (t && !out.includes(t)) out.push(t); }); return out; };
+        const hi = names('high'), lo = names('low');
+        const mk = (cls, label, n, list) => '<div class="lab-stat ' + cls + '"><span class="lab-stat-l">' + label + '</span><span class="lab-stat-v">' + n + '項目</span><span class="lab-stat-n">' + (list.length ? list.join('・') : 'なし') + '</span></div>';
+        const html = wrap.querySelector('table') ? mk('is-high', '基準より高い値', hi.length, hi) + mk('is-low', '基準より低い値', lo.length, lo) : '';
+        if (box.getAttribute('data-sig') !== html) { box.innerHTML = html; box.setAttribute('data-sig', html); }
+        box.classList.toggle('hidden', !html);
+        const ev = $('lab-evaluation-panel');
+        if (ev && window.matchMedia && window.matchMedia('(min-width: 1000px)').matches && !ev.open) ev.open = true;
+      }
+      // board: bar that leads on to the assessment table (counts read from the saved cards)
+      function boardProceedBar() {
+        const grid = $('so-board-grid'); if (!grid || typeof getCurrentPatient !== 'function') return;
+        let cp; try { cp = getCurrentPatient(); } catch (e) { return; }
+        const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && i.type !== 'unnecessary');
+        let bar = $('board-proceed-bar');
+        if (!bar) { bar = document.createElement('div'); bar.id = 'board-proceed-bar'; bar.className = 'board-proceed-bar'; grid.parentNode.insertBefore(bar, grid.nextSibling); }
+        bar.classList.toggle('hidden', !items.length);
+        const n = items.filter(i => i.type === 'unclassified').length;
+        const msg = n ? '未分類のカードが <b class="bpb-ng">' + n + '枚</b> あります。振り分けると次の段階に進めます。' : '分類が終わっています。次はアセスメント表です。';
+        const html = '<span>' + msg + '</span><button type="button" class="btn btn-outline" data-tab-target="tab-assessment">アセスメント表へ進む →</button>';
+        if (bar.getAttribute('data-sig') !== html) { bar.innerHTML = html; bar.setAttribute('data-sig', html); }
+      }
+      // genogram: sex as three buttons that drive the existing select
+      function ggSexButtons() {
+        ['gg-new-sex', 'gg-f-sex'].forEach(id => {
+          const sel = $(id); if (!sel || sel.getAttribute('data-seg')) return; sel.setAttribute('data-seg', '1');
+          const seg = document.createElement('div'); seg.className = 'gg-seg'; seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', '性別');
+          [['m', '男性'], ['f', '女性'], ['u', '不明']].forEach(([v, lab]) => {
+            const b = document.createElement('button'); b.type = 'button'; b.textContent = lab; b.setAttribute('data-sex', v);
+            b.addEventListener('click', () => { sel.value = v; sel.dispatchEvent(new Event('change', { bubbles: true })); seg.querySelectorAll('button').forEach(x => x.classList.toggle('is-sel', x === b)); });
+            seg.appendChild(b);
+          });
+          const mark = () => seg.querySelectorAll('button').forEach(x => x.classList.toggle('is-sel', x.getAttribute('data-sex') === sel.value)); mark();
+          sel.addEventListener('change', mark); sel.classList.add('gg-sex-select'); sel.parentNode.insertBefore(seg, sel);
+        });
+      }
+      function init() {
+        VIEW_TABS.forEach(id => { const t = $(id); if (t && window.MutationObserver) new MutationObserver(syncStepNav).observe(t, { attributes: true, attributeFilter: ['class'] }); });
+        document.querySelectorAll('.nav-grp[data-step]').forEach(g => { if (window.MutationObserver) new MutationObserver(syncStepNav).observe(g, { attributes: true, attributeFilter: ['class'] }); });
+        const nav = $('assessment-need-nav'); if (nav && window.MutationObserver) new MutationObserver(decorateNeedNav).observe(nav, { childList: true });
+        const rl = $('reference-list'); if (rl && window.MutationObserver) new MutationObserver(applyReferenceFilter).observe(rl, { childList: true });
+        const rs = $('reference-search'); if (rs) rs.addEventListener('input', applyReferenceFilter);
+        const cl = $('careplan-list'); if (cl && window.MutationObserver) new MutationObserver(cpRebuild).observe(cl, { childList: true });
+        const lw = $('lab-trend-table-wrap'); if (lw && window.MutationObserver) new MutationObserver(labSummary).observe(lw, { childList: true });
+        const lev = $('lab-evaluation-panel'); if (lev && window.MutationObserver) new MutationObserver(labSummary).observe(lev, { attributes: true, attributeFilter: ['class', 'open'] });
+        ['col-s', 'col-o'].forEach(id => { const c = $(id); if (c && window.MutationObserver) new MutationObserver(boardProceedBar).observe(c, { childList: true }); });
+        const gp = $('gg-panel'); if (gp && window.MutationObserver) new MutationObserver(ggSexButtons).observe(gp, { childList: true });
+        const lg = $('rm-legend-wrap'); if (lg && window.matchMedia && window.matchMedia('(max-width: 640px)').matches) lg.open = false;
+        syncStepNav(); decorateNeedNav(); applyReferenceFilter(); cpRebuild(); labSummary(); boardProceedBar(); ggSexButtons();
+      }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { try { init(); } catch (e) { } }); else { try { init(); } catch (e) { } }
+    })();
 
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {
