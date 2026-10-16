@@ -1855,4 +1855,17 @@ option:checked { background: var(--accent-soft); color: var(--accent-dark); font
 /* --- v.117 segments told apart by alternating background colours --- */
 .card-seg { background: var(--slate-soft); border-color: var(--slate-line); color: var(--ink); }
 .card-seg:nth-of-type(even) { background: var(--accent-soft); border-color: var(--accent-line); }
-.card-seg:nth-of-type(3n) { background: var(--gold-soft); border-color: var(--gold); }
+.card-seg:nth-of-type(3n) { background: var(--gold-soft); border-color: var(--gold-line); }
+
+/* --- v.118 calmer sufficiency block: soft tint, quiet inline card refs --- */
+.suf-b-met { background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface)) !important; }
+.suf-b-unmet { background: color-mix(in srgb, var(--brick-soft) 45%, var(--surface)) !important; color: inherit; }
+.suf-b-conflict { background: color-mix(in srgb, var(--gold-soft) 55%, var(--surface)) !important; color: inherit; }
+.suf-b-unknown { background: color-mix(in srgb, var(--slate-soft) 55%, var(--surface)) !important; color: inherit; }
+.suf-b-met, .suf-b-unmet, .suf-b-conflict, .suf-b-unknown { border-color: var(--line-strong) !important; }
+.suf-phase-block.suf-b-unmet { border-left-color: var(--brick) !important; }
+.suf-phase-block.suf-b-met { border-left-color: var(--accent) !important; }
+.suf-badge.suf-b-met, .suf-badge.suf-b-unmet, .suf-badge.suf-b-conflict, .suf-badge.suf-b-unknown { background: var(--surface) !important; }
+.suf-evidence-chip { border-width: 1px; font-weight: 600; font-size: 11.5px; padding: .1rem .45rem; box-shadow: none; }
+.suf-ev span:first-child { font-size: 11px; color: var(--ink-muted); }
+.suf-phase-why p { font-size: 13.5px; line-height: 1.8; color: var(--ink); font-weight: 400; }

@@ -40,16 +40,16 @@
     "hash": "50856a237fa33acc"
   },
   "js/11-own-assessment.js": {
-    "version": "v.114",
+    "version": "v.118",
     "hash": "516bfe70dc7d69fe"
   },
   "js/12-missing-checks-and-care-plan.js": {
-    "version": "v.108",
-    "hash": "5f62941e8e480488"
+    "version": "v.119",
+    "hash": "b4b36dddcd9ea03e"
   },
   "js/13-compare-and-report.js": {
-    "version": "v.112",
-    "hash": "08bd4a394bf52f48"
+    "version": "v.119",
+    "hash": "312c741321c777bf"
   },
   "js/14-drug-reference.js": {
     "version": "v.108",
@@ -60,8 +60,8 @@
     "hash": "5048ae3d483e61e4"
   },
   "style.css": {
-    "version": "v.117",
-    "hash": "91bb2173d05e6de9"
+    "version": "v.118",
+    "hash": "f67d8e384c02a4bd"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",

@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.112'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.119'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -810,6 +810,8 @@
         const txt = (c, sel) => { const e = c.querySelector(sel); return e ? String(e.textContent || '').replace(/\s+/g, ' ').trim() : ''; };
         const idx = cards.findIndex(c => c.getAttribute('data-care-plan-id') === cpSel), cur = cards[idx];
         cards.forEach(c => { const on = c === cur; c.classList.toggle('cp-sel', on); if (on) c.classList.add('open'); });
+        // a closed plan renders head-only: open the selected one so its body (goals, OP/TP/EP) is shown
+        if (cur && !cur.querySelector('.cp-body') && typeof toggleCarePlan === 'function' && !cpRebuild.opening) { cpRebuild.opening = true; try { toggleCarePlan(cpSel); } finally { cpRebuild.opening = false; } return; }
         nav.textContent = '';
         const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'cp-prio-toggle'; toggle.setAttribute('aria-expanded', nav.classList.contains('is-open') ? 'true' : 'false');
         const t1 = document.createElement('span'); t1.textContent = '看護問題 ' + (idx + 1) + ' / ' + cards.length; const b = document.createElement('b'); b.textContent = txt(cur, '.cp-no') + ' ' + txt(cur, '.cp-title');
