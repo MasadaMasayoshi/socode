@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.96'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.97'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -950,26 +950,39 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       };
       let used = 0;
       const seen = new Set();
-      sentences.forEach(s => {
+      sentences.forEach(s0 => {
+        // leading clock times / bullet marks are record layout, not content
+        const s = s0.replace(/^(?:\d{1,2}\s*[:：]\s*\d{2}\s*|[〇○◯・●■◆▶\-－]\s*)+/, '').trim();
+        if (s.length < 6) return;
         const sn = nz(s);
         if (seen.has(sn)) return; seen.add(sn);
         const card = items.find(i => { const t = nz(i.text); return t.length >= 6 && (t.includes(sn) || sn.includes(t)); });
         let phase = card ? phaseOfItem(card) : (/^(?:入院前|半年前|以前)/.test(s) ? 'pre' : 'post');
         if (!phaseKeys.includes(phase)) phase = phaseKeys.includes('post') ? 'post' : phaseKeys[phaseKeys.length - 1];
         // needs the sentence bears on: criteria that exist (cue tables, scales, labs, symptoms) or the classification helpers
-        const cue = new Set();
-        const addAll = list => list.forEach(r => { if (r && r.need) cue.add(r.need); });
+        const cue = new Set(), cueDir = new Map();
+        const addCue = (need, v) => { cue.add(need); (cueDir.get(need) || cueDir.set(need, new Set()).get(need)).add(v || ''); };
+        const addAll = list => list.forEach(r => { if (r && r.need) addCue(r.need, r.v); });
         try { addAll(sufficiencyPerNeedRules(s)); addAll(sufficiencyScoreRules(s)); addAll(sufficiencyScaleRules(s)); addAll(sufficiencyLabRules(s)); } catch (e) { /* ignore */ }
-        HENDERSON_NEEDS.forEach(n => { try { const parts = s.normalize('NFKC').split(/[。\n、,，]/).map(x => x.trim()).filter(Boolean); if (parts.some(p => { const v = sufficiencyClauseVerdict(p, n.id, { speech: /[「」]/.test(s) }); return v && (v.v === 'unmet' || v.v === 'met'); })) cue.add(n.id); } catch (e) { /* ignore */ } });
-        if (typeof DISEASE_SYMPTOM_NEEDS !== 'undefined') DISEASE_SYMPTOM_NEEDS.forEach(([re, ids]) => { if (re.test(s.normalize('NFKC'))) ids.forEach(id => cue.add(id)); });
         let tags = [];
         try { tags = Array.from(detectMultipleHendersonTags(s)); } catch (e) { tags = []; }
-        const needs = Array.from(new Set([...cue, ...tags])).sort((a, b) => a - b);
-        needs.forEach(nid => {
+        const cardTags = new Set(card ? Array.from(card.hendersonIds || []) : []);
+        // clause cues are broad words (自立 / 痛み ...): count them only for needs the sentence is actually tagged with
+        HENDERSON_NEEDS.filter(n => cardTags.has(n.id) || tags.includes(n.id)).forEach(n => { try { const parts = s.normalize('NFKC').split(/[。\n、,，]/).map(x => x.trim()).filter(Boolean); parts.forEach(p => { const v = sufficiencyClauseVerdict(p, n.id, { speech: /[「」]/.test(s) }); if (v && (v.v === 'unmet' || v.v === 'met')) addCue(n.id, v.v); }); } catch (e) { /* ignore */ } });
+        if (typeof DISEASE_SYMPTOM_NEEDS !== 'undefined') DISEASE_SYMPTOM_NEEDS.forEach(([re, ids]) => { if (re.test(s.normalize('NFKC'))) ids.forEach(id => addCue(id, 'partial')); });
+        // the same sentence is listed only under its best-matching need(s): cue + the card's own tag > cue > tag the card also has > other tag
+        const score = nid => (cue.has(nid) ? 2 : 0) + (cardTags.has(nid) ? 1 : 0);
+        const ranked = Array.from(new Set([...cue, ...tags])).sort((a, b) => score(b) - score(a) || a - b);
+        const top = ranked.length ? score(ranked[0]) : 0;
+        const needs = ranked.filter(n => score(n) === top).slice(0, top === 0 ? 1 : 2);
+        needs.sort((a, b) => a - b).forEach(nid => {
           const r = res[nid]; if (!r) return;
           const a = r[phase] || {};
           const cited = (a.evidence || []).some(id => { const it = items.find(x => x.id === id); const t = it ? nz(it.text) : ''; return t.length >= 6 && (t.includes(sn) || sn.includes(t)); });
           if (cited) return;
+          // a recorded cue that points the same way as the verdict is just more support, not a gap
+          const dirs = cueDir.get(nid);
+          if (dirs && ((a.verdict === 'met' && dirs.has('met')) || (a.verdict === 'unmet' && (dirs.has('unmet') || dirs.has('partial'))))) return;
           const state = a.verdict === 'unknown' || !a.verdict ? '原文に記載あり（判定に未反映）' : (cue.has(nid) ? '判定に未使用' : '基準に未登録');
           const key = `${nid}|${phase}`;
           const list = out.byKey.get(key) || [];

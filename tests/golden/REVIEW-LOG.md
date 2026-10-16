@@ -20,3 +20,12 @@ Only the grouped lab cards changed (19 cards): one regular form per item, "name 
 
 ## 2026-10-15 (v.76) new cases 事例8–10
 Added three fictional cases (血液透析導入, パーキンソン病, 急性骨髄性白血病) as new golden cases; no existing case changed. Generic fixes found by them: lab names Ca / P(mg/dL) / LDH / 好中球数 are recognised; "K 1,500mg以下" (diet limit) is no longer read as a blood value; パーキンソン症状 words (筋固縮・振戦・すくみ足・小刻み歩行…) tag 4; 白血病・リンパ腫・骨髄腫 diagnosis hints tag 1,9.
+
+## 2026-10-16 (v.97) merge of short cases
+Merged two short cases into longer cases of the same system and format; golden is 27 -> 25 cases, no new differences.
+- 脳梗塞_A氏75歳 (591 chars) -> 事例4_脳梗塞_架空 (1268 -> 1862 chars; the short case's heading lines come first, its day blocks are appended).
+- 胃がん_B氏65歳 (638 chars) -> 事例2_大腸がん術後_架空 (1619 -> 2260 chars; same placement).
+Expected data: only the short case's own expected cards (type/tags/text) were moved; only the timestamp of 3 heading cards changed from 日時不明 to 入院前 because the merged text puts them before the first day block. No conflict between the two expectations (the texts differ).
+Not merged: 学生記録5_小児肺炎 (465 chars) into 事例6_小児喘息: the title line "小児看護学実習 記録 (10/14)" is classified 不必要 at the top of a record but O in the middle of another (a real context difference, reported, not hidden). 学生記録4 (478 chars) has no same-family target and 学生記録1–3 are longer; they stay separate because each covers a different record format (行動計画, ヘンダーソン用紙, 日々の記録, プロセスレコード) with no same-format target.
+Note: tests/golden/cases and expected are in .gitignore on purpose (teaching material). The originals are therefore NOT recoverable from git; copies of the removed originals were delivered with the v.97 files.
+
