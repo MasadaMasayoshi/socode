@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.100'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.101'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -1101,12 +1101,14 @@
     const SUF_UNMET_CUES = ['痛み|疼痛|創痛|痛い|NRS\\s*[:：]?\\s*[3-9]|ペインスケール\\s*[「:：]?\\s*[3-9]', '眠れ[なず]|不眠|睡眠(?:不足|障害)|寝つけ', '全介助|要介助|介助(?:が必要|を要|にて|で)|見守りが必要|できない|困難|不可|禁止|制限', '不安|怖い|恐怖|心配|戸惑|情けない|申し訳', '食欲(?:低下|不振|がない|ない)|摂取量(?:半分|減)|半分のみ|おなかすかない|嘔気|嘔吐', '排便(?:なし|なく)|便秘|下痢|腹部膨満|お腹が張', 'べたべた|べたつき|気持ちが悪い|汚れ|悪臭|掻痒', '発赤|腫脹|熱感|発熱|排膿|浮腫|褥瘡', '呼吸困難(?:感)?(?:あり|を訴)|息苦しい|息切れ|チアノーゼ|喘鳴|SpO2\\s*[:：]?\\s*(?:[0-8]\\d|9[0-3])\\s*%', '転倒|ふらつき|不安定|せん妄|不穏|混乱|拒否', '体温[^\\d。、]{0,3}3[89]|3[89](?:\\.\\d)?\\s*度', '[↑↓]', '(?:旅行|趣味|外出|散歩|余暇)[^。]{0,20}(?:したい|できず|できない|行けない|行きたい)|早く治して', '(?:わから|分から)ない|教えて(?:ほしい|欲しい|ください)|大丈夫(?:か|なの|でしょうか)|ずれ(?:たり)?しないか|気を付け(?:れば|ること)', '仕事[^。]{0,10}(?:できない|できず|休)|復職[^。]{0,10}(?:不安|心配|難)|働けな', '体重[^。、]{0,8}(?:減|低下)|[0-9.]+\\s*kg\\s*(?:減|低下)|やせ|朝食[^。、]{0,6}(?:抜|食べない|とらない|欠食|ほとんど食べ)|欠食|野菜嫌い|嫌い|苦手|外食|早食い|偏食|短時間で済ま|早く食べ', '難聴|聞こえ(?:にくい|ない|が悪)|聴力(?:低下|障害)|(?:説明|話|内容)[^。、]{0,8}(?:ほとんど|あまり)?伝わ(?:らない|りにくい)|意思疎通(?:が)?(?:困難|難しい|図れ(?:ない|ず))|失語|構音障害'];
     const SUF_MET_CUES = ['自立|自力|自分で|一人で|問題なし|良好|清明|規則的|正常|普通食|常食|整|障害なし|異常なし|理解(?:力)?(?:あり|良好)|前向き|頑張|楽しみ|きれい好き', '睡眠[^\\d。、]{0,3}[6-9](?:\\s*[~〜～-]\\s*[6-9])?\\s*時間|眠れた|よく眠れ', '食欲(?:良好|あり)|全量摂取|摂取量\\s*(?:良好|十分)', 'SpO2\\s*[:：]?\\s*(?:9[4-9]|100)\\s*%', 'ペインスケール\\s*[「:：]?\\s*[0-2]|NRS\\s*[:：]?\\s*[0-2](?!\\d)|痛みなし|疼痛なし', '体温[^\\d。、]{0,3}(?:3[67]|35\\.[5-9])', '排便\\s*[:：]?\\s*\\d\\s*回/日|排尿\\s*[:：]?\\s*\\d+\\s*回/日', '呼吸困難感(?:の)?訴えなし|肺Air入り(?:が)?良好', '意思疎通(?:は)?(?:良好|可能|図れ)|言葉にで|希望を(?:伝え|話)|質問(?:が)?でき|ナースコール[^。]{0,6}(?:使用|押|できる)|コミュニケーション[^。]{0,6}(?:良好|障害なし)', '理解(?:力)?(?:が)?良好|現状認識(?:が)?良好|理解できて|理解している', '(?:旅行|趣味|友人|外出)[^。]{0,12}(?:楽しむ|楽しん|行って|している)', '信仰[^。]{0,8}なし|宗教[^。]{0,8}なし|特別な宗教', '(?:RR|呼吸数)[^\\d。、]{0,3}(?:1[2-9]|20)(?!\\d)|%(?:VC|肺活量)\\s*(?:[89]\\d|1\\d\\d)|胸部[^。、]{0,8}(?:明らかな)?(?:異常|病変)[^。、]{0,4}(?:なし|認めず|ない)|呼吸困難(?:感)?(?:は)?(?:なし|ない|無)', '趣味|テニス|ゴルフ|ジム|ウォーキング|ジョギング|旅行|友人[^。]{0,6}(?:会|食事)'];
 
+    // v.101: a diagnosis name alone is not a finding and gives no verdict; only recorded symptoms/values do.
+    const SUF_DISEASE_NAME_ONLY = /^(?:糖尿病|高血圧|脂質異常症|白内障|[^、。\s]{0,8}(?:がん|癌)|[^、。\s]{0,6}骨折|子宮筋腫|(?:陳旧性)?心筋梗塞|胃全摘|胃切除)$/;
     const SUF_UNMET_SCOPE = [[4, 5, 6, 8, 13, 14], [5], null, [13], [2, 3], [3], [8], [7, 8], [1], [4, 9, 10, 13, 14], [7], null, [13], [14], [12], [2], [10]];
     const SUF_MET_SCOPE = [null, [5], [2], [1], [4, 5, 6, 8, 10, 12, 13, 14], [7], [3], [1], [10], [14], [13], [11], [1], [13]];
 
     const SUF_UNCERTAIN = /[？?]|かな$|かも|だっけ|だよね|んですね|でしょうか|ですか|分かりました|わかりました|大丈夫|問題ない|できる(?:かな|と思|はず)/;
     const SUF_DEVICE_SITE = /挿入部|刺入部|ドレーン|ルート|チューブ|カテーテル|ライン|創部|ガーゼ/;
-    const SUF_MET_DOMAIN = { 3: /排便|排尿|排泄|便|尿|トイレ|下痢|便秘|ガス|腸蠕動|オムツ|ポータブル|ADL/, 4: /歩行|移動|ADL|体位|寝返|離床|立位|座位|起き上|筋力|ふらつき|歩く|運動|テニス|スポーツ|自立/, 2: /食|摂取|嚥下|咀嚼|栄養|水分|飲/ };
+    const SUF_MET_DOMAIN = { 1: /呼吸|SpO2|酸素|咳|痰|喘鳴|息|チアノーゼ|肺|吸入|換気/, 8: /清潔|入浴|シャワー|清拭|洗髪|口腔|更衣|整容|皮膚|爪|歯|陰部|おむつ|オムツ|汚れ|保清|創|褥瘡|発赤/, 3: /排便|排尿|排泄|便|尿|トイレ|下痢|便秘|ガス|腸蠕動|オムツ|ポータブル|ADL/, 4: /歩行|移動|ADL|体位|寝返|離床|立位|座位|起き上|筋力|ふらつき|歩く|運動|テニス|スポーツ|自立/, 2: /食|摂取|嚥下|咀嚼|栄養|水分|飲/ };
     function sufficiencyMetAllowed(clause, needId, speech) {
       if (speech || SUF_UNCERTAIN.test(clause)) return false;
       if (SUF_DEVICE_SITE.test(clause) && ![7, 8].includes(needId)) return false;
@@ -1117,10 +1119,13 @@
     function sufficiencyClauseVerdict(clause, needId, opts) {
       const speech = !!(opts && opts.speech);
       let t = String(clause || '').normalize('NFKC');
+      // v.101: a past event stamped with an age (N歳時/N歳のとき) is history, not a current finding; a wish (〜たい) or a question (〜できないか) is not an unmet cue by itself.
+      if (/\d{1,3}歳(?:時|の時|のとき|頃|ごろ)/.test(t) && !/現在|今は|最近|現在も/.test(t)) return { v: '', hit: '' };
+      t = t.replace(/[^。、「」]{0,30}(?:たい|ほしい|欲しい)(?=[」。、]|$)/g, m => /また|再び|もう一度|治して|戻り|復帰|元の/.test(m) ? m : ' ').replace(/(?:でき)?ないか(?=[」。、]|$)/g, ' ');
       // Eating habits (eating out, fast eating, food preference) are risk factors, not an unmet need by themselves; only outcome cues (weight loss, low intake) may decide.
       // Preventive measures (転倒防止策など) are interventions, not a fall event.
       if (needId === 9) t = t.replace(/(?:転倒|転落)(?=防止|予防|対策)/g, ' ');
-      if (needId === 2) t = t.replace(/外食|早食い|偏食|野菜嫌い|短時間で済ま[^。、]*|早く食べ[^。、]*/g, ' ');
+      if (needId === 2) t = t.replace(/外食|早食い|偏食|野菜嫌い|[^。、]{0,12}(?:が|は)苦手|好き嫌い|短時間で済ま[^。、]*|早く食べ[^。、]*/g, ' ');
       if (needId === 1 && /トライボール|ボール|呼吸訓練/.test(t) && !/呼吸困難|息苦|息切れ|チアノーゼ|SpO2|呼吸数/.test(t)) return { v: '', hit: '' };
 
       if (needId === 12 && !/仕事|職|復職|達成|役割|家事|意欲|生きがい|就労|勤務|主婦/.test(t)) return { v: '', hit: '' };
@@ -1318,7 +1323,7 @@
       if (typeof DISEASE_SYMPTOM_NEEDS !== 'undefined') list.forEach(i => {
         if (i.fieldLabel || i.diseaseGeneral) return;
         const t = typeof cpStripNegated === 'function' ? cpStripNegated(i.text) : nz(i.text);
-        DISEASE_SYMPTOM_NEEDS.forEach(([re, ids]) => { const m = t.match(re); if (m) ids.forEach(need => { if (!(i.hendersonIds || []).includes(need)) out.push({ need, v: 'partial', hit: m[0], ref: '記録された症状と14項目の対応（参考）', id: i.id, fillOnly: true, tag: false, symptom: true }); }); });
+        DISEASE_SYMPTOM_NEEDS.forEach(([re, ids]) => { const m = t.match(re); if (m && !SUF_DISEASE_NAME_ONLY.test(m[0])) ids.forEach(need => { if (!(i.hendersonIds || []).includes(need)) out.push({ need, v: 'partial', hit: m[0], ref: '記録された症状と14項目の対応（参考）', id: i.id, fillOnly: true, tag: false, symptom: true }); }); });
       });
       return out;
     }
@@ -1357,7 +1362,11 @@
     const sufOpNeedCache = new Map();
     function sufficiencyKnowledgeChecks(cp, needId) {
       if (!cp || typeof CARE_PLAN_KNOWLEDGE === 'undefined') return [];
-      const recorded = (cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && !i.aiSuggested).map(i => String(i.text || '').normalize('NFKC')).join('\n');
+      // v.101: age-stamped past events (N歳時/N歳のとき) are history and do not trigger knowledge rows.
+      const liveItems = (cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && !i.aiSuggested);
+      const noHistory = t => String(t || '').normalize('NFKC').split(/(?<=[。\n])/).filter(x => !/\d{1,3}歳(?:時|の時|のとき|頃|ごろ)/.test(x) || /現在|今は|最近/.test(x)).join('');
+      const recorded = liveItems.map(i => noHistory(i.text)).join('\n');
+      const taggedRecorded = liveItems.filter(i => (i.hendersonIds || []).includes(needId)).map(i => noHistory(i.text)).join('\n');
       if (!recorded) return [];
       const out = [];
       CARE_PLAN_KNOWLEDGE.forEach(row => {
@@ -1365,7 +1374,9 @@
         const points = row.op.filter(([text, re]) => {
           if (re.test(recorded)) return false;
           if (!sufOpNeedCache.has(text)) sufOpNeedCache.set(text, typeof detectMultipleHendersonTags === 'function' ? Array.from(detectMultipleHendersonTags(text)) : []);
-          return sufOpNeedCache.get(text).includes(needId);
+          const tg = sufOpNeedCache.get(text);
+          // v.101: a multi-topic observation point reaches another need only when the matching record is itself tagged for that need.
+          return tg.includes(needId) && (tg.length <= 2 || row.re.test(taggedRecorded));
         }).map(([text]) => text).slice(0, 3);
         if (points.length) out.push({ label: row.label, points, source: (row.source || []).join('／') });
       });
@@ -1381,7 +1392,7 @@
       if ((k.chains || []).length) parts.push(`関連：${k.chains.join('／')}`);
       if (a.verdict === 'unknown' || a.verdict === 'conflict') {
         sufficiencyKnowledgeChecks(cp, needId).forEach(c => parts.push(`確認したい情報（${c.label}）＝${c.points.join('・')}`));
-        if (typeof drugObservationPoints === 'function') drugObservationPoints(cp, needId).slice(0, 2).forEach(d => parts.push(`確認したい情報（薬剤：${d.drug}）＝${d.op}`));
+        if (typeof drugObservationPoints === 'function') drugObservationPoints(cp, needId, phase).slice(0, 2).forEach(d => parts.push(`確認したい情報（薬剤：${d.drug}）＝${d.op}`));
       }
       return parts.join('｜');
     }

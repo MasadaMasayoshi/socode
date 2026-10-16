@@ -2,7 +2,7 @@
 // Confirmations and Undo verify the captured patient/target; local writes require full readback.
 // AI transport accepts image OCR only; classification and clinical generation stay local.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = 'v.100'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = 'v.101'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================

@@ -1,7 +1,7 @@
 // Local record extraction. Preserve source wording, units, timestamps and admission context.
 // Headings supply context; narrative numbers are not automatically laboratory measurements.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.76'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.101'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -259,8 +259,27 @@
     function isBareHonorificName(str) {
       return /^[^\s\d、。:：「」]{1,10}[\s　][^\s\d、。:：「」]{1,10}\s*(?:様|殿|さん)$/.test(String(str || '').normalize('NFKC').trim());
     }
+    // Worksheet/assignment instruction lines ("※以下の内容を…完成する", numbered task items, struck-through items).
+    function isWorksheetInstructionText(t) {
+      if (/^※\s*以下の[^。]{0,20}(?:完成|記入|作成)する/.test(t)) return true;
+      if (/^~~.*~~$/.test(t)) return true;
+      return /^\d{1,2}[.．)）]\s*(?:~~)?[^。]{2,40}?(?:を|は)?(?:記入|作成|立案|明確化)(?:し[、,][^。]{0,20})?する。?(?:[(（][^)）]{0,30}[)）])?(?:~~)?$/.test(t) && /(?:アセスメント|関連図|看護計画|基礎情報|看護問題)/.test(t);
+    }
+    // Table captions/references and header-only label rows ("表1 …", "…を表1に示す", short header words).
+    function isTableCaptionOrHeaderText(t) {
+      if (/^[表図]\s*\d{1,2}[\s　]+\S[^。]{0,30}$/.test(t)) return true;
+      if (/[表図]\s*\d{1,2}(?:\([^)]{0,20}\))?\s*に示す。?$/.test(t)) return true;
+      if (/^(?:反応|経過|備考|日時|月日|医療者による説明など|家族の言動)$/.test(t)) return true;
+      const toks = t.split(/[\s　]+/).filter(Boolean);
+      return toks.length >= 2 && toks.length <= 6 && !/[。、「」]/.test(t) && toks.every(w => /^(?:月日|日時|反応|医療者による説明など|家族の言動|[^\s]{1,6}の言動|[^\s]{1,6}の反応|備考|経過)$/.test(w));
+    }
+    // Generic statements about patients in general (not this patient).
+    function isGenericOtherPatientStatement(t) {
+      return /患者(?:さん|様)(?:も|は)?(?:おおぜい|大勢|たくさん|多く|何人も)(?:います|いる|いらっしゃいます)/.test(t) && !/[「」]/.test(t);
+    }
     function isSourceStructureText(str) {
       const t = String(str || '').normalize('NFKC').trim();
+      if (isWorksheetInstructionText(t) || isTableCaptionOrHeaderText(t) || isGenericOtherPatientStatement(t)) return true;
       if (isReportMetadataLine(t)) return true;
       if (/^\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?$/.test(t)) return true;
       if (t.includes('|') && /項目/.test(t) && /基準値|正常・異常/.test(t) && !/\d/.test(t)) return true;

@@ -1,6 +1,6 @@
 // Japanese source examples and reference data. Generic ranges are not facility-approved values.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = 'v.100'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = 'v.101'; // Version stamp (scripts/stamp-version.js)
 
     const SAMPLE_CASES = [
  {
@@ -57,10 +57,10 @@
 [検査データ] WBC 11200, CRP 3.8, Hb 10.2, Cre 1.1, Na 136, K 4.2
 [14:30] 「少し呼吸が楽になった」と話すが、再度体温を測定すると38.2℃に上昇していた。`;
 
-    const NOTEBOOK_CONTENT_VERSION_MARK = '統合版 2026-10-15 改訂21';
+    const NOTEBOOK_CONTENT_VERSION_MARK = '統合版 2026-10-16 改訂22';
 
     const NOTEBOOK_PREVIOUS_LINE_HASHES = new Set('1rxx1s8 1n972mt 1rxzhk1 1n972mt 3oggz7 11wepfp 1ueyf9x 49fyid cktp9v 1dx8rnt 4w69aw 18yrges mz6kpv 1fxl9vm vjjqph 1na1m5x 1mm3a6p 1eegg6z xov1zd 1r2aecs 1p9asa7 ipot7j 1re2huh 33sjwu 12z0tmf lrdwgc vdcow1 31eneq 11mb2w6 t10hoq 1etsd7m 5ubyuq q42z2q 1t8xbsy 1kpypia 15hvkni 1bwlid2 ilejiw mpf6r2 1eecsip 1dkakkm 1pr7cs9 1n4b44k 2z4yug kq8d8l 1t9q52t 1cxtfpk 1bmvzo4 wf9ste 1oyarzj 1p16g52 w1hdma 1epkp3w 1g1elw8 sro6mi 13ezb12 lnvozy 12fz4ir 1uuozg2 q2k5k8 1hrhr2n 1t9nghh f1917k e0crkw j1e8d8 13rhc30 1v2xzr2 yvgn6 1qx5h46 1757o1c u83int 1nv6687 9mp1bz wrr5dv ku3lll 1284hc6 e7jic3 tu4uvg fh8e14 wk4h4o dcef5v 1tw2zb2 wfnv68 pklg0t qnr0pb 1vbrse1 ehxm2 1brwjir u319zs 1ixcp78 i4h9b 53jp4n 13njjnz 1ele74r rwuu7w cfb5kk 1niyy9p 16zgdvq 1ovb3z5 coq3bu 24dwyi 1n5xhmq ukofp0 7qvde7 1yik6ad 117e71n v54305 1d7f6u1 1c83oe0 mc5a21 4vbu7g 188wc9g ylmgxf 39187t 3yqc7v 18qsxyi 1jfl61m 19is9nl sys0jh kda9kl oi98bw 4r9yru 1nh8in0 1i94xy8 1jcmgts wjqlw9 70311g 8wukdb d73drk ysxln2 1rt8zfd rsm75j 1cy71mw 1fc2gx8 1l1dvb3 1cftclx 1epae2b 1og289u 1r8z4jp 1vk21a0 lxc9rb 14yvj9r 1bwwj4w tap586 18tgtnq 1q8n2f0 1i8sp26 1nq8mbd 1y0ddgx 1jhhrn4 1gebsqw 1ox9pmi 1p54mi5 1mh1isl njedxy w8a1pd 1a2daya 4utfxf 1cbq5a1 1vdl8io r6dyzq 1exn90y 1bocpt1 1eay80t a26n4w 1ioy22v p7xddp qtyt3m 1ecvr13 1v6ppoi 4ufv81 18oigbx 1wl1wn0 1b73s34 11avgj6 jmk6zs 90bjpt 1ch9u22 id8wik evf7p2 13i7uer w8fsyw a7uumx fevad0 tyi7ix 31f5lu ll25l5 31eqak y4dgky 1fi3pcw j4nwbp 6wnqsb pbvlhf 157ghfe 2byund lo14bk 1hitvg3 1suzyfg 1kamx2z 1bdsrow ouqo9 zj2m3c mayvhv 2e67kq 1m7v4xj 14224h9 13vzf13 t7hukc 17fmocm gqq9d3 1wilov6 1g1elw8 p7xddp id8wik 1hit4b4 151xlr6'.split(' '));
-    const DEFAULT_NOTEBOOK_CONTENT = `【看護アセスメント 基準ノート（統合版 2026-10-15 改訂21）】
+    const DEFAULT_NOTEBOOK_CONTENT = `【看護アセスメント 基準ノート（統合版 2026-10-16 改訂22）】
 このノートは、記録の分類・検査値の評価・不足情報の確認・看護問題・看護計画の基準です。確認できた修正を具体例とともに反映し、アプリで実装した分類ルールと揃えています。「学習データ管理」→「分類基準」タブで確認・編集できます。
 判断の優先順位：①第1〜4章の分類・タグ付けのルール ②第6〜7章の疾患別の判断基準 ③学習データの傾向。迷ったときは、1つの情報に複数のタグを付けてよい。
 
@@ -342,6 +342,15 @@
 ・観察項目：中耳炎は体温・耳痛・鼓膜所見・聴力。注射は血糖・低血糖の徴候（冷汗・震え・動悸）・注射部位。DKAは血糖・尿ケトン体・血液ガス・電解質（特にカリウム）・呼吸の様式・意識。嘔吐下痢症は嘔吐・下痢・水分・尿量・脱水の徴候。数値の基準はこの回答にないため置かない。
 ・診断名（中耳炎・DKA・嘔吐下痢症・糖尿病など）だけでは充足・未充足の判定をしない。記録された所見（クスマウル呼吸・脱水の徴候・難聴・低血糖症状・ケトン体陽性・手技の誤り・診断名の理解不足など）だけが所見になる。反例：「嘔吐下痢症の診断」「診断名：糖尿病性ケトアシドーシス」は所見ではない。
 ・治療（輸液・インスリン持続静注・カリウム補正・抗菌薬・鼓膜切開）は医師の指示に応じて行うものとして示し、判断の基準にはしない。
+■ 修正依頼にもとづく分類・背景因子・充足判定の見直し（改訂22）
+・構造の行は不必要にする（条件）：課題の指示文（「※以下の内容を…完成する」・番号つきの「…を記入する／作成する／立案する」・取り消し線の項目）、表の題名・参照（「表1 …」「…を表1に示す」）、見出しだけの語（反応・月日など）、患者一般についての文（「…の患者さんもおおぜいいます」）、PDFの折り返しで他の行に含まれてしまった短い断片（句点などで終わらず、他の行に含まれ、タグがないもの）。反例：数字や括弧を含む行、「｢...｣」の発言、タグのある短い所見は不必要にしない。
+・原文にない結合は作らない。折り返しで欠けた語を補うことはしない（原文の欠落は「確認不能」と記す）。
+・年齢つきの過去の出来事（N歳時・N歳のとき）と「特記すべき入院・治療歴なし」は、現在の欲求ではなく背景（基礎情報）として扱い、タグ未設定の警告を出さない。反例：「現在も」「最近」を伴う記述は現在の所見として扱う。
+・語の追加（10 コミュニケーション：涙ぐむ・表情・口をきかない・動揺・気持ちのかみ合い・心情、12 仕事：学校生活・登校、14 学び：セルフケア・理解しようと努める、2 食事：多飲、3 排泄：多尿）。反例：子どもが泣く（処置中の啼泣）はコミュニケーションの所見にしない。
+・充足・未充足の判定：診断名だけでは判定しない（判定保留の文も作らない）。苦手・好き嫌いは食事の未充足の語にしない。年齢つきの過去の出来事は知識の行・未充足の根拠にしない。〜したい（願望）・〜できないか（問い）だけでは未充足にしない（例外：「また」「治して」など以前の状態が失われている語を伴う願望）。呼吸と清潔の充足には、その欲求の所見（呼吸の所見・清潔ケアの実施）が必要で、脈拍・血圧・意識だけでは充足にしない。
+・確認したい情報（知識の行・薬剤）：複数の項目にまたがる観察項目は、その行に当てはまる記録が当該欲求のタグを持つ場合だけ他の欲求に出す。薬剤の観察項目は同じ時期に記録された薬剤だけを使い、職員の説明文は薬剤の記録にしない。
+・判断基準の追加候補：見出し・プロフィール行・診断名の行は候補にしない。糖尿病の「尿」は排泄の語にしない。
+・ジェノグラム：母方・父方の続柄は図に入れない（どちらか区別できないため。原文で確認）。子ども・お子さんは人数の記載がある場合だけ人物にする。きょうだいの語は兄・姉・弟・妹があれば作らない。職業・病名は続柄の語のすぐ後の短い範囲だけを読み、看護師・医師は「〜は看護師である」の形だけ職業にする。「女児・男児」を性別として読む。
 ■ よくある誤った分類と正しい考え方
 1) 単語の見た目だけで1項目だけに振り分ける（例：「トイレまで歩くのが大変」を4.姿勢だけにする）→排泄に伴う移動・安楽・プライバシーの視点で3.排泄にも付ける。
 2) O情報に看護師の解釈・判断を混ぜる（例：「食事量が少ないため栄養障害がある」）→収集段階では「食事残量5割」のような客観的事実・発言だけを記載し、解釈はアセスメント文中で行う。

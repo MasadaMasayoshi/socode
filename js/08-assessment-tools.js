@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.100'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.101'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -583,11 +583,13 @@
     // it gets the 基礎情報 tag instead of the missing-tag warning.
     const BASIC_INFO_FIELD_LABELS = new Set(['氏名', '性別', '年齢', '身長・体重', '保険', '診断', '診断名', '病名', '既往歴', '家族歴', 'ファミリーヒストリー', '家族構成', '学歴', '職業', '入院日', '血液型']);
     const BASIC_INFO_TEXT_REGEX = /^[【\[]?血液型[】\]]?\s*[A-ZＡ-Ｚ]{1,2}\s*型?$/;
+    // History-only line (age-stamped past event, or a 'no notable history' statement): background, not a current need.
+    const HISTORY_ONLY_TEXT_REGEX = /^(?:\d{1,3}歳(?:時|のとき|頃|ごろ)?に[^。]{2,40}。?|その他、?特記(?:すべき)?[^。]{0,12}(?:歴|なし)[^。]{0,10}なし。?)$/;
     function isBasicInfoItem(item) {
       if (!item || item.type === 'unnecessary' || (item.hendersonIds && item.hendersonIds.length)) return false;
       if (item.fieldLabel && BASIC_INFO_FIELD_LABELS.has(item.fieldLabel)) return true;
       const text = String(item.text || '').normalize('NFKC').trim();
-      return BASIC_INFO_TEXT_REGEX.test(text) || (typeof isPatientIdentityLine === 'function' && isPatientIdentityLine(text));
+      return BASIC_INFO_TEXT_REGEX.test(text) || HISTORY_ONLY_TEXT_REGEX.test(text) || (typeof isPatientIdentityLine === 'function' && isPatientIdentityLine(text));
     }
 
     function isOtherBasicInfoItem(item) {

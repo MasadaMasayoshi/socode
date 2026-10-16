@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.100'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.101'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -943,7 +943,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const perNeed = (limits && limits.perNeed) || 5, total = (limits && limits.total) || 40;
       const nz = x => String(x || '').normalize('NFKC').replace(/\s+/g, '');
       const sentences = src.split(/\r?\n/).flatMap(l => l.split(/(?<=。)/)).map(s => s.trim()).filter(s => s.length >= 6
-        && !/^[＜<【\[].*[＞>】\]]$/.test(s) && !(typeof isDateOnlyText === 'function' && isDateOnlyText(s)) && !(typeof isSourceStructureText === 'function' && isSourceStructureText(s)));
+        && !/^[＜<【\[].*[＞>】\]]$/.test(s) && !/^(?:患者)?プロフィール|^(?:診断名|病名|診断)[:：]/.test(s.normalize('NFKC')) && !(typeof isDateOnlyText === 'function' && isDateOnlyText(s)) && !(typeof isSourceStructureText === 'function' && isSourceStructureText(s)));
       const items = ((cp.items) || []).filter(i => i && !i.deleted && i.type !== 'unnecessary');
       const phases = sufficiencyUiPhases(cp), phaseKeys = phases.map(p => p.key);
       const surgical = typeof isSurgicalPatient === 'function' && isSurgicalPatient(cp);
@@ -971,11 +971,11 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         const addAll = list => list.forEach(r => { if (r && r.need) addCue(r.need, r.v); });
         try { addAll(sufficiencyPerNeedRules(s)); addAll(sufficiencyScoreRules(s)); addAll(sufficiencyScaleRules(s)); addAll(sufficiencyLabRules(s)); } catch (e) { /* ignore */ }
         let tags = [];
-        try { tags = Array.from(detectMultipleHendersonTags(s)); } catch (e) { tags = []; }
+        try { tags = Array.from(detectMultipleHendersonTags(s.replace(/糖尿(?=病)/g, '糖'))); } catch (e) { tags = []; }
         const cardTags = new Set(card ? Array.from(card.hendersonIds || []) : []);
         // clause cues are broad words (自立 / 痛み ...): count them only for needs the sentence is actually tagged with
         HENDERSON_NEEDS.filter(n => cardTags.has(n.id) || tags.includes(n.id)).forEach(n => { try { const parts = s.normalize('NFKC').split(/[。\n、,，]/).map(x => x.trim()).filter(Boolean); parts.forEach(p => { const v = sufficiencyClauseVerdict(p, n.id, { speech: /[「」]/.test(s) }); if (v && (v.v === 'unmet' || v.v === 'met')) addCue(n.id, v.v); }); } catch (e) { /* ignore */ } });
-        if (typeof DISEASE_SYMPTOM_NEEDS !== 'undefined') DISEASE_SYMPTOM_NEEDS.forEach(([re, ids]) => { if (re.test(s.normalize('NFKC'))) ids.forEach(id => addCue(id, 'partial')); });
+        if (typeof DISEASE_SYMPTOM_NEEDS !== 'undefined') DISEASE_SYMPTOM_NEEDS.forEach(([re, ids]) => { const dm = s.normalize('NFKC').match(re); if (dm && !(typeof SUF_DISEASE_NAME_ONLY !== 'undefined' && SUF_DISEASE_NAME_ONLY.test(dm[0]))) ids.forEach(id => addCue(id, 'partial')); });
         // the same sentence is listed only under its best-matching need(s): cue + the card's own tag > cue > tag the card also has > other tag
         const score = nid => (cue.has(nid) ? 2 : 0) + (cardTags.has(nid) ? 1 : 0);
         const ranked = Array.from(new Set([...cue, ...tags])).sort((a, b) => score(b) - score(a) || a - b);

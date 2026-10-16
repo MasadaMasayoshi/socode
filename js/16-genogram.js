@@ -1,7 +1,7 @@
 // Genogram (家族構成図): built from the record, then editable. Mirrors the relation map pattern (auto build -> edit -> save with the patient -> export).
 // Kinship words are a built-in dictionary (内蔵辞書 2026-10-16（出典未確認）). Nothing is invented: only members, ages and notes written in the record are drawn.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.100'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.101'; // Version stamp (scripts/stamp-version.js)
 
     const GG_PROVENANCE = '内蔵辞書 2026-10-16（出典未確認）';
     // canonical key -> [role label, sex, generation, order within the row]
@@ -15,7 +15,7 @@
     };
     const GG_WORDS = [
       ['義父母', ['fil', 'mil']], ['両親', ['father', 'mother']], ['父母', ['father', 'mother']],
-      ['義父', 'fil'], ['義母', 'mil'], ['祖父', 'gfather'], ['祖母', 'gmother'],
+      ['義父', 'fil'], ['義母', 'mil'], ['祖父母', ['gfather', 'gmother']], ['祖父', 'gfather'], ['祖母', 'gmother'],
       ['長男', 'son1'], ['次男', 'son2'], ['三男', 'son3'], ['長女', 'daughter1'], ['次女', 'daughter2'], ['三女', 'daughter3'],
       ['息子', 'son'], ['娘', 'daughter'], ['子ども', 'child'], ['子供', 'child'], ['こども', 'child'], ['お子さん', 'child'], ['お子様', 'child'],
       ['兄弟', 'sibling'], ['姉妹', 'sibling'], ['きょうだい', 'sibling'],
@@ -24,8 +24,8 @@
       ['父', 'father'], ['母', 'mother'], ['兄', 'brotherO'], ['姉', 'sisterO'], ['弟', 'brotherY'], ['妹', 'sisterY'], ['妻', 'wife'], ['夫', 'husband'], ['孫', 'grandchild']
     ];
     const GG_WORD_RE = new RegExp(GG_WORDS.map(w => w[0]).sort((a, b) => b.length - a.length).join('|'), 'g');
-    const GG_AFTER_BAD = { 母: /^[乳子体性校国語]/, 父: /^[兄性]/, 弟: /^子/, 夫: /^婦/, 娘: /^[心]/ };
-    const GG_BEFORE_BAD = { 夫: /[丈工大]$/, 孫: /子$/, 母: /(?:保|助産)$/ };
+    const GG_AFTER_BAD = { 母: /^[乳子体性校国語方]/, 父: /^[兄性方]/, 弟: /^子/, 夫: /^婦/, 娘: /^[心]/ };
+    const GG_BEFORE_BAD = { 夫: /[丈工大]$/, 孫: /子$/, 母: /(?:保|助産|祖父)$/ };
     const GG_DISEASES = /糖尿病|高血圧|認知症|アルツハイマー|胃がん|大腸がん|肺がん|乳がん|肝臓がん|がん|癌|心筋梗塞|狭心症|脳梗塞|脳出血|脳卒中|心不全|心疾患|喘息|腎不全|腎臓病|肝硬変|白血病|うつ病|統合失調症|パーキンソン病|骨折|難聴|寝たきり|要介護\d?|要支援\d?|障害/g;
     const GG_JOBS = /会社員|公務員|自営業|主婦|無職|教員|農業|パート|年金生活|学生|看護師|医師|漁業|大工|運転手/;
     const GG_DECEASED = /死亡|他界|逝去|亡くな|死去|死別|故人|永眠/;
@@ -41,6 +41,10 @@
         const w = m[0], after = sentence.slice(m.index + w.length), before = sentence.slice(0, m.index);
         if (GG_AFTER_BAD[w] && GG_AFTER_BAD[w].test(after)) continue;
         if (GG_BEFORE_BAD[w] && GG_BEFORE_BAD[w].test(before)) continue;
+        // v.101: a side-qualified relative (母方の祖父母 / 父方の…) cannot be told apart from the other side in this chart, so it is not read as a member.
+        if (/(?:母方|父方)の?$/.test(before) && /^(?:祖父|祖母|祖父母|兄弟|姉妹|きょうだい)/.test(w)) continue;
+        // v.101: generic child words need an explicit count (or a negation); talk about children in general is not a family member.
+        if (/^(?:子ども|子供|こども|お子さん|お子様)$/.test(w) && !(/^(?:が|は|も)?\s*\d\s*人/.test(after) || /\d\s*人の$/.test(before) || GG_NEG.test(after))) continue;
         const keys = [].concat(GG_WORDS.find(x => x[0] === w)[1]);
         out.push({ word: w, keys, index: m.index, end: m.index + w.length, after, before });
       }
@@ -112,19 +116,19 @@
           if (!ids.length) {
             // a following clause that only adds a disease to the previous member ("父は糖尿病、高血圧")
             const dz = clause.match(GG_DISEASES);
-            if (dz && prevKeys.length === 1 && !/本人|患者/.test(clause)) dz.forEach(d => note(people.get(prevKeys[0]), d));
+            if (dz && prevKeys.length === 1 && clause.trim().length <= 14 && !/本人|患者|教室|指導|診断|療養|入院|説明|治療/.test(clause)) dz.forEach(d => note(people.get(prevKeys[0]), d));
             return;
           }
           prevKeys = ids;
           const dec = GG_DECEASED.test(clause);
           // attributes of one member (age, disease, job) come from the text between its word and the next member word
           ct.forEach((t, ti) => {
-            const segStart = ti === 0 ? 0 : t.index - cStart, segEnd = ti + 1 < ct.length ? ct[ti + 1].index - cStart : clause.length;
-            const seg = clause.slice(segStart, segEnd);
+            const segStart = ti === 0 ? Math.max(0, t.index - cStart - 6) : t.index - cStart, segEnd = ti + 1 < ct.length ? ct[ti + 1].index - cStart : clause.length;
+            const seg = clause.slice(segStart, Math.min(segEnd, segStart + 24)), jseg = seg.slice(0, 14).replace(/^(.*?)(?:うえ|ほか|さらに|一方|のみならず).*$/, '$1');
             (tokIds[ti] || []).forEach(id => {
               const p = people.get(id); if (!p) return;
-              (seg.match(GG_DISEASES) || []).forEach(d => note(p, d));
-              const j = seg.match(GG_JOBS); if (j) p.occupation = j[0];
+              (seg.replace(/(?:糖尿病|高血圧|がん|癌)(?=教室|指導|療養|療法|外来|病棟|食)/g, ' ').match(GG_DISEASES) || []).forEach(d => note(p, d));
+              const j = jseg.match(GG_JOBS); if (j && !new RegExp(j[0] + '(?:のため|なので|のた|ゆえ)').test(seg) && (!/^(?:看護師|医師)$/.test(j[0]) || new RegExp('^.{1,5}?(?:は|が)?.{0,3}' + j[0] + '(?:として|である|です|で働|をして|だ)').test(seg))) p.occupation = j[0];
             });
           });
           ids.forEach(id => {
@@ -172,6 +176,8 @@
         if (people.has(g) && (spec.some(k => g === 'child' || k.startsWith(g)))) { const q = people.get(g); const t = people.get(spec.find(k => g === 'child' || k.startsWith(g))); q.notes.forEach(n => note(t, n)); people.delete(g); }
         if (none.has('child') && !keys.some(k => /^(?:son|daughter|child)/.test(k) && people.has(k) && people.get(k).src.length)) { /* nothing */ }
       });
+      // v.101: a generic sibling word is dropped when specific siblings (兄・姉・弟・妹) are present.
+      if (Array.from(people.keys()).some(k => /^(?:brother|sister)[OY]$/.test(k))) people.delete('sibling');
       if (none.has('child')) Array.from(people.keys()).filter(k => /^(?:son|daughter|child)/.test(k) && !/^(?:son|daughter)[123]$/.test(k)).forEach(k => { if (people.get(k).src.every(s => /いない|なし|いません/.test(s))) people.delete(k); });
       if (none.has('sibling')) Array.from(people.keys()).filter(k => /^(?:sibling|brother|sister)/.test(k)).forEach(k => { if (people.get(k).src.every(s => /いない|なし|いません/.test(s))) people.delete(k); });
       if (none.has('spouse')) Array.from(people.keys()).filter(k => /^(?:wife|husband|spouse|partner)$/.test(k)).forEach(k => { if (people.get(k).src.every(s => /いない|なし|いません/.test(s))) people.delete(k); });
@@ -185,7 +191,7 @@
       const idx = { id: 'index', role: '本人', sex: 'u', gen: 0, ord: 3, age: null, ageText: '', deceased: false, index: true, occupation: '', notes: [], living: '', keyPerson: false, caregiver: false, quality: '', partner: null, partnerStatus: '', parents: [], sibGroup: '', src: [], manual: false };
       for (const s of sentences) {
         if (ggTokens(s).length) continue;
-        const a = /(\d{1,3})\s*[歳才歲]/.exec(s), sx = /(男性|女性)/.exec(s) || /性別\s*[:：]?\s*(男|女)/.exec(s);
+        const a = /(\d{1,3})\s*[歳才歲]/.exec(s), sx = /(男性|女性|男児|女児)/.exec(s) || /性別\s*[:：]?\s*(男|女)/.exec(s);
         if (a || sx) { if (a && idx.age === null) { idx.age = Number(a[1]); idx.src.push(ggTrim(s)); } if (sx && idx.sex === 'u') { idx.sex = /男/.test(sx[1]) ? 'm' : 'f'; if (!idx.src.length) idx.src.push(ggTrim(s)); } if (idx.age !== null && idx.sex !== 'u') break; }
       }
       if (sentences.some(s => /一人暮らし|ひとり暮らし|独居/.test(s))) idx.living = '独居';

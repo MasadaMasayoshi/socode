@@ -1,6 +1,6 @@
 // Japanese drug reference vocabulary. Names indicate references, not administration or clinical approval.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['14'] = 'v.100'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['14'] = 'v.101'; // Version stamp (scripts/stamp-version.js)
 
     const DRUG_REFERENCE_ROWS = [
 
@@ -580,9 +580,11 @@
       return out;
     }
     // observation points to ask for when a need has no verdict yet but a related drug is on the record
-    function drugObservationPoints(cp, need) {
+    // v.101: with a phase ('pre' = before admission, anything else = after), only drugs recorded in that phase give observation points; explanation sentences by staff are not drug records.
+    function drugObservationPoints(cp, need, phase) {
       const ids = new Set(), ops = [];
-      ((cp && cp.items) || []).forEach(i => drugsOfItem(i).forEach(d => {
+      const inPhase = i => !phase || phase === 'all' || (/入院前|日時不明/.test(i.timestamp || '') ? phase === 'pre' : phase !== 'pre');
+      ((cp && cp.items) || []).filter(i => i && inPhase(i) && !/(?:説明|指導)(?:する|した|を受け)|^(?:\d+月\d+日\s*[|｜]\s*)?[^。]{0,12}(?:から|より)[^。]{0,16}へ[^。]{0,30}(?:説明|指導)/.test(String(i.text || ''))).forEach(i => drugsOfItem(i).forEach(d => {
         if (ids.has(d.id) || !(d.needs || []).includes(need) || /^(?:内服なし|既往|中止)/.test(d.status)) return;
         ids.add(d.id);
         const row = DRUG_REFERENCE.find(x => x.id === d.id); const info = row ? drugClassInfo(row) : null;
