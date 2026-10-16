@@ -1946,3 +1946,7 @@ html[data-theme="dark"] .rm-cl-prob{color:#5a1428}
   .cp-head .cp-title{flex:1 1 calc(100% - 3rem);min-width:0;text-align:left}
   .cp-head .cp-meta{flex:1 1 auto;min-width:0}
 }
+
+/* v.129 genogram: canvas scrolls/swipes normally on touch; only person nodes capture drags */
+#view-genogram .gg-canvas{touch-action:pan-x pan-y pinch-zoom}
+#view-genogram .gg-canvas [data-gg-id]{touch-action:none}
