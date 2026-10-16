@@ -1439,6 +1439,8 @@ tr.cmp-row>td.cmp-cell{padding:2px 6px}
 
 /* v.99 genogram */
 .gg-canvas { overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff; max-height: 70vh; touch-action: none; }
-.gg-svg { display: block; max-width: none; }
+.gg-svg { display: block; width: 100%; max-width: 980px; height: auto; margin: 0 auto; }
+#gg-legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 4px 14px; }
+.gg-canvas { max-height: none; }
 .gg-person.is-selected text { fill: #B03A55; }
 #gg-panel .field { padding: 2px 6px; }

@@ -1,7 +1,7 @@
 // Genogram (家族構成図): built from the record, then editable. Mirrors the relation map pattern (auto build -> edit -> save with the patient -> export).
 // Kinship words are a built-in dictionary (内蔵辞書 2026-10-16（出典未確認）). Nothing is invented: only members, ages and notes written in the record are drawn.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.103'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.104'; // Version stamp (scripts/stamp-version.js)
 
     const GG_PROVENANCE = '内蔵辞書 2026-10-16（出典未確認）';
     // canonical key -> [role label, sex, generation, order within the row]
@@ -307,7 +307,7 @@
     function ggFor(cp) { return cp && cp.genogram ? ggNormalize(cp.genogram) : ggBuild(cp || {}); }
 
     // ---- layout ------------------------------------------------------------
-    const GG_W = 104, GG_ROW = 140, GG_S = 40, GG_PAD = 60;
+    const GG_W = 140, GG_ROW = 190, GG_S = 48, GG_PAD = 64;
     function ggLayout(g) {
       const live = ggLive(g), pos = new Map();
       const gens = Array.from(new Set(live.map(p => p.gen))).sort((a, b) => a - b);
@@ -325,6 +325,27 @@
         rows.set(gen, placed);
         placed.forEach((p, i) => pos.set(p.id, { x: i * GG_W, y: gens.indexOf(gen) * GG_ROW }));
       });
+      // v.104: each parent's own parents sit centred straight above that parent (paternal side above the father, maternal above the mother), so descent lines never cross.
+      let lineagePlaced = false;
+      { const upper = rows.get(-2), mid1 = rows.get(-1);
+        if (upper && mid1) {
+          const withGp = mid1.filter(q => q.parents.some(id => upper.some(u => u.id === id))).sort((a, b) => pos.get(a.id).x - pos.get(b.id).x);
+          if (withGp.length) {
+            if (withGp.length === 2 && withGp[0].partner === withGp[1].id) {
+              const lx = pos.get(withGp[0].id).x, oldR = pos.get(withGp[1].id).x, delta = 2 * GG_W - (oldR - lx);
+              mid1.forEach(q => { if (pos.get(q.id).x >= oldR) pos.get(q.id).x += delta; });
+            }
+            const done = new Set(); let maxX = -Infinity;
+            withGp.forEach(q => {
+              const ps = q.parents.map(id => upper.find(u => u.id === id)).filter(u => u && !done.has(u.id)), cx = pos.get(q.id).x;
+              ps.forEach((u, i) => { pos.get(u.id).x = ps.length === 2 ? cx + (i ? 1 : -1) * GG_W / 2 : cx; done.add(u.id); maxX = Math.max(maxX, pos.get(u.id).x); });
+            });
+            let nx = maxX + GG_W;
+            upper.filter(u => !done.has(u.id)).forEach(u => { pos.get(u.id).x = nx; nx += GG_W; });
+            lineagePlaced = true;
+          }
+        }
+      }
       // shift each row as a block toward the row it connects to (no overlap can arise: rows are only translated)
       const mid = ids => { const xs = ids.filter(id => pos.has(id)).map(id => pos.get(id).x); return xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : null; };
       const shift = (gen, dx) => rows.get(gen).forEach(p => { pos.get(p.id).x += dx; });
@@ -332,8 +353,8 @@
       if (idx) {
         const anchor = (() => { const sp = idx.partner && pos.has(idx.partner) ? [idx.id, idx.partner] : [idx.id]; return mid(sp); })();
         [1, 2].forEach(gen => { if (rows.has(gen)) { const c = mid(rows.get(gen).map(p => p.id)); if (c !== null && anchor !== null) shift(gen, anchor - c); } });
-        if (rows.has(-1)) { const kids = live.filter(p => p.gen === 0 && p.parents.some(id => rows.get(-1).some(q => q.id === id))).map(p => p.id); const c = mid(rows.get(-1).filter(p => idx.parents.includes(p.id)).map(p => p.id)), t = mid(kids.length ? kids : [idx.id]); if (c !== null && t !== null) shift(-1, t - c); }
-        if (rows.has(-2)) { const c = mid(rows.get(-2).map(p => p.id)), t = rows.has(-1) ? mid(rows.get(-1).map(p => p.id)) : anchor; if (c !== null && t !== null) shift(-2, t - c); }
+        if (rows.has(-1)) { const kids = live.filter(p => p.gen === 0 && p.parents.some(id => rows.get(-1).some(q => q.id === id))).map(p => p.id); const c = mid(rows.get(-1).filter(p => idx.parents.includes(p.id)).map(p => p.id)), t = mid(kids.length ? kids : [idx.id]); if (c !== null && t !== null) { shift(-1, t - c); if (lineagePlaced && rows.has(-2)) shift(-2, t - c); } }
+        if (rows.has(-2) && !lineagePlaced) { const c = mid(rows.get(-2).map(p => p.id)), t = rows.has(-1) ? mid(rows.get(-1).map(p => p.id)) : anchor; if (c !== null && t !== null) shift(-2, t - c); }
       }
       let minX = Infinity, minY = Infinity;
       pos.forEach(v => { minX = Math.min(minX, v.x); minY = Math.min(minY, v.y); });
@@ -355,7 +376,7 @@
     const GG_INK = '#1f1d1a', GG_LINE = '#3a362f';
     function ggAgeLabel(p) { return p.age !== null ? String(p.age) : (p.ageText || '年齢不明'); }
     function ggSymbol(p, cx, cy, selected) {
-      const r = GG_S / 2, st = `fill="#fff" stroke="${selected ? '#B03A55' : GG_INK}" stroke-width="${selected ? 3 : 1.6}"`;
+      const r = GG_S / 2, st = `fill="#fff" stroke="${selected ? '#B03A55' : GG_INK}" stroke-width="${selected ? 3.2 : 2}"`;
       const shape = (grow) => p.sex === 'm' ? `<rect x="${cx - r - grow}" y="${cy - r - grow}" width="${GG_S + 2 * grow}" height="${GG_S + 2 * grow}" ${st}/>`
         : p.sex === 'f' ? `<circle cx="${cx}" cy="${cy}" r="${r + grow}" ${st}/>`
         : `<polygon points="${cx},${cy - r - grow - 4} ${cx + r + grow + 4},${cy} ${cx},${cy + r + grow + 4} ${cx - r - grow - 4},${cy}" ${st}/>`;
@@ -364,72 +385,114 @@
       if (p.deceased) s += `<line x1="${cx - r - 5}" y1="${cy - r - 5}" x2="${cx + r + 5}" y2="${cy + r + 5}" stroke="${GG_INK}" stroke-width="1.8"/><line x1="${cx + r + 5}" y1="${cy - r - 5}" x2="${cx - r - 5}" y2="${cy + r + 5}" stroke="${GG_INK}" stroke-width="1.8"/>`;
       return s;
     }
-    function genogramSvg(g, { interactive = false, selected = '', title = '', mask = x => x } = {}) {
-      const live = ggLive(g);
-      if (!live.length) return '';
-      const L = ggLayout(g), W = Math.max(L.w, 300), H = L.h + 24;
-      const P = id => L.pos.get(id), r = GG_S / 2;
-      const esc = typeof escapeHtml === 'function' ? escapeHtml : x => String(x);
-      let lines = '', marks = '', boxes = '', nodes = '';
-      const dash = q => q === 'distant' ? ' stroke-dasharray="6 4"' : q === 'conflict' ? ' stroke="#B03A55" stroke-dasharray="2 3"' : '';
+    // ---- drawing (v.104): geometry first (segments, label boxes, household outline), then one serialiser; the same geometry is used by the tests ----
+    function ggTextW(str, size) { return Array.from(String(str)).reduce((w, ch) => w + (ch.charCodeAt(0) > 255 ? size : size * 0.58), 0); }
+    function ggWrap(str, n, maxLines) {
+      const a = Array.from(String(str)), out = [];
+      for (let i = 0; i < a.length; i += n) out.push(a.slice(i, i + n).join(''));
+      if (out.length > maxLines) { out.length = maxLines; out[maxLines - 1] = out[maxLines - 1].slice(0, -1) + '…'; }
+      return out;
+    }
+    const GG_NOTE_INK = '#7a3b1d';
+    function ggGeometry(g, mask) {
+      mask = mask || (x => x);
+      const live = ggLive(g), L = ggLayout(g), P = id => L.pos.get(id), r = GG_S / 2;
+      const segs = [], marks = [], people = new Map();
+      const seg = (x1, y1, x2, y2, o) => segs.push(Object.assign({ x1, y1, x2, y2, w: 1.8, dash: '', color: GG_LINE }, o || {}));
+      // label block under each symbol: role, age/living, then short notes (care role, health memo) in a readable colour
+      live.forEach(p => {
+        const c = P(p.id);
+        const sub = [ggAgeLabel(p) === '年齢不明' ? '年齢不明' : (p.deceased && p.age !== null ? `享年${p.age}` : `${ggAgeLabel(p)}${p.age !== null ? '歳' : ''}`), p.living ? p.living : ''].filter(Boolean).join('・');
+        const noteTexts = (p.notes.length ? [mask(p.notes.slice(0, 2).join('・'))] : []);
+        const lines = [{ t: mask(p.index ? '本人' : p.role), size: 14, bold: true, fill: GG_INK, dy: r + 21 }, { t: sub, size: 11.5, bold: false, fill: '#3f3b35', dy: r + 38 }];
+        let dy = r + 54;
+        noteTexts.forEach(n => ggWrap(n, 10, 3).forEach(t => { lines.push({ t, size: 11, bold: false, fill: GG_NOTE_INK, dy }); dy += 14; }));
+        const boxes = lines.map(l => { const w = ggTextW(l.t, l.size); return { x1: c.x - w / 2, x2: c.x + w / 2, y1: c.y + l.dy - l.size * 0.95, y2: c.y + l.dy + l.size * 0.3 }; });
+        const sym = { x1: c.x - r - 6, x2: c.x + r + 6, y1: c.y - r - 6, y2: c.y + r + 6 };
+        const badge = { x1: c.x - r, x2: c.x + r + 16, y1: c.y - r - 14, y2: c.y + r + 6 };
+        const all = boxes.concat([sym], p.caregiver || p.keyPerson ? [badge] : []);
+        people.set(p.id, { p, c, lines, boxes, sym, bbox: { x1: Math.min(...all.map(b => b.x1)), x2: Math.max(...all.map(b => b.x2)), y1: Math.min(...all.map(b => b.y1)), y2: Math.max(...all.map(b => b.y2)) } });
+      });
+      const labelBottom = id => Math.max(...people.get(id).boxes.map(b => b.y2));
       // couples
       const doneC = new Set(), coupleMid = new Map();
       live.forEach(p => {
         const q = p.partner && live.find(x => x.id === p.partner); if (!q) return;
         const key = [p.id, q.id].sort().join('|'); if (doneC.has(key)) return; doneC.add(key);
-        const a = P(p.id), b = P(q.id), l = a.x <= b.x ? [a, b] : [b, a], st = p.partnerStatus || q.partnerStatus;
-        const y = l[0].y;
-        lines += `<line x1="${l[0].x + r + (p.deceased || q.deceased ? 5 : 0)}" y1="${y}" x2="${l[1].x - r - (p.deceased || q.deceased ? 5 : 0)}" y2="${y}" stroke="${GG_LINE}" stroke-width="1.8"${st === 'cohabiting' ? ' stroke-dasharray="6 4"' : ''}/>`;
-        const mx = (l[0].x + l[1].x) / 2;
-        coupleMid.set(key, { x: mx, y });
-        coupleMid.set(p.id, { x: mx, y }); coupleMid.set(q.id, { x: mx, y });
-        const slash = n => Array.from({ length: n }, (_, i) => `<line x1="${mx - 5 + i * 7}" y1="${y + 9}" x2="${mx + 1 + i * 7}" y2="${y - 9}" stroke="${GG_INK}" stroke-width="1.6"/>`).join('');
-        if (st === 'divorced') marks += slash(2); else if (st === 'separated') marks += slash(1);
+        const a = P(p.id), b = P(q.id), l = a.x <= b.x ? [a, b] : [b, a], st = p.partnerStatus || q.partnerStatus, dx = (p.deceased || q.deceased ? 8 : 2);
+        const y = l[0].y, mx = (l[0].x + l[1].x) / 2;
+        seg(l[0].x + r + dx, y, l[1].x - r - dx, y, { w: 2.2, dash: st === 'cohabiting' ? '6 4' : '' });
+        coupleMid.set(key, { x: mx, y }); coupleMid.set(p.id, { x: mx, y }); coupleMid.set(q.id, { x: mx, y });
+        if (st === 'divorced') marks.push({ x: mx, y, n: 2 }); else if (st === 'separated') marks.push({ x: mx, y, n: 1 });
       });
-      // children: group by parent set, one drop from the couple line (or the single parent), a bar over the children
+      // children: one drop from the couple line (or below the single parent's label), a sibship bar over the children, drops to each child
       const groups = new Map();
       live.forEach(c => { const ps = c.parents.filter(id => P(id)); if (ps.length) { const k = ps.slice().sort().join('|'); (groups.get(k) || groups.set(k, { ps, kids: [] }).get(k)).kids.push(c); } });
       groups.forEach(gr => {
-        const pp = gr.ps.map(P), top = Math.max(...pp.map(a => a.y)) + (gr.ps.length > 1 ? 0 : r), px = gr.ps.length > 1 ? (coupleMid.get(gr.ps[0]) ? coupleMid.get(gr.ps[0]).x : (pp[0].x + pp[1].x) / 2) : pp[0].x;
-        const kidTop = Math.min(...gr.kids.map(k => P(k.id).y)) - r - (gr.kids.some(k => k.index) ? 8 : 4), barY = (Math.max(...pp.map(a => a.y)) + r + kidTop) / 2;
+        const pp = gr.ps.map(P), couple = gr.ps.length > 1, px = couple ? (coupleMid.get(gr.ps[0]) ? coupleMid.get(gr.ps[0]).x : (pp[0].x + pp[1].x) / 2) : pp[0].x;
+        const top = couple ? Math.max(...pp.map(a => a.y)) : Math.max(...gr.ps.map(labelBottom)) + 6;
+        const kidTop = Math.min(...gr.kids.map(k => P(k.id).y)) - r - (gr.kids.some(k => k.index) ? 10 : 5), barY = kidTop - 28;
         const xs = gr.kids.map(k => P(k.id).x).concat([px]);
-        lines += `<line x1="${px}" y1="${top}" x2="${px}" y2="${barY}" stroke="${GG_LINE}" stroke-width="1.6"/>`;
-        lines += `<line x1="${Math.min(...xs)}" y1="${barY}" x2="${Math.max(...xs)}" y2="${barY}" stroke="${GG_LINE}" stroke-width="1.6"/>`;
-        gr.kids.forEach(k => { lines += `<line x1="${P(k.id).x}" y1="${barY}" x2="${P(k.id).x}" y2="${kidTop}" stroke="${GG_LINE}" stroke-width="1.6"${dash(k.quality)}/>`; });
+        seg(px, top, px, barY); if (Math.max(...xs) - Math.min(...xs) > 0.5) seg(Math.min(...xs), barY, Math.max(...xs), barY);
+        gr.kids.forEach(k => seg(P(k.id).x, barY, P(k.id).x, kidTop, { dash: k.quality === 'distant' ? '6 4' : k.quality === 'conflict' ? '2 3' : '', color: k.quality === 'conflict' ? '#B03A55' : GG_LINE }));
       });
       // siblings without stated parents: a bar over them
       const sib = live.filter(p => p.sibGroup && !p.parents.length);
       if (sib.length) {
-        const all = live.filter(p => p.index).concat(sib), xs = all.map(p => P(p.id).x), y = P(all[0].id).y - r - 22;
-        lines += `<line x1="${Math.min(...xs)}" y1="${y}" x2="${Math.max(...xs)}" y2="${y}" stroke="${GG_LINE}" stroke-width="1.6"/>`;
-        all.forEach(p => { lines += `<line x1="${P(p.id).x}" y1="${y}" x2="${P(p.id).x}" y2="${P(p.id).y - r - (p.index ? 8 : 4)}" stroke="${GG_LINE}" stroke-width="1.6"/>`; });
+        const all = live.filter(p => p.index).concat(sib), xs = all.map(p => P(p.id).x), y = P(all[0].id).y - r - 30;
+        seg(Math.min(...xs), y, Math.max(...xs), y);
+        all.forEach(p => seg(P(p.id).x, y, P(p.id).x, P(p.id).y - r - (p.index ? 10 : 5)));
       }
-      // cohabitation: dashed enclosure per row segment
+      // household: the dashed outline follows the rows of the 同居 members only (symbols and labels fully inside; members living apart stay outside)
       const hh = live.filter(p => p.index ? ['同居', '独居'].includes(p.living) && live.some(q => q.living === '同居') : p.living === '同居');
+      const outline = [];
       if (hh.length > 1 || (hh.length === 1 && !hh[0].index)) {
-        const xs = hh.map(p => P(p.id).x), ys = hh.map(p => P(p.id).y); const x1 = Math.min(...xs) - r - 14, x2 = Math.max(...xs) + r + 14, y1 = Math.min(...ys) - r - 16, y2 = Math.max(...ys) + r + 50;
-        boxes += `<rect x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" rx="10" fill="none" stroke="#5E7458" stroke-width="1.4" stroke-dasharray="7 4"/>`;
+        const PADX = 16, rowsY = Array.from(new Set(hh.map(p => Math.round(P(p.id).y)))).sort((a, b) => a - b);
+        const rects = rowsY.map(y => { const m = hh.filter(p => Math.round(P(p.id).y) === y).map(p => people.get(p.id).bbox); return { y, x1: Math.min(...m.map(b => b.x1)) - PADX, x2: Math.max(...m.map(b => b.x2)) + PADX, top: Math.min(...m.map(b => b.y1)) - 10, bot: Math.max(...m.map(b => b.y2)) + 10 }; });
+        let run = [];
+        const flush = () => { if (run.length) outline.push(run); run = []; };
+        rects.forEach((rc, i) => { if (run.length && rc.y - run[run.length - 1].y > GG_ROW * 1.5) flush(); run.push(rc); });
+        flush();
+        outline.forEach(rs => rs.forEach((rc, i) => { rc.t = i ? (rs[i - 1].bot + rc.top) / 2 : rc.top; rc.b = i + 1 < rs.length ? (rc.bot + rs[i + 1].top) / 2 : rc.bot; }));
       }
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      const grow = b => { x0 = Math.min(x0, b.x1); y0 = Math.min(y0, b.y1); x1 = Math.max(x1, b.x2); y1 = Math.max(y1, b.y2); };
+      people.forEach(v => grow(v.bbox)); segs.forEach(sg => grow({ x1: Math.min(sg.x1, sg.x2), x2: Math.max(sg.x1, sg.x2), y1: Math.min(sg.y1, sg.y2), y2: Math.max(sg.y1, sg.y2) }));
+      outline.forEach(rs => rs.forEach(rc => grow({ x1: rc.x1, x2: rc.x2, y1: rc.t, y2: rc.b })));
+      return { live, L, people, segs, marks, outline, hh, bounds: { x0, y0, x1, y1 }, r };
+    }
+    function genogramSvg(g, { interactive = false, selected = '', title = '', mask = x => x } = {}) {
+      const live = ggLive(g);
+      if (!live.length) return '';
+      const geo = ggGeometry(g, mask), r = geo.r, M = 28;
+      const vx = Math.floor(geo.bounds.x0 - M), vy = Math.floor(geo.bounds.y0 - M), W = Math.ceil(geo.bounds.x1 - geo.bounds.x0 + 2 * M), H = Math.ceil(geo.bounds.y1 - geo.bounds.y0 + 2 * M);
+      const esc = typeof escapeHtml === 'function' ? escapeHtml : x => String(x);
+      const f = n => Math.round(n * 10) / 10;
+      let lines = '', marks = '', boxes = '', nodes = '';
+      geo.segs.forEach(sg => { lines += `<line x1="${f(sg.x1)}" y1="${f(sg.y1)}" x2="${f(sg.x2)}" y2="${f(sg.y2)}" stroke="${sg.color}" stroke-width="${sg.w}"${sg.dash ? ` stroke-dasharray="${sg.dash}"` : ''}/>`; });
+      geo.marks.forEach(m => { for (let i = 0; i < m.n; i++) marks += `<line x1="${f(m.x - 6 + i * 8)}" y1="${f(m.y + 11)}" x2="${f(m.x + 2 + i * 8)}" y2="${f(m.y - 11)}" stroke="${GG_INK}" stroke-width="1.8"/>`; });
+      geo.outline.forEach(rs => {
+        const left = [], right = [];
+        rs.forEach(rc => { left.push([rc.x1, rc.t], [rc.x1, rc.b]); right.unshift([rc.x2, rc.b], [rc.x2, rc.t]); });
+        boxes += `<polygon points="${left.concat(right).map(q => `${f(q[0])},${f(q[1])}`).join(' ')}" fill="none" stroke="#5E7458" stroke-width="1.6" stroke-dasharray="8 5" stroke-linejoin="round"/>`;
+      });
+      const halo = 'paint-order="stroke" stroke="#fff" stroke-width="4" stroke-linejoin="round"';
       live.forEach(p => {
-        const c = P(p.id), sel = selected === p.id;
-        const label = mask(p.index ? '本人' : p.role);
-        const sub = [ggAgeLabel(p) === '年齢不明' ? '年齢不明' : (p.deceased && p.age !== null ? `享年${p.age}` : `${ggAgeLabel(p)}${p.age !== null ? '歳' : ''}`), p.living ? p.living : ''].filter(Boolean).join('・');
-        const health = p.notes.length ? mask(p.notes.slice(0, 2).join('・')) : '';
+        const v = geo.people.get(p.id), c = v.c, sel = selected === p.id;
         nodes += `<g class="gg-person${sel ? ' is-selected' : ''}" data-gg-id="${esc(p.id)}"${interactive ? ' style="cursor:grab;"' : ''}>`
           + ggSymbol(p, c.x, c.y, sel)
-          + `<text x="${c.x}" y="${c.y + 5}" text-anchor="middle" font-size="13" fill="${GG_INK}">${esc(p.age !== null ? p.age : '?')}</text>`
-          + `<text x="${c.x}" y="${c.y + r + 18}" text-anchor="middle" font-size="12" font-weight="700" fill="${GG_INK}">${esc(label)}</text>`
-          + `<text x="${c.x}" y="${c.y + r + 31}" text-anchor="middle" font-size="9.5" fill="#4a463f">${esc(sub)}</text>`
-          + (health ? `<text x="${c.x}" y="${c.y + r + 43}" text-anchor="middle" font-size="9" fill="#B5452F">${esc(health.length > 14 ? health.slice(0, 14) + '…' : health)}</text>` : '')
-          + (p.notes.length ? `<circle cx="${c.x - r + 2}" cy="${c.y - r + 2}" r="4" fill="#E08A2E"/>` : '')
-          + (p.keyPerson ? `<g><rect x="${c.x + r - 6}" y="${c.y - r - 12}" width="22" height="12" rx="3" fill="#2c4a3e"/><text x="${c.x + r + 5}" y="${c.y - r - 3}" text-anchor="middle" font-size="8" fill="#fff">KP</text></g>` : '')
-          + (p.caregiver ? `<g><circle cx="${c.x + r + 8}" cy="${c.y + r - 2}" r="7" fill="#7C3AED"/><text x="${c.x + r + 8}" y="${c.y + r + 1}" text-anchor="middle" font-size="9" fill="#fff">介</text></g>` : '')
+          + `<text x="${f(c.x)}" y="${f(c.y + 6)}" text-anchor="middle" font-size="17" fill="${GG_INK}">${esc(p.age !== null ? p.age : '?')}</text>`
+          + v.lines.map(l => `<text x="${f(c.x)}" y="${f(c.y + l.dy)}" text-anchor="middle" font-size="${l.size}"${l.bold ? ' font-weight="700"' : ''} fill="${l.fill}" ${halo}>${esc(l.t)}</text>`).join('')
+          + (p.notes.length ? `<circle cx="${f(c.x - r + 3)}" cy="${f(c.y - r + 3)}" r="5" fill="#E08A2E"/>` : '')
+          + (p.keyPerson ? `<g><rect x="${f(c.x + r - 6)}" y="${f(c.y - r - 14)}" width="26" height="14" rx="3" fill="#2c4a3e"/><text x="${f(c.x + r + 7)}" y="${f(c.y - r - 3)}" text-anchor="middle" font-size="10" fill="#fff">KP</text></g>` : '')
+          + (p.caregiver ? `<g><circle cx="${f(c.x + r + 9)}" cy="${f(c.y + r - 2)}" r="9" fill="#7C3AED"/><text x="${f(c.x + r + 9)}" y="${f(c.y + r + 2)}" text-anchor="middle" font-size="11" fill="#fff">介</text></g>` : '')
           + `</g>`;
       });
-      return `<svg xmlns="http://www.w3.org/2000/svg" class="gg-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(title || 'ジェノグラム')}" font-family="Hiragino Kaku Gothic ProN, Yu Gothic, Meiryo, sans-serif"><rect width="${W}" height="${H}" fill="#fff"/>${boxes}${lines}${marks}${nodes}</svg>`;
+      const size = interactive ? '' : ` width="${W}" height="${H}"`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" class="gg-svg" viewBox="${vx} ${vy} ${W} ${H}"${size} preserveAspectRatio="xMidYMin meet" role="img" aria-label="${esc(title || 'ジェノグラム')}" font-family="Hiragino Kaku Gothic ProN, Yu Gothic, Meiryo, sans-serif"><rect x="${vx}" y="${vy}" width="${W}" height="${H}" fill="#fff"/>${boxes}${lines}${marks}${nodes}</svg>`;
     }
     function genogramLegendHtml() {
-      return '<span>□ 男性</span><span>○ 女性</span><span>◇ 性別の記載なし</span><span>二重線＝本人</span><span>×＝死亡</span><span>点線の枠＝同居</span><span>二重斜線＝離婚／斜線＝別居／点線＝内縁</span><span>橙の点＝健康上のメモ</span><span>KP＝キーパーソン</span><span>介＝介護者</span>';
+      return '<span>□ 男性</span><span>○ 女性</span><span>◇ 性別の記載なし</span><span>二重線＝本人</span><span>×＝死亡</span><span>点線の枠＝同居</span><span>二重斜線＝離婚／斜線＝別居／点線＝内縁</span><span>橙の点＝健康上のメモ</span><span>KP＝キーパーソン</span><span>介＝世話・介護の担い手</span>';
     }
 
     // ---- text outline / exports -------------------------------------------
@@ -659,5 +722,5 @@
     try { if (typeof document !== 'undefined' && document.getElementById && document.getElementById('view-genogram')) initGenogramUi(); } catch (e) { /* ignore */ }
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { GG_PROVENANCE, GG_KIN, ggExtract, ggNormalize, ggBuild, ggMerge, ggFor, ggLayout, ggOverlaps, genogramSvg, genogramLegendHtml, genogramText, genogramPrintSection, genogramCorrectionText, ggSupportLine, renderGenogram, onGenogramPatientReloaded });
+  Object.assign(module.exports, { GG_PROVENANCE, GG_KIN, ggExtract, ggNormalize, ggBuild, ggMerge, ggFor, ggLayout, ggGeometry, ggOverlaps, genogramSvg, genogramLegendHtml, genogramText, genogramPrintSection, genogramCorrectionText, ggSupportLine, renderGenogram, onGenogramPatientReloaded });
 }

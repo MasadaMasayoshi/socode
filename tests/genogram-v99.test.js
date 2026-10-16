@@ -62,12 +62,12 @@ test('layout: generations ordered, no overlaps, children centred under the coupl
 test('SVG: square / circle / diamond / double outline / X, legend, masked labels', () => {
   const g = app.ggBuild(cpOf('58歳男性。妻と同居。父は死亡。配偶者以外にパートナーはいない。'));
   const svg = app.genogramSvg(g, {});
-  assert.match(svg, /<rect x="[\d.]+" y="[\d.]+" width="40"/); assert.match(svg, /<circle /);
+  assert.match(svg, /<rect x="[\d.]+" y="[\d.]+" width="48"/); assert.match(svg, /<circle /);
   const unknown = app.ggBuild(cpOf('子どもが2人いる。'));
   assert.match(app.genogramSvg(unknown, {}), /<polygon /);
   // index double outline: two shapes for the index; deceased X: two diagonal lines
   const idx = app.ggBuild(cpOf('58歳男性。父は死亡。'));
-  assert.ok((app.genogramSvg(idx, {}).match(/<rect x="[\d.]+" y="[\d.]+" width="(?:40|48)"/g) || []).length >= 3);
+  assert.ok((app.genogramSvg(idx, {}).match(/<rect x="[\d.]+" y="[\d.]+" width="(?:40|48|56)"/g) || []).length >= 3);
   assert.ok((app.genogramSvg(idx, {}).match(/stroke-width="1.8"\/><line/g) || []).length >= 1);
   assert.match(app.genogramLegendHtml(), /本人/);
   assert.ok(app.genogramSvg(app.ggBuild(cpOf('なし')), {}).includes('<svg'));

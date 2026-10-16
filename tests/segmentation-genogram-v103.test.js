@@ -91,7 +91,7 @@ test('genogram: six household members are recognised and the household is drawn'
   assert.strictEqual(house.length, 6);
   assert.ok(!['gfatherM', 'gmotherM'].some(k => by(l, k).living === '同居'));
   const svg = app.genogramSvg({ persons: l.persons }, {});
-  assert.ok(/stroke-dasharray="7 4"/.test(svg));
+  assert.ok(/stroke-dasharray="8 5"/.test(svg));
   // counterexample: a stated count with only the patient named does not invent members
   assert.strictEqual(g('Cさん（20歳）。一人暮らし。').persons.length, 1);
 });
