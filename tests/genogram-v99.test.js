@@ -30,11 +30,11 @@ test('extraction: deceased, living together, family-history disease, key person,
 });
 
 test('extraction: negations, no invention, ordinary words are not kin', () => {
-  assert.strictEqual(ps('子どもはいない。兄弟なし。').length, 0);
-  assert.strictEqual(ps('体温37.2℃。母乳は良好。工夫して食事した。丈夫な体。').length, 0);
-  assert.strictEqual(ps('体温37.2℃。血圧130/80。').length, 0);
+  assert.strictEqual(ps('子どもはいない。兄弟なし。').length, 1);
+  assert.strictEqual(ps('体温37.2℃。母乳は良好。工夫して食事した。丈夫な体。').length, 1);
+  assert.strictEqual(ps('体温37.2℃。血圧130/80。').length, 1);
   const g = app.ggBuild(cpOf('体温37.2℃。'));
-  assert.ok(g.notice && Array.from(g.persons).length === 0);
+  assert.ok(/家族の記載なし/.test(g.notice) && Array.from(g.persons).length === 1 && g.persons[0].id === 'index');
   const l = ps('妻と二人暮らし。子どもはいない。');
   assert.ok(by(l, 'wife') && !l.some(p => /^child/.test(p.id)));
 });
@@ -70,7 +70,7 @@ test('SVG: square / circle / diamond / double outline / X, legend, masked labels
   assert.ok((app.genogramSvg(idx, {}).match(/<rect x="[\d.]+" y="[\d.]+" width="(?:40|48)"/g) || []).length >= 3);
   assert.ok((app.genogramSvg(idx, {}).match(/stroke-width="1.8"\/><line/g) || []).length >= 1);
   assert.match(app.genogramLegendHtml(), /本人/);
-  assert.strictEqual(app.genogramSvg(app.ggBuild(cpOf('なし')), {}), '');
+  assert.ok(app.genogramSvg(app.ggBuild(cpOf('なし')), {}).includes('<svg'));
 });
 
 test('regenerate keeps manual edits, never resurrects deleted members, adds new ones', () => {
@@ -106,5 +106,20 @@ test('export: ジェノグラム is a selectable section (text outline), masked;
   const req = app.buildReviewRequestText(cp, cp.sourceText, true);
   assert.match(req, /【アプリが作成したジェノグラム】/); assert.match(req, /Developer instruction: compare the family members/);
   assert.ok(!req.split('\n').filter(l => /ジェノグラム|家族の|　・/.test(l) && /妻|長男/.test(l)).some(l => l.includes('太郎')));
-  assert.ok(!/ジェノグラム/.test(app.genogramCorrectionText(cpOf('体温37.0℃'))));
+  assert.ok(/家族の記載なし/.test(app.genogramCorrectionText(cpOf('体温37.0℃'))));
+});
+
+test('v.102: a record without family still gives the patient-only chart, text and 修正依頼 block; family record and saved edits are unchanged', () => {
+  const empty = cpOf('体温36.5度。食事は全量摂取。');
+  assert.deepStrictEqual(Array.from(app.ggBuild(empty).persons).map(p => p.id), ['index']);
+  assert.ok(/家族の記載なし（患者のみ）/.test(app.genogramText(empty)));
+  assert.ok(/家族の記載なし/.test(app.genogramCorrectionText(empty)));
+  assert.ok(app.genogramPrintSection(empty, 2).includes('<svg'));
+  assert.ok(!Array.from(app.ggBuild(empty).persons).some(p => p.id !== 'index'));
+  const fam = cpOf('妻と長男と同居。');
+  assert.ok(Array.from(app.ggBuild(fam).persons).length >= 3);
+  assert.ok(!/家族の記載なし/.test(app.genogramText(fam)));
+  const saved = Object.assign(cpOf('体温36.5度。'), { genogram: app.ggNormalize({ persons: [{ id: 'index', role: '本人', index: true, gen: 0, ord: 3, age: 40, manual: true }, { id: 'x1', role: '友人', gen: 0, ord: 9, manual: true }] }) });
+  const t = app.genogramText(saved);
+  assert.ok(t.includes('友人') && !/家族の記載なし/.test(t));
 });

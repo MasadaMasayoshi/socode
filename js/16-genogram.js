@@ -1,7 +1,7 @@
 // Genogram (家族構成図): built from the record, then editable. Mirrors the relation map pattern (auto build -> edit -> save with the patient -> export).
 // Kinship words are a built-in dictionary (内蔵辞書 2026-10-16（出典未確認）). Nothing is invented: only members, ages and notes written in the record are drawn.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.101'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.102'; // Version stamp (scripts/stamp-version.js)
 
     const GG_PROVENANCE = '内蔵辞書 2026-10-16（出典未確認）';
     // canonical key -> [role label, sex, generation, order within the row]
@@ -186,7 +186,7 @@
         const f = { id: 'family', role: '家族', sex: 'u', gen: 0, ord: 9, age: null, ageText: '', deceased: false, index: false, occupation: '', notes: [], living: /同居/.test(generic.s) && !/別居/.test(generic.s) ? '同居' : '', keyPerson: /キーパーソン/.test(generic.s), caregiver: false, quality: '', partner: null, partnerStatus: '', parents: [], sibGroup: '', src: [ggTrim(generic.s)], manual: false };
         list = [f];
       }
-      if (!list.length) return { persons: [], none: Array.from(none), alone: !!(generic && generic.alone) };
+      // v.102: with no family recorded the chart still shows the patient alone (nothing is invented).
       // index patient (age / sex only when written in a sentence without a kinship word)
       const idx = { id: 'index', role: '本人', sex: 'u', gen: 0, ord: 3, age: null, ageText: '', deceased: false, index: true, occupation: '', notes: [], living: '', keyPerson: false, caregiver: false, quality: '', partner: null, partnerStatus: '', parents: [], sibGroup: '', src: [], manual: false };
       for (const s of sentences) {
@@ -245,7 +245,7 @@
     function ggLive(g) { return (g && g.persons || []).filter(p => !p.deleted); }
     function ggBuild(cp) {
       const ex = ggExtract(cp);
-      return ggNormalize({ persons: ex.persons, built: new Date().toISOString(), notice: ex.persons.length ? '' : '記録に家族の記載がないため、図はありません。' });
+      return ggNormalize({ persons: ex.persons, built: new Date().toISOString(), notice: ex.persons.length > 1 ? '' : '家族の記載なし（患者のみ）' });
     }
     // Regenerate from the records without silently overwriting manual work: manual persons keep their values (sources are added), deleted ones stay deleted.
     function ggMerge(old, fresh) {
@@ -433,6 +433,7 @@
       live.forEach(p => { out += `　・${ggPersonLine(p, m)}\n`; });
       out += '■ 関係\n';
       const rel = ggRelationLines(g, m); out += rel.length ? rel.map(x => `　・${x}`).join('\n') + '\n' : '　・（関係の記載なし）\n';
+      if (live.length <= 1) out += '　・家族の記載なし（患者のみ）\n';
       out += `■ ${ggSupportLine(g, m)}\n※ジェノグラムから充足・未充足は判定しない。記載された家族のみを示す。\n`;
       return out;
     }
@@ -449,6 +450,7 @@
         + 'Developer instruction: compare the family members, ages, sex, living situation, key person and caregiver below with the source record, and list any family member that is missing, invented or wrong (with the source sentence), and any kinship wording the extraction misreads. Do not add patient-specific rules; propose generic extraction rules only.\n'
         + `（${GG_PROVENANCE}）\n`;
       live.forEach(p => { out += `　・${ggPersonLine(p, m)}｜原文：${m(p.src.join(' ／ ') || '（手で追加）')}${p.manual ? '｜手で編集' : ''}\n`; });
+      if (live.length <= 1) out += '　・家族の記載なし（患者のみ。家族は記録にないため作っていない）\n';
       ggRelationLines(g, m).forEach(x => { out += `　・関係：${x}\n`; });
       return out + `　・${ggSupportLine(g, m)}\n\n`;
     }
@@ -474,7 +476,7 @@
     function ggWorking(cp) { return cp.genogram ? ggNormalize(cp.genogram) : null; }
     function genogramBuildFromRecord() {
       const cp = getCurrentPatient(), fresh = ggBuild(cp), old = ggWorking(cp);
-      if (!old) { if (!fresh.persons.length) { showToast('記録に家族の記載が見つかりませんでした。「人物を追加」で作れます', 'warn'); return; } ggCommit(cp, fresh); showToast(`記録から家族${fresh.persons.length - 1}人の図を作りました`, 'success'); return; }
+      if (!old) { if (!fresh.persons.length) { showToast('人物を作れませんでした', 'warn'); return; } ggCommit(cp, fresh); showToast(fresh.persons.length > 1 ? `記録から家族${fresh.persons.length - 1}人の図を作りました` : '家族の記載なし（患者のみ）の図を作りました', 'success'); return; }
       const { genogram, report } = ggMerge(old, fresh);
       ggCommit(cp, genogram);
       showToast(`記録から更新しました（追加${report.added}人・更新${report.updated}人・手で編集した人は変更しません${report.skippedDeleted ? `・削除済みの${report.skippedDeleted}人は追加しません` : ''}）`, 'success');
