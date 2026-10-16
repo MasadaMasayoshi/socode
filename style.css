@@ -1976,3 +1976,9 @@ html[data-theme="dark"] .rm-cl-prob{color:#5a1428}
 
 /* v.135 build/import buttons are automatic now (handlers kept) */
 [data-rm-action="build-rules"],[data-rm-action="import-clinical"],[data-gg-action="build"]{display:none}
+
+/* v.136 phone: header buttons really flush right; "自分のアセスメント" button gets its own full row */
+@media (max-width:640px){
+  body > header > div > div:last-child{justify-content:flex-end !important}
+  .asm-toolbar .my-asm-show-btn{flex:1 1 100%}
+}
