@@ -1444,3 +1444,32 @@ tr.cmp-row>td.cmp-cell{padding:2px 6px}
 .gg-canvas { max-height: none; }
 .gg-person.is-selected text { fill: #B03A55; }
 #gg-panel .field { padding: 2px 6px; }
+
+/* v.107 layout refresh: grouped navigation, quieter export buttons, per-view polish */
+.nav-groups { display:flex; align-items:center; flex:1 1 auto; min-width:0; overflow-x:auto; flex-wrap:nowrap !important; scrollbar-width:thin; }
+.nav-grp { display:flex; align-items:center; gap:2px; padding:0 .6rem; border-left:1px solid var(--line); flex-shrink:0; }
+.nav-grp.first { border-left:0; padding-left:0; }
+.nav-grp.nav-ref { margin-left:auto; border-left:0; padding-right:0; }
+.nav-gl { display:inline-flex; align-items:center; gap:.35rem; margin-right:.3rem; font-size:11px; font-weight:700; color:var(--ink-muted); white-space:nowrap; }
+.nav-no { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:var(--line-soft); color:var(--ink); font-size:10.5px; font-weight:700; }
+.nav-grp.is-done .nav-no { background:var(--accent-soft); color:var(--accent); font-size:0; }
+.nav-grp.is-done .nav-no::after { content:"✓"; font-size:11px; }
+.nav-grp.is-next .nav-no { background:var(--accent); color:#FFFFFF; font-size:10.5px; }
+.nav-grp.is-next .nav-gl::after { content:"次はここ"; padding:1px 6px; border-radius:999px; background:var(--accent); color:#FFFFFF; font-size:10px; }
+.tab-pill.active { background:var(--accent-soft); color:var(--accent-dark); box-shadow:none; }
+.export-group { display:inline-flex; align-items:stretch; border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface); overflow:hidden; }
+.export-group-label { display:inline-flex; align-items:center; gap:.35rem; padding:0 .7rem; font-size:12px; font-weight:700; color:var(--ink-muted); border-right:1px solid var(--line); white-space:nowrap; }
+.export-group .export-seg { background:transparent; border:0; border-radius:0; color:var(--ink); box-shadow:none; font-weight:600; }
+.export-group .export-seg + .export-seg { border-left:1px solid var(--line-soft); }
+.export-group .export-seg:hover { background:var(--accent-soft); color:var(--accent-dark); }
+.hdr-save-status { font-size:11.5px; color:var(--ink-muted); max-width:22rem; overflow:hidden; }
+.hdr-save-status > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wf-steps-merged { display:none !important; }
+.sample-tools { border-top:1px solid var(--line-soft); padding-top:.4rem; font-size:11.5px; color:var(--ink-muted); }
+.sample-tools summary { cursor:pointer; padding:.2rem 0; }
+.sample-tools[open] > div { margin-top:.4rem; }
+.cp-ev > b { font-size:12px; font-weight:700; color:var(--ink-muted); }
+.cp-ev .btn { font-size:12px; font-weight:500; min-height:30px; padding:.25rem .6rem; }
+.lab-trend-table th.lt-item { width:16rem; text-align:left; }
+#view-genogram .rm-group .field { width:auto; max-width:12rem; }
+@media (max-width:640px) { .nav-groups{flex-basis:100%;} .nav-gl{font-size:0;gap:0;} .nav-grp{padding:0 .35rem;} .nav-grp.is-next .nav-gl::after{display:none;} .export-group-label{padding:0 .5rem;} .hdr-save-status{font-size:11px;max-width:9rem;} }

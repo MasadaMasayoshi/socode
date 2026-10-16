@@ -1,7 +1,7 @@
 // Genogram (家族構成図): built from the record, then editable. Mirrors the relation map pattern (auto build -> edit -> save with the patient -> export).
 // Kinship words are a built-in dictionary (内蔵辞書 2026-10-16（出典未確認）). Nothing is invented: only members, ages and notes written in the record are drawn.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.106'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.107'; // Version stamp (scripts/stamp-version.js)
 
     const GG_PROVENANCE = '内蔵辞書 2026-10-16（出典未確認）';
     // canonical key -> [role label, sex, generation, order within the row]
@@ -488,7 +488,8 @@
           + (p.caregiver ? `<g><circle cx="${f(c.x + r + 9)}" cy="${f(c.y + r - 2)}" r="9" fill="#7C3AED"/><text x="${f(c.x + r + 9)}" y="${f(c.y + r + 2)}" text-anchor="middle" font-size="11" fill="#fff">介</text></g>` : '')
           + `</g>`;
       });
-      const size = interactive ? '' : ` width="${W}" height="${H}"`;
+      // Cap on-screen zoom so a small family is not blown up (never above the 980px container cap).
+      const size = interactive ? ` style="max-width:${Math.min(980, Math.round(W * 1.5))}px"` : ` width="${W}" height="${H}"`;
       return `<svg xmlns="http://www.w3.org/2000/svg" class="gg-svg" viewBox="${vx} ${vy} ${W} ${H}"${size} preserveAspectRatio="xMidYMin meet" role="img" aria-label="${esc(title || 'ジェノグラム')}" font-family="Hiragino Kaku Gothic ProN, Yu Gothic, Meiryo, sans-serif"><rect x="${vx}" y="${vy}" width="${W}" height="${H}" fill="#fff"/>${boxes}${lines}${marks}${nodes}</svg>`;
     }
     function genogramLegendHtml() {

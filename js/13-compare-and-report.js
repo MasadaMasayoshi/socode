@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.106'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.107'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -705,6 +705,8 @@
       if (nav.setAttribute) nav.setAttribute('data-progress', `（${steps.length}段階のうち${doneN}つ済み）`);
       nav.innerHTML = `<span class="wf-patient" title="今表示しているカルテ"><i class="fa-solid fa-hospital-user"></i> ${escapeHtml(cp.title || '')}</span>` + steps.map((s, k) => `<button type="button" class="wf-step${s.done ? ' done' : ''}${s.current ? ' current' : ''}" onclick="goWorkflowStep('${s.key}')" ${s.current ? 'aria-current="step"' : ''}>
         <span class="wf-no">${s.done ? '<i class="fa-solid fa-check"></i>' : k + 1}</span><span class="wf-label">${s.label}</span>${s.note ? `<span class="wf-note">${escapeHtml(s.note)}</span>` : ''}${s.current ? '<span class="wf-next">次はここ</span>' : ''}</button>`).join('<i class="fa-solid fa-chevron-right wf-sep" aria-hidden="true"></i>');
+      // Mirror step progress onto the grouped header navigation (done check / 次はここ badge).
+      if (document.querySelectorAll) document.querySelectorAll('.nav-grp[data-step]').forEach(g => { const s = steps.find(x => x.key === g.getAttribute('data-step')); g.classList.toggle('is-done', !!(s && s.done)); g.classList.toggle('is-next', !!(s && s.current)); if (s && s.note) g.setAttribute('title', s.note); else g.removeAttribute('title'); });
     }
     window.goWorkflowStep = function(key) {
 
