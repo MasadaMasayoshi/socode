@@ -1932,3 +1932,7 @@ option:checked { background: var(--accent-soft); color: var(--accent-dark); font
 html[data-theme="dark"] .rm-cl-card{background:#26241f;border-color:#3a372f}
 html[data-theme="dark"] .rm-cl-node{color:#222}
 html[data-theme="dark"] .rm-cl-prob{color:#5a1428}
+
+/* v.127 genogram toolbar: no clipped labels; clear-figure button hidden (user request) */
+[aria-label="ジェノグラムの操作"] .btn{flex:0 0 auto;white-space:nowrap;overflow:visible;padding-left:12px;padding-right:12px;min-width:max-content}
+[aria-label="ジェノグラムの操作"] [data-gg-action="clear"]{display:none}
