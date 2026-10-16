@@ -1884,3 +1884,9 @@ option:checked { background: var(--accent-soft); color: var(--accent-dark); font
 #view-labs #lab-trend-table-wrap { width: fit-content; max-width: 100%; }
 #view-labs .lab-evaluation:not([open]) { padding: .5rem .8rem; }
 #view-labs .lab-evaluation > summary { font-size: 14px; line-height: 1.6; }
+
+/* --- v.123 evidence chips show what the card is without hovering --- */
+.suf-ev { flex-wrap: wrap; gap: .35rem; }
+.suf-evidence-chip { display: inline-flex; align-items: center; gap: .4rem; max-width: 100%; text-align: left; }
+.suf-evidence-chip .suf-ev-id { font-weight: 700; }
+.suf-evidence-chip .suf-ev-snip { font-size: 11.5px; font-weight: 400; color: var(--ink); overflow-wrap: anywhere; }

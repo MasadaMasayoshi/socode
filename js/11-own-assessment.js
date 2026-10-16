@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.118'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.123'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -456,7 +456,7 @@
       const v = phaseVerdictOf(cp, needId, phaseKey);
       const a = ruleSufficiencyFor(cp)[needId][phaseKey] || {};
       const labels = myEvidenceLabels(cp, needId);
-      const ev = [...new Set(a.evidence || [])].filter(id => labels[id]).map(id => `<button type="button" class="suf-evidence-chip suf-evidence-${String(labels[id]).charAt(0) === 'S' ? 'S' : 'O'}" onclick="jumpToBoardCard(${jsArg(id)})" title="${escapeHtml(labels[id])}">${escapeHtml(labels[id].match(/^[SO]-\d+/)?.[0] || labels[id])}</button>`).join('');
+      const ev = [...new Set(a.evidence || [])].filter(id => labels[id]).map(id => `<button type="button" class="suf-evidence-chip suf-evidence-${String(labels[id]).charAt(0) === 'S' ? 'S' : 'O'}" onclick="jumpToBoardCard(${jsArg(id)})" title="${escapeHtml(labels[id])}"><b class="suf-ev-id">${escapeHtml(labels[id].match(/^[SO]-\d+/)?.[0] || labels[id])}</b>${(() => { const t = String(labels[id]).replace(/^[SO]-\d+[\s:：]*/, '').replace(/\s+/g, ' ').trim(); return t && t !== labels[id] ? `<span class="suf-ev-snip">${escapeHtml(t.length > 30 ? t.slice(0, 30) + '…' : t)}</span>` : ''; })()}</button>`).join('');
       const icon = v === 'met' ? 'fa-circle-check' : v === 'unmet' ? 'fa-triangle-exclamation' : v === 'conflict' ? 'fa-scale-unbalanced' : 'fa-circle-question';
 
       const head = `<span class="suf-phase-name">${ph.label}</span><span class="suf-badge suf-${v}"><i class="fa-solid ${icon}"></i> ${SUFFICIENCY_LABELS[v]}</span>`;

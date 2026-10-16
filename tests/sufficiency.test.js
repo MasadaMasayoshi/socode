@@ -11,7 +11,7 @@ test('Full judgment explanations preserve distinct evidence links without duplic
   const output = app.sufficiencyPhaseHtml(cp, 1, 'pre');
   assert.doesNotMatch(output, /「呼吸困難なし」/);
   assert.match(output, /O-1（呼吸困難なし）・O-2（呼吸困難なし）がそろっており、呼吸は充足している。/);
-  assert.equal((output.match(/class="suf-evidence-chip"/g) || []).length, 2);
+  assert.equal((output.match(/class="suf-evidence-chip[ "]/g) || []).length, 2);
   assert.equal(JSON.stringify(cp.items), before);
   assert.equal(app.getSufficiency(cp, 1, 'pre'), 'met');
 });
