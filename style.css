@@ -1890,3 +1890,28 @@ option:checked { background: var(--accent-soft); color: var(--accent-dark); font
 .suf-evidence-chip { display: inline-flex; align-items: center; gap: .4rem; max-width: 100%; text-align: left; }
 .suf-evidence-chip .suf-ev-id { font-weight: 700; }
 .suf-evidence-chip .suf-ev-snip { font-size: 11.5px; font-weight: 400; color: var(--ink); overflow-wrap: anywhere; }
+
+/* --- v.124 labs: full-width table, card never clipped, no stretched empty panels --- */
+#view-labs #lab-trend-table-wrap { width: 100%; }
+#view-labs .lab-trend-table { min-width: 100%; width: 100%; }
+#view-labs .ci-grid { align-items: start; grid-auto-rows: auto; }
+#view-labs .ci-card { height: auto; min-height: 0; overflow: visible; padding: .6rem .8rem; }
+#view-labs .ci-card .ci-detail, #view-labs .ci-card .ci-note { overflow-wrap: anywhere; }
+#view-labs .lab-evaluation { width: fit-content; min-width: min(100%, 22rem); max-width: 100%; }
+#view-labs .lab-evaluation[open] { width: 100%; }
+
+/* --- v.125 phone: the all-needs table stacks into readable blocks --- */
+@media (max-width: 640px) {
+  #assessment-table-wrap { overflow-x: visible; }
+  .assess-table, .assess-table tbody, .assess-table tr, .assess-table td { display: block; width: 100% !important; }
+  .assess-table thead { display: none; }
+  .assess-table tr { margin: 0 0 14px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); overflow: hidden; }
+  .assess-table td { border: 0 !important; border-top: 1px solid var(--line-soft) !important; padding: 10px 12px; min-width: 0; }
+  .assess-table td:first-child { border-top: 0 !important; background: var(--paper); }
+  .assess-table td:nth-child(n+2)::before { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 700; color: var(--ink-muted); }
+  .assess-table td:nth-child(2)::before { content: "入院前"; }
+  .assess-table td:nth-child(3)::before { content: "入院後"; }
+  .assess-table td:nth-child(4)::before { content: "充足・未充足"; }
+  .assess-table td:nth-child(5)::before { content: "不足情報"; }
+  .assess-table td:nth-child(n+2):empty { display: none; }
+}

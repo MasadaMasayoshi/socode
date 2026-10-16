@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="v.123">
+  <meta name="app-version" content="v.125">
   <meta name="app-file-versions" content="01:v.108,02:v.108,03:v.108,04:2026-10-12.usability-context29,05:v.108,06:v.108,07:v.108,08:v.122,09:v.112,10:v.108,11:v.123,12:v.119,13:v.119,14:v.108,15:v.108,16:v.111">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=v.123">
+  <link rel="stylesheet" href="style.css?v=v.125">
 
   <link rel="stylesheet" href="vendor/tailwind.css?v=2026-10-06.14">
   <script>
@@ -352,7 +352,7 @@
 
     <div id="view-labs" class="hidden surface p-4 flex flex-col gap-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <h2 class="font-display font-semibold text-[var(--ink)] text-[15px] flex items-center"><i class="fa-solid fa-flask-vial text-[var(--accent)] mr-2"></i>検査値の推移・計算した指標</h2>
+        <!-- v.124: heading removed (user request) -->
         <div class="flex flex-wrap items-center gap-2">
           <label class="lab-trend-check"><input type="checkbox" id="lab-trend-show-vitals" checked onchange="toggleLabTrendVitals(this.checked)"> バイタルサイン・体重も表示</label>
           <button type="button" class="btn btn-outline text-[11px] py-1.5" onclick="copyLabTrendTable()" title="表をタブ区切りでコピーします（Excel・スプレッドシートにそのまま貼り付けられます）"><i class="fa-solid fa-copy"></i> 表をコピー</button>
