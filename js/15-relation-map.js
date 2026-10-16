@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.126'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.134'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -3081,6 +3081,26 @@
       const nAdded = map.nodes.filter(n => n.added).length;
       showToast(`記録から関連図を作りました（${map.nodes.length}個${nAdded ? `・うち紫の「＋補足」${nAdded}個は矢印の間に補った過程` : ''}）。病態のつながりを確かめて直してください`, 'success', 8000);
     }
+
+    // v.134: build the relation map / genogram / map-derived care plans automatically when a view opens (no button press needed)
+    window.autoPrepareFromRecord = function(view) {
+      try {
+        const cp = getCurrentPatient();
+        if (!cp || !(cp.items || []).some(i => i.type !== 'unnecessary')) return;
+        if ((view === 'relation' || view === 'careplan') && !(cp.relationMap && cp.relationMap.nodes && cp.relationMap.nodes.length)) {
+          const map = buildRelationMapFromRecord(cp);
+          if (map && map.nodes.length) rmCommit(cp, map, { pushUndo: false, render: false });
+        }
+        if (view === 'careplan' && cp.relationMap && typeof importCarePlansFromMap === 'function') {
+          const fresh = importCarePlansFromMap(cp);
+          if (fresh.length) { fresh.forEach(pl => carePlanOpen.add(pl.id)); commitCarePlanChange(cp, false); }
+        }
+        if (view === 'genogram' && !cp.genogram) {
+          const g = ggBuild(cp);
+          if (ggLive(g).length > 1) ggCommit(cp, g, { push: false });
+        }
+      } catch (e) { console.warn('auto prepare failed', e); }
+    };
 
     function rmNodeById(map, id) { return map.nodes.find(n => n.id === id) || null; }
     function renderRelationMap() {

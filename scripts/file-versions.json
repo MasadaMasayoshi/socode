@@ -16,8 +16,8 @@
     "hash": "5d32db02d71fadd8"
   },
   "js/05-app-state-and-ui.js": {
-    "version": "v.108",
-    "hash": "8f4ebc431ac029ad"
+    "version": "v.134",
+    "hash": "d7616e01e2b5cab0"
   },
   "js/06-export.js": {
     "version": "v.108",
@@ -56,12 +56,12 @@
     "hash": "adcb70de3b30b0ae"
   },
   "js/15-relation-map.js": {
-    "version": "v.126",
-    "hash": "378ec40d77cdae53"
+    "version": "v.134",
+    "hash": "e319cbabe0ae403b"
   },
   "style.css": {
-    "version": "v.133",
-    "hash": "442a975cbf104747"
+    "version": "v.134",
+    "hash": "ac9376f864b3ecc0"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",

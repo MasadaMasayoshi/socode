@@ -2,7 +2,7 @@
 // Confirmations and Undo verify the captured patient/target; local writes require full readback.
 // AI transport accepts image OCR only; classification and clinical generation stay local.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = 'v.108'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = 'v.134'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -2611,6 +2611,7 @@
     window.addEventListener('resize', updateNeedNavTop);
     function switchView(viewName, { buildPlans = true } = {}) {
       updateNeedNavTop();
+      if (buildPlans && typeof autoPrepareFromRecord === 'function' && ['relation', 'genogram', 'careplan'].includes(viewName)) autoPrepareFromRecord(viewName);
       DOM.viewSoBoard.classList.toggle('hidden', viewName !== 'so');
       DOM.viewAssessment.classList.toggle('hidden', viewName !== 'assessment');
       DOM.viewReference.classList.toggle('hidden', viewName !== 'reference');
