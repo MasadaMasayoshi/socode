@@ -1874,3 +1874,13 @@ option:checked { background: var(--accent-soft); color: var(--accent-dark); font
 .card-seg { display: inline; margin: 0 2px 0 0; padding: 1px 6px; border: 0; border-radius: 4px; font-size: .93em; line-height: 1.9; background: color-mix(in srgb, var(--slate-soft) 55%, transparent); box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .card-seg:nth-of-type(even) { background: color-mix(in srgb, var(--accent-soft) 55%, transparent); border: 0; }
 .card-seg:nth-of-type(3n) { background: color-mix(in srgb, var(--slate-soft) 55%, transparent); border: 0; }
+
+/* --- v.121 labs: no stretched empty areas (presentation only) --- */
+#view-labs .clinical-indices { width: fit-content; max-width: 100%; }
+#view-labs .ci-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 260px)); }
+#view-labs .lab-trend-table { min-width: 0; width: auto; }
+#view-labs .lab-trend-table th, #view-labs .lab-trend-table td { min-width: 120px; }
+#view-labs .lab-trend-table th.lt-item, #view-labs .lab-trend-table td.lt-item { min-width: 11rem; }
+#view-labs #lab-trend-table-wrap { width: fit-content; max-width: 100%; }
+#view-labs .lab-evaluation:not([open]) { padding: .5rem .8rem; }
+#view-labs .lab-evaluation > summary { font-size: 14px; line-height: 1.6; }
