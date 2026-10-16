@@ -1752,12 +1752,6 @@ body { font-family: 'IBM Plex Sans JP', 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo
 .rec-card > div:first-child { order: 3; }
 .tag-chip { height: 24px; padding: 0 8px; border-radius: 6px; border: 0; font-size: 12px; font-weight: 600; }
 .time-chip { height: 24px; display: inline-flex; align-items: center; padding: 0 8px; border-radius: 6px; background: transparent; border: 1px solid var(--line); color: var(--ink-muted); font-size: 12px; font-weight: 500; }
-@media (hover: hover) and (pointer: fine) {
-  .rec-card .card-select-wrap, .rec-card select[aria-label="タグを追加"], .rec-card .card-menu-btn { opacity: 0; transition: opacity .12s; }
-  .rec-card:hover .card-select-wrap, .rec-card:focus-within .card-select-wrap, .card-select-wrap:has(input:checked),
-  .rec-card:hover select[aria-label="タグを追加"], .rec-card:focus-within select[aria-label="タグを追加"],
-  .rec-card:hover .card-menu-btn, .rec-card:focus-within .card-menu-btn { opacity: 1; }
-}
 .board-count-chips { display: flex; gap: 8px; }
 .board-count-chip { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; }
 .board-count-chip .badge-count { margin-left: 2px; }
@@ -1835,3 +1829,9 @@ option:checked { background: var(--accent-soft); color: var(--accent-dark); font
 .suf-mini-met { border-color: var(--accent-line); } .suf-mini-unmet { border-color: var(--brick-line); }
 .suf-btn { box-shadow: 0 1px 2px rgba(0,0,0,.1); }
 .suf-btn.is-on { box-shadow: inset 0 1px 3px rgba(0,0,0,.15); font-weight: 700; }
+
+/* --- v.114 evidence chips coloured by S/O, card controls always visible --- */
+.suf-evidence-chip { border-width: 1.5px; font-weight: 700; padding: .15rem .55rem; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.suf-evidence-S { color: var(--gold); border-color: var(--gold); background: var(--gold-soft); }
+.suf-evidence-O { color: var(--slate); border-color: var(--slate); background: var(--slate-soft); }
+.suf-evidence-chip:hover { box-shadow: 0 3px 8px rgba(0,0,0,.18); }
