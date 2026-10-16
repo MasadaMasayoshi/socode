@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.108'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.111'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -853,6 +853,25 @@
         const msg = n ? '未分類のカードが <b class="bpb-ng">' + n + '枚</b> あります。振り分けると次の段階に進めます。' : '分類が終わっています。次はアセスメント表です。';
         const html = '<span>' + msg + '</span><button type="button" class="btn btn-outline" data-tab-target="tab-assessment">アセスメント表へ進む →</button>';
         if (bar.getAttribute('data-sig') !== html) { bar.innerHTML = html; bar.setAttribute('data-sig', html); }
+        boardCountChips(cp);
+      }
+      // board toolbar: 未分類 / 不必要 count chips that open and scroll to those sections
+      function boardCountChips(cp) {
+        const tb = $('board-toolbar'), more = $('board-actions'); if (!tb || !more) return;
+        let wrap = $('board-count-chips');
+        if (!wrap) {
+          wrap = document.createElement('div'); wrap.id = 'board-count-chips'; wrap.className = 'board-count-chips'; tb.insertBefore(wrap, more);
+          wrap.addEventListener('click', e => {
+            const b = e.target.closest ? e.target.closest('[data-board-section]') : null; if (!b) return;
+            const d = $(b.getAttribute('data-board-section')); if (!d) return;
+            d.open = true; if (d.scrollIntoView) d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        }
+        const all = ((cp && cp.items) || []).filter(i => i && !i.deleted);
+        const nU = all.filter(i => i.type === 'unclassified').length, nN = all.filter(i => i.type === 'unnecessary').length;
+        const chip = (id, label, n, cls) => '<button type="button" class="board-count-chip' + (cls && n ? ' ' + cls : '') + '" data-board-section="' + id + '">' + label + ' <span class="badge-count">' + n + '</span></button>';
+        const html = chip('board-unclassified', '未分類', nU, 'is-warn') + chip('board-unnecessary', '不必要', nN, '');
+        if (wrap.getAttribute('data-sig') !== html) { wrap.innerHTML = html; wrap.setAttribute('data-sig', html); }
       }
       // genogram: sex as three buttons that drive the existing select
       function ggSexButtons() {

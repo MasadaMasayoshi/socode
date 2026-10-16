@@ -1,7 +1,7 @@
 // Genogram (家族構成図): built from the record, then editable. Mirrors the relation map pattern (auto build -> edit -> save with the patient -> export).
 // Kinship words are a built-in dictionary (内蔵辞書 2026-10-16（出典未確認）). Nothing is invented: only members, ages and notes written in the record are drawn.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.110'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.111'; // Version stamp (scripts/stamp-version.js)
 
     const GG_PROVENANCE = '内蔵辞書 2026-10-16（出典未確認）';
     // canonical key -> [role label, sex, generation, order within the row]
@@ -629,7 +629,7 @@
     function ggPanelHtml(g) {
       const p = ggLive(g).find(x => x.id === ggState.selected), esc = typeof escapeHtml === 'function' ? escapeHtml : x => String(x);
       const opts = (arr, cur) => arr.map(([val, lab]) => `<option value="${esc(val)}"${val === cur ? ' selected' : ''}>${esc(lab)}</option>`).join('');
-      const add = `<div class="rm-group" aria-label="人物を追加"><input id="gg-new-role" class="field text-[12px]" placeholder="続柄（例：妻・長男）" maxlength="12" style="width:9rem;"> <select id="gg-new-sex" class="field text-[12px]">${opts([['u', '性別不明'], ['m', '男性'], ['f', '女性']], 'u')}</select> <select id="gg-new-gen" class="field text-[12px]">${opts([['-2', '祖父母の世代'], ['-1', '親の世代'], ['0', '本人と同じ世代'], ['1', '子の世代'], ['2', '孫の世代']], '0')}</select> <span class="gg-new-flags"><label><input type="checkbox" id="gg-new-deceased"> 故人</label><label><input type="checkbox" id="gg-new-living"> 同居</label></span> <button type="button" class="btn btn-outline text-[11px] py-1" data-gg-action="add">人物を追加</button></div>`;
+      const add = `<div class="rm-group" aria-label="人物を追加"><p class="gg-add-title">人物を追加</p><label class="gg-lbl" for="gg-new-role">続柄</label><input id="gg-new-role" class="field text-[12px]" placeholder="続柄（例：妻・長男）" maxlength="12" style="width:9rem;"> <span class="gg-lbl">性別</span><select id="gg-new-sex" class="field text-[12px]">${opts([['u', '性別不明'], ['m', '男性'], ['f', '女性']], 'u')}</select> <label class="gg-lbl" for="gg-new-gen">世代</label><select id="gg-new-gen" class="field text-[12px]">${opts([['-2', '祖父母の世代'], ['-1', '親の世代'], ['0', '本人と同じ世代'], ['1', '子の世代'], ['2', '孫の世代']], '0')}</select> <span class="gg-new-flags"><label><input type="checkbox" id="gg-new-deceased"> 故人</label><label><input type="checkbox" id="gg-new-living"> 同居</label></span> <button type="button" class="btn btn-outline text-[11px] py-1" data-gg-action="add">人物を追加</button></div>`;
       if (!p) return add + '<p class="text-[11px] text-[var(--ink-muted)]">図の人物を押すと、ここで直せます（ドラッグで動かせます）。</p>';
       const others = ggLive(g).filter(x => x.id !== p.id).map(x => [x.id, x.index ? '本人' : x.role]);
       const sel = (id, list, cur, none) => `<select id="${id}" class="field text-[12px]">${opts([['', none], ...list], cur || '')}</select>`;

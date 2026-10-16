@@ -48,8 +48,8 @@
     "hash": "5f62941e8e480488"
   },
   "js/13-compare-and-report.js": {
-    "version": "v.108",
-    "hash": "27f249a56272e37a"
+    "version": "v.111",
+    "hash": "153d0d16eef48783"
   },
   "js/14-drug-reference.js": {
     "version": "v.108",
@@ -60,8 +60,8 @@
     "hash": "5048ae3d483e61e4"
   },
   "style.css": {
-    "version": "v.110",
-    "hash": "2eba73aa37e3eaab"
+    "version": "v.111",
+    "hash": "d0c52b57816e13d3"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",
@@ -72,7 +72,7 @@
     "hash": "8c06d82739d14b09"
   },
   "js/16-genogram.js": {
-    "version": "v.110",
-    "hash": "ee40db359dbd4dfe"
+    "version": "v.111",
+    "hash": "b0ff6be620c389f0"
   }
 }
