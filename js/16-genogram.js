@@ -1,7 +1,7 @@
 // Genogram (家族構成図): built from the record, then editable. Mirrors the relation map pattern (auto build -> edit -> save with the patient -> export).
 // Kinship words are a built-in dictionary (内蔵辞書 2026-10-16（出典未確認）). Nothing is invented: only members, ages and notes written in the record are drawn.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.105'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.106'; // Version stamp (scripts/stamp-version.js)
 
     const GG_PROVENANCE = '内蔵辞書 2026-10-16（出典未確認）';
     // canonical key -> [role label, sex, generation, order within the row]
@@ -57,7 +57,7 @@
     }
     function ggSentences(cp) {
       const seen = new Set(), out = [];
-      const add = t => String(t || '').split(/\r?\n/).forEach(line => ggNorm(line).split(/(?<=。)/).forEach(s => { s = s.trim(); const k = s.replace(/\s+/g, ''); if (s.length >= 2 && !seen.has(k)) { seen.add(k); out.push(s); } }));
+      const add = t => String(t || '').split(/\r?\n/).forEach(line => ggNorm(line).replace(/「[^」]*」/g, '「」').split(/(?<=。)/).forEach(s => { s = s.trim(); const k = s.replace(/\s+/g, ''); if (s.length >= 2 && !seen.has(k)) { seen.add(k); out.push(s); } }));
       add(cp && cp.sourceText);
       ((cp && cp.items) || []).filter(i => i && !i.deleted && i.type !== 'unnecessary').forEach(i => add(i.text));
       return out;

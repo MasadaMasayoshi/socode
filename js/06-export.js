@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.105'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.106'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -895,6 +895,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         if (edits.length) {
           out += `手で編集した履歴:\n`;
           edits.forEach(e => { out += `  ・${formatEditLogEntry(e)}\n`; });
+          { const back = edits.filter(e => e && e.kind === 'type' && e.from === 'unnecessary' && e.to === 'unclassified').length; if (back >= 2) out += `  ・証拠：利用者が「不必要 → 未分類」へ${back}回戻しています。自動の除外が不適切だった可能性の証拠として扱い、手編集を自動で上書きしません（除外ルールの見直しを検討してください）\n`; }
         } else {
           out += `手で編集した履歴: なし\n`;
         }
@@ -925,20 +926,44 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const names = BACKGROUND_FACTOR_WORDS.filter(([, re]) => re.test(t)).map(([n]) => n);
       return names.length ? `生活歴（${names.join('・')}）` : '';
     }
+    // v.106: a long life-history paragraph is split by sentence into factors by meaning; a sentence is never cut mid-word.
+    const BACKGROUND_SPLIT_WORDS = BACKGROUND_FACTOR_WORDS.map(([n, re]) => n === '職業' ? [n, new RegExp(re.source + '|自営業|家業|共働き|交代で働') ] : [n, re]).concat([
+      ['世話の担い手', /(?:世話|面倒|養育|介護)(?:を|は|に)|まかせ|任せ/],
+      ['家事・役割分担', /買い物|掃除|洗濯|家事|お手伝い|手伝って|分担|留守番/],
+      ['学校生活・通学', /小学校|中学校|高校|大学|学校|通学|登校|部活|クラス|担任|友だち|友達/],
+      ['習い事・得意科目', /教室に通|習い事|塾|得意科目|英会話|ピアノ|水泳/]]);
+    function backgroundSentenceFactors(text) {
+      const sents = String(text || '').normalize('NFKC').split(/(?<=[。！？!?])\s*/).map(x => x.trim()).filter(Boolean);
+      if (sents.length < 2) return null;
+      const out = [];
+      sents.forEach(snt => {
+        const names = BACKGROUND_SPLIT_WORDS.filter(([, re]) => re.test(snt)).map(([n]) => n);
+        const name = names.length ? names[0] : (out.length ? out[out.length - 1].name : '');
+        if (out.length && out[out.length - 1].name === name) out[out.length - 1].text += snt;
+        else out.push({ name, text: snt });
+      });
+      return out;
+    }
     function backgroundFactorsText(cp) {
       const rows = ((cp && cp.items) || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && String(i.text || '').trim() && backgroundFactorName(i));
       if (!rows.length) return '';
-      const mask = t => typeof krDeidentify === 'function' ? krDeidentify(t, cp, 80) : String(t).slice(0, 80);
+      const mask = t => typeof krDeidentify === 'function' ? krDeidentify(t, cp, 600) : String(t).slice(0, 600);
       const kind = i => typeof classifyPatientBackground === 'function' ? classifyPatientBackground(backgroundFactorName(i).replace(/（.*）$/, '')) : '';
-      return '\n【アプリが抽出済みの患者背景の因子】項目名 → 内容｜保存済みの区分｜付いているタグ（原文と比べて、足りない因子・区分やタグの誤りを確認してください。氏名は含めません）\n' +
-        rows.map(i => `  ・${backgroundFactorName(i)} → ${mask(i.text)}｜${i.patientBackground || kind(i)}｜${(i.hendersonIds || []).length ? (i.hendersonIds || []).join('・') : 'タグなし'}`).join('\n') + '\n';
+      const lines = [];
+      rows.forEach(i => {
+        const tag = `${i.patientBackground || kind(i)}｜${(i.hendersonIds || []).length ? (i.hendersonIds || []).join('・') : 'タグなし'}`;
+        const parts = i.fieldLabel ? null : backgroundSentenceFactors(i.text);
+        if (parts) parts.forEach(p => lines.push(`  ・生活歴（${p.name || 'その他'}） → ${mask(p.text)}｜${tag}`));
+        else lines.push(`  ・${backgroundFactorName(i)} → ${mask(i.text)}｜${tag}`);
+      });
+      return '\n【アプリが抽出済みの患者背景の因子】項目名 → 内容｜保存済みの区分｜付いているタグ（原文と比べて、足りない因子・区分やタグの誤りを確認してください。氏名は含めません）\n' + lines.join('\n') + '\n';
     }
     // The app's current sufficiency judgments, in the existing exported wording (sufficiencyPhaseText), with evidence references and missing-information items.
     // v.96: sentences of the original record (分類前文章) that bear on a need but are not cited as evidence in that need/phase verdict.
     // Developer-facing candidates for new generic criteria; shown as separate lines, never inside the verdict sentence.
     function sufficiencySourceCandidates(cp, limits) {
       const out = { byKey: new Map(), omitted: 0 };
-      const src = String((cp && cp.sourceText) || '');
+      const src = (typeof normalizeBrokenTableRows === 'function' ? normalizeBrokenTableRows(String((cp && cp.sourceText) || '').normalize('NFKC')).text : String((cp && cp.sourceText) || '')).replace(/(?:^|\n)\s*(?:\|\s*)+/g, m => m.startsWith('\n') ? '\n' : '').replace(/\s\|\s/g, ' ');
       if (!src.trim() || typeof sufficiencyUiPhases !== 'function' || typeof ruleSufficiencyFor !== 'function') return out;
       const perNeed = (limits && limits.perNeed) || 5, total = (limits && limits.total) || 40;
       const nz = x => String(x || '').normalize('NFKC').replace(/\s+/g, '');
@@ -989,7 +1014,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
           // a recorded cue that points the same way as the verdict is just more support, not a gap
           const dirs = cueDir.get(nid);
           if (dirs && ((a.verdict === 'met' && dirs.has('met')) || (a.verdict === 'unmet' && (dirs.has('unmet') || dirs.has('partial'))))) return;
-          const state = a.verdict === 'unknown' || !a.verdict ? '原文に記載あり（判定に未反映）' : (cue.has(nid) ? '判定に未使用' : '基準に未登録');
+          const state = a.verdict === 'unknown' || !a.verdict ? '原文に記載あり（判定に未反映）' : (cue.has(nid) ? '判定に未使用' : (/\d/.test(sn) || /症状|痛|腫|発赤|嘔|吐|熱|咳|痰|出血|不良|良好|困難|拒否|摂取|排|睡眠|不安|恐怖/.test(sn) ? '基準に未登録' : '基準に未登録（経過・状況の叙述で、判断基準にできる所見の語は含まれない）'));
           const key = `${nid}|${phase}`;
           const list = out.byKey.get(key) || [];
           if (list.length >= perNeed || used >= total) { out.omitted++; return; }

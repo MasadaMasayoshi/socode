@@ -1,6 +1,6 @@
 // Japanese drug reference vocabulary. Names indicate references, not administration or clinical approval.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['14'] = 'v.105'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['14'] = 'v.106'; // Version stamp (scripts/stamp-version.js)
 
     const DRUG_REFERENCE_ROWS = [
 
@@ -125,7 +125,10 @@
       ['インスリン グラルギン', 'ランタス/ランタスXR/グラルギン', '持効型溶解インスリン', '糖尿病（1日1回決まった時間）', '低血糖（夜間・早朝）、注射部位、打ち忘れ', [2, 14], 1],
       ['インスリン デグルデク', 'トレシーバ/デグルデク', '持効型溶解インスリン', '糖尿病（1日1回）', '低血糖、注射部位', [2, 14], 1],
       ['インスリン デテミル', 'レベミル/デテミル', '持効型溶解インスリン', '糖尿病', '低血糖、注射部位', [2, 14], 1],
-      ['ヒトインスリン（速効型）', 'ヒューマリンR/ノボリンR', '速効型インスリン', '糖尿病・高カリウム血症の治療・スライディングスケール', '低血糖（食事の30分前に打つ）、静脈内投与の量・速度', [2, 14], 1],
+      ['超速効型インスリン（種類のみの記載）', '超速効型インスリン', '超速効型インスリン', '糖尿病（食直前）', '低血糖（冷や汗・ふるえ・動悸・意識の低下）、食事量との関係、注射部位', [2, 14], 1],
+      ['持効型インスリン（種類のみの記載）', '持効型溶解インスリン/持効型インスリン/持続型インスリン', '持効型溶解インスリン', '糖尿病（基礎分泌の補充）', '低血糖（夜間・早朝）、注射部位、打ち忘れ', [2, 14], 1],
+      ['中間型・混合型インスリン（種類のみの記載）', '中間型インスリン/混合型インスリン', '中間型・混合型インスリン', '糖尿病', '低血糖、食事時間との関係、注射部位', [2, 14], 1],
+      ['ヒトインスリン（速効型）', 'ヒューマリンR/ノボリンR/速効型インスリン', '速効型インスリン', '糖尿病・高カリウム血症の治療・スライディングスケール', '低血糖（食事の30分前に打つ）、静脈内投与の量・速度', [2, 14], 1],
       ['メトホルミン', 'メトグルコ/グリコラン', 'ビグアナイド薬', '2型糖尿病', '乳酸アシドーシス（脱水・腎機能低下・飲酒。ヨード造影剤の前後は休薬）、下痢・悪心', [2]],
       ['グリメピリド', 'アマリール', 'スルホニル尿素（SU）薬', '2型糖尿病', '低血糖（長引きやすい。高齢者・腎機能低下・食事がとれないとき）、体重増加', [2], 1],
       ['グリクラジド', 'グリミクロン', 'SU薬', '2型糖尿病', '低血糖（長引きやすい）、体重増加', [2], 1],
@@ -529,6 +532,12 @@
       const t = drugFold(text), found = drugsOfText(text).map(d => d.display + d.generic);
       const out = [];
       (t.match(/[ァ-ヶー]{3,12}(?=\s*(?:錠|カプセル|散|注射|注|軟膏|点眼|テープ|パッチ|シロップ|\d+(?:\.\d+)?\s*(?:mg|g|mL|μg|単位|錠)))/g) || []).forEach(w => {
+        // v.106: the fold turns hiragana particles into katakana, so a leading particle kana (へ・と・や・に・で・を・も・は・が・の) can stick to the drug word; strip it when the rest is a known word.
+        if (/^[ヘトヤニデヲモハガノ]/.test(w) && w.length >= 4) {
+          const rest = w.slice(1);
+          if (DRUG_BY_TERM.has(rest) || found.some(f => f.includes(rest)) || DRUG_NOT_A_DRUG.test(rest) || /^(?:インスリン|ビタミン)$/.test(rest) || drugsOfText(rest).length) return;
+          w = rest;
+        }
         if (DRUG_BY_TERM.has(w) || found.some(f => f.includes(w))) return;
         if (typeof KR_NON_DRUG !== 'undefined' && KR_NON_DRUG.test(w)) return;
         if (typeof KR_LAB_VOCAB !== 'undefined' && KR_LAB_VOCAB.test(w)) return;

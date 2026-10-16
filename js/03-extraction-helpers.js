@@ -1,7 +1,7 @@
 // Local record extraction. Preserve source wording, units, timestamps and admission context.
 // Headings supply context; narrative numbers are not automatically laboratory measurements.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.105'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.106'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -353,6 +353,51 @@
       }
       return { text: out.join('\n'), joins };
     }
+    // v.106: a markdown-like table whose cells wrapped onto the next physical lines (a line without its leading pipe) is re-joined cell by cell, then every filled cell becomes
+    // one line "<date> <cell>" and the column meaning (医療者の説明／家族の言動／本人の言動) is returned for S/O. A table without such broken rows is left untouched.
+    function normalizeBrokenTableRows(src) {
+      const lines = String(src || '').split(/\r?\n/);
+      const roles = [];
+      const out = [];
+      const cellsOf = l => { const t = l.trim().replace(/^\|/, '').replace(/\|$/, ''); return t.split('|').map(c => c.trim()); };
+      const roleOf = h => /医療者|説明|指導|看護/.test(h) ? 'staff' : /家族|両親|母|父/.test(h) ? 'family' : /本人|患者|さん/.test(h) ? 'patient' : '';
+      const isDateCell = c => /^\d{1,2}\s*月\s*\d{1,2}\s*日/.test(c);
+      let i = 0;
+      while (i < lines.length) {
+        const sepNext = lines[i + 1] && /^\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?$/.test(lines[i + 1].trim());
+        if (!(/^\s*\|/.test(lines[i]) && sepNext)) { out.push(lines[i]); i++; continue; }
+        const header = cellsOf(lines[i]), N = header.length;
+        let j = i + 2; const rows = []; let broken = false;
+        while (j < lines.length && lines[j].trim() && lines[j].includes('|')) {
+          const l = lines[j], starts = /^\s*\|/.test(l), cells = cellsOf(l);
+          if (starts) rows.push({ cells: cells.slice(), raw: l });
+          else if (rows.length && !isDateCell(cells[0] || '') && cells[0] !== '' ) {
+            // continuation of the previous row: segment k continues the k-th cell after the row's first filled cell
+            broken = true; const prev = rows[rows.length - 1].cells; const f = Math.max(1, prev.findIndex((c, k) => k > 0 && c));
+            cells.forEach((c, k) => { if (c && f + k < N) prev[f + k] = (prev[f + k] || '') + c; });
+          } else { broken = true; rows.push({ cells: ('|' + l).split('|').slice(1).map(c => c.trim()), raw: l }); }
+          j++;
+        }
+        if (!broken || N < 3) { for (let k = i; k < j; k++) out.push(lines[k]); i = j; continue; }
+        let date = '';
+        out.push(lines[i], lines[i + 1]);
+        rows.forEach(r => {
+          const c = r.cells.map(x => x.replace(/<br\s*\/?>/gi, ' ').trim());
+          if (c[0] && isDateCell(c[0])) date = c[0];
+          for (let k = 1; k < N; k++) if (c[k]) { out.push(`${date} ${c[k]}`.trim()); roles.push({ text: c[k], role: roleOf(header[k] || '') }); }
+        });
+        i = j;
+      }
+      return { text: out.join('\n'), roles };
+    }
+    // v.106: the reason shown for an excluded structure-like line must match the real cause.
+    function structureExclusionReason(str) {
+      const t = String(str || '').normalize('NFKC').trim();
+      if (isGenericOtherPatientStatement(t)) return { ruleId: 'source.general-explanation', reason: '一般的な説明（患者さん全般についての文）で、この患者個別の所見ではないため除外。説明の内容そのものは資料として残す。' };
+      if (isWorksheetInstructionText(t)) return { ruleId: 'source.worksheet-instruction', reason: '課題・記入の指示文で、患者の所見ではないため除外。' };
+      if (isTableCaptionOrHeaderText(t)) return { ruleId: 'source.table-caption', reason: '表の題名・参照・見出しの語で、患者の所見や測定値を含まないため除外。配下の記録は別に分類。' };
+      return { ruleId: 'source.structure', reason: '資料の表題・節見出し・表の項目名で、患者の所見や測定値を含まないため除外。配下の記録は別に分類。' };
+    }
     function isSourceStructureText(str) {
       const t = String(str || '').normalize('NFKC').trim();
       if (isWorksheetInstructionText(t) || isTableCaptionOrHeaderText(t) || isGenericOtherPatientStatement(t)) return true;
@@ -432,7 +477,7 @@
 
     const FIELD_LABEL_KEYS = FIELD_LABELS.map(f => f.key).join('|');
     const FIELD_LABEL_MATCH_KEYS = Array.from(new Set([...FIELD_LABELS.map(f => f.key), ...Object.keys(FIELD_LABEL_HEADING_ALIASES)])).join('|');
-    const FIELD_LABEL_REGEX_SOURCE = `(?:^|[、。\\s])(${FIELD_LABEL_MATCH_KEYS})(?!・)(?!として|について)(?:[:：]\\s*|は)?`;
+    const FIELD_LABEL_REGEX_SOURCE = `(?:^|[、。\\s])(${FIELD_LABEL_MATCH_KEYS})(?!・)(?!として|について)(?:[:：]\\s*|は|(?=なし|無し|あり|有り|特に|とくに|特記|不明)|(?![ぁ-ゟ゠-ヿ一-鿿]))`;
 
     const FIELD_LABEL_DEFAULT_TAGS = {
 

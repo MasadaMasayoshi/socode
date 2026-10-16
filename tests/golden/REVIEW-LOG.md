@@ -39,3 +39,6 @@ No golden change. The new split applies only to a card holding a staff explanati
 
 ## 2026-10-16 (v.105) broken-text detection / OCR
 No golden change expected (detector and OCR post-processing do not touch classification).
+
+## 2026-10-16 (v.106) wrapped duplicates / broken tables / history labels
+No golden change after the final adjustments (a section-marker heading is never a broken fragment; the history label runs past the first period only when later age-marked events follow). Golden was run, not updated.

@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.105'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.106'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -1098,17 +1098,17 @@
     let sufficiencyAiRunning = false;
 
     const SUF_NEG_AFTER = '(?:[^、。,]{0,6})(?:なし|ない|無|訴えず|みられず|見られず|認めず|なく|ありません)';
-    const SUF_UNMET_CUES = ['痛み|疼痛|創痛|痛い|NRS\\s*[:：]?\\s*[3-9]|ペインスケール\\s*[「:：]?\\s*[3-9]', '眠れ[なず]|不眠|睡眠(?:不足|障害)|寝つけ', '全介助|要介助|介助(?:が必要|を要|にて|で)|見守りが必要|できない|困難|不可|禁止|制限', '不安|怖い|恐怖|心配|戸惑|情けない|申し訳', '食欲(?:低下|不振|がない|ない)|摂取量(?:半分|減)|半分のみ|おなかすかない|嘔気|嘔吐', '排便(?:なし|なく)|便秘|下痢|腹部膨満|お腹が張', 'べたべた|べたつき|気持ちが悪い|汚れ|悪臭|掻痒', '発赤|腫脹|熱感|発熱|排膿|浮腫|褥瘡', '呼吸困難(?:感)?(?:あり|を訴)|息苦しい|息切れ|チアノーゼ|喘鳴|SpO2\\s*[:：]?\\s*(?:[0-8]\\d|9[0-3])\\s*%', '転倒|ふらつき|不安定|せん妄|不穏|混乱|拒否', '体温[^\\d。、]{0,3}3[89]|3[89](?:\\.\\d)?\\s*度', '[↑↓]', '(?:旅行|趣味|外出|散歩|余暇)[^。]{0,20}(?:したい|できず|できない|行けない|行きたい)|早く治して', '(?:わから|分から)ない|教えて(?:ほしい|欲しい|ください)|大丈夫(?:か|なの|でしょうか)|ずれ(?:たり)?しないか|気を付け(?:れば|ること)', '仕事[^。]{0,10}(?:できない|できず|休)|復職[^。]{0,10}(?:不安|心配|難)|働けな', '体重[^。、]{0,8}(?:減|低下)|[0-9.]+\\s*kg\\s*(?:減|低下)|やせ|朝食[^。、]{0,6}(?:抜|食べない|とらない|欠食|ほとんど食べ)|欠食|野菜嫌い|嫌い|苦手|外食|早食い|偏食|短時間で済ま|早く食べ', '難聴|聞こえ(?:にくい|ない|が悪)|聴力(?:低下|障害)|(?:説明|話|内容)[^。、]{0,8}(?:ほとんど|あまり)?伝わ(?:らない|りにくい)|意思疎通(?:が)?(?:困難|難しい|図れ(?:ない|ず))|失語|構音障害'];
-    const SUF_MET_CUES = ['自立|自力|自分で|一人で|問題なし|良好|清明|規則的|正常|普通食|常食|整|障害なし|異常なし|理解(?:力)?(?:あり|良好)|前向き|頑張|楽しみ|きれい好き', '睡眠[^\\d。、]{0,3}[6-9](?:\\s*[~〜～-]\\s*[6-9])?\\s*時間|眠れた|よく眠れ', '食欲(?:良好|あり)|全量摂取|摂取量\\s*(?:良好|十分)', 'SpO2\\s*[:：]?\\s*(?:9[4-9]|100)\\s*%', 'ペインスケール\\s*[「:：]?\\s*[0-2]|NRS\\s*[:：]?\\s*[0-2](?!\\d)|痛みなし|疼痛なし', '体温[^\\d。、]{0,3}(?:3[67]|35\\.[5-9])', '排便\\s*[:：]?\\s*\\d\\s*回/日|排尿\\s*[:：]?\\s*\\d+\\s*回/日', '呼吸困難感(?:の)?訴えなし|肺Air入り(?:が)?良好', '意思疎通(?:は)?(?:良好|可能|図れ)|言葉にで|希望を(?:伝え|話)|質問(?:が)?でき|ナースコール[^。]{0,6}(?:使用|押|できる)|コミュニケーション[^。]{0,6}(?:良好|障害なし)', '理解(?:力)?(?:が)?良好|現状認識(?:が)?良好|理解できて|理解している', '(?:旅行|趣味|友人|外出)[^。]{0,12}(?:楽しむ|楽しん|行って|している)', '信仰[^。]{0,8}なし|宗教[^。]{0,8}なし|特別な宗教', '(?:RR|呼吸数)[^\\d。、]{0,3}(?:1[2-9]|20)(?!\\d)|%(?:VC|肺活量)\\s*(?:[89]\\d|1\\d\\d)|胸部[^。、]{0,8}(?:明らかな)?(?:異常|病変)[^。、]{0,4}(?:なし|認めず|ない)|呼吸困難(?:感)?(?:は)?(?:なし|ない|無)', '趣味|テニス|ゴルフ|ジム|ウォーキング|ジョギング|旅行|友人[^。]{0,6}(?:会|食事)'];
+    const SUF_UNMET_CUES = ['痛み|疼痛|創痛|痛い|NRS\\s*[:：]?\\s*[3-9]|ペインスケール\\s*[「:：]?\\s*[3-9]', '眠れ[なず]|不眠|睡眠(?:不足|障害)|寝つけ', '全介助|要介助|介助(?:が必要|を要|にて|で)|見守りが必要|できない|困難|不可|禁止|制限', '不安|怖い|恐怖|心配|戸惑|情けない|申し訳', '食欲(?:低下|不振|がない|ない)|摂取量(?:半分|減)|半分のみ|おなかすかない|嘔気|嘔吐', '排便(?:なし|なく)|便秘|下痢|腹部膨満|お腹が張', 'べたべた|べたつき|気持ちが悪い|汚れ|悪臭|掻痒', '発赤|腫脹|熱感|発熱|排膿|浮腫|褥瘡', '呼吸困難(?:感)?(?:あり|を訴)|息苦しい|息切れ|チアノーゼ|喘鳴|SpO2\\s*[:：]?\\s*(?:[0-8]\\d|9[0-3])\\s*%', '転倒|ふらつき|不安定|せん妄|不穏|混乱|拒否', '体温[^\\d。、]{0,3}3[89]|3[89](?:\\.\\d)?\\s*度', '[↑↓]', '(?:旅行|趣味|外出|散歩|余暇)[^。]{0,20}(?:したい|できず|できない|行けない|行きたい)|早く治して', '(?:わから|分から)ない|教えて(?:ほしい|欲しい|ください)|大丈夫(?:か|なの|でしょうか)|ずれ(?:たり)?しないか|気を付け(?:れば|ること)', '仕事[^。]{0,10}(?:できない|できず|休)|復職[^。]{0,10}(?:不安|心配|難)|働けな', '体重[^。、]{0,8}(?:減|低下)|[0-9.]+\\s*kg\\s*(?:減|低下)|やせ|朝食[^。、]{0,6}(?:抜|食べない|とらない|欠食|ほとんど食べ)|欠食|野菜嫌い|嫌い|苦手|外食|早食い|偏食|短時間で済ま|早く食べ', '難聴|聞こえ(?:にくい|ない|が悪)|聴力(?:低下|障害)|(?:説明|話|内容)[^。、]{0,8}(?:ほとんど|あまり)?伝わ(?:らない|りにくい)|意思疎通(?:が)?(?:困難|難しい|図れ(?:ない|ず))|失語|構音障害', '口(?:を)?き[かけ]な|一言二言|一言も|無表情|目も合わせ|黙り込|返事をしな|答えな[いか]|会話にならな|言葉をかわ(?:す)?こと(?:も)?できな'];
+    const SUF_MET_CUES = ['自立|自力|自分で|一人で|問題なし|良好|清明|規則的|正常|普通食|常食|整|障害なし|異常なし|理解(?:力)?(?:あり|良好)|前向き|頑張|楽しみ|きれい好き', '睡眠[^\\d。、]{0,3}[6-9](?:\\s*[~〜～-]\\s*[6-9])?\\s*時間|眠れた|よく眠れ', '食欲(?:良好|あり)|全量摂取|摂取量\\s*(?:良好|十分)|残さず(?:食べ|摂取)', 'SpO2\\s*[:：]?\\s*(?:9[4-9]|100)\\s*%', 'ペインスケール\\s*[「:：]?\\s*[0-2]|NRS\\s*[:：]?\\s*[0-2](?!\\d)|痛みなし|疼痛なし', '体温[^\\d。、]{0,3}(?:3[67]|35\\.[5-9])', '排便\\s*[:：]?\\s*\\d\\s*回/日|排尿\\s*[:：]?\\s*\\d+\\s*回/日', '呼吸困難感(?:の)?訴えなし|肺Air入り(?:が)?良好', '意思疎通(?:は)?(?:良好|可能|図れ)|言葉にで|希望を(?:伝え|話)|質問(?:が)?でき|ナースコール[^。]{0,6}(?:使用|押|できる)|コミュニケーション[^。]{0,6}(?:良好|障害なし)', '理解(?:力)?(?:が)?良好|現状認識(?:が)?良好|理解できて|理解している', '(?:旅行|趣味|友人|外出)[^。]{0,12}(?:楽しむ|楽しん|行って|している)', '信仰[^。]{0,8}なし|宗教[^。]{0,8}なし|特別な宗教', '(?:RR|呼吸数)[^\\d。、]{0,3}(?:1[2-9]|20)(?!\\d)|%(?:VC|肺活量)\\s*(?:[89]\\d|1\\d\\d)|胸部[^。、]{0,8}(?:明らかな)?(?:異常|病変)[^。、]{0,4}(?:なし|認めず|ない)|呼吸困難(?:感)?(?:は)?(?:なし|ない|無)', '趣味|テニス|ゴルフ|ジム|ウォーキング|ジョギング|旅行|友人[^。]{0,6}(?:会|食事)'];
 
     // v.101: a diagnosis name alone is not a finding and gives no verdict; only recorded symptoms/values do.
     const SUF_DISEASE_NAME_ONLY = /^(?:糖尿病|高血圧|脂質異常症|白内障|[^、。\s]{0,8}(?:がん|癌)|[^、。\s]{0,6}骨折|子宮筋腫|(?:陳旧性)?心筋梗塞|胃全摘|胃切除)$/;
-    const SUF_UNMET_SCOPE = [[4, 5, 6, 8, 13, 14], [5], null, [13], [2, 3], [3], [8], [7, 8], [1], [4, 9, 10, 13, 14], [7], null, [13], [14], [12], [2], [10]];
+    const SUF_UNMET_SCOPE = [[4, 5, 6, 8, 13, 14], [5], null, [13], [2, 3], [3], [8], [7, 8], [1], [4, 9, 10, 13, 14], [7], null, [13], [14], [12], [2], [10], [10]];
     const SUF_MET_SCOPE = [null, [5], [2], [1], [4, 5, 6, 8, 10, 12, 13, 14], [7], [3], [1], [10], [14], [13], [11], [1], [13]];
 
     const SUF_UNCERTAIN = /[？?]|かな$|かも|だっけ|だよね|んですね|でしょうか|ですか|分かりました|わかりました|大丈夫|問題ない|できる(?:かな|と思|はず)/;
     const SUF_DEVICE_SITE = /挿入部|刺入部|ドレーン|ルート|チューブ|カテーテル|ライン|創部|ガーゼ/;
-    const SUF_MET_DOMAIN = { 1: /呼吸|SpO2|酸素|咳|痰|喘鳴|息|チアノーゼ|肺|吸入|換気/, 8: /清潔|入浴|シャワー|清拭|洗髪|口腔|更衣|整容|皮膚|爪|歯|陰部|おむつ|オムツ|汚れ|保清|創|褥瘡|発赤/, 3: /排便|排尿|排泄|便|尿|トイレ|下痢|便秘|ガス|腸蠕動|オムツ|ポータブル|ADL/, 4: /歩行|移動|ADL|体位|寝返|離床|立位|座位|起き上|筋力|ふらつき|歩く|運動|テニス|スポーツ|自立/, 2: /食|摂取|嚥下|咀嚼|栄養|水分|飲/ };
+    const SUF_MET_DOMAIN = { 1: /呼吸|SpO2|酸素|咳|痰|喘鳴|息|チアノーゼ|肺|吸入|換気/, 8: /清潔|入浴|シャワー|清拭|洗髪|口腔|更衣|整容|皮膚|爪|歯|陰部|おむつ|オムツ|汚れ|保清|創|褥瘡|発赤/, 9: /環境|安全|転倒|転落|感染|事故|住居|居室|ベッド|設備|衛生|アレルギー|危険|防止|柵|ナースコール/, 3: /排便|排尿|排泄|便|尿|トイレ|下痢|便秘|ガス|腸蠕動|オムツ|ポータブル|ADL/, 4: /歩行|移動|ADL|体位|寝返|離床|立位|座位|起き上|筋力|ふらつき|歩く|運動|テニス|スポーツ|自立/, 2: /食|摂取|嚥下|咀嚼|栄養|水分|飲/ };
     function sufficiencyMetAllowed(clause, needId, speech) {
       if (speech || SUF_UNCERTAIN.test(clause)) return false;
       if (SUF_DEVICE_SITE.test(clause) && ![7, 8].includes(needId)) return false;
@@ -1197,7 +1197,8 @@
       if (!unmet && !met && needId === 10 && speech) {
         const q = (String(item.text || '').match(/「[^」]{4,}」/) || [String(item.text || '')])[0];
         if (/不安|心配|怖い|恐怖/.test(String(item.text || ''))) pending = { v: 'pending', hit: '不安を言葉にできている', clause: q.slice(0, 30) };
-        else met = { v: 'met', hit: '発言', clause: q.slice(0, 30) };
+        else if (/質問|たずね|尋ね|伝え|相談|お願い|頼|ありがとう|教えて|[?？]|ですか|でしょうか|かな[」。]/.test(q)) met = { v: 'met', hit: '発言', clause: q.slice(0, 30) };
+        // v.106: an emotional outburst or a feeling voiced is not evidence of communication ability by itself (no verdict from it)
       }
       if (isOrder) {
         // A treatment/order line is an intervention, not a patient state: only a stated problem may make it unmet, and it never shows 充足.
@@ -1290,7 +1291,7 @@
       if (pm) {
         const v = Number(pm[1]), g = SUF_CTX.ageGroup && typeof CHILD_VITAL_GUIDES !== 'undefined' ? CHILD_VITAL_GUIDES[SUF_CTX.ageGroup] : null;
         const lo = g ? g.pulse[0] : 60, hi = g ? g.pulse[1] : 100, ref = g ? `脈拍の基準（${g.label} ${lo}〜${hi}回/分）（参考基準）` : `脈拍の基準（${lo}〜${hi}回/分）（参考基準）`;
-        if (v >= 30 && v <= 220) [1, 4].forEach(need => {
+        if (v >= 30 && v <= 220) [1].concat(/起立|歩行|離床|体位|動作|運動|立位|座位|安静|臥床|歩く/.test(t) ? [4] : []).forEach(need => {
           if (v >= lo && v <= hi) out.push({ need, v: 'met', hit: pm[0].trim(), ref, supportOnly: true });
           else if (!g && (v > 120 || v < 50)) out.push({ need, v: 'unmet', hit: pm[0].trim(), ref });
           else out.push({ need, v: 'partial', hit: pm[0].trim(), ref });
@@ -1300,9 +1301,10 @@
       if (bp) {
         const s = Number(bp[1]), d = Number(bp[2]), hit = bp[0].trim(), ref = '血圧の基準（収縮期140未満かつ拡張期90未満。90未満または180以上は要対応）（参考基準）';
         if (s >= 60 && s <= 260 && d >= 30 && d <= 160 && s > d) {
-          if (s < 90 || s >= 180 || d >= 110) [1, 4].forEach(need => out.push({ need, v: 'unmet', hit, ref }));
+          const needs = [1].concat(/起立|歩行|離床|体位|動作|運動|立位|座位|安静|臥床|歩く|ふらつ/.test(t) ? [4] : []);
+          if (s < 90 || s >= 180 || d >= 110) needs.forEach(need => out.push({ need, v: 'unmet', hit, ref }));
           else if (s >= 140 || d >= 90) out.push({ need: 1, v: 'partial', hit, ref });
-          else [1, 4].forEach(need => out.push({ need, v: 'met', hit, ref, supportOnly: true }));
+          else needs.forEach(need => out.push({ need, v: 'met', hit, ref, supportOnly: true }));
         }
       }
       return out;
@@ -1322,8 +1324,11 @@
       // symptom words recorded in a card but not tagged for the need they inform (DISEASE_SYMPTOM_NEEDS); never from disease-general cards (excluded earlier)
       if (typeof DISEASE_SYMPTOM_NEEDS !== 'undefined') list.forEach(i => {
         if (i.fieldLabel || i.diseaseGeneral) return;
-        const t = typeof cpStripNegated === 'function' ? cpStripNegated(i.text) : nz(i.text);
-        DISEASE_SYMPTOM_NEEDS.forEach(([re, ids]) => { const m = t.match(re); if (m && !SUF_DISEASE_NAME_ONLY.test(m[0])) ids.forEach(need => { if (!(i.hendersonIds || []).includes(need)) out.push({ need, v: 'partial', hit: m[0], ref: '記録された症状と14項目の対応（参考）', id: i.id, fillOnly: true, tag: false, symptom: true }); }); });
+        const t0 = typeof cpStripNegated === 'function' ? cpStripNegated(i.text) : nz(i.text);
+        const t = String(t0).replace(/[^、。「」]{0,8}(?:は|も)(?:ほとんど|全く|まったく|特に|あまり)?(?:なく|ない|なし|みられず|認めず|認めない|なかった)/g, ' ');
+        // v.106: a symptom word inside a staff explanation/teaching sentence is not a finding of this patient
+        if (/(?:へ|に)[^。]{0,40}(?:説明|指導|オリエンテーション)(?:する|した|を行う|を行った|を受け)/.test(t)) return;
+        DISEASE_SYMPTOM_NEEDS.forEach(([re, ids]) => { const m = t.match(re); if (m && !SUF_DISEASE_NAME_ONLY.test(m[0]) && !(m[0] === '低血糖' && !/低血糖(?:症状)?(?:あり|が出現|を認め|を起こ|のため|により|で(?:搬送|受診|処置))/.test(t))) ids.forEach(need => { if (!(i.hendersonIds || []).includes(need)) out.push({ need, v: 'partial', hit: m[0] === '低血糖' ? (t.match(/低血糖(?:症状)?(?:あり|が出現|を認め|を起こ)/) || m)[0] : m[0], ref: '記録された症状と14項目の対応（参考）', id: i.id, fillOnly: true, tag: false, symptom: true }); }); });
       });
       return out;
     }
@@ -1582,10 +1587,11 @@
       });
       const num = re => { const m = t.match(re); return m ? Number(m[1]) : null; };
       // 呼吸: 充足 needs gas exchange AND comfortable breathing
-      const sp = num(/SpO2\s*[:：=]?\s*(\d{2,3})\s*%/i), rr = num(/(?:RR|呼吸数)\s*[:：=]?\s*(\d{1,2})(?!\d)/);
+      const sp = num(/SpO2\s*[:：=]?\s*(\d{2,3})\s*%/i), rr = num(/(?:RR|呼吸数)\s*[:：=]?\s*(\d{1,2})(?!\d)/) ?? num(/(?<![A-Za-z])呼吸\s*[:：=]?\s*(\d{1,2})\s*(?:回)?\s*[\/／]\s*(?:分|min)/);
       const comfort = /呼吸困難(?:感)?(?:の訴え)?(?:は)?(?:なし|ない|無)|息苦しさ(?:は)?(?:なし|ない)|呼吸音(?:は)?(?:清|正常|良好)|副雑音(?:なし|を認めず)|肺Air入り(?:が)?良好/.test(t);
       if (sp !== null && sp >= 95 && sp <= 100 && (comfort || (rr !== null && rr >= 12 && rr <= 20)) && !out.some(x => x.need === 1 && x.v === 'unmet')) out.push({ need: 1, v: 'met', hit: `SpO2 ${sp}%`, ref: 'SpO2 95%以上かつ呼吸困難なし／呼吸数12〜20（ガス交換と安楽な呼吸の両方）' });
-      if (rr !== null && rr > 20 && rr < 60 && /(?:RR|呼吸数)/.test(t) && sp === null) out.push({ need: 1, v: 'partial', hit: `呼吸数 ${rr}`, ref: '呼吸数が12〜20の外（判定保留。症状・SpO2と合わせて確認）' });
+      if (rr !== null && rr > 20 && rr < 60 && sp === null) out.push({ need: 1, v: 'partial', hit: `呼吸数 ${rr}`, ref: '呼吸数が12〜20の外（判定保留。症状・SpO2と合わせて確認）' });
+      if (rr !== null && rr >= 12 && rr <= 20 && sp === null) out.push({ need: 1, v: 'met', hit: `呼吸数 ${rr}`, ref: '呼吸数12〜20（記録された値のみ。他の所見と合わせて判断）', supportOnly: true });
       // 体温: 36.0〜37.2 充足（36.5〜37.2が基準、36.0〜37.4を通常域として偽の未充足を避ける）、37.3〜37.5 判定保留、37.5超または35.0未満 未充足
       const bt = t.match(/(?:体温|BT|KT)\s*[:：=]?\s*(3[3-9](?:\.\d)?|4[0-2](?:\.\d)?)/);
       if (bt) {

@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.105'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.106'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -277,7 +277,9 @@
         if (evidence.length) return set('classify', `家族のがんの記録と、同じ時期の本人の検診利用行動「${evidence[0].evidence}」が対応しています。健康管理行動の背景として14.学びへ関連付けます。`, '高', [14], ['家族の疾患を本人の疾患に置き換えず、検診を受けた行動と理解度の判定を分けてください']);
         return set('none', '家族の病歴として保持します。家族のがんや死亡だけでは、本人の疾患・悲嘆・学習行動は判断できません。', '高', [], ['本人の検診利用行動や気持ちが記録されている場合に、その明示された内容と関連付けてください']);
       }
+      if (item?.brokenSource) return set('none', '原文が壊れている可能性があります（語や文の途中から始まる／終わる行）。観察所見としては扱わず、復元候補は修正依頼に出ます。原文で確認してください。', '高', [], ['原文の元の文を確認し、全文の行があれば断片は重複として扱ってください']);
       if (isSourceStructureText(text) || isTestExplanationMemo(text.trim())) {
+        if (isGenericOtherPatientStatement(String(text).normalize('NFKC'))) return set('none', '一般的な説明で、患者個別の所見ではありません。説明の内容は資料として保持します。', '高', [], ['この患者に当てはまる記録か、原文の前後で確認してください']);
         return set('none', '資料の見出し・表構造・説明メモで、患者の観察所見ではありません。日時や項目の文脈は保持します。', '高', [], ['患者所見と分け、配下の数値・観察結果を除外しないでください']);
       }
       if (item?.fieldLabel === 'アレルギー' && /^(?:ない|なし)[。.]?$/.test(text.trim())) {

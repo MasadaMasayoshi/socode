@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.105'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.106'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -2237,7 +2237,7 @@
           fieldMatches.forEach((m, idx) => {
             const hardEnd = idx + 1 < fieldMatches.length ? fieldMatches[idx + 1].start : lSubText.length;
 
-            const periodIdx = m.key === '主訴' ? -1 : lSubText.indexOf('。', m.contentStart);
+            const periodIdx = (m.key === '主訴' || (m.key === '既往歴' && /\d{1,2}\s*歳(?:時|の時|より|頃|ごろ|で)/.test(lSubText.slice(m.contentStart, hardEnd)))) ? -1 : lSubText.indexOf('。', m.contentStart);
             const segmentEnd = (periodIdx !== -1 && periodIdx < hardEnd) ? periodIdx + 1 : hardEnd;
             const content = cleanExtractedPhrase(lSubText.slice(m.contentStart, segmentEnd).replace(/[、。]\s*$/, ''));
 
@@ -2669,7 +2669,7 @@
         else if (chunk.unnecessaryKind === 'lab-template') { ruleId = 'source.lab-template-row'; reason = '検査表の項目名・基準値・単位だけで測定値の無い行（未記入の様式の行）で、患者の所見ではないため除外。測定値のある行は別に検査値のカードにする。'; }
         else if (isReportMetadataLine(text)) { ruleId = 'source.report-metadata'; reason = '検査・報告書の見出しや末尾の事務情報（書類番号・施設名・担当医や診療科などの欄名・採取/受付/報告日・責任者・点数）で、患者の所見ではないため除外。'; }
         else if (isTestExplanationMemo(text, true)) { ruleId = 'source.incomplete-explanation'; reason = '検査の説明途中の文章で、患者の検査結果は書かれていないため除外。結果が別に記載されていれば、その結果は残す。'; }
-        else { ruleId = 'source.structure'; reason = '資料の表題・節見出し・表の項目名で、患者の所見や測定値を含まないため除外。配下の記録は別に分類。'; }
+        else { const sr = structureExclusionReason(text); ruleId = sr.ruleId; reason = sr.reason; }
       } else if (chunk.diseaseGeneral) { ruleId = 'source.disease-general-info'; reason = '疾患の一般的な症状の列挙の1項目。内容でタグを付けるが、この患者に認められた所見とは確認できないため、充足判定・看護計画・診断の根拠には使わない。'; }
       else if (isPatientIdentityLine(text)) { ruleId = 'background.identity'; reason = '氏名・年齢・性別を1枚の患者基本情報として保持。この紹介だけでは特定の欲求タグを付けない。'; }
       return ruleId ? { ruleId, reason, version: window.APP_FILE_VERSIONS['07'] } : null;
@@ -2828,7 +2828,7 @@
             const matches = sourceCards.filter(i => i.type === 'unnecessary' && rewriteNorm(i.text) === rewriteNorm(item.text));
             if (new Set(matches.map(i => i.timestamp)).size === 1) item.timestamp = matches[0].timestamp;
           }
-          item.ruleCorrectionReason = '原文で確認した資料の見出し・表構造・説明メモ。患者所見から除外し、原文とカードIDを保持。';
+          item.ruleCorrectionReason = (isGenericOtherPatientStatement(String(item.text || '').normalize('NFKC')) ? structureExclusionReason(item.text).reason : '原文で確認した資料の見出し・表構造・説明メモ。患者所見から除外し、原文とカードIDを保持。');
           item.ruleTagUpdatedAt = now; item._touchedAt = now; updated++; return;
         }
         if (!original || original.type === 'unnecessary' || !original.hendersonIds.length) return;
@@ -2855,14 +2855,30 @@
     }
     // A short, unterminated, untagged card whose text is contained in another card is a wrapped-line fragment, not a separate fact.
     function markWrappedLineFragments(list, src) {
-      const lines = String(src || '').split(/\r?\n/).map(l => l.trim().replace(/^(?:\d{1,2}\s*[:：]\s*\d{2}|[〇○◯・●■◆▶\-－|｜\s])+/, '')).filter(Boolean);
+      const norm = x => String(x || '').replace(/\s+/g, '');
+      const lines = String(src || '').split(/\r?\n/).map(l => l.trim().replace(/^(?:\d{1,2}\s*月\s*\d{1,2}\s*日(?:[（(][^）)]*[）)])?\s*[:：]?|\d{1,2}\s*[:：]\s*\d{2}|[〇○◯・●■◆▶\-－|｜\s])+/, '')).filter(Boolean).map(norm);
+      const others = (item, v) => { const full = norm(item.text).length; return lines.some(l => l.length > full && l.includes(v)) || list.some(o => o !== item && norm(o.text).length > full && norm(o.text).includes(v)); };
       list.forEach(item => {
         const t = String(item.text || '').trim();
-        if (item.isUnnecessaryBoilerplate || item.fieldLabel || item.diseaseGeneral || (item.hendersonIds && item.hendersonIds.length) || t.length < 5 || t.length > 24 || /[0-9\[\]【】。」）)！？!?]/.test(t)) return;
-        if (lines.some(l => l.length > t.length && l.includes(t)) || list.some(o => o !== item && String(o.text || '').length > t.length && String(o.text).includes(t))) { item.isUnnecessaryBoilerplate = true; item.type = 'unnecessary'; }
+        if (item.isUnnecessaryBoilerplate || item.fieldLabel || item.diseaseGeneral || (item.hendersonIds && item.hendersonIds.length) || t.length < 5 || t.length > 30 || /[0-9\[\]【】。」）)！？!?]/.test(t)) return;
+        const n = norm(t);
+        // v.106: the fragment may be cut anywhere (also by a lost leading/trailing character, e.g. a masked name): contained as is, or without its first or last 1-2 characters
+        const variants = [n, n.slice(1), n.slice(0, -1), n.slice(0, -2)].filter(v => v.length >= 6);
+        if (variants.some(v => others(item, v))) {
+          item.isUnnecessaryBoilerplate = true; item.type = 'unnecessary';
+          item.ruleDecision = { ruleId: 'source.wrapped-duplicate', version: window.APP_FILE_VERSIONS['07'], reason: '折り返しで切れた断片で、同じ文が原文の別の行に全文あるため除外（全文の行は残す）。原文の位置は保持。' };
+          return;
+        }
+        // not contained anywhere and cut mid-phrase: an unclassifiable broken-source card, not an observation
+        if (/^[〇○◯■◆▶]/.test(t)) return; // a section marker line is a heading, not a cut line
+        if (BROKEN_CONT_END_REGEX.test(t) || BROKEN_CONT_START_REGEX.test(t)) {
+          item.type = 'unclassified'; item.brokenSource = true;
+          item.ruleDecision = { ruleId: 'source.broken-fragment', version: window.APP_FILE_VERSIONS['07'], reason: '原文が壊れている可能性（語や文の途中で始まる／終わる行）。観察所見としては扱わず、復元候補は修正依頼に出力。' };
+        }
       });
       return list;
     }
+
 
     // v.103: one card that mixes staff explanation, patient speech, observation and intervention is split by meaning at sentence ends and at a closing quote followed by a new
     // narrative clause (never inside a quotation, word, unit or number). Each piece is classified again on its own; the wording of every piece is the exact source wording.
@@ -2916,6 +2932,39 @@
       return out;
     }
 
+    // v.106: pipe artifacts ("| ", "| |") from table text never stay in card text.
+    function stripPipeArtifacts(list) {
+      list.forEach(item => {
+        const t = String(item.text || '');
+        if (!t.includes('|')) return;
+        const c = t.replace(/^(?:\s*\|\s*)+/, '').replace(/(?:\s*\|\s*){2,}/g, ' ').replace(/\s*\|\s*$/, '').trim();
+        if (c && c !== t && !/\d\s*\|\s*\d/.test(t)) item.text = c;
+      });
+      return list;
+    }
+    // the table column a card came from decides S/O: staff actions and family reactions are O (observed), the patient's own quotation stays S
+    // A past-history item that only mentions teeth in an orthodontic/dental-treatment sense is not a hygiene finding: drop the 清潔 tag when no care/hygiene wording supports it.
+    function dropIncidentalHygieneTag(list) {
+      (list || []).forEach(c => {
+        if (!c || c.fieldLabel !== '既往歴' || !Array.isArray(c.hendersonIds) || !c.hendersonIds.includes(8)) return;
+        const t = String(c.text || '').normalize('NFKC');
+        if (/歯列矯正|矯正|ブラケット|抜歯|歯科治療/.test(t) && !/口腔|歯磨|歯みがき|義歯|入れ歯|う歯|虫歯|歯垢|歯肉|清潔|清拭|入浴|洗髪|皮膚|爪/.test(t)) c.hendersonIds = c.hendersonIds.filter(h => h !== 8);
+      });
+      return list;
+    }
+    function applyTableColumnRoles(list, roles) {
+      if (!roles || !roles.length) return list;
+      const norm = x => String(x || '').replace(/\s+/g, '');
+      list.forEach(item => {
+        const t = norm(item.text); if (!t) return;
+        const hit = roles.find(r => r.role && norm(r.text).includes(t));
+        if (!hit) return;
+        item.tableColumn = hit.role;
+        if ((hit.role === 'staff' || hit.role === 'family') && item.type === 's') item.type = 'o';
+        if (hit.role === 'staff' && !(item.hendersonIds || []).length && item.type !== 'unnecessary' && /説明|指導|オリエンテーション/.test(item.text)) item.hendersonIds = [14];
+      });
+      return list;
+    }
     // Each card keeps where its exact text sits in the (HTML-cleaned) source: srcStart/srcEnd (end exclusive). Cards whose text was normalised and cannot be found stay without offsets.
     function attachSourceOffsets(list, src) {
       const taken = [];
@@ -2932,7 +2981,8 @@
     function quotedNow(str, m) { const pre = str.slice(0, m.index); return (pre.match(/「/g) || []).length > (pre.match(/」/g) || []).length && !/[:：]/.test(m[0]); }
 
     function classifyTextByRules(text) {
-      const src = stripHtmlArtifacts((text || '').trim().normalize('NFKC')).trim();
+      const tableNorm = normalizeBrokenTableRows((text || '').trim().normalize('NFKC'));
+      const src = stripHtmlArtifacts(tableNorm.text).trim();
       const out = [];
 
       withExtractionContext(src, () => groupClinicalPhrasesWithTimestamps(src).forEach(chunk => {
@@ -2941,7 +2991,7 @@
         const { detectedHIds, predictedType } = computeLocalTagsAndType(chunk, cleanedText, null);
         out.push({ text: cleanedText, timestamp: chunk.timestamp || '日時不明', type: predictedType, hendersonIds: detectedHIds.slice().sort((a, b) => a - b), fieldLabel: chunk.fieldLabel || null, ruleDecision: automaticRuleDecision(chunk, cleanedText, predictedType), ...(chunk.diseaseGeneral ? { diseaseGeneral: true } : {}), ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.soMixed ? { soMixed: true } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}) });
       }));
-      return attachSourceOffsets(splitMixedSpeechCards(markWrappedLineFragments(removeCoveredCompositeCards(applyFamilyScreeningContext(applyPainContextTags(applySceneTagInheritance(out)))), src)), src);
+      return attachSourceOffsets(dropIncidentalHygieneTag(applyTableColumnRoles(stripPipeArtifacts(splitMixedSpeechCards(markWrappedLineFragments(removeCoveredCompositeCards(applyFamilyScreeningContext(applyPainContextTags(applySceneTagInheritance(out)))), src))), tableNorm.roles)), src);
     }
 
     function manualClassificationLineage(item, path = new Set()) {

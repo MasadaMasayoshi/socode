@@ -1,7 +1,7 @@
 // Startup, references and image OCR. Validate image MIME/size; capture patient before async prompts.
 // Reference notes are not automatic classification rules; file versions detect mixed/reverted assets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = 'v.105'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = 'v.106'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -676,7 +676,7 @@
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    detectBrokenTextLines, brokenTextCorrectionText, repairOcrWrappedLines, postProcessOcrText, ocrOutputScore, ocrOutputLowQuality, stretchContrastData, OCR_PROMPT_CLINICAL, OCR_PROMPT_REFERENCE, OCR_PROMPT_RETRY_CLINICAL, OCR_PROMPT_RETRY_REFERENCE, OCR_MAX_SIDE,
+    detectBrokenTextLines, normalizeBrokenTableRows, brokenTextCorrectionText, repairOcrWrappedLines, postProcessOcrText, ocrOutputScore, ocrOutputLowQuality, stretchContrastData, OCR_PROMPT_CLINICAL, OCR_PROMPT_REFERENCE, OCR_PROMPT_RETRY_CLINICAL, OCR_PROMPT_RETRY_REFERENCE, OCR_MAX_SIDE,
     HENDERSON_NEEDS,
     DIAGNOSIS_TAG_HINTS,
     FIELD_LABELS,
@@ -728,7 +728,7 @@ if (typeof module !== 'undefined' && module.exports) {
     cleanSheetRecordText, sheetRecordItems, buildExportPlainText, EXPORT_SECTIONS, exportSectionOn, exportSelectionFromKeys, planEvaluationEntries, DISEASE_SYMPTOM_NEEDS, sufficiencySourceCandidates, drugCorrectionText, droppedEditsForCase, backgroundFactorName, peEvalStatus, peRepeatNeed, peLabSeriesWarnings, peQualityWarnings, peQualityText, buildPlanEvaluationText, buildPlanEvaluationHtml, htmlToPlainText, isUntouchedAiMissing, cleanAiText, notifyLostAiRequests, cardTextWithLabFlagsHtml, resetCardLabFlags, detectAgeGroupFromText,
     buildExportBodyHtml,
     findSourceHighlightRanges,
-    buildPatientBackupData, queueClassificationDelivery, flushClassificationDeliveries, buildSelectedCardsExportText, buildReviewRequestText, correctionRequestInstructionsText, backgroundFactorsText, sufficiencyJudgmentsText, reviewRequestTargets, isEditedCard, downloadTextBlob, chooseExportFile, clinicalCardDuplicateKey, currentRuleCardForSavedItem, hasCompleteSavedSourceCoverage,
+    buildPatientBackupData, queueClassificationDelivery, flushClassificationDeliveries, buildSelectedCardsExportText, buildCardsReportText, buildReviewRequestText, correctionRequestInstructionsText, backgroundFactorsText, sufficiencyJudgmentsText, reviewRequestTargets, isEditedCard, downloadTextBlob, chooseExportFile, clinicalCardDuplicateKey, currentRuleCardForSavedItem, hasCompleteSavedSourceCoverage,
     buildAssessmentTableText,
     describeAutoRewrite,
     mergeShortFragmentCards,
