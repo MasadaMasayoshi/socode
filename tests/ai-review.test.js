@@ -24,7 +24,9 @@ test('No AI review entry point remains in the board or the assessment table tool
 });
 
 test('The only remaining Gemini text calls are image transcription', () => {
-  const calls = src.match(/callGeminiAI\(\[\{ parts: \[\{ text: "[^"]{0,40}/g) || [];
+  const calls = src.match(/callGeminiAI\(\[\{ parts: \[\{ text: (?:"[^"]{0,40}|[A-Za-z_]+)/g) || [];
   assert.ok(calls.length >= 1);
-  calls.forEach(c => assert.match(c, /Transcribe/, c));
+  // v.105: the instruction is a named OCR prompt (all of them start with 'Transcribe') or a prompt variable fed only from those
+  calls.forEach(c => assert.match(c, /Transcribe|text: prompt$|text: OCR_PROMPT_/, c));
+  [app.OCR_PROMPT_CLINICAL, app.OCR_PROMPT_REFERENCE, app.OCR_PROMPT_RETRY_CLINICAL, app.OCR_PROMPT_RETRY_REFERENCE].forEach(p => assert.match(p, /^Transcribe /));
 });

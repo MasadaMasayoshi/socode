@@ -36,3 +36,6 @@ New structure rules (worksheet instructions, table captions/headers, generic sta
 
 ## 2026-10-16 (v.103) card segmentation
 No golden change. The new split applies only to a card holding a staff explanation (role + quotation, or 'staff ... explained'); a quotation-internal label word no longer becomes a field label.
+
+## 2026-10-16 (v.105) broken-text detection / OCR
+No golden change expected (detector and OCR post-processing do not touch classification).

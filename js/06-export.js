@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.104'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.105'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1053,6 +1053,24 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       if (cand.omitted) lines.push(`　　・分類前文章の未使用記録：他${cand.omitted}件省略`);
       return lines.length ? '\n【アプリの充足状態の判定】項目ごと・時期ごとの現在の判定と理由（アプリの表示・書き出しと同じ文章）、根拠カード、不足情報（原文と比べて、判定の妥当性を評価してください。氏名は含めません）\n' + lines.join('\n') + '\n' : '';
     }
+    // v.105: lines of the source that look broken, with neighbouring lines and a rule-based restoration candidate (推定・要確認). The source itself is never changed.
+    function brokenTextCorrectionText(cp) {
+      if (!cp || typeof detectBrokenTextLines !== 'function') return '';
+      const names = typeof krNames === 'function' ? krNames(cp) : [];
+      const mask = t => names.reduce((acc, n) => acc.split(n).join('(患者)'), String(t || ''));
+      const cut = (t, n = 80) => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n) + '…' : t; };
+      const found = detectBrokenTextLines(cp.sourceText || '', { max: 20 });
+      let out = '\n【壊れた文章の疑い（アプリの検出）】\n'
+        + 'Developer instruction: for each line below, compare it with the source record, infer the most likely original wording and report it as 推定復元（推定・要確認）; keep 原文 untouched; say 確認不能 where it cannot be inferred; then fix the generic extraction/joining rule. Do not add patient-specific rules.\n';
+      if (!found.length) return out + '　・壊れた疑いのある行は検出されませんでした（アプリの規則による検出。見落としがないかは原文で確認してください）\n';
+      found.forEach(f => {
+        out += `　・${f.line}行目｜原文：${mask(cut(f.text))}｜疑い：${f.reasons.join('／')}\n`;
+        if (f.prev) out += `　　前の行：${mask(cut(f.prev, 50))}\n`;
+        if (f.next) out += `　　次の行：${mask(cut(f.next, 50))}\n`;
+        out += f.candidate ? `　　推定復元（推定・要確認）：${mask(cut(f.candidate, 120))}｜根拠：${f.basis}｜確度：${f.confidence}\n` : '　　推定復元（推定・要確認）：確認不能｜確度：確認不能\n';
+      });
+      return out;
+    }
     function correctionRequestInstructionsText() {
       return [
         "",
@@ -1073,6 +1091,9 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         "【充足・未充足の評価】",
         "C. Sufficiency evaluation: also EVALUATE the app's sufficiency judgments (充足 / 未充足 / 判定保留 / 情報不足) per Henderson need and per phase (入院前／入院後), listed under 「アプリの充足状態の判定」 below, against the source record and the surrounding cards. For each verdict check: is it supported by the source; is any evidence card missing or wrongly used; is each 不足情報／確認したい情報 item truly missing in the source. Where a verdict is wrong, state the generic rule change that fixes it (no case-specific wording). Do not invent facts; write 確認不能 where the evidence is absent. Do not reword the existing sufficiency sentences. Also review the 分類前文章-based candidates listed under each phase (「分類前文章の未使用記録（判断基準の追加候補）」) and add generic judgment criteria (cue words / values / scales) for 基準に未登録 items and fix the tagging for 判定に未使用 items; judgments must still end with a definite verdict (…充足している／未充足である／判定保留／情報不足), the sentence wording must not be changed except per the user's rule, and no patient-specific wording may be added. Judgments are comprehensive per phase (入院前／入院後, and 術前／術後 for surgical patients): all recorded findings of that phase are weighed together, the wording is chosen to fit the evidence (e.g. 「<所見・数値>は〜であるが、<補う記録>なので…」 for compensated mixed evidence, a plain 「〜のため…」 for one-sided evidence, what to confirm for 判定保留), and the sentence always ends with a definite verdict (充足している／未充足である／判定保留／情報不足) that matches the label — check that a problematic value is only outweighed by a recorded compensating fact, and that a normal value does not hide a recorded problem. Check that each 充足 verdict shows a recorded basis (a value or an observation; 'no problem' without evidence is 情報不足), and for each 未充足 give a cause hint (体力 / 意思力 / 知識 shortfall) and keep the need-specific judgment (ADL independence does not make self-management 充足). Do not evaluate goal deadlines or evaluation start points (「〇日後までに」「起点」 etc.); judge only sufficiency of information.",
         "",
+        "【壊れた文章の復元】",
+        "D. Broken source text: also check records whose source text is itself broken (lines that start or end in the middle of a word, wrapped-cell fragments repeated from another line, dropped or substituted characters, OCR/PDF artifacts, mojibake, numbers split from their units or digits, unbalanced quotes/brackets), listed under 「壊れた文章の疑い」 below. For each, INFER the most likely original wording and show it as a labelled restoration candidate: 原文 (untouched) and 推定復元（推定・要確認）, with the basis and a confidence (高／中／低); write 確認不能 where nothing can be inferred. Never silently replace the source and never present a candidate as a fact or as a clinical finding; cards and exports keep the source wording. Fix the underlying extraction/joining rules (js/03, js/07) generically so that wrapped lines are rejoined or dropped as duplicates when a rule justifies it; do not hard-code the sample's words. Add generic tests with synthetic broken lines and counterexamples (lines that look broken but are complete entries).",
+        "",
         "4. Preserve: repair untouched automatic saved cards without replacing IDs, source text, S/O, assessments or care plans. Preserve manual edits, learned decisions and approved『タグ不要』/『理由を了承』decisions; a correction request may challenge them, but never overwrite silently.",
         "5. Verify: test fresh classification, existing saved data after reload and append classification with duplicate records, plus displayed judgments and exported text, on the actual corrected code. Use the attached failure and positive/counterexamples; never derive expected answers from app output or hide failures. Check stale saved results, learning and asset/cache versions.",
         "6. Finish: report changed files, cause, before/after behavior, tests and unresolved ambiguities. If publication is authorized, push the tested commit to GitHub and verify the deployed code; do not claim completion from local-only edits or unverified deployment.",
@@ -1083,7 +1104,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const ids = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);
       const items = (cp.items || []).filter(i => ids.has(i.id));
       return buildCardsReportText(cp, items, sourceText, `修正依頼メモ：${cp.title}（選択したカード ${items.length}件）`, includeSourceText,
-        includeAssessment ? buildAssessmentTableText(cp, ids) : null, correctionRequestInstructionsText() + backgroundFactorsText(cp) + sufficiencyJudgmentsText(cp) + drugCorrectionText(cp) + (typeof genogramCorrectionText === 'function' ? genogramCorrectionText(cp) : ''));
+        includeAssessment ? buildAssessmentTableText(cp, ids) : null, correctionRequestInstructionsText() + backgroundFactorsText(cp) + sufficiencyJudgmentsText(cp) + drugCorrectionText(cp) + (typeof genogramCorrectionText === 'function' ? genogramCorrectionText(cp) : '') + brokenTextCorrectionText(cp));
     }
 
     function assessmentPeriodGroups(cp, col, list) {
@@ -1396,7 +1417,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       let out = `修正依頼：${cp.title}（手で編集したカード ${editedN}件・タグ未設定のカード ${untaggedN}件・不必要のカード ${unnecessaryN}件／書き出し ${items.length}枚）\n`;
       out += `出力日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
       out += `分類プログラム版: ${window.APP_FILE_VERSIONS?.['07'] || '確認不能'}／分類基準版: ${NOTEBOOK_CONTENT_VERSION_MARK}\n`;
-      out += correctionRequestInstructionsText() + backgroundFactorsText(cp) + sufficiencyJudgmentsText(cp) + drugCorrectionText(cp) + (typeof genogramCorrectionText === 'function' ? genogramCorrectionText(cp) : '');
+      out += correctionRequestInstructionsText() + backgroundFactorsText(cp) + sufficiencyJudgmentsText(cp) + drugCorrectionText(cp) + (typeof genogramCorrectionText === 'function' ? genogramCorrectionText(cp) : '') + brokenTextCorrectionText(cp);
       out += '【対象】タグ未設定・不必要・手編集のカード。誤りの証拠ではなく調査対象です。原文全体と同じ場面の前後を読み、安静時と動作時・昨日と本日を区別し、根拠があるものは分類ルールと分類基準を修正、不足は必要な確認事項を示してください。理由の記録がなければ「理由未記録」と明記します。除外は妥当なら根拠を示し、誤りなら分類処理と分類基準を修正してください。\n';
       const originalItems = sourceText && sourceText.trim() && typeof classifyTextByRules === 'function' ? classifyTextByRules(sourceText) : [];
       const dropped = droppedEditsForCase(cp, sourceText).slice(-30);

@@ -2,7 +2,7 @@
 // Confirmations and Undo verify the captured patient/target; local writes require full readback.
 // AI transport accepts image OCR only; classification and clinical generation stay local.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = 'v.104'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = 'v.105'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -730,6 +730,14 @@
         writeAiPending(readAiPending().filter(p => p.id !== pendingId));
       }
     }
+    // v.105: stricter transcription instructions. Every allowed instruction is listed in OCR_ALLOWED_INSTRUCTIONS below; no other text may be sent with an image.
+    const OCR_MAX_SIDE = 2400;
+    const OCR_RULES = ' Rules: copy every character exactly as written; keep the original line breaks and the row and column order of tables (one table row per line, cells separated by " | "); never summarize, translate, correct or add words; keep numbers, units, dates and times exactly as shown; write 〔判読不能〕 for any part you cannot read instead of guessing; do not add explanations.';
+    const OCR_PROMPT_CLINICAL = 'Transcribe all clinical notes and laboratory results in the image verbatim, in their original language. Return text only.' + OCR_RULES;
+    const OCR_PROMPT_REFERENCE = 'Transcribe all nursing reference text in the image verbatim, in its original language. Return text only.' + OCR_RULES;
+    const OCR_RETRY_NOTE = ' The first reading was incomplete or unclear: read the image again slowly, region by region from top to bottom and left to right, and do not skip small print, margins, table cells or the ends of lines.';
+    const OCR_PROMPT_RETRY_CLINICAL = OCR_PROMPT_CLINICAL + OCR_RETRY_NOTE;
+    const OCR_PROMPT_RETRY_REFERENCE = OCR_PROMPT_REFERENCE + OCR_RETRY_NOTE;
     async function callGeminiAIOnce(contents, options = {}) {
 
       const hasImage = Array.isArray(contents) && contents.some(c => (c.parts || []).some(p => p.inline_data || p.file_data));
@@ -739,7 +747,8 @@
 
       const OCR_ALLOWED_INSTRUCTIONS = new Set([
         'Transcribe all nursing reference text in the image verbatim, in its original language. Return text only.',
-        'Transcribe all clinical notes and laboratory results in the image verbatim, in their original language. Return text only.'
+        'Transcribe all clinical notes and laboratory results in the image verbatim, in their original language. Return text only.',
+        OCR_PROMPT_CLINICAL, OCR_PROMPT_REFERENCE, OCR_PROMPT_RETRY_CLINICAL, OCR_PROMPT_RETRY_REFERENCE
       ]);
       const hasOnlyOcrInstructions = textParts.length === 1 && OCR_ALLOWED_INSTRUCTIONS.has(textParts[0]);
       if (!hasOnlyOcrInstructions) throw new Error('OCR以外のAIへの依頼は許可されていません。');

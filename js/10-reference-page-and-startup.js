@@ -1,7 +1,7 @@
 // Startup, references and image OCR. Validate image MIME/size; capture patient before async prompts.
 // Reference notes are not automatic classification rules; file versions detect mixed/reverted assets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = 'v.104'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = 'v.105'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -89,13 +89,77 @@
     document.getElementById('btn-reference-ocr').addEventListener('click', e => { e.preventDefault(); referenceOcrInput.click(); });
     referenceOcrInput.addEventListener('change', e => { if (e.target.files[0]) doReferenceOcr(e.target.files[0]); e.target.value = ''; });
 
+    // ---- v.105: image reading quality (the only AI use: Gemini transcription, labelled "(API)"; classification stays local) ----
+    // pre-processing in the browser (size, orientation, contrast), a second pass when the first answer is poor, and local repair/flagging of the result.
+    function stretchContrastData(data, w, h) {
+      // luminance stretch between the 1st and 99th percentile; only when the range is narrow. Returns true when changed. (RGBA array)
+      const n = w * h; if (!n || !data || data.length < n * 4) return false;
+      const hist = new Uint32Array(256);
+      for (let i = 0; i < n; i++) { const o = i * 4; hist[Math.round(0.299 * data[o] + 0.587 * data[o + 1] + 0.114 * data[o + 2])]++; }
+      let acc = 0, lo = 0, hi = 255;
+      for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= n * 0.01) { lo = v; break; } }
+      acc = 0; for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc >= n * 0.01) { hi = v; break; } }
+      if (hi - lo >= 140 || hi - lo < 20) return false;
+      const k = 255 / (hi - lo);
+      for (let i = 0; i < n; i++) { const o = i * 4; for (let c = 0; c < 3; c++) data[o + c] = Math.max(0, Math.min(255, Math.round((data[o + c] - lo) * k))); }
+      return true;
+    }
+    async function prepareImageForOcr(file) {
+      const fallback = () => new Promise(resolve => { const r = new FileReader(); r.onerror = r.onabort = () => resolve(null); r.onload = e => resolve({ mime: file.type || 'image/jpeg', data: String(e.target.result).split(',')[1], prepared: false }); r.readAsDataURL(file); });
+      try {
+        if (typeof document === 'undefined' || typeof createImageBitmap !== 'function') return await fallback();
+        const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+        const scale = Math.min(1, OCR_MAX_SIDE / Math.max(bmp.width, bmp.height));
+        const w = Math.max(1, Math.round(bmp.width * scale)), h = Math.max(1, Math.round(bmp.height * scale));
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        const ctx = cv.getContext('2d'); ctx.drawImage(bmp, 0, 0, w, h);
+        const img = ctx.getImageData(0, 0, w, h), changed = stretchContrastData(img.data, w, h);
+        if (changed) ctx.putImageData(img, 0, 0);
+        if (scale === 1 && !changed && /^image\/(?:jpeg|png|webp)$/i.test(file.type || '')) return await fallback();
+        return { mime: 'image/jpeg', data: cv.toDataURL('image/jpeg', 0.92).split(',')[1], prepared: true };
+      } catch (e) { return await fallback(); }
+    }
+    function ocrOutputScore(text) {
+      const t = String(text || ''), body = t.replace(/\s+/g, '');
+      if (!body) return 0;
+      const unread = (t.match(/〔判読不能〕/g) || []).length, odd = (t.normalize('NFKC').match(new RegExp(BROKEN_MOJIBAKE_REGEX.source, 'g')) || []).length;
+      return body.length - unread * 25 - odd * 12;
+    }
+    function ocrOutputLowQuality(text) {
+      const t = String(text || ''), body = t.replace(/\s+/g, '').replace(/〔判読不能〕/g, '');
+      if (body.length < 8) return true;
+      const unread = (t.match(/〔判読不能〕/g) || []).length;
+      return unread >= 3 && unread * 12 > body.length;
+    }
+    // Wrapped lines are joined only when plainly continued (record of joins kept for the toast); suspicious lines are counted for the 修正依頼 list. Nothing else is changed.
+    function postProcessOcrText(text) {
+      const raw = String(text || '').replace(/\r/g, '').replace(/^```[a-z]*\n?|\n?```$/g, '').trim();
+      const fixed = repairOcrWrappedLines(raw);
+      const unread = (fixed.text.match(/〔判読不能〕/g) || []).length;
+      return { text: fixed.text, joins: fixed.joins.length, unread, suspect: detectBrokenTextLines(fixed.text, { max: 200 }).length };
+    }
+    async function ocrReadImageFile(file, kind) {
+      const prep = await prepareImageForOcr(file);
+      if (!prep || !prep.data) throw new Error('画像を読み込めませんでした');
+      const ask = prompt => callGeminiAI([{ parts: [{ text: prompt }, { inline_data: { mime_type: prep.mime, data: prep.data } }] }], { ocr: true });
+      const ref = kind === 'reference';
+      let best = await ask(ref ? OCR_PROMPT_REFERENCE : OCR_PROMPT_CLINICAL);
+      if (ocrOutputLowQuality(best)) {
+        try { const second = await ask(ref ? OCR_PROMPT_RETRY_REFERENCE : OCR_PROMPT_RETRY_CLINICAL); if (ocrOutputScore(second) > ocrOutputScore(best)) best = second; } catch (e) { /* keep the first answer */ }
+      }
+      const r = postProcessOcrText(best);
+      if (!r.text) throw new Error('文字起こし結果が空でした');
+      if (r.joins || r.unread || r.suspect) showToast(`文字起こしの後処理：折り返し${r.joins}行をつなぎ、〔判読不能〕${r.unread}か所、壊れた疑いの行${r.suspect}行（修正依頼に復元候補を出します）`, 'info', 6000);
+      return r.text;
+    }
+
     async function doReferenceOcr(file) {
       if (!(await requireApiKey('写真の文字起こし'))) return;
       showToast('画像から文字起こし中...', 'info');
       const reader = new FileReader();
-      reader.onload = async e => {
+      reader.onload = async () => {
         try {
-          const ocrText = await callGeminiAI([{ parts: [{ text: "Transcribe all nursing reference text in the image verbatim, in its original language. Return text only." }, { inline_data: { mime_type: file.type || "image/jpeg", data: e.target.result.split(',')[1] } }] }], { ocr: true });
+          const ocrText = await ocrReadImageFile(file, 'reference');
           if (!ocrText) throw new Error('文字起こし結果が空でした');
           referenceOcrPrefill = ocrText;
           openReferenceModal(null, ocrText);
@@ -439,7 +503,7 @@
         };
         reader.onload = async e => {
           try {
-            const ocrText = await callGeminiAI([{ parts: [{ text: "Transcribe all clinical notes and laboratory results in the image verbatim, in their original language. Return text only." }, { inline_data: { mime_type: file.type || "image/jpeg", data: e.target.result.split(',')[1] } }] }], { ocr: true });
+            const ocrText = await ocrReadImageFile(file, 'clinical');
             if (!ocrText) throw new Error('文字起こし結果が空でした');
             const target = globalAppData.patients.find(p => p.id === ocrPatientId);
             if (!target) throw new Error('文字起こしを頼んだ患者が見つかりません（削除された可能性があります）');
@@ -612,6 +676,7 @@
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    detectBrokenTextLines, brokenTextCorrectionText, repairOcrWrappedLines, postProcessOcrText, ocrOutputScore, ocrOutputLowQuality, stretchContrastData, OCR_PROMPT_CLINICAL, OCR_PROMPT_REFERENCE, OCR_PROMPT_RETRY_CLINICAL, OCR_PROMPT_RETRY_REFERENCE, OCR_MAX_SIDE,
     HENDERSON_NEEDS,
     DIAGNOSIS_TAG_HINTS,
     FIELD_LABELS,

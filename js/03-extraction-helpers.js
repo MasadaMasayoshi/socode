@@ -1,7 +1,7 @@
 // Local record extraction. Preserve source wording, units, timestamps and admission context.
 // Headings supply context; narrative numbers are not automatically laboratory measurements.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.104'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.105'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -284,6 +284,74 @@
         .replace(/<\s*\/?\s*(?:span|b|i|u|strong|em|font|a|td|th|small|sup|sub|mark|code|pre)\b[^>]*>/gi, ' ')
         .replace(/&nbsp;|&#160;/gi, ' ').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'").replace(/&amp;/gi, '&')
         .replace(/[ \t]{2,}/g, ' ');
+    }
+    // ---- v.105: broken source text (wrapped-cell fragments, dropped characters, OCR/PDF artifacts) ----------------------------------------------
+    // Local, rule-based. The source is never changed here: each finding carries the original line, the neighbouring lines and, only when a rule can
+    // justify it, a labelled restoration candidate (推定・要確認). Where nothing can be inferred the candidate is null (確認不能).
+    const BROKEN_TERMINAL_REGEX = /[。！？!?)）」』】〕:：;；.]$|\d\s*(?:%|％|mg|g|kg|mL|ml|L|cm|mm|回|度|℃|°C|mmHg|bpm|点|日|時|分|歳)?$/;
+    const BROKEN_CONT_END_REGEX = /(?:の|を|に|へ|が|は|も|や|と|で|から|まで|より|など|ため|ので|ながら|し|して|され|され、|、|・|[毎各約再未不非第当両諸])$/;
+    const BROKEN_CONT_START_REGEX = /^(?:[、。，．)）」』】〕ぁぃぅぇぉっゃゅょゎー゛゜]|(?:の|を|に|へ|が|は|も|と|で|から|まで|より|など|ため|ので|ながら|して|され|して)(?![一-龥ァ-ヶ]{0,1}[:：]))/;
+    const BROKEN_MOJIBAKE_REGEX = /[�□■◆◇▯]|[ÃÂ][\u0080-¿]|縺[぀-ヿ一-龥]|繧[぀-ヿ一-龥]|郢[぀-ヿ一-龥]|(.)\1{6,}|[?？]{3,}|[\u0000-\u0008\u000B\u000C\u000E-\u001F]/;
+    const BROKEN_STRUCT_START_REGEX = /^(?:[\d０-９]{1,2}[\/月:：.]|[【\[<＜(（●○◎■□・\-–—＊*▶▷◆◇※]|[^\s:：「」、。]{1,12}[:：]|\|)/;
+    function detectBrokenTextLines(text, opts) {
+      const lines = String(text || '').normalize('NFKC').split(/\r?\n/);
+      const max = (opts && opts.max) || 30;
+      const out = [];
+      const norm = x => String(x || '').replace(/\s+/g, '');
+      const nonEmpty = lines.map((t, i) => ({ t: t.trim(), i })).filter(x => x.t);
+      const bal = t => ({ q: (t.match(/「/g) || []).length - (t.match(/」/g) || []).length, b: (t.match(/[（(]/g) || []).length - (t.match(/[）)]/g) || []).length });
+      nonEmpty.forEach((ln, k) => {
+        const t = ln.t, prev = k ? nonEmpty[k - 1] : null, next = k + 1 < nonEmpty.length ? nonEmpty[k + 1] : null;
+        if (/^\|?\s*:?-{3,}/.test(t) || (typeof isSourceStructureText === 'function' && isSourceStructureText(t))) return;
+        const reasons = []; let cand = null, basis = '', conf = '';
+        const setCand = (c, b, cf) => { if (!cand && c) { cand = c; basis = b; conf = cf; } };
+        if (BROKEN_MOJIBAKE_REGEX.test(t)) reasons.push('文字化け・欠落記号・異常な文字の並び');
+        const b = bal(t);
+        if (b.q !== 0 || b.b !== 0) {
+          reasons.push('かっこ・引用の閉じ忘れ／開き忘れ');
+          if (next && bal(t + next.t).q === 0 && bal(t + next.t).b === 0) setCand(t + next.t, '次の行を連結するとかっこが閉じる', '中');
+          else if (prev && bal(prev.t + t).q === 0 && bal(prev.t + t).b === 0) setCand(prev.t + t, '前の行を連結するとかっこが閉じる', '中');
+        }
+        // short unterminated line contained in another line: a wrapped-cell fragment
+        if (t.length >= 4 && t.length <= 30 && !BROKEN_TERMINAL_REGEX.test(t)) {
+          const host = nonEmpty.find(o => o !== ln && o.t.length > t.length && norm(o.t).includes(norm(t)));
+          if (host) { reasons.push('他の行に含まれる断片（折り返しの重複）'); setCand(host.t, 'この行を含む別の行', '高'); }
+        }
+        // starts in the middle of a word/phrase
+        if (BROKEN_CONT_START_REGEX.test(t) && !BROKEN_STRUCT_START_REGEX.test(t)) {
+          reasons.push('語や文の途中から始まる');
+          if (prev && !BROKEN_TERMINAL_REGEX.test(prev.t)) setCand(prev.t + t, '前の行の続きとして連結', '中');
+        }
+        // ends in the middle of a phrase and the next line is not a new entry
+        if (next && t.length >= 6 && !BROKEN_TERMINAL_REGEX.test(t) && BROKEN_CONT_END_REGEX.test(t) && !BROKEN_STRUCT_START_REGEX.test(next.t)) {
+          reasons.push('文の途中で終わる（次の行に続く可能性）');
+          setCand(t + next.t, '次の行を連結', next.t.length <= 30 ? '中' : '低');
+        }
+        // number / unit split across lines
+        if (next && /\d\s*[.,，]?$/.test(t) && /^(?:\d|mg|g|kg|mL|ml|L|cm|mm|回|度|℃|%|％|mmHg|bpm|\/)/.test(next.t) && !BROKEN_STRUCT_START_REGEX.test(next.t)) {
+          reasons.push('数値と単位（または桁）が行をまたぐ');
+          setCand(t + next.t, '数値と続きを連結', '中');
+        }
+        if (/\d\s+\d{3}(?!\d)/.test(t) && !/\d{1,2}[\/:]\d/.test(t)) reasons.push('数値の桁の間に空白');
+        if (!reasons.length) return;
+        out.push({ line: ln.i + 1, text: t, reasons, prev: prev ? prev.t : '', next: next ? next.t : '', candidate: cand, basis, confidence: cand ? conf : '確認不能' });
+      });
+      return out.slice(0, max);
+    }
+    // Conservative join for OCR output: only a line that stops in the middle of a phrase and a next line that is plainly its continuation. Returns the text and a record of every join.
+    function repairOcrWrappedLines(text) {
+      const lines = String(text || '').split(/\r?\n/);
+      const out = [], joins = [];
+      for (let i = 0; i < lines.length; i++) {
+        let cur = lines[i];
+        while (i + 1 < lines.length) {
+          const t = cur.trim(), n = lines[i + 1].trim();
+          if (!t || !n || t.length < 6 || /^\|/.test(t) || BROKEN_TERMINAL_REGEX.test(t) || !BROKEN_CONT_END_REGEX.test(t) || BROKEN_STRUCT_START_REGEX.test(n) || n.length > 40) break;
+          joins.push({ from: t, next: n }); cur = t + n; i++;
+        }
+        out.push(cur);
+      }
+      return { text: out.join('\n'), joins };
     }
     function isSourceStructureText(str) {
       const t = String(str || '').normalize('NFKC').trim();
