@@ -1841,3 +1841,13 @@ option:checked { background: var(--accent-soft); color: var(--accent-dark); font
   .nav-groups { flex-wrap: wrap !important; overflow: visible; row-gap: 4px; }
   .nav-grp { flex: 0 0 auto; }
 }
+
+/* --- v.116 long value runs as segments; compact card action row --- */
+.card-seg { display: inline-block; margin: 2px 4px 2px 0; padding: 1px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); line-height: 1.55; }
+.card-seg-sep { display: none; }
+.asc-actions { flex-wrap: nowrap; gap: 4px; }
+@media (hover: none) { .asc-actions { margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--line); } }
+.asc-actions button { min-width: 0 !important; min-height: 28px !important; height: 28px !important; }
+.asc-actions .icon-btn { width: 28px !important; }
+.asc-actions button[onclick^="setAssessmentCol"] { width: auto !important; padding: 0 9px !important; font-size: 11px !important; border-width: 1.5px !important; border-radius: 6px !important; }
+.asc-actions-sep { height: 18px; margin: 0 4px; }

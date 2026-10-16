@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.108'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.116'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1196,7 +1196,15 @@
       return cardLabFlagCache.get(itemId) || [];
     }
 
+    // presentation only: long comma-run values (labs, vitals) are shown as separate segments; the stored text is unchanged
+    function segmentLongValueRunHtml(html, plain) {
+      if (plain.length < 60 || (plain.match(/、/g) || []).length < 4 || !/\d/.test(plain)) return html;
+      return html.split('、').map((seg, i, a) => seg ? `<span class="card-seg">${seg}${i < a.length - 1 ? '<span class="card-seg-sep">、</span>' : ''}</span>` : '').join('');
+    }
     function cardTextWithLabFlagsHtml(item) {
+      return segmentLongValueRunHtml(cardTextWithLabFlagsRawHtml(item), String((item && item.text) || ''));
+    }
+    function cardTextWithLabFlagsRawHtml(item) {
       const text = String((item && item.text) || '');
       const flags = item && item.id ? cardLabFlagsFor(item.id) : [];
       if (!flags.length) return escapeHtml(text);
