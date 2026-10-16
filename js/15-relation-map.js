@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.134'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.135'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -3089,7 +3089,7 @@
         if (!cp || !(cp.items || []).some(i => i.type !== 'unnecessary')) return;
         if ((view === 'relation' || view === 'careplan') && !(cp.relationMap && cp.relationMap.nodes && cp.relationMap.nodes.length)) {
           const map = buildRelationMapFromRecord(cp);
-          if (map && map.nodes.length) rmCommit(cp, map, { pushUndo: false, render: false });
+          if (map && map.nodes.length) { try { rmImportClinicalEntities(map, cp); } catch (e) { /* keep the base map */ } rmCommit(cp, map, { pushUndo: false, render: false }); }
         }
         if (view === 'careplan' && cp.relationMap && typeof importCarePlansFromMap === 'function') {
           const fresh = importCarePlansFromMap(cp);

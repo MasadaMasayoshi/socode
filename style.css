@@ -1973,3 +1973,6 @@ html[data-theme="dark"] .rm-cl-prob{color:#5a1428}
 
 /* v.134 care plan: the two import buttons are automatic now */
 .cp-toolbar [onclick="buildCarePlansByRulesUI()"],.cp-toolbar [onclick="importCarePlansFromMapUI()"]{display:none}
+
+/* v.135 build/import buttons are automatic now (handlers kept) */
+[data-rm-action="build-rules"],[data-rm-action="import-clinical"],[data-gg-action="build"]{display:none}
