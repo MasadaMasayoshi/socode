@@ -72,5 +72,5 @@ test('instruction block C mentions the comprehensive per-phase judgement and the
   assert.match(t, /comprehensive per phase/);
   assert.match(t, /wording is chosen to fit the evidence/);
   assert.match(t, /always ends with a definite verdict/);
-  assert.match(app.NOTEBOOK_CONTENT_VERSION_MARK, /改訂1[5-9]$/);
+  assert.match(app.NOTEBOOK_CONTENT_VERSION_MARK, /改訂(?:1[5-9]|2\d)$/);
 });

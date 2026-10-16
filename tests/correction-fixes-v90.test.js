@@ -79,5 +79,5 @@ test('6: background factors without a field label are named and listed', () => {
 });
 
 test('notebook revision advanced', () => {
-  assert.match(app.NOTEBOOK_CONTENT_VERSION_MARK, /改訂1[2-9]$/);
+  assert.match(app.NOTEBOOK_CONTENT_VERSION_MARK, /改訂(?:1[2-9]|2\d)$/);
 });

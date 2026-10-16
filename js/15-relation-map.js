@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.79'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.100'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -144,7 +144,16 @@
       { s: /炎症|神経障害|組織損傷/, t: /疼痛/, step: '痛みを感じる神経（侵害受容器）が刺激される', why: '' },
       { s: /疼痛|痛み/, t: /QOL|生活の質/, step: '睡眠・活動・気分に影響する', why: '' },
       { s: /予測不能|情報不足|説明不足/, t: /不安/, step: '先の見通しが立たず、脅威に感じる', why: '' },
-      { s: /不安/, t: /睡眠|集中|意思決定|セルフケア/, step: '緊張が続き、眠れない・考えがまとまらない', why: '「不安あり」で終わらせず、内容と程度を確認する' }
+      { s: /不安/, t: /睡眠|集中|意思決定|セルフケア/, step: '緊張が続き、眠れない・考えがまとまらない', why: '「不安あり」で終わらせず、内容と程度を確認する' },
+      // v.100 (2026-10-16d, 出典未確認): conditional chains only; 診断名・在宅療法 have no causal chain in the source.
+      { s: /上気道感染|感冒|風邪/, t: /中耳炎/, step: '耳管を通って中耳に病原体が及ぶことがある', why: '' },
+      { s: /中耳炎/, t: /耳痛|耳閉塞感|鼓膜の膨隆/, step: '中耳に滲出液がたまり、鼓膜が内側から押されることがある', why: '' },
+      { s: /注射針の使い回し|単位(?:の)?(?:誤り|間違)/, t: /低血糖|高血糖/, step: 'インスリンの効き方が過不足になることがある', why: '' },
+      { s: /(?:指導|支援|説明)(?:の)?不足/, t: /セルフケア行動の停滞|血糖コントロール不良/, step: '自己管理の行動が進まず、血糖の管理が乱れることがある', ctx: /糖尿病|インスリン|血糖/, why: '' },
+      { s: /嘔吐|水様(?:性)?下痢/, t: /脱水|電解質異常/, step: '水分と電解質が失われる', ctx: /胃腸炎|嘔吐下痢|ロタ|ノロ/, why: '' },
+      { s: /インスリン(?:の)?(?:投与不足|中断|不足|欠乏)/, t: /高血糖|ケトン|アシドーシス/, step: '糖が使えず、脂肪の分解が進んでケトン体が増えることがある', why: '' },
+      { s: /インスリン(?:の)?過剰|過量投与/, t: /低血糖/, step: 'インスリンに対して糖が足りなくなることがある', why: '' },
+      { s: /ケトン体(?:の)?(?:蓄積|増加)|ケトアシドーシス/, t: /脱水|電解質異常|意識障害/, step: '浸透圧利尿で水分と電解質が失われることがある', why: '' },
     ];
     const RM_RELATIONS = [
       { key: 'causes', label: '原因 → 結果' },

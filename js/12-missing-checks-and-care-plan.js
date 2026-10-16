@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.80'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.100'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1267,6 +1267,51 @@
         [['退院後の服薬・創の管理・食事・再受診の目安を、自己管理できる形で説明すること', /服薬|創|食事|受診|自己管理/]])
     ];
     CARE_PLAN_KNOWLEDGE.push(...CPK_ROWS_79);
+
+    // v.100 (docs/research-notes/2026-10-16-insulin-diabetes.md): 中耳炎・インスリン皮下注射・セルフケア・診断名・在宅療法・嘔吐下痢症・インスリン・DKA・血糖自己測定。
+    // 各行の scope は適用範囲（その外には使わない）。出典欄が「未確認」の行は由来を明示する。数値の基準はこの回答にないため足さない。
+    const CPK_PROV100 = '深層調査 2026-10-16d（出典未確認）';
+    const CPK100_META = { edition: '2026-10-16d 深層調査メモ（docs/research-notes/2026-10-16-insulin-diabetes.md）', checked: '2026-10-16', next: '2027-10' };
+    const cp100 = (key, re, label, source, scope, op, tp, ep) => ({ key, re, label, source: [...source, CPK_PROV100], scope, ...CPK100_META, op, tp, ep });
+    const CPK_ROWS_100 = [
+      cp100('otitis-media-acute', /(?<!滲出性)(?<!慢性)中耳炎/, '急性中耳炎', ['看護roo!（急性中耳炎, 2018）'], '急性中耳炎のみ。滲出性・慢性中耳炎、外耳炎・内耳炎などの耳疾患には使わない',
+        [['体温・耳痛の訴え・鼓膜所見（発赤・膨隆・耳漏）、聴力や言語理解の変化', /体温|耳痛|鼓膜|発赤|膨隆|耳漏|聴力|言語|聞こえ/]],
+        [['鎮痛薬・抗菌薬・鼓膜切開排膿は医師の指示に応じて行い、安静と安眠の環境を整える', /鎮痛|抗菌|切開|指示|安静|安眠/]],
+        [['服薬を続けること、耳の清潔（入浴時に水が入らないように）、高熱や耳漏が増えたときは受診すること', /服薬|内服|清潔|入浴|水|高熱|耳漏|受診/]]),
+      cp100('insulin-injection-technique', /インスリン.{0,8}(?:皮下)?注射|自己注射|ペン型注射器|サイトローテーション|注射部位(?:の)?ローテーション/, 'インスリン皮下注射（手技）', ['日本糖尿病協会『インスリン自己注射ガイド』(2014)', '岸田裕治「インスリンの副作用と注意点」(2026)'], 'インスリンの皮下注射に限る。他の注射や経口療法には使わない',
+        [['血糖値と低血糖の徴候（冷汗・手の震え・動悸）、注射部位の皮膚所見', /血糖|低血糖|冷汗|震え|動悸|注射部位|皮膚/]],
+        [['器具の準備、目盛りと投与量の確認、針は使い捨てにして速やかに捨てる、注射部位を替える（サイトローテーション）', /器具|目盛り|投与量|針|廃棄|サイトローテーション|部位/]],
+        [['注射の手技とサイトローテーションを患者・家族に伝えること、低血糖時はブドウ糖など糖分をとる対処', /手技|サイトローテーション|低血糖|ブドウ糖|糖分/]]),
+      cp100('self-care-chronic', /セルフケア|(?:糖尿病|インスリン|血糖).{0,20}自己管理|自己管理.{0,20}(?:糖尿病|インスリン|血糖)/, 'セルフケア（自己管理が必要な慢性疾患）', ['中村伸枝編著『1型糖尿病のこどもと家族の生活 改訂3版』(2022)'], '1型糖尿病など自己管理が必要な慢性疾患。精神発達の障害などでセルフケアが難しい場合は個別に判断する',
+        [['血糖測定や注射など自己管理の行動と理解度、心理的な抵抗や不安', /血糖測定|注射|自己管理|理解|抵抗|不安/]],
+        [['できることに参加してもらい自立を促し、達成したことを認める', /参加|自立|褒|認め|意欲/]],
+        [['注射・測定・食事の方法と大切さ、低血糖時の対処と緊急連絡先、親には見守りと支援のポイント', /注射|測定|食事|低血糖|連絡先|見守り|支援/]]),
+      cp100('diagnosis-explained', /診断名.{0,10}(?:説明|告知|理解|伝え)|病名.{0,6}(?:説明|告知)/, '診断名の説明と理解', [], '特定の疾病に限らない。この行は出典が未確認で、因果の鎖はない。診断名そのものからは判定しない',
+        [['患者・家族の診断名の理解度と、動揺や拒否感などの様子', /理解|動揺|拒否|不安|受け止め/]],
+        [['診断の内容を分かりやすく説明し、不安には共感して支える', /説明|不安|共感|支え/]],
+        [['診断名の意味・経過・治療の必要性を伝え、質問に答える', /意味|経過|治療|質問/]]),
+      cp100('home-therapy', /在宅療法|在宅療養|退院後.{0,10}(?:自宅|在宅).{0,10}(?:インスリン|注射|血糖|療養|継続)/, '在宅療法（退院後の自宅での治療・管理）', [], '退院後に自宅で療養する患者。入院中の治療や通院だけの管理には使わない。この行は出典が未確認で、因果の鎖はない',
+        [['自宅での生活（血糖の記録・服薬や注射の状況・家族の支援）', /生活|血糖|記録|服薬|注射|家族|支援/]],
+        [['退院計画に沿って治療・検査を続け、訪問看護や外来の受診を調整する', /退院計画|治療|検査|訪問看護|外来/]],
+        [['家庭でのインスリンの投与方法・低血糖時の対応・自己管理の計画、生活リズムの整え方', /インスリン|投与|低血糖|自己管理|生活リズム/]]),
+      cp100('viral-gastroenteritis', /嘔吐下痢症|ウイルス性胃腸炎|急性胃腸炎|ロタウイルス|ノロウイルス/, '嘔吐下痢症（ウイルス性胃腸炎）', ['信愛記念病院小児科『「冬の嘔吐下痢症」の家庭看護』（年不明）'], '主にウイルス性胃腸炎。細菌性下痢症・食中毒など他の原因は別に扱う',
+        [['嘔吐・下痢の量、摂取した水分量、尿量、脱水の徴候（皮膚乾燥・眼球陥凹・体重減少）、バイタルサイン', /嘔吐|下痢|水分|尿量|脱水|皮膚|眼球|体重|バイタル|体温/]],
+        [['経口補水液などで水分と電解質を補う、解熱剤・制吐剤は医師の指示に応じて行う、手洗いなど感染予防', /補水|水分|電解質|解熱|制吐|指示|手洗い|感染/]],
+        [['こまめな水分補給と食事を少しずつ戻す方法、手洗いなどの感染予防、ぐったりする・尿が減るときは早めに受診すること', /水分|食事|離乳食|手洗い|ぐったり|尿量|受診/]]),
+      cp100('insulin-therapy', /インスリン/, 'インスリン療法', ['岸田裕治「インスリンの副作用と注意点」(2026)', '日本糖尿病学会『糖尿病治療ガイドライン2024』'], 'インスリン療法を行っているときのみ。経口血糖降下薬だけの2型糖尿病や、インスリンを使っていない人には使わない',
+        [['血糖値と、低血糖・高血糖の徴候（冷や汗・震え・動悸）、注射部位の皮膚の状態（紅斑・硬結）', /血糖|低血糖|高血糖|冷や?汗|震え|動悸|注射部位|皮膚|紅斑|硬結/]],
+        [['指示どおりの量を決められた時刻に投与する、緊急時に備えてブドウ糖などを用意する', /指示|投与|時刻|ブドウ糖|緊急/]],
+        [['作用時間と低血糖の症状、低血糖時の応急対処、注射部位の替え方、血糖自己測定の大切さ', /作用|低血糖|応急|部位|血糖自己測定|血糖測定/]]),
+      cp100('dka', /ケトアシドーシス|\bDKA\b|クスマウル|アセトン臭/, '糖尿病性ケトアシドーシス（DKA）', ['日本糖尿病学会『糖尿病診療ガイドライン2024』', '「ポンコツ看護師の勉強ログ」(2025)'], '1型糖尿病などインスリン欠乏による急性合併症。高血糖高浸透圧症候群（HHS）や乳酸アシドーシスは別の病態として扱う',
+        [['血糖値・尿ケトン体・血液ガス・電解質（特にカリウム）の動き、呼吸の様式（クスマウル呼吸）、意識レベル', /血糖|ケトン|血液ガス|pH|電解質|カリウム|K|呼吸|クスマウル|意識/]],
+        [['輸液・インスリンの持続静注・カリウムの補正は医師の指示に応じて行う', /輸液|インスリン|カリウム|補正|指示/]],
+        [['インスリンの中断・不足が原因になること、発熱や感染のとき（シックデイ）の自己管理、脱水や傾眠が見られたら早く受診すること', /インスリン|中断|不足|シックデイ|脱水|傾眠|受診/]]),
+      cp100('smbg', /血糖(?:自己)?測定|自己血糖測定|SMBG/, '血糖自己測定', [], '血糖の自己管理が必要な患者（インスリン療法中など）。追加提案であり、出典は示されていない',
+        [['測定の実施状況・記録・手技', /測定|記録|手技/]],
+        [['測定する時間と記録のしかたを一緒に確認する', /測定|時間|記録/]],
+        [['測定の方法と記録のしかた、低血糖・高血糖を早く見つけるための目的', /測定|記録|低血糖|高血糖/]])
+    ];
+    CARE_PLAN_KNOWLEDGE.push(...CPK_ROWS_100);
     function cpKnowledgeRowsFor(text) {
       const t = String(text || '').normalize('NFKC');
       return CARE_PLAN_KNOWLEDGE.filter(r => r.re.test(t));
@@ -2903,7 +2948,7 @@ if (typeof module !== 'undefined' && module.exports) {
     carePlanInlineNotes, captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
     cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf, collapseVitalCards, collapseLabCards,
-    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, krTerms, krNames, krIsMedicalTerm, CARE_PLAN_KNOWLEDGE, cpKnowledgeSuggestions, CP_HIGH_RISK_COMBOS, cpHighRiskCombos, cpStripNegated, cpEvidenceKind, krUnknownTerms, CPK_ROWS_79, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
+    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, krTerms, krNames, krIsMedicalTerm, CARE_PLAN_KNOWLEDGE, cpKnowledgeSuggestions, CP_HIGH_RISK_COMBOS, cpHighRiskCombos, cpStripNegated, cpEvidenceKind, krUnknownTerms, CPK_ROWS_79, CPK_ROWS_100, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
     cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, carePlanSetReviewHtml, carePlanSetState, carePlanSetNextSteps
   });
 }

@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.99'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.100'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -2480,6 +2480,8 @@
       [/胸部圧迫感|アナフィラキシー/, [1,9]],
       [/嚥下困難|むせ/, [1,2]],
       [/嘔吐|口渇/, [2,3]],
+      // v.100: symptom words only (a disease name alone is never a hint)
+      [/クスマウル/, [1]], [/アセトン臭|ケトン臭/, [1, 9]], [/耳漏|鼓膜(?:の)?(?:発赤|膨隆|穿孔)/, [9]],
       [/体重増加|低血糖/, [2,9]],
       [/血便|黒色便|乏尿|無尿|尿閉|排ガス停止/, [3,9]],
       [/腹水/, [3,4]],
