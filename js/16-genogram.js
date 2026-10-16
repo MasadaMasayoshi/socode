@@ -1,13 +1,13 @@
 // Genogram (家族構成図): built from the record, then editable. Mirrors the relation map pattern (auto build -> edit -> save with the patient -> export).
 // Kinship words are a built-in dictionary (内蔵辞書 2026-10-16（出典未確認）). Nothing is invented: only members, ages and notes written in the record are drawn.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.102'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.103'; // Version stamp (scripts/stamp-version.js)
 
     const GG_PROVENANCE = '内蔵辞書 2026-10-16（出典未確認）';
     // canonical key -> [role label, sex, generation, order within the row]
     const GG_KIN = {
       father: ['父', 'm', -1, 1], mother: ['母', 'f', -1, 2], fil: ['義父', 'm', -1, 3], mil: ['義母', 'f', -1, 4],
-      gfather: ['祖父', 'm', -2, 1], gmother: ['祖母', 'f', -2, 2],
+      gfather: ['祖父', 'm', -2, 1], gmother: ['祖母', 'f', -2, 2], gfatherP: ['祖父（父方）', 'm', -2, 1], gmotherP: ['祖母（父方）', 'f', -2, 2], gfatherM: ['祖父（母方）', 'm', -2, 3], gmotherM: ['祖母（母方）', 'f', -2, 4],
       brotherO: ['兄', 'm', 0, 1], sisterO: ['姉', 'f', 0, 2], brotherY: ['弟', 'm', 0, 5], sisterY: ['妹', 'f', 0, 6], sibling: ['きょうだい', 'u', 0, 5.5],
       wife: ['妻', 'f', 0, 4], husband: ['夫', 'm', 0, 4], spouse: ['配偶者', 'u', 0, 4], partner: ['パートナー', 'u', 0, 4],
       son1: ['長男', 'm', 1, 1], son2: ['次男', 'm', 1, 2], son3: ['三男', 'm', 1, 3], daughter1: ['長女', 'f', 1, 5], daughter2: ['次女', 'f', 1, 6], daughter3: ['三女', 'f', 1, 7],
@@ -36,16 +36,21 @@
     function ggTokens(sentence) {
       const out = [];
       GG_WORD_RE.lastIndex = 0;
-      let m;
+      let m, gp = null;
       while ((m = GG_WORD_RE.exec(sentence)) !== null) {
         const w = m[0], after = sentence.slice(m.index + w.length), before = sentence.slice(0, m.index);
         if (GG_AFTER_BAD[w] && GG_AFTER_BAD[w].test(after)) continue;
         if (GG_BEFORE_BAD[w] && GG_BEFORE_BAD[w].test(before)) continue;
-        // v.101: a side-qualified relative (母方の祖父母 / 父方の…) cannot be told apart from the other side in this chart, so it is not read as a member.
-        if (/(?:母方|父方)の?$/.test(before) && /^(?:祖父|祖母|祖父母|兄弟|姉妹|きょうだい)/.test(w)) continue;
         // v.101: generic child words need an explicit count (or a negation); talk about children in general is not a family member.
         if (/^(?:子ども|子供|こども|お子さん|お子様)$/.test(w) && !(/^(?:が|は|も)?\s*\d\s*人/.test(after) || /\d\s*人の$/.test(before) || GG_NEG.test(after))) continue;
-        const keys = [].concat(GG_WORDS.find(x => x[0] === w)[1]);
+        let keys = [].concat(GG_WORDS.find(x => x[0] === w)[1]);
+        // v.103: grandparents are told apart by side (父方の/母方の); a later 祖父/祖母 in the same list (e.g. in brackets) keeps the side. Without any side word the key stays unspecified.
+        if (/^(?:祖父|祖母|祖父母)$/.test(w)) {
+          let side = (/(父方|母方)の?$/.exec(before) || [])[1] || '';
+          if (!side && gp && m.index - gp.end <= 14 && !/[。]/.test(sentence.slice(gp.end, m.index)) && !/(?:母方|父方)/.test(sentence.slice(gp.end, m.index))) side = gp.side;
+          if (side) keys = keys.map(k => k + (side === '父方' ? 'P' : 'M'));
+          gp = side ? { side, end: m.index + w.length } : null;
+        } else if (gp && m.index - gp.end > 14) gp = null;
         out.push({ word: w, keys, index: m.index, end: m.index + w.length, after, before });
       }
       return out;
@@ -61,7 +66,7 @@
     function ggExtract(cp) {
       const sentences = ggSentences(cp);
       const people = new Map(), none = new Set(), order = [];
-      let generic = null;
+      let generic = null, householdSize = 0;
       const get = (key, extra) => {
         if (!people.has(key)) {
           const base = key.replace(/#\d+$/, ''), k = GG_KIN[base] || GG_KIN.other;
@@ -106,7 +111,7 @@
                 p.partner = p.partner || sp.id; src(sp, sent); keysHere.push(sp.id);
               }
               const a = new RegExp('^[^、。\\d]{0,4}?[（(]?(\\d{1,3})\\s*[歳才]').exec(t.after) || new RegExp('(\\d{1,3})\\s*[歳才](?:の|で)?$').exec(t.before.slice(-8));
-              if (a) p.age = Number(a[1]);
+              if (a && t.word !== '祖父母') p.age = Number(a[1]);
               else { const d = new RegExp('^[^、。\\d]{0,4}?(\\d0)代').exec(t.after); if (d) p.ageText = `${d[1]}代`; }
               if (/^(?:内縁)/.test(t.word)) p.partnerStatus = 'cohabiting';
             });
@@ -116,6 +121,8 @@
           if (!ids.length) {
             // a following clause that only adds a disease to the previous member ("父は糖尿病、高血圧")
             const dz = clause.match(GG_DISEASES);
+            // a following clause about distance/separation applies to the members of the previous clause ("母方の祖父母は健在だが、遠方のため…")
+            if (prevKeys.length && /遠方|遠く|離れて/.test(clause) && !/同居/.test(clause)) prevKeys.forEach(k => { const q = people.get(k); if (q && !q.living) q.living = '別居'; });
             if (dz && prevKeys.length === 1 && clause.trim().length <= 14 && !/本人|患者|教室|指導|診断|療養|入院|説明|治療/.test(clause)) dz.forEach(d => note(people.get(prevKeys[0]), d));
             return;
           }
@@ -128,7 +135,7 @@
             (tokIds[ti] || []).forEach(id => {
               const p = people.get(id); if (!p) return;
               (seg.replace(/(?:糖尿病|高血圧|がん|癌)(?=教室|指導|療養|療法|外来|病棟|食)/g, ' ').match(GG_DISEASES) || []).forEach(d => note(p, d));
-              const j = jseg.match(GG_JOBS); if (j && !new RegExp(j[0] + '(?:のため|なので|のた|ゆえ)').test(seg) && (!/^(?:看護師|医師)$/.test(j[0]) || new RegExp('^.{1,5}?(?:は|が)?.{0,3}' + j[0] + '(?:として|である|です|で働|をして|だ)').test(seg))) p.occupation = j[0];
+              const j = seg.match(GG_JOBS); if (j) { const jr = j[0]; if (new RegExp('^[^、。と]{0,3}[（(][^）)]{0,14}' + jr).test(seg) || new RegExp('^[^、。とのを]{1,4}(?:は|が|も)[^、。とのを]{0,5}' + jr + '(?!の|部|顧問)').test(seg)) { if (!/^(?:看護師|医師)$/.test(jr) || new RegExp('^.{1,5}?(?:は|が)?.{0,3}' + jr + '(?:として|である|です|で働|をして|だ)|[（(][^）)]{0,14}' + jr).test(seg)) p.occupation = jr; } }
             });
           });
           ids.forEach(id => {
@@ -149,11 +156,21 @@
           });
         });
         // "AとBと同居": a living-together clause covers the member words listed before it in the same sentence (unless the sentence is about death, illness or separation)
-        if (/同居|二人暮らし|2人暮らし/.test(sent) && !/別居|別世帯/.test(sent) && !GG_DECEASED.test(sent) && !GG_DISEASES.test(sent)) {
+        if (/同居|二人暮らし|[2-9二三四五六七八九]人暮らし/.test(sent) && !/別居|別世帯/.test(sent) && !GG_DECEASED.test(sent) && !GG_DISEASES.test(sent)) {
           GG_DISEASES.lastIndex = 0;
           toks.forEach(t => t.keys.forEach(k => { const p = people.get(k); if (p && !p.living && !GG_NEG.test(t.after)) p.living = '同居'; }));
         }
         GG_DISEASES.lastIndex = 0;
+        { const hs = /([2-9２-９]|[二三四五六七八九十])\s*人暮らし/.exec(sent); if (hs && !householdSize) householdSize = '二三四五六七八九十'.includes(hs[1]) ? '二三四五六七八九十'.indexOf(hs[1]) + 2 : Number(hs[1]); }
+        // v.103: a documented caring role ("祖母が、きょうだいの世話をしている") is kept as caregiver/support; it never makes a formal key person.
+        toks.forEach((t, ti) => {
+          if (GG_NEG.test(t.after) || /^(?:の|と|や)/.test(t.after)) return;
+          const nx = toks.slice(ti + 1).find(u => /^(?:が|は)/.test(u.after)), nextIdx = nx ? nx.index : sent.length;
+          const seg = sent.slice(t.end, nextIdx);
+          const cm = /^(?:が|は)[、，]?[^。]{0,24}?(?:([^。、]{1,10})の)?(?:世話|介護|面倒を見|付き添)(?:を|は)?(?:して|している|する|担)/.exec(seg);
+          if (!cm) return;
+          t.keys.forEach(k => { const q = people.get(k); if (!q) return; q.caregiver = true; src(q, sent); if (cm[1]) note(q, `${cm[1]}の世話の記載あり`); });
+        });
         // key person / caregiver statements ("キーパーソンは長男の妻")
         const kp = /キーパーソン(?:は|:|：)?\s*([^。、]*)/.exec(sent);
         if (kp && !/^(?:なし|不在|不明|未定)/.test(kp[1])) ggTokens(kp[1]).filter(t => !/^の(?:妻|夫|配偶者)/.test(t.after)).forEach(t => t.keys.forEach(k => {
@@ -181,6 +198,21 @@
       if (none.has('child')) Array.from(people.keys()).filter(k => /^(?:son|daughter|child)/.test(k) && !/^(?:son|daughter)[123]$/.test(k)).forEach(k => { if (people.get(k).src.every(s => /いない|なし|いません/.test(s))) people.delete(k); });
       if (none.has('sibling')) Array.from(people.keys()).filter(k => /^(?:sibling|brother|sister)/.test(k)).forEach(k => { if (people.get(k).src.every(s => /いない|なし|いません/.test(s))) people.delete(k); });
       if (none.has('spouse')) Array.from(people.keys()).filter(k => /^(?:wife|husband|spouse|partner)$/.test(k)).forEach(k => { if (people.get(k).src.every(s => /いない|なし|いません/.test(s))) people.delete(k); });
+      // v.103: an unspecified 祖父/祖母 is folded into the same-sex grandparent when the record leaves only one possible side (or only one side lives in the household); otherwise it stays separate and says the side is unknown.
+      [['gfather', 'gfatherP', 'gfatherM'], ['gmother', 'gmotherP', 'gmotherM']].forEach(([u, a1, b1]) => {
+        const q = people.get(u); if (!q) return;
+        const cand = [a1, b1].filter(k => people.has(k));
+        if (!cand.length) return;
+        const live = cand.filter(k => people.get(k).living === '同居');
+        const target = cand.length === 1 ? cand[0] : live.length === 1 ? live[0] : '';
+        if (target) {
+          const t = people.get(target);
+          q.notes.forEach(n => note(t, n)); q.src.forEach(x => src(t, x));
+          t.caregiver = t.caregiver || q.caregiver; t.keyPerson = t.keyPerson || q.keyPerson; t.deceased = t.deceased || q.deceased;
+          if (!t.occupation) t.occupation = q.occupation; if (t.age === null) t.age = q.age;
+          people.delete(u);
+        } else note(q, '父方・母方のどちらか不明（原文で確認）');
+      });
       let list = Array.from(people.values());
       if (!list.length && generic && !generic.alone) {
         const f = { id: 'family', role: '家族', sex: 'u', gen: 0, ord: 9, age: null, ageText: '', deceased: false, index: false, occupation: '', notes: [], living: /同居/.test(generic.s) && !/別居/.test(generic.s) ? '同居' : '', keyPerson: /キーパーソン/.test(generic.s), caregiver: false, quality: '', partner: null, partnerStatus: '', parents: [], sibGroup: '', src: [ggTrim(generic.s)], manual: false };
@@ -210,6 +242,12 @@
       });
       const sp = list.find(q => /^(?:wife|husband|spouse|partner)$/.test(q.id));
       list.forEach(p => { if (p.parents && p.parents[0] === 'index' && sp) p.parents = ['index', sp.id]; });
+      // v.103: grandparents of a stated side are linked to that parent (and as a couple); unspecified grandparents stay unlinked.
+      [['father', 'gfatherP', 'gmotherP'], ['mother', 'gfatherM', 'gmotherM']].forEach(([pk, a1, b1]) => {
+        const pp = by(pk), ga = by(a1), gb = by(b1);
+        const gs = [ga, gb].filter(Boolean);
+        if (pp && gs.length) { pp.parents = gs.map(q => q.id); if (ga && gb) { ga.partner = gb.id; gb.partner = ga.id; } }
+      });
       const par = ['father', 'mother'].filter(k => by(k)).map(k => k);
       if (par.length === 2) { by('father').partner = 'mother'; by('mother').partner = 'father'; }
       const fm = par.slice();
@@ -369,11 +407,8 @@
       // cohabitation: dashed enclosure per row segment
       const hh = live.filter(p => p.index ? ['同居', '独居'].includes(p.living) && live.some(q => q.living === '同居') : p.living === '同居');
       if (hh.length > 1 || (hh.length === 1 && !hh[0].index)) {
-        const byRow = new Map(); hh.forEach(p => { const y = P(p.id).y; (byRow.get(y) || byRow.set(y, []).get(y)).push(p); });
-        byRow.forEach((ps, y) => {
-          const xs = ps.map(p => P(p.id).x); const x1 = Math.min(...xs) - r - 14, x2 = Math.max(...xs) + r + 14;
-          boxes += `<rect x="${x1}" y="${y - r - 16}" width="${x2 - x1}" height="${GG_S + 66}" rx="10" fill="none" stroke="#5E7458" stroke-width="1.4" stroke-dasharray="7 4"/>`;
-        });
+        const xs = hh.map(p => P(p.id).x), ys = hh.map(p => P(p.id).y); const x1 = Math.min(...xs) - r - 14, x2 = Math.max(...xs) + r + 14, y1 = Math.min(...ys) - r - 16, y2 = Math.max(...ys) + r + 50;
+        boxes += `<rect x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" rx="10" fill="none" stroke="#5E7458" stroke-width="1.4" stroke-dasharray="7 4"/>`;
       }
       live.forEach(p => {
         const c = P(p.id), sel = selected === p.id;
@@ -406,7 +441,7 @@
       if (p.living) bits.push(p.living);
       if (p.occupation) bits.push(`職業：${p.occupation}`);
       if (p.keyPerson) bits.push('キーパーソン');
-      if (p.caregiver) bits.push('介護者');
+      if (p.caregiver) bits.push('世話・介護の担い手');
       if (p.quality) bits.push({ close: '関係：良好', distant: '関係：疎遠', conflict: '関係：不仲' }[p.quality] || '');
       if (p.notes.length) bits.push(`メモ：${p.notes.join('・')}`);
       return mask(bits.filter(Boolean).join('／'));
@@ -423,7 +458,7 @@
     function ggSupportLine(g, mask) {
       const live = ggLive(g), names = f => live.filter(f).map(p => p.index ? '本人' : p.role);
       const kp = names(p => p.keyPerson), co = names(p => p.living === '同居' && !p.index), cg = names(p => p.caregiver);
-      return mask(`キーパーソン：${kp.join('・') || '記載なし'}／同居者：${co.join('・') || '記載なし'}／介護者：${cg.join('・') || '記載なし'}`);
+      return mask(`キーパーソン：${kp.join('・') || '記載なし'}／同居者：${co.join('・') || '記載なし'}／世話・介護の担い手（記載された範囲。正式なキーパーソンの指定ではない）：${cg.join('・') || '記載なし'}`);
     }
     function genogramText(cp, mask) {
       const g = ggFor(cp), live = ggLive(g);

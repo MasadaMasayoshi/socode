@@ -1,6 +1,6 @@
 // Japanese source examples and reference data. Generic ranges are not facility-approved values.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = 'v.102'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = 'v.103'; // Version stamp (scripts/stamp-version.js)
 
     const SAMPLE_CASES = [
  {
@@ -57,10 +57,10 @@
 [検査データ] WBC 11200, CRP 3.8, Hb 10.2, Cre 1.1, Na 136, K 4.2
 [14:30] 「少し呼吸が楽になった」と話すが、再度体温を測定すると38.2℃に上昇していた。`;
 
-    const NOTEBOOK_CONTENT_VERSION_MARK = '統合版 2026-10-16 改訂22';
+    const NOTEBOOK_CONTENT_VERSION_MARK = '統合版 2026-10-16 改訂23';
 
     const NOTEBOOK_PREVIOUS_LINE_HASHES = new Set('1rxx1s8 1n972mt 1rxzhk1 1n972mt 3oggz7 11wepfp 1ueyf9x 49fyid cktp9v 1dx8rnt 4w69aw 18yrges mz6kpv 1fxl9vm vjjqph 1na1m5x 1mm3a6p 1eegg6z xov1zd 1r2aecs 1p9asa7 ipot7j 1re2huh 33sjwu 12z0tmf lrdwgc vdcow1 31eneq 11mb2w6 t10hoq 1etsd7m 5ubyuq q42z2q 1t8xbsy 1kpypia 15hvkni 1bwlid2 ilejiw mpf6r2 1eecsip 1dkakkm 1pr7cs9 1n4b44k 2z4yug kq8d8l 1t9q52t 1cxtfpk 1bmvzo4 wf9ste 1oyarzj 1p16g52 w1hdma 1epkp3w 1g1elw8 sro6mi 13ezb12 lnvozy 12fz4ir 1uuozg2 q2k5k8 1hrhr2n 1t9nghh f1917k e0crkw j1e8d8 13rhc30 1v2xzr2 yvgn6 1qx5h46 1757o1c u83int 1nv6687 9mp1bz wrr5dv ku3lll 1284hc6 e7jic3 tu4uvg fh8e14 wk4h4o dcef5v 1tw2zb2 wfnv68 pklg0t qnr0pb 1vbrse1 ehxm2 1brwjir u319zs 1ixcp78 i4h9b 53jp4n 13njjnz 1ele74r rwuu7w cfb5kk 1niyy9p 16zgdvq 1ovb3z5 coq3bu 24dwyi 1n5xhmq ukofp0 7qvde7 1yik6ad 117e71n v54305 1d7f6u1 1c83oe0 mc5a21 4vbu7g 188wc9g ylmgxf 39187t 3yqc7v 18qsxyi 1jfl61m 19is9nl sys0jh kda9kl oi98bw 4r9yru 1nh8in0 1i94xy8 1jcmgts wjqlw9 70311g 8wukdb d73drk ysxln2 1rt8zfd rsm75j 1cy71mw 1fc2gx8 1l1dvb3 1cftclx 1epae2b 1og289u 1r8z4jp 1vk21a0 lxc9rb 14yvj9r 1bwwj4w tap586 18tgtnq 1q8n2f0 1i8sp26 1nq8mbd 1y0ddgx 1jhhrn4 1gebsqw 1ox9pmi 1p54mi5 1mh1isl njedxy w8a1pd 1a2daya 4utfxf 1cbq5a1 1vdl8io r6dyzq 1exn90y 1bocpt1 1eay80t a26n4w 1ioy22v p7xddp qtyt3m 1ecvr13 1v6ppoi 4ufv81 18oigbx 1wl1wn0 1b73s34 11avgj6 jmk6zs 90bjpt 1ch9u22 id8wik evf7p2 13i7uer w8fsyw a7uumx fevad0 tyi7ix 31f5lu ll25l5 31eqak y4dgky 1fi3pcw j4nwbp 6wnqsb pbvlhf 157ghfe 2byund lo14bk 1hitvg3 1suzyfg 1kamx2z 1bdsrow ouqo9 zj2m3c mayvhv 2e67kq 1m7v4xj 14224h9 13vzf13 t7hukc 17fmocm gqq9d3 1wilov6 1g1elw8 p7xddp id8wik 1hit4b4 151xlr6'.split(' '));
-    const DEFAULT_NOTEBOOK_CONTENT = `【看護アセスメント 基準ノート（統合版 2026-10-16 改訂22）】
+    const DEFAULT_NOTEBOOK_CONTENT = `【看護アセスメント 基準ノート（統合版 2026-10-16 改訂23）】
 このノートは、記録の分類・検査値の評価・不足情報の確認・看護問題・看護計画の基準です。確認できた修正を具体例とともに反映し、アプリで実装した分類ルールと揃えています。「学習データ管理」→「分類基準」タブで確認・編集できます。
 判断の優先順位：①第1〜4章の分類・タグ付けのルール ②第6〜7章の疾患別の判断基準 ③学習データの傾向。迷ったときは、1つの情報に複数のタグを付けてよい。
 
@@ -351,6 +351,14 @@
 ・確認したい情報（知識の行・薬剤）：複数の項目にまたがる観察項目は、その行に当てはまる記録が当該欲求のタグを持つ場合だけ他の欲求に出す。薬剤の観察項目は同じ時期に記録された薬剤だけを使い、職員の説明文は薬剤の記録にしない。
 ・判断基準の追加候補：見出し・プロフィール行・診断名の行は候補にしない。糖尿病の「尿」は排泄の語にしない。
 ・ジェノグラム：母方・父方の続柄は図に入れない（どちらか区別できないため。原文で確認）。子ども・お子さんは人数の記載がある場合だけ人物にする。きょうだいの語は兄・姉・弟・妹があれば作らない。職業・病名は続柄の語のすぐ後の短い範囲だけを読み、看護師・医師は「〜は看護師である」の形だけ職業にする。「女児・男児」を性別として読む。
+■ カードの区切りとジェノグラムの見直し（改訂23）
+・区切りは文の長さではなく意味で決める。完全な文・主語・時間の流れ・原文の言い回しを保ち、語・引用・単位・数値の途中では切らない。看護師・医師などの説明（O）と、本人の発言（S）、観察、実施した援助は、同じカードに混ざっていれば分ける。反例：「看護師が尋ねると「…」と答えた」は本人の発言（S）であり、説明としては分けない。原因と結果がつながる文（「受診させ、入院となった」）は分けない。
+・「診断名は…」のように、引用（「」）の中に出る項目名は項目の見出しにしない（その語は文に残す）。コロンのある項目名は従来どおり見出しにする。
+・各カードは、整えた原文の中の位置（srcStart／srcEnd）を持つ。整えた原文＝文字の正規化とHTMLの除去をした後の原文。位置が見つからないカードは位置なし（確認不能）。
+・コピーで混ざったHTMLの断片（<br>・<p>・<span>・&nbsp;・&amp;など）は除く。<入院時の状況>のような日本語の山かっこは見出しとして残す。
+・記録日と出来事の日付：原文に書かれた日付をそのまま保つ。記録した日が原文にない場合は不明（確認不能）とし、補わない。
+・ジェノグラム：祖父母は父方・母方を分け、それぞれの親に結ぶ。「父方の祖父母（祖父…、祖母…）」のように括弧の中で続く祖父・祖母は同じ側。側が書かれていない祖父・祖母は、側が1つしかないときだけその側に入れ、決められないときは「どちらか不明」と残す。「N人暮らし」は、そこに挙げられた人を同居とし、同居の枠で囲む。遠方・別居の記載は直前の人に付ける。職業は続柄の語に括弧または「は・が」で直接つながるときだけ読む（反例：「父親とともに…顧問教員が」は父の職業ではない）。
+・世話・介護の記載（「祖母が、きょうだいの世話をしている」）は世話・介護の担い手として残す。キーパーソンは原文に「キーパーソン」と書かれているときだけ。主な担い手・支援者・正式なキーパーソンは区別し、書かれていないことは「記載なし」とする。家族機能の評価とは別に扱う。
 ■ よくある誤った分類と正しい考え方
 1) 単語の見た目だけで1項目だけに振り分ける（例：「トイレまで歩くのが大変」を4.姿勢だけにする）→排泄に伴う移動・安楽・プライバシーの視点で3.排泄にも付ける。
 2) O情報に看護師の解釈・判断を混ぜる（例：「食事量が少ないため栄養障害がある」）→収集段階では「食事残量5割」のような客観的事実・発言だけを記載し、解釈はアセスメント文中で行う。

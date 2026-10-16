@@ -1,7 +1,7 @@
 // Local record extraction. Preserve source wording, units, timestamps and admission context.
 // Headings supply context; narrative numbers are not automatically laboratory measurements.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.102'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.103'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -276,6 +276,14 @@
     // Generic statements about patients in general (not this patient).
     function isGenericOtherPatientStatement(t) {
       return /患者(?:さん|様)(?:も|は)?(?:おおぜい|大勢|たくさん|多く|何人も)(?:います|いる|いらっしゃいます)/.test(t) && !/[「」]/.test(t);
+    }
+    // Raw HTML artifacts (stray tags / character entities from copy-paste) are removed; Japanese angle-bracket headings such as <入院時の状況> are not HTML and stay.
+    function stripHtmlArtifacts(str) {
+      return String(str || '')
+        .replace(/<\s*\/?\s*(?:br|p|div|li|tr|tbody|thead|table|ul|ol|h[1-6])\b[^>]*>/gi, '\n')
+        .replace(/<\s*\/?\s*(?:span|b|i|u|strong|em|font|a|td|th|small|sup|sub|mark|code|pre)\b[^>]*>/gi, ' ')
+        .replace(/&nbsp;|&#160;/gi, ' ').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'").replace(/&amp;/gi, '&')
+        .replace(/[ \t]{2,}/g, ' ');
     }
     function isSourceStructureText(str) {
       const t = String(str || '').normalize('NFKC').trim();

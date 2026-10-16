@@ -33,3 +33,6 @@ Note: tests/golden/cases and expected are in .gitignore on purpose (teaching mat
 ## 2026-10-16 (v.101) generic cue words for untagged cards
 Intended golden diffs (3 cards, all tag additions, no type change): 涙ぐむ is now a need-10 cue (emotional state shown), so "母親は涙ぐんでいた" (事例 骨髄検査) and "こんなことも一人でできないのね と涙ぐむ" (事例4) gain 10; 学校生活 is a need-12 cue (role as a student), so the 小児喘息 admission card gains 12. 泣く/泣いた were tried and removed: an infant's or child's crying during care is not a communication finding.
 New structure rules (worksheet instructions, table captions/headers, generic statements about other patients, wrapped-line fragments contained in another line) only affect cards that had no tag; the fragment rule skips lines with digits or brackets so lab and header lines are unchanged.
+
+## 2026-10-16 (v.103) card segmentation
+No golden change. The new split applies only to a card holding a staff explanation (role + quotation, or 'staff ... explained'); a quotation-internal label word no longer becomes a field label.

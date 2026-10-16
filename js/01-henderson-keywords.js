@@ -1,7 +1,7 @@
 // Henderson vocabulary. Match content, not S/O form; insurance belongs to need 9.
 // Uploaded assessment domains inform vocabulary; retain Japanese clinical terms and concise need names.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['01'] = 'v.102'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['01'] = 'v.103'; // Version stamp (scripts/stamp-version.js)
 
     const HENDERSON_NEEDS = [
       { id: 1, name: "呼吸", icon: "fa-lungs", keywords: ["出血量", "輸液量",   "呼吸", "SpO2", "咳", "痰", "喘鳴", "息切れ", "チアノーゼ", "酸素", "息苦し", "PaO2", "呼吸数", "呼吸音", "動脈血ガス", "胸部X線", "胸郭", "呼吸補助筋", "起座呼吸", "wheezes", "発汗", "気道", "分泌物", "狭窄", "喫煙", "人工呼吸器", "酸素マスク", "肥満", "発熱", "副作用", "安楽な姿勢", "湿度", "臭気", "吸入器", "在宅酸素療法", "排痰", "咳嗽", "血圧", "脈拍", "頻脈", "徐脈", "不整脈", "動悸", "浮腫", "末梢冷感", "循環動態", "心拍数", "心電図", "胸痛", "ショック", "麻酔覚醒", "気管挿管", "抜管", "無気肺", "有効咳嗽", "術後肺炎", "肺血栓塞栓症", "PTE",

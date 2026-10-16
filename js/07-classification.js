@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.102'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.103'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -2220,7 +2220,8 @@
         const fieldMatches = [];
         let fMatch;
         while ((fMatch = fieldRegex.exec(lSubText)) !== null) {
-          fieldMatches.push({ key: normalizeFieldLabelHeadingWord(fMatch[1]), start: fMatch.index, contentStart: fMatch.index + fMatch[0].length });
+          // a label word inside an open quotation ("診断名は…" in someone's speech) is part of the speech, not a field label
+                    { const pre = lSubText.slice(0, fMatch.index); fieldMatches.push({ key: normalizeFieldLabelHeadingWord(fMatch[1]), start: fMatch.index, contentStart: fMatch.index + fMatch[0].length - (quotedNow(lSubText, fMatch) ? fMatch[0].replace(/^[、。\s]/, '').length : 0), quoted: (pre.match(/「/g) || []).length > (pre.match(/」/g) || []).length && !/[:：]/.test(fMatch[0]) }); }
         }
 
         if (fieldMatches.length > 0) {
@@ -2246,19 +2247,19 @@
               if (m.key === '生活歴' && splitLifeHistoryItems(content).length > 1) {
                 splitLifeHistoryItems(content).forEach(part => {
                   const cleanedPart = cleanExtractedPhrase(part);
-                  if (cleanedPart.length >= 1) pushExtracted({ text: cleanedPart, timestamp: globalTimestamp, fieldLabel: m.key });
+                  if (cleanedPart.length >= 1) pushExtracted({ text: cleanedPart, timestamp: globalTimestamp, fieldLabel: m.quoted ? undefined : m.key });
                 });
               } else if (m.key === '既往歴') {
                 splitHistoryByAgeMarkers(content).forEach(part => {
                   const cleanedPart = cleanExtractedPhrase(part);
                   if (cleanedPart.length >= 1 && !isDateOnlyText(cleanedPart)) {
-                    pushExtracted({ text: cleanedPart, timestamp: globalTimestamp, fieldLabel: m.key });
+                    pushExtracted({ text: cleanedPart, timestamp: globalTimestamp, fieldLabel: m.quoted ? undefined : m.key });
                   }
                 });
               } else {
 
-                const labeledContent = isBareStatusWord(content) ? `${m.key}: ${content}` : content;
-                pushExtracted({ text: labeledContent, timestamp: globalTimestamp, fieldLabel: m.key });
+                const labeledContent = isBareStatusWord(content) ? (m.quoted ? content : `${m.key}: ${content}`) : content;
+                pushExtracted({ text: labeledContent, timestamp: globalTimestamp, fieldLabel: m.quoted ? undefined : m.key });
               }
             }
 
@@ -2863,8 +2864,75 @@
       return list;
     }
 
+    // v.103: one card that mixes staff explanation, patient speech, observation and intervention is split by meaning at sentence ends and at a closing quote followed by a new
+    // narrative clause (never inside a quotation, word, unit or number). Each piece is classified again on its own; the wording of every piece is the exact source wording.
+    const SPEECH_REPORT_VERB_REGEX = /^(?:と|って|という|といっ|とい|など|を|に|も|は|が|の|で|から|ので|けれど|けど|、「)/;
+    function splitSpeechNarrativePieces(text) {
+      const t = String(text || '');
+      const cuts = [];
+      let depth = 0;
+      for (let i = 0; i < t.length; i++) {
+        const ch = t[i];
+        if (ch === '「') depth++;
+        else if (ch === '」') {
+          depth = Math.max(0, depth - 1);
+          if (depth === 0) {
+            const rest = t.slice(i + 1);
+            if (/^[^「」。、]{1,8}「/.test(rest) && !SPEECH_REPORT_VERB_REGEX.test(rest)) cuts.push(i + 1);
+            else if (/^[、,][^「」。]{2,30}。/.test(rest) && !/^[、,]\s*(?:と|など)/.test(rest) && !/(?:話|訴|言|述|答|発言|返事|伝え)[^。]{0,6}。/.test(rest.split('。')[0])) cuts.push(i + 2);
+            else if (/^。/.test(rest)) cuts.push(i + 2);
+          }
+        } else if (ch === '。' && depth === 0) cuts.push(i + 1);
+      }
+      const out = []; let last = 0;
+      Array.from(new Set(cuts)).sort((a, b) => a - b).forEach(c => { const piece = t.slice(last, c).replace(/^[、,\s]+/, '').trim(); if (piece) out.push(piece); last = c; });
+      const tail = t.slice(last).replace(/^[、,\s]+/, '').trim(); if (tail) out.push(tail);
+      return out;
+    }
+    function splitMixedSpeechCards(list) {
+      const out = [];
+      list.forEach(item => {
+        const t = String(item.text || '');
+        if (item.type === 'unnecessary' || item.isUnnecessaryBoilerplate || item.fieldLabel || item.diseaseGeneral || item.isLabOrVital || t.length < 30 || !/「[^」]+」/.test(t)) { out.push(item); return; }
+        const pieces = splitSpeechNarrativePieces(t);
+        const STAFF_SPEAK0 = /^(?:主治医|医師|ドクター|看護師|栄養士|管理栄養士|薬剤師|理学療法士|作業療法士|療養指導士|糖尿病療養指導士|スタッフ|先生)\s*[:：]?\s*「/;
+        const STAFF_EXPL = /^(?:主治医|医師|看護師|栄養士|管理栄養士|薬剤師|理学療法士|作業療法士|[^。「」\s]{1,8}士)[^。「」]{0,30}(?:へ|に)[^。「」]{0,30}(?:説明|指導|オリエンテーション)(?:する|した|を行う|を行った|を受け[^。]{0,6})。?$/;
+        const STAFF_SPEAK = { test: x => STAFF_SPEAK0.test(x) || STAFF_EXPL.test(x.trim()) };
+        // only a staff explanation inside the card is separated (from the patient's speech and the observations); other mixed cards keep the existing S/O handling
+        if (!pieces.some(x => STAFF_SPEAK.test(x))) { out.push(item); return; }
+        const groups = [];
+        pieces.forEach(x => { const k = STAFF_SPEAK.test(x) ? 'staff' : /「[^」]+」/.test(x) ? 'speech' : 'other'; if (groups.length && groups[groups.length - 1].k === k) groups[groups.length - 1].t += x; else groups.push({ k, t: x }); });
+        if (groups.length < 2) { out.push(item); return; }
+        const pieces2 = groups.map(g => g.t);
+        const ts = item.timestamp && item.timestamp !== '日時不明' ? `${item.timestamp}\n` : '';
+        const fresh = [];
+        pieces2.forEach(piece => { try { Array.from(classifyTextByRules(ts + piece)).forEach(c => { if (String(c.text || '').trim()) fresh.push(c); }); } catch (e) { /* keep as is */ } });
+        const joined = fresh.map(c => String(c.text).replace(/[\s、,。]/g, '')).join('');
+        const orig = t.replace(/[\s、,。]/g, '');
+        if (fresh.length < 2 || joined.length < orig.length * 0.9) { out.push(item); return; }
+        // staff explanation is an observation of what was said to the patient (O), not a patient statement (S)
+        fresh.forEach(c => { if (STAFF_SPEAK.test(String(c.text || ''))) { c.type = 'o'; if (!(c.hendersonIds || []).length && STAFF_EXPL.test(String(c.text).trim())) c.hendersonIds = [14]; } out.push(c); });
+      });
+      return out;
+    }
+
+    // Each card keeps where its exact text sits in the (HTML-cleaned) source: srcStart/srcEnd (end exclusive). Cards whose text was normalised and cannot be found stay without offsets.
+    function attachSourceOffsets(list, src) {
+      const taken = [];
+      const free = (a, b) => !taken.some(([x, y]) => a < y && b > x);
+      list.forEach(item => {
+        const t = String(item.text || '');
+        if (t.length < 2) return;
+        let from = 0, i;
+        while ((i = src.indexOf(t, from)) !== -1) { if (free(i, i + t.length)) { item.srcStart = i; item.srcEnd = i + t.length; taken.push([i, i + t.length]); return; } from = i + 1; }
+      });
+      return list;
+    }
+    // a field-label word (without a colon) inside an open quotation is part of the speech and must stay in the text
+    function quotedNow(str, m) { const pre = str.slice(0, m.index); return (pre.match(/「/g) || []).length > (pre.match(/」/g) || []).length && !/[:：]/.test(m[0]); }
+
     function classifyTextByRules(text) {
-      const src = (text || '').trim().normalize('NFKC');
+      const src = stripHtmlArtifacts((text || '').trim().normalize('NFKC')).trim();
       const out = [];
 
       withExtractionContext(src, () => groupClinicalPhrasesWithTimestamps(src).forEach(chunk => {
@@ -2873,7 +2941,7 @@
         const { detectedHIds, predictedType } = computeLocalTagsAndType(chunk, cleanedText, null);
         out.push({ text: cleanedText, timestamp: chunk.timestamp || '日時不明', type: predictedType, hendersonIds: detectedHIds.slice().sort((a, b) => a - b), fieldLabel: chunk.fieldLabel || null, ruleDecision: automaticRuleDecision(chunk, cleanedText, predictedType), ...(chunk.diseaseGeneral ? { diseaseGeneral: true } : {}), ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.soMixed ? { soMixed: true } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}) });
       }));
-      return markWrappedLineFragments(removeCoveredCompositeCards(applyFamilyScreeningContext(applyPainContextTags(applySceneTagInheritance(out)))), src);
+      return attachSourceOffsets(splitMixedSpeechCards(markWrappedLineFragments(removeCoveredCompositeCards(applyFamilyScreeningContext(applyPainContextTags(applySceneTagInheritance(out)))), src)), src);
     }
 
     function manualClassificationLineage(item, path = new Set()) {

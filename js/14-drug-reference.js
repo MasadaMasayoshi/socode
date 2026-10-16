@@ -1,6 +1,6 @@
 // Japanese drug reference vocabulary. Names indicate references, not administration or clinical approval.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['14'] = 'v.102'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['14'] = 'v.103'; // Version stamp (scripts/stamp-version.js)
 
     const DRUG_REFERENCE_ROWS = [
 
