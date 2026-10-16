@@ -1851,3 +1851,8 @@ option:checked { background: var(--accent-soft); color: var(--accent-dark); font
 .asc-actions .icon-btn { width: 28px !important; }
 .asc-actions button[onclick^="setAssessmentCol"] { width: auto !important; padding: 0 9px !important; font-size: 11px !important; border-width: 1.5px !important; border-radius: 6px !important; }
 .asc-actions-sep { height: 18px; margin: 0 4px; }
+
+/* --- v.117 segments told apart by alternating background colours --- */
+.card-seg { background: var(--slate-soft); border-color: var(--slate-line); color: var(--ink); }
+.card-seg:nth-of-type(even) { background: var(--accent-soft); border-color: var(--accent-line); }
+.card-seg:nth-of-type(3n) { background: var(--gold-soft); border-color: var(--gold); }
