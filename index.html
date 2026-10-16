@@ -6,15 +6,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="v.109">
-  <meta name="app-file-versions" content="01:v.108,02:v.108,03:v.108,04:2026-10-12.usability-context29,05:v.108,06:v.108,07:v.108,08:v.108,09:v.108,10:v.108,11:v.108,12:v.108,13:v.108,14:v.108,15:v.108,16:v.108">
+  <meta name="app-version" content="v.110">
+  <meta name="app-file-versions" content="01:v.108,02:v.108,03:v.108,04:2026-10-12.usability-context29,05:v.108,06:v.108,07:v.108,08:v.108,09:v.110,10:v.108,11:v.108,12:v.108,13:v.108,14:v.108,15:v.108,16:v.110">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=v.109">
+  <link rel="stylesheet" href="style.css?v=v.110">
 
   <link rel="stylesheet" href="vendor/tailwind.css?v=2026-10-06.14">
   <script>
@@ -71,16 +71,13 @@
         <span id="presence-indicator" class="presence-pill" title="この画面を開いているタブ・端末の数の目安です（同じ人が複数タブ・複数端末で開いている場合はその分だけ数えられます）">
           <i class="fa-solid fa-user-group"></i> <span id="presence-count">-</span>
         </span>
-        <div class="export-group" role="group" aria-label="書き出し"><span class="export-group-label"><i class="fa-solid fa-download"></i><span class="hidden sm:inline">書き出し</span></span>
-        <button id="btn-export-docs" class="btn export-seg" title="プレーンテキストファイル(.txt)の保存先を選びます">
-          <i class="fa-solid fa-file-lines"></i> テキスト
-        </button>
-        <button id="btn-open-report" class="btn export-seg" onclick="openReport()" title="SOAP形式・実習記録の様式で、載せる項目と順番を選んで書き出します">
-          <i class="fa-solid fa-file-export"></i> 提出用
-        </button>
-        <button id="btn-export-pdf" class="btn export-seg" title="書式付きの文書を開き、印刷ダイアログからPDFとして保存できます">
-          <i class="fa-solid fa-file-pdf"></i> PDF
-        </button>
+        <div class="hdr-menu-wrap">
+          <button type="button" class="btn export-toggle" data-menu-toggle="export-menu" aria-haspopup="true" aria-expanded="false" title="テキスト・提出用・PDFで書き出します"><i class="fa-solid fa-download"></i><span class="export-toggle-label">書き出し</span><i class="fa-solid fa-chevron-down text-[9px]"></i></button>
+          <div id="export-menu" class="hdr-menu hidden" role="menu">
+            <button id="btn-export-docs" type="button" class="hdr-menu-item" role="menuitem" title="プレーンテキストファイル(.txt)の保存先を選びます"><i class="fa-solid fa-file-lines"></i><span>テキストで書き出し</span></button>
+            <button id="btn-open-report" type="button" class="hdr-menu-item" role="menuitem" onclick="openReport()" title="SOAP形式・実習記録の様式で、載せる項目と順番を選んで書き出します"><i class="fa-solid fa-file-export"></i><span>提出用に書き出し</span></button>
+            <button id="btn-export-pdf" type="button" class="hdr-menu-item" role="menuitem" title="書式付きの文書を開き、印刷ダイアログからPDFとして保存できます"><i class="fa-solid fa-file-pdf"></i><span>PDFで書き出し</span></button>
+          </div>
         </div>
         <button type="button" class="icon-btn-outline" onclick="openHelp('flow')" title="操作方法" aria-label="操作方法"><i class="fa-regular fa-circle-question"></i></button>
         <button id="btn-toggle-theme" class="icon-btn-outline" title="ダークモード切り替え（夜勤帯向け）">
@@ -113,13 +110,6 @@
         <button id="tab-assessment" class="tab-pill">
           総合アセスメント表
         </button>
-        </div>
-        <div class="nav-grp" data-step="plan"><span class="nav-gl"><span class="nav-no">3</span>計画</span>
-        <button id="tab-careplan" class="tab-pill">
-          看護計画
-        </button>
-        </div>
-        <div class="nav-grp nav-tools"><span class="nav-gl">図・検査値</span>
         <button id="tab-labs" class="tab-pill">
           検査値の推移
         </button>
@@ -128,6 +118,11 @@
         </button>
         <button id="tab-genogram" class="tab-pill">
           ジェノグラム
+        </button>
+        </div>
+        <div class="nav-grp" data-step="plan"><span class="nav-gl"><span class="nav-no">3</span>計画</span>
+        <button id="tab-careplan" class="tab-pill">
+          看護計画
         </button>
         </div>
         <div class="nav-grp nav-ref">
@@ -236,10 +231,10 @@
             <input type="text" id="board-search" class="field pl-7" placeholder="内容・タグで検索" aria-label="カードの内容・タグ名で検索">
           </div>
           <button type="button" id="btn-toggle-so-mixed" onclick="toggleSoMixedColumn()" class="btn btn-outline" aria-pressed="false" title="S/O混在カードの枠を表示・非表示にします"><i class="fa-solid fa-columns"></i><span>S/O混在</span></button>
-          <button type="button" id="btn-board-export-review" onclick="exportReviewRequestText()" class="btn btn-outline" aria-label="修正依頼を書き出す" title="修正依頼を書き出す"><i class="fa-solid fa-file-export"></i><span>修正依頼<span class="toolbar-label-tail">を書き出す</span></span></button>
           <details id="board-actions" class="board-actions-menu">
             <summary class="btn btn-outline toolbar-more" aria-label="分類ボードのその他の操作" title="その他の操作"><i class="fa-solid fa-ellipsis"></i></summary>
             <div class="board-menu-panel">
+              <button type="button" id="btn-board-export-review" onclick="exportReviewRequestText()" title="修正依頼を書き出す"><i class="fa-solid fa-file-export"></i><span>修正依頼<span class="toolbar-label-tail">を書き出す</span></span></button>
               <button type="button" id="btn-open-card-overview" onclick="openCardOverview()" title="すべてのカードを画面いっぱいに並べて表示します"><i class="fa-solid fa-table-list"></i> 一覧表示</button>
               <button type="button" id="btn-undo" onclick="undoLastEdit()" disabled title="元に戻せる操作はありません"><i class="fa-solid fa-rotate-left"></i> 元に戻す</button>
               <button type="button" id="btn-redo" onclick="undoLastEdit(true)" disabled title="やり直す（Ctrl+Shift+Z）"><i class="fa-solid fa-rotate-right"></i> やり直す</button>
@@ -517,9 +512,14 @@
       <div id="reference-list" class="grid grid-cols-1 md:grid-cols-2 gap-3">
 
       </div>
-      <p id="reference-empty" class="hidden text-xs text-[var(--ink-muted)] text-center py-8 border border-dashed border-[var(--line)] rounded-[var(--radius)]">
-        まだ参考データがありません。「新規追加」または「画像から読み込む（API）」で登録してください。
-      </p>
+      <div id="reference-empty" class="hidden ref-empty">
+        <p class="ref-empty-title">まだ参考データがありません</p>
+        <p class="ref-empty-text">実習先の看護基準や、よく使う文献を登録しておくと<br>アセスメント表の「不足情報」を出すときに参照されます。</p>
+        <div class="ref-empty-actions">
+          <button type="button" class="btn btn-primary" onclick="document.getElementById('btn-reference-add').click()"><i class="fa-solid fa-plus"></i> 新規追加</button>
+          <button type="button" class="btn btn-outline" onclick="document.getElementById('btn-reference-ocr').click()"><i class="fa-solid fa-camera"></i> 画像から読み込む（API）</button>
+        </div>
+      </div>
     </div>
   </main>
 
@@ -1341,14 +1341,14 @@
   <script src="js/06-export.js?v=v.108"></script>
   <script src="js/07-classification.js?v=v.108"></script>
   <script src="js/08-assessment-tools.js?v=v.108"></script>
-  <script src="js/09-board.js?v=v.108"></script>
+  <script src="js/09-board.js?v=v.110"></script>
   <script src="js/10-reference-page-and-startup.js?v=v.108"></script>
   <script src="js/11-own-assessment.js?v=v.108"></script>
   <script src="js/12-missing-checks-and-care-plan.js?v=v.108"></script>
   <script src="js/13-compare-and-report.js?v=v.108"></script>
   <script src="js/14-drug-reference.js?v=v.108"></script>
   <script src="js/15-relation-map.js?v=v.108"></script>
-  <script src="js/16-genogram.js?v=v.108"></script>
+  <script src="js/16-genogram.js?v=v.110"></script>
   <script>
   // Manual source comparison and reversible text edits on the active chart.
   (function(){

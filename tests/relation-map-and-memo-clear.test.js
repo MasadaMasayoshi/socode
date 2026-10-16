@@ -646,7 +646,7 @@ test('関連図：作った直後に、チェックで自動で直せるもの�
   assert.match(src, /function rmAutoFixBuilt\(map\)/);
 });
 
-test('関連図：矢印の向きを逆にする（並べ直して左向きを残さない）・文字はまん中ぞろえ・図のまわりに余白・タブは 看護計画 → 検査値の推移 の順', () => {
+test('関連図：矢印の向きを逆にする（並べ直して左向きを残さない）・文字はまん中ぞろえ・図のまわりに余白・タブはデザイン案の順（アセスメント → 計画）', () => {
   assert.match(src, /rmBtn\('reverse', '<i class="fa-solid fa-right-left"><\/i> 向きを逆にする', 'btn-primary'\)/);
   assert.match(src, /else if \(act === 'reverse'\) \{[\s\S]{0,400}layoutRelationMap\(m\);/);
   assert.match(src, /stroke="transparent" stroke-width="20"/, '線を押しやすく');
@@ -654,7 +654,9 @@ test('関連図：矢印の向きを逆にする（並べ直して左向きを�
   assert.ok(!/<text class="rm-text"(?![^>]*text-anchor="middle")/.test(svg), '文字はまん中ぞろえ');
   assert.match(src, /<div class="rm-stage">\$\{focusSub \? relationMapSvg\(focusSub/);
   assert.match(css, /\.rm-stage \{ display: inline-block; padding: min\(28vh, 220px\) min\(28vw, 320px\);/);
-  assert.ok(html.indexOf('id="tab-careplan"') < html.indexOf('id="tab-labs"'), '看護計画のタブが先');
+  // Owner request 2026-10-16: tabs follow the design mockup — アセスメント group (表・検査値・関連図・ジェノグラム) before 計画.
+  assert.ok(html.indexOf('id="tab-assessment"') < html.indexOf('id="tab-labs"'));
+  assert.ok(html.indexOf('id="tab-genogram"') < html.indexOf('id="tab-careplan"'), '看護計画はアセスメントの後');
   assert.ok(html.indexOf('id="tab-labs"') < html.indexOf('id="tab-relation"'));
 });
 

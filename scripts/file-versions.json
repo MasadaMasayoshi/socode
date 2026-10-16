@@ -32,8 +32,8 @@
     "hash": "a785b864d1c85b88"
   },
   "js/09-board.js": {
-    "version": "v.108",
-    "hash": "930ff923a945c04c"
+    "version": "v.110",
+    "hash": "75778d901f841b7a"
   },
   "js/10-reference-page-and-startup.js": {
     "version": "v.108",
@@ -60,8 +60,8 @@
     "hash": "5048ae3d483e61e4"
   },
   "style.css": {
-    "version": "v.109",
-    "hash": "afde9bc89b5bc027"
+    "version": "v.110",
+    "hash": "2eba73aa37e3eaab"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",
@@ -72,7 +72,7 @@
     "hash": "8c06d82739d14b09"
   },
   "js/16-genogram.js": {
-    "version": "v.108",
-    "hash": "a26e97df9596d6aa"
+    "version": "v.110",
+    "hash": "ee40db359dbd4dfe"
   }
 }
