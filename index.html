@@ -6,15 +6,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="v.98">
-  <meta name="app-file-versions" content="01:v.76,02:v.98,03:v.76,04:2026-10-12.usability-context29,05:v.83,06:v.98,07:v.98,08:v.98,09:v.98,10:v.98,11:v.98,12:v.80,13:v.84,14:v.98,15:v.79">
+  <meta name="app-version" content="v.99">
+  <meta name="app-file-versions" content="01:v.76,02:v.99,03:v.76,04:2026-10-12.usability-context29,05:v.99,06:v.99,07:v.99,08:v.99,09:v.99,10:v.99,11:v.99,12:v.80,13:v.99,14:v.99,15:v.79,16:v.99">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=v.86">
+  <link rel="stylesheet" href="style.css?v=v.99">
 
   <link rel="stylesheet" href="vendor/tailwind.css?v=2026-10-06.14">
   <script>
@@ -115,6 +115,9 @@
         </button>
         <button id="tab-relation" class="tab-pill">
           関連図
+        </button>
+        <button id="tab-genogram" class="tab-pill">
+          ジェノグラム
         </button>
         <button id="tab-reference" class="tab-pill">
           参考データ
@@ -353,6 +356,31 @@
       <div id="careplan-list" class="flex flex-col gap-3"></div>
     </div>
 
+    <div id="view-genogram" class="hidden surface p-4 flex flex-col gap-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="font-display font-semibold text-[var(--ink)] text-[15px] flex items-center"><i class="fa-solid fa-people-roof text-[var(--accent)] mr-2"></i>ジェノグラム（家族構成図）</h2>
+        <span id="gg-info" class="text-[11px] text-[var(--ink-muted)]"></span>
+      </div>
+      <div class="rm-toolbar" role="toolbar" aria-label="ジェノグラムの操作">
+        <div class="rm-group" aria-label="作成">
+          <button type="button" class="btn btn-primary text-[11px] py-1.5" data-gg-action="build" title="記録に書かれた家族から図を作ります。手で直した人は上書きしません">記録から作る</button>
+          <button type="button" class="btn btn-outline" data-gg-action="relayout">並べ直す</button>
+          <button type="button" class="btn btn-outline" data-gg-action="undo">元に戻す</button>
+          <button type="button" class="btn btn-outline" data-gg-action="redo">やり直す</button>
+        </div>
+        <div class="rm-group" aria-label="表示と書き出し">
+          <button type="button" class="btn btn-outline" data-gg-action="text" aria-pressed="false">一覧表示</button>
+          <button type="button" class="btn btn-outline" data-gg-action="png">画像で保存</button>
+          <button type="button" class="btn btn-outline" data-gg-action="print">印刷 / PDF</button>
+          <button type="button" class="btn btn-outline" data-gg-action="clear">図を消す</button>
+        </div>
+      </div>
+      <div id="gg-panel" class="flex flex-col gap-2"></div>
+      <p id="gg-empty" class="text-[12px] text-[var(--ink-muted)]"></p>
+      <div id="gg-canvas" class="gg-canvas hidden"></div>
+      <pre id="gg-text-view" class="hidden text-[12px]" style="white-space:pre-wrap;"></pre>
+      <div id="gg-legend" class="text-[11px] text-[var(--ink-muted)] flex flex-wrap gap-x-3 gap-y-1"></div>
+    </div>
     <div id="view-relation" class="hidden surface p-4 flex flex-col gap-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h2 class="font-display font-semibold text-[var(--ink)] text-[15px] flex items-center"><i class="fa-solid fa-diagram-project text-[var(--accent)] mr-2"></i>関連図</h2>
@@ -1264,20 +1292,21 @@
     </dialog>
 
   <script src="js/01-henderson-keywords.js?v=v.76"></script>
-  <script src="js/02-reference-data.js?v=v.98"></script>
+  <script src="js/02-reference-data.js?v=v.99"></script>
   <script src="js/03-extraction-helpers.js?v=v.76"></script>
   <script src="js/04-server-sync.js?v=2026-10-12.usability-context29"></script>
-  <script src="js/05-app-state-and-ui.js?v=v.83"></script>
-  <script src="js/06-export.js?v=v.98"></script>
-  <script src="js/07-classification.js?v=v.98"></script>
-  <script src="js/08-assessment-tools.js?v=v.98"></script>
-  <script src="js/09-board.js?v=v.98"></script>
-  <script src="js/10-reference-page-and-startup.js?v=v.98"></script>
-  <script src="js/11-own-assessment.js?v=v.98"></script>
+  <script src="js/05-app-state-and-ui.js?v=v.99"></script>
+  <script src="js/06-export.js?v=v.99"></script>
+  <script src="js/07-classification.js?v=v.99"></script>
+  <script src="js/08-assessment-tools.js?v=v.99"></script>
+  <script src="js/09-board.js?v=v.99"></script>
+  <script src="js/10-reference-page-and-startup.js?v=v.99"></script>
+  <script src="js/11-own-assessment.js?v=v.99"></script>
   <script src="js/12-missing-checks-and-care-plan.js?v=v.80"></script>
-  <script src="js/13-compare-and-report.js?v=v.84"></script>
-  <script src="js/14-drug-reference.js?v=v.98"></script>
+  <script src="js/13-compare-and-report.js?v=v.99"></script>
+  <script src="js/14-drug-reference.js?v=v.99"></script>
   <script src="js/15-relation-map.js?v=v.79"></script>
+  <script src="js/16-genogram.js?v=v.99"></script>
   <script>
   // Manual source comparison and reversible text edits on the active chart.
   (function(){

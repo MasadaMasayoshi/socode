@@ -1436,3 +1436,9 @@ html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow-sel path { fill: #F59E6
 .cmp-note{margin:4px 8px;font-size:.72rem;opacity:.7}
 tr.cmp-row>td.cmp-cell{padding:2px 6px}
 @media (max-width:640px){.cmp-table{font-size:.72rem}.cmp-wrap{max-height:280px}}
+
+/* v.99 genogram */
+.gg-canvas { overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff; max-height: 70vh; touch-action: none; }
+.gg-svg { display: block; max-width: none; }
+.gg-person.is-selected text { fill: #B03A55; }
+#gg-panel .field { padding: 2px 6px; }

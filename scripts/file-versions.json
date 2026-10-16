@@ -4,8 +4,8 @@
     "hash": "e3e656c4c92fd487"
   },
   "js/02-reference-data.js": {
-    "version": "v.98",
-    "hash": "38f8704912d24b0e"
+    "version": "v.99",
+    "hash": "dcbc69a99961fe60"
   },
   "js/03-extraction-helpers.js": {
     "version": "v.76",
@@ -16,31 +16,31 @@
     "hash": "5d32db02d71fadd8"
   },
   "js/05-app-state-and-ui.js": {
-    "version": "v.83",
-    "hash": "cfd4884b0b58f03a"
+    "version": "v.99",
+    "hash": "7d826a9bc82b3eb0"
   },
   "js/06-export.js": {
-    "version": "v.98",
-    "hash": "c8428b3de315bc5f"
+    "version": "v.99",
+    "hash": "25be222b6acbb3bf"
   },
   "js/07-classification.js": {
-    "version": "v.98",
-    "hash": "ca83c11e66c21e9f"
+    "version": "v.99",
+    "hash": "adf7e382fde27c60"
   },
   "js/08-assessment-tools.js": {
-    "version": "v.98",
+    "version": "v.99",
     "hash": "aff381cae5209c72"
   },
   "js/09-board.js": {
-    "version": "v.98",
+    "version": "v.99",
     "hash": "5a9d5e65efb23c07"
   },
   "js/10-reference-page-and-startup.js": {
-    "version": "v.98",
+    "version": "v.99",
     "hash": "ca6cf1234fe1c3b8"
   },
   "js/11-own-assessment.js": {
-    "version": "v.98",
+    "version": "v.99",
     "hash": "478189f9e5963836"
   },
   "js/12-missing-checks-and-care-plan.js": {
@@ -48,11 +48,11 @@
     "hash": "a8aeaf07fe218958"
   },
   "js/13-compare-and-report.js": {
-    "version": "v.84",
-    "hash": "c525cb4313c8b8b7"
+    "version": "v.99",
+    "hash": "278a68e110cf6ab7"
   },
   "js/14-drug-reference.js": {
-    "version": "v.98",
+    "version": "v.99",
     "hash": "ad24ae92252a5519"
   },
   "js/15-relation-map.js": {
@@ -70,5 +70,9 @@
   "vendor/fontawesome/css/all.min.css": {
     "version": "2026-10-06.14",
     "hash": "8c06d82739d14b09"
+  },
+  "js/16-genogram.js": {
+    "version": "v.99",
+    "hash": "09364943bf9e093f"
   }
 }

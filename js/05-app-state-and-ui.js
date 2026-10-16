@@ -2,7 +2,7 @@
 // Confirmations and Undo verify the captured patient/target; local writes require full readback.
 // AI transport accepts image OCR only; classification and clinical generation stay local.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = 'v.83'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = 'v.99'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -1287,7 +1287,7 @@
       if (typeof location === 'undefined' || !/\.github\.io$/i.test(location.hostname || '')) return false;
       try { return !localStorage.getItem(PAGES_FIRST_SYNC_KEY); } catch (e) { return false; }
     })();
-    const CASE_DERIVED_FIELDS = ['myAssessments', 'missingChecks', 'untaggedReviews', 'carePlans', 'checkpoints', 'relationMap'];
+    const CASE_DERIVED_FIELDS = ['myAssessments', 'missingChecks', 'untaggedReviews', 'carePlans', 'checkpoints', 'relationMap', 'genogram'];
 
     function applyCaseResetClient(a, b) {
       const t = r => (r && r.caseResetAt ? new Date(r.caseResetAt).getTime() || 0 : 0);
@@ -1394,6 +1394,7 @@
 
       if (typeof onPatientViewReloaded === 'function') onPatientViewReloaded(cp);
       if (typeof onRelationMapPatientReloaded === 'function') onRelationMapPatientReloaded(cp);
+      if (typeof onGenogramPatientReloaded === 'function') onGenogramPatientReloaded(cp);
 
       selectedCardIds.clear();
       boardSearchTerm = '';
@@ -2592,6 +2593,7 @@
     DOM.tabLabs.addEventListener('click', () => switchView('labs'));
     document.getElementById('tab-careplan')?.addEventListener('click', () => switchView('careplan'));
     document.getElementById('tab-relation')?.addEventListener('click', () => switchView('relation'));
+    document.getElementById('tab-genogram')?.addEventListener('click', () => switchView('genogram'));
 
     function updateNeedNavTop() {
       const header = document.querySelector('header');
@@ -2622,6 +2624,10 @@
       const tabRelation = document.getElementById('tab-relation');
       if (tabRelation) tabRelation.className = `tab-pill ${viewName === 'relation' ? 'active' : ''}`;
       if (viewName === 'relation' && typeof renderRelationMap === 'function') renderRelationMap();
+      document.getElementById('view-genogram')?.classList.toggle('hidden', viewName !== 'genogram');
+      const tabGenogram = document.getElementById('tab-genogram');
+      if (tabGenogram) tabGenogram.className = `tab-pill ${viewName === 'genogram' ? 'active' : ''}`;
+      if (viewName === 'genogram' && typeof renderGenogram === 'function') renderGenogram();
       if (viewName === 'assessment') renderAssessmentTable();
       if (viewName === 'reference') renderReferenceList();
       if (viewName === 'labs') renderLabTrend();

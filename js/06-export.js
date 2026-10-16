@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.98'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.99'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -361,6 +361,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       if (on('plans') && plansText) body += `<h2>${n++}. 看護計画と実施・評価</h2><p style="white-space:pre-wrap;margin:0;">${escapeHtml(plansText)}</p>`;
       if (on('planEval')) { const pe = buildPlanEvaluationHtml(cp, n); if (pe) { body += pe; n++; } }
       body += buildPrintAiSectionsHtml(cp, n, want);
+      if (on('genogram') && typeof genogramPrintSection === 'function') { const gs = genogramPrintSection(cp, n); if (gs) { body += gs; n++; } }
       if (on('drugs') && typeof drugInfoSectionText === 'function') { const dt = drugInfoSectionText(cp); if (dt) body += `<h2>${n++}. 薬剤の情報</h2><p style="white-space:pre-wrap;margin:0;">${escapeHtml(dt)}</p>`; }
       const notes = cp.referenceNotes || [];
       if (notes.length > 0 && on('notes')) {
@@ -403,6 +404,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       { key: 'own', label: '自分のアセスメント' },
       { key: 'plans', label: '看護計画と実施・評価' },
       { key: 'planEval', label: '全計画の評価' },
+      { key: 'genogram', label: 'ジェノグラム' },
       { key: 'drugs', label: '薬剤の情報' },
       { key: 'notes', label: '参考データ' }
     ];
@@ -665,6 +667,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const plansText = typeof buildCarePlansText === 'function' ? buildCarePlansText(cp, { withRecords: true }) : '';
       if (on('plans') && plansText) { out += plainSectionTitle('看護計画と実施・評価'); out += plansText + '\n'; }
       if (on('planEval')) out += buildPlanEvaluationText(cp);
+      if (on('genogram') && typeof genogramText === 'function') { const gt = genogramText(cp); if (gt) { out += plainSectionTitle('ジェノグラム'); out += gt + '\n'; } }
       if (on('drugs') && typeof drugInfoSectionText === 'function') { const dt = drugInfoSectionText(cp); if (dt) { out += plainSectionTitle('薬剤の情報'); out += dt + '\n'; } }
 
 
@@ -1080,7 +1083,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const ids = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);
       const items = (cp.items || []).filter(i => ids.has(i.id));
       return buildCardsReportText(cp, items, sourceText, `修正依頼メモ：${cp.title}（選択したカード ${items.length}件）`, includeSourceText,
-        includeAssessment ? buildAssessmentTableText(cp, ids) : null, correctionRequestInstructionsText() + backgroundFactorsText(cp) + sufficiencyJudgmentsText(cp) + drugCorrectionText(cp));
+        includeAssessment ? buildAssessmentTableText(cp, ids) : null, correctionRequestInstructionsText() + backgroundFactorsText(cp) + sufficiencyJudgmentsText(cp) + drugCorrectionText(cp) + (typeof genogramCorrectionText === 'function' ? genogramCorrectionText(cp) : ''));
     }
 
     function assessmentPeriodGroups(cp, col, list) {
@@ -1393,7 +1396,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       let out = `修正依頼：${cp.title}（手で編集したカード ${editedN}件・タグ未設定のカード ${untaggedN}件・不必要のカード ${unnecessaryN}件／書き出し ${items.length}枚）\n`;
       out += `出力日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
       out += `分類プログラム版: ${window.APP_FILE_VERSIONS?.['07'] || '確認不能'}／分類基準版: ${NOTEBOOK_CONTENT_VERSION_MARK}\n`;
-      out += correctionRequestInstructionsText() + backgroundFactorsText(cp) + sufficiencyJudgmentsText(cp) + drugCorrectionText(cp);
+      out += correctionRequestInstructionsText() + backgroundFactorsText(cp) + sufficiencyJudgmentsText(cp) + drugCorrectionText(cp) + (typeof genogramCorrectionText === 'function' ? genogramCorrectionText(cp) : '');
       out += '【対象】タグ未設定・不必要・手編集のカード。誤りの証拠ではなく調査対象です。原文全体と同じ場面の前後を読み、安静時と動作時・昨日と本日を区別し、根拠があるものは分類ルールと分類基準を修正、不足は必要な確認事項を示してください。理由の記録がなければ「理由未記録」と明記します。除外は妥当なら根拠を示し、誤りなら分類処理と分類基準を修正してください。\n';
       const originalItems = sourceText && sourceText.trim() && typeof classifyTextByRules === 'function' ? classifyTextByRules(sourceText) : [];
       const dropped = droppedEditsForCase(cp, sourceText).slice(-30);

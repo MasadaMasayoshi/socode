@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.84'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.99'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -583,7 +583,7 @@
     document.addEventListener('keydown', e => {
       if (!(e.ctrlKey || e.metaKey) || e.altKey || !['z','y'].includes(String(e.key).toLowerCase())) return;
       const redo = e.shiftKey || String(e.key).toLowerCase() === 'y';
-      if (['view-relation', 'view-careplan'].some(id => { const view = document.getElementById(id); return view && !view.classList.contains('hidden'); })) return;
+      if (['view-relation', 'view-careplan', 'view-genogram'].some(id => { const view = document.getElementById(id); return view && !view.classList.contains('hidden'); })) return;
       const t = document.activeElement;
       if (t && (/^(?:INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
       if (document.querySelector('.fixed.inset-0:not(.hidden)')) return;

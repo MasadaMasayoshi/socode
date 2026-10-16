@@ -1,6 +1,6 @@
 // Japanese source examples and reference data. Generic ranges are not facility-approved values.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = 'v.98'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = 'v.99'; // Version stamp (scripts/stamp-version.js)
 
     const SAMPLE_CASES = [
  {
@@ -57,10 +57,10 @@
 [検査データ] WBC 11200, CRP 3.8, Hb 10.2, Cre 1.1, Na 136, K 4.2
 [14:30] 「少し呼吸が楽になった」と話すが、再度体温を測定すると38.2℃に上昇していた。`;
 
-    const NOTEBOOK_CONTENT_VERSION_MARK = '統合版 2026-10-15 改訂19';
+    const NOTEBOOK_CONTENT_VERSION_MARK = '統合版 2026-10-15 改訂20';
 
     const NOTEBOOK_PREVIOUS_LINE_HASHES = new Set('1rxx1s8 1n972mt 1rxzhk1 1n972mt 3oggz7 11wepfp 1ueyf9x 49fyid cktp9v 1dx8rnt 4w69aw 18yrges mz6kpv 1fxl9vm vjjqph 1na1m5x 1mm3a6p 1eegg6z xov1zd 1r2aecs 1p9asa7 ipot7j 1re2huh 33sjwu 12z0tmf lrdwgc vdcow1 31eneq 11mb2w6 t10hoq 1etsd7m 5ubyuq q42z2q 1t8xbsy 1kpypia 15hvkni 1bwlid2 ilejiw mpf6r2 1eecsip 1dkakkm 1pr7cs9 1n4b44k 2z4yug kq8d8l 1t9q52t 1cxtfpk 1bmvzo4 wf9ste 1oyarzj 1p16g52 w1hdma 1epkp3w 1g1elw8 sro6mi 13ezb12 lnvozy 12fz4ir 1uuozg2 q2k5k8 1hrhr2n 1t9nghh f1917k e0crkw j1e8d8 13rhc30 1v2xzr2 yvgn6 1qx5h46 1757o1c u83int 1nv6687 9mp1bz wrr5dv ku3lll 1284hc6 e7jic3 tu4uvg fh8e14 wk4h4o dcef5v 1tw2zb2 wfnv68 pklg0t qnr0pb 1vbrse1 ehxm2 1brwjir u319zs 1ixcp78 i4h9b 53jp4n 13njjnz 1ele74r rwuu7w cfb5kk 1niyy9p 16zgdvq 1ovb3z5 coq3bu 24dwyi 1n5xhmq ukofp0 7qvde7 1yik6ad 117e71n v54305 1d7f6u1 1c83oe0 mc5a21 4vbu7g 188wc9g ylmgxf 39187t 3yqc7v 18qsxyi 1jfl61m 19is9nl sys0jh kda9kl oi98bw 4r9yru 1nh8in0 1i94xy8 1jcmgts wjqlw9 70311g 8wukdb d73drk ysxln2 1rt8zfd rsm75j 1cy71mw 1fc2gx8 1l1dvb3 1cftclx 1epae2b 1og289u 1r8z4jp 1vk21a0 lxc9rb 14yvj9r 1bwwj4w tap586 18tgtnq 1q8n2f0 1i8sp26 1nq8mbd 1y0ddgx 1jhhrn4 1gebsqw 1ox9pmi 1p54mi5 1mh1isl njedxy w8a1pd 1a2daya 4utfxf 1cbq5a1 1vdl8io r6dyzq 1exn90y 1bocpt1 1eay80t a26n4w 1ioy22v p7xddp qtyt3m 1ecvr13 1v6ppoi 4ufv81 18oigbx 1wl1wn0 1b73s34 11avgj6 jmk6zs 90bjpt 1ch9u22 id8wik evf7p2 13i7uer w8fsyw a7uumx fevad0 tyi7ix 31f5lu ll25l5 31eqak y4dgky 1fi3pcw j4nwbp 6wnqsb pbvlhf 157ghfe 2byund lo14bk 1hitvg3 1suzyfg 1kamx2z 1bdsrow ouqo9 zj2m3c mayvhv 2e67kq 1m7v4xj 14224h9 13vzf13 t7hukc 17fmocm gqq9d3 1wilov6 1g1elw8 p7xddp id8wik 1hit4b4 151xlr6'.split(' '));
-    const DEFAULT_NOTEBOOK_CONTENT = `【看護アセスメント 基準ノート（統合版 2026-10-15 改訂19）】
+    const DEFAULT_NOTEBOOK_CONTENT = `【看護アセスメント 基準ノート（統合版 2026-10-15 改訂20）】
 このノートは、記録の分類・検査値の評価・不足情報の確認・看護問題・看護計画の基準です。確認できた修正を具体例とともに反映し、アプリで実装した分類ルールと揃えています。「学習データ管理」→「分類基準」タブで確認・編集できます。
 判断の優先順位：①第1〜4章の分類・タグ付けのルール ②第6〜7章の疾患別の判断基準 ③学習データの傾向。迷ったときは、1つの情報に複数のタグを付けてよい。
 
@@ -330,6 +330,13 @@
 ・状態：中止・内服なし・既往・予定は「現在飲んでいる」にしない。飲み忘れ・自己中断・用量間違い・拒否・副作用の記載は充足・未充足の問題の所見（自己管理は14、薬が関わる欲求も）。継続して自己管理できている記録は支える所見。薬の名前だけでは判定しない。
 ・分類：薬の分類は、他にタグがないときの手がかりにとどめ、診断名・薬名だけで充足・未充足を決めない。辞書にない薬らしいカタカナは「未登録薬剤候補」として一覧に出し、置き換えない。
 ・用量の助言はしない。観察項目（OP）と「指示で確認する」だけを示す。
+■ ジェノグラム（家族構成図）の読み取り（改訂20／内蔵辞書 2026-10-16（出典未確認））
+・記録に書かれた家族だけを人物にする。人数・年齢・病名・職業は書いてあるときだけ入れ、推測しない。書いていないものは「年齢不明」「性別の記載なし」とする。
+・続柄の語（妻・夫・長男・長女・息子・娘・父・母・義父母・兄・姉・弟・妹・きょうだい・祖父母・孫）から性別と世代を決める。「子ども2人」は年齢・性別不明の2人。「長男の妻」は長男の配偶者で、長男そのものと区別する。
+・否定（子どもはいない・兄弟なし・妻はいない）は人物にしない。「家族」だけで続柄の記載がなければ、家族の1つの枠にとどめる。
+・家族の発言の引用に出る「妻」も配偶者として数える。「母親の介護」のように誰が誰を介護するか決められない語は、母に「介護の記載あり（原文で確認）」のメモを付けるだけで、介護者にはしない。「妻が介護している」「主介護者は妻」は妻を介護者にする。
+・死亡（死亡・他界・逝去・亡くなった・死別）は×、同居は点線の枠、キーパーソン・介護者は印で示す。家族歴の病名は、その続柄の人のメモにだけ付ける。
+・反例：母乳・母子・丈夫・工夫・弟子・子孫は家族ではない。ジェノグラムから充足・未充足は判定しない。再作成では、手で直した人や消した人を上書きしない。
 ■ よくある誤った分類と正しい考え方
 1) 単語の見た目だけで1項目だけに振り分ける（例：「トイレまで歩くのが大変」を4.姿勢だけにする）→排泄に伴う移動・安楽・プライバシーの視点で3.排泄にも付ける。
 2) O情報に看護師の解釈・判断を混ぜる（例：「食事量が少ないため栄養障害がある」）→収集段階では「食事残量5割」のような客観的事実・発言だけを記載し、解釈はアセスメント文中で行う。
