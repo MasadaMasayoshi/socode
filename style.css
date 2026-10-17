@@ -2039,3 +2039,11 @@ tr.cmp-row{display:table-row;padding:0;border:0;background:none;gap:0}
   #assessment-table-wrap .assess-table thead th:nth-child(4) { width: 280px; }
   #assessment-table-wrap .assess-table thead th:nth-child(5) { width: 220px; }
 }
+
+/* v.145 すべて表示のカードも単独表示と同じ見え方に（文字の大きさ・余白・白地・細い枠） */
+#assessment-table-wrap .asc-card { font-size: 13px; line-height: 1.6; padding: .55rem .7rem; border-radius: 8px; background: var(--surface) !important; border: 1px solid var(--line) !important; box-shadow: none; }
+@media (min-width:641px) {
+  #assessment-table-wrap .assess-table { min-width: 1150px; }
+  #assessment-table-wrap .assess-table thead th:nth-child(2),
+  #assessment-table-wrap .assess-table thead th:nth-child(3) { width: 260px; }
+}
