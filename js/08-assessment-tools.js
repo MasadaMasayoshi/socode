@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.122'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.141'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1194,6 +1194,60 @@
         } catch (e) {   }
       }
       return cardLabFlagCache.get(itemId) || [];
+    }
+
+    // v.141 (1) cross-reference: records filed under other needs that mention this need's keywords are shown as "参考情報" (links only; sufficiency verdicts are not changed)
+    const CROSS_REF_KEYWORDS = {
+      1: /呼吸|咳|痰|SpO2|Spo2|息切れ|喫煙|酸素/,
+      2: /食欲|食事|摂取|体重|嘔吐|吐き気|水分|飲水|間食|ジュース|お菓子|朝食/,
+      3: /多尿|頻尿|尿量|排尿|便秘|下痢|排便|尿糖|尿ケトン|尿中/,
+      4: /歩行|転倒|ふらつ|運動|筋力|ギプス|骨折|リハビリ|エアロバイク|散歩/,
+      5: /睡眠|眠れ|不眠|倦怠感|だるさ|だるい|夜間|寝起き|起床|就寝/,
+      6: /更衣|着替|身じたく|身支度|衣服|制服/,
+      7: /体温|発熱|悪寒|熱が/,
+      8: /清潔|入浴|洗髪|口腔|歯列矯正|ブラケット|歯磨|ニキビ|皮膚|注射部位/,
+      9: /同室|病室|ナースコール|低血糖|安全|転倒|環境/,
+      10: /感情|不安|涙|泣|怒|口をきか|表情|甘え|反発|ストレート|落ち込み|口論/,
+      11: /信仰|宗教|価値観|大切にして/,
+      12: /学校|部活|仕事|役割|学級|通学|授業|担任|養護教諭/,
+      13: /余暇|趣味|ゲーム|マンガ|漫画|友だち|友人|水泳|英会話|色紙/,
+      14: /学習|説明を|理解|指導|セルフケア|自己注射|血糖測定|クイズ|知識|質問|メモ/
+    };
+    function crossRefItemsForNeed(items, needId) {
+      const re = CROSS_REF_KEYWORDS[needId];
+      if (!re) return [];
+      return items.filter(i => i.type !== 'unnecessary' && !(i.hendersonIds || []).includes(needId) && re.test(String(i.text || '')));
+    }
+    function crossRefHtml(items, need) {
+      const hits = crossRefItemsForNeed(items, need.id);
+      if (!hits.length) return '';
+      const label = h => { const ids = (h.hendersonIds || []).map(id => (typeof HENDERSON_NEEDS !== 'undefined' ? (HENDERSON_NEEDS.find(n => n.id === id) || {}).name : '') || '').map(n => String(n).replace(/^\d+\.\s*/, '')).filter(Boolean); return ids.length ? ids.join('・') : '未分類'; };
+      const rows = hits.slice(0, 8).map(h => `<li><span class="xref-from">${escapeHtml(label(h))}</span> ${escapeHtml(String(h.text || '').length > 70 ? String(h.text).slice(0, 70) + '…' : String(h.text || ''))}</li>`).join('');
+      return `<details class="xref"><summary>参考情報（他の項目の記録 ${hits.length}件）</summary><ul>${rows}${hits.length > 8 ? `<li class="xref-more">ほか${hits.length - 8}件</li>` : ''}</ul></details>`;
+    }
+
+    // v.141 (3) cross-cutting themes: filter/dim cards by theme without changing classification
+    const CROSS_THEMES = [
+      { key: 'adolescence', label: '思春期・発達課題', re: /思春期|中学|1[0-9]歳|甘え|反発|自己管理|お母さんにまかせ|部活|友人|友だち|ニキビ|口をきか|感情的|内向的|学級委員|誰にも知られたくない|発達課題|初経|月経/ },
+      { key: 'family', label: '家族システム', re: /祖母|祖父|母親|父親|両親|兄|家族|自営|飲食店|面会|きょうだい|お母さん|お兄ちゃん|家庭/ },
+      { key: 'selfcare', label: '自己管理・セルフケア', re: /自己注射|自己血糖|セルフケア|補食|血糖測定|インスリン|食事表|カーボ|スライディング/ }
+    ];
+    function crossThemesOf(text) { const t = String(text || ''); return CROSS_THEMES.filter(c => c.re.test(t)).map(c => c.key).join(' '); }
+    window.setCrossTheme = function(key) {
+      window.__crossTheme = window.__crossTheme === key ? '' : key;
+      const v = document.getElementById('view-assessment'); if (v) v.dataset.xtheme = window.__crossTheme || '';
+      renderCrossThemeBar(getCurrentPatient());
+    };
+    function renderCrossThemeBar(cp) {
+      const bar = document.getElementById('xt-bar'); if (!bar) return;
+      const items = ((cp && cp.items) || []).filter(i => i.type !== 'unnecessary');
+      const cur = window.__crossTheme || '';
+      const v = document.getElementById('view-assessment'); if (v) v.dataset.xtheme = cur;
+      bar.innerHTML = '<span class="xt-title">横断で見る</span>' + CROSS_THEMES.map(c => {
+        const n = items.filter(i => c.re.test(String(i.text || ''))).length;
+        return `<button type="button" class="xt-chip${cur === c.key ? ' is-on' : ''}" aria-pressed="${cur === c.key}" onclick="setCrossTheme('${c.key}')">${escapeHtml(c.label)} <b>${n}</b></button>`;
+      }).join('');
+      bar.classList.toggle('hidden', !items.length);
     }
 
     // presentation only: long comma-run values (labs, vitals) are shown as separate segments; the stored text is unchanged

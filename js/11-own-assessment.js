@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.123'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.141'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -521,6 +521,34 @@
       rerenderMyAssessment();
     };
 
+    // v.141 (2) fact -> interpretation -> problem consistency check: notes only (non-blocking); the user's wording is never changed
+    function myAssessmentLogicNotes(cp, needId, e) {
+      if (!e) return [];
+      const val = k => String(e[k] || '').trim();
+      const interp = val('interpretation'), cause = val('cause'), outlook = val('outlook');
+      if (!interp && !cause && !outlook) return [];
+      const notes = [];
+      const evTexts = (e.evidenceIds || []).map(id => { const it = (cp.items || []).find(i => i.id === id); return it ? String(it.text || '') : ''; }).filter(Boolean);
+      if (!evTexts.length) notes.push('根拠のカード（事実）がまだ選ばれていません。事実→解釈のつながりが見えるように、根拠を選びましょう。');
+      if (!interp && (cause || outlook)) notes.push('「情報の解釈」が空です。事実から何が言えるか（解釈）を先に書くと、原因・見通しが生きます。');
+      if (interp && evTexts.length) {
+        const grams = t => { const s = t.replace(/[\s、。，,.（）()「」]/g, ''); const g = new Set(); for (let i = 0; i < s.length - 1; i++) g.add(s.slice(i, i + 2)); return g; };
+        const gi = grams(interp);
+        const near = evTexts.some(t => { const ge = grams(t); if (!gi.size || !ge.size) return false; let c = 0; gi.forEach(x => { if (ge.has(x)) c++; }); return c / gi.size >= 0.8; });
+        if (near) notes.push('解釈が根拠カードの言い換えに近いようです。「なぜそう言えるか」「正常か異常か」の判断を足しましょう。');
+      }
+      const known = [cp.sourceText || '', ...(cp.items || []).map(i => String(i.text || ''))].join('\n');
+      const nums = Array.from(new Set(`${interp}\n${cause}\n${outlook}`.match(/\d+(?:\.\d+)?/g) || [])).filter(n => n.length >= 2 && !/^O-?\d+$/.test(n));
+      const unknown = nums.filter(n => !known.includes(n) && !/^(19|20)\d\d$/.test(n)).slice(0, 4);
+      if (unknown.length) notes.push(`記録に見つからない数字があります（${unknown.join('・')}）。記録にある値か確かめましょう。`);
+      if (outlook && !interp && !cause) notes.push('見通しだけが書かれています。根拠となる解釈・原因とあわせて書くと、問題点につなげやすくなります。');
+      return notes;
+    }
+    function myAssessmentLogicHtml(cp, needId, e) {
+      const notes = myAssessmentLogicNotes(cp, needId, e);
+      if (!notes.length) return '';
+      return `<div class="my-asm-logic" role="note"><b>つながりの確認</b><ul>${notes.map(n => `<li>${escapeHtml(n)}</li>`).join('')}</ul></div>`;
+    }
     function renderMyAssessmentRowHtml(cp, need, isAllMode) {
       const needId = need.id;
       const e = getMyAssessment(cp, needId);
@@ -582,7 +610,7 @@
           </span>
         </div>
         ${reviewHtml}
-        <div class="my-asm-fields">${fields}</div>
+        ${myAssessmentLogicHtml(cp, needId, e)}<div class="my-asm-fields">${fields}</div>
         ${revisionField}
         <div class="my-asm-evidence">
           <span class="my-asm-label"><i class="fa-solid fa-link"></i> 根拠のカード（${evIds.length}）</span>

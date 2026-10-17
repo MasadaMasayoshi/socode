@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.112'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.141'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1115,6 +1115,7 @@
     function renderAssessmentTable() {
       if (typeof resetCardLabFlags === 'function') resetCardLabFlags();
       const cp = getCurrentPatient();
+      if (typeof renderCrossThemeBar === 'function') renderCrossThemeBar(cp);
 
       cp.items.forEach(i => { if (!i.assessmentCols || typeof inferAssessmentColumn !== 'function') return; const col = inferAssessmentColumn(i.fieldLabel, i.timestamp, null); if (!col) return; Object.keys(i.assessmentCols).forEach(h => { if (i.assessmentCols[h] === 'unclassified') i.assessmentCols[h] = col; }); });
       const activeItems = cp.items.filter(i => i.type !== 'unnecessary');
@@ -1184,6 +1185,7 @@
           <td class="border border-[var(--line)] p-1.5 align-top"><div class="assessment-status">${renderAssessmentStatusHtml(cp, need.id)}</div></td>
           <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--brick-soft)]/40 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'missing')">
             <div class="space-y-1.5">${categorize('missing')}</div>
+            ${typeof crossRefHtml === 'function' ? crossRefHtml(activeItems, need) : ''}
             <button onclick="openMissingModal(${need.id})" class="mt-1.5 text-[10px] text-[var(--brick)] hover:text-[var(--ink)] font-medium flex items-center w-full justify-center p-1 border border-dashed border-[var(--brick-line)] rounded-[var(--radius-sm)]"><i class="fa-solid fa-plus mr-1"></i> 追加</button>
           </td>
         `;
@@ -1360,7 +1362,7 @@
           ondragenter="event.preventDefault(); event.currentTarget.classList.add('drag-over');"
           ondragleave="event.currentTarget.classList.remove('drag-over');"
           ondrop="handleAssessmentCardDrop(event, ${jsArg(item.id)}, ${hId})"
-          class="asc-card px-1.5 py-1 rounded-[var(--radius-sm)] border ${item.aiSuggested ? 'border-dashed' : ''} border-[var(--line)] text-[10.5px] cursor-grab active:cursor-grabbing hover:border-[var(--accent)] transition" style="background:${cardBg};border-left-width:3px;border-left-color:${accentColor};">
+          data-xt="${typeof crossThemesOf === 'function' ? crossThemesOf(item.text) : ''}" class="asc-card px-1.5 py-1 rounded-[var(--radius-sm)] border ${item.aiSuggested ? 'border-dashed' : ''} border-[var(--line)] text-[10.5px] cursor-grab active:cursor-grabbing hover:border-[var(--accent)] transition" style="background:${cardBg};border-left-width:3px;border-left-color:${accentColor};">
           <div class="leading-snug break-words text-[var(--ink)]"><span class="inline-flex items-center gap-0.5 mr-1 align-[1px]">${badge}${evidenceTag}${familyMark}${aiTag}${fieldTag}${time}${drugChipHtml(item)}</span>${cardTextWithLabFlagsHtml(item)}${typeof drugLineHtml === 'function' ? drugLineHtml(item) : ''}</div>
           ${isMissingCol && typeof missingCheckCardHtml === 'function' ? `<div class="mc-in-card">${missingCheckCardHtml(getCurrentPatient(), item)}</div>` : ''}
           <div class="asc-actions">

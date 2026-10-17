@@ -2006,3 +2006,23 @@ html[data-theme="dark"] .rm-cl-prob{color:#5a1428}
 
 /* v.140 compare row: the <tr> shares the .cmp-row class with the inline compare lines; keep the row a real table row so its cell spans the full width */
 tr.cmp-row{display:table-row;padding:0;border:0;background:none;gap:0}
+
+/* v.141 cross-reference, logic check, cross-cutting themes (presentation) */
+.xref{margin-top:6px;font-size:11px;color:var(--ink-muted)}
+.xref>summary{cursor:pointer;padding:4px 6px;border:1px dashed var(--line);border-radius:var(--radius-sm);background:var(--paper)}
+.xref ul{margin:4px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+.xref li{padding:4px 6px;border-left:3px solid var(--line);background:var(--paper);line-height:1.4;overflow-wrap:anywhere}
+.xref-from{display:inline-block;font-weight:700;color:var(--accent-dark,var(--accent));margin-right:4px}
+.my-asm-logic{margin:0 0 8px;padding:8px 10px;border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:var(--radius-sm);background:var(--paper);font-size:12px}
+.my-asm-logic ul{margin:4px 0 0;padding-left:1.1em}
+.xt-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
+.xt-title{font-size:11px;color:var(--ink-muted)}
+.xt-chip{font-size:12px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface,#fff);cursor:pointer}
+.xt-chip b{margin-left:4px;color:var(--ink-muted)}
+.xt-chip.is-on{background:var(--accent);color:#fff;border-color:var(--accent)}.xt-chip.is-on b{color:#fff}
+#view-assessment[data-xtheme="adolescence"] .asc-card:not([data-xt~="adolescence"]),
+#view-assessment[data-xtheme="family"] .asc-card:not([data-xt~="family"]),
+#view-assessment[data-xtheme="selfcare"] .asc-card:not([data-xt~="selfcare"]){opacity:.28}
+#view-assessment[data-xtheme="adolescence"] .asc-card[data-xt~="adolescence"],
+#view-assessment[data-xtheme="family"] .asc-card[data-xt~="family"],
+#view-assessment[data-xtheme="selfcare"] .asc-card[data-xt~="selfcare"]{box-shadow:0 0 0 2px var(--accent)}
