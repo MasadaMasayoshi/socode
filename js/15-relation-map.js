@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.135'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.146'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -1008,7 +1008,7 @@
       const gapLeft = x => { let k = -1; cols.forEach((c, i) => { if (c.x2 <= x + 1) k = i; }); return k >= 0 && k + 1 < cols.length ? { key: k + 1, x1: cols[k].x2, x2: cols[k + 1].x1 } : null; };
 
       const dirOf = e => { const a = rectById.get(e.source), b = rectById.get(e.target); return !a || !b ? 0 : b.x1 > a.x2 + 8 ? 1 : a.x1 > b.x2 + 8 ? -1 : 0; };
-      const bent = e => { const a = rectById.get(e.source), b = rectById.get(e.target); return dirOf(e) && Math.abs(a.cy - b.cy) >= 2; };
+      const bent = e => { const a = rectById.get(e.source), b = rectById.get(e.target); return dirOf(e) && Math.abs(a.cy - b.cy) >= 2 && !(Math.abs(a.cy - b.cy) < 28 && Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1) >= 16); };
       const fanOut = new Map(), fanIn = new Map();
       map.edges.forEach(e => { if (!bent(e)) return; const d = dirOf(e); fanOut.set(e.source + d, (fanOut.get(e.source + d) || 0) + 1); fanIn.set(e.target + d, (fanIn.get(e.target + d) || 0) + 1); });
       const groups = new Map();
@@ -1025,6 +1025,14 @@
           const sy = a.cy + lane, ty = b.cy + lane;
 
           if (Math.abs(sy - ty) < 2 && !rmHitsRects({ y: sy, a: sx, b: tx }, rects, new Set([e.source, e.target]))) { routes.push({ edge: e, pts: [[sx, sy], [tx, ty]] }); return; }
+          // v.146: boxes that are almost level got a tiny dogleg (a few px step). Use one shared y inside both boxes and draw it straight.
+          if (Math.abs(sy - ty) < 28) {
+            const lo = Math.max(a.y1, b.y1) + 8, hi = Math.min(a.y2, b.y2) - 8;
+            if (hi >= lo) {
+              const y = Math.min(hi, Math.max(lo, (sy + ty) / 2));
+              if (!rmHitsRects({ y, a: sx, b: tx }, rects, new Set([e.source, e.target]))) { routes.push({ edge: e, pts: [[sx, y], [tx, y]] }); return; }
+            }
+          }
           const gS = right ? gapRight(sx) : gapLeft(sx), gT = right ? gapLeft(tx) : gapRight(tx);
           const mid = g => g ? (g.x1 + g.x2) / 2 : null;
           const nearS = mid(gS) ?? sx + d * RM_COL_GAP / 2, nearT = mid(gT) ?? tx - d * RM_COL_GAP / 2;
