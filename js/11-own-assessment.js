@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.141'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.142'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -544,10 +544,61 @@
       if (outlook && !interp && !cause) notes.push('見通しだけが書かれています。根拠となる解釈・原因とあわせて書くと、問題点につなげやすくなります。');
       return notes;
     }
+    const MY_KL_EXTRA_RULES = [
+      { s: /高血糖|血糖.*(?:高|上昇|コントロール不良)|HbA1c/, t: /口渇|多尿|脱水/, step: '血液中の糖が尿へ出るときに水分も一緒に出る（浸透圧利尿）', why: '' },
+      { s: /口渇|多尿|脱水|嘔吐|下痢/, t: /ケトアシドーシス|アシドーシス|pH|倦怠|ふらつ|意識/, step: '体液量が減り、循環・代謝のバランスが崩れる', why: '' },
+      { s: /インスリン.*(?:不足|欠乏|中断|打ち忘れ|減)|インスリン分泌.*(?:枯渇|低下)/, t: /高血糖|ケトン|ケトアシドーシス|体重.*減/, step: '糖を細胞に取り込めず、脂肪が分解されてケトン体が増える', why: '' },
+      { s: /低血糖|血糖.*(?:低|下がっ)/, t: /不安|怖|意識|転倒|運動|学校|部活|仕事/, step: '低血糖への恐れや発作の経験から、活動や外出を控えやすい', why: '' },
+      { s: /注射|インスリン|自己血糖測定|SMBG/, t: /学校|友人|友達|人前|職場|恥ずかし|隠し/, step: '人前での注射・測定への抵抗感や、周囲に知られる不安', why: '' },
+      { s: /思春期|1[0-9]歳|中学|高校|反抗|友人関係/, t: /療養|自己管理|食事|注射|血糖|拒否|不規則|守れ/, step: '自立や仲間との同調を求める時期で、決まりごとを負担に感じやすい', why: '' },
+      { s: /過保護|口出し|(?:母|父|妻|夫|家族).{0,12}(?:心配|管理|負担|注意)/, t: /自己管理|療養|不安|食事|負担|過保護|口出し/, step: '家族の関わり方（心配・過干渉・役割分担）が本人の取り組みや気持ちに影響する', why: '' },
+      { s: /不安|怖|恐れ|心配|ストレス/, t: /血糖|食事|睡眠|眠れ|食欲|自己管理|療養/, step: '心理的ストレスが睡眠・食欲・ホルモン（ストレスホルモン）に影響する', why: '' },
+      { s: /睡眠不足|眠れ|不眠|夜間覚醒/, t: /疲労|倦怠|集中|血糖|意欲|活動/, step: '休養不足で疲れが残り、血糖調節や意欲にも影響する', why: '' },
+      { s: /食事.*(?:不規則|偏|過食|間食|抜)|間食|飲料|ジュース/, t: /血糖|HbA1c|体重|低血糖/, step: '摂取する糖質の量とタイミングが血糖の上下に直結する', why: '' },
+      { s: /知識不足|理解.*不足|分からない|わからない|説明.*受けて/, t: /自己管理|療養|血糖|服薬|不安|拒否|守れ/, step: '理由や方法が分からないと、続ける意味を実感しにくい', why: '' },
+      { s: /教育|入院|学習|説明/, t: /退院|自宅|家族|学校|仕事|復帰/, step: '病院での学習内容を、家・学校・職場の生活へ当てはめる必要がある', why: '' }
+    ];
+    // v.142: knowledge links — follow RM_BRIDGE_RULES for up to 3 steps from this need's facts/words to OTHER recorded cards (any need).
+    function myKnowledgeLinks(cp, needId, e) {
+      if (!e) return [];
+      const RULES = (typeof RM_BRIDGE_RULES !== 'undefined' ? RM_BRIDGE_RULES : []).concat(MY_KL_EXTRA_RULES);
+      const live = (cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && !i.aiSuggested && String(i.text || '').trim());
+      const have = new Set(e.evidenceIds || []);
+      const ctx = live.map(i => i.text).join(' ');
+      const seeds = [];
+      (e.evidenceIds || []).forEach(id => { const it = live.find(i => i.id === id); if (it) seeds.push(String(it.text)); });
+      ['interpretation', 'cause', 'outlook'].forEach(k => { const v = String(e[k] || '').trim(); if (v) seeds.push(v); });
+      const found = new Map();
+      seeds.forEach(seed => {
+        const walk = (text, steps, used) => {
+          if (steps.length >= 3) return;
+          RULES.forEach((r, ri) => {
+            if (used.has(ri) || !r.s.test(text) || (r.ctx && !r.ctx.test(ctx))) return;
+            const path = steps.concat(r.step);
+            live.forEach(it => {
+              if (have.has(it.id) || !r.t.test(it.text) || it.text === seed) return;
+              const cur = found.get(it.id);
+              if (!cur || cur.path.length > path.length) found.set(it.id, { item: it, seed, path });
+            });
+            walk(`${r.step} ${r.why || ''} ${r.t.source.split('|')[0].replace(/[\\^$.*+?()[\]{}]/g, '')}`, path, new Set([...used, ri]));
+          });
+        };
+        walk(seed, [], new Set());
+      });
+      const perStep = new Map();
+      return [...found.values()].sort((a, b) => b.path.length - a.path.length).filter(k => { const key = k.path[k.path.length - 1]; const n = perStep.get(key) || 0; perStep.set(key, n + 1); return n < 2; }).slice(0, 5);
+    }
     function myAssessmentLogicHtml(cp, needId, e) {
       const notes = myAssessmentLogicNotes(cp, needId, e);
-      if (!notes.length) return '';
-      return `<div class="my-asm-logic" role="note"><b>つながりの確認</b><ul>${notes.map(n => `<li>${escapeHtml(n)}</li>`).join('')}</ul></div>`;
+      const kl = myKnowledgeLinks(cp, needId, e);
+      if (!notes.length && !kl.length) return '';
+      const cut = (t, n) => { t = String(t || '').replace(/\s+/g, ' '); return t.length > n ? t.slice(0, n) + '…' : t; };
+      const klHtml = kl.length ? `<details class="my-asm-kl"><summary><b>知識でつながる他の情報（${kl.length}）</b></summary><ul>${kl.map(k => {
+        const hid = (k.item.hendersonIds || [])[0];
+        const nm = hid && typeof hendersonNameOf === 'function' ? hendersonNameOf(hid).replace(/^\d+\.\s*/, '') : '';
+        return `<li>「${escapeHtml(cut(k.seed, 22))}」<span class="my-asm-kl-step">→ ${k.path.map(escapeHtml).join(' → ')} →</span> 「${escapeHtml(cut(k.item.text, 30))}」${nm ? `<span class="my-asm-kl-need">（${escapeHtml(nm)}）</span>` : ''} <button type="button" class="btn btn-outline text-[11px] py-0" onclick="linkMyEvidence(${needId}, '${escapeHtml(k.item.id)}')">根拠に加える</button></li>`;
+      }).join('')}</ul></details>` : '';
+      return `<div class="my-asm-logic" role="note">${notes.length ? `<b>つながりの確認</b><ul>${notes.map(n => `<li>${escapeHtml(n)}</li>`).join('')}</ul>` : ''}${klHtml}</div>`;
     }
     function renderMyAssessmentRowHtml(cp, need, isAllMode) {
       const needId = need.id;

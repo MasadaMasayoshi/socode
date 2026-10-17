@@ -2026,3 +2026,6 @@ tr.cmp-row{display:table-row;padding:0;border:0;background:none;gap:0}
 #view-assessment[data-xtheme="adolescence"] .asc-card[data-xt~="adolescence"],
 #view-assessment[data-xtheme="family"] .asc-card[data-xt~="family"],
 #view-assessment[data-xtheme="selfcare"] .asc-card[data-xt~="selfcare"]{box-shadow:0 0 0 2px var(--accent)}
+
+/* v.142 knowledge links */
+.my-asm-kl{margin-top:6px}.my-asm-kl summary{cursor:pointer}.my-asm-kl ul{margin:4px 0 0;padding-left:1.1em}.my-asm-kl li{margin:3px 0;line-height:1.6}.my-asm-kl-step{color:var(--muted,#6b6459);font-size:11px}.my-asm-kl-need{color:var(--muted,#6b6459);font-size:11px}
