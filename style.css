@@ -1998,3 +1998,8 @@ html[data-theme="dark"] .rm-cl-prob{color:#5a1428}
   #bulk-action-bar #bulk-action-count{margin:0;align-self:center;text-align:center;font-size:12px}
   #bulk-action-bar #bulk-tag-select{grid-column:1 / -1}
 }
+
+/* v.139 phone: S/O scene pairs stack in one column so card controls never get squeezed */
+@media (max-width:640px){
+  .asc-scene-grid{grid-template-columns:minmax(0,1fr) !important}
+}
