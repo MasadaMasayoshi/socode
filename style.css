@@ -2003,3 +2003,6 @@ html[data-theme="dark"] .rm-cl-prob{color:#5a1428}
 @media (max-width:640px){
   .asc-scene-grid{grid-template-columns:minmax(0,1fr) !important}
 }
+
+/* v.140 compare row: the <tr> shares the .cmp-row class with the inline compare lines; keep the row a real table row so its cell spans the full width */
+tr.cmp-row{display:table-row;padding:0;border:0;background:none;gap:0}
