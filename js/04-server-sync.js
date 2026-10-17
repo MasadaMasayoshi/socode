@@ -1,7 +1,7 @@
 // Shared patient and learning persistence. Keep patient identity, per-card merge and map revisions.
 // Only deliberate corrections vote; source snapshots and raw research history remain shared.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = '2026-10-12.usability-context29'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = 'v.147'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -10,6 +10,16 @@
 
     const RENDER_ORIGIN = (document.querySelector('meta[name="api-origin"]') || {}).content || 'https://socode.onrender.com';
     const API_BASE = (typeof location !== 'undefined' && /\.github\.io$/i.test(location.hostname || '')) ? `${RENDER_ORIGIN.replace(/\/+$/, '')}/api` : '/api';
+    // v.147: all online features removed (server save/sharing, presence, learning sync, card reports, mail delivery).
+    // Only image reading (Gemini, the user's own key) stays online. Any request to the app server is refused here.
+    const APP_OFFLINE_ONLY = true;
+    (function blockAppServer() {
+      const isApp = u => { const s = String((u && u.url) || u || ''); return s.startsWith(API_BASE + '/') || s === API_BASE; };
+      const f = window.fetch && window.fetch.bind(window);
+      if (f) window.fetch = (u, o) => isApp(u) ? Promise.reject(new Error('offline-only')) : f(u, o);
+      if (navigator.sendBeacon) { const b = navigator.sendBeacon.bind(navigator); navigator.sendBeacon = (u, d) => isApp(u) ? true : b(u, d); }
+      try { localStorage.removeItem('nursing_classification_mail_outbox_v1'); } catch (_) {}
+    })();
     const CLASSIFICATION_MAIL_OUTBOX_KEY = 'nursing_classification_mail_outbox_v1';
     const classificationMailOutbox = (() => {
       try {
@@ -29,6 +39,7 @@
       }
     }
     function queueClassificationDelivery(cp) {
+      if (APP_OFFLINE_ONLY) return null;
       // Use the same credential-free JSON schema as the Save button, plus full review text.
       const randomId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
       const job = { id: `classification_${randomId}`, backupText: JSON.stringify(buildPatientBackupData(), null, 2),

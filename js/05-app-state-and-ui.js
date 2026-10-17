@@ -2,7 +2,7 @@
 // Confirmations and Undo verify the captured patient/target; local writes require full readback.
 // AI transport accepts image OCR only; classification and clinical generation stay local.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = 'v.134'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = 'v.147'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -1682,7 +1682,8 @@
       if (tab === 'snapshots') loadAndRenderPatientSnapshots();
     }
 
-    const IS_FILE_PROTOCOL = typeof location !== 'undefined' && location.protocol === 'file:';
+    // v.147: always local-only (no app server). The old name is kept because many checks use it.
+    const IS_FILE_PROTOCOL = true;
 
     function adminServerNoticeHtml(featureName) {
       const why = IS_FILE_PROTOCOL ? 'HTMLファイルを直接開いているため' : 'サーバー（server.js）に接続できないため';

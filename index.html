@@ -6,15 +6,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="v.146">
-  <meta name="app-file-versions" content="01:v.108,02:v.108,03:v.108,04:2026-10-12.usability-context29,05:v.134,06:v.108,07:v.108,08:v.141,09:v.141,10:v.108,11:v.142,12:v.143,13:v.119,14:v.108,15:v.146,16:v.111">
+  <meta name="app-version" content="v.147">
+  <meta name="app-file-versions" content="01:v.108,02:v.108,03:v.108,04:v.147,05:v.147,06:v.108,07:v.108,08:v.141,09:v.141,10:v.108,11:v.142,12:v.143,13:v.119,14:v.108,15:v.146,16:v.111">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=v.145">
+  <link rel="stylesheet" href="style.css?v=v.147">
 
   <link rel="stylesheet" href="vendor/tailwind.css?v=2026-10-06.14">
   <script>
@@ -1043,8 +1043,7 @@
         </section>
         <section data-help-section="save">
           <ul>
-            <li>書いた内容はまず<b>このブラウザ</b>に保存し、続けて<b>共有先（サーバー）</b>にも保存します。画面右上の表示で状態が分かります：「このブラウザに保存済み」「共有先に保存済み」「共有先への保存に失敗（押すと再送）」。</li>
-            <li>共有先に保存できないときも、このブラウザには残っています。自動で送り直すほか、表示を押すとすぐ送り直します。</li>
+            <li>書いた内容は<b>このブラウザ</b>だけに保存します（サーバーへの保存・共有はしません）。別の端末へ移すときは「書き出し」を使ってください。</li>
             <li>画像の読み取り（API）は、右上の「︙」→「設定」→「画像の読み取り設定（API）」でキーを入れたときだけ使えます。分類・手直し・アセスメント・看護計画・書き出しは、記録をもとにサイト内のルールで処理します（AIは使いません）。</li>
             <li>書き出しは保存先を選んで保存します。保存先の選択に対応していないブラウザでは、ブラウザの設定で「ダウンロード前に保存場所を確認する」を有効にしてください。PDFは印刷画面で保存先を選びます。</li>
             <li>画像読み取り（API）の読取結果は必ず原画像と照合してください。画像は送信前に個人を特定できる情報を除いてください。</li>
@@ -1335,8 +1334,8 @@
   <script src="js/01-henderson-keywords.js?v=v.108"></script>
   <script src="js/02-reference-data.js?v=v.108"></script>
   <script src="js/03-extraction-helpers.js?v=v.108"></script>
-  <script src="js/04-server-sync.js?v=2026-10-12.usability-context29"></script>
-  <script src="js/05-app-state-and-ui.js?v=v.134"></script>
+  <script src="js/04-server-sync.js?v=v.147"></script>
+  <script src="js/05-app-state-and-ui.js?v=v.147"></script>
   <script src="js/06-export.js?v=v.108"></script>
   <script src="js/07-classification.js?v=v.108"></script>
   <script src="js/08-assessment-tools.js?v=v.141"></script>

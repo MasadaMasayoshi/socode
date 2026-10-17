@@ -12,12 +12,12 @@
     "hash": "8bb2670502edfecb"
   },
   "js/04-server-sync.js": {
-    "version": "2026-10-12.usability-context29",
-    "hash": "5d32db02d71fadd8"
+    "version": "v.147",
+    "hash": "ae8f019ce82c480c"
   },
   "js/05-app-state-and-ui.js": {
-    "version": "v.134",
-    "hash": "d7616e01e2b5cab0"
+    "version": "v.147",
+    "hash": "53aa240f4b876987"
   },
   "js/06-export.js": {
     "version": "v.108",
@@ -60,8 +60,8 @@
     "hash": "f3d0e1f0c9622aa0"
   },
   "style.css": {
-    "version": "v.145",
-    "hash": "2ebb5d79a4bc4e10"
+    "version": "v.147",
+    "hash": "254f5cc20c425d2a"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",
