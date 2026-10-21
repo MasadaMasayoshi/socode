@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.146'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.148'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -3757,8 +3757,9 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
       const longPress = { timer: 0, fired: false, sx: 0, sy: 0 };
       const nodeTap = id => {
         if (rmState.connectFrom) { rmConnectTo(id); return; }
-        if (rmNodeById(rmMap(), id)?.type === 'nursing_problem') {
-          rmSetProblemsOpen(false); rmFocusProblems([id]); return;
+        // v.148: tapping a problem in the diagram only highlights its route; narrowing the diagram is done from the 看護問題 list.
+        if (rmNodeById(rmMap(), id)?.type === 'nursing_problem' && !(rmState.selected && rmState.selected.type === 'node' && rmState.selected.id === id)) {
+          rmSelect({ type: 'node', id }); return;
         }
 
         const now = Date.now();
@@ -3922,7 +3923,7 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           if (rmState.connectFrom) rmConnectTo(id);
-          else if (rmNodeById(rmMap(), id)?.type === 'nursing_problem') { rmSetProblemsOpen(false); rmFocusProblems([id]); }
+          else if (rmNodeById(rmMap(), id)?.type === 'nursing_problem' && !(rmState.selected && rmState.selected.type === 'node' && rmState.selected.id === id)) rmSelect({ type: 'node', id });
           else if (rmState.selected && rmState.selected.type === 'node' && rmState.selected.id === id) rmEditNodeText(id);
           else rmSelect({ type: 'node', id });
           refocus();

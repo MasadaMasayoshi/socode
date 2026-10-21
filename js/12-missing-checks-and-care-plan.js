@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.143'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.149'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1314,6 +1314,72 @@
         [['測定の方法と記録のしかた、低血糖・高血糖を早く見つけるための目的', /測定|記録|低血糖|高血糖/]])
     ];
     CARE_PLAN_KNOWLEDGE.push(...CPK_ROWS_100);
+    // v.149: knowledge rows can be imported from a JSON file and are treated like built-in rows. Stored only in this browser.
+    // File format: [{ "key", "label", "keywords": ["語", ...] (or "re": "正規表現"), "source": ["出典", ...], "scope": "使わない場面",
+    //   "op"|"tp"|"ep": [ { "text": "観察・援助・指導の文", "keywords": ["語", ...] } | "文のみ" ] }]
+    const IMPORTED_KNOWLEDGE_KEY = 'nursing_imported_knowledge_v1';
+    function impKnowledgeLoad() { try { const v = JSON.parse(localStorage.getItem(IMPORTED_KNOWLEDGE_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (_) { return []; } }
+    function impKnowledgeSave(list) { try { localStorage.setItem(IMPORTED_KNOWLEDGE_KEY, JSON.stringify(list)); return true; } catch (_) { return false; } }
+    function impEsc(w) { return String(w).normalize('NFKC').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+    function impKeywordRe(kws, fallbackText) {
+      const words = (Array.isArray(kws) ? kws : []).map(w => String(w || '').trim()).filter(w => w.length >= 2);
+      if (words.length) return new RegExp(words.map(impEsc).join('|'));
+      const t = String(fallbackText || '').normalize('NFKC').replace(/[\s、。，,.（）()「」]/g, '');
+      return t.length >= 4 ? new RegExp(impEsc(t.slice(0, Math.min(8, t.length)))) : null;
+    }
+    // Returns { row, error } for one raw entry.
+    function impCompileKnowledge(raw) {
+      if (!raw || typeof raw !== 'object') return { error: '行の形が正しくありません' };
+      const key = String(raw.key || '').trim().replace(/[^\w\-]/g, '').slice(0, 60) || null;
+      const label = String(raw.label || '').trim().slice(0, 80);
+      if (!key || !label) return { error: 'key と label が必要です' };
+      let re = null;
+      if (typeof raw.re === 'string' && raw.re.trim()) { try { re = new RegExp(raw.re); } catch (_) { return { error: `${label}: 正規表現が正しくありません` }; } }
+      else re = impKeywordRe(raw.keywords, '');
+      if (!re) return { error: `${label}: keywords（2文字以上）か re が必要です` };
+      if (re.test('') || re.test('特になし') || re.test('問題なし')) return { error: `${label}: 判定語が広すぎます` };
+      const sec = name => (Array.isArray(raw[name]) ? raw[name] : []).map(it => {
+        const text = String(typeof it === 'string' ? it : (it && it.text) || '').trim();
+        if (!text) return null;
+        const r = impKeywordRe(typeof it === 'object' ? it.keywords : null, text);
+        return r ? [text, r] : null;
+      }).filter(Boolean);
+      const op = sec('op'), tp = sec('tp'), ep = sec('ep');
+      if (!op.length && !tp.length && !ep.length) return { error: `${label}: op・tp・ep のどれかに文が必要です` };
+      const src = (Array.isArray(raw.source) ? raw.source : []).map(x => String(x || '').trim()).filter(Boolean);
+      return { row: { key: `imp-${key}`, re, label, source: src.length ? src : ['取り込み（出典未確認）'], scope: String(raw.scope || '').trim() || '取り込んだ知識。当てはまる場面かどうか、看護師が確認して使う',
+        edition: '取り込み', checked: new Date().toISOString().slice(0, 10), next: '', op, tp, ep } };
+    }
+    function impApplyKnowledge(list) {
+      for (let i = CARE_PLAN_KNOWLEDGE.length - 1; i >= 0; i--) if (String(CARE_PLAN_KNOWLEDGE[i].key).startsWith('imp-')) CARE_PLAN_KNOWLEDGE.splice(i, 1);
+      let n = 0;
+      list.forEach(raw => { const r = impCompileKnowledge(raw); if (r.row) { CARE_PLAN_KNOWLEDGE.push(r.row); n++; } });
+      return n;
+    }
+    impApplyKnowledge(impKnowledgeLoad());
+    window.importKnowledgeFile = async function(file) {
+      if (!file) return;
+      let data;
+      try { data = JSON.parse(await file.text()); } catch (_) { showToast('JSONとして読めませんでした', 'error'); return; }
+      const arr = Array.isArray(data) ? data : Array.isArray(data && data.rows) ? data.rows : null;
+      if (!arr) { showToast('知識の一覧（配列）が見つかりません', 'error'); return; }
+      const stored = impKnowledgeLoad(), errors = []; let added = 0, replaced = 0;
+      arr.forEach(raw => {
+        const r = impCompileKnowledge(raw);
+        if (r.error) { errors.push(r.error); return; }
+        const rawKey = r.row.key.slice(4);
+        const idx = stored.findIndex(x => String(x.key || '').trim().replace(/[^\w\-]/g, '') === rawKey);
+        if (idx >= 0) { stored[idx] = raw; replaced++; } else { stored.push(raw); added++; }
+      });
+      if (added + replaced) { if (!impKnowledgeSave(stored)) { showToast('保存できませんでした（容量不足の可能性）', 'error'); return; } impApplyKnowledge(stored); }
+      showToast(`知識を取り込みました：追加${added}件・更新${replaced}件${errors.length ? `／取り込めなかった${errors.length}件（${errors.slice(0, 2).join('、')}）` : ''}`, errors.length && !(added + replaced) ? 'error' : 'success');
+    };
+    window.clearImportedKnowledge = function() {
+      const n = impKnowledgeLoad().length;
+      if (!n) { showToast('取り込んだ知識はありません', 'info'); return; }
+      if (!confirm(`取り込んだ知識 ${n} 件をすべて消します。よろしいですか？（元から入っている知識は消えません）`)) return;
+      impKnowledgeSave([]); impApplyKnowledge([]); showToast('取り込んだ知識を消しました', 'success');
+    };
     function cpKnowledgeRowsFor(text) {
       const t = String(text || '').normalize('NFKC');
       return CARE_PLAN_KNOWLEDGE.filter(r => r.re.test(t));
