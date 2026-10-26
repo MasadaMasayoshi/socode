@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.160'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.176'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1243,7 +1243,7 @@
       10: /感情|不安|涙|泣|怒|口をきか|表情|甘え|反発|ストレート|落ち込み|口論/,
       11: /信仰|宗教|価値観|大切にして/,
       12: /学校|部活|仕事|役割|学級|通学|授業|担任|養護教諭/,
-      13: /余暇|趣味|ゲーム|マンガ|漫画|友だち|友人|水泳|英会話|色紙/,
+      13: /余暇|趣味|ゲーム|マンガ|漫画|友だち|友人|スポーツ|水泳|サッカー|野球|ピアノ|習い事|英会話|音楽|読書|散歩/,
       14: /学習|説明を|理解|指導|セルフケア|自己注射|血糖測定|クイズ|知識|質問|メモ/
     };
     function crossRefItemsForNeed(items, needId) {
@@ -1262,7 +1262,7 @@
     // v.141 (3) cross-cutting themes: filter/dim cards by theme without changing classification
     const CROSS_THEMES = [
       { key: 'adolescence', label: '思春期・発達課題', re: /思春期|中学|1[0-9]歳|甘え|反発|自己管理|お母さんにまかせ|部活|友人|友だち|ニキビ|口をきか|感情的|内向的|学級委員|誰にも知られたくない|発達課題|初経|月経/ },
-      { key: 'family', label: '家族システム', re: /祖母|祖父|母親|父親|両親|兄|家族|自営|飲食店|面会|きょうだい|お母さん|お兄ちゃん|家庭/ },
+      { key: 'family', label: '家族システム', re: /祖母|祖父|母親|父親|両親|兄|家族|自営|家業|面会|きょうだい|お母さん|お兄ちゃん|家庭/ },
       { key: 'selfcare', label: '自己管理・セルフケア', re: /自己注射|自己血糖|セルフケア|補食|血糖測定|インスリン|食事表|カーボ|スライディング/ }
     ];
     function crossThemesOf(text) { const t = String(text || ''); return CROSS_THEMES.filter(c => c.re.test(t)).map(c => c.key).join(' '); }

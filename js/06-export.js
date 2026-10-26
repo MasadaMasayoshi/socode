@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.175'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.176'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -936,7 +936,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       ['世話の担い手', /(?:世話|面倒|養育|介護)(?:を|は|に)|まかせ|任せ/],
       ['家事・役割分担', /買い物|掃除|洗濯|家事|お手伝い|手伝って|分担|留守番/],
       ['学校生活・通学', /小学校|中学校|高校|大学|学校|通学|登校|部活|クラス|担任|友だち|友達/],
-      ['習い事・得意科目', /教室に通|習い事|塾|得意科目|英会話|ピアノ|水泳/]]);
+      ['習い事・得意科目', /教室に通|習い事|塾|得意科目|英会話|ピアノ|水泳|サッカー|野球|書道|スイミング/]]);
     function backgroundSentenceFactors(text) {
       const sents = String(text || '').normalize('NFKC').split(/(?<=[。！？!?])\s*/).map(x => x.trim()).filter(Boolean);
       if (sents.length < 2) return null;
