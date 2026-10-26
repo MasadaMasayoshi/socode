@@ -1,15 +1,15 @@
 {
   "js/01-henderson-keywords.js": {
-    "version": "v.108",
-    "hash": "5db099cf8dc9fc6f"
+    "version": "v.151",
+    "hash": "793f04e9d06b548d"
   },
   "js/02-reference-data.js": {
     "version": "v.108",
     "hash": "3f32fe748c2880a4"
   },
   "js/03-extraction-helpers.js": {
-    "version": "v.108",
-    "hash": "8bb2670502edfecb"
+    "version": "v.151",
+    "hash": "c8d9ce9fdefe854b"
   },
   "js/04-server-sync.js": {
     "version": "v.147",
@@ -32,8 +32,8 @@
     "hash": "ccb40ef1374ac935"
   },
   "js/09-board.js": {
-    "version": "v.150",
-    "hash": "c7721ab322d1275c"
+    "version": "v.151",
+    "hash": "93dda76a23fe176c"
   },
   "js/10-reference-page-and-startup.js": {
     "version": "v.108",
@@ -60,8 +60,8 @@
     "hash": "bb542096fa73b8b4"
   },
   "style.css": {
-    "version": "v.150",
-    "hash": "36ac10fc890a1330"
+    "version": "v.151",
+    "hash": "2267325ad3b92fda"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",

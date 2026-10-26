@@ -2056,3 +2056,17 @@ tr.cmp-row{display:table-row;padding:0;border:0;background:none;gap:0}
 #assessment-table-wrap .asc-need-hit{background:var(--accent-soft,rgba(46,125,110,.14));border-radius:3px;padding:0 2px;box-shadow:inset 2px 0 0 var(--accent)}
 #assessment-table-wrap .asc-need-other{opacity:.55}
 #assessment-table-wrap .asc-mixed-tag{font-size:8px;font-weight:700;padding:0 4px;border-radius:var(--radius-sm);background:var(--line-soft);color:var(--ink-muted);border:1px solid var(--line)}
+
+/* v.151 基本的看護の資料：観察項目の目安 */
+.need-ref{margin-top:.5rem;font-size:11px;line-height:1.55;color:var(--ink)}
+.need-ref>summary{cursor:pointer;font-weight:700;font-size:11px;color:var(--accent);list-style:none}
+.need-ref>summary::-webkit-details-marker{display:none}
+.need-ref>summary::before{content:"▸ ";}
+.need-ref[open]>summary::before{content:"▾ ";}
+.need-ref .nref-state{margin-top:.5rem;padding-top:.4rem;border-top:1px solid var(--line)}
+.need-ref .nref-name{font-weight:700;margin-bottom:.25rem}
+.need-ref .nref-cols{display:grid;grid-template-columns:1fr;gap:.4rem}
+.need-ref .nref-label{font-size:10px;font-weight:700;color:var(--ink-muted)}
+.need-ref ul{margin:0;padding-left:1.1em;list-style:disc}
+#assessment-table-wrap .need-cell .need-ref{max-width:220px}
+@media (min-width:900px){#view-assessment>.need-ref .nref-cols,#assessment-single .need-ref .nref-cols{grid-template-columns:1fr 1fr}}

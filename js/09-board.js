@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.150'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.151'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1163,7 +1163,7 @@
           if (unc.length || selectedNeed !== 'all') unclassifiedHtml += `<section class="asm-aux asm-aux-unc${unc.length ? '' : ' is-empty'}" data-need-id="${need.id}" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'unclassified')"><div class="asm-aux-title">${selectedNeed === 'all' ? escapeHtml(need.name) + ' ／ ' : ''}未分類 <b>${unc.length}</b><span class="my-asm-muted">${unc.length ? '入院前・入院後に振り分けてください' : '未分類のカードはありません'}</span></div><div class="asm-aux-body">${categorize('unclassified')}</div></section>`;
         }
         if (selectedNeed !== 'all') {
-          if (Number(selectedNeed) === need.id) singleHtml = renderAssessmentSingleHtml(cp, need, matching, categorize);
+          if (Number(selectedNeed) === need.id) singleHtml = (typeof needReferenceHtml === 'function' ? needReferenceHtml(need.id) : '') + renderAssessmentSingleHtml(cp, need, matching, categorize);
           return;
         }
         const needLabel = need.name.replace(/^\d+\.\s*/, '');
@@ -1179,6 +1179,7 @@
                 <span class="text-[12.5px] leading-snug font-semibold text-[var(--ink)] break-words font-sans">${needLabel}</span>
               </div>
             </div>
+            ${typeof needReferenceHtml === 'function' ? needReferenceHtml(need.id) : ''}
           </td>
           <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--slate-soft)]/30 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'preadmission')"><div class="space-y-1.5">${categorize('preadmission')}</div></td>
           <td class="border border-[var(--line)] p-1.5 align-top bg-[var(--accent-soft)]/40 min-h-[60px]" ondragover="allowDrop(event)" ondrop="handleAssessmentDrop(event, ${need.id}, 'postadmission')"><div class="space-y-1.5">${categorize('postadmission')}</div></td>
