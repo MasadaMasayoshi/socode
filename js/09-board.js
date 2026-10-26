@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.151'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.155'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -625,6 +625,45 @@
       });
       return { typeVotes, hendersonVotes, preferredCols };
     }
+
+    // Related cards = same kind (S/O), same record day, and at least one shared specific clinical term.
+    // Nothing is changed here: related cards are only added to the selection so the user can review them and press 統合.
+    const RELATED_CARD_STOP_TERMS = new Set(['患者', '本人', '家族', '入院', '退院', '説明', '実施', '状態', '確認', '記録', '使用', '開始', '終了', '以降', '現在', '今後', '必要', '可能', '時間', '午前', '午後', '看護', '看護師', '医師', '主治医', '予定', '症状', '訴え', '発言', '様子', '表情', '食事', '体温', '血圧', '脈拍', '体重', '身長', '検査', '理解', '先生', '祖母', '母親', '父親', '両親', '基準値', '以下', '以上', '程度', '前後']);
+    const RELATED_CARD_LAB_LIKE = /基準値|mg\/dL|mmHg|mmol|g\/dL|\/μL|\d\s*(?:回\/分|℃|°C|%)/;
+    function relatedCardTerms(text) {
+      const terms = new Set();
+      if (RELATED_CARD_LAB_LIKE.test(String(text))) return terms;
+      (String(text).match(/[ァ-ヶー]{2,}|[一-龥]{2,}|[A-Za-z][A-Za-z0-9]{2,}/g) || []).forEach(t => {
+        if (RELATED_CARD_STOP_TERMS.has(t)) return;
+        if (/^[A-Za-z]/.test(t)) { terms.add(t); return; }
+        for (let k = 0; k + 2 <= t.length; k++) { const bg = t.slice(k, k + 2); if (!RELATED_CARD_STOP_TERMS.has(bg)) terms.add(bg); }
+      });
+      return terms;
+    }
+    window.selectRelatedCards = function() {
+      const cp = getCurrentPatient();
+      const active = (cp.items || []).filter(i => !i.deleted && (i.type === 's' || i.type === 'o'));
+      const picked = active.filter(i => selectedCardIds.has(i.id));
+      if (!picked.length) return showToast('先にカードを1枚以上選んでください', 'info');
+      const added = [];
+      picked.forEach(base => {
+        const day = timestampDayPart(base.timestamp);
+        if (!day || day === '日時不明') return;
+        const baseTerms = relatedCardTerms(base.text);
+        if (!baseTerms.size) return;
+        active.forEach(c => {
+          if (c.id === base.id || selectedCardIds.has(c.id) || added.some(a => a.id === c.id) || c.type !== base.type) return;
+          if (timestampDayPart(c.timestamp) !== day) return;
+          const shared = [...relatedCardTerms(c.text)].filter(t => baseTerms.has(t));
+          if (shared.length >= 2) added.push({ id: c.id, shared });
+        });
+      });
+      const limited = added.slice(0, 8);
+      if (!limited.length) return showToast('同じ日に、同じ内容で関連するカードは見つかりませんでした', 'info');
+      limited.forEach(a => selectedCardIds.add(a.id));
+      renderSoBoard();
+      showToast(`関連するカードを${limited.length}枚、追加で選びました（共通：${[...new Set(limited.flatMap(a => a.shared))].slice(0, 4).join('・')}）。内容を見て「統合」を押してください`, 'success');
+    };
 
     window.openMergeModal = function() {
       const cp = getCurrentPatient();
@@ -1363,6 +1402,7 @@
       const fieldDef = item.fieldLabel ? FIELD_LABELS.find(f => f.key === item.fieldLabel) : null;
       const fieldTag = fieldDef ? `<span class="text-[8px] px-1 rounded-[var(--radius-sm)] font-bold" style="background:${fieldDef.bg};color:${fieldDef.color};">${escapeHtml(fieldDef.label)}</span>` : '';
       const evidenceTag = isEvidence ? `<span class="asc-ev-tag" title="自分のアセスメントの根拠にしたカード"><i class="fa-solid fa-link"></i>根拠</span>` : '';
+      const damagedTag = (typeof isDamagedCardText === 'function' && isDamagedCardText(item.text)) ? `<span class="text-[8px] px-1 rounded-[var(--radius-sm)] font-bold" style="background:var(--brick-soft);color:var(--brick);" title="文のはじめや途中が欠けている可能性があります。元の記録を確認してください（推測で補っていません）"><i class="fa-solid fa-triangle-exclamation mr-0.5"></i>原文要確認</span>` : '';
       const aiTag = item.aiSuggested ? `<span class="text-[8px] px-1 rounded-[var(--radius-sm)] font-bold" style="background:var(--brick-soft);color:var(--brick);"><i class="fa-solid fa-wand-magic-sparkles mr-0.5"></i>自動推定</span>` : '';
 
       const COL_COLORS = { unclassified: 'var(--ink-muted)', preadmission: 'var(--slate)', postadmission: 'var(--accent)', missing: 'var(--brick)' };
@@ -1381,7 +1421,7 @@
           ondragleave="event.currentTarget.classList.remove('drag-over');"
           ondrop="handleAssessmentCardDrop(event, ${jsArg(item.id)}, ${hId})"
           data-xt="${typeof crossThemesOf === 'function' ? crossThemesOf(item.text) : ''}" class="asc-card px-1.5 py-1 rounded-[var(--radius-sm)] border ${item.aiSuggested ? 'border-dashed' : ''} border-[var(--line)] text-[10.5px] cursor-grab active:cursor-grabbing hover:border-[var(--accent)] transition" style="background:${cardBg};border-left-width:3px;border-left-color:${accentColor};">
-          <div class="leading-snug break-words text-[var(--ink)]"><span class="inline-flex items-center gap-0.5 mr-1 align-[1px]">${badge}${evidenceTag}${familyMark}${aiTag}${fieldTag}${time}${drugChipHtml(item)}${ascMixedChipHtml(item, hId)}</span>${(!isMissingCol && ascNeedFocusHtml(item, hId)) || cardTextWithLabFlagsHtml(item)}${typeof drugLineHtml === 'function' ? drugLineHtml(item) : ''}</div>
+          <div class="leading-snug break-words text-[var(--ink)]"><span class="inline-flex items-center gap-0.5 mr-1 align-[1px]">${badge}${evidenceTag}${familyMark}${aiTag}${damagedTag}${fieldTag}${time}${drugChipHtml(item)}${ascMixedChipHtml(item, hId)}</span>${(!isMissingCol && ascNeedFocusHtml(item, hId)) || cardTextWithLabFlagsHtml(item)}${typeof drugLineHtml === 'function' ? drugLineHtml(item) : ''}</div>
           ${isMissingCol && typeof missingCheckCardHtml === 'function' ? `<div class="mc-in-card">${missingCheckCardHtml(getCurrentPatient(), item)}</div>` : ''}
           <div class="asc-actions">
             <button onclick="moveAssessmentCard(${jsArg(item.id)}, ${hId}, 'up')" ${isFirst ? 'disabled' : ''} class="icon-btn" title="この欄の中で1つ上へ移動" style="${isFirst ? 'opacity:.3;cursor:not-allowed;' : ''}"><i class="fa-solid fa-chevron-up text-[9px]"></i></button>

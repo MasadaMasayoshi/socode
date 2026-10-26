@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.141'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.152'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1062,9 +1062,32 @@
         }
         entries.push({ key, name: mm[1], value: mm[3].replace(/\s+/g, ''), unit, ref, flag, note: [phaseNote, ...notes].filter(Boolean).join(' '), vital });
       }
+      // Same record, same vital sign, clearly different values (e.g. heart rate 68 vs pulse 100): flag, never pick one.
+      const pulses = entries.filter(e => e.key === '脈拍' && Number.isFinite(Number(e.value)));
+      if (pulses.length >= 2 && Math.max(...pulses.map(e => Number(e.value))) - Math.min(...pulses.map(e => Number(e.value))) >= 15) {
+        pulses.forEach(e => { e.note = [e.note, '同じ記録に異なる値あり（要確認）'].filter(Boolean).join(' '); });
+      }
       return entries;
     }
 
+    // Compare each blood-pressure component against the reference shown to the user
+    // (systolic 100-139, diastolic 60-89 mmHg); the reference range is not a diagnostic threshold.
+    // Conservative general-purpose ranges, used ONLY when the record gives no reference range.
+    // They flag clearly abnormal values; they never invent a measurement and never override a range from the record.
+    function labFallbackRange(entry) {
+      const key = String(entry.key || ''), unit = String(entry.unit || '').toLowerCase().replace(/\s+/g, '');
+      if (/^(?:血糖|BS|Glu|グルコース)$/i.test(key) && /mg\/dl/.test(unit || 'mg/dl')) return { low: 70, high: 200, fallback: true };
+      if (/^HbA1c$/i.test(key)) return { low: null, high: 6.4, fallback: true };
+      if (/^pH$/i.test(key)) return { low: 7.35, high: 7.45, fallback: true };
+      if (/^(?:HCO3|HCO3-|重炭酸)$/i.test(key)) return { low: 22, high: 26, fallback: true };
+      return null;
+    }
+    function bpComponentStatus(sys, dia) {
+      const part = (v, lo, hi) => (v >= hi + 1 ? 'high' : v < lo ? 'low' : 'normal');
+      const systolic = part(sys, 100, 139), diastolic = part(dia, 60, 89);
+      const overall = (systolic === 'high' || diastolic === 'high') ? 'high' : (systolic === 'low' || diastolic === 'low') ? 'low' : 'normal';
+      return { systolic, diastolic, overall, belowClinicalThreshold: sys < 90 || dia < 50 };
+    }
     function labTrendFlag(entry, refRange, childGuide = null) {
       if (entry.flag) return entry.flag;
       const v = entry.vital;
@@ -1084,7 +1107,7 @@
       }
       const num = Number(String(entry.value).replace(/,/g, ''));
       if (!Number.isFinite(num)) return '';
-      const range = refRange || (v ? { low: v.low ?? null, high: v.high ?? null } : null);
+      const range = refRange || (v ? { low: v.low ?? null, high: v.high ?? null } : null) || labFallbackRange(entry);
       if (!range) return '';
 
       const overHigh = v && v.key === '体温' ? num >= range.high : num > range.high;
@@ -1764,7 +1787,7 @@
         LAB_RESP_DEFS.forEach(d => { const mm = t.match(d.regex); if (mm) { const v = Number(mm[2]); const event = `${d.key}\0${v}\0${String(item.timestamp || '').normalize('NFKC')}\0${!item.timestamp || item.timestamp === '日時不明' ? t.replace(/\s+/g,'') : ''}`; if (respiratoryEvents.has(event)) return; respiratoryEvents.add(event); resp.push({ key: d.key, source: text.trim(), value: v, raw: mm[2], ref: d.ref, status: v >= d.low ? 'normal' : 'low', phase, def: d }); } });
         LAB_VITAL_DEFS.forEach(d => { const mm = t.match(d.regex); if (mm && !((d.key === '呼吸数' && Number(mm[1]) < 5) || (d.key === '脈拍' && Number(mm[1]) < 30))) { const v = Number(mm[1]); vitals.push({ key: d.key, source: text.trim(), value: v, raw: mm[1], unit: d.unit, ref: d.ref, status: d.judge(v), phase, oxygen: d.key === 'SpO2' && /酸素|(?:^|[^Sp])O2\s*\d|\d\s*L\s*\/?\s*分|カニュ|マスク|ネーザル/i.test(t.replace(/Sp[O0]2|SPO2|SpO₂/gi, '')) && !/室内気|room air|\bRA\b/i.test(t), roomAir: d.key === 'SpO2' && /室内気|room air|\bRA\b/i.test(t) }); } });
         const bp = t.match(/(?:血圧|(?<![A-Za-z])BP)\D{0,3}(\d{2,3})\s*[/／]\s*(\d{2,3})/);
-        if (bp) { const s = Number(bp[1]), dd = Number(bp[2]); vitals.push({ key: '血圧', source: text.trim(), value: `${s}/${dd}`, unit: 'mmHg', ref: '収縮期100〜139・拡張期60〜89mmHg', status: (s >= 140 || dd >= 90) ? 'high' : (s < 90 || dd < 50) ? 'low' : 'normal', phase }); }
+        if (bp) { const s = Number(bp[1]), dd = Number(bp[2]); vitals.push({ key: '血圧', source: text.trim(), value: `${s}/${dd}`, unit: 'mmHg', ref: '収縮期100〜139・拡張期60〜89mmHg', status: bpComponentStatus(s, dd).overall, bpParts: bpComponentStatus(s, dd), phase }); }
         const r = analyzeLabCard(text, null);
         if (!r) return;
         if (r.kind === 'broken') { r.phase = phase; r.itemId = item.id; broken.push(r); return; }

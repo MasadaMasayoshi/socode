@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="v.151">
-  <meta name="app-file-versions" content="01:v.151,02:v.108,03:v.151,04:v.147,05:v.147,06:v.108,07:v.108,08:v.141,09:v.151,10:v.108,11:v.142,12:v.149,13:v.119,14:v.108,15:v.148,16:v.111">
+  <meta name="app-version" content="v.155">
+  <meta name="app-file-versions" content="01:v.151,02:v.108,03:v.151,04:v.147,05:v.147,06:v.108,07:v.154,08:v.152,09:v.155,10:v.108,11:v.142,12:v.149,13:v.119,14:v.108,15:v.148,16:v.111">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1139,6 +1139,7 @@
     <button onclick="bulkSetType('o')" class="btn" style="background:var(--slate);color:var(--on-fill);">→O</button>
     <select id="bulk-tag-select" onchange="bulkAddTag(this.value); this.value='';" class="text-[10px] rounded-[var(--radius-sm)] px-1.5 py-1.5 border-0" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;"><option value="">＋タグ追加</option></select>
     <button id="btn-bulk-split" onclick="splitSelectedCard()" class="btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;" title="選択した1件のカードを、複数のカードに切り分ける"><i class="fa-solid fa-scissors mr-1"></i>切り分け</button>
+    <button id="btn-bulk-related" onclick="selectRelatedCards()" class="btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;" title="選んだカードと同じ日・同じ内容で関連するカードを、追加で選ぶ（まだ統合はしません）"><i class="fa-solid fa-link mr-1"></i>関連を選ぶ</button>
     <button id="btn-bulk-merge" onclick="openMergeModal()" class="btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;" title="選択した2件以上のカードを1枚にまとめる"><i class="fa-solid fa-layer-group mr-1"></i>統合</button>
     <button onclick="bulkSetType('unnecessary')" class="btn btn-outline" style="color:var(--bar-btn-ink);background:var(--bar-btn-bg);border-color:transparent;">不要にする</button>
 
@@ -1342,9 +1343,9 @@
   <script src="js/04-server-sync.js?v=v.147"></script>
   <script src="js/05-app-state-and-ui.js?v=v.147"></script>
   <script src="js/06-export.js?v=v.108"></script>
-  <script src="js/07-classification.js?v=v.108"></script>
-  <script src="js/08-assessment-tools.js?v=v.141"></script>
-  <script src="js/09-board.js?v=v.151"></script>
+  <script src="js/07-classification.js?v=v.154"></script>
+  <script src="js/08-assessment-tools.js?v=v.152"></script>
+  <script src="js/09-board.js?v=v.155"></script>
   <script src="js/10-reference-page-and-startup.js?v=v.108"></script>
   <script src="js/11-own-assessment.js?v=v.142"></script>
   <script src="js/12-missing-checks-and-care-plan.js?v=v.149"></script>

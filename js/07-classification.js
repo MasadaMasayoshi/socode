@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.108'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.154'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -832,6 +832,40 @@
         i--;
       }
     }
+
+    // Pasted records (PDF/table copies) sometimes break a line inside a medical term ("…異常なく、器" / "質的膵疾患なし").
+    // Rejoin a line break only when the text on both sides of it spells a whole known term; nothing is added or removed
+    // except the line break itself. Returns the repaired copy and what was joined (the stored source text is not changed).
+    const SPLIT_TERM_EXTRA = ['器質的', 'ケトアシドーシス', 'インスリン', '糖尿病', '低血糖', '高血糖', '膵疾患', '自己注射', '血糖測定'];
+    function repairWordSplitAcrossLines(text) {
+      const terms = new Set(SPLIT_TERM_EXTRA);
+      if (typeof HENDERSON_NEEDS !== 'undefined') HENDERSON_NEEDS.forEach(n => n.keywords.forEach(k => { if (typeof k === 'string' && k.length >= 3 && /[\u3040-\u30ff\u4e00-\u9fff]/.test(k)) terms.add(k); }));
+      const lines = String(text || '').split('\n');
+      const out = [], joined = [];
+      for (let i = 0; i < lines.length; i++) {
+        let cur = lines[i];
+        while (i + 1 < lines.length) {
+          const prev = cur.replace(/[ \t\u3000]+$/, ''), next = lines[i + 1].replace(/^[ \t\u3000]+/, '');
+          if (!prev || !next || /[。．.!！?？」』）)\]】:：]$/.test(prev)) break;
+          let hit = null;
+          for (const t of terms) {
+            for (let k = 1; k < t.length && !hit; k++) {
+              if (prev.endsWith(t.slice(0, k)) && next.startsWith(t.slice(k))) hit = t;
+            }
+            if (hit) break;
+          }
+          if (!hit) break;
+          joined.push(hit);
+          cur = prev + next;
+          i++;
+        }
+        out.push(cur);
+      }
+      return { text: out.join('\n'), joined };
+    }
+    // A card whose text starts or ends in the middle of a word/sentence was damaged before import. Flag it; never guess the missing text.
+    const DAMAGED_TEXT_REGEX = /^(?:ると|れると)(?=.)|。る。/;
+    function isDamagedCardText(text) { return DAMAGED_TEXT_REGEX.test(String(text || '').trim()); }
 
     function splitFamilySpeechSentences(list) {
       for (let i = 0; i < list.length; i++) {
@@ -3076,8 +3110,10 @@
 
     document.getElementById('btn-start-classify').addEventListener('click', async () => {
 
-      const text = DOM.sourceText.value.trim().normalize('NFKC');
+      const repairedSource = repairWordSplitAcrossLines(DOM.sourceText.value.trim().normalize('NFKC'));
+      const text = repairedSource.text;
       if (!text) return showToast('文章を入力してください', 'warn');
+      if (repairedSource.joined.length) showToast(`行の途中で切れていた語を${repairedSource.joined.length}か所つなぎました（${Array.from(new Set(repairedSource.joined)).join('・')}）。元の記録メモは変えていません`, 'info');
       if (typeof resetSourcePaneLayout === 'function') resetSourcePaneLayout();
       const cp = getCurrentPatient();
       const sourceCardsForRun = classifyTextByRules(text);
