@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.162'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.165'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -2126,7 +2126,21 @@
           if (rr) E(N('dm_resp', 'symptom', short(rr, 30, /呼吸/), { items: [rr], max: 30 }), dka, 'supports', { evidence: '酸を吐き出そうとして呼吸が増える（根拠）' });
           const drip = findItem(/持続点滴|インスリン[^\n]{0,6}点滴/, notHist);
           if (drip) E(N('dm_drip', 'treatment', 'インスリン持続点滴', { items: [drip], max: 30 }), hg, 'treats', { evidence: '血糖を下げ、ケトン体の産生を止める' });
-          E(dka, N('p_fluid', 'nursing_problem', '体液量不足リスク状態（脱水）', { cat: 'circ' }), 'results_in', { predicted: true });
+          // After a documented post-discharge follow-up the ketoacidosis is a resolved event: keep it in the course, but do not carry its dehydration risk forward as a current problem.
+          if (!items.some(i => /退院後|外来(?:受診|にて)/.test(String(i.text || '')))) E(dka, N('p_fluid', 'nursing_problem', '体液量不足リスク状態（脱水）', { cat: 'circ' }), 'results_in', { predicted: true });
+        }
+        // Self-management gap: the procedure can be done, but responding to the result / rotating injection sites is not yet reliable.
+        const noActItem = findItem(/補食をとろうとしない|(?:低血糖|測定値)[^\n]{0,24}補食[^\n]{0,10}(?:とろうとしない|しない)/, notHist);
+        const siteItem = findItem(/注射部位[^\n]{0,24}(?:同じ|ほぼ同じ|偏)/, notHist);
+        if (noActItem || siteItem) {
+          const jstate = N('dm_judge', 'pathophysiology', '測定や注射の手技はできても、結果に応じて補食・報告を自分で判断し、注射部位を変える習慣は、まだ身についていない', { source: 'knowledge' });
+          const skillOk = findItem(/(?:正確に行え|ひとりで[^\n]{0,10}行え)るようになった/, notHist);
+          if (skillOk) E(N('dm_skill_ok', 'patient_fact', short(skillOk, 40, /正確|ひとりで/), { items: [skillOk], max: 40 }), jstate, 'supports', { evidence: '手技ができることと、結果に応じた判断ができることは別の力（根拠）' });
+          if (noActItem) E(N('dm_noact', 'symptom', short(noActItem, 50, /補食|低血糖/), { items: [noActItem], max: 50 }), jstate, 'causes', { noBridge: true });
+          if (siteItem) E(N('dm_site', 'symptom', short(siteItem, 40, /注射部位/), { items: [siteItem], max: 40 }), jstate, 'causes', { noBridge: true });
+          const gvN2 = nodes.get('glu_var');
+          if (gvN2 && noActItem) E(jstate, gvN2, 'contributes_to', { predicted: true, evidence: '低い値のまま対応が遅れると、低血糖が続くおそれがある' });
+          E(jstate, N('p_mgmt2', 'nursing_problem', '非効果的健康自主管理（低血糖時の対応・注射部位の管理）', { cat: 'mgmt' }), 'results_in', { noBridge: true });
         }
         const gv = N('glu_var', 'future_risk', 'これからも血糖が変動する可能性（高血糖・低血糖）', { source: 'knowledge', observed: false });
         E(hg, gv, 'predicts', { predicted: true, evidence: '手術の侵襲・食事量・インスリンの量の変化で血糖が上下する' });
@@ -2371,7 +2385,11 @@
       }
 
       const fullIntake = /糖尿病/.test(dxLabel) && !weightItem && !intakeItem && findItem(/全量摂取|[7-9]割(?:を)?摂取|10割/);
-      if (!fullIntake && (weightItem || (albL && albL.flag === 'low') || intakeItem)) {
+      // A recorded loss of appetite/weight that is followed later by full meal intake is a resolved course, not a current problem.
+      const recoveredItem = findItem(/全量摂取|[7-9]割(?:を)?摂取|10割(?:を)?摂取/);
+      const lossItems = [weightItem, intakeItem].filter(Boolean);
+      const intakeRecovered = !!recoveredItem && lossItems.length > 0 && !(albL && albL.flag === 'low') && lossItems.every(x => items.indexOf(recoveredItem) > items.indexOf(x));
+      if (!fullIntake && !intakeRecovered && (weightItem || (albL && albL.flag === 'low') || intakeItem)) {
 
         const low = (weightItem || intakeItem)
           ? N('undernutrition', 'symptom', [weightItem && short(weightItem, 20), intakeItem && short(intakeItem, 16)].filter(Boolean).join('・'), { items: [weightItem, intakeItem] })

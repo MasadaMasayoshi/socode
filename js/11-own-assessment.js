@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.142'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.165'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -370,7 +370,7 @@
       1: '誤嚥・無気肺・肺炎などの呼吸器合併症', 2: '低栄養・脱水・創傷治癒の遅れ', 3: '便秘・尿閉・腸閉塞（イレウス）', 4: '廃用症候群・深部静脈血栓症・転倒',
       5: '睡眠不足による疼痛の増強・せん妄', 6: '更衣困難による皮膚トラブル・保温不足', 7: '感染による発熱・体温調節の乱れ', 8: '感染・皮膚トラブル（褥瘡）',
       9: '転倒・転落・感染・事故', 10: '不安の増強・ニーズの把握の遅れ', 11: '精神的な苦痛の増強', 12: '役割の喪失・自己効力感の低下', 13: '気分転換の不足・活動意欲の低下',
-      14: '自己管理の不足・退院後の合併症（脱臼・再発など）'
+      14: '自己管理の不足・治療や自己管理の中断・不十分さによる状態の悪化'
     };
 
     function sufficiencyDimensions(cp, needId, phase) {
@@ -382,7 +382,7 @@
       const nz = x => String(x || '').normalize('NFKC').replace(/\s+/g, ' ');
       const txt = evItems.map(i => nz(i.text)).join(' ');
       const assist = (txt.match(/全介助|一部介助|軽介助|介助(?:が)?(?:必要|要)|見守り|自立|自分で[^\s。、]{1,8}/) || [])[0] || '';
-      const sym = evItems.filter(i => /痛|苦|困難|不能|できない|悪心|嘔|膨満|浅|湿性|発熱|不眠|不安|ふらつ|息苦|絶飲食|絶食|カテーテル|床上安静|酸素/.test(nz(i.text))).slice(0, 2).map(i => { const t = nz(i.text).replace(/^「|」$/g, ''); return t.length > 22 ? t.slice(0, 22) + '…' : t; });
+      const sym = evItems.filter(i => /痛|苦|困難|不能|できない|悪心|嘔|膨満|浅|湿性|発熱|不眠|不安|ふらつ|息苦|絶飲食|絶食|カテーテル|床上安静|酸素|呼吸\s*\d{2}|頻呼吸|ふるえ|震え|口渇|渇く|体重[^。]{0,8}(?:減|低下)|低血糖|アシドーシス|pH\s*7\.[0-3]|ケトン|とろうとしない|同じ場所/.test(nz(i.text))).slice(0, 2).map(i => { const t = nz(i.text).replace(/^「|」$/g, ''); if (t.length <= 40) return t; const cut = t.slice(0, 40); const k = Math.max(cut.lastIndexOf('、'), cut.lastIndexOf('。')); return (k > 12 ? cut.slice(0, k) : cut) + '…'; });
       const status = SUFFICIENCY_LABELS[a.verdict] || '';
       const n = evItems.length;
       let conf = '低（記録が少ない、または決め手がない）';
@@ -409,7 +409,7 @@
       const byId = new Map((cp.items || []).map(i => [i.id, i]));
       const ref = id => { const lb = (labelMap || {})[id]; return lb ? (lb.match(/^[SO]-\d+/) || [lb])[0] : ''; };
       const one = f => { const r0 = ref(f.id), t = cleanSheetRecordText(f.text).replace(/\s+/g, ' ').trim(); return r0 ? `${r0}（${t}）` : t; };
-      const sum = list => list.slice(0, 3).map(one).join('・');
+      const sum = list => { const seen = new Set(); return list.filter(f => { const k = f.id || f.text; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 3).map(one).join('・'); };
       const labs = (a.evidence || []).slice(0, 3).map(id => {
         const lb = (labelMap || {})[id]; if (!lb) return '';
         const it = byId.get(id); if (!it) return lb;
@@ -1243,10 +1243,23 @@
       if (needId === 1 && /トライボール|呼吸訓練/.test(String(item.text || '')) && !/呼吸困難|息苦|息切れ|チアノーゼ|SpO2|呼吸数/.test(String(item.text || ''))) return { v: '', hit: '', clause: '' };
 
       if (needId === 11 && /記載なし|情報なし|不明|未確認|聴取(?:して)?(?:い)?ない|確認(?:でき|して)ない/.test(String(item.text || '').normalize('NFKC'))) return { v: '', hit: '', clause: '' };
+      // Laboratory-reference cards describe physiology; they are not evidence of the need to learn, communicate, play, etc.
+      if (/\(基準値[:：]/.test(String(item.text || '').normalize('NFKC')) && ![1, 2, 3, 8].includes(needId)) return { v: '', hit: '', clause: '' };
+      // Circulation-only vital signs (blood pressure / pulse) are not a respiration finding.
+      if (needId === 1 && /(?:血圧|心拍|脈拍)/.test(String(item.text || '').normalize('NFKC')) && !/呼吸|SpO2|酸素|息|咳|痰/.test(String(item.text || '').normalize('NFKC'))) return { v: '', hit: '', clause: '' };
       // v.90: verdict-choice rules (the sufficiency sentences are untouched).
       const whole = String(item.text || '').normalize('NFKC');
       const isOrder = item.fieldLabel === '治療' || /^(?:治療|処方|指示|オーダー|治療方針)[:：]/.test(whole);
       const parts0 = whole.split(/[。\n、,，]|\s{2,}|(?<=[)）])/).map(s => s.trim()).filter(Boolean);
+      if (needId === 14 && !isOrder) {
+        // Technique vs. decision: performing a measurement is a skill; acting on the result is a separate ability.
+        const noAct = whole.match(/補食をとろうとしない|(?:低血糖|測定値)[^。\n]{0,24}補食[^。\n]{0,10}(?:とろうとしない|とらない|しない)/);
+        const sameSite = whole.match(/注射部位[^。\n]{0,24}(?:同じ|ほぼ同じ|偏)[^。\n]{0,12}/);
+        const selfAct = whole.match(/(?:Aさん|本人|自分)(?:の判断)?で[^。\n]{0,20}(?:補食|ブドウ糖)[^。\n]{0,8}(?:とる|摂る|摂取)/);
+        const bad = noAct || sameSite;
+        if (bad) return { v: 'unmet', hit: bad[0], clause: (parts0.find(p => p.includes(bad[0].slice(0, 6))) || bad[0]), severe: false };
+        if (selfAct) return { v: 'met', hit: selfAct[0], clause: selfAct[0] };
+      }
       if (needId === 14 && !isOrder) {
         const m = whole.match(SUF_LEARN_PROBLEM);
         if (m) return { v: 'unmet', hit: m[0], clause: (parts0.find(p => SUF_LEARN_PROBLEM.test(p)) || m[0]), severe: false };
@@ -1327,6 +1340,11 @@
       if (alb !== null && alb > 0 && alb < 3.5 && !/Alb\s*[:：=]?\s*\d(?:\.\d+)?\s*(?:mg|μ)/i.test(t)) out.push({ need: 2, v: 'unmet', hit: (t.match(/(?:Alb|アルブミン)\s*[:：=]?\s*\d(?:\.\d+)?/i) || [''])[0], ref: 'Alb低値は栄養状態の参考（参考基準）' });
       const a1c = num(/HbA1c\s*(?:\(NGSP\))?\s*[:：=]?\s*(\d{1,2}(?:\.\d+)?)\s*%?/i);
       if (a1c !== null && a1c >= 9 && a1c <= 20) [2, 14].forEach(n => out.push({ need: n, v: 'unmet', hit: (t.match(/HbA1c\s*(?:\(NGSP\))?\s*[:：=]?\s*\d{1,2}(?:\.\d+)?\s*%?/i) || [''])[0], ref: 'HbA1c 9%以上は血糖管理不良の目安。食事・自己管理（学習）の確認が必要（参考基準）' }));
+      // (A past HbA1c that a later card has superseded is dropped in sufficiencyScoreOverrides.)
+      const rr = t.match(/呼吸(?:数)?\s*[:：]?\s*(\d{2})\s*(?:\/\s*分|回)/);
+      if (rr && Number(rr[1]) >= 25 && !/頻呼吸(?:なし|ない)/.test(t)) out.push({ need: 1, v: 'unmet', hit: rr[0], ref: '呼吸数25回/分以上は頻呼吸（参考基準）。アシドーシスなどで増えることがある' });
+      const ph = t.match(/pH\s*[:：=]?\s*(\d\.\d{1,2})/i), hco = t.match(/HCO3[-−]?\s*[:：=]?\s*(\d{1,2}(?:\.\d)?)/i);
+      if ((ph && Number(ph[1]) < 7.35) || (hco && Number(hco[1]) < 22)) out.push({ need: 1, v: 'unmet', hit: [ph && ph[0], hco && hco[0]].filter(Boolean).join('・'), ref: 'pH7.35未満・HCO3 22mmol/L未満は酸性に傾いた状態（参考基準）。呼吸でそれを補おうとして呼吸数が増える' });
       return out;
     }
     // ===== v.95: registered knowledge made usable by the sufficiency judgment (参考資料 sources keep their own provenance labels) =====
@@ -1395,6 +1413,8 @@
       if (typeof cpHighRiskCombos === 'function' && typeof CP_HIGH_RISK_COMBOS !== 'undefined') {
         const text = list.map(i => nz(i.text)).join('\n');
         cpHighRiskCombos(text).forEach(c => {
+          // The insulin + intake combination concerns eating only when poor intake / appetite loss is recorded (hypoglycemia symptoms alone are not an eating finding).
+          if (c.key === 'insulin-poor-intake' && !/摂取(?:量)?(?:不良|低下|減少)|食事.{0,4}(?:摂れ|とれ|摂取).{0,4}(?:ない|少)|食欲(?:不振|低下|がない)/.test(text.replace(/食事は全量摂取/g, ''))) return;
           const def = CP_HIGH_RISK_COMBOS.find(x => x.key === c.key);
           const ids = def ? list.filter(i => def.all.some(re => re.test(typeof cpStripNegated === 'function' ? cpStripNegated(i.text) : nz(i.text)))).slice(0, 3) : [];
           (SUF_COMBO_NEEDS[c.key] || []).forEach(need => ids.forEach(i => out.push({ need, v: 'partial', hit: SUF_COMBO_LABEL[c.key] || c.key, ref: `高リスクの組合せ（参考）：${c.msg}`, id: i.id, risk: true })));
@@ -1495,7 +1515,11 @@
       const pre = items.filter(i => isPre(i) && okCard(i));
       const apply = (list, phaseKeys) => {
         const byNeed = {};
-        list.forEach(i => rulesOf(i.text).forEach(r => { if (r.v && (!r.tag || (i.hendersonIds || []).includes(r.need))) (byNeed[r.need] = byNeed[r.need] || []).push({ ...r, id: i.id }); }));
+        // A past HbA1c that a later card has superseded must not decide the later time point.
+        const a1cOf = i => { const m = String(i.text || '').normalize('NFKC').match(/HbA1c\s*(?:\(NGSP\))?\s*[:：=]?\s*(\d{1,2}(?:\.\d+)?)/i); return m ? Number(m[1]) : null; };
+        const a1cCards = list.filter(i => a1cOf(i) !== null);
+        const latestA1c = a1cCards.length ? a1cCards[a1cCards.length - 1] : null;
+        list.forEach(i => rulesOf(i.text).forEach(r => { if (/^HbA1c/i.test(String(r.hit || '')) && latestA1c && i !== latestA1c && a1cOf(latestA1c) < 9) return; if (r.v && (!r.tag || (i.hendersonIds || []).includes(r.need))) (byNeed[r.need] = byNeed[r.need] || []).push({ ...r, id: i.id }); }));
         if (listRulesFn) listRulesFn(list).forEach(r => { if (r.v && res[r.need]) (byNeed[r.need] = byNeed[r.need] || []).push({ ...r }); });
         Object.keys(byNeed).forEach(n => {
           const r = res[n]; if (!r) return;
