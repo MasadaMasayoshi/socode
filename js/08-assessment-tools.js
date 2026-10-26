@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.152'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.160'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -999,7 +999,17 @@
       return null;
     }
 
+    // A record line may mix a measurement with prose ("体重45kg、尿中ケトン強陽性。"): read the leading clause when the whole line is not all measurements.
     function parseLabTrendEntries(text) {
+      const whole = parseLabTrendEntriesCore(text);
+      if (whole) return whole;
+      const t = String(text || '').normalize('NFKC');
+      if (!/[、,]/.test(t)) return null;
+      const first = t.split(/[、,。]/)[0];
+      if (!first || first === t.trim() || /[「」]/.test(first)) return null;
+      return parseLabTrendEntriesCore(first);
+    }
+    function parseLabTrendEntriesCore(text) {
       let t = String(text || '').normalize('NFKC').trim()
 
         .replace(/^【[^】]{1,12}】\s*/, '')
@@ -1378,7 +1388,15 @@
       if (nums.length < 2) return null;
       const prev = nums[nums.length - 2], last = nums[nums.length - 1];
       const d = Math.round((last.n - prev.n) * 100) / 100;
-      return { delta: d, dir: d > 0 ? 'up' : d < 0 ? 'down' : 'same', flag: last.cell.flag || '', text: d === 0 ? '変化なし' : `${d > 0 ? '▲' : '▼'}${Math.abs(d)}` };
+      const pf = prev.cell.flag || '', lf = last.cell.flag || '';
+      let judge = '';
+      if (d !== 0) {
+        if (pf && !lf) judge = '（基準内に戻った）';
+        else if (!pf && lf) judge = lf === 'high' ? '（基準より高くなった）' : '（基準より低くなった）';
+        else if (pf && lf && pf === lf) { const toward = (pf === 'high' && d < 0) || (pf === 'low' && d > 0); judge = toward ? `（改善傾向・まだ基準より${lf === 'high' ? '高い' : '低い'}）` : `（さらに基準から離れた）`; }
+        else if (pf && lf && pf !== lf) judge = '（基準の反対側へ）';
+      }
+      return { delta: d, dir: d > 0 ? 'up' : d < 0 ? 'down' : 'same', flag: last.cell.flag || '', text: d === 0 ? '変化なし' : `${d > 0 ? '▲' : '▼'}${Math.abs(d)}${judge}` };
     }
     function compareValuesTableHtml(table, options = {}) {
       if (!table || !table.rows || !table.rows.length) return '';
