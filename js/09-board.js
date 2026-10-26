@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.159'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.164'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -642,10 +642,9 @@
       return terms;
     }
     function pastEventTagHtml(item) {
-      const t = String(item.text || '').normalize('NFKC').replace(/(?:基準値|参考)[^)）]*/g, '');
-      const m = t.match(/(?:\d{1,2}歳(?:時|の時|のとき|頃|ごろ)|\d{1,2}年前|(?:半年|数年|\d{1,2}[かヶカ]?月|\d{1,2}週間)前|以前|既往)/);
-      if (!m) return '';
-      return `<span class="time-chip" style="color:var(--slate);" title="記録の日付とは別の、過去に起きた出来事です（${m[0]}）。いまの状態と区別して見てください"><i class="fa-solid fa-clock-rotate-left mr-0.5"></i>過去の出来事</span>`;
+      const w = pastEventWordOf(item);
+      if (!w) return '';
+      return `<span class="time-chip" style="color:var(--slate);" title="記録の日付とは別の、過去に起きた出来事です（${w}）。いまの状態と区別して見てください"><i class="fa-solid fa-clock-rotate-left mr-0.5"></i>過去の出来事</span>`;
     }
 
     window.selectRelatedCards = function() {

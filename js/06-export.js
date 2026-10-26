@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.108'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.164'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -78,6 +78,11 @@
   .note { font-size: 7.6pt; color: #6b665c; margin-top: 4pt; }
   .page-break { break-before: page; page-break-before: always; }
 `;
+    function pastEventWordOf(item) {
+      const x = String((item && item.text) || '').normalize('NFKC').replace(/(?:基準値|参考)[^)）]*/g, '');
+      const m = x.match(/(?:\d{1,2}歳(?:時|の時|のとき|頃|ごろ)|\d{1,2}年前|(?:半年|数年|\d{1,2}[かヶカ]?月|\d{1,2}週間)前|以前|既往)/);
+      return m ? m[0] : '';
+    }
     const PRINT_COL_LABELS = { unclassified: '未分類', preadmission: '入院前', postadmission: '入院後', missing: '不足情報' };
     function printTypeLabel(item, seqLabel) {
       if (item.aiSuggested) return '<span class="lb lb-x">自動推定</span>';
@@ -612,7 +617,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     function buildExportPlainText(cp, want) {
       const on = k => exportSectionOn(want, k);
       cp = { ...cp, items: sheetRecordItems(cp) };
-      const formatLine = i => `[${i.timestamp}]${i.fieldLabel ? ` [${i.fieldLabel}]` : ''} ${i.text}`;
+      const formatLine = i => `[${i.timestamp}]${pastEventWordOf(i) ? ' [過去の出来事]' : ''}${i.fieldLabel ? ` [${i.fieldLabel}]` : ''} ${i.text}`;
 
       let out = `看護アセスメント・記録整理シート：${cp.title}\n`;
       out += `出力日時: ${new Date().toLocaleString('ja-JP')}\n`;
@@ -1248,7 +1253,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
             if (!pg.items.length) out += '    （記録なし）\n';
             assessmentDayGroups(col, pg.items).forEach(g => { if (g.day) out += `   〈${g.day}〉\n`; collapseVitalCards(g.items, need.id).forEach(i => {
               const seq = seqLabels[i.id] ? `${seqLabels[i.id]} ` : '';
-              const time = i.timestamp && i.timestamp !== '日時不明' ? `[${i.timestamp}] ` : '';
+              const time = (i.timestamp && i.timestamp !== '日時不明' ? `[${i.timestamp}] ` : '') + (pastEventWordOf(i) ? '[過去の出来事] ' : '');
               const label = (i.fieldLabel ? `[${i.fieldLabel}] ` : '') + (isFamilySpeech(i.text) ? '[家族] ' : '');
               out += `    ・${seq}${time}${label}${cleanSheetRecordText(i.text)}${i.aiSuggested ? '（自動推定）' : ''}\n`;
             }); });
