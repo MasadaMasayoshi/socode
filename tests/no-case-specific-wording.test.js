@@ -31,3 +31,12 @@ test('知識リクエストの診断候補は、既往歴の文章ではなく�
   assert.ok(terms.some(t => /喘息/.test(t)));
   assert.ok(!terms.some(t => /^時|^より|なし/.test(t)));
 });
+
+test('研究から追加した知識の行：成人の喘息の行は小児喘息に出ない／各行が単独で発動する', () => {
+  const { loadApp } = require('./app-helpers.js');
+  const a = loadApp();
+  const keys = p => a.cpKnowledgeSuggestions({ problem: p, op: [], tp: [], ep: [] }).map(x => x.row);
+  assert.ok(keys('気管支喘息').includes('asthma-adult'));
+  assert.ok(!keys('小児喘息').includes('asthma-adult'));
+  assert.ok(keys('心房細動').includes('af') && keys('化学療法').includes('chemo') && keys('敗血症').includes('sepsis'));
+});
