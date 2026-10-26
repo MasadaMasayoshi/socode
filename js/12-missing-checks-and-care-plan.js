@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.167'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.172'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -2521,6 +2521,49 @@
       return { ok: true };
     }
     // Cross-section consistency check: warnings only, nothing is changed. Every generated plan must be complete and rest on the patient's own record.
+    // Lab values are read together with the patient's background (disease, drugs, sex/age, other conditions), not alone.
+    // General condition: lab key + abnormal direction (sex/age-adjusted where the reference differs) + a background fact WRITTEN in the record.
+    // Only notes the record supports are produced; nothing is inferred from a lab value alone and no value is invented.
+    function labBackgroundContext(cp) {
+      const text = [cp.sourceText || '', ...(cp.items || []).filter(i => i && !i.deleted).map(i => i.text)].join('\n').normalize('NFKC');
+      const ageM = text.match(/(\d{1,3})\s*歳(?!時|の頃|ごろ|前)/);
+      const age = ageM ? +ageM[1] : null;
+      const sex = /女児|女性|女の子|褥婦|産褥|妊婦/.test(text) ? 'F' : /男児|男性|男の子/.test(text) ? 'M' : '';
+      const has = re => re.test(text);
+      return {
+        text, age, sex,
+        dm: has(/糖尿病/), insulin: has(/インスリン/), steroid: has(/ステロイド|プレドニ/), diuretic: has(/利尿薬|フロセミド|ラシックス/),
+        kidney: has(/腎不全|腎機能|透析|CKD|腎症/), heart: has(/心不全|心筋梗塞|不整脈/), liver: has(/肝炎|肝硬変|肝機能障害|肝がん|肝癌/),
+        infection: has(/感染|肺炎|発熱|敗血症/), cancer: has(/がん|癌|白血病|リンパ腫|化学療法/), anticoag: has(/ワルファリン|抗凝固|DOAC|ヘパリン/),
+        dehydration: has(/脱水|多尿|下痢|嘔吐|摂取不良|食欲不振/), child: age !== null && age < 18
+      };
+    }
+    function labLatestValue(text, re) {
+      let last = null; const g = new RegExp(re.source, 'g'); let m;
+      while ((m = g.exec(text))) last = parseFloat(m[1]);
+      return last;
+    }
+    function labBackgroundNotes(cp) {
+      const c = labBackgroundContext(cp), t = c.text, out = [];
+      const v = re => labLatestValue(t, re);
+      const hba = v(/HbA1c\s*[:：]?\s*(\d+(?:\.\d+)?)/i), glu = v(/(?:血糖(?:値)?|BS|Glu)\s*[:：]?\s*(\d{2,4})/i);
+      const hb = v(/(?:Hb|ヘモグロビン)\s*[:：]?\s*(\d+(?:\.\d+)?)/i), cre = v(/(?:Cre|クレアチニン)\s*[:：]?\s*(\d+(?:\.\d+)?)/i);
+      const k = v(/(?:\bK|カリウム)\s*[:：]?\s*(\d+(?:\.\d+)?)/), na = v(/(?:Na|ナトリウム)\s*[:：]?\s*(\d{3})/);
+      const crp = v(/CRP\s*[:：]?\s*(\d+(?:\.\d+)?)/i), alb = v(/(?:Alb|アルブミン)\s*[:：]?\s*(\d+(?:\.\d+)?)/i), ph = v(/pH\s*[:：]?\s*(\d\.\d+)/i);
+      const who = c.age !== null ? `${c.age}歳${c.sex === 'F' ? '女性' : c.sex === 'M' ? '男性' : ''}` : (c.sex === 'F' ? '女性' : c.sex === 'M' ? '男性' : '');
+      if (hba !== null && c.dm) out.push(`HbA1c ${hba}%：糖尿病${c.insulin ? '（インスリン治療）' : ''}の血糖管理の指標。${hba >= 9 ? '高値のため、食事・注射・自己管理の実施状況と合わせて確認する' : hba < 7 ? '管理目標に近い値。低血糖の有無と合わせて確認する' : '経過で見る'}`);
+      if (glu !== null && c.insulin && glu < 70) out.push(`血糖 ${glu}：インスリン使用中の低血糖域。注射量・食事量・運動との関係を確認する`);
+      if (glu !== null && glu >= 300 && c.dm) out.push(`血糖 ${glu}：糖尿病で著しい高値。尿ケトン・pH・脱水の有無と合わせて確認する`);
+      if (ph !== null && ph < 7.35 && (c.dm || c.kidney || c.infection)) out.push(`pH ${ph}：酸性に傾いた状態。${c.dm ? '糖尿病ではケトアシドーシス' : c.kidney ? '腎機能低下による代謝性アシドーシス' : '感染・循環不全'}の可能性を、血糖・ケトン・呼吸数と合わせて確認する（診断はしない）`);
+      if (hb !== null) { const low = c.sex === 'F' || c.child ? 12 : 13; if (hb < low) out.push(`Hb ${hb}：${who ? who + 'の' : ''}基準（約${low}g/dL）より低い。${c.cancer ? '化学療法・がんによる骨髄抑制や出血' : c.kidney ? '腎性貧血' : c.sex === 'F' ? '月経・栄養状態' : '出血・栄養状態'}の背景を確認し、倦怠感・息切れ・めまいと合わせて見る`); }
+      if (cre !== null) { const hi = c.sex === 'F' || c.child ? 0.8 : 1.1; if (cre > hi) out.push(`Cre ${cre}：${who ? who + 'の' : ''}基準（約${hi}mg/dL）を超える。${c.kidney ? '腎疾患の経過' : c.dehydration ? '脱水による一時的上昇' : '腎機能低下'}の可能性。利尿薬・抗菌薬など腎に影響する薬の使用を確認する`); }
+      if (k !== null && (k >= 5.5 || k < 3.5)) out.push(`K ${k}：${k >= 5.5 ? (c.kidney ? '腎機能低下に伴う高K' : '高K') : (c.diuretic ? '利尿薬による低K' : c.dehydration ? '下痢・嘔吐・摂取不良による低K' : '低K')}の可能性。不整脈・筋力低下の症状を確認する`);
+      if (na !== null && (na < 135 || na > 145)) out.push(`Na ${na}：${na < 135 ? (c.diuretic ? '利尿薬の影響' : c.heart ? '心不全での希釈性低Na' : '低Na') : (c.dehydration ? '脱水による高Na' : '高Na')}の可能性。意識状態・水分出納と合わせて確認する`);
+      if (crp !== null && crp >= 1) out.push(`CRP ${crp}：炎症反応${c.infection ? '（感染）' : c.cancer ? '（がん・治療に伴う炎症）' : ''}。${c.steroid ? 'ステロイド使用中は上がりにくく発熱も目立たないことがある。' : ''}体温・白血球・症状の経過と合わせて見る`);
+      if (alb !== null && alb < 3.5) out.push(`Alb ${alb}：低栄養または炎症・${c.liver ? '肝機能低下' : c.kidney ? '腎からの喪失' : '体液貯留'}の可能性。食事摂取量・体重・浮腫と合わせて見る`);
+      if (c.anticoag && /(?:PT-?INR|INR)\s*[:：]?\s*\d/.test(t)) out.push('PT-INR：抗凝固薬使用中の効果指標。出血症状（歯肉・皮下・黒色便）を確認する');
+      return out;
+    }
     function cpConsistencyWarnings(cp) {
       const out = [];
       carePlanList(cp).forEach((p, n) => {
@@ -3069,7 +3112,7 @@
           recs.forEach(r => lines.push(...careRecordLines(r).map(l => `  ${l}`)));
         }
         return lines.join('\n');
-      }).join('\n\n') + (() => { const w = typeof cpConsistencyWarnings === 'function' ? cpConsistencyWarnings(cp) : []; return w.length ? `\n\n【整合性の確認（自動・変更はしていません）】\n${w.map(x => `・${x}`).join('\n')}` : ''; })();
+      }).join('\n\n') + (() => { const w = typeof cpConsistencyWarnings === 'function' ? cpConsistencyWarnings(cp) : []; return w.length ? `\n\n【整合性の確認（自動・変更はしていません）】\n${w.map(x => `・${x}`).join('\n')}` : ''; })() + (() => { const n = typeof labBackgroundNotes === 'function' ? labBackgroundNotes(cp) : []; return n.length ? `\n\n【検査値と背景の関連（記録にある病名・薬・年齢性別との照合。診断ではありません）】\n${n.map(x => `・${x}`).join('\n')}` : ''; })();
     }
     function careRecordLines(r) {
       const ach = CARE_ACHIEVEMENTS.find(a => a.key === r.achievement);
@@ -3136,7 +3179,7 @@ if (typeof module !== 'undefined' && module.exports) {
     carePlanInlineNotes, captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
     cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf, collapseVitalCards, collapseLabCards,
-    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, cpConsistencyWarnings, cpDedupeOverlappingPlans, krTerms, krNames, krIsMedicalTerm, CARE_PLAN_KNOWLEDGE, cpKnowledgeSuggestions, CP_HIGH_RISK_COMBOS, cpHighRiskCombos, cpStripNegated, cpEvidenceKind, krUnknownTerms, CPK_ROWS_79, CPK_ROWS_100, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
+    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, cpConsistencyWarnings, labBackgroundNotes, labBackgroundContext, cpDedupeOverlappingPlans, krTerms, krNames, krIsMedicalTerm, CARE_PLAN_KNOWLEDGE, cpKnowledgeSuggestions, CP_HIGH_RISK_COMBOS, cpHighRiskCombos, cpStripNegated, cpEvidenceKind, krUnknownTerms, CPK_ROWS_79, CPK_ROWS_100, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
     cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, carePlanSetReviewHtml, carePlanSetState, carePlanSetNextSteps
   });
 }

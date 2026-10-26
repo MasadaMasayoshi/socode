@@ -81,3 +81,12 @@ test('relation map: each nursing problem is drawn once and the ketoacidosis cour
   assert.equal(new Set(problems).size, problems.length, 'duplicate problem nodes');
   assert.ok(map.nodes.some(n => /ケトアシドーシス/.test(n.label)), 'ketoacidosis course kept as history');
 });
+
+test('検査値は病名・薬・年齢性別の背景と照合され、背景がなければ注記しない', () => {
+  const { loadApp } = require('./app-helpers.js');
+  const a = loadApp();
+  const n1 = a.labBackgroundNotes({ sourceText: '72歳男性。腎不全で透析。K 6.1 Hb 9.0', items: [] });
+  assert.ok(n1.some(x => /高K/.test(x)) && n1.some(x => /腎性貧血/.test(x)));
+  assert.equal(a.labBackgroundNotes({ sourceText: '30歳男性。Hb 15 K 4.0', items: [] }).length, 0);
+  assert.equal(a.labBackgroundNotes({ sourceText: '30歳男性。HbA1c 10', items: [] }).length, 0);
+});
