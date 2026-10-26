@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.158'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.162'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -2126,7 +2126,7 @@
           if (rr) E(N('dm_resp', 'symptom', short(rr, 30, /呼吸/), { items: [rr], max: 30 }), dka, 'supports', { evidence: '酸を吐き出そうとして呼吸が増える（根拠）' });
           const drip = findItem(/持続点滴|インスリン[^\n]{0,6}点滴/, notHist);
           if (drip) E(N('dm_drip', 'treatment', 'インスリン持続点滴', { items: [drip], max: 30 }), hg, 'treats', { evidence: '血糖を下げ、ケトン体の産生を止める' });
-          E(dka, N('p_fluid', 'nursing_problem', '体液量不足リスク状態（脱水・電解質の乱れ）', { cat: 'circ' }), 'results_in', { predicted: true });
+          E(dka, N('p_fluid', 'nursing_problem', '体液量不足リスク状態（脱水）', { cat: 'circ' }), 'results_in', { predicted: true });
         }
         const gv = N('glu_var', 'future_risk', 'これからも血糖が変動する可能性（高血糖・低血糖）', { source: 'knowledge', observed: false });
         E(hg, gv, 'predicts', { predicted: true, evidence: '手術の侵襲・食事量・インスリンの量の変化で血糖が上下する' });

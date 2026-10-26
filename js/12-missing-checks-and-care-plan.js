@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.161'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.162'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -2071,8 +2071,15 @@
       let s = CP_PRIORITY_BASE[k] || 30;
       if (['resp', 'bleed', 'vte', 'swallow'].includes(k)) why.push('気道・呼吸・循環に関わる');
       const risk = cpIsRisk(plan);
-      if (!risk) { s += 8; why.push('すでに現れている問題である'); } else if (s >= 60) why.push('起きると重大な合併症のリスク');
+      if (!risk) { s += 8; why.push('すでに現れている問題である'); } else if (s >= 60) why.push('起きると重大な合併症のリスクがある');
       if (k === 'resp' && ctx.spo2 != null && ctx.spo2 < 94) { s += 15; why.push(`SpO2 ${ctx.spo2}%の記録`); }
+      if (k === 'glu') {
+        const bgs = [...ctx.text.matchAll(/(?:血糖(?:値)?|BS|BG)\s*[:：]?\s*(\d{2,3})\s*(?:mg\/dL|mg\/dl)?/g)].map(m => Number(m[1]));
+        const hi = bgs.length ? Math.max(...bgs) : null, lo = bgs.length ? Math.min(...bgs) : null;
+        if (/ケトアシドーシス|尿中ケトン\s*(?:\(?\+|強陽性|陽性)/.test(ctx.text) || (hi != null && hi >= 400)) { s += 15; why.push(hi != null ? `血糖${hi}mg/dLやケトン体の記録（命に関わる高血糖）` : 'ケトアシドーシスの記録'); }
+        else if (lo != null && lo < 70) { s += 12; why.push(`低血糖（${lo}mg/dL）の記録`); }
+      }
+      if (k === 'fluidLow' && /ケトアシドーシス|尿中ケトン\s*(?:\(?\+|強陽性|陽性)/.test(ctx.text)) { s += 10; why.push('高血糖・ケトン体による脱水が起こりやすい'); }
       if (k === 'pain' && ctx.nrs != null) { if (ctx.nrs >= 7) { s += 10; why.push(`NRS${ctx.nrs}の強い痛み`); } else if (ctx.nrs <= 3) { s -= 10; why.push(`NRS${ctx.nrs}で現在は落ち着いている`); } else why.push(`NRS${ctx.nrs}`); }
       if (/術後/.test(ctx.text) && ['resp', 'ileus', 'vte', 'inf'].includes(k)) { s += 5; why.push('術後の時期に起こりやすい'); }
       if (k === 'pain' && /痛(?:い|み)(?:が)?(?:強|つらい|辛い)|我慢できない/.test(ctx.text)) { s += 6; why.push('患者の痛みの訴え'); }
