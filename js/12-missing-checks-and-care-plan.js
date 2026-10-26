@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.156'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.161'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -963,6 +963,16 @@
       document.getElementById('care-record-done').value = r ? r.doneText : '';
       document.getElementById('care-record-response').value = r ? r.response : '';
       document.getElementById('care-record-evaluation').value = r ? r.evaluation : '';
+      try {
+        const tEl = document.getElementById('care-record-trend');
+        const tbl = typeof buildLabTrendTable === 'function' ? buildLabTrendTable(cp.items || [], { includeVitals: true }) : null;
+        const lines = tbl ? tbl.rows.map(row => {
+          const ch = compareValueChange(row, tbl.columns);
+          return ch ? `${row.key} ${ch.text}` : '';
+        }).filter(Boolean).slice(0, 5) : [];
+        tEl.style.display = lines.length ? '' : 'none';
+        tEl.textContent = lines.length ? `記録からわかる経過（評価の参考・自動では書き込みません）：${lines.join('／')}` : '';
+      } catch (e) { /* reference only */ }
       document.getElementById('care-record-revision').value = r ? r.revision : '';
       document.querySelectorAll('#care-record-achievement input').forEach(i => { i.checked = i.value === (r ? r.achievement : ''); });
       const hasCard = r && r.responseCardId && cp.items.some(i => i.id === r.responseCardId && i.type !== 'unnecessary');
