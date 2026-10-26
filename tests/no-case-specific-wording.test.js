@@ -22,3 +22,12 @@ test('修正依頼・知識リクエストの指示文に汎用化の手順が�
   assert.ok(/3-2\. Generalization check/.test(ex) && /3-3\. Intent of merges/.test(ex));
   assert.ok(/\[Generalization\]/.test(cp));
 });
+
+test('知識リクエストの診断候補は、既往歴の文章ではなく病名になる（年齢の語尾が残らない・否定は除く）', () => {
+  const { loadApp } = require('./app-helpers.js');
+  const a = loadApp();
+  const mk = (id, text) => ({ id, text, fieldLabel: '既往歴', type: 'o', hendersonIds: [2] });
+  const terms = a.buildKnowledgeRequests({ items: [mk(1, '3歳時に肺炎で1週間入院。'), mk(2, '10歳より気管支喘息。'), mk(3, '特記すべき入院・治療歴なし')], sourceText: '' }).map(r => r.term);
+  assert.ok(terms.some(t => /喘息/.test(t)));
+  assert.ok(!terms.some(t => /^時|^より|なし/.test(t)));
+});

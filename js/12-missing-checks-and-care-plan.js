@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.172'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.177'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -2344,6 +2344,19 @@
       const plans = cpKnowledgeRowsFor(t).length;
       return { hints, bridges, symptoms, plans, total: hints + bridges + symptoms + plans };
     }
+    // Diagnosis candidates from a 診断/既往歴 line. A history sentence (「N歳時に〜で入院」「〜歴なし」) is not itself a term: take the disease names inside it.
+    // General condition: the age/period prefix is removed whole, negated or empty history is skipped, and a disease name is recognised by its suffix.
+    function krDiagnosisCandidates(label, text) {
+      const t = String(text || '').normalize('NFKC').replace(/^[^:：]{1,6}[:：]\s*/, '');
+      if (label !== '既往歴') return t.split(/[、,・\/]/);
+      const out = [];
+      t.split(/[。\n]/).forEach(sent => {
+        if (/(?:特記|特になし|なし|無し)\s*$/.test(sent.replace(/[、,]\s*$/, '')) && !/症|炎|病|折|がん|癌|腫/.test(sent.replace(/特記すべき[^、。]*/, ''))) return;
+        const body = sent.replace(/^(?:\d{1,3}(?:歳|か月|ヶ月|年)(?:時|ごろ|頃|のとき|の時|前|より|から)?|幼少期|小児期)\s*(?:に|は|、)?/, '');
+        (body.match(/[一-龥ァ-ヶ]{1,10}(?:症候群|症|炎|病|骨折|がん|癌|腫瘍|梗塞|出血|障害|不全|喘息|ヘルニア)/g) || []).forEach(d => out.push(d.replace(/^(?:に|で|を|の|は|が|と)/, '')));
+      });
+      return out;
+    }
     function buildKnowledgeRequests(cp) {
       const all = ((cp && cp.items) || []).filter(i => i && !i.deleted && i.text);
       const items = all.filter(i => !(typeof isPatientIdentityLine === 'function' && isPatientIdentityLine(i.text)) && !/^(?:氏名|年齢|性別)$/.test(i.fieldLabel || '') &&
@@ -2369,7 +2382,7 @@
       items.forEach(i => krUnknownTerms(i.text).forEach(u => add('tag', 'unknown_term', u.term, `「${u.term}」は標準用語として特定できません。${u.reason}（前後の文脈：原文を確認し、意味を教えてください）`, ctxOf(i))));
       // Diagnoses: what the rules, care plan and relation map need to know about each one.
       const dxList = [];
-      items.filter(i => /^(?:診断|診断名|病名|既往歴)$/.test(i.fieldLabel || '')).forEach(i => String(i.text).normalize('NFKC').replace(/^[^:：]{1,6}[:：]\s*/, '').split(/[、,・\/]/).map(x => x.replace(/[()（）].*$/, '').replace(/^\d{1,3}歳\s*/, '').trim()).filter(x => x.length >= 2 && x.length <= 20 && !/(?:なし|無し|ない|あり|中|ため|いる|ます|です)$/.test(x) && !/指摘|されて|していた|ている|^[のにをがはで]|を.|たが$|が$/.test(x)).forEach(d => dxList.push({ d, i })));
+      items.filter(i => /^(?:診断|診断名|病名|既往歴)$/.test(i.fieldLabel || '')).forEach(i => krDiagnosisCandidates(i.fieldLabel, i.text).map(x => x.replace(/[()（）].*$/, '').replace(/^\d{1,3}歳\s*/, '').trim()).filter(x => x.length >= 2 && x.length <= 20 && !/(?:なし|無し|ない|あり|中|ため|いる|ます|です)$/.test(x) && !/指摘|されて|していた|ている|^[のにをがはで]|を.|たが$|が$/.test(x)).forEach(d => dxList.push({ d, i })));
       dxList.forEach(({ d, i }) => {
         const cov = krCoverage(d);
         if (cov.hints > 0 && cov.total <= KR_THIN) add('tag', 'thin-diagnosis', d, `「${d}」について登録済みの知識が少なめです（項目の目安 ${cov.hints}件・関連図の仕組み ${cov.bridges}件・症状の対応 ${cov.symptoms}件）。看護で注目する項目、典型的な症状・合併症・治療とその副作用、関連図でつなげる仕組みを補ってください。`, ctxOf(i));
