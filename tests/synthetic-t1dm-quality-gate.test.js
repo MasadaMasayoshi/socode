@@ -72,3 +72,12 @@ test('post-discharge records are judged as their own period, not as part of the 
   assert.equal(res[14].dis.verdict, 'unmet');
   assert.ok(!(res[14].post.evidence || []).some(id => /自信/.test((cp.items.find(i => i.id === id) || {}).text || '')), 'the follow-up statement is not hospital-stay evidence');
 });
+
+test('relation map: each nursing problem is drawn once and the ketoacidosis course stays in the map', () => {
+  const cp = build();
+  app.buildCarePlansByRules(cp);
+  const map = app.buildRelationMapFromRecord(cp);
+  const problems = map.nodes.filter(n => n.type === 'nursing_problem').map(n => n.label.normalize('NFKC').replace(/[\s()（）]|候補/g, ''));
+  assert.equal(new Set(problems).size, problems.length, 'duplicate problem nodes');
+  assert.ok(map.nodes.some(n => /ケトアシドーシス/.test(n.label)), 'ketoacidosis course kept as history');
+});

@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.165'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.169'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -2120,7 +2120,8 @@
         if (ketItem && glu && glu.flag === 'high') {
           const kn = N('dm_ketone', 'symptom', short(ketItem, 40, /ケトン|アシドーシス/), { items: [ketItem], max: 40 });
           E(hg, kn, 'causes', { evidence: '糖が細胞に使えず、脂肪の分解が進んでケトン体ができる' });
-          const dka = N('dm_dka', 'pathophysiology', '血液が酸性に傾く（ケトアシドーシス）・浸透圧利尿で脱水になる', { source: 'knowledge' });
+          const followUp = items.some(i => /退院後|外来(?:受診|にて)/.test(String(i.text || '')));
+          const dka = N('dm_dka', 'pathophysiology', followUp ? '（経過）血液が酸性に傾き（ケトアシドーシス）、脱水になった' : '血液が酸性に傾く（ケトアシドーシス）・浸透圧利尿で脱水になる', { source: 'knowledge' });
           E(kn, dka, 'causes', { evidence: 'ケトン体は酸性で、高血糖による尿量増加で水分も失われる' });
           const rr = findItem(/呼吸\s*\d{2}\s*\/分|多呼吸|深く速い呼吸/, notHist);
           if (rr) E(N('dm_resp', 'symptom', short(rr, 30, /呼吸/), { items: [rr], max: 30 }), dka, 'supports', { evidence: '酸を吐き出そうとして呼吸が増える（根拠）' });
@@ -2144,6 +2145,8 @@
         }
         const gv = N('glu_var', 'future_risk', 'これからも血糖が変動する可能性（高血糖・低血糖）', { source: 'knowledge', observed: false });
         E(hg, gv, 'predicts', { predicted: true, evidence: '手術の侵襲・食事量・インスリンの量の変化で血糖が上下する' });
+        // The ketoacidosis episode stays in the course (history explains the present) and is tied to the ongoing glucose risk, never dropped from the map.
+        if (nodes.get('dm_dka')) E(nodes.get('dm_dka'), gv, 'predicts', { predicted: true, evidence: '一度ケトアシドーシスに至った経過があり、血糖の管理が崩れると再び起こりうる（過去の出来事）' });
         E(gv, N('p_glu', 'nursing_problem', '血糖不安定リスク状態', { cat: 'skin' }), 'results_in', { predicted: true });
       }
 
@@ -2737,7 +2740,10 @@
       const ordered = [];
       userProblems.forEach(up => {
         const cat = rmProblemCategory(up.label).key;
-        const match = tplProblems.find(t => !usedTpl.has(t) && (t.cat === cat || (cat === 'resp' && t.cat === 'resp')));
+        // An identical problem name (ignoring width and brackets) always wins over a same-category guess, so one problem is never drawn twice.
+        const nameKey = x => String(x || '').normalize('NFKC').replace(/[\s()（）]/g, '');
+        const match = tplProblems.find(t => !usedTpl.has(t) && nameKey(t.label) === nameKey(up.label))
+          || tplProblems.find(t => !usedTpl.has(t) && (t.cat === cat || (cat === 'resp' && t.cat === 'resp')));
         if (match) {
 
           const plainNote = rmPlainNote(up.label);
