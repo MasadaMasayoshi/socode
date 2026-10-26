@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.154'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.170'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -147,10 +147,27 @@
       });
       return keep.length ? keep : ids;
     }
+    // Lines that are deliberately left untagged (profile line, remote past injury) must not be re-tagged by the reference fallback.
+    function isDeliberatelyUntaggedLine(text) {
+      const t = String(text || '').normalize('NFKC');
+      if (/^患者[:：]/.test(t) && t.length < 60) return true;
+      return typeof pastEventWordOf === 'function' && !!pastEventWordOf({ text: t }) && /骨折|転倒|外傷|ギプス/.test(t) && !/現在|今回|いまも|痛み|制限|残って|続いて/.test(t.replace(/後遺障害などなし|後遺症なし/g, ''));
+    }
     function detectMultipleHendersonTags(text) {
       if (isPatientIdentityLine(text)) return [];
       const raw = detectMultipleHendersonTagsRaw(text);
-      return hendersonRelevanceFilter(String(text || '').replace(/（問い：[^）]*）/g, ''), raw);
+      const clean = String(text || '').replace(/（問い：[^）]*）/g, '');
+      let ids = hendersonRelevanceFilter(clean, raw);
+      const t = clean.normalize('NFKC');
+      // A short profile line (「患者:Aさん(14歳…)。1型糖尿病。」) names a diagnosis; it is clinical context, not evidence of any single need.
+      if (/^患者[:：]/.test(t) && t.length < 60 && !/[、。]\s*(?:食|排|睡|痛|息|歩|転)/.test(t.replace(/^[^。]*。/, ''))) return [];
+      // Family composition alone (who lives with the patient) is social support, not physical safety (9).
+      if (ids.includes(9) && /同居|家族構成|両親|祖母|祖父|自営|共働き/.test(t) && !/キーパーソン|介護者|支援者|転倒|転落|事故|危険|安全|環境|感染|暴力|虐待|低血糖|ふるえ|震え|ふらつ|見守り|一人暮らし|独居/.test(t) && ids.length > 1) ids = ids.filter(h => h !== 9);
+      // A remote past injury (「8歳時に…骨折」) is history: it does not describe the present movement or safety state.
+      if (typeof pastEventWordOf === 'function' && pastEventWordOf({ text: t }) && /骨折|転倒|外傷|手術|入院|ギプス/.test(t) && !/現在|今回|いまも|後遺(?!障害などなし|症なし)|残って|続いて|痛み|制限/.test(t.replace(/後遺障害などなし|後遺症なし/g, ''))) ids = ids.filter(h => h !== 4 && h !== 9);
+      // Acid-base values (pH, HCO3, PaCO2…) belong to respiration/circulation (1) as well as the laboratory item.
+      if (/(?:^|[^A-Za-z])(?:pH|HCO3|PaCO2|PaO2|BE)\s*[-−]?\s*\d/.test(t) && !ids.includes(1)) ids = [...ids, 1];
+      return ids;
     }
     function detectMultipleHendersonTagsRaw(text) {
 
