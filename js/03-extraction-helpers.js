@@ -1,7 +1,7 @@
 // Local record extraction. Preserve source wording, units, timestamps and admission context.
 // Headings supply context; narrative numbers are not automatically laboratory measurements.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.170'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.174'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -261,6 +261,8 @@
     }
     // Worksheet/assignment instruction lines ("※以下の内容を…完成する", numbered task items, struck-through items).
     function isWorksheetInstructionText(t) {
+      // OCR/PDF leaves a stray check-mark glyph (v, ✓, ☑, □) after a task line; it is not part of the instruction.
+      t = String(t || '').replace(/(?:\s+|(?<=[。.]))[vV✓✔☑☐□×]$/, '');
       if (/^※\s*以下の[^。]{0,20}(?:完成|記入|作成)する/.test(t)) return true;
       if (/^~~.*~~$/.test(t)) return true;
       return /^\d{1,2}[.．)）]\s*(?:~~)?[^。]{2,40}?(?:を|は)?(?:記入|作成|立案|明確化)(?:し[、,][^。]{0,20})?する。?(?:[(（][^)）]{0,30}[)）])?(?:~~)?$/.test(t) && /(?:アセスメント|関連図|看護計画|基礎情報|看護問題)/.test(t);

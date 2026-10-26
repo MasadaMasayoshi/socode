@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.171'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.174'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -2591,7 +2591,7 @@
 
         if (/\d{1,3}歳|生後\s*\d+\s*(?:か月|ヶ月|カ月|ケ月|日)|日齢\s*\d+|(?:ちゃん|くん)\s*[(（]/.test(cleanedText) && /(?:男性|女性|男児|女児|男子|女子|男の子|女の子|初妊婦|経妊婦|初産婦|経産婦|妊婦|褥婦)/.test(cleanedText) && cleanedText.length <= 40) FIELD_LABEL_DEFAULT_TAGS['年齢'].forEach(h => detectedHIds.push(h));
 
-        (FAMILY_HISTORY_DISEASE_CONTEXT_REGEX.test(cleanedText) ? [] : detectDiagnosisTagHints(cleanedText)).forEach(h => { if (!detectedHIds.includes(h)) detectedHIds.push(h); });
+        (FAMILY_HISTORY_DISEASE_CONTEXT_REGEX.test(cleanedText) || /^患者(?:プロフィール|情報|背景|概要)\s*[<＜〈(（\[]/.test(cleanedText.normalize('NFKC')) ? [] : detectDiagnosisTagHints(cleanedText)).forEach(h => { if (!detectedHIds.includes(h)) detectedHIds.push(h); });
       }
 
       if (!hasLearnedSignal(userLearned) && typeof drugTagsForText === 'function' && /(?:内服|処方|点滴|注射|投与|持続|静注|使用|貼付|服薬|頓用|mg|単位|ml\/h)/i.test(cleanedText)) {

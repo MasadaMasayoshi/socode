@@ -90,3 +90,13 @@ test('検査値は病名・薬・年齢性別の背景と照合され、背景�
   assert.equal(a.labBackgroundNotes({ sourceText: '30歳男性。Hb 15 K 4.0', items: [] }).length, 0);
   assert.equal(a.labBackgroundNotes({ sourceText: '30歳男性。HbA1c 10', items: [] }).length, 0);
 });
+
+test('見出し行と、チェック記号が残った課題の指示文は所見として扱わない（一般例）', () => {
+  const { loadApp } = require('./app-helpers.js');
+  const a = loadApp();
+  const r = a.classifyTextByRules('患者プロフィール　＜心不全＞\n\n3. 看護計画(No.6)を立案する。v\n\n4. 関連図を作成する。');
+  assert.deepEqual(Array.from(r[0].hendersonIds), []);
+  assert.ok(r.filter(c => /立案|作成/.test(c.text)).every(c => c.type === 'unnecessary'));
+  const keep = a.classifyTextByRules('患者プロフィール\n8月1日 咳が続いている。v');
+  assert.ok(keep.some(c => /咳/.test(c.text) && c.type !== 'unnecessary'));
+});
