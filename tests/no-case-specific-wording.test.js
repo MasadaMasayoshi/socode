@@ -40,3 +40,15 @@ test('研究から追加した知識の行：成人の喘息の行は小児喘�
   assert.ok(!keys('小児喘息').includes('asthma-adult'));
   assert.ok(keys('心房細動').includes('af') && keys('化学療法').includes('chemo') && keys('敗血症').includes('sepsis'));
 });
+
+test('検査値は共通基準範囲＋背景の条件で解釈され、薬のクラスは観察項目だけを返す', () => {
+  const { loadApp } = require('./app-helpers.js');
+  const a = loadApp();
+  const n = a.labBackgroundNotes({ sourceText: '60歳女性。肝硬変。Hb 9.5 Alb 2.8', items: [] });
+  assert.ok(n.some(x => /Hb/.test(x) && /11\.6/.test(x)) && n.some(x => /Alb/.test(x) && /合成能/.test(x)));
+  assert.equal(a.labBackgroundNotes({ sourceText: '30歳男性。Hb 15', items: [] }).length, 0);
+  const small = a.labBackgroundNotes({ sourceText: '5歳男児。Hb 9', items: [] });
+  assert.ok(small.every(x => /年齢別/.test(x)));
+  const d = a.drugClassNotes({ sourceText: '利尿薬を内服', items: [] });
+  assert.ok(d.length === 1 && /観察/.test(d[0]) && !/mg|用量/.test(d[0]));
+});

@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.179'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.180'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1520,6 +1520,86 @@
         [['眼の症状や広がりが出たときの早期の相談', /眼|広が|相談/]])
     ];
     CARE_PLAN_KNOWLEDGE.push(...CPK_ROWS_RESEARCH);
+    // v.180: more rows from the same research (paediatric, perinatal, skin, symptoms). General conditions only; sources with unconfirmed pages are marked 頁未確認. Doctor-ordered actions stay 「指示に従う」.
+    const CPK_ROWS_RESEARCH_2 = [
+      cp100('congenital-heart', /先天性心疾患/, '先天性心疾患', ['日本小児科学会・小児循環器領域の診療資料（頁未確認）'], '正常な成人のSpO2の目標を、複雑な先天性心疾患すべてに機械的に当てはめない',
+        [['SpO2の本人の基準、呼吸、哺乳の時間と量、体重の増え方、発汗、浮腫、疲労', /SpO2|呼吸|哺乳|体重|発汗|浮腫|疲労/]],
+        [['少ない負荷で栄養を確保し、休息と術後管理を支える', /栄養|休息|術後/]],
+        [['家族へ疾患ごとの警告の徴候を伝えること', /家族|警告|徴候/]]),
+      cp100('febrile-seizure', /熱性けいれん|熱性発作/, '熱性けいれん（熱性発作）', ['日本小児神経学会『熱性けいれん（熱性発作）診療ガイドライン2023』（頁未確認）'], '熱のないけいれん・てんかん・中枢神経の感染と同一にしない',
+        [['けいれんの開始と持続の時間、全身性か局在性か、呼吸と顔色、意識の回復、発熱の原因', /開始|持続|全身|局在|呼吸|顔色|意識|発熱/]],
+        [['安全を確保し、気道を妨げない体位にし、口の中に物を入れない', /安全|気道|体位|口/]],
+        [['再発時の時間の計り方と、個別の救急の目安', /再発|時間|救急/]]),
+      cp100('kawasaki', /川崎病/, '川崎病', ['日本小児科学会 川崎病診断の手引き改訂情報・日本小児循環器学会「川崎病急性期治療ガイドライン2020」（頁未確認）'], '発熱だけで川崎病としない。MIS-Cなどとの区別が必要な場合がある',
+        [['発熱の日数、皮膚・眼・口唇、四肢、循環、摂取、治療への反応', /発熱|皮膚|眼|口唇|四肢|循環|摂取|治療/]],
+        [['水分と安楽を保ち、心臓の評価と治療を支える', /水分|安楽|心臓|治療/]],
+        [['退院後の循環器のフォローを家族と共有すること', /退院|循環器|フォロー/]]),
+      cp100('puerperium', /産褥|褥婦|分娩後/, '産褥', ['『産婦人科診療ガイドライン―産科編2023』（頁未確認）'], '経腟分娩と帝王切開、合併症の有無で項目が異なる',
+        [['出血と悪露、子宮復古、体温、創、排尿、乳房、下肢の症状、睡眠と気分', /出血|悪露|子宮|体温|創|排尿|乳房|下肢|睡眠|気分/]],
+        [['休息、痛み、授乳と育児、離床を支える', /休息|疼痛|授乳|育児|離床/]],
+        [['大量出血・発熱・呼吸困難・強い精神症状などの相談の目安', /出血|発熱|呼吸困難|精神|相談/]]),
+      cp100('cesarean', /帝王切開/, '帝王切開', ['『産婦人科診療ガイドライン―産科編2023』（頁未確認）'], '麻酔の方法・緊急か予定か・合併症で観察項目を足す',
+        [['出血、子宮復古、創、痛み、呼吸、下肢、排尿、授乳と育児', /出血|子宮|創|疼痛|呼吸|下肢|排尿|授乳|育児/]],
+        [['痛みを調整し、安全な離床と育児を支える', /疼痛|離床|育児/]],
+        [['創の感染・出血・静脈血栓の徴候', /創|感染|出血|血栓/]]),
+      cp100('threatened-preterm', /切迫早産/, '切迫早産', ['『産婦人科診療ガイドライン―産科編2023』（頁未確認）'], '一律の長期の絶対安静をWebサイトから指示しない',
+        [['子宮収縮、出血、破水の疑い、痛み、体温、胎児の状態、心理', /収縮|出血|破水|疼痛|体温|胎児|心理/]],
+        [['指示された安静度と治療を守り、安全と心理を支える', /安静|治療|安全|心理/]],
+        [['破水・出血・収縮の増加などの報告', /破水|出血|収縮|報告/]]),
+      cp100('uterine-cancer', /子宮頸がん|子宮体がん|子宮がん|子宮癌/, '子宮がん', ['日本婦人科腫瘍学会『子宮頸癌治療ガイドライン2022年版』『子宮体がん治療ガイドライン2023年版』（頁未確認）'], '子宮頸がんと子宮体がんは別の疾患として分け、単一の流れにしない',
+        [['出血、痛み、排尿・排便、貧血、治療の副作用、性・妊孕性・心理', /出血|疼痛|排尿|排便|貧血|副作用|性|妊孕|心理/]],
+        [['出血・治療の副作用・意思決定を支える', /出血|副作用|意思決定/]],
+        [['フォローと治療後の症状', /フォロー|治療後/]]),
+      cp100('ovarian-cancer', /卵巣がん|卵巣癌|卵管癌/, '卵巣がん', ['日本婦人科腫瘍学会『卵巣がん・卵管癌・腹膜癌治療ガイドライン2025年版』（頁未確認）'], '良性の卵巣腫瘍にはがんの看護を使わない',
+        [['腹囲、摂取、排便、呼吸、痛み、下肢の腫れ、治療の副作用', /腹囲|摂取|排便|呼吸|疼痛|下肢|副作用/]],
+        [['栄養・症状・術後の活動を支える', /栄養|症状|術後|活動/]],
+        [['再発・静脈血栓・治療の副作用の徴候', /再発|血栓|副作用|徴候/]]),
+      cp100('burn', /熱傷|やけど/, '熱傷', ['日本皮膚科学会 熱傷診療ガイドライン2023（頁未確認）'], '広範囲の熱傷の輸液量を一律に示さない。小児は体表面積の評価も成人と異なる',
+        [['気道と呼吸、熱傷の面積と深さ、痛み、循環、尿量、体温、創', /気道|呼吸|面積|深度|疼痛|循環|尿量|体温|創/]],
+        [['気道を優先し、清潔と創の保護、保温、指示された輸液・鎮痛を行う', /気道|清潔|創|保温|輸液|鎮痛/]],
+        [['創・感染・瘢痕のケア', /創|感染|瘢痕/]]),
+      cp100('cellulitis', /蜂窩織炎|蜂巣炎/, '蜂窩織炎', ['日本皮膚科学会 感染症・皮膚疾患関連診療資料（頁未確認）'], '深部静脈血栓・静脈うっ滞・接触皮膚炎による赤みと腫れと区別する',
+        [['赤みの範囲、熱感、腫れ、痛み、体温、全身状態、入り口になる創', /発赤|熱感|腫脹|疼痛|体温|全身|創/]],
+        [['患部を保護し、皮膚を清潔にし、抗菌薬の治療を支える', /患部|清潔|抗菌薬/]],
+        [['急に広がる・高熱・全身の悪化のときの早期の相談', /拡大|高熱|悪化|相談/]]),
+      cp100('fever', /発熱|高熱|微熱/, '発熱（症状）', ['J-SSCG 2024 等（頁未確認）'], '発熱の有無だけで感染・敗血症を肯定も否定もしない。免疫抑制・高齢では目立たないことがある',
+        [['体温の推移、悪寒、循環・呼吸、意識、感染の徴候、水分、免疫抑制の状態', /体温|悪寒|循環|呼吸|意識|感染|水分|免疫/]],
+        [['安楽と水分の管理を病態に合わせる', /安楽|水分/]],
+        [['免疫抑制や化学療法中は、発熱時の連絡の基準を個別の指示と合わせること', /免疫|化学療法|連絡/]]),
+      cp100('nausea-vomiting', /嘔気|悪心|嘔吐|吐き気/, '嘔気・嘔吐（症状）', ['国立がん研究センター 治療副作用・緩和ケア情報（頁未確認）'], '抗がん薬治療中以外にも、消化器・中枢神経・薬剤・妊娠・代謝などの原因を探す',
+        [['回数・量・性状、血が混じるか、腹痛、意識、摂取、尿量、薬', /回数|量|性状|血|腹痛|意識|摂取|尿量|薬/]],
+        [['誤嚥を防ぎ、口腔のケア、補水と制吐治療を支える', /誤嚥|口腔|補水|制吐/]],
+        [['続く・血が混じる・意識が悪いときの報告', /続|血|意識|報告/]]),
+      cp100('constipation', /便秘/, '便秘', ['国立がん研究センター 緩和ケア情報等（頁未確認）'], '腸閉塞が疑われるときは、通常の便秘の介入を先にしない',
+        [['最後の排便、便の性状、腹部、食事と水分、活動、薬、排便の習慣', /排便|便|腹部|食事|水分|活動|薬/]],
+        [['食事・水分・活動・排便の環境を整え、処方薬を適切に使う', /食事|水分|活動|環境|処方/]],
+        [['自己判断で下剤を増やしたり減らしたりし続けないこと', /下剤|自己判断/]]),
+      cp100('diarrhea', /下痢|水様便/, '下痢（症状）', ['日本小児科学会 胃腸炎関連情報・炎症性腸疾患関連情報（頁未確認）'], '感染性と非感染性を分ける。止瀉薬を一律に勧めない',
+        [['回数と性状、血便、発熱、腹痛、摂取、尿量、薬、感染の曝露', /回数|性状|血便|発熱|腹痛|摂取|尿量|薬|曝露/]],
+        [['水分・排泄・皮膚のケアと感染対策を行う', /水分|排泄|皮膚|感染対策/]],
+        [['血便・脱水・高熱のときの受診の目安', /血便|脱水|高熱|受診/]]),
+      cp100('edema', /浮腫|むくみ/, '浮腫（症状）', ['肝硬変・ネフローゼ・心血管ガイドラインを横断した一般化（頁未確認）'], '「浮腫＝水分が多い」と決めない。心・腎・肝・静脈・リンパ・薬など原因が多い',
+        [['左右差、部位、圧痕、体重、呼吸、尿量、Alb・腎肝機能、薬', /左右|部位|圧痕|体重|呼吸|尿量|Alb|腎|肝|薬/]],
+        [['皮膚を保護し、体液を管理し、原因ごとの治療を支える', /皮膚|体液|治療/]],
+        [['急な片脚の腫れ・呼吸困難などの報告', /片脚|腫|呼吸困難|報告/]]),
+      cp100('insomnia', /不眠|眠れない|入眠困難|中途覚醒|早朝覚醒/, '不眠', ['日本呼吸器学会SAS資料等を踏まえた症状横断のルール（頁未確認）'], '睡眠時無呼吸・躁状態・せん妄が疑われるときは、単純な不眠として扱わない',
+        [['睡眠時間だけでなく、眠気、昼寝、痛み、夜間の排尿、薬、呼吸のイベント', /睡眠|眠気|昼寝|疼痛|排尿|薬|呼吸/]],
+        [['環境・昼夜のリズム・症状を整える', /環境|リズム|症状/]],
+        [['睡眠薬だけに頼らない睡眠の衛生', /睡眠薬|衛生/]]),
+      cp100('aspiration', /誤嚥|嚥下障害|むせ/, '誤嚥（嚥下障害）', ['脳卒中ガイドライン・厚生労働省の事故予防資料（頁未確認）'], '「むせがない＝誤嚥がない」としない。食止めや形態の変更は評価と指示に基づく',
+        [['咳、湿った声、食事中の呼吸の変化、SpO2、意識、口腔、姿勢、肺炎の既往', /咳|嗄声|呼吸|SpO2|意識|口腔|姿勢|肺炎/]],
+        [['嚥下の評価結果に従う食形態・姿勢・口腔ケア', /嚥下|食形態|姿勢|口腔/]],
+        [['家族も含めて安全な食事の方法をそろえること', /家族|食事|方法/]]),
+      cp100('dehydration', /脱水/, '脱水', ['小児胃腸炎・透析・腎疾患・検査基準を横断した一般化（頁未確認）'], '心不全・腎不全では、「脱水の疑い＝自由に飲んでよい」としない',
+        [['摂取と排出、体重、口腔、尿量、血圧・脈拍、意識、Na・Cr', /摂取|排出|体重|口腔|尿量|血圧|脈拍|意識|Na|Cr/]],
+        [['原因と心・腎の機能を確認したうえで補水を支える', /原因|心|腎|補水/]],
+        [['飲水量を一律にせず、個別の目標を確認すること', /飲水|個別|目標/]]),
+      cp100('consciousness-disorder', /意識障害|意識レベル低下|意識混濁|JCS|GCS/, '意識障害', ['日本脳卒中学会 ほか（頁未確認）'], '「眠そう」「認知症だから」で説明を終えない。急なふだんからの変化を重く見る',
+        [['意識レベルと変化した時刻、気道・呼吸・循環、瞳孔と左右差、血糖、体温、薬、外傷', /意識|時刻|気道|呼吸|循環|瞳孔|血糖|体温|薬|外傷/]],
+        [['気道・呼吸・循環と安全の確保を優先し、迅速に報告する', /気道|呼吸|循環|安全|報告/]],
+        [['原因が分かってからの再発予防', /原因|再発予防/]])
+    ];
+    CARE_PLAN_KNOWLEDGE.push(...CPK_ROWS_RESEARCH_2);
     // v.149: knowledge rows can be imported from a JSON file and are treated like built-in rows. Stored only in this browser.
     // File format: [{ "key", "label", "keywords": ["語", ...] (or "re": "正規表現"), "source": ["出典", ...], "scope": "使わない場面",
     //   "op"|"tp"|"ep": [ { "text": "観察・援助・指導の文", "keywords": ["語", ...] } | "文のみ" ] }]
@@ -2730,48 +2810,99 @@
       return { ok: true };
     }
     // Cross-section consistency check: warnings only, nothing is changed. Every generated plan must be complete and rest on the patient's own record.
-    // Lab values are read together with the patient's background (disease, drugs, sex/age, other conditions), not alone.
-    // General condition: lab key + abnormal direction (sex/age-adjusted where the reference differs) + a background fact WRITTEN in the record.
-    // Only notes the record supports are produced; nothing is inferred from a lab value alone and no value is invented.
+    // Lab values are read together with the patient's background (disease, drugs, sex/age, pregnancy, kidney/liver). Source: 日本臨床検査医学会 2025 共用基準範囲（成人）+ 解釈補正の表（研究 2026-10）.
+    // General condition: lab key + out of the adult common range (sex-specific where the table has it) + a background fact WRITTEN in the record.
+    // Disease never replaces the reference range: it only adds interpretation conditions. Child values are not judged with adult ranges. Nothing is inferred from a lab value alone.
+    const LAB_REFERENCE_TABLE = [
+      { key: 'Hb', ageSpecific: true, re: /(?:\bHb|ヘモグロビン)\s*[:：]?\s*(\d+(?:\.\d+)?)/i, unit: 'g/dL', lo: { M: 13.7, F: 11.6 }, hi: { M: 16.8, F: 14.8 },
+        ctx: { elder: '貧血を「加齢だから正常」としない', kidney: 'CKDで低下し得る（腎性貧血）', liver: '出血・栄養・脾機能などで低下し得る', preg: '血漿量の増加で低く見えやすい', drug: [/抗凝固|ワルファリン|NSAID|ロキソ|化学療法|抗がん/, '出血・骨髄抑制・薬剤の影響を確認する'] } },
+      { key: 'Cre', ageSpecific: true, re: /(?:\bCre|\bCr\b|クレアチニン)\s*[:：]?\s*(\d+(?:\.\d+)?)/i, unit: 'mg/dL', lo: { M: 0.65, F: 0.46 }, hi: { M: 1.07, F: 0.79 },
+        ctx: { elder: 'サルコペニアでは腎機能低下を過小評価し得るため、eGFRを併用する', kidney: '腎疾患の経過。eGFRと併用する', liver: '筋肉量が低いと低く見える場合がある', preg: 'GFR増加で低下傾向になる', drug: [/NSAID|ロキソ|利尿|造影|アミノグリコシド|バンコマイシン|ACE|ARB/, '腎毒性のある薬・脱水による上昇を確認する'] } },
+      { key: 'K', ageSpecific: true, re: /(?:\bK\b|カリウム)\s*[:：]?\s*(\d+(?:\.\d+)?)/, unit: 'mmol/L', lo: { M: 3.6, F: 3.6 }, hi: { M: 4.8, F: 4.8 },
+        ctx: { elder: '腎機能・薬剤の影響が大きい', kidney: '排泄低下で高Kになり得る', liver: '腎・利尿薬の影響を確認する', preg: '妊娠独自の「正常高K」は設定しない', drug: [/ACE|ARB|アルダクトン|スピロノラクトン|MRA|利尿|フロセミド|ラシックス|インスリン/, '薬剤による変動（ACE阻害薬/ARB/MRAで上昇、ループ・サイアザイドで低下、インスリンで細胞内移行）を確認する'] }, extra: '溶血による偽高値に注意' },
+      { key: 'Na', re: /(?:\bNa\b|ナトリウム)\s*[:：]?\s*(\d{3})/, unit: 'mmol/L', lo: { M: 138, F: 138 }, hi: { M: 145, F: 145 },
+        ctx: { elder: '口渇の低下や薬剤で異常になりやすい', kidney: '水排泄障害で低Naになり得る', liver: '腹水を伴う肝硬変で低Naになり得る', preg: '施設の基準と妊娠の生理を参照する', drug: [/利尿|SIADH|抗うつ|カルバマゼピン|嘔吐|下痢/, '利尿薬・SIADH関連薬・嘔吐下痢・高血糖の影響を確認する'] } },
+      { key: 'CRP', re: /CRP\s*[:：]?\s*(\d+(?:\.\d+)?)/i, unit: 'mg/dL', lo: {}, hi: { M: 0.14, F: 0.14 },
+        ctx: { elder: '症状が乏しくても感染を否定できない', kidney: '背景の炎症を考慮する', liver: '重い肝機能低下では反応の解釈に注意する', preg: '妊娠だけで感染と判定しない', drug: [/ステロイド|プレドニ|免疫抑制|生物学的製剤|化学療法/, '免疫抑制・ステロイドでは反応が鈍る場合がある'] } },
+      { key: 'Alb', ageSpecific: true, re: /(?:\bAlb|アルブミン)\s*[:：]?\s*(\d+(?:\.\d+)?)/i, unit: 'g/dL', lo: { M: 4.1, F: 4.1 }, hi: {},
+        ctx: { elder: '低値を「栄養だけ」としない', kidney: 'ネフローゼでは尿中への喪失', liver: '肝の合成能低下', preg: '希釈の影響', drug: [/輸液|点滴/, '輸液による希釈を考慮する'] } },
+      { key: '血糖', re: /(?:空腹時血糖|血糖(?:値)?|\bBS\b|\bGlu\b)\s*[:：]?\s*(\d{2,4})/i, unit: 'mg/dL', lo: { M: 73, F: 73 }, hi: { M: 109, F: 109 },
+        ctx: { dm: 'ケトン・pH・脱水の有無と合わせて確認する', elder: '低血糖の症状が非典型なことがある', kidney: 'インスリンの作用が延長しやすい', liver: '糖代謝・摂取の変動', preg: '妊娠の糖代謝は別の基準で評価する', drug: [/インスリン|ステロイド|SU薬|スルホニル|経口血糖/, 'ステロイドで上昇、インスリン等で低下、感染・ストレスで上昇する影響を確認する'] }, extra: '糖尿病の診断の臨床判断値とは別' },
+      { key: 'HbA1c', re: /HbA1c\s*[:：]?\s*(\d+(?:\.\d+)?)/i, unit: '%', lo: {}, hi: { M: 6.2, F: 6.2 },
+        ctx: { dm: '糖尿病の血糖管理の指標。食事・注射・自己管理の実施状況と合わせて確認する', elder: '貧血・CKDを考慮する', kidney: '腎性貧血・ESAなどで解釈が変わる', liver: '貧血・出血などで解釈が変わる', preg: '血糖管理をHbA1c単独にしない', drug: [/輸血|溶血|ESA|エリスロポエチン/, '輸血・溶血・出血で赤血球の寿命が変わると解釈が変わる'] } },
+      { key: 'pH', re: /\bpH\s*[:：]?\s*(\d\.\d+)/i, unit: '', lo: { M: 7.35, F: 7.35 }, hi: { M: 7.45, F: 7.45 },
+        ctx: { dm: '糖尿病ではケトアシドーシスの可能性を血糖・ケトン・呼吸数と合わせて確認する（診断はしない）', elder: 'PaCO2・HCO3-と組み合わせて解釈する', kidney: '代謝性アシドーシス', liver: '重症病態では乳酸などと合わせる', preg: '妊娠は呼吸の生理が変わる', drug: [/インスリン|ケトン|DKA/, '呼吸不全・DKA・腎不全・嘔吐などの原因を確認する'] } },
+      { key: 'WBC', ageSpecific: true, re: /(?:\bWBC|白血球)\s*[:：]?\s*(\d+(?:\.\d+)?)/i, unit: '×10^3/μL', lo: { M: 3.3, F: 3.3 }, hi: { M: 8.6, F: 8.6 },
+        ctx: { elder: '感染でも反応が乏しいことがある', kidney: '', liver: '脾機能亢進などで低下し得る', preg: '妊娠では生理的に増加する', drug: [/ステロイド|化学療法|抗がん|免疫抑制/, 'ステロイドで上昇、化学療法で低下する影響を確認する'] }, extra: '分画も必要' },
+      { key: 'PT-INR', ageSpecific: true, re: /(?:PT-?INR|\bINR)\s*[:：]?\s*(\d+(?:\.\d+)?)/i, unit: '', lo: {}, hi: { M: 1.1, F: 1.1 },
+        ctx: { elder: '', kidney: 'DOACの蓄積は腎機能に依存するが、INRで管理する薬ではない', liver: '凝固因子の合成低下で延長する', preg: '妊娠の凝固の変化をINR単独で評価しない', drug: [/ワルファリン|ワーファリン|抗凝固/, '抗凝固療法中の目標値は別に定められており、この基準範囲は目標ではない'] } },
+      { key: 'BNP', ageSpecific: true, re: /\bBNP\s*[:：]?\s*(\d+(?:\.\d+)?)/i, unit: 'pg/mL', lo: {}, hi: { M: 18.4, F: 18.4 },
+        ctx: { elder: '年齢で高くなり得る', kidney: '腎機能低下で高くなり得る', liver: '', preg: '妊娠・周産期は臨床背景を考慮する', drug: [/心房細動|心不全|肥満/, '心不全・心房細動・腎機能・肥満などと合わせて解釈する'] }, extra: '心不全の診断は症状・画像と統合する' },
+      { key: 'AST', ageSpecific: true, re: /\bAST\s*[:：]?\s*(\d+(?:\.\d+)?)/i, unit: 'U/L', lo: {}, hi: { M: 30, F: 30 },
+        ctx: { elder: '筋量・多疾患を考慮する', kidney: '', liver: '肝障害で上昇。末期では値だけで重症度は分からない', preg: '妊娠特有の肝疾患に注意', drug: [/スタチン|抗菌|抗結核|アセトアミノフェン|化学療法/, '薬剤性の肝障害・筋障害を確認する'] }, extra: '筋由来でも上昇する' },
+      { key: 'ALT', ageSpecific: true, re: /\bALT\s*[:：]?\s*(\d+(?:\.\d+)?)/i, unit: 'U/L', lo: {}, hi: { M: 42, F: 23 },
+        ctx: { elder: '', kidney: '', liver: '肝障害で上昇', preg: '妊娠特有の肝疾患に注意', drug: [/スタチン|抗菌|抗結核|アセトアミノフェン|化学療法/, '薬剤性肝障害を確認する'] } },
+      { key: 'TSH', ageSpecific: true, re: /\bTSH\s*[:：]?\s*(\d+(?:\.\d+)?)/i, unit: 'μIU/mL', lo: { M: 0.61, F: 0.61 }, hi: { M: 4.23, F: 4.23 },
+        ctx: { elder: '非甲状腺疾患・薬剤を考慮する', kidney: '', liver: '重い全身疾患では解釈に注意する', preg: '妊娠の時期別の基準を使う', drug: [/アミオダロン|ステロイド|甲状腺/, '甲状腺疾患・アミオダロン・ステロイドなどの影響を確認する'] }, extra: '中枢性疾患では通常の解釈が変わる' }
+    ];
     function labBackgroundContext(cp) {
       const text = [cp.sourceText || '', ...(cp.items || []).filter(i => i && !i.deleted).map(i => i.text)].join('\n').normalize('NFKC');
       const ageM = text.match(/(\d{1,3})\s*歳(?!時|の頃|ごろ|前)/);
       const age = ageM ? +ageM[1] : null;
-      const sex = /女児|女性|女の子|褥婦|産褥|妊婦/.test(text) ? 'F' : /男児|男性|男の子/.test(text) ? 'M' : '';
+      const sex = /女児|女性|女の子|褥婦|産褥|妊婦|妊娠/.test(text) ? 'F' : /男児|男性|男の子/.test(text) ? 'M' : '';
       const has = re => re.test(text);
       return {
-        text, age, sex,
-        dm: has(/糖尿病/), insulin: has(/インスリン/), steroid: has(/ステロイド|プレドニ/), diuretic: has(/利尿薬|フロセミド|ラシックス/),
-        kidney: has(/腎不全|腎機能|透析|CKD|腎症/), heart: has(/心不全|心筋梗塞|不整脈/), liver: has(/肝炎|肝硬変|肝機能障害|肝がん|肝癌/),
-        infection: has(/感染|肺炎|発熱|敗血症/), cancer: has(/がん|癌|白血病|リンパ腫|化学療法/), anticoag: has(/ワルファリン|抗凝固|DOAC|ヘパリン/),
-        dehydration: has(/脱水|多尿|下痢|嘔吐|摂取不良|食欲不振/), child: age !== null && age < 18
+        text, age, sex, child: age !== null && age < 18, elder: age !== null && age >= 65,
+        kidney: has(/腎不全|腎機能(?:低下|障害)|透析|CKD|腎症|ネフローゼ/), liver: has(/肝炎|肝硬変|肝機能障害|肝がん|肝癌/), preg: has(/妊娠|妊婦|産褥|褥婦|周産期/),
+        dm: has(/糖尿病/), insulin: has(/インスリン/), cancer: has(/がん|癌|白血病|リンパ腫|化学療法/), infection: has(/感染|肺炎|発熱|敗血症/), heart: has(/心不全|心筋梗塞|不整脈/), diuretic: has(/利尿薬|フロセミド|ラシックス/)
       };
     }
     function labLatestValue(text, re) {
-      let last = null; const g = new RegExp(re.source, 'g'); let m;
+      let last = null; const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g'); let m;
       while ((m = g.exec(text))) last = parseFloat(m[1]);
       return last;
     }
     function labBackgroundNotes(cp) {
       const c = labBackgroundContext(cp), t = c.text, out = [];
-      const v = re => labLatestValue(t, re);
-      const hba = v(/HbA1c\s*[:：]?\s*(\d+(?:\.\d+)?)/i), glu = v(/(?:血糖(?:値)?|BS|Glu)\s*[:：]?\s*(\d{2,4})/i);
-      const hb = v(/(?:Hb|ヘモグロビン)\s*[:：]?\s*(\d+(?:\.\d+)?)/i), cre = v(/(?:Cre|クレアチニン)\s*[:：]?\s*(\d+(?:\.\d+)?)/i);
-      const k = v(/(?:\bK|カリウム)\s*[:：]?\s*(\d+(?:\.\d+)?)/), na = v(/(?:Na|ナトリウム)\s*[:：]?\s*(\d{3})/);
-      const crp = v(/CRP\s*[:：]?\s*(\d+(?:\.\d+)?)/i), alb = v(/(?:Alb|アルブミン)\s*[:：]?\s*(\d+(?:\.\d+)?)/i), ph = v(/pH\s*[:：]?\s*(\d\.\d+)/i);
       const who = c.age !== null ? `${c.age}歳${c.sex === 'F' ? '女性' : c.sex === 'M' ? '男性' : ''}` : (c.sex === 'F' ? '女性' : c.sex === 'M' ? '男性' : '');
-      if (hba !== null && c.dm) out.push(`HbA1c ${hba}%：糖尿病${c.insulin ? '（インスリン治療）' : ''}の血糖管理の指標。${hba >= 9 ? '高値のため、食事・注射・自己管理の実施状況と合わせて確認する' : hba < 7 ? '管理目標に近い値。低血糖の有無と合わせて確認する' : '経過で見る'}`);
-      if (glu !== null && c.insulin && glu < 70) out.push(`血糖 ${glu}：インスリン使用中の低血糖域。注射量・食事量・運動との関係を確認する`);
-      if (glu !== null && glu >= 300 && c.dm) out.push(`血糖 ${glu}：糖尿病で著しい高値。尿ケトン・pH・脱水の有無と合わせて確認する`);
-      if (ph !== null && ph < 7.35 && (c.dm || c.kidney || c.infection)) out.push(`pH ${ph}：酸性に傾いた状態。${c.dm ? '糖尿病ではケトアシドーシス' : c.kidney ? '腎機能低下による代謝性アシドーシス' : '感染・循環不全'}の可能性を、血糖・ケトン・呼吸数と合わせて確認する（診断はしない）`);
-      if (hb !== null) { const low = c.sex === 'F' || c.child ? 12 : 13; if (hb < low) out.push(`Hb ${hb}：${who ? who + 'の' : ''}基準（約${low}g/dL）より低い。${c.cancer ? '化学療法・がんによる骨髄抑制や出血' : c.kidney ? '腎性貧血' : c.sex === 'F' ? '月経・栄養状態' : '出血・栄養状態'}の背景を確認し、倦怠感・息切れ・めまいと合わせて見る`); }
-      if (cre !== null) { const hi = c.sex === 'F' || c.child ? 0.8 : 1.1; if (cre > hi) out.push(`Cre ${cre}：${who ? who + 'の' : ''}基準（約${hi}mg/dL）を超える。${c.kidney ? '腎疾患の経過' : c.dehydration ? '脱水による一時的上昇' : '腎機能低下'}の可能性。利尿薬・抗菌薬など腎に影響する薬の使用を確認する`); }
-      if (k !== null && (k >= 5.5 || k < 3.5)) out.push(`K ${k}：${k >= 5.5 ? (c.kidney ? '腎機能低下に伴う高K' : '高K') : (c.diuretic ? '利尿薬による低K' : c.dehydration ? '下痢・嘔吐・摂取不良による低K' : '低K')}の可能性。不整脈・筋力低下の症状を確認する`);
-      if (na !== null && (na < 135 || na > 145)) out.push(`Na ${na}：${na < 135 ? (c.diuretic ? '利尿薬の影響' : c.heart ? '心不全での希釈性低Na' : '低Na') : (c.dehydration ? '脱水による高Na' : '高Na')}の可能性。意識状態・水分出納と合わせて確認する`);
-      if (crp !== null && crp >= 1) out.push(`CRP ${crp}：炎症反応${c.infection ? '（感染）' : c.cancer ? '（がん・治療に伴う炎症）' : ''}。${c.steroid ? 'ステロイド使用中は上がりにくく発熱も目立たないことがある。' : ''}体温・白血球・症状の経過と合わせて見る`);
-      if (alb !== null && alb < 3.5) out.push(`Alb ${alb}：低栄養または炎症・${c.liver ? '肝機能低下' : c.kidney ? '腎からの喪失' : '体液貯留'}の可能性。食事摂取量・体重・浮腫と合わせて見る`);
-      if (c.anticoag && /(?:PT-?INR|INR)\s*[:：]?\s*\d/.test(t)) out.push('PT-INR：抗凝固薬使用中の効果指標。出血症状（歯肉・皮下・黒色便）を確認する');
+      LAB_REFERENCE_TABLE.forEach(row => {
+        const v = labLatestValue(t, row.re);
+        if (v === null) return;
+        const pick = (o, wantMin) => { const a = o.M, b = o.F; if (a === undefined && b === undefined) return null; if (c.sex === 'M') return a; if (c.sex === 'F') return b; return wantMin ? Math.min(a, b) : Math.max(a, b); };
+        const lo = pick(row.lo, true), hi = pick(row.hi, false);
+        const dir = lo !== null && v < lo ? '低い' : hi !== null && v > hi ? '高い' : '';
+        const u = row.unit ? ` ${row.unit}` : '';
+        const rng = `${lo !== null ? lo : ''}${lo !== null && hi !== null ? '–' : ''}${hi !== null ? (lo === null ? '≤' : '') + hi : ''}${u}`;
+        const parts = [];
+        if (c.child && row.ageSpecific) { if (!dir) return; out.push(`${row.key} ${v}：小児は成人の基準範囲を使わず、年齢別の基準で評価する`); return; }
+        if (!dir) return;
+        if (c.dm && row.ctx.dm) parts.push(row.ctx.dm);
+        if (c.elder && row.ctx.elder) parts.push(row.ctx.elder);
+        if (c.kidney && row.ctx.kidney) parts.push(row.ctx.kidney);
+        if (c.liver && row.ctx.liver) parts.push(row.ctx.liver);
+        if (c.preg && row.ctx.preg) parts.push(row.ctx.preg);
+        if (row.ctx.drug && row.ctx.drug[0].test(t)) parts.push(row.ctx.drug[1]);
+        if (!parts.length) return;
+        out.push(`${row.key} ${v}：${who ? who + 'の' : ''}成人の共通基準範囲（${rng}）より${dir}。${parts.join('。')}${row.extra ? '（' + row.extra + '）' : ''}。基準範囲は病態で置き換えず、解釈の条件として扱う`);
+      });
       return out;
+    }
+    // Drug classes in use → what to observe and which lab values relate. No dosing advice. A class does not mean a side effect: use + sign/lab change + timing together make the link strong.
+    const DRUG_CLASS_OBSERVATION = [
+      ['利尿薬', /利尿薬|フロセミド|ラシックス|トルバプタン|スピロノラクトン/, '体重、尿量、血圧、口渇、浮腫、転倒', 'Na・K・Cr'],
+      ['抗凝固薬', /抗凝固|ワルファリン|ワーファリン|DOAC|エリキュース|イグザレルト|リクシアナ|ヘパリン/, '皮下出血、血尿、黒色便、意識の変化、転倒', 'Hb・血小板・Cr・肝機能（ワルファリンはPT-INR）'],
+      ['ステロイド', /ステロイド|プレドニ|デキサメタゾン|ヒドロコルチゾン/, '体温、感染、血糖、血圧、気分、骨折のリスク', '血糖・WBC・Na/K'],
+      ['インスリン', /インスリン/, '食事量、意識、発汗、振戦、血糖、腎機能', '血糖・HbA1c・K'],
+      ['降圧薬', /降圧薬|ARB|ACE阻害|カルシウム拮抗|β遮断|ベータ遮断|アムロジピン/, '血圧、立ち上がったときの症状、脈拍、転倒', 'Cr・K・Na（クラスごとに）'],
+      ['抗菌薬', /抗菌薬|抗生剤|抗生物質|セフェム|ペニシリン|フロモキセフ/, '発疹、呼吸、便の状態、発熱の経過', 'Cr・AST/ALT・血算'],
+      ['化学療法薬', /化学療法|抗がん薬|抗癌剤|抗がん剤/, '発熱、出血、口腔、摂取、薬ごとの症状', 'WBC・好中球・Hb・血小板・Cr・肝機能'],
+      ['オピオイド', /オピオイド|モルヒネ|オキシコドン|フェンタニル|オキノーム/, '痛み、意識、呼吸数、便通、吐き気', '腎機能・肝機能（薬により異なる）'],
+      ['向精神薬', /向精神薬|抗精神病|抗うつ|睡眠薬|眠剤|ベンゾジアゼピン|リチウム/, '意識、歩行、血圧、食事・体重、精神症状', '血糖・脂質・Na・肝腎機能・必要時ECG'],
+      ['NSAIDs', /NSAID|ロキソプロフェン|ロキソニン|ジクロフェナク|イブプロフェン|セレコキシブ/, '胃腸症状、出血、尿量、浮腫、血圧', 'Hb・Cr・K']
+    ];
+    function drugClassNotes(cp) {
+      const t = [cp.sourceText || '', ...(cp.items || []).filter(i => i && !i.deleted).map(i => i.text)].join('\n').normalize('NFKC');
+      return DRUG_CLASS_OBSERVATION.filter(r => r[1].test(t)).map(r => `${r[0]}：観察＝${r[2]}／関連する検査値＝${r[3]}`);
     }
     function cpConsistencyWarnings(cp) {
       const out = [];
@@ -3321,7 +3452,7 @@
           recs.forEach(r => lines.push(...careRecordLines(r).map(l => `  ${l}`)));
         }
         return lines.join('\n');
-      }).join('\n\n') + (() => { const w = typeof cpConsistencyWarnings === 'function' ? cpConsistencyWarnings(cp) : []; return w.length ? `\n\n【整合性の確認（自動・変更はしていません）】\n${w.map(x => `・${x}`).join('\n')}` : ''; })() + (() => { const n = typeof labBackgroundNotes === 'function' ? labBackgroundNotes(cp) : []; return n.length ? `\n\n【検査値と背景の関連（記録にある病名・薬・年齢性別との照合。診断ではありません）】\n${n.map(x => `・${x}`).join('\n')}` : ''; })();
+      }).join('\n\n') + (() => { const w = typeof cpConsistencyWarnings === 'function' ? cpConsistencyWarnings(cp) : []; return w.length ? `\n\n【整合性の確認（自動・変更はしていません）】\n${w.map(x => `・${x}`).join('\n')}` : ''; })() + (() => { const n = typeof labBackgroundNotes === 'function' ? labBackgroundNotes(cp) : []; return n.length ? `\n\n【検査値と背景の関連（記録にある病名・薬・年齢性別との照合。診断ではありません）】\n${n.map(x => `・${x}`).join('\n')}` : ''; })() + (() => { const n = typeof drugClassNotes === 'function' ? drugClassNotes(cp) : []; return n.length ? `\n\n【使用中の薬の観察（薬のクラスごと。副作用があると決めるものではありません）】\n${n.map(x => `・${x}`).join('\n')}` : ''; })();
     }
     function careRecordLines(r) {
       const ach = CARE_ACHIEVEMENTS.find(a => a.key === r.achievement);
@@ -3388,7 +3519,7 @@ if (typeof module !== 'undefined' && module.exports) {
     carePlanInlineNotes, captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
     cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf, collapseVitalCards, collapseLabCards,
-    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, cpConsistencyWarnings, labBackgroundNotes, labBackgroundContext, cpDedupeOverlappingPlans, krTerms, krNames, krIsMedicalTerm, CARE_PLAN_KNOWLEDGE, cpKnowledgeSuggestions, CP_HIGH_RISK_COMBOS, cpHighRiskCombos, cpStripNegated, cpEvidenceKind, krUnknownTerms, CPK_ROWS_79, CPK_ROWS_100, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
+    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, cpConsistencyWarnings, labBackgroundNotes, labBackgroundContext, drugClassNotes, LAB_REFERENCE_TABLE, DRUG_CLASS_OBSERVATION, cpDedupeOverlappingPlans, krTerms, krNames, krIsMedicalTerm, CARE_PLAN_KNOWLEDGE, cpKnowledgeSuggestions, CP_HIGH_RISK_COMBOS, cpHighRiskCombos, cpStripNegated, cpEvidenceKind, krUnknownTerms, CPK_ROWS_79, CPK_ROWS_100, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
     cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, carePlanSetReviewHtml, carePlanSetState, carePlanSetNextSteps
   });
 }

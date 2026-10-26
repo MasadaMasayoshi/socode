@@ -34,7 +34,7 @@ test('a partly written plan only gets the missing section', () => {
 });
 
 test('an unrelated problem gets no knowledge suggestion', () => {
-  assert.equal(knowledge({ problem: '便秘リスク状態', op: [], tp: [], ep: [] }), undefined);
+  assert.equal(knowledge({ problem: '特殊な看護問題Z', op: [], tp: [], ep: [] }), undefined);
 });
 
 test('knowledge rows count as existing knowledge for knowledge requests', () => {
@@ -42,6 +42,6 @@ test('knowledge rows count as existing knowledge for knowledge requests', () => 
   assert.ok(app.CARE_PLAN_KNOWLEDGE.every(r => r.source.length && r.op.length && r.tp.length && r.ep.length));
   const cp = Object.assign(cp0(), { relationMap: { nodes: [{ id: 'n1', type: 'nursing_problem', label: '光線過敏症に関連した皮膚障害', priority: 1 }], edges: [] } });
   assert.ok(!app.buildKnowledgeRequests(cp).some(r => r.kind === 'plan-missing'));
-  const cp2 = Object.assign(cp0(), { relationMap: { nodes: [{ id: 'n1', type: 'nursing_problem', label: '便秘リスク状態', priority: 1 }], edges: [] } });
+  const cp2 = Object.assign(cp0(), { relationMap: { nodes: [{ id: 'n1', type: 'nursing_problem', label: '特殊な看護問題Z', priority: 1 }], edges: [] } });
   assert.ok(app.buildKnowledgeRequests(cp2).some(r => r.kind === 'plan-missing'));
 });
