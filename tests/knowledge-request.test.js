@@ -20,10 +20,10 @@ test('requests carry de-identified source context and a patient summary', () => 
 });
 test('care-plan and relation-map gaps are requested, not only tagging', () => {
   const cp = base();
-  cp.relationMap = { nodes: [{ id: 'p', type: 'nursing_problem', label: '褥瘡リスク状態' }], edges: [] };
-  cp.carePlans = { a: { id: 'a', problem: '活動耐性低下', op: ['疲労感'], tp: [], ep: [], order: 1 } };
+  cp.relationMap = { nodes: [{ id: 'p', type: 'nursing_problem', label: '特殊な看護問題Z' }], edges: [] };
+  cp.carePlans = { a: { id: 'a', problem: '特殊な計画問題Y', op: ['疲労感'], tp: [], ep: [], order: 1 } };
   const r = app.buildKnowledgeRequests(cp);
-  assert.ok(r.some(x => x.purpose === 'plan' && x.kind === 'plan-missing' && /褥瘡/.test(x.term)));
+  assert.ok(r.some(x => x.purpose === 'plan' && x.kind === 'plan-missing' && /特殊/.test(x.term)));
   assert.ok(r.some(x => x.purpose === 'plan' && x.kind === 'plan-section' && /TP/.test(x.question)));
   assert.ok(r.some(x => x.purpose === 'map' && x.kind === 'map-diagnosis' && /スチル病/.test(x.term)));
   assert.ok(r.some(x => x.purpose === 'map' && x.kind === 'mechanism'));
@@ -33,10 +33,10 @@ test('a well-covered patient produces no requests', () => {
 });
 
 test('very thin existing knowledge is requested like missing knowledge', () => {
-  const cp = { title: 'T', items: [{ id: '2', type: 'o', text: '診断名: 糖尿病', fieldLabel: '診断名', hendersonIds: [] }],
+  const cp = { title: 'T', items: [{ id: '2', type: 'o', text: '診断名: 関節リウマチ', fieldLabel: '診断名', hendersonIds: [] }],
     relationMap: { nodes: [{ id: 'p', type: 'nursing_problem', label: '特殊な看護問題Z' }], edges: [] } };
   const r = app.buildKnowledgeRequests(cp);
-  assert.ok(r.some(x => x.kind === 'thin-diagnosis' && /糖尿病/.test(x.term)));
+  assert.ok(r.some(x => x.kind === 'thin-diagnosis' && /関節リウマチ/.test(x.term)));
   assert.ok(r.some(x => x.kind === 'thin-problem' && /特殊/.test(x.term)));
   assert.ok(!app.buildKnowledgeRequests({ items: [{ id: '1', type: 'o', text: '診断名: 全身性エリテマトーデス', fieldLabel: '診断名', hendersonIds: [] }] }).some(x => x.kind === 'diagnosis' || x.kind === 'thin-diagnosis') || true);
 });
