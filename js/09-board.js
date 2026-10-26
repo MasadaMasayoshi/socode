@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.157'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.159'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -238,6 +238,7 @@
       const fieldChipHtml = fieldDef ? `<span class="field-chip" style="background:${fieldDef.bg};color:${fieldDef.color};"><i class="fa-solid ${fieldDef.icon} mr-0.5"></i>${escapeHtml(fieldDef.label)}</span>` : '';
       const timeChipHtml = item.timestamp && item.timestamp !== "日時不明" ? `<span class="time-chip"><i class="fa-regular fa-clock mr-0.5"></i>${escapeHtml(item.timestamp)}</span>` : '';
       const confidenceBadgeHtml = confidenceBadgeFor(item.predictionSource);
+      const pastTagSo = pastEventTagHtml(item);
 
       const scenePartner = item.sceneId ? (getCurrentPatient().items || []).find(i => i.sceneId === item.sceneId && i.id !== item.id) : null;
       const sceneChipHtml = scenePartner ? `<button onclick="jumpToBoardCard(${jsArg(scenePartner.id)})" class="scene-chip" title="同じ場面の${scenePartner.type === 's' ? '発言（S）' : '観察（O）'}のカード：${escapeHtml(scenePartner.text.slice(0, 40))}"><i class="fa-solid fa-link mr-0.5"></i>同じ場面の${scenePartner.type === 's' ? 'S' : 'O'}</button>` : '';
@@ -248,7 +249,7 @@
             <label class="card-select-wrap" title="選択（複数選択の追加/解除。タップ操作のみで複数選択できます）">
               <input type="checkbox" class="card-select-checkbox" onchange="setCardSelected(${jsArg(item.id)}, this.checked)" ${isSelected ? 'checked' : ''}>
             </label>
-            ${untaggedWarningHtml}${patientBackgroundHtml}${item.diseaseGeneral ? '<span class="field-chip" style="background:var(--slate-soft);color:var(--slate);cursor:help;" title="疾患の一般的な症状の列挙です。内容でタグは付けますが、この患者の所見とは確認できないため、充足判定・看護計画・診断の根拠には使いません。"><i class="fa-solid fa-book-medical mr-0.5"></i>疾患の一般情報</span>' : ''}${item.soMixed ? '<span class="field-chip" style="background:var(--gold-soft);color:var(--ink);" title="同じ場面の発言と観察をまとめたカード">S/O混在</span>' : ''}${fieldChipHtml}${timeChipHtml}${sceneChipHtml}${drugChipHtml(item)}${confidenceBadgeHtml}
+            ${untaggedWarningHtml}${pastTagSo}${patientBackgroundHtml}${item.diseaseGeneral ? '<span class="field-chip" style="background:var(--slate-soft);color:var(--slate);cursor:help;" title="疾患の一般的な症状の列挙です。内容でタグは付けますが、この患者の所見とは確認できないため、充足判定・看護計画・診断の根拠には使いません。"><i class="fa-solid fa-book-medical mr-0.5"></i>疾患の一般情報</span>' : ''}${item.soMixed ? '<span class="field-chip" style="background:var(--gold-soft);color:var(--ink);" title="同じ場面の発言と観察をまとめたカード">S/O混在</span>' : ''}${fieldChipHtml}${timeChipHtml}${sceneChipHtml}${drugChipHtml(item)}${confidenceBadgeHtml}
           </div>
           <div class="flex items-center gap-1 ml-auto shrink-0">
             ${item.type === 'unnecessary' ? `<button onclick="setItemType(${jsArg(item.id)}, 'unclassified')" class="type-btn type-btn-restore" title="未分類に戻す">復帰</button>` : ''}
@@ -640,6 +641,13 @@
       });
       return terms;
     }
+    function pastEventTagHtml(item) {
+      const t = String(item.text || '').normalize('NFKC').replace(/(?:基準値|参考)[^)）]*/g, '');
+      const m = t.match(/(?:\d{1,2}歳(?:時|の時|のとき|頃|ごろ)|\d{1,2}年前|(?:半年|数年|\d{1,2}[かヶカ]?月|\d{1,2}週間)前|以前|既往)/);
+      if (!m) return '';
+      return `<span class="time-chip" style="color:var(--slate);" title="記録の日付とは別の、過去に起きた出来事です（${m[0]}）。いまの状態と区別して見てください"><i class="fa-solid fa-clock-rotate-left mr-0.5"></i>過去の出来事</span>`;
+    }
+
     window.selectRelatedCards = function() {
       const cp = getCurrentPatient();
       const active = (cp.items || []).filter(i => !i.deleted && (i.type === 's' || i.type === 'o'));
@@ -1386,6 +1394,7 @@
       const fieldTag = fieldDef ? `<span class="text-[8px] px-1 rounded-[var(--radius-sm)] font-bold" style="background:${fieldDef.bg};color:${fieldDef.color};">${escapeHtml(fieldDef.label)}</span>` : '';
       const evidenceTag = isEvidence ? `<span class="asc-ev-tag" title="自分のアセスメントの根拠にしたカード"><i class="fa-solid fa-link"></i>根拠</span>` : '';
       const damagedTag = (typeof isDamagedCardText === 'function' && isDamagedCardText(item.text)) ? `<span class="text-[8px] px-1 rounded-[var(--radius-sm)] font-bold" style="background:var(--brick-soft);color:var(--brick);" title="文のはじめや途中が欠けている可能性があります。元の記録を確認してください（推測で補っていません）"><i class="fa-solid fa-triangle-exclamation mr-0.5"></i>原文要確認</span>` : '';
+      const pastTag = pastEventTagHtml(item);
       const aiTag = item.aiSuggested ? `<span class="text-[8px] px-1 rounded-[var(--radius-sm)] font-bold" style="background:var(--brick-soft);color:var(--brick);"><i class="fa-solid fa-wand-magic-sparkles mr-0.5"></i>自動推定</span>` : '';
 
       const COL_COLORS = { unclassified: 'var(--ink-muted)', preadmission: 'var(--slate)', postadmission: 'var(--accent)', missing: 'var(--brick)' };
@@ -1404,7 +1413,7 @@
           ondragleave="event.currentTarget.classList.remove('drag-over');"
           ondrop="handleAssessmentCardDrop(event, ${jsArg(item.id)}, ${hId})"
           data-xt="${typeof crossThemesOf === 'function' ? crossThemesOf(item.text) : ''}" class="asc-card px-1.5 py-1 rounded-[var(--radius-sm)] border ${item.aiSuggested ? 'border-dashed' : ''} border-[var(--line)] text-[10.5px] cursor-grab active:cursor-grabbing hover:border-[var(--accent)] transition" style="background:${cardBg};border-left-width:3px;border-left-color:${accentColor};">
-          <div class="leading-snug break-words text-[var(--ink)]"><span class="inline-flex items-center gap-0.5 mr-1 align-[1px]">${badge}${evidenceTag}${familyMark}${aiTag}${damagedTag}${fieldTag}${time}${drugChipHtml(item)}</span>${cardTextWithLabFlagsHtml(item)}${typeof drugLineHtml === 'function' ? drugLineHtml(item) : ''}</div>
+          <div class="leading-snug break-words text-[var(--ink)]"><span class="inline-flex items-center gap-0.5 mr-1 align-[1px]">${badge}${evidenceTag}${familyMark}${aiTag}${damagedTag}${pastTag}${fieldTag}${time}${drugChipHtml(item)}</span>${cardTextWithLabFlagsHtml(item)}${typeof drugLineHtml === 'function' ? drugLineHtml(item) : ''}</div>
           ${isMissingCol && typeof missingCheckCardHtml === 'function' ? `<div class="mc-in-card">${missingCheckCardHtml(getCurrentPatient(), item)}</div>` : ''}
           <div class="asc-actions">
             <button onclick="moveAssessmentCard(${jsArg(item.id)}, ${hId}, 'up')" ${isFirst ? 'disabled' : ''} class="icon-btn" title="この欄の中で1つ上へ移動" style="${isFirst ? 'opacity:.3;cursor:not-allowed;' : ''}"><i class="fa-solid fa-chevron-up text-[9px]"></i></button>
