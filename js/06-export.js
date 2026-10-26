@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.168'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.173'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -853,7 +853,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
           default: return e.kind || '不明な編集';
         }
       })();
-      const reason = typeof e.reason === 'string' && e.reason.trim() ? e.reason : '理由未記録（調査してください）';
+      const reason = typeof e.reason === 'string' && e.reason.trim() ? e.reason : (/^(?:merge|split|join)/i.test(String(e.kind || '')) || /統合|分割/.test(body) ? '理由未記録（意図を推定し、一般則として分類基準に反映してください）' : '理由未記録（調査してください）');
       const provenance = e.actor === 'user' ? '手編集' : e.actor === 'automatic' ? '自動処理' : '処理主体の明示記録なし';
       const links = Array.isArray(e.sourceCards) ? `／元カード・履歴: ${JSON.stringify(e.sourceCards)}` : '';
       const results = Array.isArray(e.resultIds) ? `／変更後カードID: ${e.resultIds.join('・')}` : '';
@@ -1114,6 +1114,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         "1. Reproduce: compare source, surrounding records, saved cards and edit history; separate automatic processing from manual edits; trace splits/merges, tag changes, dates and output defects to the responsible code. Explicit split/merge records show actions, not proof of their justification. Mark missing evidence 『理由未記録』/『確認不能』; never invent causes or clinical facts.",
         "2. Implement: fix the actual extraction (js/03), classification (js/01, js/07), sufficiency (js/11), export (js/06) and saved-data/learning paths. Rewriting a sample report, prompt or one patient is not completion. Keep Japanese clinical text intact; classify Henderson needs by meaning, not S/O; assess pre/post admission separately; classification stays local (AI is OCR only).",
         "3. Generalize: apply confirmed rules to similar records (including normal/negative findings and chronology). When criteria change, update 学習データ管理 → 分類基準 and the js/02 notebook with conditions, positive examples and counterexamples, remove conflicting rules and advance the criteria version.",
+        "3-3. Intent of merges/splits (owner rule): when a user merged or split cards and no reason is recorded, do not stop at 『理由未記録』. Infer the most likely intent from the source wording and neighbouring cards (e.g. a finding and its qualifier/negation/time belong in one card; two independent findings belong apart), label it 推定（要確認）, and fold it into the classification criteria as a general condition with positive examples and counterexamples (js/02 notebook, 学習データ管理 → 分類基準), implemented through the shared extraction/merge helpers in js/03; never as a rule keyed to the sample's wording, and never overwrite the user's manual merge/split.",
         "3-2. Generalization check (owner rule, required for every fix): before writing code, state the general condition the fix rests on (disease group, symptom class, lab key, phase, age group); implement it through the shared helper or table (phase judgment, past-event detection, latest-value-supersedes-older, add-only-when-the-record-has-it, post-discharge goal wording, duplicate-plan handling) instead of a one-case branch; search for existing one-case code that the same technique can replace and replace it while keeping the tests green; write the general condition in the rule's scope or comment, and if a fix cannot be generalized, say why in the report.",
         "【タグ未設定】抽出・原文対応・S/O・ヘンダーソンの意味・時期・否定や正常所見・前後の記録・本人と家族・手編集履歴の観点で調査し、根拠が確認できた分類漏れをコードで修正してください。付与可能・タグ不要・確認待ちを区別し、一般則を分類処理と分類基準に反映してください。",
         "【患者背景の因子】",
