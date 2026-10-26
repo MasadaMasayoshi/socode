@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.156'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.158'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -2116,6 +2116,18 @@
 
         E(disease && /診断|病名/.test(dmItem0.fieldLabel || '') ? disease : N('dm', 'patient_fact', short(dmItem0, 30), { items: [dmItem0] }), hg, 'causes');
         [glu, a1c].filter(l => l && l.flag === 'high').forEach(l => E(labNode(l), hg, 'supports'));
+        const ketItem = findItem(/尿中ケトン|ケトン体|ケトアシドーシス|DKA/, notHist);
+        if (ketItem && glu && glu.flag === 'high') {
+          const kn = N('dm_ketone', 'symptom', short(ketItem, 40, /ケトン|アシドーシス/), { items: [ketItem], max: 40 });
+          E(hg, kn, 'causes', { evidence: '糖が細胞に使えず、脂肪の分解が進んでケトン体ができる' });
+          const dka = N('dm_dka', 'pathophysiology', '血液が酸性に傾く（ケトアシドーシス）・浸透圧利尿で脱水になる', { source: 'knowledge' });
+          E(kn, dka, 'causes', { evidence: 'ケトン体は酸性で、高血糖による尿量増加で水分も失われる' });
+          const rr = findItem(/呼吸\s*\d{2}\s*\/分|多呼吸|深く速い呼吸/, notHist);
+          if (rr) E(N('dm_resp', 'symptom', short(rr, 30, /呼吸/), { items: [rr], max: 30 }), dka, 'supports', { evidence: '酸を吐き出そうとして呼吸が増える（根拠）' });
+          const drip = findItem(/持続点滴|インスリン[^\n]{0,6}点滴/, notHist);
+          if (drip) E(N('dm_drip', 'treatment', 'インスリン持続点滴', { items: [drip], max: 30 }), hg, 'treats', { evidence: '血糖を下げ、ケトン体の産生を止める' });
+          E(dka, N('p_fluid', 'nursing_problem', '体液量不足リスク状態（脱水・電解質の乱れ）', { cat: 'circ' }), 'results_in', { predicted: true });
+        }
         const gv = N('glu_var', 'future_risk', 'これからも血糖が変動する可能性（高血糖・低血糖）', { source: 'knowledge', observed: false });
         E(hg, gv, 'predicts', { predicted: true, evidence: '手術の侵襲・食事量・インスリンの量の変化で血糖が上下する' });
         E(gv, N('p_glu', 'nursing_problem', '血糖不安定リスク状態', { cat: 'skin' }), 'results_in', { predicted: true });
@@ -2256,7 +2268,7 @@
 
         const abdominal = surgery && /胃|腸|腹腔|肝|胆|膵|脾|虫垂|ヘルニア/.test(surgery.label + dxLabel);
         const urinary = !!lineItem && /膀胱|尿道|バルーン/.test(lineItem.text);
-        const ln = lineItem ? N('lines', 'treatment', short(lineItem, 30), { items: [lineItem] }) : null;
+        const ln = (lineItem && nodes.get('dm_drip') && /持続点滴/.test(lineItem.text) && !/ドレーン|カテーテル|CV|PICC/.test(lineItem.text)) ? nodes.get('dm_drip') : lineItem ? N('lines', 'treatment', short(lineItem, 30), { items: [lineItem] }) : null;
         if (ln && surgery && !edges.some(e => e.target === ln.id)) E(surgery, ln, 'results_in');
         const risks = [];
         let barrier = null;
