@@ -32,8 +32,8 @@
     "hash": "ccb40ef1374ac935"
   },
   "js/09-board.js": {
-    "version": "v.141",
-    "hash": "58fab0ed60ca0c93"
+    "version": "v.150",
+    "hash": "c7721ab322d1275c"
   },
   "js/10-reference-page-and-startup.js": {
     "version": "v.108",
@@ -60,8 +60,8 @@
     "hash": "bb542096fa73b8b4"
   },
   "style.css": {
-    "version": "v.148",
-    "hash": "a7d6463a03d79406"
+    "version": "v.150",
+    "hash": "36ac10fc890a1330"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",
