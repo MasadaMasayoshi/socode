@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.164'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.167'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1114,6 +1114,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         "1. Reproduce: compare source, surrounding records, saved cards and edit history; separate automatic processing from manual edits; trace splits/merges, tag changes, dates and output defects to the responsible code. Explicit split/merge records show actions, not proof of their justification. Mark missing evidence 『理由未記録』/『確認不能』; never invent causes or clinical facts.",
         "2. Implement: fix the actual extraction (js/03), classification (js/01, js/07), sufficiency (js/11), export (js/06) and saved-data/learning paths. Rewriting a sample report, prompt or one patient is not completion. Keep Japanese clinical text intact; classify Henderson needs by meaning, not S/O; assess pre/post admission separately; classification stays local (AI is OCR only).",
         "3. Generalize: apply confirmed rules to similar records (including normal/negative findings and chronology). When criteria change, update 学習データ管理 → 分類基準 and the js/02 notebook with conditions, positive examples and counterexamples, remove conflicting rules and advance the criteria version.",
+        "3-2. Generalization check (owner rule, required for every fix): before writing code, state the general condition the fix rests on (disease group, symptom class, lab key, phase, age group); implement it through the shared helper or table (phase judgment, past-event detection, latest-value-supersedes-older, add-only-when-the-record-has-it, post-discharge goal wording, duplicate-plan handling) instead of a one-case branch; search for existing one-case code that the same technique can replace and replace it while keeping the tests green; write the general condition in the rule's scope or comment, and if a fix cannot be generalized, say why in the report.",
         "【タグ未設定】抽出・原文対応・S/O・ヘンダーソンの意味・時期・否定や正常所見・前後の記録・本人と家族・手編集履歴の観点で調査し、根拠が確認できた分類漏れをコードで修正してください。付与可能・タグ不要・確認待ちを区別し、一般則を分類処理と分類基準に反映してください。",
         "【患者背景の因子】",
         "B. Background factors: also extract the PATIENT BACKGROUND FACTORS from the source record (年齢・性別・職業・家族構成・同居者・既往歴・生活歴（喫煙・飲酒・食習慣）・アレルギー・内服薬・入院の経緯／現病歴・ADL・社会資源 etc.) and check that each factor written in the source is captured as a card or field, with the right 基本情報／医学情報 classification (classifyPatientBackground) and, where appropriate, Henderson tags by meaning. List every factor that is missing or misclassified together with its source line. Do not infer factors that are not written; compare with the 「アプリが抽出済みの患者背景の因子」 list below when it is present; keep name masking intact.",

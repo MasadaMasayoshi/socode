@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.165'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.166'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -1243,6 +1243,8 @@
       if (needId === 1 && /トライボール|呼吸訓練/.test(String(item.text || '')) && !/呼吸困難|息苦|息切れ|チアノーゼ|SpO2|呼吸数/.test(String(item.text || ''))) return { v: '', hit: '', clause: '' };
 
       if (needId === 11 && /記載なし|情報なし|不明|未確認|聴取(?:して)?(?:い)?ない|確認(?:でき|して)ない/.test(String(item.text || '').normalize('NFKC'))) return { v: '', hit: '', clause: '' };
+      // A remote past event (e.g. a fracture at age 8) explains history but is not a finding of the current time point.
+      if (phase === 'post' && typeof pastEventWordOf === 'function' && pastEventWordOf(item) && !/(?:現在|今回|現在も|いまも|後遺|残って|続い)/.test(String(item.text || ''))) return { v: '', hit: '', clause: '' };
       // Laboratory-reference cards describe physiology; they are not evidence of the need to learn, communicate, play, etc.
       if (/\(基準値[:：]/.test(String(item.text || '').normalize('NFKC')) && ![1, 2, 3, 8].includes(needId)) return { v: '', hit: '', clause: '' };
       // Circulation-only vital signs (blood pressure / pulse) are not a respiration finding.
@@ -1515,11 +1517,13 @@
       const pre = items.filter(i => isPre(i) && okCard(i));
       const apply = (list, phaseKeys) => {
         const byNeed = {};
-        // A past HbA1c that a later card has superseded must not decide the later time point.
-        const a1cOf = i => { const m = String(i.text || '').normalize('NFKC').match(/HbA1c\s*(?:\(NGSP\))?\s*[:：=]?\s*(\d{1,2}(?:\.\d+)?)/i); return m ? Number(m[1]) : null; };
-        const a1cCards = list.filter(i => a1cOf(i) !== null);
-        const latestA1c = a1cCards.length ? a1cCards[a1cCards.length - 1] : null;
-        list.forEach(i => rulesOf(i.text).forEach(r => { if (/^HbA1c/i.test(String(r.hit || '')) && latestA1c && i !== latestA1c && a1cOf(latestA1c) < 9) return; if (r.v && (!r.tag || (i.hendersonIds || []).includes(r.need))) (byNeed[r.need] = byNeed[r.need] || []).push({ ...r, id: i.id }); }));
+        // A past value that a later card of the same test has superseded (and that no longer shows a problem) must not decide the later time point.
+        const SUPERSEDABLE = /^(?:HbA1c|SpO2|Alb|アルブミン|CRP|WBC|Hb|血糖|体温|pH|Na|K|Cre|BUN)/i;
+        const keyOf = h => { const m = String(h || '').normalize('NFKC').match(SUPERSEDABLE); return m ? m[0].toLowerCase() : ''; };
+        const latestByKey = {};
+        list.forEach(i => { const k = (String(i.text || '').normalize('NFKC').match(new RegExp(SUPERSEDABLE.source.replace('^', '(?:^|[^A-Za-z])'), 'i')) || [])[0]; if (k) latestByKey[keyOf(k.replace(/^[^A-Za-z0-9ァ-ヶ一-龠]+/, ''))] = i; });
+        const supersededUnmet = (i, r) => { const k = keyOf(r.hit); const last = k ? latestByKey[k] : null; return !!last && last !== i && r.v === 'unmet' && !rulesOf(last.text).some(x => x.need === r.need && x.v === 'unmet' && keyOf(x.hit) === k); };
+        list.forEach(i => rulesOf(i.text).forEach(r => { if (supersededUnmet(i, r)) return; if (r.v && (!r.tag || (i.hendersonIds || []).includes(r.need))) (byNeed[r.need] = byNeed[r.need] || []).push({ ...r, id: i.id }); }));
         if (listRulesFn) listRulesFn(list).forEach(r => { if (r.v && res[r.need]) (byNeed[r.need] = byNeed[r.need] || []).push({ ...r }); });
         Object.keys(byNeed).forEach(n => {
           const r = res[n]; if (!r) return;

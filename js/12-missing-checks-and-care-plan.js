@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.165'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.167'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1733,6 +1733,12 @@
       }
       const edu = cpEducationLines((ctx && ctx.text) || '').filter(e => e.dom === d.key).map(e => e.line);
       if (edu.length) out.ep = cpUnionLines(edu, out.ep || []);
+      // Shared phase adaptation: when the record already documents a post-discharge follow-up, inpatient goal wording is moved to the follow-up period.
+      if (ctx && /退院後|外来(?:受診|にて)/.test(String(ctx.text || ''))) {
+        const to = (g, from, rep) => String(g || '').replace(from, rep);
+        out.goalLong = to(out.goalLong, /^(?:退院までに|入院中)、/, '退院後も、');
+        out.goalShort = to(out.goalShort, /^(?:計画開始から)?\d+日(?:後|以内)(?:までの観察期間中|に)?、/, '次回の外来までに、');
+      }
       return out;
     }
     function cpDomainOf(plan) {
@@ -2120,6 +2126,30 @@
       if (['act', 'mobility'].includes(k) && /安静|ベッド上|床上/.test(ctx.text)) { s -= 5; why.push('現在は安静度の指示がある'); }
       return { score: s, reason: why.length ? why.join('・') + 'ため' + '、この順番にしました' : '記録上の緊急度から、この順番にしました' };
     }
+    // Overlapping plans of one domain (e.g. unstable-glucose risk and ineffective self-management) keep their own goals, but an observation/care line that
+    // is word-for-word identical to a line of a higher-priority plan of the same domain is written once (generated plans only; user edits are never touched).
+    function cpDedupeOverlappingPlans(cp) {
+      const list = carePlanList(cp).slice().sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+      const seen = new Map();
+      list.forEach((p, n) => {
+        const d = cpDomainOf(p), key = d ? d.key : '';
+        if (!key) return;
+        const generated = ['rules', 'map', 'import'].includes(p.source);
+        const prior = seen.get(key);
+        if (prior && generated && !p.userEdited) {
+          const removed = [];
+          ['op', 'tp', 'ep'].forEach(sec => {
+            const keep = (p[sec] || []).filter(t => !prior.lines.has(sec + '|' + t));
+            // A section is never emptied: at least two own lines must remain, otherwise the plan keeps the shared lines.
+            if (keep.length >= 2 && keep.length !== (p[sec] || []).length) { removed.push(sec); p[sec] = keep; }
+          });
+          if (removed.length) p.overlapNote = `「${prior.problem}」と同じ観察・援助は、そちらの計画に書いてあります（重ねて書いていません）`;
+        }
+        const lines = prior ? prior.lines : new Set();
+        ['op', 'tp', 'ep'].forEach(sec => (p[sec] || []).forEach(t => lines.add(sec + '|' + t)));
+        if (!prior) seen.set(key, { lines, problem: p.problem });
+      });
+    }
     function prioritizeCarePlans(cp) {
       const list = carePlanList(cp);
       if (!list.length) return;
@@ -2128,6 +2158,7 @@
       if (list.some(p => p.orderLocked)) return;
       scored.sort((a, b) => b.score - a.score || (Number(a.p.order) || 0) - (Number(b.p.order) || 0));
       scored.forEach((x, n) => { x.p.order = n + 1; });
+      try { cpDedupeOverlappingPlans(cp); } catch (e) { /* display-only helper */ }
     }
 
     const CP_RISK_GOALS = {
@@ -2399,6 +2430,7 @@
       out += '[Purpose] This is a research request to raise the quality of a Japanese nursing-assessment support website as a whole. The topics below are only points where the site could not decide by its own rules (or held very little knowledge); they were found in one case. Do NOT answer for that case alone: collect general nursing and medical knowledge that applies to any patient.\n';
       out += `[Trigger case, as an example only] ${krPatientSummary(cp)}. No personal information is included.\n`;
       out += '[How to research] For each topic, also look at its surroundings (same disease group, same symptom group, related drugs and lab tests, commonly co-occurring problems). If you find knowledge useful to the site that was not requested, add it, with one line on why you thought it was needed (なぜ必要と考えたか).\n';
+      out += '[Generalization] For every topic, state the general condition it rests on (disease group, symptom class, lab key, phase, age group) and say whether it also applies to other cases of that group; mark patient-specific or one-case advice as such. Prefer answers that can be written as a reusable rule or table row over answers that describe one case.\n';
       out += '[Sources] Prefer textbooks (title, edition, page) and official guidelines (name, year). Mark anything you cannot verify as 未確認 but still include it; missing sources are not a reason to leave something out.\n';
       out += '[Language] Write the answers in Japanese. Keep nursing terms as they are (看護問題, ヘンダーソンの14項目, OP/TP/EP).\n';
       out += '[Answer format] Use exactly this template, once per topic, in the same order as the topic list. Be concise; do not pad.\n';
@@ -2487,6 +2519,20 @@
       const foreign = cpForeignTermsAny(cp, plan);
       if (foreign.length >= 2) return { ok: false, message: 'この患者の記録にない内容が含まれています' };
       return { ok: true };
+    }
+    // Cross-section consistency check: warnings only, nothing is changed. Every generated plan must be complete and rest on the patient's own record.
+    function cpConsistencyWarnings(cp) {
+      const out = [];
+      carePlanList(cp).forEach((p, n) => {
+        const name = p.problem ? `#${n + 1} ${p.problem}` : `#${n + 1}（問題名なし）`;
+        if (!String(p.problem || '').trim()) out.push(`${name}：問題名が空のため、完成した計画として扱えません`);
+        else if (!String(p.goalLong || '').trim() && !String(p.goalShort || '').trim()) out.push(`${name}：目標が空です`);
+        else if (!(p.op || []).length && !(p.tp || []).length && !(p.ep || []).length) out.push(`${name}：OP・TP・EPが空です`);
+        const foreign = cpForeignTermsAny(cp, p);
+        if (foreign.length) out.push(`${name}：この患者の記録にない用語（${foreign.slice(0, 4).join('・')}）が含まれています。記録と照らして確認してください`);
+        if ((p.evidence || []).length === 0 && ['rules', 'map'].includes(p.source)) out.push(`${name}：根拠データが空です`);
+      });
+      return out;
     }
     function cpForeignTermsAny(cp, plan) {
       const body = [plan.problem, plan.goalLong, plan.goalShort, ...(plan.op || []), ...(plan.tp || []), ...(plan.ep || []), ...(plan.evidence || []), ...(plan.reasons || []).map(r => r && r.text)].join('\n');
@@ -3009,6 +3055,7 @@
     function buildCarePlansText(cp, { withRecords = true, recordFilter = null } = {}) {
       return carePlanList(cp).filter(p => carePlanProvenance(cp, p).ok).map((p, k) => {
         const lines = [`#${k + 1} ${p.problem || '（無題）'}（${CARE_PLAN_STATUSES.find(s => s.key === p.status).label}）`];
+        if (p.overlapNote) lines.push(`注：${p.overlapNote}`);
         if (p.priorityReason && !p.orderLocked) lines.push(`順番の理由：${p.priorityReason.replace(/ため、この順番にしました$/, '')}`);
         if (p.relatedNeeds.length) lines.push(`関係する項目：${p.relatedNeeds.map(h => `${h}.${hendersonNameOf(h).replace(/^\d+\.\s*/, '')}`).join('・')}`);
         if (p.evidence && p.evidence.length) lines.push(`根拠データ：${p.evidence.join('／')}`);
@@ -3022,7 +3069,7 @@
           recs.forEach(r => lines.push(...careRecordLines(r).map(l => `  ${l}`)));
         }
         return lines.join('\n');
-      }).join('\n\n');
+      }).join('\n\n') + (() => { const w = typeof cpConsistencyWarnings === 'function' ? cpConsistencyWarnings(cp) : []; return w.length ? `\n\n【整合性の確認（自動・変更はしていません）】\n${w.map(x => `・${x}`).join('\n')}` : ''; })();
     }
     function careRecordLines(r) {
       const ach = CARE_ACHIEVEMENTS.find(a => a.key === r.achievement);
@@ -3089,7 +3136,7 @@ if (typeof module !== 'undefined' && module.exports) {
     carePlanInlineNotes, captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
     cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf, collapseVitalCards, collapseLabCards,
-    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, krTerms, krNames, krIsMedicalTerm, CARE_PLAN_KNOWLEDGE, cpKnowledgeSuggestions, CP_HIGH_RISK_COMBOS, cpHighRiskCombos, cpStripNegated, cpEvidenceKind, krUnknownTerms, CPK_ROWS_79, CPK_ROWS_100, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
+    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, cpConsistencyWarnings, cpDedupeOverlappingPlans, krTerms, krNames, krIsMedicalTerm, CARE_PLAN_KNOWLEDGE, cpKnowledgeSuggestions, CP_HIGH_RISK_COMBOS, cpHighRiskCombos, cpStripNegated, cpEvidenceKind, krUnknownTerms, CPK_ROWS_79, CPK_ROWS_100, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
     cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, carePlanSetReviewHtml, carePlanSetState, carePlanSetNextSteps
   });
 }
