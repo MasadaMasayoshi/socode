@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.167'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.168'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1142,7 +1142,11 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const surg = typeof isSurgicalPatient === 'function' && isSurgicalPatient(cp);
       if (col === 'preadmission') return [{ label: '', items: list, judge: [['pre', '入院前']] }];
       if (col !== 'postadmission') return [{ label: '', items: list, judge: [] }];
-      if (!surg) return [{ label: '', items: list, judge: [['post', '入院後']] }];
+      if (!surg) {
+        const after = typeof dischargePhaseOf === 'function' ? list.filter(i => dischargePhaseOf(i, cp) === 'after') : [];
+        if (after.length) return [{ label: '', items: list.filter(i => !after.includes(i)), judge: [['post', '入院中']] }, { label: '退院後', items: after, judge: [['dis', '退院後']] }];
+        return [{ label: '', items: list, judge: [['post', '入院後']] }];
+      }
       const by = k => list.filter(i => surgPhaseOf(i, cp) === k);
       const groups = [];
       const rest = list.filter(i => !surgPhaseOf(i, cp));

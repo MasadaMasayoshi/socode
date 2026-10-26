@@ -64,3 +64,11 @@ test('regression: unrelated patient groups keep their own plans (no diabetes con
     assert.ok(!/注射部位を毎回|補食と報告/.test(body), `diabetes self-management lines leaked into ${c.label}`);
   });
 });
+
+test('post-discharge records are judged as their own period, not as part of the hospital stay', () => {
+  const cp = build();
+  const res = app.judgeSufficiencyByRules(cp);
+  assert.ok(res[14].dis, 'learning has a post-discharge judgement');
+  assert.equal(res[14].dis.verdict, 'unmet');
+  assert.ok(!(res[14].post.evidence || []).some(id => /自信/.test((cp.items.find(i => i.id === id) || {}).text || '')), 'the follow-up statement is not hospital-stay evidence');
+});

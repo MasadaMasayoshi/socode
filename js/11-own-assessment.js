@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.166'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.168'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -340,6 +340,32 @@
       }
       return '';
     }
+    // Post-discharge records (follow-up visits after leaving the hospital) are a separate period from the hospital stay.
+    // The period comes from the record's own section headings (e.g. 【退院後】) or an explicit cue in the text; nothing is inferred from dates alone.
+    const sourceDischargeDays = new WeakMap();
+    function dischargePhaseOf(i, cp) {
+      const text = String(i.text || '').normalize('NFKC');
+      if (/^[【\[]?退院後|退院後(?:\d+日|[にのはも、,])|外来(?:受診|にて|通院)|退院後の外来/.test(text) && !/退院後(?:の|は)?(?:生活|指導|予定|に向けて)/.test(text)) return 'after';
+      const ts = String(i.timestamp || '').normalize('NFKC');
+      if (/^退院後/.test(ts)) return 'after';
+      if (cp && cp.sourceText) {
+        let cached = sourceDischargeDays.get(cp);
+        if (!cached || cached.source !== cp.sourceText) {
+          const days = new Map(); let section = '';
+          String(cp.sourceText).normalize('NFKC').split(/\r?\n/).forEach(line => {
+            const t = line.trim();
+            const head = t.match(/^[【\[＜<]\s*([^】\]＞>]{1,12})\s*[】\]＞>]/);
+            if (head && !/^\d{1,2}月/.test(head[1])) { section = /退院後/.test(head[1]) ? 'after' : /退院時/.test(head[1]) ? 'at' : /入院|前/.test(head[1]) ? 'in' : section; return; }
+            const d = t.match(/^(\d{1,2}月\d{1,2}日)/);
+            if (d && section) { if (!days.has(d[1])) days.set(d[1], new Set()); days.get(d[1]).add(section); }
+          });
+          cached = { source: cp.sourceText, days }; sourceDischargeDays.set(cp, cached);
+        }
+        const sec = cached.days.get(ts.split(' ')[0]);
+        if (sec && sec.size === 1 && sec.has('after')) return 'after';
+      }
+      return '';
+    }
     function isSurgicalPatient(cp) { return (cp.items || []).some(i => i && !i.deleted && !i.aiSuggested && i.type !== 'unnecessary' && !i.diseaseGeneral && surgPhaseOf(i) === 'post'); }
     function sufficiencyUiPhases(cp) {
       const base = SUFFICIENCY_UI_PHASES;
@@ -378,7 +404,9 @@
       const a = r && r[phase];
       if (!a || !a.verdict) return null;
       const byId = new Map((cp.items || []).map(i => [i.id, i]));
-      const evItems = (a.evidence || []).map(id => byId.get(id)).filter(Boolean);
+      // Independent evidence only: the same card cited several times, or identical text copied on several cards, counts once.
+      const evSeen = new Set();
+      const evItems = Array.from(new Set(a.evidence || [])).map(id => byId.get(id)).filter(Boolean).filter(i => { const k = String(i.text || '').normalize('NFKC').replace(/\s+/g, ''); if (evSeen.has(k)) return false; evSeen.add(k); return true; });
       const nz = x => String(x || '').normalize('NFKC').replace(/\s+/g, ' ');
       const txt = evItems.map(i => nz(i.text)).join(' ');
       const assist = (txt.match(/全介助|一部介助|軽介助|介助(?:が)?(?:必要|要)|見守り|自立|自分で[^\s。、]{1,8}/) || [])[0] || '';
@@ -1258,8 +1286,9 @@
         const noAct = whole.match(/補食をとろうとしない|(?:低血糖|測定値)[^。\n]{0,24}補食[^。\n]{0,10}(?:とろうとしない|とらない|しない)/);
         const sameSite = whole.match(/注射部位[^。\n]{0,24}(?:同じ|ほぼ同じ|偏)[^。\n]{0,12}/);
         const selfAct = whole.match(/(?:Aさん|本人|自分)(?:の判断)?で[^。\n]{0,20}(?:補食|ブドウ糖)[^。\n]{0,8}(?:とる|摂る|摂取)/);
-        const bad = noAct || sameSite;
-        if (bad) return { v: 'unmet', hit: bad[0], clause: (parts0.find(p => p.includes(bad[0].slice(0, 6))) || bad[0]), severe: false };
+        const selfDoubt = whole.match(/自信(?:が)?(?:ない|なく|持てない)|どうすれば(?:いい|よい)[^。\n]{0,8}(?:わから|まだ)/);
+        const bad = noAct || sameSite || selfDoubt;
+        if (bad) { const q = bad === selfDoubt ? whole.match(/「[^」]*(?:自信|どうすれば)[^」]*」/) : null; return { v: 'unmet', hit: bad[0], clause: q ? q[0] : (parts0.find(p => p.includes(bad[0].slice(0, 6))) || bad[0]), severe: false }; }
         if (selfAct) return { v: 'met', hit: selfAct[0], clause: selfAct[0] };
       }
       if (needId === 14 && !isOrder) {
@@ -1798,12 +1827,14 @@
         const res = {};
 
         const isPreop = () => false;
-        const phases = { pre: ['入院前', (c, i) => c === 'preadmission' || (c === 'postadmission' && isPreop(i))], post: ['入院後', c => c === 'postadmission'], all: ['全体', c => c !== 'missing'] };
+        const hasDis = !surgical && items.some(x => dischargePhaseOf(x, cp) === 'after');
+        const phases = { pre: ['入院前', (c, i) => c === 'preadmission' || (c === 'postadmission' && isPreop(i))], post: [hasDis ? '入院中' : '入院後', (c, i) => c === 'postadmission' && !(hasDis && dischargePhaseOf(i, cp) === 'after')], all: ['全体', c => c !== 'missing'] };
+        if (hasDis) phases.dis = ['退院後', (c, i) => c === 'postadmission' && dischargePhaseOf(i, cp) === 'after'];
         if (surgical) {
           phases.preop = ['術前', (c, i) => c === 'postadmission' && surgPhaseOf(i, cp) === 'pre'];
           phases.postop = ['術後', (c, i) => c === 'postadmission' && (surgPhaseOf(i, cp) === 'post' || surgPhaseOf(i, cp) === 'op')];
         }
-        Object.keys(phases).forEach(k => { res[k] = judge(mine.filter(i => phases[k][1](effCol(i), i)), phases[k][0], k === 'preop' ? 'pre' : k === 'postop' ? 'post' : k); });
+        Object.keys(phases).forEach(k => { res[k] = judge(mine.filter(i => phases[k][1](effCol(i), i)), phases[k][0], k === 'preop' ? 'pre' : k === 'postop' ? 'post' : k === 'dis' ? 'post' : k); });
         out[need.id] = res;
       });
       try { sufficiencyStateOverrides(items, out, i => /^入院前/.test(String(i.timestamp || '')) || (Object.values(i.assessmentCols || {}).length > 0 && Object.values(i.assessmentCols).every(c => c === 'preadmission'))); } catch (e) { console.warn('Restriction check failed:', e); }
@@ -1847,7 +1878,7 @@ if (typeof module !== 'undefined' && module.exports) {
     MY_ASSESSMENT_FIELDS,
     ensureMyAssessment, getMyAssessment, ruleSufficiencyFor, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
     myAssessmentStatus, myAssessmentNeedsReview, confirmMyAssessmentEntry, restoreMyAssessmentFromHistory,
-    hasRuleSufficiency, sufficiencyDimensions, sufficiencyDimensionLines, phaseVerdictOf, sufficiencyUiPhases, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyScoreRules, sufficiencyPerNeedRules, sufficiencyScaleRules, sufficiencyLabRules, sufficiencyListRules, sufficiencyKnowledgeChecks, sufficiencyKnowledgeLine, SUF_LAB_NEEDS, SUF_COMBO_NEEDS, sufficiencyCauseHint, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, sufficiencyMiniHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
+    hasRuleSufficiency, sufficiencyDimensions, sufficiencyDimensionLines, phaseVerdictOf, sufficiencyUiPhases, dischargePhaseOf, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyScoreRules, sufficiencyPerNeedRules, sufficiencyScaleRules, sufficiencyLabRules, sufficiencyListRules, sufficiencyKnowledgeChecks, sufficiencyKnowledgeLine, SUF_LAB_NEEDS, SUF_COMBO_NEEDS, sufficiencyCauseHint, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, sufficiencyMiniHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
     renderMyAssessmentRowHtml, evidencePickerCandidates, myAssessmentAlwaysShown
   });
   if (module.exports.__testHooks) Object.assign(module.exports.__testHooks, { flushMyAssessmentSaves, saveMyAssessmentsSoon });
