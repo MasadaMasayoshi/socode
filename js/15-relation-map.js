@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.148'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.156'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -2246,7 +2246,10 @@
         } else if (k && k.flag && nodes.has('dehyd')) E(labNode(k), nodes.get('dehyd'), 'supports', { predicted: true });
       }
 
-      const lineItem = findItem(/ドレーン|カテーテル|膀胱留置|バルーン|中心静脈|CV|PICC|ルート確保|持続点滴/);
+      // A temporary IV line (持続点滴 / ルート確保) belongs to the hospital phase: once the record documents discharge or
+      // post-discharge follow-up, it is not evidence of a current line-related infection risk.
+      const dischargedInRecord = /退院(?!予定|の目安|準備|前|指導|調整|後の)|退院後|外来(?:通院|診療|にて|受診)|通院(?:を継続|中)/.test(items.map(i => i.text).join('\n'));
+      const lineItem = findItem(/ドレーン|カテーテル|膀胱留置|バルーン|中心静脈|CV|PICC|ルート確保|持続点滴/, i => !(dischargedInRecord && /持続点滴|ルート確保/.test(i.text) && !/ドレーン|カテーテル|膀胱留置|バルーン|中心静脈|CV|PICC/.test(i.text)));
       const dmItem = findItem(/糖尿病|DM\b/);
       const wbc = lab('WBC'), crp = lab('CRP');
       if ((surgery && surgeryDone) || lineItem) {
@@ -2480,7 +2483,9 @@
         E(sk, N('p_skin', 'nursing_problem', /褥瘡|d\s*[1-4]|D[3-5U]/i.test(skinItem.text) ? '皮膚統合性障害（褥瘡）' : '褥瘡のリスク状態', { cat: 'skin' }), 'results_in');
       }
 
-      const fallItem = findItem(/ふらつ|転倒|夜間[^\n]{0,8}トイレ|頻尿/, i => !nodes.get('bed') || !nodes.get('bed').itemIds.includes(i.id)) || findItem(/ふらつ|転倒|せん妄|夜間[^\n]{0,8}トイレ|頻尿/);
+      // A remote, healed injury ("8歳時に自転車で転倒し骨折。後遺障害なし") or a history entry is not current fall risk.
+      const remoteEvent = i => !notHist(i) || /(?:\d+歳|小学|中学|高校|幼少|子ども|子供)[^\n]{0,6}(?:時|の頃|のころ|ごろ|の時)|既往|後遺障害(?:なし|などなし|はない)|\d+年前/.test(String(i.text));
+      const fallItem = findItem(/ふらつ|転倒|夜間[^\n]{0,8}トイレ|頻尿/, i => !remoteEvent(i) && (!nodes.get('bed') || !nodes.get('bed').itemIds.includes(i.id))) || findItem(/ふらつ|転倒|せん妄|夜間[^\n]{0,8}トイレ|頻尿/, i => !remoteEvent(i));
       if (fallItem && (elderly || diuretic || /ふらつ|転倒/.test(fallItem.text))) {
         const fs = N('fall_sign', 'symptom', short(fallItem, 32), { items: [fallItem] });
         const fr = N('fall_risk', 'future_risk', '転倒・転落の可能性', { source: 'knowledge', observed: false });

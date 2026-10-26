@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.155'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.157'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1364,23 +1364,6 @@
       nav.querySelector(`[data-need-id="${getSelectedAssessmentNeed()}"]`)?.focus();
     });
 
-    function ascNeedFocusHtml(item, hId) {
-      const ids = item.hendersonIds || [];
-      const text = String(item.text || '');
-      if (ids.length < 2 || typeof detectMultipleHendersonTags !== 'function') return null;
-      const parts = text.split(/(?<=[。；;\n])/).filter(t => t !== '');
-      if (parts.length < 2) return null;
-      const hit = parts.map(t => { try { return detectMultipleHendersonTags(t).includes(hId); } catch (e) { return false; } });
-      const n = hit.filter(Boolean).length;
-      if (n === 0 || n === parts.length) return null;
-      return parts.map((t, i) => `<span class="${hit[i] ? 'asc-need-hit' : 'asc-need-other'}">${cardTextWithLabFlagsRawHtml({ id: item.id, text: t })}</span>`).join('');
-    }
-    function ascMixedChipHtml(item, hId) {
-      const others = (item.hendersonIds || []).filter(h => h !== hId).sort((a, b) => a - b);
-      if (!others.length) return '';
-      const names = others.map(h => `${h}.${hendersonNameOf(h).replace(/^\d+\.\s*/, '')}`).join('、');
-      return `<span class="asc-mixed-tag" title="このカードは他の欲求にも入っています：${escapeHtml(names)}">他${others.length}欲求</span>`;
-    }
     function renderAssessmentCellCard(item, hId, seqLabel, isFirst, isLast, dayHeading, isEvidence = false) {
       const currentCol = item.assessmentCols?.[hId] || 'unclassified';
       const isMissingCol = currentCol === 'missing';
@@ -1421,7 +1404,7 @@
           ondragleave="event.currentTarget.classList.remove('drag-over');"
           ondrop="handleAssessmentCardDrop(event, ${jsArg(item.id)}, ${hId})"
           data-xt="${typeof crossThemesOf === 'function' ? crossThemesOf(item.text) : ''}" class="asc-card px-1.5 py-1 rounded-[var(--radius-sm)] border ${item.aiSuggested ? 'border-dashed' : ''} border-[var(--line)] text-[10.5px] cursor-grab active:cursor-grabbing hover:border-[var(--accent)] transition" style="background:${cardBg};border-left-width:3px;border-left-color:${accentColor};">
-          <div class="leading-snug break-words text-[var(--ink)]"><span class="inline-flex items-center gap-0.5 mr-1 align-[1px]">${badge}${evidenceTag}${familyMark}${aiTag}${damagedTag}${fieldTag}${time}${drugChipHtml(item)}${ascMixedChipHtml(item, hId)}</span>${(!isMissingCol && ascNeedFocusHtml(item, hId)) || cardTextWithLabFlagsHtml(item)}${typeof drugLineHtml === 'function' ? drugLineHtml(item) : ''}</div>
+          <div class="leading-snug break-words text-[var(--ink)]"><span class="inline-flex items-center gap-0.5 mr-1 align-[1px]">${badge}${evidenceTag}${familyMark}${aiTag}${damagedTag}${fieldTag}${time}${drugChipHtml(item)}</span>${cardTextWithLabFlagsHtml(item)}${typeof drugLineHtml === 'function' ? drugLineHtml(item) : ''}</div>
           ${isMissingCol && typeof missingCheckCardHtml === 'function' ? `<div class="mc-in-card">${missingCheckCardHtml(getCurrentPatient(), item)}</div>` : ''}
           <div class="asc-actions">
             <button onclick="moveAssessmentCard(${jsArg(item.id)}, ${hId}, 'up')" ${isFirst ? 'disabled' : ''} class="icon-btn" title="この欄の中で1つ上へ移動" style="${isFirst ? 'opacity:.3;cursor:not-allowed;' : ''}"><i class="fa-solid fa-chevron-up text-[9px]"></i></button>

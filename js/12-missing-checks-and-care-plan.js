@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.149'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.156'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1670,7 +1670,21 @@
 
       if (d.key === 'inf' && !/ドレーン|カテーテル|バルーン|膀胱留置/.test((ctx && ctx.text) || '')) { const k = op.findIndex(t => /ドレーン/.test(t)); if (k >= 0) op[k] = '傷の滲出液の量・色・においを観察する'; }
       if (d.key === 'inf' && /糖尿病/.test((ctx && ctx.text) || '')) op.push('血糖値の推移（高血糖は傷が治りにくく、感染しやすい）を観察する');
-      const out = { ...m, op };
+      let out = { ...m, op };
+      // Infection risk with no wound, surgery or drain documented: only the access device (e.g. IV line) is evidence.
+      // Replace wound / post-operative wording so a surgical template is never imported (no invented findings).
+      if (d.key === 'inf' && !(ctx && ctx.immunoOnly)) {
+        const t = ((ctx && ctx.text) || '').replace(/創傷治癒/g, '');
+        if (!/創|傷口|潰瘍|褥瘡|ドレーン|手術|術後|熱傷|縫合|膀胱留置|バルーン/.test(t)) {
+          out = { ...m,
+            goalLong: '点滴など血管内に入れた管を使っている間、挿入部に感染の徴候（発赤・腫脹・熱感・痛み・排膿）が出ず、発熱が続かない',
+            goalShort: '管を使っている間、毎日の観察で挿入部の発赤・腫脹・痛みが出ていないことを確認できる',
+            tp: ['挿入部に触れる前後に手指消毒を行い、清潔な操作で扱う', '医師の指示と院内の手順に沿って、固定・被覆材の交換や管の入れ替えを行う', '挿入部の異常や体温の上昇があれば、院内の報告基準・医師の指示に従って報告する'],
+            ep: ['管の挿入部を触らないこと、赤み・痛み・はれに気づいたらすぐ伝えることを説明し、自分の言葉で言ってもらう'] };
+          const lineOp = ['挿入部（発赤・腫脹・熱感・痛み・排膿）と固定・被覆材の状態', '体温・発熱の有無と推移', 'WBC・CRPの値がある場合は、その推移（原本で確認できた値のみ使う）'];
+          out.op = lineOp;
+        }
+      }
 
       if (risk) { const g = cpRiskGoalFor(plan, ctx || {}); out.goalLong = g.long; out.goalShort = g.short; }
 
@@ -2069,7 +2083,7 @@
     const CP_RISK_GOALS = {
       resp: c => ({ long: '退院までに、呼吸器合併症（肺炎・無気肺）の徴候（発熱・SpO2低下・呼吸音の変化・痰の増加）を認めず、自分で深呼吸と咳嗽を行える', short: `${c.post ? '術後3日目まで' : '3日後までの観察期間中'}、発熱・SpO2低下（${c.spo2 && c.spo2 < 95 ? '現在の値から低下しない' : '95%未満になる'}ことなく）・呼吸音の変化を認めず、創部を保護しながら深呼吸と咳嗽を自分で実施できる` }),
       ileus: () => ({ long: '退院までに、消化管運動の回復が順調に経過し、食事が進められる', short: '3日後までの観察期間中、腹部膨満・反復する嘔吐・排ガス停止などの異常を認めず、異常が起きたときにすぐに対応できる' }),
-      inf: c => c && c.immunoOnly ? { long: CP_INF_IMMUNO().goalLong, short: CP_INF_IMMUNO().goalShort } : ({ long: '退院まで、創部・刺入部に感染の徴候（発赤・腫脹・熱感・滲出液・においの増加）を認めない', short: '3日後までの観察期間中、創部・刺入部の所見が初回の記録より悪化せず、発熱が持続せず、異常があればすぐに報告・対応できる' }),
+      inf: c => c && c.immunoOnly ? { long: CP_INF_IMMUNO().goalLong, short: CP_INF_IMMUNO().goalShort } : (!/創|傷口|潰瘍|褥瘡|ドレーン|手術|術後|熱傷|縫合|膀胱留置|バルーン/.test(String((c && c.text) || '').replace(/創傷治癒/g, '')) ? { long: '点滴など血管内に入れた管を使っている間、挿入部に感染の徴候（発赤・腫脹・熱感・痛み・排膿）を認めない', short: '管を使っている間、毎日の観察で挿入部の発赤・腫脹・痛みが出ていないことを確認できる' } : { long: '退院まで、創部・刺入部に感染の徴候（発赤・腫脹・熱感・滲出液・においの増加）を認めない', short: '3日後までの観察期間中、創部・刺入部の所見が初回の記録より悪化せず、発熱が持続せず、異常があればすぐに報告・対応できる' }),
       vte: () => ({ long: '離床が進むまで、下肢の腫脹・痛み・左右差や肺塞栓の徴候（胸痛・呼吸困難）を認めない', short: '3日後までの観察期間中、下肢の腫脹・痛みがなく、許可された範囲で足関節運動・離床を行える' }),
       bleed: () => ({ long: '入院中、出血の徴候を認めない', short: '3日後までの観察期間中、出血の徴候（創部・ドレーン排液・皮下出血・血便など）を認めず、気づいたときに看護師へ伝えられる' }),
       nutr: c => ({

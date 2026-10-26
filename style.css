@@ -2052,10 +2052,6 @@ tr.cmp-row{display:table-row;padding:0;border:0;background:none;gap:0}
 #presence-indicator, #admin-tab-btn-caselog, #admin-tab-btn-reports, #admin-tab-btn-snapshots, #admin-tab-btn-history,
 #btn-sync-snapshot-now, [onclick*="openCardReportModal"], #modal-card-report { display: none !important; }
 
-/* v.150 総合アセスメント表：複数欲求のカードで、その欲求に関係する文を強調 */
-#assessment-table-wrap .asc-need-hit{background:var(--accent-soft,rgba(46,125,110,.14));border-radius:3px;padding:0 2px;box-shadow:inset 2px 0 0 var(--accent)}
-#assessment-table-wrap .asc-need-other{opacity:.55}
-#assessment-table-wrap .asc-mixed-tag{font-size:8px;font-weight:700;padding:0 4px;border-radius:var(--radius-sm);background:var(--line-soft);color:var(--ink-muted);border:1px solid var(--line)}
 
 /* v.151 基本的看護の資料：観察項目の目安 */
 .need-ref{margin-top:.5rem;font-size:11px;line-height:1.55;color:var(--ink)}
