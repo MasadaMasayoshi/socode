@@ -2,7 +2,7 @@
 // Confirmations and Undo verify the captured patient/target; local writes require full readback.
 // AI transport accepts image OCR only; classification and clinical generation stay local.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = 'v.147'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = 'v.178'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -1173,7 +1173,6 @@
     }
 
     const AI_ACCURACY_RULES = '【正確さの決まり】記録に書かれていない事実（手術・使っている薬・既往など）を前提にしないでください。数値の程度を誇張しないでください（「著明」「重度」は基準値を大きく外れるときだけ使い、基準値内の値を「低下」「異常」と書かないでください）。アセスメントに必要なのに記録に無い値（例：肺炎なら呼吸数・意識・血糖など）は「記録がない」と書いてください。医学用語・看護技術の名前は教科書で使われる正確なものだけを使い、確かでない言葉は使わないでください。薬の量や治療を変える提案はしないでください。根拠のカードの番号は、その文に直接関係するカードだけに付け、同じカードを繰り返し付けないでください。';
-    const AI_STYLE_INSTRUCTION = '【書き方】前置き・あいさつ・「〜の視点から」「〜をまとめました」のような説明は書かず、すぐ本題から書いてください。最初に「### 要点」の見出しを置き、結論を2〜3個の短い箇条書き（1つ40字程度まで）で示してください。そのあと詳細を「### 見出し」と「- 」の箇条書きで書き、1つの箇条書きは1〜2文にしてください。根拠のカードの番号は、文の終わりの句点の後ろにまとめて付けてください。' + AI_ACCURACY_RULES;
 
     function persistData() {
       const cp = getCurrentPatient();

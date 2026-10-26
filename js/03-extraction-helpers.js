@@ -1,7 +1,7 @@
 // Local record extraction. Preserve source wording, units, timestamps and admission context.
 // Headings supply context; narrative numbers are not automatically laboratory measurements.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.174'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.178'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -65,7 +65,6 @@
       '(?<![A-Za-z])RR\\s*\\d{1,2}(?:\\s*回\\s*\\/\\s*分)?(?![\\d.])'
     ]).join('|');
 
-    const LAB_VALUE_TEST_REGEX = new RegExp(LAB_REGEX_SOURCE, 'i');
 
     const LAB_COUNTER_WORD_AFTER_REGEX = /^\s*(?:単位|分間?|回(?!\s*\/)|名|人|日間?|週間?|か月|ヶ月|カ月|時間|歩|セット|本|枚|個|錠|包|m(?![A-Za-zμ\/²2]))/;
     function isPlausibleLabMatch(matchText, afterText) {
@@ -477,7 +476,6 @@
       return FIELD_LABEL_HEADING_ALIASES[word] || word;
     }
 
-    const FIELD_LABEL_KEYS = FIELD_LABELS.map(f => f.key).join('|');
     const FIELD_LABEL_MATCH_KEYS = Array.from(new Set([...FIELD_LABELS.map(f => f.key), ...Object.keys(FIELD_LABEL_HEADING_ALIASES)])).join('|');
     const FIELD_LABEL_REGEX_SOURCE = `(?:^|[、。\\s])(${FIELD_LABEL_MATCH_KEYS})(?!・)(?!として|について)(?:[:：]\\s*|は|(?=なし|無し|あり|有り|特に|とくに|特記|不明)|(?![ぁ-ゟ゠-ヿ一-鿿]))`;
 

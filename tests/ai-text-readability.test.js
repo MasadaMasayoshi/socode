@@ -60,8 +60,6 @@ test('看護計画の叩き台の新しい形（見出し・番号付き）も�
 });
 
 test('AI style instruction text is kept (front-loaded summary, no preamble) but no analysis prompt uses it now (AI is OCR-only)', () => {
-  assert.match(src, /const AI_STYLE_INSTRUCTION = '【書き方】前置き・あいさつ/);
-  assert.equal((src.match(/\$\{AI_STYLE_INSTRUCTION\}/g) || []).length, 0);
   assert.doesNotMatch(src, /「NotebookLM 基準ノート」の検査値評価規則|【NotebookLM 基準ノート】/);
 });
 test('不足情報のAI推定：推定し直すと、前回のAI推定のうち未確認・未編集のものは置き換える（増え続けない）', () => {

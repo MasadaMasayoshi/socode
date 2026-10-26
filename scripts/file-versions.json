@@ -8,36 +8,36 @@
     "hash": "3f32fe748c2880a4"
   },
   "js/03-extraction-helpers.js": {
-    "version": "v.174",
-    "hash": "11446030e371bced"
+    "version": "v.178",
+    "hash": "7b479cac6a24ee68"
   },
   "js/04-server-sync.js": {
     "version": "v.147",
     "hash": "ae8f019ce82c480c"
   },
   "js/05-app-state-and-ui.js": {
-    "version": "v.147",
-    "hash": "53aa240f4b876987"
+    "version": "v.178",
+    "hash": "733f4ef8a04f00fe"
   },
   "js/06-export.js": {
     "version": "v.176",
     "hash": "e5c76416b474a4e5"
   },
   "js/07-classification.js": {
-    "version": "v.174",
-    "hash": "ca00e94cd390afe0"
+    "version": "v.178",
+    "hash": "1cd5e8b2010fc524"
   },
   "js/08-assessment-tools.js": {
-    "version": "v.176",
-    "hash": "bdbccacbaad42834"
+    "version": "v.178",
+    "hash": "7bc282f4784aa486"
   },
   "js/09-board.js": {
     "version": "v.164",
     "hash": "903cae540e547f87"
   },
   "js/10-reference-page-and-startup.js": {
-    "version": "v.108",
-    "hash": "50856a237fa33acc"
+    "version": "v.178",
+    "hash": "39162c1ad5a33557"
   },
   "js/11-own-assessment.js": {
     "version": "v.168",
@@ -48,12 +48,12 @@
     "hash": "f606b39ae3f992fa"
   },
   "js/13-compare-and-report.js": {
-    "version": "v.119",
-    "hash": "312c741321c777bf"
+    "version": "v.178",
+    "hash": "536eaba6aff22286"
   },
   "js/14-drug-reference.js": {
-    "version": "v.108",
-    "hash": "adcb70de3b30b0ae"
+    "version": "v.178",
+    "hash": "5b83dc6ec9c767b1"
   },
   "js/15-relation-map.js": {
     "version": "v.169",

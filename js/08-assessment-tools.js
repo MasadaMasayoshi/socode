@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.176'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.178'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -66,7 +66,6 @@
 
     // ------------------------------------------------------------------------
 
-    const LAB_RANGE_CARD_REGEX = /^(.*?)([\d]+(?:\.\d+)?)\s*([^\s(（↑↓]*)\s*([↑↓])?\s*\(基準値[:：]\s*([\d]+(?:\.\d+)?)\s*[〜～\-~]\s*([\d]+(?:\.\d+)?)\s*([^)]*)\)\s*$/;
 
     const LAB_ALIAS_FALLBACK_TESTS = [
       { names: ['WBC', '白血球'], display: 'WBC(白血球)', unit: '/μL', isAbnormal: v => v > 9000, direction: 'high', comment: '基準値上限を超えており、体内で細菌感染や炎症反応が生じている可能性が示唆されます。' },
@@ -363,7 +362,6 @@
       const time = i.timestamp && i.timestamp !== '日時不明' ? `[${i.timestamp}]` : '';
       return `〔${ev.byId.get(i.id)}〕[${(i.type || '').toUpperCase()}]${time} ${i.text}`;
     }
-    const EVIDENCE_INSTRUCTION = '根拠にしたカードは、文中に必ず〔C番号〕の形（例：〔C3〕〔C12〕）で書いてください。番号は一覧の各行の先頭にあるものを使い、一覧に無い番号は作らないでください。';
     const EVIDENCE_CODE_REGEX = /[〔【\[]\s*(C\s*\d{1,4}(?:\s*[、,，・\/]?\s*C?\s*\d{1,4})*)\s*[〕】\]]/g;
 
     function linkEvidenceCodes(html, ev) {
@@ -471,7 +469,6 @@
     const AI_EXTRA_TOOLS = [
       { key: 'lab', label: '検査値の評価', icon: 'fa-flask-vial', action: 'evaluateLabValuesAI()', panel: 'lab-evaluation-panel', title: '検査値を登録された基準で確認し、臨床的な意味をまとめます' },
     ];
-    const AI_STEP_PANELS = { missing: null, diagnosis: 'diagnosis-panel', careplan: null };
     function aiPanelRunning(panelId) {
       const body = panelId && document.getElementById(panelId)?.querySelector?.('.ai-panel-body');
       return !!(body && body.querySelector && body.querySelector('.fa-spinner'));

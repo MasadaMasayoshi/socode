@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.174'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.178'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -525,7 +525,6 @@
     const CLAUSE_TERMINAL_RE = /[。！？!?」』）)]$/;
     const CLAUSE_PREDICATE_RE = /[ぁ-ん]$/;
     const CLAUSE_CHUUSHI_RE = /(?:て|で|し|ながら|ので|ため|から|が|けど|けれど|ものの)$/;
-    const CLAUSE_CONNECTIVE_RE = /(?:が|けれども|けれど|けど|ものの|のに|ので|ため|から)$/;
     function punctuateClause(piece) {
       let t = String(piece || '').trim();
       if (!t) return t;
@@ -1166,7 +1165,6 @@
       return hit && hit[1].test(m[2]) ? n : null;
     }
 
-    const STUDENT_TITLE_WORD_REGEX = /実習|記録|用紙|アセスメント|情報収集|看護過程|ケーススタディ|事例|症例/;
 
     const SPEAKER_HEADING_REGEX = /^(本人|患者|担当看護師|受け持ち看護師|受持ち看護師|看護師|主治医|医師|担当医|理学療法士|PT|作業療法士|OT|家族|妻|夫|長男|次男|長女|次女|息子|娘|嫁)\s*(?:より|から)\s*[:：]?$/;
     function carrySpeakerAndJoinQuotes(raw) {

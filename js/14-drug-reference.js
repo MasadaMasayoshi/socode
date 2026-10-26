@@ -1,6 +1,6 @@
 // Japanese drug reference vocabulary. Names indicate references, not administration or clinical approval.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['14'] = 'v.108'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['14'] = 'v.178'; // Version stamp (scripts/stamp-version.js)
 
     const DRUG_REFERENCE_ROWS = [
 
@@ -345,7 +345,6 @@
     function drugLabelSearchUrl(drug) {
       return `https://www.kegg.jp/medicus-bin/search_drug?search_keyword=${encodeURIComponent(drug.name.replace(/（.*?）/g, '').split('・')[0])}`;
     }
-    const PMDA_DRUG_SEARCH_URL = 'https://www.pmda.go.jp/PmdaSearch/iyakuSearch/';
 
     function drugTagsForText(text, { primaryOnly = false } = {}) {
       const ids = new Set();
@@ -603,5 +602,5 @@
     }
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { DRUG_REFERENCE, findDrugsInText, drugTagsForText, drugPromptSection, drugLabelSearchUrl, PMDA_DRUG_SEARCH_URL, DRUG_PROVENANCE, DRUG_CLASS_INFO, drugClassInfo, drugLineHtml, drugDictionaryRow, drugMentionsRaw, drugsOfText, drugsOfItem, refreshCardDrugs, drugLineText, drugUnknownCandidates, drugOverview, drugInfoSectionText, drugSufficiencyRules, drugObservationPoints });
+  Object.assign(module.exports, { DRUG_REFERENCE, findDrugsInText, drugTagsForText, drugPromptSection, drugLabelSearchUrl, DRUG_PROVENANCE, DRUG_CLASS_INFO, drugClassInfo, drugLineHtml, drugDictionaryRow, drugMentionsRaw, drugsOfText, drugsOfItem, refreshCardDrugs, drugLineText, drugUnknownCandidates, drugOverview, drugInfoSectionText, drugSufficiencyRules, drugObservationPoints });
 }
