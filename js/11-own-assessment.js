@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.197'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.198'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -466,6 +466,7 @@
         return `${basis}から、${name}は未充足である。`;
       }
       if (a.verdict === 'conflict' && a.restriction) return `${labs.length ? labs.join('・') + 'により、' : ''}治療上の制限（${String(a.reason).replace(/（.*$/, '')}）は確認できるが、実際の自立度・介助の必要・症状の記録がないので、${name}は判定保留。`;
+      if (a.verdict === 'conflict' && a.needsConfirmation && /^「[^」]*」$/.test(String(a.reason || '').trim())) return `${a.reason}の記載はあるが、${name}の充足を決める直接の根拠が足りないため、${name}は判定保留。`;
       if (a.verdict === 'conflict') {
         if (ag.length && fo.length) return `${sum(fo)}がある一方で${sum(ag)}もあり、どちらとも決められないため、${name}は判定保留。`;
         return a.needsConfirmation ? `${labs.length ? labs.join('・') + 'で、' : ''}${String(a.reason || '').replace(/[。\s]+$/, '')}ため、${name}は判定保留。` : `${basis}が並んでおり、どちらとも決められないため、${name}は判定保留。`;
@@ -1286,7 +1287,7 @@
 
     // v.101: a diagnosis name alone is not a finding and gives no verdict; only recorded symptoms/values do.
     const SUF_DISEASE_NAME_ONLY = /^(?:糖尿病|高血圧|脂質異常症|白内障|[^、。\s]{0,8}(?:がん|癌)|[^、。\s]{0,6}骨折|子宮筋腫|(?:陳旧性)?心筋梗塞|胃全摘|胃切除)$/;
-    const SUF_UNMET_SCOPE = [[4, 5, 6, 8, 13, 14], [5], [1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14], [13], [2, 3], [3], [8], [7, 8], [1], [4, 9, 10, 13, 14], [7], [1, 2, 3, 4, 7, 9], [13], [14], [12], [2], [10], [10]];
+    const SUF_UNMET_SCOPE = [[4, 5, 6, 8, 13], [5], [1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14], [13], [2, 3], [3], [8], [7, 8], [1], [4, 9, 10, 13, 14], [7], [1, 2, 3, 4, 7, 9], [13], [14], [12], [2], [10], [10]];
     const SUF_MET_SCOPE = [null, [5], [2], [1], [4, 5, 6, 8, 10, 12, 13, 14], [7], [3], [1], [10], [14], [13], [11], [1], [13], [2, 3, 4, 6, 8]];
 
     const SUF_UNCERTAIN = /[？?]|かな$|かも|だっけ|だよね|んですね|でしょうか|ですか|分かりました|わかりました|大丈夫|問題ない|できる(?:かな|と思|はず)/;

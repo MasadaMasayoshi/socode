@@ -37,3 +37,23 @@ test('関連図の詳細一覧：看護問題に、根拠カードの欲求の�
   const html = String(app.rmSufficiencyLineHtml ? app.rmSufficiencyLineHtml(map, prob, cp) : '');
   assert.ok(html === '' || /関連する欲求の充足：/.test(html));
 });
+
+test('v.197b: 痛みの語は学びの未充足根拠にしない／壊れた保留文を出さない／重複を並べない', () => {
+  const mkc = (t, need, type) => ({ id: 'z' + (n++), type: type || 'o', text: t, timestamp: '産褥2日目', hendersonIds: [need], assessmentCols: { [need]: 'postadmission' } });
+  const v = (items, need) => { const r = app.judgeSufficiencyByRules({ id: 'p', items, myAssessments: {} })[need]; return r && r.post && r.post.verdict; };
+  assert.notEqual(v([mkc('自分のお腹に触れて「これが子宮ですか?だからお腹も痛いんですね」', 14, 's')], 14), 'unmet');
+  const cp = { id: 'p', items: [mkc('浮腫なし。妊娠30週:下肢浮腫(+)', 3)], myAssessments: {} };
+  const s = app.sufficiencySentence(cp, 3, 'post');
+  assert.ok(!/^「[^」]*」ため/.test(s));
+});
+test('v.197b: 同じ項目名の記録は、タグ未設定のカードを仲間の欲求へ寄せる候補にする（自動では変更しない）', () => {
+  const cp = { id: 'p', items: [
+    { id: 'a', type: 'o', text: '乳管開通4〜5本 乳房緊満なし', timestamp: '産褥2日目', hendersonIds: [2], assessmentCols: { 2: 'postadmission' } },
+    { id: 'b', type: 'o', text: '乳管開通1〜2本', timestamp: '産褥1日目', hendersonIds: [], assessmentCols: {} }
+  ], myAssessments: {} };
+  const row = app.buildTagAuditRows(cp).find(r => r.id === 'b');
+  assert.ok(row && row.destination && row.destination.key === 'sibling');
+  assert.deepEqual(Array.from(row.siblingNeeds), [2]);
+  assert.equal(row.autoFix, false);
+  assert.deepEqual(Array.from(cp.items[1].hendersonIds), []);
+});

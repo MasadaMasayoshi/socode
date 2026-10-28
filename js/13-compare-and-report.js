@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.190'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.198'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -934,7 +934,19 @@ function buildTagAuditRows(cp) {
     const prop = structural ? [] : Array.from(new Set(detectMultipleHendersonTags(text))).sort((a, b) => a - b);
     const missing = prop.filter(x => !cur.includes(x)), extra = cur.filter(x => !prop.includes(x));
     const noType = i.type === 'unclassified';
-    const dest = (!prop.length || !cur.length) ? proposeCardDestination(text) : null;
+    let dest = (!prop.length || !cur.length) ? proposeCardDestination(text) : null;
+    // 同じ項目名の経過記録（例: 乳管開通 1〜2本／4〜5本）は同じ欲求に寄せる候補にする。提案だけで、自動では変えない。
+    let sibNeeds = [];
+    if (!cur.length && !structural) {
+      const lead = t => (String(t || '').normalize('NFKC').replace(/^\[[^\]]*\]\s*/, '').match(/^[ぁ-んァ-ヶ一-龠ー]{3,8}(?=[\s\d:：=＝]|$)/) || [''])[0];
+      const key = lead(text);
+      if (key) {
+        const sib = (cp.items || []).filter(o => o !== i && !o.deleted && (o.hendersonIds || []).length && lead(o.text) === key);
+        sibNeeds = Array.from(new Set(sib.flatMap(o => o.hendersonIds))).sort((x, y) => x - y);
+        if (sibNeeds.length && sibNeeds.length <= 2) dest = { key: 'sibling', label: '同じ項目の記録に合わせる', to: `同じ項目名「${key}」の記録が欲求${sibNeeds.join('・')}にあるため、そこへ寄せる候補（承認後に反映）` };
+        else sibNeeds = [];
+      }
+    }
     if (!missing.length && !extra.length && !noType && !(dest && !cur.length)) return;
     const reasons = [];
     if (structural) reasons.push('見出し・表の参照で、所見ではない');
@@ -942,7 +954,7 @@ function buildTagAuditRows(cp) {
     if (extra.length && !structural) reasons.push('現在のタグが文の意味から支持されない');
     if (noType) reasons.push('S/Oが未決定');
     rows.push({
-      id: i.id, text, destination: dest, currentTags: cur, proposedTags: prop, missingTags: missing, removeTags: extra, reason: reasons.join('／'),
+      id: i.id, text, destination: dest, siblingNeeds: sibNeeds, currentTags: cur, proposedTags: prop, missingTags: missing, removeTags: extra, reason: reasons.join('／'),
       context: [i.timestamp, i.fieldLabel].filter(Boolean).join(' '), confidence: structural ? '高' : (missing.length && !extra.length ? '中' : '低'),
       // Only a pure addition to an untagged card is eligible; any removal or change may be a user edit, so it needs a person.
       autoFix: !cur.length && missing.length > 0 && !structural,
