@@ -55,3 +55,22 @@ test('section titles, numbered viewpoint questions and table pointers never beco
   ['3 乳房状態・授乳', '1)出産後の生活の変化を理解しているか', '上記表参照', '5 家族/役割関係'].forEach(h => assert.ok(excluded.some(e => e.replace(/\s/g, '') === h.replace(/\s/g, '').replace('／', '/')), `${h} should be excluded`));
   ['2 人暮らし', '3 回排便あり', '1)発熱はないか確認する。'].forEach(k => assert.ok(cards.some(c => !c.isUnnecessaryBoilerplate && c.text.normalize('NFKC').replace(/\s/g, '') === k.replace(/\s/g, '')), `${k} must stay a card`));
 });
+
+test('variant OCR glyphs for 歳 are read as the age for matching; source text is not changed', () => {
+  const src = 'A氏•58歲,男性';
+  const b = app.extractClinicalBasics(`[年齢] ${src}`);
+  assert.equal(b.age, 58);
+  assert.equal(b.sex, 'male');
+  assert.equal(app.extractClinicalBasics('生後3日の男児').age, 0);
+  assert.equal(src, 'A氏•58歲,男性');
+  const ctx = app.labBackgroundContext({ sourceText: '58歲男性', items: [] });
+  assert.equal(ctx.age, 58);
+});
+
+test('relation map shows patient age/sex beside the disease (also for OCR glyph variants); nothing is shown when unrecorded', () => {
+  const mk = t => ({ id: 'x', title: 'x', sourceText: t, items: [{ id: 'a', type: 'o', text: t, fieldLabel: '年齢', hendersonIds: [], timestamp: '入院前' }, { id: 'b', type: 'o', text: '胃がんで腹腔鏡下胃全摘術を受けた。', hendersonIds: [2] }], carePlans: {}, myAssessments: {}, missingChecks: {} });
+  const labels = cp => (app.buildRelationMapFromRecord(cp).nodes || []).map(n => n.label);
+  assert.ok(labels(mk('A氏•58歲,男性')).includes('58歳男性'));
+  assert.ok(labels(mk('A氏58歳,男性')).includes('58歳男性'));
+  assert.ok(!labels(mk('胃がんの術後')).some(l => /歳|男性|女性/.test(l)));
+});

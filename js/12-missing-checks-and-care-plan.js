@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.182'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.187'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -2859,7 +2859,7 @@
         ctx: { elder: '非甲状腺疾患・薬剤を考慮する', kidney: '', liver: '重い全身疾患では解釈に注意する', preg: '妊娠の時期別の基準を使う', drug: [/アミオダロン|ステロイド|甲状腺/, '甲状腺疾患・アミオダロン・ステロイドなどの影響を確認する'] }, extra: '中枢性疾患では通常の解釈が変わる' }
     ];
     function labBackgroundContext(cp) {
-      const text = [cp.sourceText || '', ...(cp.items || []).filter(i => i && !i.deleted).map(i => i.text)].join('\n').normalize('NFKC');
+      const text = [cp.sourceText || '', ...(cp.items || []).filter(i => i && !i.deleted).map(i => i.text)].join('\n').normalize('NFKC').replace(/[歲嵗]/g, '歳');
       const ageM = text.match(/(\d{1,3})\s*歳(?!時|の頃|ごろ|前)/);
       const age = ageM ? +ageM[1] : null;
       const sex = /女児|女性|女の子|褥婦|産褥|妊婦|妊娠/.test(text) ? 'F' : /男児|男性|男の子/.test(text) ? 'M' : '';

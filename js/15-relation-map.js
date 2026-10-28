@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.169'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.187'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -2690,6 +2690,16 @@
         }
       }
       const target = psychoTarget() || (nodes.get('p_body') ? accept : null);
+      // Patient background (age / sex) is shown beside the disease: it decides lab reference ranges and the life stage, so it must not be missing from the map. Background only; no causal claim.
+      {
+        const sexWord = basics.sex === 'male' ? '男性' : basics.sex === 'female' ? '女性' : '';
+        const ageWord = Number.isFinite(age) && age > 0 ? `${age}歳` : '';
+        const anchor = disease || surgery;
+        if ((ageWord || sexWord) && anchor && !aging) {
+          const basicItems = items.filter(i => !i.deleted && /年齢|性別/.test(String(i.fieldLabel || '')) || /^\s*\S{0,6}氏\s*[•・]?\s*\d+\s*[歳歲]/.test(String(i.text || '').normalize('NFKC')));
+          E(N('patient_basic', 'patient_fact', `${ageWord}${sexWord}`, { items: basicItems }), anchor, 'related_to', { evidence: '年齢・性別は検査値の基準や発達段階の判断に使う背景情報（原因とは断定しない）' });
+        }
+      }
       const stage = rmLifeStage(age);
       if (stage && target) {
         const dev = N('dev_task', 'pathophysiology', `${stage.stage}の発達課題：${stage.crisis}（エリクソン）`, { source: 'knowledge',
@@ -2732,7 +2742,7 @@
       })().filter(up => up.label);
 
       const isBasicInfo = i => (i.fieldLabel && /氏名|基本情報|患者情報|プロフィール|血液型|性別|年齢/.test(i.fieldLabel))
-        || /血液型|Rh\s*[+\-]|^\s*\S{0,6}氏\s*\d+\s*歳|\d+\s*歳\s*(?:男|女)/.test(String(i.text).normalize('NFKC'));
+        || /血液型|Rh\s*[+\-]|^\s*\S{0,6}氏\s*\d+\s*歳|\d+\s*歳\s*(?:男|女)/.test(normalizeAgeGlyphs(String(i.text).normalize('NFKC')));
       const usedEv = new Set();
       const pendingUser = [];
       const tplProblems = [...nodes.values()].filter(n => n.type === 'nursing_problem');

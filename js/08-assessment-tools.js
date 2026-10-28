@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.181'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.187'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1461,8 +1461,10 @@
       return null;
     }
     const round1 = v => Math.round(v * 10) / 10;
+    // OCR often returns variant glyphs for 歳 (歲・嵗); they are read as 歳 for matching only, the source text is never changed.
+    function normalizeAgeGlyphs(str) { return String(str || '').replace(/[歲嵗]/g, '歳'); }
     function extractClinicalBasics(text) {
-      const t = String(text || '').normalize('NFKC');
+      const t = normalizeAgeGlyphs(String(text || '').normalize('NFKC'));
       const ageM = firstPatientMatch(t, /(\d{1,3})\s*歳(?!\s*(?:から|より|で|頃|ごろ|の時|時))/);
       const sexM = firstPatientMatch(t, /(男性|女性|男児|女児)/);
       const heightM = t.match(/身長\s*[:：は]?\s*(\d{2,3}(?:\.\d+)?)\s*cm/i);
