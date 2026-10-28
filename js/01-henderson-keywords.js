@@ -1,7 +1,7 @@
 // Henderson vocabulary. Match content, not S/O form; insurance belongs to need 9.
 // Uploaded assessment domains inform vocabulary; retain Japanese clinical terms and concise need names.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['01'] = 'v.168'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['01'] = 'v.196'; // Version stamp (scripts/stamp-version.js)
 
     const HENDERSON_NEEDS = [
       { id: 1, name: "呼吸", icon: "fa-lungs", keywords: ["出血量", "輸液量",   "呼吸", "SpO2", "咳", "痰", "喘鳴", "息切れ", "チアノーゼ", "酸素", "息苦し", "PaO2", "呼吸数", "呼吸音", "動脈血ガス", "胸部X線", "胸郭", "呼吸補助筋", "起座呼吸", "wheezes", "発汗", "気道", "分泌物", "狭窄", "喫煙", "人工呼吸器", "酸素マスク", "肥満", "発熱", "副作用", "安楽な姿勢", "湿度", "臭気", "吸入器", "在宅酸素療法", "排痰", "咳嗽", "血圧", "脈拍", "頻脈", "徐脈", "不整脈", "動悸", "浮腫", "末梢冷感", "循環動態", "心拍数", "心電図", "胸痛", "ショック", "麻酔覚醒", "気管挿管", "抜管", "無気肺", "有効咳嗽", "術後肺炎", "肺血栓塞栓症", "PTE",
@@ -105,7 +105,7 @@
         "視覚", "眼鏡",
 
         "精神状態"] },
-      { id: 11, name: "信仰", icon: "fa-hands-praying", keywords: ["信仰", "宗教", "信条", "価値観", "お祈り", "礼拝", "牧師", "禁忌", "輸血拒否"] },
+      { id: 11, name: "信仰", icon: "fa-hands-praying", keywords: ["信仰", "宗教", "信条", "価値観", "お祈り", "礼拝", "牧師", "禁忌", "輸血拒否", "葬儀", "お墓", "看取り", "延命", "死生観", "人生観"] },
       { id: 12, name: "仕事", icon: "fa-trophy", keywords: ["会社員", "退職", "定年", "仕事", "役割", "家事", "意欲", "自尊感情", "達成感", "作業", "職業", "離職", "生きがい"] },
       { id: 13, name: "余暇", icon: "fa-gamepad", keywords: ["趣味", "テレビ視聴", "読書", "レク", "散歩", "気晴らし", "娯楽", "余暇", "余暇活動", "閉じこもり", "気分転換", "スポーツ", "テニス", "ゴルフ", "サッカー", "野球", "水泳", "ジョギング", "ランニング"] },
       { id: 14, name: "学び", icon: "fa-graduation-cap", keywords: [

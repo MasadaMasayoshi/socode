@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.191'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.196'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -1344,6 +1344,11 @@
         else if (/質問|たずね|尋ね|伝え|相談|お願い|頼|ありがとう|教えて|[?？]|ですか|でしょうか|かな[」。]/.test(q)) met = { v: 'met', hit: '発言', clause: q.slice(0, 30) };
         // v.106: an emotional outburst or a feeling voiced is not evidence of communication ability by itself (no verdict from it)
       }
+      // 一般条件: 本人が価値観・最期の迎え方・療養の場の希望を言葉にしている記録は、尊重・実践できているかが別に必要なので「判定保留」（充足・未充足にはしない）。
+      if (!unmet && !met && needId === 11 && /葬儀|お墓|看取り|延命|死生観|人生観/.test(String(item.text || ''))) {
+        const q11 = (String(item.text || '').match(/「[^」]{4,}」/) || [String(item.text || '')])[0];
+        pending = { v: 'pending', hit: '価値観・希望を言葉にできている', clause: q11.slice(0, 30) };
+      }
       if (isOrder) {
         // A treatment/order line is an intervention, not a patient state: only a stated problem may make it unmet, and it never shows 充足.
         if (unmet && !SUF_PROBLEM_CUE.test(unmet.clause)) unmet = null;
@@ -1884,7 +1889,7 @@
           if (um.length && (um.some(x => x.r.severe) || um.length * 2 >= mt.length)) return { verdict: 'unmet', facts: facts(), reason: `${um.slice(0, 3).map(short).join('')}`, evidence: um.slice(0, 5).map(x => x.i.id), need: '' };
           if (mt.length) return { verdict: 'met', facts: facts(), reason: `${mt.slice(0, 3).map(short).join('')}`, evidence: mt.slice(0, 5).map(x => x.i.id), need: '' };
           const pending = rs.filter(x => x.r.v === 'pending');
-          if (pending.length) return { verdict: 'conflict', needsConfirmation: true, reason: need.id === 14 ? '説明・練習は実施されているが、理解の程度や自分で実施できるかの確認が必要' : need.id === 10 ? '不安や思いを言葉にできているが、伝達上の困りごとがないかは別に確認する必要がある' : '感染症検査の陰性結果は確認できるが、転倒など他の安全面は別に確認する必要がある', evidence: pending.slice(0, 5).map(x => x.i.id), need: '' };
+          if (pending.length) return { verdict: 'conflict', needsConfirmation: true, reason: need.id === 14 ? '説明・練習は実施されているが、理解の程度や自分で実施できるかの確認が必要' : need.id === 10 ? '不安や思いを言葉にできているが、伝達上の困りごとがないかは別に確認する必要がある' : need.id === 11 ? '価値観や希望を言葉にできているが、それが尊重され実践できているかは別に確認する必要がある' : '感染症検査の陰性結果は確認できるが、転倒など他の安全面は別に確認する必要がある', evidence: pending.slice(0, 5).map(x => x.i.id), need: '' };
           if (need.id === 11 && cards.some(i => /宗教|信仰|信条|祈|礼拝/.test(String(i.text || '')) && !/記載なし|情報なし|不明|未確認/.test(String(i.text || '')) && !SUF_NOT_CONFIRMED.test(String(i.text || '').normalize('NFKC')))) return { verdict: 'met', reason: '信仰による問題の記載なし', evidence: cards.slice(0, 3).map(i => i.id), need: '' };
           return { verdict: 'unknown', reason: '', evidence: [], need: cards.length ? `${label}の記録が少なく、満たされているか判断できない` : `${label}の記録がない` };
         };

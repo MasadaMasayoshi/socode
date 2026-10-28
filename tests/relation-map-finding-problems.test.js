@@ -24,3 +24,14 @@ test('反例: 過去のがんがあっても、イレウスの腹痛を「がん
   assert.doesNotMatch(build('student-records/st08_ileus_soap.txt'), /がん性疼痛/);
   assert.doesNotMatch(build('synthetic-postpartum.txt'), /家族介護者|感染リスク状態（骨髄/);
 });
+
+test('退院後の支援・本人の希望と価値観は、関連図に前提として載り、価値観の表出は判定保留になる', () => {
+  const text = fs.readFileSync(path.join(__dirname, 'fixtures', 'synthetic-lung-chemo-70f.txt'), 'utf8');
+  const items = app.groupClinicalPhrasesWithTimestamps(text).filter(c => !c.isUnnecessaryBoilerplate).map((c, k) => ({ id: `i${k}`, type: 'o', text: c.text, timestamp: c.timestamp, hendersonIds: Array.from(new Set(app.detectMultipleHendersonTags(c.text))), assessmentCols: {} }));
+  const cp = { id: 'x', title: 'x', items, carePlans: {}, sourceText: text, myAssessments: {}, missingChecks: {} };
+  const labels = app.buildRelationMapFromRecord(cp).nodes.map(n => n.label).join('|');
+  assert.match(labels, /訪問看護/);
+  assert.match(labels, /お墓|葬儀/);
+  assert.equal(app.sufficiencyCardVerdict({ text: '「お墓や葬儀のことは夫と話し始めた」と話す。', type: 's' }, 11, 'post').v, 'pending');
+  assert.equal(app.sufficiencyCardVerdict({ text: '「痛みがつらい」と話す。', type: 's' }, 11, 'post').v, '', '価値観の表出がなければ判定しない');
+});

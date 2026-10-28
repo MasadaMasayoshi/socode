@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.195'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.196'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -2649,6 +2649,15 @@
         if (!nodes.has('p_caregiver')) {
           const fi = cur.filter(i => /(?:夫|妻|長女|長男|次女|次男|娘|息子|家族)[^。]{0,24}(?:つらい|負担|仕事があるので|毎日は来られない|疲れ)/.test(i.text));
           if (fi.length) E(N('caregiver_np', 'patient_fact', short(fi[0], 40), { items: fi.slice(0, 2) }), N('p_caregiver', 'nursing_problem', '家族介護者の役割緊張リスク（夜間の対応・面会の負担）', { cat: 'know' }), 'supports', { evidence: '家族の言葉' });
+        }
+        // 一般条件: 退院後の支援の調整（訪問看護・介護保険・ケアマネ）と、本人・家族の希望・価値観（療養の場・最期の迎え方）は、
+        // 原因ではなく計画の前提なので、すでにある看護問題（家族負担・知識・自己管理・不安）に「関連」でつなぐ。問題は新しく作らない。
+        const host = ['p_caregiver', 'p_know', 'p_mgmt', 'p_selfmgmt', 'p_anx'].map(k => nodes.get(k)).find(Boolean);
+        if (host) {
+          const di2 = cur.filter(i => /訪問看護|介護保険|ケアマネ|区分変更|地域包括|デイサービス|退院後の(?:支援|療養)/.test(i.text));
+          if (di2.length) E(N('discharge_np', 'patient_fact', short(di2[0], 40), { items: di2.slice(0, 2) }), host, 'related_to', { evidence: '退院後に使える支援の調整' });
+          const wi = cur.filter(i => /家で過ごしたい|家で看たい|自宅で過ごしたい|お墓|葬儀|看取り|最期|延命/.test(i.text));
+          if (wi.length) E(N('wish_np', 'patient_fact', short(wi[0], 40, /家で過ごしたい|家で看たい|自宅で過ごしたい|お墓|葬儀|看取り|最期|延命/), { items: wi.slice(0, 2) }), host, 'related_to', { evidence: '本人・家族の希望・価値観（計画の前提）' });
         }
       }
 
