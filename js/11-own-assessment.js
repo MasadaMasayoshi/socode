@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.181'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.188'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -416,6 +416,8 @@
       let conf = '低（記録が少ない、または決め手がない）';
       if ((a.verdict === 'met' || a.verdict === 'unmet') && !a.restriction) conf = n >= 2 ? '高（複数の記録が同じ方向）' : n === 1 ? '中（根拠の記録が1つ）' : '低（根拠の記録が見当たらない）';
       else if (a.restriction) conf = '低（治療上の制限だけで、自立度・症状の記録が必要）';
+      // Confidence is not a count: an unmet verdict whose evidence includes a record showing improvement or recovery (a later state) cannot be rated high; the latest state must be confirmed.
+      if (a.verdict === 'unmet' && !a.restriction && (cp.items || []).filter(i => i && !i.deleted && (i.hendersonIds || []).includes(needId)).some(i => /軽くなった|軽減|改善|よくなった|良くなった|楽になった|よく眠れた|できるようになった|慣れてきた/.test(nz(i.text)))) conf = '中（経過で改善を示す記録を含むため、最新の状態の確認が必要）';
       // Complication predictions need patient-specific evidence: an unmet/pending verdict backed by at least one record with a symptom or restriction cue.
       const hasRiskEvidence = (a.verdict === 'unmet' || a.verdict === 'conflict') && (sym.length > 0 || !!assist || evItems.length > 0 && a.verdict === 'unmet');
       const risk = hasRiskEvidence ? (SUFFICIENCY_RISKS[needId] || '') : '';

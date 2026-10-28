@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.184'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.188'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -905,6 +905,7 @@ const CARD_DESTINATIONS = [
   { key: 'delivery', re: /陣痛|分娩(?:経過|所要|開始)|自然破水|子宮口全開|出産(?:する|した)|正常分娩|娩出|分娩時出血/, label: '分娩・出産の経過（背景）', to: '背景情報（時期＝分娩期）として保持。現在の症状と混ぜない' },
   { key: 'pregnancy', re: /妊娠\s*\d+\s*週|妊娠(?:経過|中)|初産婦|経産婦|妊娠分娩歴|母親学級/, label: '妊娠・出産歴（背景）', to: '背景情報（時期＝妊娠期・過去）として保持。妊娠中の検査値は産褥の現在値にしない' },
   { key: 'history', re: /\[?(?:既往歴|アレルギー|感染症|過去の出来事)\]?/, label: '既往・背景情報', to: '背景情報として保持。現在の問題の根拠にしない' },
+  { key: 'goal', re: /(?:戻りたい|続けたい|再開したい|復帰したい|やりたい|してみたい|したい)(?:と(?:話|思|言)|です|ですが|。|$)/, label: '本人の希望・目標（横断）', to: '本人の希望として保持し、複数の欲求の判断とOP/TP/EPの選択に使う（制限の根拠にしない）。単独のヘンダーソン項目に固定しない' },
   { key: 'family', re: /夫|妻|両親|実家|同居|付き添|面会|賃貸|住居|復職|産休|会社員|沐浴は自分/, label: '家族・社会背景', to: 'ジェノグラム・関連図・支援体制の情報として保持。家族の意向は産婦本人の所見と区別する' }
 ];
 function proposeCardDestination(text) {

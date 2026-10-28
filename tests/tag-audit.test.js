@@ -74,3 +74,18 @@ test('relation map shows patient age/sex beside the disease (also for OCR glyph 
   assert.ok(labels(mk('A氏58歳,男性')).includes('58歳男性'));
   assert.ok(!labels(mk('胃がんの術後')).some(l => /歳|男性|女性/.test(l)));
 });
+
+test('patient wishes get a cross-cutting destination; an unmet verdict with improving evidence is not rated high', () => {
+  assert.equal((app.proposeCardDestination('早く部活に戻りたいと話す') || {}).key, 'goal');
+  assert.equal(app.proposeCardDestination('胸痛あり'), null);
+  const items = [
+    { id: 'a', type: 's', text: '「昨夜はあまり眠れなかった」', timestamp: '産褥1日目', hendersonIds: [5], assessmentCols: { 5: 'postadmission' } },
+    { id: 'b', type: 's', text: '「昨夜は授乳の時以外はよく眠れた」', timestamp: '産褥2日目', hendersonIds: [5], assessmentCols: { 5: 'postadmission' } }
+  ];
+  const cp = { id: 'p', title: 'p', items, carePlans: {}, sourceText: '', myAssessments: {}, missingChecks: {} };
+  app.judgeSufficiencyByRules(cp);
+  assert.match(app.sufficiencyDimensionLines(cp, 5, 'post').join('\n'), /根拠の確かさ：中（経過で改善を示す記録を含む/);
+  const only = { ...cp, items: [items[0]] };
+  app.judgeSufficiencyByRules(only);
+  assert.doesNotMatch(app.sufficiencyDimensionLines(only, 5, 'post').join('\n'), /経過で改善を示す/);
+});
