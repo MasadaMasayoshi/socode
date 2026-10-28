@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.187'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.195'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -2595,7 +2595,7 @@
         E(ns, N('p_nausea', 'nursing_problem', '悪心', { cat: 'nutr' }), 'results_in');
       }
 
-      const sleepItem = findItem(/眠れ(?:ない|なかった|ず)|不眠|中途覚醒/);
+      const sleepItem = findItem(/眠れ(?:ない|なかった|ず|た気がしない)|不眠|中途覚醒|目が覚め|[0-9]回(?:目が)?覚醒|覚醒[0-9]回/, notHist) || findItem(/眠れ(?:ない|なかった|ず)|不眠|中途覚醒/);
       if (sleepItem) {
         const sl = N('sleep', 'symptom', short(sleepItem, 32), { items: [sleepItem] });
         let linked = false;
@@ -2605,6 +2605,51 @@
         if (!linked && nodes.has('fall_sign') && /夜間|トイレ/.test(sleepItem.text + nodes.get('fall_sign').label)) E(nodes.get('fall_sign'), sl, 'causes');
         else if (!linked && pain && painItem) E(pain, sl, 'contributes_to');
         E(sl, N('p_sleep', 'nursing_problem', '睡眠パターン混乱', { cat: 'sleep' }), 'results_in');
+      }
+
+      // 病名に依存しない所見由来の看護問題（一般条件: 記録にその所見があり、同じ問題がまだ作られていないとき）。
+      // 疼痛（手術以外の原因）・活動耐性・骨髄抑制による感染リスク・家族介護者の負担を、所見から作る。値や言葉は記録にあるものだけを使う。
+      {
+        const cur = items.filter(notHist);
+        const nrsOf = i => { const m = String(i.text).normalize('NFKC').match(/NRS\s*[:：]?\s*([0-9]{1,2})/g); return m ? Math.max(...m.map(x => Number(x.replace(/\D/g, '')))) : null; };
+        if (!nodes.has('p_pain')) {
+          const pi = cur.filter(i => /疼痛|痛み|背部痛|腰痛|関節痛|NRS/.test(i.text) && !/痛み止め(?:を)?(?:増やす|増量)/.test(i.text)).filter(i => (nrsOf(i) ?? 0) >= 4 || /痛くて|痛みで|疼痛(?:が|あり)|強い痛み/.test(i.text) || (nrsOf(i) !== null));
+          const worst = pi.sort((x, y) => (nrsOf(y) ?? 0) - (nrsOf(x) ?? 0))[0];
+          if (worst && (nrsOf(worst) ?? 0) >= 4) {
+            const pn = N('pain_np', 'symptom', short(worst, 30), { items: [worst] });
+            const bone = findItem(/骨転移|骨折|圧迫骨折|変形性|関節炎|神経障害|がん性疼痛/, notDxS) || findItem(/骨転移|がん性疼痛/);
+            const chronic = !!bone || /がん性疼痛|慢性疼痛|慢性的な痛み/.test(all) || /がん|癌/.test(String(worst.text));
+            if (bone) { const bn = N('pain_cause', 'pathophysiology', short(bone, 30), { items: [bone] }); E(bn, pn, 'causes', { evidence: '骨・神経への刺激による痛み' }); }
+            E(pn, N('p_pain', 'nursing_problem', chronic ? '慢性疼痛（がん性疼痛・体動時の増強）' : '急性疼痛（体動・疾患に関連）', { cat: 'pain' }), 'results_in');
+            const opi = findItem(/オキシコドン|モルヒネ|フェンタニル|オピオイド|レスキュー|鎮痛薬/);
+            if (opi) E(N('analgesic_np', 'treatment', short(opi, 30), { items: [opi] }), pn, 'treats', { evidence: '痛みを和らげる薬' });
+            if (sleepItem && nodes.has('p_sleep') === false) { /* 睡眠の節で痛みとの関係を作る */ }
+          }
+        }
+        if (!nodes.has('p_act') && !nodes.has('p_gas') && !nodes.has('p_pattern')) {
+          const di = cur.filter(i => /息切れ|修正Borg|労作時[^。]{0,10}(?:息|呼吸)|呼吸困難/.test(i.text) && !/なし|ない/.test(String(i.text).split('。')[0].slice(0, 12)))[0];
+          if (di) {
+            const dn = N('dysp_np', 'symptom', short(di, 30), { items: [di] });
+            const o2i = findItem(/在宅酸素|酸素\s*[0-9.]+\s*L/);
+            if (o2i) E(N('o2_np', 'treatment', short(o2i, 30), { items: [o2i] }), dn, 'treats', { evidence: '足りない酸素を補う' });
+            E(dn, N('p_act', 'nursing_problem', '活動耐性低下（動くと息切れ・体力の低下）', { cat: 'act' }), 'results_in');
+          }
+        }
+        if (!nodes.has('p_inf')) {
+          const lowN = cur.find(i => { const t = String(i.text).normalize('NFKC'); const m = t.match(/好中球(?:数)?\s*([0-9]{2,5})/); const w = t.match(/WBC\s*([0-9]{3,5})/); return (m && Number(m[1]) < 1000) || (w && Number(w[1]) < 3000); });
+          if (lowN) {
+            const ln = N('lowwbc_np', 'lab', short(lowN, 34), { items: [lowN] });
+            const ci = findItem(/化学療法|抗がん|カルボプラチン|ペメトレキセド|シスプラチン|放射線/);
+            if (ci) E(N('chemo_np', 'treatment', short(ci, 30), { items: [ci] }), ln, 'causes', { evidence: '薬の作用で白血球をつくる骨髄の働きが下がる' });
+            E(ln, N('p_inf', 'nursing_problem', '感染リスク状態（骨髄抑制による白血球・好中球の減少）', { cat: 'inf' }), 'results_in', { predicted: true });
+          }
+        }
+        const stom = cur.find(i => /口内炎|口腔粘膜|口腔内[^。]{0,12}白苔/.test(i.text));
+        if (stom && nodes.has('p_nutr')) E(N('stomatitis_np', 'symptom', short(stom, 30), { items: [stom] }), nodes.get('p_nutr'), 'contributes_to', { evidence: 'しみて食べにくい' });
+        if (!nodes.has('p_caregiver')) {
+          const fi = cur.filter(i => /(?:夫|妻|長女|長男|次女|次男|娘|息子|家族)[^。]{0,24}(?:つらい|負担|仕事があるので|毎日は来られない|疲れ)/.test(i.text));
+          if (fi.length) E(N('caregiver_np', 'patient_fact', short(fi[0], 40), { items: fi.slice(0, 2) }), N('p_caregiver', 'nursing_problem', '家族介護者の役割緊張リスク（夜間の対応・面会の負担）', { cat: 'know' }), 'supports', { evidence: '家族の言葉' });
+        }
       }
 
       const anxAll = items.filter(i => i.type === 's' && /不安|心配|迷惑|仕事|戻れ|帰れ|怖|どうなる|どうしよう|家族|歩ける|やっていけ|大丈夫か/.test(i.text));
