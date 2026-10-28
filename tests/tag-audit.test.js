@@ -89,3 +89,11 @@ test('patient wishes get a cross-cutting destination; an unmet verdict with impr
   app.judgeSufficiencyByRules(only);
   assert.doesNotMatch(app.sufficiencyDimensionLines(only, 5, 'post').join('\n'), /経過で改善を示す/);
 });
+
+test('新分類先（データ品質・自己管理の工程・支援の可用性）: 一般条件で提案し、反例は提案しない', () => {
+  const key = t => (app.proposeCardDestination(t) || {}).key;
+  ['原文が不明瞭で単位が読み取れない', '原本確認が必要な転記', '判読不能の値あり'].forEach(t => assert.equal(key(t), 'dataquality', t));
+  ['自己注射の手技を確認した', '低血糖のときは連絡できると話す', '補食の判断を説明できる'].forEach(t => assert.equal(key(t), 'selfmgmt', t));
+  ['実家は車で10分', '母は仕事で夜まで不在', '支援者は限られる'].forEach(t => assert.equal(key(t), 'availability', t));
+  ['血糖値は120mg/dL', '夫が面会に来た'].forEach(t => assert.notEqual(['dataquality', 'selfmgmt', 'availability'].includes(key(t)), true, t));
+});

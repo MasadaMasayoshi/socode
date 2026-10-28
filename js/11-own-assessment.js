@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.188'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.189'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -1268,6 +1268,8 @@
     const SUF_PROBLEM_CUE = /痛|苦しい|できない|困難|不能|悪心|嘔|膨満|不眠|眠れ|不安|ふらつ|発熱|発赤|腫脹|熱感|排膿|潰瘍|低下|増強|悪化|拒否|不規則|中断|間違/;
     const SUF_SEVERE = /難聴|伝わらない|全介助|要介助|できない|不可|禁止|不眠|眠れ[なず]|転倒|せん妄|不穏|チアノーゼ|呼吸困難(?:感)?(?:あり|を訴)|息苦しい|SpO2/;
     const SUF_MILD = /やや|軽度|少量|わずか|軽い|軽度/;
+    // 一般条件: 同一節に「改善した」ことを示す語があり、否定（ない・ず・悪化）が続かないときは、症状語があっても未充足の根拠にしない。
+    const SUF_IMPROVED = /(?:軽くなっ|軽減|改善|よくなっ|良くなっ|楽になっ|落ち着い|消失|治まっ|おさまっ|慣れてき|よく眠れ|ぐっすり|眠れるようになっ|できるようになっ)(?![^。、]{0,3}(?:ない|ず|悪化))/;
     // Evidence-relevance gate (general): a value or an order is evidence only through a clinically meaningful relationship.
     //  - a lab value inside its reference range never establishes that a need is fulfilled (normal Na/K/glucose ≠ adequate nutrition or elimination; normal RBC/Hb/Ht ≠ respiration);
     //  - inflammation markers (CRP/WBC) do not by themselves show impaired temperature regulation (7) or a safety problem (9) — they need a temperature or symptom finding;
@@ -1327,6 +1329,7 @@
         const r = sufficiencyClauseVerdict(p, needId, { speech });
         if (r.v === 'unmet') {
 
+          if (SUF_IMPROVED.test(p)) { if (!met) met = { v: 'met', hit: '改善', clause: p }; continue; }
           if (SUF_MILD.test(p) || /^[↑↓]$/.test(r.hit)) continue;
           if (!unmet) unmet = { v: 'unmet', hit: r.hit, clause: p, severe: SUF_SEVERE.test(p) };
           else if (SUF_SEVERE.test(p)) unmet.severe = true;
@@ -1347,6 +1350,12 @@
         met = null; pending = null;
       }
       return unmet || met || pending || { v: '', hit: '', clause: '' };
+    }
+    // 経過日の読み取り（産褥/術後/入院/生後N日目、POD、N病日）。読めないカードは null。
+    function suffDayOf(i) {
+      const t = [i.fieldLabel, i.timestamp, i.text].map(x => String(x || '')).join(' ').normalize('NFKC');
+      const m = t.match(/(?:産褥|術後|入院|分娩後|生後|手術後)\s*([0-9]{1,3})\s*日(?:目)?|POD\s*([0-9]{1,3})|([0-9]{1,3})\s*病日/);
+      return m ? Number(m[1] || m[2] || m[3]) : null;
     }
     function placeByDate(i) {
       return typeof inferAssessmentColumn === 'function' ? inferAssessmentColumn(i.fieldLabel, i.timestamp, null) : null;
@@ -1571,7 +1580,30 @@
         const latestByKey = {};
         list.forEach(i => { const k = (String(i.text || '').normalize('NFKC').match(new RegExp(SUPERSEDABLE.source.replace('^', '(?:^|[^A-Za-z])'), 'i')) || [])[0]; if (k) latestByKey[keyOf(k.replace(/^[^A-Za-z0-9ァ-ヶ一-龠]+/, ''))] = i; });
         const supersededUnmet = (i, r) => { const k = keyOf(r.hit); const last = k ? latestByKey[k] : null; return !!last && last !== i && r.v === 'unmet' && !rulesOf(last.text).some(x => x.need === r.need && x.v === 'unmet' && keyOf(x.hit) === k); };
-        list.forEach(i => rulesOf(i.text).forEach(r => { if (supersededUnmet(i, r)) return; if (r.v && (!r.tag || (i.hendersonIds || []).includes(r.need))) (byNeed[r.need] = byNeed[r.need] || []).push({ ...r, id: i.id }); }));
+        // 一般条件（最新の状態を優先）: そのニーズの全カードの経過日が読め、最新の日に充足を示すカード（改善の記録を含む）があり、
+        // その日のカードに未充足の根拠がないとき、前の日の未充足は履歴として扱う。経過日が読めない・最新日にも未充足があれば従来どおり。
+        const pk = phaseKeys[0] === 'pre' ? 'pre' : 'post';
+        const lastDayOf = {};
+        const supersededByLatest = (i, r) => {
+          if (r.v !== 'unmet' || !r.tag) return false;
+          const n = r.need;
+          if (!(n in lastDayOf)) {
+            const cs = list.filter(x => (x.hendersonIds || []).includes(Number(n)));
+            const days = cs.map(suffDayOf);
+            let res = null;
+            if (cs.length > 1 && days.every(d => d !== null)) {
+              const last = Math.max(...days);
+              const onLast = cs.filter((x, k) => days[k] === last);
+              const unmetLast = onLast.some(x => rulesOf(x.text).some(y => y.need === n && y.v === 'unmet') || sufficiencyCardVerdict(x, Number(n), pk).v === 'unmet');
+              const metLast = onLast.some(x => sufficiencyCardVerdict(x, Number(n), pk).v === 'met');
+              if (metLast && !unmetLast) res = last;
+            }
+            lastDayOf[n] = res;
+          }
+          const last = lastDayOf[n];
+          return last !== null && suffDayOf(i) !== null && suffDayOf(i) < last;
+        };
+        list.forEach(i => rulesOf(i.text).forEach(r => { if (supersededUnmet(i, r) || supersededByLatest(i, r)) return; if (r.v && (!r.tag || (i.hendersonIds || []).includes(r.need))) (byNeed[r.need] = byNeed[r.need] || []).push({ ...r, id: i.id }); }));
         if (listRulesFn) listRulesFn(list).forEach(r => { if (r.v && res[r.need]) (byNeed[r.need] = byNeed[r.need] || []).push({ ...r }); });
         Object.keys(byNeed).forEach(n => {
           const r = res[n]; if (!r) return;
@@ -1830,7 +1862,17 @@
             if (isPreop(i) && ((phaseKey === 'pre' && r.v === 'unmet') || (phaseKey === 'post' && r.v === 'met'))) r = { v: '', hit: '', clause: '' };
             return { i, r };
           });
-          const um = rs.filter(x => x.r.v === 'unmet'), mt = rs.filter(x => x.r.v === 'met');
+          let um = rs.filter(x => x.r.v === 'unmet'); const mt = rs.filter(x => x.r.v === 'met');
+          // 一般条件（最新の状態を優先）: 全カードの経過日が読め、最新の日に充足を示す記録があり未充足の記録がないときは、
+          // それより前の日の未充足は経過の履歴として扱い、現在の判定には使わない。経過日が読めない・最新日にも未充足がある場合は従来どおり。
+          if (um.length && mt.length) {
+            const days = rs.filter(x => x.r.v === 'unmet' || x.r.v === 'met').map(x => suffDayOf(x.i));
+            if (days.every(d => d !== null)) {
+              const last = Math.max(...days);
+              const onLast = rs.filter(x => (x.r.v === 'unmet' || x.r.v === 'met') && suffDayOf(x.i) === last);
+              if (onLast.some(x => x.r.v === 'met') && !onLast.some(x => x.r.v === 'unmet')) um = um.filter(x => suffDayOf(x.i) === last);
+            }
+          }
           const short = x => { const c = x.r.clause.slice(0, 30); return /^「.*」$/.test(c) ? c : `「${c}」`; };
 
           const fct = list => list.slice(0, 5).map(x => ({ id: x.i.id, text: String(x.r.clause || x.r.hit || '').replace(/^[「『]|[」』]$/g, '').slice(0, 40), kind: 'obs' }));
