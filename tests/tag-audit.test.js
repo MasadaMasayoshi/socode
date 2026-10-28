@@ -97,3 +97,10 @@ test('新分類先（データ品質・自己管理の工程・支援の可用�
   ['実家は車で10分', '母は仕事で夜まで不在', '支援者は限られる'].forEach(t => assert.equal(key(t), 'availability', t));
   ['血糖値は120mg/dL', '夫が面会に来た'].forEach(t => assert.notEqual(['dataquality', 'selfmgmt', 'availability'].includes(key(t)), true, t));
 });
+
+test('新分類先（時相・条件付き／症状の横断概念）: 一般条件で提案し、反例は提案しない', () => {
+  const key = t => (app.proposeCardDestination(t) || {}).key;
+  ['酸素2L下でSpO2 96%', 'SpO2 95%（室内気）', '透析前の体重65kg'].forEach(t => assert.equal(key(t), 'phase', t));
+  ['疼痛の程度はNRS5', '嘔吐の回数が増えた', '転倒の頻度は月1回'].forEach(t => assert.equal(key(t), 'symptom', t));
+  ['SpO2 96%', '血糖値は120mg/dL'].forEach(t => assert.notEqual(['phase', 'symptom'].includes(key(t)), true, t));
+});
