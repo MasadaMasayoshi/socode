@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.183'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.184'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -894,6 +894,25 @@
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { try { init(); } catch (e) { } }); else { try { init(); } catch (e) { } }
     })();
 
+// Destination proposals for cards that are deliberately not forced into a Henderson need: where the information belongs instead.
+// General layers: structure (headings/tables), specialty concept (kept separate from the 14 needs), background, subject-specific (newborn / family), incomplete fragment.
+const CARD_DESTINATIONS = [
+  { key: 'fragment', re: /^[^\s。、]{1,6}(?:時|後|前|中)(?:付|に|を|が|の)$/, label: '不完全な断片', to: '元の文章へ復元して照合（単独カードにしない）' },
+  { key: 'overall', re: /(?:身体的)?異常(?:は)?(?:なし|みられ(?:ず|なかった)|を認めず)|問題なし/, label: '総合所見', to: '評価した範囲を明記した総合所見として保持（単独で充足判定に使わない）' },
+  { key: 'puerperal', re: /子宮(?:底|復古|の硬さ|収縮)|悪露|後陣痛|会陰(?:切開|裂傷|創)|分娩(?:直後|後)\s*\d*時間後/, label: '産褥の回復（専門概念）', to: '専門概念タグ「産褥の回復」として保持。痛みで動けない・出血や発熱の徴候があるときだけ4・7・9へ対応づける' },
+  { key: 'lactation', re: /乳房|乳頭|乳汁|乳管|初乳|授乳|母乳|哺乳|含ませ|吸着|吸啜/, label: '授乳・乳房（専門概念）', to: '専門概念タグ「授乳・乳房」として保持。母親の食事・水分は2、授乳技術の習得は14、不安の表出は10へ必要に応じて対応づける' },
+  { key: 'newborn', re: /新生児|出生時体重|生後\s*\d+\s*日|児の(?:健康|哺乳|体重|様子)|胎児付属物|奇形なし|仮死なし/, label: '新生児の情報（対象：新生児）', to: '新生児の情報として別管理（母親の身体所見に混ぜない）。母親の授乳評価とは関連づけだけ行う' },
+  { key: 'delivery', re: /陣痛|分娩(?:経過|所要|開始)|自然破水|子宮口全開|出産(?:する|した)|正常分娩|娩出|分娩時出血/, label: '分娩・出産の経過（背景）', to: '背景情報（時期＝分娩期）として保持。現在の症状と混ぜない' },
+  { key: 'pregnancy', re: /妊娠\s*\d+\s*週|妊娠(?:経過|中)|初産婦|経産婦|妊娠分娩歴|母親学級/, label: '妊娠・出産歴（背景）', to: '背景情報（時期＝妊娠期・過去）として保持。妊娠中の検査値は産褥の現在値にしない' },
+  { key: 'history', re: /\[?(?:既往歴|アレルギー|感染症|過去の出来事)\]?/, label: '既往・背景情報', to: '背景情報として保持。現在の問題の根拠にしない' },
+  { key: 'family', re: /夫|妻|両親|実家|同居|付き添|面会|賃貸|住居|復職|産休|会社員|沐浴は自分/, label: '家族・社会背景', to: 'ジェノグラム・関連図・支援体制の情報として保持。家族の意向は産婦本人の所見と区別する' }
+];
+function proposeCardDestination(text) {
+  const t = String(text || '').normalize('NFKC').trim();
+  if (typeof isStructuralHeadingLine === 'function' && isStructuralHeadingLine(t)) return { key: 'structure', label: '見出し・表の参照（構造情報）', to: '見出しとして保持し、続く行の文脈にする（患者の所見にしない）' };
+  const d = CARD_DESTINATIONS.find(x => x.re.test(t));
+  return d ? { key: d.key, label: d.label, to: d.to } : null;
+}
 // Tag audit: compares every card's current Henderson tags with a fresh rule-based proposal. Read-only; it never edits a card or a user's tags.
 function buildTagAuditRows(cp) {
   const rows = [];
@@ -904,14 +923,15 @@ function buildTagAuditRows(cp) {
     const prop = structural ? [] : Array.from(new Set(detectMultipleHendersonTags(text))).sort((a, b) => a - b);
     const missing = prop.filter(x => !cur.includes(x)), extra = cur.filter(x => !prop.includes(x));
     const noType = i.type === 'unclassified';
-    if (!missing.length && !extra.length && !noType) return;
+    const dest = (!prop.length || !cur.length) ? proposeCardDestination(text) : null;
+    if (!missing.length && !extra.length && !noType && !(dest && !cur.length)) return;
     const reasons = [];
     if (structural) reasons.push('見出し・表の参照で、所見ではない');
     if (missing.length) reasons.push('文の意味から付くはずのタグが現在ない');
     if (extra.length && !structural) reasons.push('現在のタグが文の意味から支持されない');
     if (noType) reasons.push('S/Oが未決定');
     rows.push({
-      id: i.id, text, currentTags: cur, proposedTags: prop, missingTags: missing, removeTags: extra, reason: reasons.join('／'),
+      id: i.id, text, destination: dest, currentTags: cur, proposedTags: prop, missingTags: missing, removeTags: extra, reason: reasons.join('／'),
       context: [i.timestamp, i.fieldLabel].filter(Boolean).join(' '), confidence: structural ? '高' : (missing.length && !extra.length ? '中' : '低'),
       // Only a pure addition to an untagged card is eligible; any removal or change may be a user edit, so it needs a person.
       autoFix: !cur.length && missing.length > 0 && !structural,
@@ -924,12 +944,12 @@ function buildTagAuditText(cp) {
   const rows = buildTagAuditRows(cp);
   if (!rows.length) return '【タグ監査】修正候補はありません（未分類0件を、分類が正しい根拠にはしていません）';
   const nm = ids => ids.length ? ids.join('・') : 'なし';
-  return '【タグ監査（候補。自動では変更しません）】\n' + rows.map(r => `・${r.id}｜${r.text}\n　現在=${nm(r.currentTags)}／提案=${nm(r.proposedTags)}／不足=${nm(r.missingTags)}／外す候補=${nm(r.removeTags)}／確度=${r.confidence}／自動反映=${r.autoFix ? '可（追加のみ）' : '不可'}\n　理由：${r.reason}${r.context ? `／文脈：${r.context}` : ''}／確認：${r.manual}`).join('\n');
+  return '【タグ監査（候補。自動では変更しません）】\n' + rows.map(r => `・${r.id}｜${r.text}\n　現在=${nm(r.currentTags)}／提案=${nm(r.proposedTags)}／不足=${nm(r.missingTags)}／外す候補=${nm(r.removeTags)}／確度=${r.confidence}／自動反映=${r.autoFix ? '可（追加のみ）' : '不可'}${r.destination ? `\n　分類先の提案：${r.destination.label}（${r.destination.to}）` : ''}\n　理由：${r.reason}${r.context ? `／文脈：${r.context}` : ''}／確認：${r.manual}`).join('\n');
 }
 
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {
-    buildTagAuditRows, buildTagAuditText, CHECKPOINT_MAX, createCheckpoint, deleteCheckpoint, checkpointList, diffCards, inlineTextDiffHtml, maybeCheckpointOnOpen,
+    buildTagAuditRows, buildTagAuditText, proposeCardDestination, CHECKPOINT_MAX, createCheckpoint, deleteCheckpoint, checkpointList, diffCards, inlineTextDiffHtml, maybeCheckpointOnOpen,
     restoreCardFromCheckpoint, splitCardIntoParts, undoLast, pushUndo, workflowStatus, REPORT_FORMATS, defaultReportLayout, buildReport, reportToText, reportToHtml, reportDayOptions,
 
     calculateAndAddDerivedMetricCards, parseAiJsonArray, safeDomId, buildPrintAiSectionsHtml, formatEditLogEntry, storedAiHtml, isAiStepRunning

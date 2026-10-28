@@ -32,3 +32,18 @@ test('audit lists missing/wrong tags, keeps user tags, and is read-only', () => 
   assert.match(app.buildTagAuditText({ items }), /自動では変更しません/);
   assert.match(app.buildTagAuditText({ items: [] }), /修正候補はありません/);
 });
+
+test('cards not forced into a Henderson need get a destination proposal (concept / structure / background / fragment)', () => {
+  const d = t => (app.proposeCardDestination(t) || {}).key;
+  assert.equal(d('3 乳房状態'), 'structure');
+  assert.equal(d('入院時付'), 'fragment');
+  assert.equal(d('子宮の硬さ：臍下2横指、恥骨結合上13cm 良好'), 'puerperal');
+  assert.equal(d('乳管開通4〜5本 乳房緊満なし 初乳がわずかに滲むていど'), 'lactation');
+  assert.equal(d('児の健康状態:出生時体重2930g 仮死なし'), 'newborn');
+  assert.equal(d('朝4時に陣痛が始まり、分娩開始で朝7時に入院となる'), 'delivery');
+  assert.equal(d('母子ともに身体的異常はみられず'), 'overall');
+  assert.equal(app.proposeCardDestination('胸痛あり'), null, 'a plain symptom needs no destination');
+  const rows = app.buildTagAuditRows({ items: [{ id: 'u', type: 'unclassified', text: '悪露 赤色中等量', hendersonIds: [] }] });
+  assert.equal(rows[0].destination.key, 'puerperal');
+  assert.match(app.buildTagAuditText({ items: [{ id: 'u', type: 'unclassified', text: '悪露 赤色中等量', hendersonIds: [] }] }), /分類先の提案：産褥の回復/);
+});
