@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.192'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.193'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -3121,9 +3121,13 @@
         const auto = ['rules', 'map', 'import', 'ai'].includes(p.source) && !p.userEdited;
         const empty = !p.goalShort && !p.goalLong && !p.op.length && !p.tp.length && !p.ep.length;
         if (auto && (cpPlanIncoherent(p) || (empty && p.validation && p.validation.kind === 'risk'))) { regenerateCarePlanSections(cp, p); regenerated++; }
-        else if (auto && (!p.tp.length || !p.ep.length)) {
+        else if (auto && (!p.op.length || !p.tp.length || !p.ep.length || (!p.goalShort && !p.goalLong))) {
+          // 一般条件: 自動で作られた計画（利用者が編集していない）の空欄は、手本から OP・TP・EP・目標のすべてを補う。空欄だけを埋め、書かれた内容は変えない。
           const model = cpModelOrFallback(cp, p);
-          if (model) ['tp', 'ep'].forEach(k => { if (!p[k].length && model[k]?.length) { p[k] = [...model[k]]; p.reasonNeeded = true; } });
+          if (model) {
+            ['op', 'tp', 'ep'].forEach(k => { if (!p[k].length && model[k]?.length) { p[k] = [...model[k]]; p.reasonNeeded = true; } });
+            if (!p.goalShort && !p.goalLong && (model.goalShort || model.goalLong)) { p.goalShort = model.goalShort || ''; p.goalLong = model.goalLong || ''; p.reasonNeeded = true; }
+          }
         }
         else if (!p.genKey && (p.goalShort || p.op.length)) p.genKey = cpPlanKey(p);
 
