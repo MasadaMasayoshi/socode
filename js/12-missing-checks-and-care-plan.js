@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.193'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.194'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -2224,9 +2224,13 @@
         if (cpSufMemo.key !== key) { cpSufMemo.key = key; cpSufMemo.res = judgeSufficiencyByRules(cp); }
         const v = ((cpSufMemo.res || {})[top] || {}).all || {};
         const need = (HENDERSON_NEEDS.find(n => String(n.id) === String(top)) || {}).name || `欲求${top}`;
-        if (v.verdict === 'met') return `この計画の根拠は主に「${need}」のカードです。充足判定では「充足」なので、いまも必要な計画か、根拠の日時（最新の状態）を確認してください`;
+        const dom = typeof cpDomainOf === 'function' ? cpDomainOf(plan) : null;
+        const risk = typeof cpIsRisk === 'function' && cpIsRisk(plan);
+        // 予防の計画（リスク状態）は、いま充足していても必要なので「充足」は知らせない。未充足の根拠は、この計画の領域に関係するカードだけを挙げる。
+        if (v.verdict === 'met') return risk ? '' : `この計画の根拠は主に「${need}」のカードです。充足判定では「充足」なので、いまも必要な計画か、根拠の日時（最新の状態）を確認してください`;
         if (v.verdict === 'unknown') return `この計画の根拠は主に「${need}」のカードです。充足判定は「情報不足」なので、計画の前に不足している情報の確認が必要か見てください`;
-        if (v.verdict === 'unmet') { const miss = (v.evidence || []).map(String).filter(id => !ids.has(id)); if (miss.length) return `充足判定の「${need}」の未充足の根拠カード（${miss.slice(0, 3).join('・')}）が、この計画の根拠に入っていません`; }
+        if (v.verdict === 'unmet') { const byId = {}; (cp.items || []).forEach(i => { byId[String(i.id)] = i; });
+          const miss = (v.evidence || []).map(String).filter(id => !ids.has(id) && dom && dom.words && byId[id] && dom.words.test(String(byId[id].text || ''))); if (miss.length) return `充足判定の「${need}」の未充足の根拠カード（${miss.slice(0, 3).join('・')}）が、この計画の根拠に入っていません`; }
       } catch (e) { /* 連動の通知は補助。失敗しても計画の表示は止めない */ }
       return '';
     }
