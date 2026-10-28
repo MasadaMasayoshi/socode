@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.185'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.199'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -343,7 +343,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const unclassified = items.filter(i => i.type === 'unclassified');
       if (on('unclassified') && unclassified.length) body += `<h2>${n++}. 未分類のカード</h2>` + dataTable(unclassified);
       const destRows = typeof buildTagAuditRows === 'function' ? buildTagAuditRows({ items }).filter(r => r.destination && !r.currentTags.length) : [];
-      if (on('unclassified') && destRows.length) body += `<h2>${n++}. 分類先の提案（ヘンダーソンに無理に入れないカード）</h2><ul>${destRows.map(r => `<li>${escapeHtml(r.text)}<br><span class="muted">→ ${escapeHtml(r.destination.label)}：${escapeHtml(r.destination.to)}</span></li>`).join('')}</ul>`;
+      if (on('unclassified') && destRows.length) body += `<h2>${n++}. 保持先（ヘンダーソンに無理に入れないカードの置き場）</h2><ul>${destRows.map(r => `<li>${escapeHtml(r.text)}<br><span class="muted">→ ${escapeHtml(r.destination.label)}：${escapeHtml(r.destination.to)}</span></li>`).join('')}</ul>`;
       if (on('henderson')) {
       body += `<h2>${n++}. ヘンダーソン14項目別アセスメント整理</h2>`;
       const active = items.filter(i => i.type !== 'unnecessary');
@@ -656,7 +656,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       {
         const destRows = typeof buildTagAuditRows === 'function' ? buildTagAuditRows(cp).filter(r => r.destination && !r.currentTags.length) : [];
         if (on('unclassified') && destRows.length) {
-          out += plainSectionTitle('4-2. 分類先の提案（ヘンダーソンに無理に入れないカード）');
+          out += plainSectionTitle('4-2. 保持先（ヘンダーソンに無理に入れないカードの置き場）');
           out += plainList(destRows.map(r => `${r.text} → ${r.destination.label}：${r.destination.to}`));
         }
       }

@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.198'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.199'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -947,6 +947,8 @@ function buildTagAuditRows(cp) {
         else sibNeeds = [];
       }
     }
+    // どのタグも付かないカードにも、必ず保持先を示す（未設定のまま残さない）。内容は変えず、ヘンダーソンにも無理に入れない。
+    if (!cur.length && !prop.length && !dest && !structural) dest = { key: 'other', label: 'その他の記録（保持）', to: 'どの欲求にも当てはまらない記録として保持（内容は消さない）。分類が必要なら新しい項目の追加を相談' };
     if (!missing.length && !extra.length && !noType && !(dest && !cur.length)) return;
     const reasons = [];
     if (structural) reasons.push('見出し・表の参照で、所見ではない');

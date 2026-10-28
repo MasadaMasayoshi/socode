@@ -57,3 +57,10 @@ test('v.197b: 同じ項目名の記録は、タグ未設定のカードを仲間
   assert.equal(row.autoFix, false);
   assert.deepEqual(Array.from(cp.items[1].hendersonIds), []);
 });
+
+test('v.199: どのタグも付かないカードにも保持先が示され、内容もタグも変わらない', () => {
+  const cp = { id: 'p', items: [{ id: 'k', type: 'o', text: '特記すべき記載なしの備忘', timestamp: '産褥1日目', hendersonIds: [], assessmentCols: {} }], myAssessments: {} };
+  const row = app.buildTagAuditRows(cp).find(r => r.id === 'k');
+  assert.ok(row && row.destination);
+  assert.deepEqual(Array.from(cp.items[0].hendersonIds), []);
+});
