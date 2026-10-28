@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.189'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.191'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -1407,7 +1407,7 @@
     }
     // ===== v.95: registered knowledge made usable by the sufficiency judgment (参考資料 sources keep their own provenance labels) =====
     // Context for rules that depend on the record as a whole (set by judgeSufficiencyByRules; children use the child vital ranges).
-    const SUF_CTX = { ageGroup: null };
+    const SUF_CTX = { ageGroup: null, sex: null };
     // lab key -> needs it informs, the abnormal direction that is a problem, and whether the value is chronic/soft (may be compensated).
     // HbA1c / Alb (v.91) and temperature / SpO2 / respiration (v.91, v.92) keep their explicit rules; this table adds the rest.
     const SUF_LAB_NEEDS = {
@@ -1433,6 +1433,8 @@
         const m = SUF_LAB_NEEDS[r.key]; if (!m) return;
         if (child && !(typeof CHILD_SAFE_LAB_REFERENCE_KEYS !== 'undefined' && CHILD_SAFE_LAB_REFERENCE_KEYS.has(r.key))) return;
         if (!['high', 'low', 'normal'].includes(r.status)) return;
+        // 2つの基準表が「正常」か「異常」かで食い違う値は、どちらとも言えないので根拠にしない（性別が分かれば性別別の範囲で比べる）。
+        if (typeof labTableStatus === 'function') { const ts = labTableStatus(r.key, r.value, r.unit, SUF_CTX.sex); if (ts && ts !== r.status && (ts === 'normal' || r.status === 'normal')) return; }
         const refText = r.ref ? String(r.ref.text || '') : '';
         const ref = `${r.key}の基準（${refText}）${m.soft ? '・検査値（慢性）' : ''}（参考基準）`;
         m.needs.forEach(need => {
@@ -1848,6 +1850,7 @@
       const items = (cp.items || []).filter(i => i && !i.deleted && !i.aiSuggested && i.type !== 'unnecessary' && !isMissingInfoOnlyItem(i) && !HISTORY_LABELS.includes(i.fieldLabel));
       const out = {};
       const surgical = isSurgicalPatient(cp);
+      try { SUF_CTX.sex = typeof labBackgroundContext === 'function' ? (labBackgroundContext(cp).sex || null) : null; } catch (e) { SUF_CTX.sex = null; }
       SUF_CTX.ageGroup = typeof detectAgeGroupFromText === 'function' ? detectAgeGroupFromText([cp.sourceText || '', ...(cp.items || []).slice(0, 40).map(i => i && i.text)].join('\n')) : null;
       HENDERSON_NEEDS.forEach(need => {
         const mine = items.filter(i => !i.diseaseGeneral && (i.hendersonIds || []).includes(need.id));

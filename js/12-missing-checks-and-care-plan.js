@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.187'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.191'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -2874,6 +2874,16 @@
       let last = null; const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g'); let m;
       while ((m = g.exec(text))) last = parseFloat(m[1]);
       return last;
+    }
+    // 検査値の基準の一本化の入口: 充足判定側（LAB_STANDARDS）の判定が、共通基準範囲表（LAB_REFERENCE_TABLE）と食い違うかを返す。
+    // 単位が揃わない・表にない・値がないときは null（比較しない）。性別が不明なら、広い方の範囲（背景メモと同じ扱い）で見る。
+    function labTableStatus(key, value, unit, sex) {
+      const row = LAB_REFERENCE_TABLE.find(x => x.key === key);
+      const norm = u => String(u || '').replace(/mEq\/L/i, 'mmol/L').replace(/\s/g, '');
+      if (!row || typeof value !== 'number' || norm(row.unit) !== norm(unit)) return null;
+      const pick = (o, wantMin) => { const a = o.M, b = o.F; if (a === undefined && b === undefined) return null; if (sex === 'M') return a; if (sex === 'F') return b; return wantMin ? Math.min(a, b) : Math.max(a, b); };
+      const lo = pick(row.lo, true), hi = pick(row.hi, false);
+      return lo !== null && value < lo ? 'low' : hi !== null && value > hi ? 'high' : 'normal';
     }
     function labBackgroundNotes(cp) {
       const c = labBackgroundContext(cp), t = c.text, out = [];
