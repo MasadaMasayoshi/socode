@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.168'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.181'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -1266,7 +1266,23 @@
     const SUF_PROBLEM_CUE = /痛|苦しい|できない|困難|不能|悪心|嘔|膨満|不眠|眠れ|不安|ふらつ|発熱|発赤|腫脹|熱感|排膿|潰瘍|低下|増強|悪化|拒否|不規則|中断|間違/;
     const SUF_SEVERE = /難聴|伝わらない|全介助|要介助|できない|不可|禁止|不眠|眠れ[なず]|転倒|せん妄|不穏|チアノーゼ|呼吸困難(?:感)?(?:あり|を訴)|息苦しい|SpO2/;
     const SUF_MILD = /やや|軽度|少量|わずか|軽い|軽度/;
+    // Evidence-relevance gate (general): a value or an order is evidence only through a clinically meaningful relationship.
+    //  - a lab value inside its reference range never establishes that a need is fulfilled (normal Na/K/glucose ≠ adequate nutrition or elimination; normal RBC/Hb/Ht ≠ respiration);
+    //  - inflammation markers (CRP/WBC) do not by themselves show impaired temperature regulation (7) or a safety problem (9) — they need a temperature or symptom finding;
+    //  - SpO2 recorded under supplemental oxygen is not evidence of room-air oxygenation;
+    //  - an instruction/order (術後指示・指示・オーダー) shows what was ordered, not that it was done;
+    //  - therapeutic fasting/IV fluid is a prescribed state: nutrition is pending until oral intake resumes, not "unmet" or "met".
     function sufficiencyCardVerdict(item, needId, phase) {
+      const r = sufficiencyCardVerdictCore(item, needId, phase);
+      const t = String(item && item.text || '').normalize('NFKC');
+      if (!r || !r.v) return r;
+      const isLabRef = /\(基準値[:：]/.test(t);
+      if (isLabRef && r.v === 'met') return { v: '', hit: '', clause: '' };
+      if (isLabRef && /^(?:CRP|WBC|白血球)\b/i.test(t.trim()) && [7, 9].includes(needId) && !/体温|発熱|熱|℃|°C/.test(t)) return { v: '', hit: '', clause: '' };
+      if (needId === 1 && r.v === 'met' && /SpO2|SaO2|酸素飽和度/i.test(t) && /酸素(?:投与|吸入)|O2|L\/分|L\/min|カヌラ|マスク|経鼻/i.test(t)) return { v: '', hit: '', clause: '' };
+      return r;
+    }
+    function sufficiencyCardVerdictCore(item, needId, phase) {
       if (SUF_NOT_CONFIRMED.test(String(item.text || '').normalize('NFKC'))) return { v: '', hit: '', clause: '' };
       if (needId === 1 && /トライボール|呼吸訓練/.test(String(item.text || '')) && !/呼吸困難|息苦|息切れ|チアノーゼ|SpO2|呼吸数/.test(String(item.text || ''))) return { v: '', hit: '', clause: '' };
 
@@ -1409,8 +1425,9 @@
         const refText = r.ref ? String(r.ref.text || '') : '';
         const ref = `${r.key}の基準（${refText}）${m.soft ? '・検査値（慢性）' : ''}（参考基準）`;
         m.needs.forEach(need => {
-          if (r.status === 'normal') out.push({ need, v: 'met', hit: c, ref, supportOnly: true });
-          else out.push({ need, v: (m.bad === 'both' || m.bad === r.status) ? 'unmet' : 'partial', hit: c, ref });
+          if (r.status === 'normal') { out.push({ need, v: 'met', hit: c, ref, supportOnly: true }); return; } // supporting only; never decides alone
+          if ((r.key === 'CRP' || r.key === 'WBC') && need === 7 && !/体温|発熱|熱|℃|°C/.test(t)) return; // inflammation markers alone do not show impaired temperature regulation
+          out.push({ need, v: (m.bad === 'both' || m.bad === r.status) ? 'unmet' : 'partial', hit: c, ref });
         });
       });
       // vitals (pulse, blood pressure); temperature / SpO2 / respiration are handled by the v.91 / v.92 rules

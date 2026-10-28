@@ -9,7 +9,8 @@ const verdict = (items, n, ph = 'post', extra) => app.ruleSufficiencyFor(cpOf(it
 test('labs: abnormal with name+unit -> problem finding for the mapped needs; normal -> no verdict alone; missing name/unit -> not parsed', () => {
   assert.strictEqual(verdict([card('a', 'Hb 7.8 g/dL', 1)], 1), 'unmet');
   assert.strictEqual(verdict([card('a', 'BUN 48 mg/dL', 3)], 3), 'unmet');
-  assert.strictEqual(verdict([card('a', 'CRP 9.5 mg/dL', 7)], 7), 'unmet');
+  assert.strictEqual(verdict([card('a', 'CRP 9.5 mg/dL', 9)], 9), 'unmet');
+  assert.strictEqual(verdict([card('a', 'CRP 9.5 mg/dL', 7)], 7), 'unknown');   // CRP alone does not show impaired temperature regulation
   assert.strictEqual(verdict([card('a', 'Hb 13.2 g/dL', 1)], 1), 'unknown');           // normal value alone: no verdict
   assert.strictEqual(verdict([card('a', 'BUN 14 mg/dL', 3)], 3), 'unknown');
   assert.strictEqual(Array.from(app.sufficiencyLabRules('Hb 7.8')).length, 0);          // no unit

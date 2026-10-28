@@ -1,7 +1,7 @@
 // Genogram (家族構成図): built from the record, then editable. Mirrors the relation map pattern (auto build -> edit -> save with the patient -> export).
 // Kinship words are a built-in dictionary (内蔵辞書 2026-10-16（出典未確認）). Nothing is invented: only members, ages and notes written in the record are drawn.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.111'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.181'; // Version stamp (scripts/stamp-version.js)
 
     const GG_PROVENANCE = '内蔵辞書 2026-10-16（出典未確認）';
     // canonical key -> [role label, sex, generation, order within the row]
@@ -41,6 +41,8 @@
         const w = m[0], after = sentence.slice(m.index + w.length), before = sentence.slice(0, m.index);
         if (GG_AFTER_BAD[w] && GG_AFTER_BAD[w].test(after)) continue;
         if (GG_BEFORE_BAD[w] && GG_BEFORE_BAD[w].test(before)) continue;
+        // 初孫 told from the parents' side (両親/実家/にとって) names the newborn, who is the patient's child, not the patient's grandchild.
+        if (w === '孫' && /初$/.test(before) && /両親|実家|にとって|祖父母/.test(sentence)) continue;
         // v.101: generic child words need an explicit count (or a negation); talk about children in general is not a family member.
         if (/^(?:子ども|子供|こども|お子さん|お子様)$/.test(w) && !(/^(?:が|は|も)?\s*\d\s*人/.test(after) || /\d\s*人の$/.test(before) || GG_NEG.test(after))) continue;
         let keys = [].concat(GG_WORDS.find(x => x[0] === w)[1]);
