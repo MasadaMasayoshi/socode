@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.180'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.182'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1997,6 +1997,19 @@
           add(out.op, '運動の前後の血糖値と、補食の準備の有無');
           add(out.ep, '運動の前後に血糖を測ること、補食を携帯すること、運動中に症状が出たときの対応を、本人と一緒に確認する');
         }
+        // Patient-centred goal: an activity the patient wants to keep or resume (named from the record) becomes part of the plan, not only background.
+        const wish = T.match(/(部活動?|水泳|スポーツ|クラブ|練習|競技)[^。\n]{0,12}(?:戻りたい|続けたい|再開|復帰|やりたい)|(?:戻りたい|続けたい|再開したい)[^。\n]{0,6}(部活動?|水泳|スポーツ|クラブ)/);
+        const resumed = /(部活動?|水泳|スポーツ|クラブ)[^。\n]{0,10}(?:再開した|復帰した|参加している)/.test(T);
+        if (sport && (wish || resumed)) {
+          const act = (wish && (wish[1] || wish[2])) || (T.match(/部活動?|水泳|スポーツ|クラブ/) || ['活動'])[0];
+          add(out.tp, `本人が続けたい${act}を目標に含め、安全に続けるための手順（測定の時機・補食・連絡・指導者との共有）を本人・家族・学校と一緒に決める（運動の可否や投与量の調整は医師の指示による。一律に制限しない）`);
+          add(out.op, `${act}の前後・最中・後の血糖の推移と、症状がなくても測れているか（症状がないことは低血糖がないことの根拠にしない）`);
+          add(out.ep, '運動で血糖が下がることがあること、症状がなくても測ること、補食の使い方と困ったときの連絡を、本人の練習内容に合わせて確認する');
+        }
+        if (/(?:祖母|母親|母|父親|父|家族)[^。\n]{0,16}(?:疲れ|疲労|負担|体調を崩|睡眠不足|仕事を(?:休|減|調整)|勤務を(?:変|調整))/.test(T)) {
+          add(out.op, '誰が食事・測定・注射・送迎・受診のどの世話を担っているか、家族の疲労・睡眠・勤務の変化、本人が担えている部分');
+          add(out.tp, '見守りを続けながら役割を本人の準備状況に合わせて少しずつ移し、家族の休息と相談先を確保する');
+        }
         if (school) add(out.tp, '家族・学校の先生と、低血糖時の対応・補食の置き場所・連絡の手順を共有する（医師の指示と学校の決まりに沿って）');
         if (teen) add(out.tp, '家族の見守りは続けつつ、本人が決める場面を少しずつ増やす（本人の意思と家族の関わり方を分けて確認する）');
         const postD = /退院後|外来(?:受診|にて)/.test(T);
@@ -2829,9 +2842,9 @@
       { key: '血糖', re: /(?:空腹時血糖|血糖(?:値)?|\bBS\b|\bGlu\b)\s*[:：]?\s*(\d{2,4})/i, unit: 'mg/dL', lo: { M: 73, F: 73 }, hi: { M: 109, F: 109 },
         ctx: { dm: 'ケトン・pH・脱水の有無と合わせて確認する', elder: '低血糖の症状が非典型なことがある', kidney: 'インスリンの作用が延長しやすい', liver: '糖代謝・摂取の変動', preg: '妊娠の糖代謝は別の基準で評価する', drug: [/インスリン|ステロイド|SU薬|スルホニル|経口血糖/, 'ステロイドで上昇、インスリン等で低下、感染・ストレスで上昇する影響を確認する'] }, extra: '糖尿病の診断の臨床判断値とは別' },
       { key: 'HbA1c', re: /HbA1c\s*[:：]?\s*(\d+(?:\.\d+)?)/i, unit: '%', lo: {}, hi: { M: 6.2, F: 6.2 },
-        ctx: { dm: '糖尿病の血糖管理の指標。食事・注射・自己管理の実施状況と合わせて確認する', elder: '貧血・CKDを考慮する', kidney: '腎性貧血・ESAなどで解釈が変わる', liver: '貧血・出血などで解釈が変わる', preg: '血糖管理をHbA1c単独にしない', drug: [/輸血|溶血|ESA|エリスロポエチン/, '輸血・溶血・出血で赤血球の寿命が変わると解釈が変わる'] } },
+        ctx: { dm: '糖尿病の血糖管理の指標（直近約1〜2か月の平均を反映）。治療中の目標値は医師が個別に決め、非糖尿病の基準範囲とは別。低血糖の有無・食事・注射・自己管理の実施状況と合わせて確認する', elder: '貧血・CKDを考慮する', kidney: '腎性貧血・ESAなどで解釈が変わる', liver: '貧血・出血などで解釈が変わる', preg: '血糖管理をHbA1c単独にしない', drug: [/輸血|溶血|ESA|エリスロポエチン/, '輸血・溶血・出血で赤血球の寿命が変わると解釈が変わる'] } },
       { key: 'pH', re: /\bpH\s*[:：]?\s*(\d\.\d+)/i, unit: '', lo: { M: 7.35, F: 7.35 }, hi: { M: 7.45, F: 7.45 },
-        ctx: { dm: '糖尿病ではケトアシドーシスの可能性を血糖・ケトン・呼吸数と合わせて確認する（診断はしない）', elder: 'PaCO2・HCO3-と組み合わせて解釈する', kidney: '代謝性アシドーシス', liver: '重症病態では乳酸などと合わせる', preg: '妊娠は呼吸の生理が変わる', drug: [/インスリン|ケトン|DKA/, '呼吸不全・DKA・腎不全・嘔吐などの原因を確認する'] } },
+        ctx: { dm: '糖尿病ではケトアシドーシスの可能性を血糖・ケトン・HCO3・呼吸数と合わせて確認する（診断名と検査値の整合は、記録された項目だけで見る。記録にない項目は推定しない）', elder: 'PaCO2・HCO3-と組み合わせて解釈する', kidney: '代謝性アシドーシス', liver: '重症病態では乳酸などと合わせる', preg: '妊娠は呼吸の生理が変わる', drug: [/インスリン|ケトン|DKA/, '呼吸不全・DKA・腎不全・嘔吐などの原因を確認する'] } },
       { key: 'WBC', ageSpecific: true, re: /(?:\bWBC|白血球)\s*[:：]?\s*(\d+(?:\.\d+)?)/i, unit: '×10^3/μL', lo: { M: 3.3, F: 3.3 }, hi: { M: 8.6, F: 8.6 },
         ctx: { elder: '感染でも反応が乏しいことがある', kidney: '', liver: '脾機能亢進などで低下し得る', preg: '妊娠では生理的に増加する', drug: [/ステロイド|化学療法|抗がん|免疫抑制/, 'ステロイドで上昇、化学療法で低下する影響を確認する'] }, extra: '分画も必要' },
       { key: 'PT-INR', ageSpecific: true, re: /(?:PT-?INR|\bINR)\s*[:：]?\s*(\d+(?:\.\d+)?)/i, unit: '', lo: {}, hi: { M: 1.1, F: 1.1 },

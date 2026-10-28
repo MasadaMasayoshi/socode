@@ -100,3 +100,18 @@ test('見出し行と、チェック記号が残った課題の指示文は所�
   const keep = a.classifyTextByRules('患者プロフィール\n8月1日 咳が続いている。v');
   assert.ok(keep.some(c => /咳/.test(c.text) && c.type !== 'unnecessary'));
 });
+
+test('a sport the patient wants to resume becomes a plan goal; family strain lines need recorded strain; no restriction wording', () => {
+  const cp = build(); app.buildCarePlansByRules(cp);
+  const body = JSON.stringify(app.carePlanList(cp));
+  assert.match(body, /本人が続けたい部活を目標に含め/);
+  assert.match(body, /症状がないことは低血糖がないことの根拠にしない/);
+  assert.ok(!/担っているか、家族の疲労/.test(body), 'family strain lines need a recorded strain');
+  assert.ok(!/運動を(?:控え|禁止|制限して)/.test(body));
+  (app.SAMPLE_CASES || []).filter(c => !/糖尿病/.test(c.label)).forEach(c => {
+    const other = { id: 's', title: 's', items: [], carePlans: {}, sourceText: c.text, myAssessments: {}, missingChecks: {} };
+    other.items = app.groupClinicalPhrasesWithTimestamps(c.text).filter(x => !x.isUnnecessaryBoilerplate).map((x, k) => ({ id: `s${k}`, type: 'o', text: x.text, timestamp: x.timestamp, hendersonIds: Array.from(new Set(app.detectMultipleHendersonTags(x.text))), assessmentCols: {} }));
+    app.buildCarePlansByRules(other);
+    assert.ok(!/続けたい部活を目標|症状がなくても測れている/.test(JSON.stringify(app.carePlanList(other))), `sport goal leaked into ${c.label}`);
+  });
+});

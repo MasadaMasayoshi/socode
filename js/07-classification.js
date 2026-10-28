@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.178'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.183'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -152,13 +152,19 @@
     function isProfileHeaderLine(t) {
       return t.length < 60 && /^患者(?:プロフィール|情報|背景|概要)?\s*(?:[:：]|[<＜〈(（\[「])/.test(t);
     }
+    // Numbered section titles (「3 乳房状態」「5 家族/役割関係」) and table pointers (「上記表参照」) carry no observation; they are structure.
+    function isStructuralHeadingLine(t) {
+      const x = String(t || '').normalize('NFKC').trim();
+      if (x.length > 20) return false;
+      return /^\d{1,2}[\s　.)）]*[^\d\s。、：:]{2,16}(?:状態|復古|回復|心理|関係|環境|状況|経過|情報|歴|評価|計画|背景|既往|アセスメント|ケア|機能|役割)$/.test(x) || /^(?:上記|以下|下記)?(?:の)?表(?:を)?参照$/.test(x);
+    }
     function isDeliberatelyUntaggedLine(text) {
       const t = String(text || '').normalize('NFKC');
-      if (isProfileHeaderLine(t)) return true;
+      if (isProfileHeaderLine(t) || isStructuralHeadingLine(t)) return true;
       return typeof pastEventWordOf === 'function' && !!pastEventWordOf({ text: t }) && /骨折|転倒|外傷|ギプス/.test(t) && !/現在|今回|いまも|痛み|制限|残って|続いて/.test(t.replace(/後遺障害などなし|後遺症なし/g, ''));
     }
     function detectMultipleHendersonTags(text) {
-      if (isPatientIdentityLine(text)) return [];
+      if (isPatientIdentityLine(text) || isStructuralHeadingLine(text)) return [];
       const raw = detectMultipleHendersonTagsRaw(text);
       const clean = String(text || '').replace(/（問い：[^）]*）/g, '');
       let ids = hendersonRelevanceFilter(clean, raw);

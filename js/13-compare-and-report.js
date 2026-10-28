@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.178'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.183'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -894,9 +894,42 @@
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { try { init(); } catch (e) { } }); else { try { init(); } catch (e) { } }
     })();
 
+// Tag audit: compares every card's current Henderson tags with a fresh rule-based proposal. Read-only; it never edits a card or a user's tags.
+function buildTagAuditRows(cp) {
+  const rows = [];
+  (cp.items || []).filter(i => !i.deleted && i.type !== 'unnecessary').forEach(i => {
+    const cur = Array.from(new Set(i.hendersonIds || [])).sort((a, b) => a - b);
+    const text = String(i.text || '');
+    const structural = typeof isStructuralHeadingLine === 'function' && isStructuralHeadingLine(text);
+    const prop = structural ? [] : Array.from(new Set(detectMultipleHendersonTags(text))).sort((a, b) => a - b);
+    const missing = prop.filter(x => !cur.includes(x)), extra = cur.filter(x => !prop.includes(x));
+    const noType = i.type === 'unclassified';
+    if (!missing.length && !extra.length && !noType) return;
+    const reasons = [];
+    if (structural) reasons.push('見出し・表の参照で、所見ではない');
+    if (missing.length) reasons.push('文の意味から付くはずのタグが現在ない');
+    if (extra.length && !structural) reasons.push('現在のタグが文の意味から支持されない');
+    if (noType) reasons.push('S/Oが未決定');
+    rows.push({
+      id: i.id, text, currentTags: cur, proposedTags: prop, missingTags: missing, removeTags: extra, reason: reasons.join('／'),
+      context: [i.timestamp, i.fieldLabel].filter(Boolean).join(' '), confidence: structural ? '高' : (missing.length && !extra.length ? '中' : '低'),
+      // Only a pure addition to an untagged card is eligible; any removal or change may be a user edit, so it needs a person.
+      autoFix: !cur.length && missing.length > 0 && !structural,
+      manual: extra.length || noType ? '現在のタグ・S/Oは利用者の編集の可能性があるため、自動では変更しない' : '追加のみ（承認後に反映）'
+    });
+  });
+  return rows;
+}
+function buildTagAuditText(cp) {
+  const rows = buildTagAuditRows(cp);
+  if (!rows.length) return '【タグ監査】修正候補はありません（未分類0件を、分類が正しい根拠にはしていません）';
+  const nm = ids => ids.length ? ids.join('・') : 'なし';
+  return '【タグ監査（候補。自動では変更しません）】\n' + rows.map(r => `・${r.id}｜${r.text}\n　現在=${nm(r.currentTags)}／提案=${nm(r.proposedTags)}／不足=${nm(r.missingTags)}／外す候補=${nm(r.removeTags)}／確度=${r.confidence}／自動反映=${r.autoFix ? '可（追加のみ）' : '不可'}\n　理由：${r.reason}${r.context ? `／文脈：${r.context}` : ''}／確認：${r.manual}`).join('\n');
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {
-    CHECKPOINT_MAX, createCheckpoint, deleteCheckpoint, checkpointList, diffCards, inlineTextDiffHtml, maybeCheckpointOnOpen,
+    buildTagAuditRows, buildTagAuditText, CHECKPOINT_MAX, createCheckpoint, deleteCheckpoint, checkpointList, diffCards, inlineTextDiffHtml, maybeCheckpointOnOpen,
     restoreCardFromCheckpoint, splitCardIntoParts, undoLast, pushUndo, workflowStatus, REPORT_FORMATS, defaultReportLayout, buildReport, reportToText, reportToHtml, reportDayOptions,
 
     calculateAndAddDerivedMetricCards, parseAiJsonArray, safeDomId, buildPrintAiSectionsHtml, formatEditLogEntry, storedAiHtml, isAiStepRunning
