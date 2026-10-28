@@ -17,7 +17,8 @@
     "test:legacy": "node --test tests/golden/legacy-classification.test.js tests/golden/legacy-real-record.test.js",
     "test:public": "node scripts/test-quiet.js",
     "test:verbose": "node scripts/run-tests.js",
-    "context": "node scripts/context.js"
+    "context": "node scripts/context.js",
+    "test:app": "node scripts/test-app.js"
   },
   "engines": {
     "node": "20.x"
