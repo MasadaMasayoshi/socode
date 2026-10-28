@@ -47,3 +47,11 @@ test('cards not forced into a Henderson need get a destination proposal (concept
   assert.equal(rows[0].destination.key, 'puerperal');
   assert.match(app.buildTagAuditText({ items: [{ id: 'u', type: 'unclassified', text: '悪露 赤色中等量', hendersonIds: [] }] }), /分類先の提案：産褥の回復/);
 });
+
+test('section titles, numbered viewpoint questions and table pointers never become cards; findings and quoted questions stay', () => {
+  const text = ['産褥1日目', '3　乳房状態・授乳', '1）出産後の生活の変化を理解しているか', '・上記表参照', '5　家族／役割関係', '2 人暮らし', '3 回排便あり', '1）発熱はないか確認する。', '「夜　何かあったらどうしよう　不安ですか」'].join('\n');
+  const cards = app.groupClinicalPhrasesWithTimestamps(text);
+  const excluded = cards.filter(c => c.isUnnecessaryBoilerplate).map(c => c.text.normalize('NFKC'));
+  ['3 乳房状態・授乳', '1)出産後の生活の変化を理解しているか', '上記表参照', '5 家族/役割関係'].forEach(h => assert.ok(excluded.some(e => e.replace(/\s/g, '') === h.replace(/\s/g, '').replace('／', '/')), `${h} should be excluded`));
+  ['2 人暮らし', '3 回排便あり', '1)発熱はないか確認する。'].forEach(k => assert.ok(cards.some(c => !c.isUnnecessaryBoilerplate && c.text.normalize('NFKC').replace(/\s/g, '') === k.replace(/\s/g, '')), `${k} must stay a card`));
+});

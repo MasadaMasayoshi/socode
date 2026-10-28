@@ -1,7 +1,7 @@
 // Local record extraction. Preserve source wording, units, timestamps and admission context.
 // Headings supply context; narrative numbers are not automatically laboratory measurements.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.178'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.186'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -266,6 +266,15 @@
       if (/^~~.*~~$/.test(t)) return true;
       return /^\d{1,2}[.．)）]\s*(?:~~)?[^。]{2,40}?(?:を|は)?(?:記入|作成|立案|明確化)(?:し[、,][^。]{0,20})?する。?(?:[(（][^)）]{0,30}[)）])?(?:~~)?$/.test(t) && /(?:アセスメント|関連図|看護計画|基礎情報|看護問題)/.test(t);
     }
+    // Section titles of a worksheet/record, not findings: numbered titles (「3 乳房状態・授乳」), numbered viewpoint questions without a quote
+    // (「1)出産後の生活の変化を理解しているか」) and table pointers (「上記表参照」). Their context stays with the lines that follow; they never become cards.
+    function isSectionHeadingText(str) {
+      const x = String(str || '').normalize('NFKC').trim().replace(/^[・･]\s*/, '');
+      if (!x || x.length > 40 || /[「」]/.test(x)) return false;
+      if (/^(?:上記|以下|下記)?(?:の)?表(?:を)?参照$/.test(x)) return true;
+      if (/^\d{1,2}[\s　.)）]*[^\d\s。、：:]{2,16}(?:状態|復古|回復|心理|関係|環境|状況|経過|情報|歴|評価|計画|背景|既往|アセスメント|ケア|機能|役割|授乳)(?:[・/][^\s。、：:]{1,10})*$/.test(x)) return true;
+      return /^\d{1,2}[.．)）]\s*[^。、：:\d][^。：:]{2,34}(?:か|ですか|どうか|はないか)$/.test(x);
+    }
     // Table captions/references and header-only label rows ("表1 …", "…を表1に示す", short header words).
     function isTableCaptionOrHeaderText(t) {
       if (/^[表図]\s*\d{1,2}[\s　]+\S[^。]{0,30}$/.test(t)) return true;
@@ -396,12 +405,13 @@
       const t = String(str || '').normalize('NFKC').trim();
       if (isGenericOtherPatientStatement(t)) return { ruleId: 'source.general-explanation', reason: '一般的な説明（患者さん全般についての文）で、この患者個別の所見ではないため除外。説明の内容そのものは資料として残す。' };
       if (isWorksheetInstructionText(t)) return { ruleId: 'source.worksheet-instruction', reason: '課題・記入の指示文で、患者の所見ではないため除外。' };
+      if (isSectionHeadingText(t)) return { ruleId: 'source.section-heading', reason: '番号付きの節見出し・観点の問い・表の参照で、患者の所見ではないため除外。続く記録の文脈として使い、配下の記録は別に分類。' };
       if (isTableCaptionOrHeaderText(t)) return { ruleId: 'source.table-caption', reason: '表の題名・参照・見出しの語で、患者の所見や測定値を含まないため除外。配下の記録は別に分類。' };
       return { ruleId: 'source.structure', reason: '資料の表題・節見出し・表の項目名で、患者の所見や測定値を含まないため除外。配下の記録は別に分類。' };
     }
     function isSourceStructureText(str) {
       const t = String(str || '').normalize('NFKC').trim();
-      if (isWorksheetInstructionText(t) || isTableCaptionOrHeaderText(t) || isGenericOtherPatientStatement(t)) return true;
+      if (isWorksheetInstructionText(t) || isSectionHeadingText(t) || isTableCaptionOrHeaderText(t) || isGenericOtherPatientStatement(t)) return true;
       if (isReportMetadataLine(t)) return true;
       if (/^\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?$/.test(t)) return true;
       if (t.includes('|') && /項目/.test(t) && /基準値|正常・異常/.test(t) && !/\d/.test(t)) return true;
