@@ -21,12 +21,16 @@ const CATALOGUE = {
   '皮膚・創傷': ['褥瘡', '熱傷', '蜂窩織炎', '糖尿病足病変'],
   '症状': ['疼痛', '発熱', '呼吸困難', '嘔気・嘔吐', '便秘', '下痢', '浮腫', '不眠', '転倒', '誤嚥', '脱水', '意識障害']
 };
+const ledgerPath = path.join(__dirname, '..', 'docs', 'request-ledger.json');
+const LEDGER = fs.existsSync(ledgerPath) ? JSON.parse(fs.readFileSync(ledgerPath, 'utf8')) : {};
+const ledgerKey = t => String(t).replace(/^【最優先】/, '').slice(0, 16);
 const rows = [];
 Object.entries(CATALOGUE).forEach(([group, list]) => list.forEach(t => {
   const c = app.krCoverage ? app.krCoverage(t) : null;
   const reqs = app.buildKnowledgeRequests({ title: 'T', items: [{ id: '1', type: 'o', text: '診断名: ' + t, fieldLabel: '診断名', hendersonIds: [] }] });
   const flag = reqs.find(r => ['diagnosis', 'thin-diagnosis'].includes(r.kind));
-  if (flag) rows.push({ group, term: t, kind: flag.kind });
+  const le = LEDGER['A:' + t];
+  if (flag && !(le && le.status !== 'open')) rows.push({ group, term: t, kind: flag.kind });
 }));
 const byGroup = {};
 rows.forEach(r => { (byGroup[r.group] = byGroup[r.group] || []).push(`${r.term}（${r.kind === 'diagnosis' ? '未登録' : '薄い'}）`); });
@@ -57,7 +61,10 @@ out += `\n## B. 構造的な不足（表の形で集めてください）\n`;
   '複数の疾患・薬・検査値が重なったときの高リスクの組合せ一覧と観察点（薬剤クラス：利尿薬、抗凝固薬、ステロイド、インスリン、降圧薬、抗菌薬、化学療法薬、オピオイド、向精神薬、NSAIDs。用量の助言は不要）',
   '検査値の基準を年齢帯・性別・病態（腎・肝・妊娠・小児・高齢者・糖尿病治療中）ごとに整理した表と、各値が変動する薬剤・疾患。治療目標値（HbA1cなど）と一般の基準範囲の区別',
   '看護問題の優先順位の付け方（現在の問題とリスク、緊急度、本人の希望、実際の生活への影響）と、過去の出来事や診断名だけから問題を作らないための除外条件。OP/TP/EPを患者の生活に合わせて個別化する方法（測定可能な目標の書き方を含む）'
-].forEach((t, i) => { out += `${i + 1}. ${t}\n`; });
+].filter(t => { const e = LEDGER[ledgerKey(t)]; return !e || e.status === 'open'; }).forEach((t, i) => { out += `${i + 1}. ${t}\n`; });
+// 回収済み・反映済みの項目は再依頼しない（台帳 docs/request-ledger.json）。新しい項目は台帳に無い＝未依頼として出す。
+const skipped = Object.keys(LEDGER).filter(k => LEDGER[k].status !== 'open').length;
+if (skipped) out += `\n（回収済みで再依頼しない項目: ${skipped}件。台帳 docs/request-ledger.json）\n`;
 const dest = path.join(__dirname, '..', 'docs', 'app-wide-knowledge-request.md');
 fs.writeFileSync(dest, out);
 console.log(out);
