@@ -26,3 +26,18 @@ test('大腿骨骨折：診断の記載がなくても、記録の病名から�
   const d = Array.from(m.nodes).find(n => n.type === 'disease');
   assert.ok(d && /大腿骨/.test(d.label));
 });
+test('骨折の高齢患者：加齢→骨密度低下→骨折が示され、身体可動性障害は観察の四角でなく体動の制限から出る', () => {
+  const a = loadApp();
+  const SRC3 = '76歳女性。右大腿骨頸部骨折で入院し、人工骨頭置換術を施行した。\n創部痛があり、動かすと手術したところが痛い。\n看護師の見守りでゆっくりと車いすに移乗、痛み増強する。右下肢は免荷の指示。';
+  const items = Array.from(a.classifyTextByRules(SRC3)).map((c, i) => ({ ...c, id: 'c' + i }));
+  const m = a.buildRelationMapFromRecord({ id: 'p', title: 'D', sourceText: SRC3, items, carePlans: [], myAssessments: {} });
+  const N = new Map(Array.from(m.nodes).map(n => [n.id, n]));
+  const E = Array.from(m.edges);
+  const bone = Array.from(m.nodes).find(n => /骨密度/.test(n.label));
+  assert.ok(bone && bone.source === 'knowledge', '骨密度の低下は一般知識の仕組みとして示す');
+  assert.ok(E.some(e => N.get(e.source).type === 'patient_fact' && e.target === bone.id));
+  assert.ok(E.some(e => e.source === bone.id && N.get(e.target).type === 'disease'));
+  const p = Array.from(m.nodes).find(n => /身体可動性障害/.test(n.label));
+  assert.ok(p);
+  E.filter(e => e.target === p.id).forEach(e => assert.notEqual(N.get(e.source).type, 'symptom', '観察の四角から直接つながない'));
+});

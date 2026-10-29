@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.234'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.235'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -636,7 +636,7 @@
     }
     const RM_ATTACH_GAP = 0;
 
-    const RM_STACK_MAX = 3, RM_STACK_GAP = 36;
+    const RM_STACK_MAX = 4, RM_STACK_GAP = 36;
 
     function rmLabAttachments(map) {
       const byId = new Map(map.nodes.map(n => [n.id, n]));
@@ -1962,6 +1962,12 @@
       }
       const elderly = Number.isFinite(age) && age >= 65;
       const aging = elderly ? N('aging', 'patient_fact', `${age}歳（高齢）`) : null;
+      // v.235: 骨折の記録がある高齢の患者では、加齢による骨密度の低下（骨の脆弱化）が骨折の背景になる。仕組み（一般知識）として示し、骨密度の測定値や骨粗鬆症の診断が記録にあるとは書かない。
+      if (aging && disease && /骨折/.test(dxLabel) && !nodes.has('bone_density') && ![...nodes.values()].some(n => /骨密度/.test(n.label))) {
+        const bone = N('bone_density', 'pathophysiology', '加齢による骨密度の低下（測定値の記載なし）', { source: 'knowledge' });
+        E(aging, bone, 'contributes_to', { evidence: '高齢では骨密度が低下しやすい（一般的な知識。この患者の骨密度は記録にない）' });
+        E(bone, disease, 'contributes_to', { evidence: '骨がもろくなると、わずかな外力でも骨折しやすい（発症に関係する要因。原因と断定はしない）' });
+      }
 
       const surgeryRe = /([^\s、。,:：「」()（）]{0,16}(?:全摘出?術|部分切除術?|切除術|切断術|摘出術|摘除術|郭清|再建術?|置換術|形成術|吻合術|固定術|造設術|開腹術|PCI|CABG|開頭術|バイパス術|ステント留置))/;
 
@@ -2678,7 +2684,9 @@
           const paraN = nodes.get('paralysis');
           if (paraN && paraN !== mi) E(paraN, mi, 'causes', { evidence: '麻痺で自分では体を動かせない' });
           else if (mi !== nodes.get('bed')) E(mob, mi, 'causes', { evidence: '体を動かす力・範囲が限られる' });
-          E(mi, N('p_mobility', 'nursing_problem', '身体可動性障害', { cat: 'act' }), 'results_in');
+          // v.235: 観察の四角（床上安静・移乗など）が体動の制限の「原因」として既に引かれているときは、その四角から看護問題へ直接つながず、体動の制限（仕組み）を経由する
+          if (mi === nodes.get('bed')) E(mob, N('p_mobility', 'nursing_problem', '身体可動性障害', { cat: 'act' }), 'results_in', { evidence: '体動が制限され、自分で動く・歩くことが難しい' });
+          else E(mi, N('p_mobility', 'nursing_problem', '身体可動性障害', { cat: 'act' }), 'results_in');
         }
         const hypN = nodes.get('lung_hyp') || nodes.get('hypoxia');
         if (hypN) E(hypN, mob, 'contributes_to', { evidence: '動くと酸素が足りず息切れする' });
