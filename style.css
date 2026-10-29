@@ -1028,6 +1028,10 @@
     .rm-prob-btn.is-risk { border-style: dashed; }
 
     .rm-prob-btn { flex-wrap: wrap; }
+    /* 一覧の項目が縮んで文字が重ならないようにする（高さは文字の量に合わせて伸ばし、一覧全体をスクロールさせる） */
+    .rm-problems > * { flex-shrink: 0; }
+    .rm-prob-btn { height: auto; min-height: max-content; overflow-wrap: anywhere; line-height: 1.4; }
+    .rm-prob-apply { width: 100%; justify-content: center; }
     .rm-prob-note { flex-basis: 100%; font-size: 10px; font-weight: 400; color: #7C3A4B; line-height: 1.35; }
     html[data-theme="dark"] .rm-prob-note { color: #E8BFCB; }
     html[data-theme="dark"] .rm-prob-btn { background: #3D1F2A; border-color: #F0A3B5; color: #F7D3DC; }
