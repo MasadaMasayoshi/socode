@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.240'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.245'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -440,12 +440,13 @@
 
       if (cp.id && plan.caseId === cp.id) {
         for (const ref of Array.isArray(plan.mapEvidenceRefs) ? plan.mapEvidenceRefs : []) {
-          if (ref && ref.sourceType === 'card' && ref.patientId === cp.id && cards.some(i => String(i.id) === String(ref.sourceId))) ids.add(String(ref.sourceId));
+          const refCard = ref && ref.sourceType === 'card' && ref.patientId === cp.id ? cards.find(i => String(i.id) === String(ref.sourceId)) : null;
+          if (refCard) ids.add(String(refCard.id));
         }
       }
       for (const text of plan.evidence || []) {
         const matches = cards.filter(i => String(i.text || '').trim() === String(text).trim());
-        if (matches.length === 1) ids.add(String(matches[0].id));
+        if (matches.length === 1 && (typeof cvEvidenceRelevant !== 'function' || plan.source === 'manual' || cvEvidenceRelevant(plan.problem, matches[0].text))) ids.add(String(matches[0].id));
       }
       plan.evidenceIds = [...ids];
       plan.evidenceSnapshot = cards.filter(i => ids.has(String(i.id))).map(i => ({ id: String(i.id), text: String(i.text || ''), timestamp: String(i.timestamp || ''), type: i.type, hendersonIds: [...(i.hendersonIds || [])], admissionPhase: i.admissionPhase || '', assessmentCols: { ...(i.assessmentCols || {}) } }));
@@ -3180,7 +3181,11 @@
         return true;
       }).map(e => /^(?:WBC|CRP|Alb|TP)\b/.test(cpNorm(e)) ? `参考：${e}（術後の影響を受けるため、単独では判断しない）` : e);
       const seen = new Set();
-      plan.evidence = [...rk, ...keep].filter(e => { const k = cpNorm(e).replace(/\s+/g, ''); if (seen.has(k)) return false; seen.add(k); return true; });
+      const _evAll = [...rk, ...keep].filter(e => { const k = cpNorm(e).replace(/\s+/g, ''); if (seen.has(k)) return false; seen.add(k); return true; });
+      const _evOk = _evAll.filter(e => typeof cvEvidenceRelevant !== 'function' || cvEvidenceRelevant(plan.problem, e));
+      // 関連する根拠が1件も残らないときは、元の根拠を残したうえで「根拠が弱い」印を付ける（黙って空にしない）
+      plan.evidenceWeak = !_evOk.length && _evAll.length > 0;
+      plan.evidence = _evOk.length ? _evOk : _evAll;
       plan.evRefined = true;
     }
 
@@ -3330,7 +3335,7 @@
         if (!key || existing.has(key) || existingCanon.has(cpPlanKey({ problem }))) return;
         existing.add(key);
         const mapEvidenceRefs = typeof findRelationEvidence === 'function' ? findRelationEvidence(map, n.id, cp).sourceRefs : [];
-        const plan = createCarePlan(cp, { caseId: cp.id || '', problem, evidence: cpMapEvidence(map, n), mapEvidenceRefs, note: n.note || '', source: 'map', reasonNeeded: true }, now);
+        const plan = createCarePlan(cp, { caseId: cp.id || '', problem, evidence: (() => { const all = cpMapEvidence(map, n); const ok = typeof cvFilterEvidenceTexts === 'function' ? cvFilterEvidenceTexts(problem, all) : all; return ok.length ? ok : all; })(), mapEvidenceRefs, note: n.note || '', source: 'map', reasonNeeded: true }, now);
         plan.relatedNeeds = guessPlanNeeds(plan);
         fresh.push(plan);
       });

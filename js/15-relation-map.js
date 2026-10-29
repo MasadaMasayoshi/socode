@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.240'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.245'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -2582,7 +2582,7 @@
       const recoveredItem = findItem(/全量摂取|[7-9]割(?:を)?摂取|10割(?:を)?摂取/);
       const lossItems = [weightItem, intakeItem].filter(Boolean);
       const intakeRecovered = !!recoveredItem && lossItems.length > 0 && !(albL && albL.flag === 'low') && lossItems.every(x => items.indexOf(recoveredItem) > items.indexOf(x));
-      if (!fullIntake && !intakeRecovered && (weightItem || (albL && albL.flag === 'low') || intakeItem)) {
+      if (!fullIntake && !intakeRecovered && (weightItem || intakeItem)) { // Alb単独では低栄養の根拠にしない
 
         const low = (weightItem || intakeItem)
           ? N('undernutrition', 'symptom', [weightItem && short(weightItem, 20), intakeItem && short(intakeItem, 16)].filter(Boolean).join('・'), { items: [weightItem, intakeItem] })
@@ -2779,7 +2779,8 @@
         E(bl, ur, 'causes');
         E(ur, N('p_urine', 'nursing_problem', '排尿障害（尿閉）', { cat: 'elim' }), 'results_in');
       }
-      const nauseaItem = findLast(/悪心|嘔気|吐き気|気持ち(?:が)?悪い|むかむか|ムカムカ/, i => notHist(i));
+      // 「気持ちが悪い」は入浴・清潔の不快にも使う語なので、吐き気の文脈（吐・嘔・食・胃・むかむか）が近くにあるときだけ悪心とみなす
+      const nauseaItem = findLast(/悪心|嘔気|吐き気|むかむか|ムカムカ|気持ち(?:が)?悪い(?=[^。\n]{0,12}(?:吐|嘔|食|胃|むかむか))|(?<=[吐嘔食胃][^。\n]{0,12})気持ち(?:が)?悪い/, i => notHist(i));
       if (nauseaItem && !(nodes.get('ileus_sign') && (nodes.get('ileus_sign').itemIds || []).includes(nauseaItem.id))) {
         const ns = N('nausea_sign', 'symptom', short(nauseaItem, 30, /悪心|嘔気|吐き気|気持ち|むかむか|ムカムカ/), { items: [nauseaItem] });
         const nsrc = nodes.get('opioid') || nodes.get('analgesia') || nodes.get('anes') || nodes.get('ileus_path') || disease;
