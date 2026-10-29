@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.208'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.219'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -913,7 +913,7 @@ const CARD_DESTINATIONS = [
   { key: 'overall', re: /(?:身体的)?異常(?:は)?(?:なし|みられ(?:ず|なかった)|を認めず)|問題なし/, label: '総合所見', to: '評価した範囲を明記した総合所見として保持（単独で充足判定に使わない）' },
   { key: 'puerperal', re: /子宮(?:底|復古|の硬さ|収縮)|悪露|後陣痛|会陰(?:切開|裂傷|創)|分娩(?:直後|後)\s*\d*時間後/, label: '産褥の回復（専門概念）', to: '専門概念タグ「産褥の回復」として保持。痛みで動けない・出血や発熱の徴候があるときだけ4・7・9へ対応づける' },
   { key: 'lactation', re: /乳房|乳頭|乳汁|乳管|初乳|授乳|母乳|哺乳|含ませ|吸着|吸啜/, label: '授乳・乳房（専門概念）', to: '専門概念タグ「授乳・乳房」として保持。母親の食事・水分は2、授乳技術の習得は14、不安の表出は10へ必要に応じて対応づける' },
-  { key: 'newborn', re: /新生児|出生時体重|生後\s*\d+\s*日|児の(?:健康|哺乳|体重|様子)|胎児付属物|奇形なし|仮死なし/, label: '新生児の情報（対象：新生児）', to: '新生児の情報として別管理（母親の身体所見に混ぜない）。母親の授乳評価とは関連づけだけ行う' },
+  { key: 'newborn', re: /新生児|出生時体重|生後\s*\d+\s*日|児の(?:健康|哺乳|体重|様子)|^児は(?:健康|元気|順調)|胎児付属物|奇形なし|仮死なし/, label: '新生児の情報（対象：新生児）', to: '新生児の情報として別管理（母親の身体所見に混ぜない）。母親の授乳評価とは関連づけだけ行う' },
   { key: 'delivery', re: /陣痛|分娩(?:経過|所要|開始)|自然破水|子宮口全開|出産(?:する|した)|正常分娩|娩出|分娩時出血/, label: '分娩・出産の経過（背景）', to: '背景情報（時期＝分娩期）として保持。現在の症状と混ぜない' },
   { key: 'pregnancy', re: /妊娠\s*\d+\s*週|妊娠(?:経過|中)|初産婦|経産婦|妊娠分娩歴|母親学級/, label: '妊娠・出産歴（背景）', to: '背景情報（時期＝妊娠期・過去）として保持。妊娠中の検査値は産褥の現在値にしない' },
   { key: 'history', re: /\[?(?:既往歴|アレルギー|感染症|過去の出来事)\]?/, label: '既往・背景情報', to: '背景情報として保持。現在の問題の根拠にしない' },

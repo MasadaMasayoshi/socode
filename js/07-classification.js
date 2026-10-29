@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.209'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.219'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -1504,20 +1504,30 @@
         step1.push(original);
       });
 
+      // 表（タブ区切り）の読み取り：一般条件＝先頭の角セルが空の見出し行（「　\t1日目\t2日目」）と、途中の空セル（その時点で未記録の欄）を、列の位置を保ったまま扱う。
+      // 見出し行の先頭の空セルを trim で落とすと、見出しが1列少なくなり、最初のデータ行が見出しに取り違えられる。
+      const tabCells = line => {
+        const raw = String(line).replace(/\r$/, '').split('\t').map(c => c.trim());
+        const packed = String(line).trim().split(/\t+/).map(c => c.trim());
+        return { raw, packed };
+      };
       for (let i = 0; i < step1.length; i++) {
-        const header = step1[i].trim().split(/\t+/).map(c => c.trim());
-        if (header.length < 3 || header.some(c => !c) || /基準|正常値|検査|単位/.test(header.join(' ')) || header.slice(1).some(c => /^[\d.,]+$/.test(c))) continue;
+        const hc = tabCells(step1[i]);
+        let header = hc.packed, corner = false;
+        if (hc.raw.length >= 3 && hc.raw[0] === '' && hc.raw.slice(1).every(Boolean)) { header = hc.raw; corner = true; }
+        if (header.length < 3 || header.slice(corner ? 1 : 0).some(c => !c) || /基準|正常値|検査|単位/.test(header.join(' ')) || header.slice(1).some(c => /^[\d.,]+$/.test(c))) continue;
         let j = i + 1;
         const rows = [];
         while (j < step1.length) {
-          const cells = step1[j].trim().split(/\t+/).map(c => c.trim());
+          const rc = tabCells(step1[j]);
+          const cells = rc.raw.length === header.length ? rc.raw : rc.packed;
           if (cells.length !== header.length || !cells[0]) break;
           rows.push(cells);
           j++;
         }
         if (rows.length === 0) continue;
-        const rewritten = rows.map(cells => `${cells[0]}：` + cells.slice(1).map((c, k) => `${header[k + 1]} ${c}`).join(' → '));
-        step1.splice(i, 1 + rows.length, SOURCE_TITLE_MARK + header.join(' '), ...rewritten);
+        const rewritten = rows.map(cells => `${cells[0]}：` + cells.slice(1).map((c, k) => c ? `${header[k + 1]} ${c}` : '').filter(Boolean).join(' → '));
+        step1.splice(i, 1 + rows.length, SOURCE_TITLE_MARK + header.filter(Boolean).join(' '), ...rewritten);
         i += rows.length;
       }
 
@@ -3097,6 +3107,23 @@
       });
       return items;
     }
+    // 一般条件：「妊娠30週：Hb10.2g/dl 鉄剤内服」のように、時期ラベル付きの1行から検査値だけが切り出されたとき、
+    // 検査値のカードがラベル（いつの値か）を失い、ラベルだけの断片（「妊娠36週:」）が残る。検査値のカードにラベルを戻し、中身のない断片は捨てる。
+    function rejoinTimeLabelFragments(items) {
+      const LABEL = /^((?:妊娠|産褥|術後|術前|入院|生後|分娩|退院)[^:：、。\s]{0,10}?)\s*[:：]\s*/;
+      const arr = Array.from(items || []), drop = new Set();
+      for (let i = 1; i < arr.length; i++) {
+        const cur = arr[i], prev = arr[i - 1];
+        if (!cur || !prev || typeof cur.text !== 'string' || typeof prev.text !== 'string') continue;
+        const m = LABEL.exec(cur.text.trim());
+        if (!m) continue;
+        const prevIsLab = /基準値/.test(prev.text) || /^[A-Za-z][A-Za-z0-9\-]{0,8}\s*\d/.test(prev.text.trim());
+        if (!prevIsLab || LABEL.test(prev.text.trim())) continue;
+        prev.text = `${m[1]}: ${prev.text.trim()}`;
+        if (!cur.text.trim().slice(m[0].length).trim()) drop.add(i);
+      }
+      return drop.size ? arr.filter((_, i) => !drop.has(i)) : (Array.isArray(items) ? items : arr);
+    }
     function classifyTextByRules(text) {
       const tableNorm = normalizeBrokenTableRows((text || '').trim().normalize('NFKC'));
       const src = stripHtmlArtifacts(tableNorm.text).trim();
@@ -3108,7 +3135,7 @@
         const { detectedHIds, predictedType } = computeLocalTagsAndType(chunk, cleanedText, null);
         out.push({ text: cleanedText, timestamp: chunk.timestamp || '日時不明', type: predictedType, hendersonIds: detectedHIds.slice().sort((a, b) => a - b), fieldLabel: chunk.fieldLabel || null, ruleDecision: automaticRuleDecision(chunk, cleanedText, predictedType), ...({}), ...(chunk.diseaseGeneral ? { diseaseGeneral: true } : {}), ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.soMixed ? { soMixed: true } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}) });
       }));
-      return applyAssociationTags(attachSourceOffsets(dropIncidentalHygieneTag(applyTableColumnRoles(stripPipeArtifacts(splitMixedSpeechCards(markWrappedLineFragments(removeCoveredCompositeCards(applyFamilyScreeningContext(applyPainContextTags(applySceneTagInheritance(out)))), src))), tableNorm.roles)), src));
+      return applyAssociationTags(attachSourceOffsets(dropIncidentalHygieneTag(applyTableColumnRoles(stripPipeArtifacts(splitMixedSpeechCards(markWrappedLineFragments(removeCoveredCompositeCards(applyFamilyScreeningContext(applyPainContextTags(applySceneTagInheritance(rejoinTimeLabelFragments(out))))), src))), tableNorm.roles)), src));
     }
 
     function manualClassificationLineage(item, path = new Set()) {

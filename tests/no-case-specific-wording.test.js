@@ -27,8 +27,8 @@ test('知識リクエストの診断候補は、既往歴の文章ではなく�
   const { loadApp } = require('./app-helpers.js');
   const a = loadApp();
   const mk = (id, text) => ({ id, text, fieldLabel: '既往歴', type: 'o', hendersonIds: [2] });
-  const terms = a.buildKnowledgeRequests({ items: [mk(1, '3歳時に肺炎で1週間入院。'), mk(2, '10歳より気管支喘息。'), mk(3, '特記すべき入院・治療歴なし')], sourceText: '' }).map(r => r.term);
-  assert.ok(terms.some(t => /喘息/.test(t)));
+  const terms = a.buildKnowledgeRequests({ items: [mk(1, '3歳時に肺炎で1週間入院。'), mk(2, '10歳よりバセドウ病。'), mk(3, '特記すべき入院・治療歴なし')], sourceText: '' }).map(r => r.term);
+  assert.ok(terms.some(t => /バセドウ/.test(t)));
   assert.ok(!terms.some(t => /^時|^より|なし/.test(t)));
 });
 

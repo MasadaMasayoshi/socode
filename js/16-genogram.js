@@ -1,7 +1,7 @@
 // Genogram (家族構成図): built from the record, then editable. Mirrors the relation map pattern (auto build -> edit -> save with the patient -> export).
 // Kinship words are a built-in dictionary (内蔵辞書 2026-10-16（出典未確認）). Nothing is invented: only members, ages and notes written in the record are drawn.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.215'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.219'; // Version stamp (scripts/stamp-version.js)
 
     const GG_PROVENANCE = '内蔵辞書 2026-10-16（出典未確認）';
     // canonical key -> [role label, sex, generation, order within the row]
@@ -24,7 +24,7 @@
       ['父', 'father'], ['母', 'mother'], ['兄', 'brotherO'], ['姉', 'sisterO'], ['弟', 'brotherY'], ['妹', 'sisterY'], ['妻', 'wife'], ['夫', 'husband'], ['孫', 'grandchild']
     ];
     const GG_WORD_RE = new RegExp(GG_WORDS.map(w => w[0]).sort((a, b) => b.length - a.length).join('|'), 'g');
-    const GG_AFTER_BAD = { 母: /^[乳子体性校国語方]/, 父: /^[兄性方]/, 弟: /^子/, 夫: /^婦/, 娘: /^[心]/ };
+    const GG_AFTER_BAD = { 母: /^[乳子児体性校国語方]/, 母親: /^(?:学級|教室|学校|クラス)/, 父親: /^(?:学級|教室|学校|クラス)/, 両親: /^(?:学級|教室|学校|クラス)/, 父: /^[兄性方]/, 弟: /^子/, 夫: /^婦/, 娘: /^[心]/ };
     const GG_BEFORE_BAD = { 夫: /[丈工大]$/, 孫: /子$/, 母: /(?:保|助産|祖父)$/ };
     const GG_DISEASES = /糖尿病|高血圧|認知症|アルツハイマー|胃がん|大腸がん|肺がん|乳がん|肝臓がん|がん|癌|心筋梗塞|狭心症|脳梗塞|脳出血|脳卒中|心不全|心疾患|喘息|腎不全|腎臓病|肝硬変|白血病|うつ病|統合失調症|パーキンソン病|骨折|難聴|寝たきり|要介護\d?|要支援\d?|障害/g;
     const GG_JOBS = /会社員|公務員|自営業|主婦|無職|教員|農業|パート|年金生活|学生|看護師|医師|漁業|大工|運転手/;
@@ -42,6 +42,8 @@
         if (GG_AFTER_BAD[w] && GG_AFTER_BAD[w].test(after)) continue;
         if (GG_BEFORE_BAD[w] && GG_BEFORE_BAD[w].test(before)) continue;
         // 初孫 told from the parents' side (両親/実家/にとって) names the newborn, who is the patient's child, not the patient's grandchild.
+        // 「どちらの両親」「双方の両親」「両実家の両親」は夫婦それぞれの親で、本人の父母ではない（人物を作らない）。
+        if (/^(?:両親|父母)$/.test(w) && /(?:どちら|双方|お互い|両家|両実家|両方|夫婦)の(?:実家の)?$/.test(before)) continue;
         if (w === '孫' && /初$/.test(before) && /両親|実家|にとって|祖父母/.test(sentence)) continue;
         // v.101: generic child words need an explicit count (or a negation); talk about children in general is not a family member.
         if (/^(?:子ども|子供|こども|お子さん|お子様)$/.test(w) && !(/^(?:が|は|も)?\s*\d\s*人/.test(after) || /\d\s*人の$/.test(before) || GG_NEG.test(after))) continue;
@@ -113,7 +115,12 @@
                 p.partner = p.partner || sp.id; src(sp, sent); keysHere.push(sp.id);
               }
               const a = new RegExp('^[^、。\\d]{0,4}?[（(]?(\\d{1,3})\\s*[歳才]').exec(t.after) || new RegExp('(\\d{1,3})\\s*[歳才](?:の|で)?$').exec(t.before.slice(-8));
-              if (a && t.word !== '祖父母') p.age = Number(a[1]);
+              if (a && t.keys.length === 1) { // 「両親（父親35歳…、母親30歳…）」のような複数人の語は、続く年齢をどちらにも付けない（個別の記載を待つ）
+                // 一般条件：同じ人の年齢が記録の中で食い違うときは、最初の記載を残して食い違いを注記する（どちらかを黙って選ばない）
+                const n = Number(a[1]);
+                if (p.age === null || p.age === undefined) p.age = n;
+                else if (p.age !== n && !p.notes.some(x => /年齢の記載が異なる/.test(x))) p.notes.push(`年齢の記載が異なる（${p.age}歳・${n}歳）`);
+              }
               else { const d = new RegExp('^[^、。\\d]{0,4}?(\\d0)代').exec(t.after); if (d) p.ageText = `${d[1]}代`; }
               if (/^(?:内縁)/.test(t.word)) p.partnerStatus = 'cohabiting';
             });

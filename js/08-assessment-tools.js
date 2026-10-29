@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.217'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.219'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -81,7 +81,7 @@
       });
     }
 
-    const LAB_JAPANESE_ALIASES = { '白血球': 'WBC', '赤血球': 'RBC', 'ヘモグロビン': 'Hb', '血色素': 'Hb', '血小板': 'Plt', 'PLT': 'Plt',
+    const LAB_JAPANESE_ALIASES = { '白血球': 'WBC', '赤血球': 'RBC', 'ヘモグロビン': 'Hb', 'Hg': 'Hb', '血色素': 'Hb', '血小板': 'Plt', 'PLT': 'Plt',
       'クレアチニン': 'Cre', '尿素窒素': 'BUN', 'ナトリウム': 'Na', 'カリウム': 'K', 'クロール': 'Cl', '総蛋白': 'TP', 'アルブミン': 'Alb', 'ALB': 'Alb',
       'D-ダイマー': 'Dダイマー', 'Dダイマ': 'Dダイマー', '血糖値': '血糖', 'BS': '血糖', 'GOT': 'AST', 'GPT': 'ALT', 'γ-GTP': 'γGTP' };
     const LAB_FIND_KEYS = Array.from(new Set([...Object.keys(LAB_STANDARDS), ...Object.keys(LAB_JAPANESE_ALIASES)])).sort((a, b) => b.length - a.length);

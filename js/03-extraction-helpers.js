@@ -1,7 +1,7 @@
 // Local record extraction. Preserve source wording, units, timestamps and admission context.
 // Headings supply context; narrative numbers are not automatically laboratory measurements.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.203'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.219'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -293,7 +293,7 @@
         .replace(/<\s*\/?\s*(?:br|p|div|li|tr|tbody|thead|table|ul|ol|h[1-6])\b[^>]*>/gi, '\n')
         .replace(/<\s*\/?\s*(?:span|b|i|u|strong|em|font|a|td|th|small|sup|sub|mark|code|pre)\b[^>]*>/gi, ' ')
         .replace(/&nbsp;|&#160;/gi, ' ').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'").replace(/&amp;/gi, '&')
-        .replace(/[ \t]{2,}/g, ' ');
+        .replace(/ {2,}/g, ' '); // 表の空欄（連続するタブ）は列の位置を表すので潰さない
     }
     // ---- v.105: broken source text (wrapped-cell fragments, dropped characters, OCR/PDF artifacts) ----------------------------------------------
     // Local, rule-based. The source is never changed here: each finding carries the original line, the neighbouring lines and, only when a rule can

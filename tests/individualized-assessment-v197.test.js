@@ -48,8 +48,8 @@ test('v.197b: 痛みの語は学びの未充足根拠にしない／壊れた保
 });
 test('v.197b: 同じ項目名の記録は、タグ未設定のカードを仲間の欲求へ寄せる候補にする（自動では変更しない）', () => {
   const cp = { id: 'p', items: [
-    { id: 'a', type: 'o', text: '乳管開通4〜5本 乳房緊満なし', timestamp: '産褥2日目', hendersonIds: [2], assessmentCols: { 2: 'postadmission' } },
-    { id: 'b', type: 'o', text: '乳管開通1〜2本', timestamp: '産褥1日目', hendersonIds: [], assessmentCols: {} }
+    { id: 'a', type: 'o', text: '開通本数4〜5本 緊満なし', timestamp: '産褥2日目', hendersonIds: [2], assessmentCols: { 2: 'postadmission' } },
+    { id: 'b', type: 'o', text: '開通本数1〜2本', timestamp: '産褥1日目', hendersonIds: [], assessmentCols: {} }
   ], myAssessments: {} };
   const row = app.buildTagAuditRows(cp).find(r => r.id === 'b');
   assert.ok(row && row.destination && row.destination.key === 'sibling');
