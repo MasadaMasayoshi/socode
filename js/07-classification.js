@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.203'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.206'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -235,6 +235,8 @@
         if (QUOTE_FEELING_OR_QUESTION_REGEX.test(quotes)) tags.add(10);
       }
 
+      // 一般条件: 本人または家族の感情・苦痛の表出（不機嫌・ぐずり・啼泣・泣く・慰める）は、気持ちの表出として10.コミュニケーションの根拠にする。涙液・流涙の所見（眼）や「泣きっ面」などの比喩は対象外。
+      if (/不機嫌|ぐずっ|ぐずり|啼泣|(?:と|に|て|ながら)泣(?:く|き|いて)|泣いている|泣き出|泣き叫|慰め(?:て|る|ている)/.test(text) && !/流涙|涙目|涙嚢|涙液/.test(text)) tags.add(10);
       const isPainText = PAIN_TEXT_REGEX.test(text) && !/痛みなし|疼痛なし|疼痛(?:の)?訴え(?:なし|なく)|疼痛増強(?:なし|なく|見られず)/.test(text);
       if (ALLERGY_ABSENT_REGEX.test(text) || INFECTION_SCREEN_REGEX.test(text)) tags.add(9);
       if (HEALTH_SCREEN_USE_REGEX.test(text)) tags.add(14);

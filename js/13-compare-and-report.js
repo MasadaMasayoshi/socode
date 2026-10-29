@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.203'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.206'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -903,6 +903,8 @@ const CARD_DESTINATIONS = [
   // 診断・鑑別・検査・治療は、ヘンダーソンに無理に入れず、構造化された臨床情報として保持する。
   { key: 'differential', re: /^\s*鑑別診断|^\s*[0-9０-９]\s*[)）][^：:]{1,20}[：:][^。]*(?:症候群|白血病|敗血症|リウマチ熱|感染症|リンパ節炎)/, label: '鑑別診断（診断情報）', to: '診断の検討材料として保持。「疑い」「確定」「鑑別」を分けて表示し、本人の状態としては扱わない' },
   { key: 'diagnosis', re: /^\s*(?:診断名|疾患名)|疑いで入院|^川崎病$/, label: '診断名（基本的な臨床情報）', to: '診断名・診断の確からしさ（疑い／確定）として保持' },
+  // 一般条件: 経過の転帰（軽快・退院・転院・死亡など）を述べた文は、本人の欲求の状態ではなく経過の区切りとして保持する。
+  { key: 'outcome', re: /^[^。]{0,12}(?:軽快|治癒|寛解|増悪)[^。]{0,8}(?:し)?[、,]?\s*(?:退院|転院|転棟|終診|死亡)/, label: '経過の転帰', to: '経過の区切り（転帰）として保持。退院時の評価と照合し、欲求のタグは付けない' },
   { key: 'treatment', re: /抗生剤|グロブリン|ベニロン|アスピリン|解熱剤|鎮静剤|ボルタレン|ホスミシン|輸液|入院予定|[①-⑩]\s*(?:抗|γ|ア|輸)/, label: '治療情報（薬・処置）', to: '治療情報として保持し、反応と副作用の観察（OP）・薬の説明（EP）へつなぐ。欲求の充足の根拠にはしない' },
   { key: 'labdata', re: /赤血球沈降|沈降速度|[12]時間値|白血球\s*\d|血小板\s*\d|GOT|GPT|LDH|尿タンパク|尿蛋白|心電図|胸部X線/, label: '検査結果（構造化された臨床情報）', to: '検査値として保持。単位が不明確な値は自動で換算せず、原文を残す' },
   { key: 'history', re: /水痘|風疹|予防接種|発育歴|満期正常分娩|既往/, label: '既往・発育・予防接種（背景）', to: '背景情報として保持。現在の問題の根拠にしない' },

@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.205'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.206'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -338,6 +338,13 @@
       }
       if (UNTAGGED_NOINFO_RE.test(text)) {
         return set('insufficient', '「不明」「未記載」など、情報そのものが得られていない記載です。', '中', [], ['本人・家族・カルテで聴取し、得られたら情報カードとして追加してください']);
+      }
+      // 一般則: どのルールにも当たらないカードでも、ヘンダーソンとの間接的な関連・保持先を示す（無理に欲求へ入れず、未設定のまま放置もしない）。
+      if (typeof hendersonAssociations === 'function' && !out.parts.length) {
+        const assoc = hendersonAssociations(text) || [];
+        const dest = typeof proposeCardDestination === 'function' ? proposeCardDestination(text) : null;
+        if (assoc.length) return set('classify', `直接の根拠はありませんが、${assoc.map(a => `${hendersonNameOf(a.need)}（${a.reason}）`).join('、')}を見る手がかりです。タグは付けず、間接の関連として保持${dest ? `（保持先：${dest.label}）` : ''}。`, '中', assoc.map(a => a.need), ['直接の所見が同じ場面にあれば、その所見に欲求を付ける']);
+        if (dest) return set('none', `${dest.label}：${dest.to}`, '中', [], ['保持先が適切か確認し、必要なら分類基準に追加']);
       }
       return out;
     }
