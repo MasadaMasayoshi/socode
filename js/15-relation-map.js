@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.232'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.234'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -3472,7 +3472,7 @@
         if (has) rmApplySelectionClasses();
       }
       const textView = document.getElementById('rm-text-view');
-      if (textView) { textView.classList.toggle('hidden', !has || !rmState.textView); textView.innerHTML = has ? relationMapTextHtml(map, cp) : ''; }
+      if (textView) { textView.classList.toggle('hidden', !has || !rmState.textView); textView.innerHTML = has && rmState.textView ? relationMapTextHtml(map, cp) : ''; /* v.234: 一覧表示を開いていないときは作らない（重い） */ }
       const textToggle = view.querySelector('[data-rm-action="toggle-text"]');
       if (textToggle) { textToggle.setAttribute('aria-pressed', String(rmState.textView)); textToggle.textContent = rmState.textView ? '図で表示' : '一覧表示'; }
       rmRenderProblemList(map);
