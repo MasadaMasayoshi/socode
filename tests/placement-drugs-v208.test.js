@@ -18,3 +18,13 @@ test('薬の辞書: 抗菌薬の商品名と免疫グロブリンの商品名を
   const items = t.split('\n').map((x, k) => ({ id: 'i' + k, type: 'o', text: x }));
   assert.equal(Array.from(app.drugUnknownCandidates(items)).length, 0);
 });
+
+test('v.209: 検査値・薬・処置など直接のタグが付かない記録にも、関連する欲求の通常のタグが付く（家族の発言・見出しには付けない）', () => {
+  const r = Array.from(app.classifyTextByRules('＜入院時＞\n白血球 173×10²/mm³\nGOT 28mIU/mℓ\n尿タンパク（＋）\n母親：「朝は学校の準備でバタバタしていて......。本人に任せてしまう日もあります」'));
+  const ids = t => Array.from(r.find(i => i.text.includes(t)).hendersonIds);
+  assert.deepEqual(ids('白血球'), [7]);
+  assert.deepEqual(ids('GOT'), [2]);
+  assert.deepEqual(ids('尿タンパク'), [3]);
+  assert.equal(ids('母親').length, 0);
+  assert.ok(r.every(i => !i.referenceTagIds));
+});
