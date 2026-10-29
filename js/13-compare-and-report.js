@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.206'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.207'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -973,6 +973,8 @@ function familyStatements(cp) {
 const HENDERSON_ASSOCIATION_RULES = [
   { re: /CRP|白血球|WBC|好中球|プロカルシトニン|赤沈|赤血球沈降速度/i, needs: [7], reason: '炎症反応の検査値は、発熱・感染の経過（体温調節）を見る手がかりになる', strength: 'indirect' },
   { re: /\bHb\b|ヘモグロビン|Ht\b|ヘマトクリット|赤血球(?!沈降)/i, needs: [1, 4], reason: '貧血の程度は酸素の運搬と活動時のふらつき（呼吸・姿勢）に関わる', strength: 'indirect' },
+  { re: /尿(?:タンパク|蛋白|糖|潜血|ケトン)|血尿|蛋白尿/, needs: [3], reason: '尿の定性所見は、腎・尿路の状態と排泄の経過を見る手がかりになる', strength: 'indirect' },
+  { re: /\b(?:AST|ALT|GOT|GPT|LDH|CK|ALP)\b|γ-?GTP|アミラーゼ|ビリルビン/i, needs: [2], reason: '肝・膵・筋の酵素は、栄養・代謝や薬剤の影響を見る手がかりになる（食事・栄養の直接の根拠ではない）', strength: 'indirect' },
   { re: /BUN|尿素窒素|クレアチニン|\bCre\b|eGFR/i, needs: [3, 2], reason: '腎機能・脱水の指標は排泄と水分摂取の評価に関わる', strength: 'indirect' },
   { re: /\bNa\b|ナトリウム|\bK\b|カリウム|\bCl\b|クロール|電解質/i, needs: [2, 3], reason: '電解質は水分・食事の摂取と排泄の評価に関わる', strength: 'indirect' },
   { re: /Alb|アルブミン|総蛋白|\bTP\b|栄養状態|プレアルブミン/i, needs: [2], reason: '栄養状態の指標は食事・栄養の評価に関わる', strength: 'indirect' },

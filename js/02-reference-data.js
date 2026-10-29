@@ -1,6 +1,6 @@
 // Japanese source examples and reference data. Generic ranges are not facility-approved values.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = 'v.108'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['02'] = 'v.207'; // Version stamp (scripts/stamp-version.js)
 
     const SAMPLE_CASES = [
  {
@@ -520,5 +520,8 @@ SOAP：S（患者の発言）／O（バイタル・検査・観察事実）／A�
       "血糖": { unit: "mg/dL", ref: "70〜109" },
       "アミラーゼ": { unit: "U/L", ref: "40〜130" },
 
-      "Cr": { unit: "mg/dL", ref: "0.6〜1.1" }
+      "Cr": { unit: "mg/dL", ref: "0.6〜1.1" },
+      "LDH": { unit: "U/L", ref: "124〜222" },
+      "CK": { unit: "U/L", ref: "41〜248" },
+      "eGFR": { unit: "mL/min/1.73m2", ref: "60以上" }
     };

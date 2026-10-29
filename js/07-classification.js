@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.206'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.207'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -475,7 +475,7 @@
     const LAB_UNIT_EQUIVALENTS = {
       WBC: ['/μL', '/mm3'], RBC: ['×10^4/μL', '万/μL', '万/mm3'], Plt: ['×10^4/μL', '万/μL', '万/mm3', '万'],
       Na: ['mEq/L', 'mmol/L'], K: ['mEq/L', 'mmol/L'], Cl: ['mEq/L', 'mmol/L'], 'Dダイマー': ['μg/mL', 'mg/L'],
-      AST: ['U/L', 'IU/L', 'mIU/mL'], ALT: ['U/L', 'IU/L', 'mIU/mL'], ALP: ['U/L', 'IU/L', 'mIU/mL'], 'γGTP': ['U/L', 'IU/L', 'mIU/mL'], 'アミラーゼ': ['U/L', 'IU/L', 'mIU/mL']
+      AST: ['U/L', 'IU/L', 'mIU/mL'], ALT: ['U/L', 'IU/L', 'mIU/mL'], ALP: ['U/L', 'IU/L', 'mIU/mL'], 'γGTP': ['U/L', 'IU/L', 'mIU/mL'], 'アミラーゼ': ['U/L', 'IU/L', 'mIU/mL'], LDH: ['U/L', 'IU/L', 'mIU/mL'], CK: ['U/L', 'IU/L', 'mIU/mL']
     };
     const LAB_UNIT_CONVERSIONS = {
       CRP: { 'mg/L': 0.1 }, Hb: { 'g/L': 0.1 }, TP: { 'g/L': 0.1 }, Alb: { 'g/L': 0.1 },
