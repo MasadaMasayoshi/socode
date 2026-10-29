@@ -40,3 +40,14 @@ test('退院先・住まい・自宅周辺の環境は9（環境）に付く。�
   ['退院先は自宅の予定', '施設入所の予定', '自宅周辺は坂道が多い', '自宅の近くにスーパーがある'].forEach(t => assert.ok(ids(t).includes(9), t));
   assert.ok(!ids('自宅で入浴している').includes(9));
 });
+
+test('ジェノグラム：「〜を亡くし」は故人として×を付け、「夫の父は死去」で夫を死亡にしない', () => {
+  const cpOf = src => ({ id: 'p', sourceText: src, items: Array.from(app.classifyTextByRules(src)).map((c, i) => ({ ...c, id: 'c' + i })), carePlans: [] });
+  const ps = src => Array.from(app.ggBuild(cpOf(src)).persons);
+  const mom = ps('母を亡くしている。').find(p => p.role === '母');
+  assert.ok(mom && mom.deceased);
+  const husband = ps('10年前に夫を亡くし、一人暮らし。').find(p => p.role === '夫');
+  assert.ok(husband && husband.deceased);
+  const h2 = ps('夫の父は死去した。').find(p => p.role === '夫');
+  assert.ok(!h2 || !h2.deceased);
+});

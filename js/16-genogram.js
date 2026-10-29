@@ -1,7 +1,7 @@
 // Genogram (家族構成図): built from the record, then editable. Mirrors the relation map pattern (auto build -> edit -> save with the patient -> export).
 // Kinship words are a built-in dictionary (内蔵辞書 2026-10-16（出典未確認）). Nothing is invented: only members, ages and notes written in the record are drawn.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.219'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.230'; // Version stamp (scripts/stamp-version.js)
 
     const GG_PROVENANCE = '内蔵辞書 2026-10-16（出典未確認）';
     // canonical key -> [role label, sex, generation, order within the row]
@@ -28,7 +28,7 @@
     const GG_BEFORE_BAD = { 夫: /[丈工大]$/, 孫: /子$/, 母: /(?:保|助産|祖父)$/ };
     const GG_DISEASES = /糖尿病|高血圧|認知症|アルツハイマー|胃がん|大腸がん|肺がん|乳がん|肝臓がん|がん|癌|心筋梗塞|狭心症|脳梗塞|脳出血|脳卒中|心不全|心疾患|喘息|腎不全|腎臓病|肝硬変|白血病|うつ病|統合失調症|パーキンソン病|骨折|難聴|寝たきり|要介護\d?|要支援\d?|障害/g;
     const GG_JOBS = /会社員|公務員|自営業|主婦|無職|教員|農業|パート|年金生活|学生|看護師|医師|漁業|大工|運転手/;
-    const GG_DECEASED = /死亡|他界|逝去|亡くな|死去|死別|故人|永眠/;
+    const GG_DECEASED = /死亡|他界|逝去|亡くし|亡くな|死去|死別|故人|永眠/;
     const GG_NEG = /^(?:は|も|が)?(?:いない|いません|なし|無し|おらず|いなかった|はいない)/;
 
     function ggNorm(t) { return String(t || '').normalize('NFKC'); }
@@ -149,7 +149,8 @@
           });
           ids.forEach(id => {
             const p = people.get(id);
-            if (dec) p.deceased = true;
+            // 「夫の父は死去した」：死去したのは夫ではなく夫の父。配偶者の語の直後に「の＋親族」が続く文では、配偶者本人は死亡としない。
+            if (dec && !((p.role === '夫' || p.role === '妻') && new RegExp(p.role + 'の(?:父|母|両親|祖父|祖母|兄|姉|弟|妹|実家)').test(clause))) p.deceased = true;
             if (/同居|二人暮らし|2人暮らし|同じ家/.test(clause) && !/別居/.test(clause)) p.living = '同居';
             if (/別居|別世帯|遠方/.test(clause)) p.living = '別居';
             if (/施設|ホーム|入所/.test(clause)) p.living = '施設';
