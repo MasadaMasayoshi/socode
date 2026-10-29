@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.214'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.221'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -3228,6 +3228,13 @@
       if ((plan.tp || []).length && plan.tp.every(t => CP_GENERIC_TP.test(t))) miss.push('TPが汎用文のみ');
       return miss;
     }
+    // v.221: 短期目標だけがある自動計画に、一般条件で長期目標を補う（短期目標の期限句を外し、退院までその状態が安定して続くことを長期目標にする。新しい事実は足さない）
+    function cpDeriveLongGoal(shortGoal) {
+      const g = String(shortGoal || '').trim().replace(/[。.]$/, '');
+      if (!g) return '';
+      const rest = g.replace(/^(?:\d+日(?:後|間)?|\d+時間(?:後|以内)?|今日|明日|本日|[^、。]{0,10}まで)(?:まで)?に?、/, '');
+      return `退院までに、${rest}状態が一時的でなく、入院中安定して続いている`;
+    }
     function cpFinalizeAutoPlans(cp) {
       const ctx = cpRecordContext(cp);
       const txt = ctx.text;
@@ -3263,6 +3270,7 @@
         }
         if (!ctx.surgical) ['problem', 'goalShort', 'goalLong'].forEach(k => { if (/術前|術後/.test(p[k] || '')) { p[k] = p[k].replace(/術前の水準/g, '入院前の水準').replace(/術前/g, '入院前').replace(/術後/g, '治療後'); p.autoRevised = true; } });
         if (!ctx.surgical) ['op', 'tp', 'ep'].forEach(k => { p[k] = (p[k] || []).map(t => /術前|術後/.test(t) ? t.replace(/術前/g, '入院前').replace(/術後/g, '治療後') : t); });
+        if (!String(p.goalLong || '').trim() && String(p.goalShort || '').trim()) { p.goalLong = cpDeriveLongGoal(p.goalShort); p.autoRevised = true; }
         const miss = carePlanCompleteness(p);
         p.draftReasons = miss;
         if (miss.length) { if (['planned', 'draft'].includes(p.status)) p.status = 'draft'; }
@@ -3728,7 +3736,7 @@ if (typeof module !== 'undefined' && module.exports) {
     carePlanInlineNotes, captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
     cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf, collapseVitalCards, collapseLabCards,
-    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, cpConsistencyWarnings, labBackgroundNotes, labBackgroundContext, drugClassNotes, LAB_REFERENCE_TABLE, DRUG_CLASS_OBSERVATION, cpDedupeOverlappingPlans, krTerms, krNames, krIsMedicalTerm, CARE_PLAN_KNOWLEDGE, cpKnowledgeSuggestions, CP_HIGH_RISK_COMBOS, cpHighRiskCombos, cpStripNegated, cpEvidenceKind, krUnknownTerms, CPK_ROWS_79, CPK_ROWS_100, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, carePlanCompleteness, cpFinalizeAutoPlans, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
+    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, cpConsistencyWarnings, labBackgroundNotes, labBackgroundContext, drugClassNotes, LAB_REFERENCE_TABLE, DRUG_CLASS_OBSERVATION, cpDedupeOverlappingPlans, krTerms, krNames, krIsMedicalTerm, CARE_PLAN_KNOWLEDGE, cpKnowledgeSuggestions, CP_HIGH_RISK_COMBOS, cpHighRiskCombos, cpStripNegated, cpEvidenceKind, krUnknownTerms, CPK_ROWS_79, CPK_ROWS_100, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, carePlanCompleteness, cpFinalizeAutoPlans, cpDeriveLongGoal, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
     cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, carePlanSetReviewHtml, carePlanSetState, carePlanSetNextSteps
   });
 }

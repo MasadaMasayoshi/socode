@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.210'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.221'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -1566,6 +1566,42 @@
         ]
       }
       ,{
+        // v.221: 産褥期（正常経過）。診断名ではなく時期の知識で、分娩後の回復・授乳・母親役割・睡眠の連なりを示す。記録に一致した所見だけ作る。出典の版・頁は未確認。
+        id: 'puerperium', dx: /産褥(?:期|\d+日目)?|褥婦/, source: '産婦人科診療ガイドライン産科編・母性看護学の一般的な理解（内蔵知識・頁未確認）',
+        nodes: [
+          { k: 'invol', kind: 'general', label: '分娩後の子宮収縮による子宮復古（約6週）' },
+          { k: 'uterus', kind: 'finding', label: '子宮底・子宮の硬さ・悪露の経過', match: /子宮底|子宮の硬さ|悪露/ },
+          { k: 'afterpain', kind: 'finding', label: '後陣痛', match: /後陣痛|お腹も痛い/ },
+          { k: 'wound', kind: 'finding', label: '会陰切開・縫合の創部の痛み・治癒', match: /会陰切開|縫合|創部|傷が痛/ },
+          { k: 'bowel', kind: 'finding', label: '排便がない・腹部膨満感', match: /排便(?:：|\s)*(?:1日目\s*)?なし|腹部膨満/ },
+          { k: 'anemia', kind: 'finding', label: '妊娠中の貧血・ふらつき', match: /貧血|Hb\s*\d|Hg\s*\d|鉄剤|ふらつき/ },
+          { k: 'lact', kind: 'finding', label: '乳汁分泌・授乳の状況', match: /乳汁|授乳|乳頭|乳房|おっぱい|母乳/ },
+          { k: 'anx', kind: 'finding', label: '授乳・育児への不安・戸惑い', match: /不安|戸惑|どうしよう|ダメみたい|大変/ },
+          { k: 'role', kind: 'finding', label: '児の世話・母児同室（母親役割の獲得）', match: /養育|抱き方|おむつ|オムツ|沐浴|母児同室|母子同室|児に話しかけ/ },
+          { k: 'sleep', kind: 'finding', label: '睡眠の分断・不足', match: /眠れ[なず]|睡眠|熟睡/ },
+          { k: 'hemo', kind: 'risk', label: '産後出血・子宮復古不全の可能性（現時点で所見の記載はない）' },
+          { k: 'infect', kind: 'risk', label: '創部・子宮の感染の可能性（現時点で所見の記載はない）' }
+        ],
+        edges: [
+          ['dx', 'invol', 'causes', '分娩後は子宮が収縮して非妊時の大きさに戻っていく（正常経過）'],
+          ['invol', 'uterus', 'manifests_as', '子宮底が下降し、悪露は赤色から淡血色・白色へ移る（記録に一致）'],
+          ['invol', 'afterpain', 'manifests_as', '子宮収縮に伴う後陣痛（授乳や経産で強くなりうる。記録に一致）'],
+          ['dx', 'wound', 'manifests_as', '会陰切開・裂傷の創部が痛みや治癒の過程を示す（記録に一致）'],
+          ['dx', 'lact', 'manifests_as', '産後に乳汁分泌が始まり、授乳が確立していく過程（記録に一致）'],
+          ['lact', 'anx', 'results_in', '乳汁分泌や授乳手技がうまくいかないと不安が生じやすい（記録に一致）'],
+          ['dx', 'role', 'manifests_as', '児の世話を通して母親役割を獲得していく過程（記録に一致）'],
+          ['role', 'sleep', 'may_contribute_to', '頻回の授乳・夜間の育児で睡眠が分断されやすい（記録に一致）'],
+          ['anemia', 'hemo', 'may_contribute_to', '妊娠中の貧血や分娩時出血は産後の回復・ふらつきに影響しうる（可能性）'],
+          ['invol', 'hemo', 'predicts', '子宮収縮が悪いと産後出血を生じうる（可能性。実際の所見ではない）'],
+          ['wound', 'infect', 'predicts', '創部は感染を起こしうる（可能性。実際の所見ではない）']
+        ],
+        chains: [
+          { need: ['lact', 'anx'], mid: null, edges: [], problem: '母乳栄養の確立に関する不安・授乳手技の習得（効果的でない母乳栄養のリスク）', from: 'anx' },
+          { need: ['wound'], mid: null, edges: [], problem: '会陰創部の痛み・創部治癒の観察', from: 'wound' },
+          { need: ['role'], mid: null, edges: [], problem: '母親役割獲得の過程の支援（児の世話・母児同室）', from: 'role' }
+        ]
+      }
+      ,{
         id: 't1dm', dx: /1型糖尿病|1型\s*DM|若年発症.*糖尿病|糖尿病/, source: '糖尿病診療ガイドライン等に基づく一般的な理解（内蔵知識・頁未確認）',
         nodes: [
           { k: 'beta', kind: 'general', label: '膵β細胞の障害によるインスリンの欠乏' },
@@ -1824,13 +1860,14 @@
             for (const i of clinicalRecords) {
               if (!notSurgeryLine(i) || rmIsFamilySpeech(i.text)) continue;
               for (const st of String(i.text).normalize('NFKC').split(/(?<=[。\n])/)) {
-                if (famRe2.test(st)) continue;
+                if (famRe2.test(st.replace(/母(?:子|乳|性|体|親学級|親役割)|父母学級/g, ''))) continue;
                 const m = rmPositiveMatch(dk.dx, st);
                 if (m) { hit = { item: i, label: m[0].trim() }; break outer; }
               }
             }
           }
         }
+        if (hit && /^(?:産褥|褥婦)/.test(hit.label)) hit.label = '産褥期';
         if (hit) { dxHost = hit.item; dxLabel0 = hit.label.replace(/(?:のため|のために|のことで|により|となり|で|に対して?|と診断.*)$/, '').trim(); }
       }
       const disease = dxHost && dxLabel0 ? N('disease', 'disease', dxLabel0, { items: [dxHost] }) : null;
