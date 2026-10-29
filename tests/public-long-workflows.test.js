@@ -44,7 +44,7 @@ for (const {id,text} of loadPublicCases()) {
     }
     assert.ok(plans.some(p=>(p.evidenceIds||[]).length>0), `${id}: 明示されたカードへの根拠リンクが必要`);
     for (const p of plans) for (const ref of p.mapEvidenceRefs||[]) {
-      if (ref.sourceType==='card' && ref.patientId===cp.id && itemIds.has(ref.sourceId)) assert.ok(p.evidenceIds.includes(ref.sourceId));
+      if (ref.sourceType==='card' && ref.patientId===cp.id && itemIds.has(ref.sourceId)) assert.ok(p.evidenceIds.includes(ref.sourceId) || (p.rejectedEvidence || []).some(r => r.id === String(ref.sourceId) && r.reason), `${id}: 関連図の根拠リンクは、採用されたか、理由つきで退けられたかのどちらかでなければならない`);
     }
     const p = plans[0];
     p.goalShort = '本人と相談して記載した個別の目標';

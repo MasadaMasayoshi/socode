@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.219'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.248'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1718,7 +1718,7 @@
       if (refM) {
         const given = refM[1].trim();
         const generic = `${std.ref}${std.unit}`.replace(/\s+/g, '') === given.replace(/\s+/g, '') || std.ref.replace(/\s+/g, '') === given.replace(/\s+/g, '');
-        rec.ref = { text: given, origin: generic ? 'unverified' : 'source', range: parseLabReferenceRange(given), unit: refUnitOf(given) };
+        rec.ref = { text: given, origin: generic ? 'unverified' : 'source', range: parseLabReferenceRange(given), unit: refUnitOf(given) || (generic ? '' : u) }; // 単位の書かれていない基準値は、同じカードの測定値と同じ単位とみなす（換算後の値と混ぜない）
       } else if (range) rec.ref = { text: `${std.ref} ${std.unit}`.trim(), origin: 'general', range, unit: std.unit };
 
       if (previous && Number.isFinite(previous.valueStd) && valueStd !== null && previous.valueStd > 0 && valueStd >= 0 && !LAB_VAL_CHANGE_EXEMPT.includes(key)) {
@@ -1873,7 +1873,7 @@
         const lines = [];
         if (valid.length) {
           const last = valid[valid.length - 1];
-          lines.push(`${key}：${seq} ${last.stdUnit || (std ? std.unit : '')}`.trim());
+          lines.push(`${key}：${seq} ${last.stdUnit || (std ? std.unit : '')}${last.unitRaw && last.valueRaw && !sameLabUnit(last.unitRaw, last.stdUnit || '') ? `（原文：${last.valueRaw} ${last.unitRaw}）` : ''}`.trim());
           if (last.ref) lines.push(`　判定：${LAB_STATUS_LABEL[last.status]}${last.ref.text ? `（基準値 ${last.ref.text}・${last.ref.origin === 'source' ? '記録に記載された基準値（出典未確認）' : last.ref.origin === 'unverified' ? '記録の基準値（内蔵値と一致・由来未確認）' : 'アプリ内蔵の一般的な基準値（性別・年齢・施設で異なります）'}）` : ''}`);
           else lines.push(`　判定：${LAB_STATUS_LABEL[last.status]}`);
           if (!ordered) lines.push('　日時の順序を確認できない値を含むため、数値の並びを推移として判定していません。');

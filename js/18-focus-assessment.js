@@ -1,7 +1,7 @@
 // 重点アセスメント：欲求ごとに、S・O（入院前／入院後）→ 情報の分析・解釈 → 統合 → 看護問題の明確化を一画面で書く。
 // S・Oは分類ボードの内容から自動で並べ、分析・解釈／統合／看護問題の明確化も、記録・充足判定・看護計画（関連図の看護問題）から自動で下書きする。手で直した欄は自動では上書きしない（myAssessments の追加項目に保存）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.247'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.248'; // Version stamp (scripts/stamp-version.js)
 
     const FOCUS_FIELDS = [
       { key: 'focusAnalysis', label: '情報の分析・解釈', ph: 'S・Oの情報から、なぜその状態なのか（原因・関連要因）、今後どうなりそうかを書きます。\n例：術後は疼痛（O-3）と荷重への不安（S-2）から、歩行を避けて活動量が低下している。' },
@@ -76,6 +76,30 @@
       return nodes.find(n => n.type === 'nursing_problem' && focusProbKey(n.label) === key) || null;
     }
     // 関連図で、その看護問題へ入ってくる矢印をさかのぼり、病態・症状・治療の四角を最大3つ拾う
+    // 関連図の上流のノードを、役割（原因・関連要因／症状・状態／実施中の介入）に分ける。介入や症状を「原因」として並べない。
+    const FOCUS_INTERVENTION_RE = /鎮痛薬?|鎮痛剤|投与|内服|点滴|見守り|介助(?:で|下|により)|訓練|リハビリ(?!室)|移乗し|指導|ストッキング|ドレナージ/;
+    const FOCUS_RESTRICT_RE = /安静|固定|制限|禁止|荷重|牽引|術式|麻酔|手術|カテーテル|ライン|ドレーン/;
+    function focusMapChainRoles(cp, node) {
+      const map = cp.relationMap; const out = { causes: [], symptoms: [], interventions: [] };
+      if (!map || !node || !Array.isArray(map.edges)) return out;
+      const byId = new Map(map.nodes.map(n => [n.id, n]));
+      const seen = new Set([node.id]); let frontier = [node.id];
+      for (let depth = 0; depth < 3 && frontier.length; depth++) {
+        const next = [];
+        frontier.forEach(id => map.edges.filter(e => e.target === id).forEach(e => {
+          const n = byId.get(e.source);
+          if (!n || seen.has(n.id)) return;
+          seen.add(n.id); next.push(n.id);
+          const label = focusClip(n.label, 30);
+          if (n.type === 'symptom') out.symptoms.push(label);
+          else if (FOCUS_INTERVENTION_RE.test(n.label) && !FOCUS_RESTRICT_RE.test(n.label)) out.interventions.push(label);
+          else if (['pathophysiology', 'treatment', 'disease'].includes(n.type)) out.causes.push(label);
+        }));
+        frontier = next;
+      }
+      Object.keys(out).forEach(k => { out[k] = [...new Set(out[k])].slice(0, 3); });
+      return out;
+    }
     function focusMapChain(cp, node) {
       const map = cp.relationMap;
       if (!map || !node || !Array.isArray(map.edges)) return [];
@@ -179,7 +203,7 @@
         else para.push(`入院前の${name}の状況は、記録からは確認できない。`);
         if (events.length) para.push(`今回は${events.map(i => `${cl(i.text, 50)}${lab(i)}`).join('、')}という経過で入院している。`);
         // 2. 疾患・治療と身体への影響（患者の記録に根拠があるものだけ）
-        const chains = established.slice(0, 2).map(p => ({ p, ch: focusMapChain(cp, focusMapNodeOf(cp, p)) })).filter(x => x.ch.length);
+        const chains = established.slice(0, 2).map(p => ({ p, ch: focusMapChainRoles(cp, focusMapNodeOf(cp, p)).causes })).filter(x => x.ch.length);
         if (chains.length) para.push(chains.map(x => `${x.ch.slice().reverse().join('、')}が背景にあり、${cl(x.p.problem, 30)}につながりやすい状態にある`).join('。また、') + '。');
         reasons.slice(0, 2).forEach(r => crNarrative(r, data.labels).forEach(x => para.push(x)));
         // 3. 入院後の変化（日ごと。新しい所見ほど後ろ）
@@ -235,7 +259,7 @@
         integration.push(t);
       }
       let problem = established.length
-        ? `よって、${established.map(p => focusClip(p.problem, 34)).join('、')}が、この欲求から明確になる看護問題である。\n` + established.map((p, i) => { const ch = focusMapChain(cp, focusMapNodeOf(cp, p)); const evl = [...new Set((p.evidenceIds || []).map(id => data.labels[id]).filter(Boolean))]; const oth = (p.relatedNeeds || []).filter(n => n !== needId).map(n => focusNeedName(n)); return `#${i + 1} ${p.problem}（${stat(p).label}）${ch.length ? `\n　関連要因：${ch.slice().reverse().join('、')}` : ''}${p.note ? `\n　状態：${focusClip(p.note, 70)}` : ''}${evl.length ? `\n　根拠：${evl.join('・')}` : ''}${oth.length ? `\n　関連する欲求：${oth.join('・')}` : ''}`; }).join('\n') + (candidates.length ? `\n（根拠を確かめる候補：${candidates.map(p => focusClip(p.problem, 24)).join('、')}）` : '')
+        ? `よって、${established.map(p => focusClip(p.problem, 34)).join('、')}が、この欲求から明確になる看護問題である。\n` + established.map((p, i) => { const rl = focusMapChainRoles(cp, focusMapNodeOf(cp, p)); const ch = rl.causes; const evl = [...new Set((p.evidenceIds || []).map(id => data.labels[id]).filter(Boolean))]; const oth = (p.relatedNeeds || []).filter(n => n !== needId).map(n => focusNeedName(n)); return `#${i + 1} ${p.problem}（${stat(p).label}）${ch.length ? `\n　関連要因：${ch.slice().reverse().join('、')}` : ''}${rl.symptoms.length ? `\n　症状・状態：${rl.symptoms.join('、')}` : ''}${rl.interventions.length ? `\n　実施中の介入：${rl.interventions.join('、')}` : ''}${p.note ? `\n　状態：${focusClip(p.note, 70)}` : ''}${evl.length ? `\n　根拠：${evl.join('・')}` : ''}${oth.length ? `\n　関連する欲求：${oth.join('・')}` : ''}`; }).join('\n') + (candidates.length ? `\n（根拠を確かめる候補：${candidates.map(p => focusClip(p.problem, 24)).join('、')}）` : '')
         : (all.length ? 'この欲求から明確になる看護問題は、現時点ではない。' : '');
       const cand2 = reasons.filter(r => r.status !== 'confirmed' && !established.some(p => r.topic.plan.test(p.problem)));
       if (cand2.length && !established.length) problem = '現時点で確定できる看護問題はないが、次の候補を追加のアセスメントで確かめる。';

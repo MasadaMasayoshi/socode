@@ -6,7 +6,7 @@
 // ⑤ 検査値の単位の誤りを見つける（元の値は直さない）
 // 元の表示カードは変えない。判定の4区分（充足・未充足・判定保留・情報不足）も増やさない。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['19'] = 'v.245'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['19'] = 'v.248'; // Version stamp (scripts/stamp-version.js)
 
     const cvNorm = t => String(t || '').normalize('NFKC');
     const cvPlain = t => cvNorm(t).replace(/[「」『』\s]/g, '');
@@ -162,13 +162,15 @@
       { id: 'urine', label: /排尿|尿/, ev: /尿|カテーテル|膀胱|残尿|排尿|腎|Cr|BUN|eGFR/ },
       { id: 'skin', label: /皮膚|褥瘡|圧迫/, ev: /皮膚|発赤|褥瘡|圧迫|Braden|ずれ|体位|栄養|Alb|浮腫|創|湿潤|体動|寝返り/ },
       { id: 'sleep', label: /睡眠/, ev: /睡眠|眠|覚醒|夜間|不眠|疼痛|環境|音/ },
-      { id: 'anxiety', label: /不安|恐怖|ストレス|対処/, ev: /不安|怖|心配|恐|緊張|眠れ|戸惑|ストレス|説明|手術|家族|今後|退院/ }
+      { id: 'anxiety', label: /不安(?!定)|恐怖|ストレス|対処/, ev: /不安|怖|心配|恐|緊張|眠れ|戸惑|ストレス|説明|手術|家族|今後|退院/ }
     ];
-    function cvFamilyOf(problemLabel) { const l = cvNorm(problemLabel); return CV_FAMILIES.find(f => f.label.test(l)) || null; }
+    function cvFamilyOf(problemLabel) { const l = cvNorm(problemLabel); let best = null, bi = 1e9; CV_FAMILIES.forEach(f => { const m = l.match(f.label); if (m && m.index < bi) { best = f; bi = m.index; } }); return best; } // 問題名の先頭に近い語を優先（睡眠パターン混乱→睡眠）
     // その看護問題の根拠として使ってよい記録か。無関係な記録・否定された所見は使わない。
     // 「ないこと」自体が所見になる語（排便なし・摂取量の低下など）は、否定として捨てない
     const CV_ABSENCE_IS_FINDING = /(?:排便|排ガス|排尿|自尿|尿量|摂取|睡眠|食欲|食事)[^、。]{0,4}(?:なし|ない|なく|低下|減少)|眠れ(?:ない|なかった)/;
     function cvEvidenceRelevant(problemLabel, text) {
+      // これから行う予定（手術予定など）は、その問題を裏付ける所見ではない
+      if (/予定\s*[)）。]?\s*$/.test(cvNorm(text).trim()) && cvNorm(text).trim().length < 40) return false;
       const fam = cvFamilyOf(problemLabel);
       if (!fam) return true;
       // 根拠の文字列は「項目名：内容」の形が多い。項目名だけが一致しても関係あるとは言えないので、内容の側で確かめる。
@@ -219,6 +221,78 @@
       return issues;
     }
 
+
+    // ---- ⑥ 時期の取り出しと、時系列の食い違いの検出（日付・入院日・術後日・時刻を別々に持つ） ----
+    function cvTimeOf(item) {
+      const ts = cvNorm(item && item.timestamp).trim();
+      const out = { calendar: null, hospDay: null, postopDay: null, phase: null, time: null, source: 'none', confident: false };
+      const read = (src, where) => {
+        const t = cvNorm(src);
+        let m;
+        if (!t) return false;
+        let hit = false;
+        if ((m = t.match(/(\d{1,4}年)?(\d{1,2})月(\d{1,2})日/))) { out.calendar = `${m[1] || ''}${m[2]}月${m[3]}日`; hit = true; }
+        if ((m = t.match(/(?:術後|手術後)\s*(\d{1,3})\s*日目?/))) { out.postopDay = Number(m[1]); out.phase = 'postop'; hit = true; }
+        else if (/手術当日|術中/.test(t)) { out.postopDay = 0; out.phase = 'op_day'; hit = true; }
+        else if (/手術前日|術前/.test(t)) { out.phase = 'preop'; hit = true; }
+        if ((m = t.match(/入院\s*(\d{1,3})\s*日目?/))) { out.hospDay = Number(m[1]); out.phase = out.phase || 'inpatient'; hit = true; }
+        else if (/入院時|入院当日/.test(t)) { out.hospDay = 1; out.phase = out.phase || 'admission'; hit = true; }
+        if (/入院前/.test(t) && !out.phase) { out.phase = 'preadmission'; hit = true; }
+        if ((m = t.match(/(\d{1,2})[:：](\d{2})/))) { out.time = `${m[1]}:${m[2]}`; hit = true; }
+        if (hit) { out.source = where; out.confident = true; }
+        return hit;
+      };
+      if (ts && ts !== '日時不明' && read(ts, 'timestamp')) return out;
+      if (read(item && item.fieldLabel, 'fieldLabel')) return out;
+      return out; // 本文の位置や本文中の日数から時期を推測しない（時期未確認）
+    }
+    function cvDaysBetween(c1, c2) {
+      const p = c => { const m = String(c || '').match(/(?:(\d{4})年)?(\d{1,2})月(\d{1,2})日/); return m ? new Date(Number(m[1] || 2000), Number(m[2]) - 1, Number(m[3])) : null; };
+      const a = p(c1), b = p(c2); return a && b ? Math.round((a - b) / 86400000) : null;
+    }
+    function cvTimelineIssues(cp) {
+      const issues = [];
+      const items = (cp && cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && i.text);
+      let surgery = null;
+      items.forEach(i => { const m = cvNorm(i.text).match(/(\d{1,2}月\d{1,2}日)[^。\n]{0,12}(?:手術|置換術|切除術|形成術|固定術)(?:を)?(?:施行|実施|予定|で)?/); if (m && !surgery && !/予定/.test(m[0])) surgery = m[1]; });
+      items.forEach(i => {
+        const tm = cvTimeOf(i); const head = cvNorm(i.text).trim();
+        const lead = head.match(/^[\[【(（]?\s*(?:術後|手術後)\s*(\d{1,3})\s*日目/);
+        if (lead && ['preop', 'preadmission', 'admission'].includes(tm.phase)) issues.push({ id: i.id, kind: 'phase', msg: `本文は術後${lead[1]}日目なのに、時期が「${i.timestamp}」になっている` });
+        if (lead && tm.postopDay !== null && tm.phase === 'postop' && tm.postopDay !== Number(lead[1])) issues.push({ id: i.id, kind: 'day', msg: `本文は術後${lead[1]}日目なのに、時期が「${i.timestamp}」になっている` });
+        if (surgery && tm.calendar && tm.postopDay === null) {
+          const d = cvDaysBetween(tm.calendar, surgery);
+          if (d !== null && d < 0 && /^(?:術後|手術後)/.test(head)) issues.push({ id: i.id, kind: 'date', msg: `${tm.calendar}は手術日（${surgery}）より前だが、術後の記録になっている` });
+        }
+        if (surgery && tm.calendar && tm.postopDay !== null) { const d = cvDaysBetween(tm.calendar, surgery); if (d !== null && d !== tm.postopDay) issues.push({ id: i.id, kind: 'date', msg: `日付${tm.calendar}は手術日（${surgery}）の${d}日後だが、術後${tm.postopDay}日目と書かれている` }); }
+      });
+      return issues;
+    }
+    // 検査値：書かれた項目名・数値・基準値の対応を、元の文字列と突き合わせる（ずれたら解析結果を使わない）
+    function cvCheckLabParse(cp) {
+      const issues = [];
+      if (typeof parseLabTrendEntries !== 'function') return issues;
+      (cp.items || []).filter(i => i && !i.deleted && i.text).forEach(i => {
+        const t = cvNorm(i.text);
+        let ents = null; try { ents = parseLabTrendEntries(t); } catch (e) { ents = null; }
+        (ents || []).forEach(e => {
+          const v = String(e.value).replace(/,/g, '');
+          if (!t.replace(/,/g, '').includes(v)) issues.push({ id: i.id, key: e.key, msg: `${e.key}の解析値「${e.value}」が原文にない（原文を確認。自動評価は行わない）` });
+          if (e.ref) { const nums = (String(e.ref).match(/\d[\d.,]*/g) || []); if (nums.some(n => !t.replace(/,/g, '').includes(n.replace(/,/g, '')))) issues.push({ id: i.id, key: e.key, msg: `${e.key}の基準値「${e.ref}」が同じ行の原文にない` }); }
+        });
+      });
+      return issues;
+    }
+    // 書き出し前の監査に出す指摘（時系列・検査値の単位と解析・退けた根拠）
+    function cvAuditFindings(cp) {
+      const F = [];
+      try { cvTimelineIssues(cp).forEach(x => F.push({ level: '重要', area: '時期', detail: x.msg, ref: x.id })); } catch (e) { /* 監査対象外 */ }
+      try { cvCheckLabUnits(cp).forEach(x => F.push({ level: '確認', area: '検査値の単位', detail: x.msg, ref: x.id })); } catch (e) { /* 監査対象外 */ }
+      try { cvCheckLabParse(cp).forEach(x => F.push({ level: '重要', area: '検査値の解析', detail: x.msg, ref: x.id })); } catch (e) { /* 監査対象外 */ }
+      try { (typeof carePlanList === 'function' ? carePlanList(cp) : []).forEach(p => (p.rejectedEvidence || []).forEach(r => F.push({ level: '軽微', area: '根拠の退け', detail: `「${String(p.problem).slice(0, 20)}」の根拠から外した：「${r.text}」（${r.reason}）`, ref: r.id }))); } catch (e) { /* 監査対象外 */ }
+      return F;
+    }
+
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { cvAffirmed, cvTraceable, cvHeadingOnly, cvValidateSufficiency, cvProgress, cvDimensions, cvApplyDimensions, cvPostProcessSufficiency, cvFamilyOf, cvEvidenceRelevant, cvFilterEvidenceTexts, cvProblemStatus, cvCheckLabUnits, CV_DIMENSIONS });
+  Object.assign(module.exports, { cvAffirmed, cvTraceable, cvHeadingOnly, cvValidateSufficiency, cvProgress, cvDimensions, cvApplyDimensions, cvPostProcessSufficiency, cvFamilyOf, cvEvidenceRelevant, cvFilterEvidenceTexts, cvProblemStatus, cvCheckLabUnits, CV_DIMENSIONS, cvTimeOf, cvTimelineIssues, cvCheckLabParse, cvAuditFindings });
 }

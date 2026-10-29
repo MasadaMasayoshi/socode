@@ -1,7 +1,7 @@
 // Structured clinical facts, shared timeline, evidence objects and cross-output audit (v.203).
 // Derived layer only: it never edits or deletes original cards (item.text, tags, editLog stay as they are).
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['17'] = 'v.225'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['17'] = 'v.248'; // Version stamp (scripts/stamp-version.js)
     const CF_SCHEMA_VERSION = 1;
     // ---- tracks and condition-specific phase definitions (shared timeline engine) ----
     const CF_TRACKS = [
@@ -268,6 +268,7 @@
         const unv = (CARE_PLAN_KNOWLEDGE || []).filter(k => !k.source || !k.source.length || (k.source || []).some(x => /未確認/.test(x))).length;
         if (unv) add('確認', '知識の出典', `看護計画の知識 ${unv} 件は出典の版・頁が未確認（頁番号は作っていません）`, null);
       } catch (e) { /* 知識表がない場合は対象外 */ }
+      try { if (typeof cvAuditFindings === 'function') cvAuditFindings(cp).forEach(f => F.push(f)); } catch (e) { /* 監査対象外 */ }
       const important = F.filter(f => f.level === '重要').length;
       return { findings: F, important, complete: important === 0 };
     }

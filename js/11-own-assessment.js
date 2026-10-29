@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.245'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.248'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -1505,10 +1505,30 @@
       return unmet || met || pending || { v: '', hit: '', clause: '' };
     }
     // 経過日の読み取り（産褥/術後/入院/生後N日目、POD、N病日）。読めないカードは null。
+    // 時期は「どの欄に書かれたか」を区別して取り出す。見出し（日時の欄）に時期があればそれを使い、本文中の別の日数
+    // （「〜術後5日目まで」「入院4日目から」など）で上書きしない。術後N日目と入院N日目は別の数え方なので、同じ欄に両方あれば術後を優先する。
+    function suffDayIn(src) {
+      const t = String(src || '').normalize('NFKC').replace(/[〜~～]\s*(?:術後|手術後|入院)\s*[0-9]{1,3}\s*日(?:目)?\s*(?:まで|迄)/g, '');
+      const re = /(産褥|術後|入院|分娩後|生後|手術後)\s*([0-9]{1,3})\s*日(?:目)?|POD\s*([0-9]{1,3})|([0-9]{1,3})\s*病日/g;
+      let m, best = null;
+      while ((m = re.exec(t)) !== null) {
+        const kind = m[1] || (m[3] ? '術後' : '入院');
+        const n = Number(m[2] || m[3] || m[4]);
+        const pr = /術後|手術後|産褥|分娩後|生後/.test(kind) ? 0 : 1;
+        if (!best || pr < best.pr) best = { n, pr };
+      }
+      return best ? best.n : null;
+    }
     function suffDayOf(i) {
-      const t = [i.fieldLabel, i.timestamp, i.text].map(x => String(x || '')).join(' ').normalize('NFKC');
-      const m = t.match(/(?:産褥|術後|入院|分娩後|生後|手術後)\s*([0-9]{1,3})\s*日(?:目)?|POD\s*([0-9]{1,3})|([0-9]{1,3})\s*病日/);
-      return m ? Number(m[1] || m[2] || m[3]) : null;
+      const ts = String((i && i.timestamp) || '').normalize('NFKC').trim();
+      if (ts && ts !== '日時不明') {
+        const r = suffDayIn(ts);
+        if (r !== null) return r;
+        if (/手術当日|手術前日|術前|術中|入院時|入院前|入院当日|検査データ|[0-9]{1,2}月[0-9]{1,2}日/.test(ts)) return null; // 見出しが日数以外の時期を示すとき、本文から日数を推測しない
+      }
+      const f = suffDayIn(i && i.fieldLabel);
+      if (f !== null) return f;
+      return suffDayIn(i && i.text);
     }
     function placeByDate(i) {
       return typeof inferAssessmentColumn === 'function' ? inferAssessmentColumn(i.fieldLabel, i.timestamp, null) : null;

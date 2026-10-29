@@ -28,8 +28,8 @@
     "hash": "41cac1ffcc6a8e9d"
   },
   "js/08-assessment-tools.js": {
-    "version": "v.219",
-    "hash": "7f323e9967225be5"
+    "version": "v.248",
+    "hash": "482cb9d6238030f3"
   },
   "js/09-board.js": {
     "version": "v.225",
@@ -40,12 +40,12 @@
     "hash": "e8efca85cb5ee334"
   },
   "js/11-own-assessment.js": {
-    "version": "v.245",
-    "hash": "65a1429e9e2d2f3f"
+    "version": "v.248",
+    "hash": "5c43bcd63593ad51"
   },
   "js/12-missing-checks-and-care-plan.js": {
-    "version": "v.245",
-    "hash": "b7952b49147e1ae7"
+    "version": "v.248",
+    "hash": "932f6baf14c0fa2c"
   },
   "js/13-compare-and-report.js": {
     "version": "v.236",
@@ -76,16 +76,16 @@
     "hash": "fa920de93244f9cc"
   },
   "js/17-clinical-facts.js": {
-    "version": "v.225",
-    "hash": "1a4cc5e3cc4a4877"
+    "version": "v.248",
+    "hash": "226e9e1f050ea0a8"
   },
   "js/18-focus-assessment.js": {
-    "version": "v.247",
-    "hash": "b4af6c235bd62fde"
+    "version": "v.248",
+    "hash": "7b47a23a4c002aaf"
   },
   "js/19-clinical-validation.js": {
-    "version": "v.245",
-    "hash": "e9a205be18b3b83b"
+    "version": "v.248",
+    "hash": "e581b453afedf3c4"
   },
   "js/20-clinical-reasoning.js": {
     "version": "v.247",

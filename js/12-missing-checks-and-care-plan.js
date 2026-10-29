@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.245'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.248'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -436,12 +436,15 @@
     // Text links require exact, unique matches. Native map links require explicit same-patient card IDs.
     function captureCarePlanEvidence(cp, plan) {
       const cards = (cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && !i.diseaseGeneral && !i.aiSuggested);
-      const ids = new Set((Array.isArray(plan.evidenceIds) ? plan.evidenceIds : []).map(String));
+      const rejected = [];
+      const okFor = card => !card || typeof cvEvidenceRelevant !== 'function' || plan.source === 'manual' || cvEvidenceRelevant(plan.problem, card.text);
+      const ids = new Set();
+      (Array.isArray(plan.evidenceIds) ? plan.evidenceIds : []).map(String).forEach(id => { const c = cards.find(x => String(x.id) === id); if (!c || okFor(c)) ids.add(id); else rejected.push({ id, text: String(c.text || '').slice(0, 60), reason: 'この看護問題を裏付ける所見ではない' }); });
 
       if (cp.id && plan.caseId === cp.id) {
         for (const ref of Array.isArray(plan.mapEvidenceRefs) ? plan.mapEvidenceRefs : []) {
           const refCard = ref && ref.sourceType === 'card' && ref.patientId === cp.id ? cards.find(i => String(i.id) === String(ref.sourceId)) : null;
-          if (refCard) ids.add(String(refCard.id));
+          if (refCard) { if (okFor(refCard)) ids.add(String(refCard.id)); else rejected.push({ id: String(refCard.id), text: String(refCard.text || '').slice(0, 60), reason: 'この看護問題を裏付ける所見ではない' }); }
         }
       }
       for (const text of plan.evidence || []) {
@@ -449,6 +452,7 @@
         if (matches.length === 1 && (typeof cvEvidenceRelevant !== 'function' || plan.source === 'manual' || cvEvidenceRelevant(plan.problem, matches[0].text))) ids.add(String(matches[0].id));
       }
       plan.evidenceIds = [...ids];
+      plan.rejectedEvidence = rejected.filter((r, k, arr) => !ids.has(r.id) && arr.findIndex(x => x.id === r.id) === k);
       plan.evidenceSnapshot = cards.filter(i => ids.has(String(i.id))).map(i => ({ id: String(i.id), text: String(i.text || ''), timestamp: String(i.timestamp || ''), type: i.type, hendersonIds: [...(i.hendersonIds || [])], admissionPhase: i.admissionPhase || '', assessmentCols: { ...(i.assessmentCols || {}) } }));
     }
     function carePlanEvidenceChanges(cp, plan) {
@@ -3185,7 +3189,7 @@
       const _evOk = _evAll.filter(e => typeof cvEvidenceRelevant !== 'function' || cvEvidenceRelevant(plan.problem, e));
       // 関連する根拠が1件も残らないときは、元の根拠を残したうえで「根拠が弱い」印を付ける（黙って空にしない）
       plan.evidenceWeak = !_evOk.length && _evAll.length > 0;
-      plan.evidence = _evOk.length ? _evOk : _evAll;
+      plan.evidence = _evOk; // 関係のない根拠（例：脱臼リスクにHb）は、1件も関連がなくても残さない
       plan.evRefined = true;
     }
 
@@ -3335,7 +3339,7 @@
         if (!key || existing.has(key) || existingCanon.has(cpPlanKey({ problem }))) return;
         existing.add(key);
         const mapEvidenceRefs = typeof findRelationEvidence === 'function' ? findRelationEvidence(map, n.id, cp).sourceRefs : [];
-        const plan = createCarePlan(cp, { caseId: cp.id || '', problem, evidence: (() => { const all = cpMapEvidence(map, n); const ok = typeof cvFilterEvidenceTexts === 'function' ? cvFilterEvidenceTexts(problem, all) : all; return ok.length ? ok : all; })(), mapEvidenceRefs, note: n.note || '', source: 'map', reasonNeeded: true }, now);
+        const plan = createCarePlan(cp, { caseId: cp.id || '', problem, evidence: (() => { const all = cpMapEvidence(map, n); const ok = typeof cvFilterEvidenceTexts === 'function' ? cvFilterEvidenceTexts(problem, all) : all; return ok; })(), mapEvidenceRefs, note: n.note || '', source: 'map', reasonNeeded: true }, now);
         plan.relatedNeeds = guessPlanNeeds(plan);
         fresh.push(plan);
       });
