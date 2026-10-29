@@ -31,3 +31,13 @@ test('重点アセスメント：記録から分析・解釈／統合／看護�
   app.applyFocusDraft(cp, 4);
   assert.equal(cp.myAssessments[4].focusIntegration, '自分で書いた統合');
 });
+
+test('重点アセスメント：書き出し（印刷・テキスト）に出る／書き出しの項目に追加', () => {
+  const SRC = '右大腿骨頸部骨折で人工骨頭置換術を施行した。\n入院前は自立していた。\n創部痛があり、動かすと手術したところが痛い。NRS5。';
+  const items = Array.from(app.classifyTextByRules(SRC)).map((c, i) => ({ ...c, id: 'c' + i }));
+  const cp = { id: 'p', title: 'A氏', sourceText: SRC, items, carePlans: {}, myAssessments: {}, selectedDiagnosisIds: [], diagnosisCandidates: [] };
+  app.buildCarePlansByRules(cp);
+  assert.match(app.focusPrintSection(cp, 5), /重点アセスメント[\s\S]*情報の分析・解釈/);
+  assert.match(app.focusAssessmentText(cp), /■情報の分析・解釈/);
+  assert.ok(app.EXPORT_SECTIONS.some(x => x.key === 'focus'));
+});

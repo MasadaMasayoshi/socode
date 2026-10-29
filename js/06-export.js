@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.227'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.239'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -62,6 +62,7 @@
   table.so td:first-child { background: #fbf6ea; }
   ul.cards li.day { font-weight: 700; font-size: 7.8pt; color: #22405e; background: #eef2f6; padding: 1pt 3pt; margin-top: 2pt; border-bottom: none; break-after: avoid; page-break-after: avoid; }
   ul.cards li.day.bg { color: #6b6457; background: #f5f3ee; border: 0.5pt dashed #bbb; }
+  .pfa-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:8.5pt; margin-bottom:8pt; } .pfa-table th, .pfa-table td { border:.6pt solid #888; padding:3pt 4pt; vertical-align:top; word-break:break-all; } .pfa-sub { font-weight:bold; margin-top:3pt; } .pfa-day { color:#555; font-size:8pt; } .pfa-card { margin-bottom:2pt; } .pfa-empty { color:#777; }
   .ai { border: .6pt solid #d5cfc2; border-radius: 3pt; padding: 5pt 7pt; background: #fbfaf7; font-size: 9pt; }
   .ai-evidence-chip { color: #6b665c; font-size: .8em; white-space: nowrap; }
   .ai-text p { margin: 0 0 3pt; }
@@ -363,6 +364,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       }
       const own = typeof buildMyAssessmentsPrintHtml === 'function' ? buildMyAssessmentsPrintHtml(cp, n) : '';
       if (on('own') && own) { body += own; n++; }
+      if (on('focus') && typeof focusPrintSection === 'function') { const fs = focusPrintSection(cp, n); if (fs) { body += fs; n++; } }
 
       const plansText = typeof buildCarePlansText === 'function' ? buildCarePlansText(cp, { withRecords: true }) : '';
       if (on('plans') && plansText) body += `<h2>${n++}. 看護計画と実施・評価</h2><p style="white-space:pre-wrap;margin:0;">${escapeHtml(plansText)}</p>`;
@@ -409,6 +411,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       { key: 'unclassified', label: '未分類のカード' },
       { key: 'henderson', label: 'ヘンダーソン14項目別アセスメント整理' },
       { key: 'own', label: '自分のアセスメント' },
+      { key: 'focus', label: '重点アセスメント' },
       { key: 'plans', label: '看護計画と実施・評価' },
       { key: 'planEval', label: '全計画の評価' },
       { key: 'genogram', label: 'ジェノグラム' },
@@ -677,6 +680,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
 
       const own = typeof buildMyAssessmentsText === 'function' ? buildMyAssessmentsText(cp) : '';
       if (on('own') && own) { out += plainSectionTitle('自分のアセスメント'); out += own + '\n'; }
+      if (on('focus') && typeof focusAssessmentText === 'function') { const ft = focusAssessmentText(cp); if (ft) { out += plainSectionTitle('重点アセスメント'); out += ft + '\n'; } }
 
       const plansText = typeof buildCarePlansText === 'function' ? buildCarePlansText(cp, { withRecords: true }) : '';
       if (on('plans') && plansText) { out += plainSectionTitle('看護計画と実施・評価'); out += plansText + '\n'; }

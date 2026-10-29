@@ -2113,3 +2113,6 @@ tr.cmp-row{display:table-row;padding:0;border:0;background:none;gap:0}
 .fa-o-col .fa-card { background:color-mix(in srgb, var(--accent) 9%, var(--surface)); border-left-color:var(--accent); }
 .fa-s-col .fa-head { background:color-mix(in srgb, var(--gold) 20%, var(--surface)); }
 .fa-o-col .fa-head { background:color-mix(in srgb, var(--accent) 16%, var(--surface)); }
+/* v.239: 重点アセスメントの拡大・縮小（スワイプで移動、2本指で拡大縮小） */
+.fa-zoom-wrap { overflow: auto; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; max-height: 78vh; }
+#focus-zoom { min-width: 1100px; }
