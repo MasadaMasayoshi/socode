@@ -49,7 +49,8 @@ test('重点アセスメント：関連図・看護計画と連動（関連図�
   cp.relationMap = app.buildRelationMapFromRecord(cp);
   app.buildCarePlansByRules(cp);
   const d = app.buildFocusDraft(cp, 4);
-  assert.match(d.focusAnalysis, /関連図では/);
+  assert.match(d.focusAnalysis, /が背景にあり/);
+  assert.doesNotMatch(d.focusAnalysis, /関連図では/);
   assert.match(require('fs').readFileSync(require('path').join(__dirname, '../js/12-missing-checks-and-care-plan.js'), 'utf8'), /openFocusForNeed/);
 });
 

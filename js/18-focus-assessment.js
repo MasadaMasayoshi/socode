@@ -1,7 +1,7 @@
 // 重点アセスメント：欲求ごとに、S・O（入院前／入院後）→ 情報の分析・解釈 → 統合 → 看護問題の明確化を一画面で書く。
 // S・Oは分類ボードの内容から自動で並べ、分析・解釈／統合／看護問題の明確化も、記録・充足判定・看護計画（関連図の看護問題）から自動で下書きする。手で直した欄は自動では上書きしない（myAssessments の追加項目に保存）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.240'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.243'; // Version stamp (scripts/stamp-version.js)
 
     const FOCUS_FIELDS = [
       { key: 'focusAnalysis', label: '情報の分析・解釈', ph: 'S・Oの情報から、なぜその状態なのか（原因・関連要因）、今後どうなりそうかを書きます。\n例：術後は疼痛（O-3）と荷重への不安（S-2）から、歩行を避けて活動量が低下している。' },
@@ -57,7 +57,8 @@
     function focusNeedName(needId) { return String((HENDERSON_NEEDS.find(n => n.id === needId) || {}).name || '').replace(/^\d+\.\s*/, ''); }
     function focusPlansForNeed(cp, needId, itemIds) {
       const list = typeof carePlanList === 'function' ? carePlanList(cp) : [];
-      return list.filter(p => (p.relatedNeeds || []).includes(needId) || (p.evidenceIds || []).some(id => itemIds.has(id)));
+      // この欲求に関係すると決まっている看護問題だけを出す。関係する欲求が未設定の問題だけ、根拠カードの重なりで補う（他の欲求の問題が混ざらないように）。
+      return list.filter(p => (p.relatedNeeds || []).length ? p.relatedNeeds.includes(needId) : (p.evidenceIds || []).some(id => itemIds.has(id)));
     }
     function focusLabelsOf(ids, labels) {
       const out = [...new Set((ids || []).map(id => labels[id]).filter(Boolean))];
@@ -147,7 +148,7 @@
           para.push(`${ev ? `${subj}は、${ev}ことから、` : ''}${name}は${vWord}と考える。`);
         } else para.push(`${name}の充足を判断するには情報が足りない。${[res.pre && res.pre.need, res.post && res.post.need].filter(Boolean).join('、')}`.replace(/、$/, '') + '。');
         plans.slice(0, 3).forEach((p, k) => { if (p.note) para.push(`${k === 0 ? 'また、' : 'さらに、'}${focusClip(p.note, 60)}${focusLabelsOf(p.evidenceIds, data.labels)}ことが、${focusClip(p.problem, 30)}につながっていると考える。`); });
-        plans.slice(0, 3).forEach(p => { const ch = focusMapChain(cp, focusMapNodeOf(cp, p)); if (ch.length) para.push(`関連図では、${ch.map(x => `「${x}」`).join('・')}が${focusClip(p.problem, 24)}につながっている。`); });
+        plans.slice(0, 3).forEach(p => { const ch = focusMapChain(cp, focusMapNodeOf(cp, p)); if (ch.length) para.push(`${ch.join('、')}が背景にあり、${focusClip(p.problem, 24)}につながると考える。`); });
         const comp = typeof complicationCandidates === 'function' ? complicationCandidates(cp, needId, all.map(i => i.text).join(' ')).slice(0, 2) : [];
         if (comp.length) para.push(`今後は${comp.map(c => String(c).replace(/（.*$/, '')).join('、')}にも注意が必要である。`);
         if (plans.length) para.push(`したがって、${plans.slice(0, 3).map(p => focusClip(p.problem, 30)).join('、')}への援助が必要な状態であると考える。`);
@@ -161,7 +162,7 @@
         else if (verdict === 'unmet') integration.push('満たされていない状態だが、看護問題として明確にするには、原因や関連要因の情報をさらに集める必要がある。');
       }
       const problem = plans.length
-        ? `よって、${plans.slice(0, 5).map(p => focusClip(p.problem, 34)).join('、')}がある。\n` + plans.slice(0, 5).map((p, i) => `#${i + 1} ${p.problem}${p.note ? `\n　${focusClip(p.note, 70)}` : ''}`).join('\n')
+        ? `よって、${plans.slice(0, 5).map(p => focusClip(p.problem, 34)).join('、')}が、この欲求から明確になる看護問題である。\n` + plans.slice(0, 5).map((p, i) => `#${i + 1} ${p.problem}${p.note ? `\n　${focusClip(p.note, 70)}` : ''}`).join('\n')
         : (all.length ? 'この欲求から明確になる看護問題は、現時点ではない。' : '');
       return { focusAnalysis: analysis.join('\n'), focusIntegration: integration.join(''), focusProblem: problem };
     }
