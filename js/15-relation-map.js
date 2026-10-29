@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.235'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.240'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -3693,6 +3693,7 @@
           <label class="rm-kind-select">情報の状態<select class="field" data-rm-action="status">${Object.entries(RM_STATUSES).map(([key, label]) => `<option value="${key}"${key === rmEpistemicStatus(n) ? ' selected' : ''}${(n.source === 'knowledge' || n.added) && key !== 'inferred' || n.type === 'future_risk' && key !== 'predicted' ? ' disabled' : ''}>${label}</option>`).join('')}</select></label>
           <label class="rm-kind-select">確からしさ<select class="field" data-rm-action="certainty">${Object.entries(RM_CERTAINTIES).map(([key, label]) => `<option value="${key}"${key === n.certainty ? ' selected' : ''}>${label}</option>`).join('')}</select></label>
           ${n.type === 'medication' ? `<label class="rm-kind-select">薬剤の状態<select class="field" data-rm-action="medication-event">${Object.entries({ unknown: '状態未確認', order: '処方・指示', administered: '投与済み', reported: '申告', stopped: '中止' }).map(([key, label]) => `<option value="${key}"${key === n.medication?.eventType ? ' selected' : ''}>${label}</option>`).join('')}</select></label>` : ''}
+          ${prob ? rmBtn('open-focus', '<i class="fa-solid fa-table-list"></i> 重点アセスメント') : ''}
           ${prob ? `${rmBtn('priority-up', '<i class="fa-solid fa-arrow-up"></i> 優先度を上げる')}${rmBtn('priority-down', '<i class="fa-solid fa-arrow-down"></i> 下げる')}` : ''}
           ${rmBtn('connect', '<i class="fa-solid fa-arrow-right-long"></i> ここから矢印でつなぐ', 'btn-primary')}
           ${n.evidence ? rmBtn('node-evidence', '<i class="fa-solid fa-circle-info"></i> 根拠') : ''}
@@ -4077,6 +4078,7 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
         else if (act === 'cancel-connect') { rmState.connectFrom = null; rmApplySelectionClasses(); rmRenderSelectionBar(); }
         else if (act === 'delete') rmDeleteSelected();
         else if (act === 'toggle-observed') rmMutate(m => { const n = rmNodeById(m, sel.id); if (n) { n.observed = n.observed === false; delete n.epistemicStatus; } });
+        else if (act === 'open-focus') { const pn = rmNodeById(rmMap(), sel.id); if (pn && typeof openFocusForProblem === 'function') openFocusForProblem(pn.label); }
         else if (act === 'priority-up') rmMoveProblem(sel.id, -1);
         else if (act === 'priority-down') rmMoveProblem(sel.id, 1);
         else if (act === 'node-evidence') { const n = rmNodeById(rmMap(), sel.id); if (n) openDialog({ title: 'この四角の根拠', message: `${rmDisplayLabel(n)}\n\n${n.evidence}`, confirmLabel: '閉じる' }); }

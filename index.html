@@ -6,15 +6,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="v.239">
-  <meta name="app-file-versions" content="01:v.220,02:v.220,03:v.219,04:v.147,05:v.238,06:v.239,07:v.226,08:v.219,09:v.225,10:v.227,11:v.223,12:v.221,13:v.236,14:v.210,15:v.235,16:v.230,17:v.225,18:v.239">
+  <meta name="app-version" content="v.241">
+  <meta name="app-file-versions" content="01:v.220,02:v.220,03:v.219,04:v.147,05:v.238,06:v.239,07:v.226,08:v.219,09:v.225,10:v.227,11:v.223,12:v.240,13:v.236,14:v.210,15:v.240,16:v.241,17:v.225,18:v.240">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=v.239">
+  <link rel="stylesheet" href="style.css?v=v.241">
 
   <link rel="stylesheet" href="vendor/tailwind.css?v=2026-10-06.14">
   <script>
@@ -412,6 +412,13 @@
           <button type="button" class="btn btn-outline" data-gg-action="relayout">並べ直す</button>
           <button type="button" class="btn btn-outline" data-gg-action="undo" title="元に戻す" aria-label="元に戻す"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></button>
           <button type="button" class="btn btn-outline" data-gg-action="redo" title="やり直す" aria-label="やり直す"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i></button>
+        </div>
+        <div class="rm-group" aria-label="拡大・縮小">
+          <button type="button" class="btn btn-outline" data-gg-action="zoom-out" aria-label="縮小"><i class="fa-solid fa-minus" aria-hidden="true"></i></button>
+          <span id="gg-zoom-label" class="text-[12px] text-[var(--ink-muted)] px-1" style="min-width:3em;text-align:center">100%</span>
+          <button type="button" class="btn btn-outline" data-gg-action="zoom-in" aria-label="拡大"><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
+          <button type="button" class="btn btn-outline" data-gg-action="zoom-fit">全体を表示</button>
+          <button type="button" class="btn btn-outline" data-gg-action="zoom-reset">実寸</button>
         </div>
         <div class="rm-group" aria-label="表示と書き出し">
           <button type="button" class="btn btn-outline" data-gg-action="text" aria-pressed="false">一覧表示</button>
@@ -1372,13 +1379,13 @@
   <script src="js/09-board.js?v=v.225"></script>
   <script src="js/10-reference-page-and-startup.js?v=v.227"></script>
   <script src="js/11-own-assessment.js?v=v.223"></script>
-  <script src="js/12-missing-checks-and-care-plan.js?v=v.221"></script>
+  <script src="js/12-missing-checks-and-care-plan.js?v=v.240"></script>
   <script src="js/13-compare-and-report.js?v=v.236"></script>
   <script src="js/14-drug-reference.js?v=v.210"></script>
-  <script src="js/15-relation-map.js?v=v.235"></script>
-  <script src="js/16-genogram.js?v=v.230"></script>
+  <script src="js/15-relation-map.js?v=v.240"></script>
+  <script src="js/16-genogram.js?v=v.241"></script>
   <script src="js/17-clinical-facts.js?v=v.225"></script>
-  <script src="js/18-focus-assessment.js?v=v.239"></script>
+  <script src="js/18-focus-assessment.js?v=v.240"></script>
   <script>
   // Manual source comparison and reversible text edits on the active chart.
   (function(){

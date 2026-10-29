@@ -41,3 +41,22 @@ test('重点アセスメント：書き出し（印刷・テキスト）に出�
   assert.match(app.focusAssessmentText(cp), /■情報の分析・解釈/);
   assert.ok(app.EXPORT_SECTIONS.some(x => x.key === 'focus'));
 });
+
+test('重点アセスメント：関連図・看護計画と連動（関連図の流れを分析に反映／相互に開く）', () => {
+  const SRC = '右大腿骨頸部骨折で人工骨頭置換術を施行した。\n創部痛があり、動かすと手術したところが痛い。NRS5。\n看護師の見守りでゆっくりと車いすに移乗、痛み増強する。';
+  const items = Array.from(app.classifyTextByRules(SRC)).map((c, i) => ({ ...c, id: 'c' + i }));
+  const cp = { id: 'p', title: 'A氏', sourceText: SRC, items, carePlans: {}, myAssessments: {}, selectedDiagnosisIds: [], diagnosisCandidates: [] };
+  cp.relationMap = app.buildRelationMapFromRecord(cp);
+  app.buildCarePlansByRules(cp);
+  const d = app.buildFocusDraft(cp, 4);
+  assert.match(d.focusAnalysis, /関連図では/);
+  assert.match(require('fs').readFileSync(require('path').join(__dirname, '../js/12-missing-checks-and-care-plan.js'), 'utf8'), /openFocusForNeed/);
+});
+
+test('ジェノグラム：拡大縮小のボタンと操作が用意されている', () => {
+  const fs = require('fs'), path = require('path');
+  const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
+  const js = fs.readFileSync(path.join(__dirname, '../js/16-genogram.js'), 'utf8');
+  ['zoom-in', 'zoom-out', 'zoom-fit', 'zoom-reset'].forEach(a => { assert.ok(html.includes(`data-gg-action="${a}"`), a); assert.ok(js.includes(`'${a}'`), a); });
+  assert.match(js, /pointermove[\s\S]*ggSetZoom/);
+});

@@ -1,7 +1,7 @@
 // 重点アセスメント：欲求ごとに、S・O（入院前／入院後）→ 情報の分析・解釈 → 統合 → 看護問題の明確化を一画面で書く。
 // S・Oは分類ボードの内容から自動で並べ、分析・解釈／統合／看護問題の明確化も、記録・充足判定・看護計画（関連図の看護問題）から自動で下書きする。手で直した欄は自動では上書きしない（myAssessments の追加項目に保存）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.239'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.240'; // Version stamp (scripts/stamp-version.js)
 
     const FOCUS_FIELDS = [
       { key: 'focusAnalysis', label: '情報の分析・解釈', ph: 'S・Oの情報から、なぜその状態なのか（原因・関連要因）、今後どうなりそうかを書きます。\n例：術後は疼痛（O-3）と荷重への不安（S-2）から、歩行を避けて活動量が低下している。' },
@@ -66,6 +66,59 @@
     function focusQuoteList(facts, items, labels) {
       return (facts || []).slice(0, 3).map(f => `「${focusClip(f.text, 30)}」${focusLabelsOf([f.id], labels)}`).join('、');
     }
+
+    // ---- 関連図・看護計画との連動 ----
+    function focusProbKey(t) { return String(t || '').replace(/（候補）$/, '').replace(/\s+/g, ''); }
+    function focusMapNodeOf(cp, plan) {
+      const nodes = cp.relationMap && Array.isArray(cp.relationMap.nodes) ? cp.relationMap.nodes : [];
+      const key = focusProbKey(plan.problem);
+      return nodes.find(n => n.type === 'nursing_problem' && focusProbKey(n.label) === key) || null;
+    }
+    // 関連図で、その看護問題へ入ってくる矢印をさかのぼり、病態・症状・治療の四角を最大3つ拾う
+    function focusMapChain(cp, node) {
+      const map = cp.relationMap;
+      if (!map || !node || !Array.isArray(map.edges)) return [];
+      const byId = new Map(map.nodes.map(n => [n.id, n]));
+      const out = [], seen = new Set([node.id]);
+      let frontier = [node.id];
+      for (let depth = 0; depth < 3 && frontier.length && out.length < 3; depth++) {
+        const next = [];
+        frontier.forEach(id => map.edges.filter(e => e.target === id).forEach(e => {
+          const n = byId.get(e.source);
+          if (!n || seen.has(n.id)) return;
+          seen.add(n.id); next.push(n.id);
+          if (['pathophysiology', 'symptom', 'treatment', 'disease'].includes(n.type) && out.length < 3) out.push(focusClip(n.label, 26));
+        }));
+        frontier = next;
+      }
+      return out;
+    }
+    function focusLinksHtml(cp, plans) {
+      if (!plans.length) return '';
+      return `<div class="fa-links"><div class="fa-sub">関連図・看護計画で開く</div>${plans.slice(0, 8).map(p => {
+        const node = focusMapNodeOf(cp, p);
+        return `<div class="fa-link-row"><span>${escapeHtml(focusClip(p.problem, 28))}</span>${node ? `<button type="button" class="btn btn-outline" onclick="focusOpenMap('${node.id}')">関連図</button>` : ''}<button type="button" class="btn btn-outline" onclick="focusOpenPlan('${p.id}')">看護計画</button></div>`;
+      }).join('')}</div>`;
+    }
+    window.focusOpenMap = function(nodeId) {
+      if (typeof rmFocusProblems !== 'function') return;
+      switchView('relation');
+      rmFocusProblems([nodeId]);
+    };
+    window.focusOpenPlan = function(planId) {
+      switchView('careplan');
+      if (typeof carePlanOpen !== 'undefined') carePlanOpen.add(planId);
+      if (typeof renderCarePlans === 'function') renderCarePlans();
+      setTimeout(() => { [...document.querySelectorAll('.cp-card[data-care-plan-id]')].find(el => el.dataset.carePlanId === planId)?.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 60);
+    };
+    window.openFocusForNeed = function(needId) { focusNeedId = Number(needId); switchView('focus'); };
+    window.openFocusForProblem = function(label) {
+      const cp = getCurrentPatient();
+      const plan = (typeof carePlanList === 'function' ? carePlanList(cp) : []).find(p => focusProbKey(p.problem) === focusProbKey(label));
+      const need = plan && (plan.relatedNeeds || [])[0];
+      focusNeedId = need || focusNeedId;
+      switchView('focus');
+    };
     function buildFocusDraft(cp, needId) {
       const data = focusItemsByColumn(cp, needId);
       const all = [...data.cols.preadmission, ...data.cols.postadmission, ...data.cols.unclassified];
@@ -94,6 +147,7 @@
           para.push(`${ev ? `${subj}は、${ev}ことから、` : ''}${name}は${vWord}と考える。`);
         } else para.push(`${name}の充足を判断するには情報が足りない。${[res.pre && res.pre.need, res.post && res.post.need].filter(Boolean).join('、')}`.replace(/、$/, '') + '。');
         plans.slice(0, 3).forEach((p, k) => { if (p.note) para.push(`${k === 0 ? 'また、' : 'さらに、'}${focusClip(p.note, 60)}${focusLabelsOf(p.evidenceIds, data.labels)}ことが、${focusClip(p.problem, 30)}につながっていると考える。`); });
+        plans.slice(0, 3).forEach(p => { const ch = focusMapChain(cp, focusMapNodeOf(cp, p)); if (ch.length) para.push(`関連図では、${ch.map(x => `「${x}」`).join('・')}が${focusClip(p.problem, 24)}につながっている。`); });
         const comp = typeof complicationCandidates === 'function' ? complicationCandidates(cp, needId, all.map(i => i.text).join(' ')).slice(0, 2) : [];
         if (comp.length) para.push(`今後は${comp.map(c => String(c).replace(/（.*$/, '')).join('、')}にも注意が必要である。`);
         if (plans.length) para.push(`したがって、${plans.slice(0, 3).map(p => focusClip(p.problem, 30)).join('、')}への援助が必要な状態であると考える。`);
@@ -152,7 +206,7 @@
         const cnt = myNeedRecordItems(cp, n.id).length;
         return `<button type="button" class="fa-pill${n.id === needId ? ' active' : ''}${cnt ? '' : ' fa-none'}" onclick="focusSelectNeed(${n.id})">${n.id}. ${escapeHtml(n.name)}${focusHasText(cp, n.id) ? '<span class="fa-dot" title="書き込みあり"></span>' : ''}<small>${cnt}</small></button>`;
       }).join('');
-      const fields = FOCUS_FIELDS.map(f => `<div class="fa-col fa-edit"><div class="fa-head">${f.label}</div><textarea class="field fa-text" data-fa-need="${needId}" data-fa-field="${f.key}" placeholder="${escapeHtml(f.ph)}" oninput="onFocusInput(${needId}, '${f.key}', this)">${escapeHtml(e[f.key] || '')}</textarea></div>`).join('');
+      const fields = FOCUS_FIELDS.map(f => `<div class="fa-col fa-edit"><div class="fa-head">${f.label}</div><textarea class="field fa-text" data-fa-need="${needId}" data-fa-field="${f.key}" placeholder="${escapeHtml(f.ph)}" oninput="onFocusInput(${needId}, '${f.key}', this)">${escapeHtml(e[f.key] || '')}</textarea>${f.key === 'focusProblem' ? focusLinksHtml(cp, focusPlansForNeed(cp, needId, new Set([...data.cols.preadmission, ...data.cols.postadmission, ...data.cols.unclassified].map(i => i.id)))) : ''}</div>`).join('');
       if (pillBox) pillBox.innerHTML = pills;
       root.innerHTML = `
         <div class="fa-title">項目：${needId}. ${escapeHtml(need.name)}</div>

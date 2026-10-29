@@ -1,7 +1,7 @@
 // Genogram (家族構成図): built from the record, then editable. Mirrors the relation map pattern (auto build -> edit -> save with the patient -> export).
 // Kinship words are a built-in dictionary (内蔵辞書 2026-10-16（出典未確認）). Nothing is invented: only members, ages and notes written in the record are drawn.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.230'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.241'; // Version stamp (scripts/stamp-version.js)
 
     const GG_PROVENANCE = '内蔵辞書 2026-10-16（出典未確認）';
     // canonical key -> [role label, sex, generation, order within the row]
@@ -691,11 +691,12 @@
     function renderGenogram() {
       const view = document.getElementById('view-genogram'); if (!view) return;
       const cp = getCurrentPatient(); if (!cp) return;
-      if (ggState.patientId !== cp.id) { ggState.patientId = cp.id; ggState.selected = ''; ggState.undo = []; ggState.redo = []; }
+      if (ggState.patientId !== cp.id) { ggState.patientId = cp.id; ggState.zoom = 1; ggState.selected = ''; ggState.undo = []; ggState.redo = []; }
       const saved = ggWorking(cp), g = saved || ggBuild(cp), has = ggLive(g).length > 0;
       const set = (id, fn) => { const el = document.getElementById(id); if (el) fn(el); };
       set('gg-empty', el => { el.classList.toggle('hidden', has); el.textContent = saved || !g.notice ? 'まだジェノグラムがありません。「記録から作る」または「人物を追加」で作れます。' : g.notice; });
       set('gg-canvas', el => { el.classList.toggle('hidden', !has || ggState.text); el.innerHTML = has ? genogramSvg(g, { interactive: true, selected: ggState.selected, title: 'ジェノグラム' }) : ''; });
+      ggApplyZoom();
       set('gg-text-view', el => { el.classList.toggle('hidden', !has || !ggState.text); el.textContent = has ? genogramText(Object.assign({}, cp, { genogram: g })) : ''; });
       set('gg-panel', el => { el.innerHTML = ggPanelHtml(g); });
       set('gg-legend', el => { el.innerHTML = genogramLegendHtml(); });
@@ -719,15 +720,69 @@
       w.document.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${esc(`${cp.title || '患者'}_ジェノグラム`)}</title><style>@page{size:A4 landscape;margin:8mm}body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;font-size:9pt;color:#1f1d1a}svg{max-width:100%;height:auto}.legend span{margin-right:10pt}</style></head><body><h1 style="font-size:14pt">ジェノグラム</h1>${genogramSvg(g, { title: 'ジェノグラム' })}<div class="legend">${genogramLegendHtml()}</div><pre style="white-space:pre-wrap">${esc(genogramText(Object.assign({}, cp, { genogram: g })))}</pre></body></html>`);
       w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (e) { /* ignore */ } }, 300);
     }
+
+    // ---- 拡大・縮小・移動（関連図と同じ操作：ピンチ／Ctrl+ホイール／ボタン、スワイプや背景のドラッグで移動） ----
+    const GG_ZOOM_MIN = 0.4, GG_ZOOM_MAX = 4;
+    function ggBaseWidth(svg, box) {
+      const vb = (svg.getAttribute('viewBox') || '').split(/\s+/).map(Number);
+      const W = vb[2] || 800;
+      return Math.max(200, Math.min(980, Math.round(W * 1.5), (box.clientWidth || 980) - 4));
+    }
+    function ggApplyZoom() {
+      const box = document.getElementById('gg-canvas'); const svg = box && box.querySelector('svg.gg-svg');
+      const lab = document.getElementById('gg-zoom-label');
+      if (lab) lab.textContent = `${Math.round((ggState.zoom || 1) * 100)}%`;
+      if (!svg) return;
+      const vb = (svg.getAttribute('viewBox') || '').split(/\s+/).map(Number);
+      const W = vb[2] || 800, H = vb[3] || 600, w = Math.round(ggBaseWidth(svg, box) * (ggState.zoom || 1));
+      svg.style.maxWidth = 'none'; svg.style.width = `${w}px`; svg.style.height = `${Math.round(w * H / W)}px`;
+      svg.style.margin = w < (box.clientWidth || 0) ? '0 auto' : '0';
+    }
+    function ggSetZoom(z, focus) {
+      const box = document.getElementById('gg-canvas'); if (!box) return;
+      const old = ggState.zoom || 1, nz = Math.min(GG_ZOOM_MAX, Math.max(GG_ZOOM_MIN, Math.round(z * 100) / 100));
+      const r = box.getBoundingClientRect(), fx = focus ? focus.x - r.left : box.clientWidth / 2, fy = focus ? focus.y - r.top : box.clientHeight / 2;
+      const cx = (box.scrollLeft + fx) / old, cy = (box.scrollTop + fy) / old;
+      ggState.zoom = nz; ggApplyZoom();
+      box.scrollLeft = cx * nz - fx; box.scrollTop = cy * nz - fy;
+    }
+    function ggZoomBy(f) { ggSetZoom((ggState.zoom || 1) * f); }
+    function ggZoomActual() {
+      const box = document.getElementById('gg-canvas'); const svg = box && box.querySelector('svg.gg-svg'); if (!svg) return;
+      const vb = (svg.getAttribute('viewBox') || '').split(/\s+/).map(Number); const W = vb[2] || 800;
+      ggSetZoom(W / ggBaseWidth(svg, box));
+    }
+    function initGenogramZoom() {
+      const box = document.getElementById('gg-canvas'); if (!box || box.dataset.ggZoomReady) return;
+      box.dataset.ggZoomReady = '1';
+      box.style.touchAction = 'pan-x pan-y';
+      const pts = new Map(); let pinch = null, pan = null;
+      box.addEventListener('pointerdown', e => {
+        pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: ggState.zoom || 1 }; drag_cancel(); return; }
+        if (e.pointerType === 'mouse' && e.button === 0 && !(e.target.closest && e.target.closest('[data-gg-id]'))) pan = { x: e.clientX, y: e.clientY, l: box.scrollLeft, t: box.scrollTop };
+      });
+      function drag_cancel() { pan = null; }
+      box.addEventListener('pointermove', e => {
+        if (pts.has(e.pointerId)) pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pinch && pts.size >= 2) { const [a, b] = [...pts.values()]; ggSetZoom(pinch.z0 * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d0, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }); e.preventDefault(); return; }
+        if (pan) { box.scrollLeft = pan.l - (e.clientX - pan.x); box.scrollTop = pan.t - (e.clientY - pan.y); }
+      });
+      const up = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; pan = null; };
+      box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
+      box.addEventListener('wheel', e => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); ggSetZoom((ggState.zoom || 1) * (e.deltaY < 0 ? 1.1 : 1 / 1.1), { x: e.clientX, y: e.clientY }); } }, { passive: false });
+      window.addEventListener('resize', ggApplyZoom);
+    }
     function initGenogramUi() {
       const view = document.getElementById('view-genogram'); if (!view || view.dataset.ggReady) return;
       view.dataset.ggReady = '1';
+      initGenogramZoom();
       view.addEventListener('click', e => {
         const btn = e.target.closest && e.target.closest('[data-gg-action]');
         if (btn) {
           const a = btn.dataset.ggAction;
           ({ build: genogramBuildFromRecord, add: genogramAddPerson, apply: genogramApplyEdit, delete: genogramDeleteSelected, relayout: genogramRelayout, clear: genogramClear, png: genogramSavePng, print: genogramPrint,
-            undo: () => ggUndoRedo(false), redo: () => ggUndoRedo(true), text: () => { ggState.text = !ggState.text; btn.setAttribute('aria-pressed', String(ggState.text)); btn.textContent = ggState.text ? '図で表示' : '一覧表示'; renderGenogram(); } }[a] || (() => {}))();
+            'zoom-in': () => ggZoomBy(1.2), 'zoom-out': () => ggZoomBy(1 / 1.2), 'zoom-fit': () => ggSetZoom(1), 'zoom-reset': () => ggZoomActual(), undo: () => ggUndoRedo(false), redo: () => ggUndoRedo(true), text: () => { ggState.text = !ggState.text; btn.setAttribute('aria-pressed', String(ggState.text)); btn.textContent = ggState.text ? '図で表示' : '一覧表示'; renderGenogram(); } }[a] || (() => {}))();
           return;
         }
         const node = e.target.closest && e.target.closest('[data-gg-id]');
