@@ -1742,7 +1742,7 @@ body { font-family: 'IBM Plex Sans JP', 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo
 .nav-gl { font-size: 12px; }
 .nav-no { font-size: 11px; }
 /* board: wider input pane, cream columns, quiet cards */
-@media (min-width: 1280px) {
+@media (min-width: 1000px) {
   #view-so-board > section:first-child { flex: 0 0 340px; width: 340px; }
   #view-so-board > div:last-child { flex: 1 1 auto; width: auto; }
 }
