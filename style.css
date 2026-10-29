@@ -2079,3 +2079,10 @@ tr.cmp-row{display:table-row;padding:0;border:0;background:none;gap:0}
 .need-ref ul{margin:0;padding-left:1.1em;list-style:disc}
 #assessment-table-wrap .need-cell .need-ref{max-width:220px}
 @media (min-width:900px){#view-assessment>.need-ref .nref-cols,#assessment-single .need-ref .nref-cols{grid-template-columns:1fr 1fr}}
+
+/* v.236: iPad横向き（1000px以上）でも、カルテ入力の右に情報カードを並べる（Tailwindのxlは1280pxで、iPadでは縦並びになっていた） */
+@media screen and (min-width: 1000px) and (max-width: 1279px) {
+  #view-so-board { flex-direction: row; }
+  #view-so-board > section:first-child { width: 25%; min-width: 280px; flex-shrink: 0; }
+  #view-so-board > div:nth-child(2) { width: 75%; min-width: 0; }
+}
