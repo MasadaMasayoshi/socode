@@ -53,7 +53,7 @@ test('overlapping needs for one term are merged into a single compact entry', ()
 test('the request reads as a site-wide research brief, not a single-case question', () => {
   const cp = { title: 'T', items: [{ id: '1', type: 'o', text: '心外膜炎の既往', hendersonIds: [] }] };
   const text = app.knowledgeRequestText(cp, app.buildKnowledgeRequests(cp));
-  assert.ok(/quality of a Japanese nursing-assessment support website as a whole/.test(text) && /Do NOT answer for that case alone/.test(text));
+  assert.ok(/quality of a Japanese nursing-assessment support website as a whole/.test(text) && /disease-specific, symptom-specific, drug-specific and test-specific knowledge are all wanted/.test(text) && !/Do NOT answer for that case alone/.test(text));
   assert.ok(/add it, with one line on why/.test(text) && /なぜ必要と考えたか/.test(text));
   assert.ok(/\[Sources\]/.test(text) && /\[Answer format\]/.test(text) && /Write the answers in Japanese/.test(text));
   assert.ok(/1\. 内容/.test(text) && /6\. 範囲/.test(text) && /追加提案/.test(text));
@@ -65,4 +65,11 @@ test('the original record before classification is included with names masked', 
   assert.ok(/Original record before classification/.test(text));
   assert.ok(/心外膜炎の既往あり/.test(text));
   assert.ok(!/山田/.test(text) && !/2026\/10\/01/.test(text));
+});
+
+test('修正依頼の指示は、疾患・薬・検査に固有の知識を「特定的だから」と捨てず知識として取り込むよう求める', () => {
+  const fs = require('fs'), path = require('path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'js', '06-export.js'), 'utf8');
+  assert.ok(/0-K\. Knowledge is not subject to the one-case ban/.test(src));
+  assert.ok(/instead of discarding or watering it down for being specific/.test(src));
 });

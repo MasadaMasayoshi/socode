@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.210'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.211'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1331,6 +1331,39 @@
         [['測定の方法と記録のしかた、低血糖・高血糖を早く見つけるための目的', /測定|記録|低血糖|高血糖/]])
     ];
     CARE_PLAN_KNOWLEDGE.push(...CPK_ROWS_100);
+    // v.211: 川崎病を中心とした再利用可能な看護アセスメント知識（調査メモ 2026-10-29）。出典は版・頁を未確認のため「頁未確認」と明記。看護の一般的な観点であり、診断・治療適応を決めるものではない。
+    const CPK_META211 = { edition: '2026-10-29 川崎病を中心とした調査メモ', checked: '2026-10-29', next: '2027-10' };
+    const cpk211 = (key, re, label, source, scope, op, tp, ep) => ({ key, re, label, source: [...source, '調査メモ 2026-10-29（出典の版・頁は未確認）'], scope, ...CPK_META211, op, tp, ep });
+    const CPK_ROWS_211 = [
+      cpk211('admission-plan-child', /入院予定|予定入院|入院期間/, '入院予定（小児の生活・家族への影響）', ['AAP Patient- and Family-Centered Care and the Pediatrician\'s Role 2012', '日本小児科学会「入院しているこどもの家族の付き添いに関する見解」2024'],
+        '「入院予定」は疾患所見ではなく、日課・家族関係・遊び・学習・睡眠が一時的に変わることを示す背景情報。小児を中心に疾患を問わず使う。成人では遊び・発達より就労・役割・自己決定を重視する。「約○週間」だけから安静度や重症度を推定しない。4（姿勢）は安静指示や活動制限があるときだけ足す',
+        [['入院前の日課・睡眠・遊び・セルフケアの力、分離不安、家族が付き添えるか、処置への理解と反応', /日課|睡眠|遊び|セルフケア|分離|付き添い|処置|理解/]],
+        [['家族の参加を促し、家庭に近い生活リズムを可能な範囲で保つ。年齢に合う遊び・気晴らしを取り入れ、処置の前に予告して苦痛を減らす', /家族|生活リズム|遊び|気晴らし|予告|処置/]],
+        [['入院期間は「予定」で病状により変わること、1日の流れ、検査・処置、家族が参加できるケアを、児と家族に発達段階に合わせて説明する', /予定|流れ|検査|処置|家族|説明/]]),
+      cpk211('exam-child', /心エコー|造影|鎮静下?(?:での)?検査|採血|MRI|CT検査|検査(?:前|後|の説明|を受)/, '検査（目的・侵襲・前処置で分類）', ['Royal Children\'s Hospital Minimising distress in healthcare setting', 'AAP Child Life Services 2014'],
+        '「検査」の語だけでは特定の欲求に固定せず、目的・侵襲性・前処置・結果の影響で分類する。語だけで異常や重症度は判断しない。9（安全）・10（不安・意思表示）・14（理解）が基本で、絶食なら2、排泄の検査なら3、活動制限なら4、夜間検査や不安で眠れなければ5を足す',
+        [['検査の目的・侵襲の程度、絶食・鎮静・造影の有無、バイタル、疼痛、不安、児と保護者の理解、検査後の出血・アレルギー・意識状態', /目的|侵襲|絶食|鎮静|造影|バイタル|疼痛|不安|理解|出血|アレルギー|意識/]],
+        [['年齢に合う事前説明、可能なら家族の同席、気そらしや楽な姿勢の工夫、検査前後の指示の確認と安全確認', /説明|家族|同席|気そらし|姿勢|指示|安全/]],
+        [['何を調べる検査か、痛みや所要の手順、検査後に注意する症状を、短くやさしく説明する', /検査|痛み|手順|症状|説明/]]),
+      cpk211('pruritus-sleep', /(?:掻痒|かゆ|痒)[^。]{0,24}(?:眠|睡眠|熟睡|覚醒)|(?:眠|睡眠|熟睡|覚醒)[^。]{0,24}(?:掻痒|かゆ|痒)/, '睡眠パターン混乱（かゆみによる睡眠の妨げ）', ['AASM Recommended Amount of Sleep for Pediatric Populations 2016', '日本皮膚科学会 皮膚瘙痒症診療ガイドライン2020（頁未確認）'],
+        '掻痒が睡眠を妨げていると確認できるときに使い、川崎病に限らない。原因が薬疹・肝胆道・腎・アレルギー・感染などのときは原因別の評価を足す。急性の発疹に慢性掻痒症の治療をそのまま当てはめない。睡眠時間は年齢別（3〜5歳は24時間で10〜13時間が一般的な目安）',
+        [['掻痒の部位・強さ・時間帯、発疹・乾燥・掻破痕・感染の徴候、入眠時刻、夜間の覚醒回数、総睡眠時間、昼間の眠気・不機嫌、薬との関係', /掻痒|かゆ|発疹|乾燥|掻破|入眠|覚醒|睡眠|眠気|不機嫌|薬/]],
+        [['原因の治療を優先し、室温・寝具を暑くしすぎない、爪を短く保つ、刺激の少ない衣類にする、乾燥があれば処方に沿って保湿する、夜間の処置はまとめて睡眠を妨げない', /治療|室温|寝具|爪|衣類|保湿|夜間|処置/]],
+        [['掻かないよう叱るのではなく、悪化因子・スキンケア・処方薬の使い方を説明する。眠らせる目的だけで鎮静性の薬を自己使用しない', /叱|悪化|スキンケア|処方|鎮静/]]),
+      cpk211('kawasaki-cardiac', /冠動脈|心合併症|冠動脈病変|心筋炎/, '川崎病の心合併症（冠動脈病変）のリスク', ['日本循環器学会/日本小児循環器学会 2020年改訂版 川崎病心臓血管後遺症の診断と治療に関するガイドライン', 'AHA Update on Diagnosis and Management of Kawasaki Disease 2024 (Circulation 150:e481-e500)', '日本川崎病学会 川崎病診断の手引き 改訂第6版 2019'],
+        '川崎病および冠動脈病変のある既往に使う。冠動脈病変なしの児と巨大瘤が残る児を同じリスクにしない。フォローの頻度・運動制限・抗血栓療法は最大径/Z-score、退縮・残存、狭窄・虚血で異なるため一律にしない。「IVIG不応関連因子（乳児、CRP高値、低Alb、低Na、血小板低値、高ビリルビン、好中球増多など）があれば必ず瘤になる」とはしない',
+        [['心拍数・リズム・血圧・呼吸数・SpO2・心音、末梢冷感・毛細血管再充満、浮腫、尿量、活気・顔色・冷汗・胸部症状・失神・意識の変化', /心拍|リズム|血圧|呼吸|SpO2|心音|冷感|再充満|浮腫|尿量|活気|顔色|冷汗|胸|失神|意識/],
+         ['心電図、心エコーの冠動脈Z-score・左室機能・僧帽弁逆流・心膜液、必要時BNP/NT-proBNP・炎症反応を経時的に確認する', /心電図|心エコー|Z|左室|僧帽弁|心膜|BNP|炎症|CRP/]],
+        [['処方されたIVIG・抗血小板薬を確実に実施して副作用を見る、循環に負担をかけない安静・活動の調整、脱水を避ける、検査と外来フォローを確実につなぐ', /IVIG|グロブリン|抗血小板|アスピリン|安静|活動|脱水|検査|外来|フォロー/]],
+        [['冠動脈に異常がなくても指定期間のフォローが必要なこと、異常があれば重症度別に長期管理が必要なことを説明する（経過観察の目安は発症後1・2・6か月、1年、5年。主治医の指示を優先）', /フォロー|経過観察|外来|受診|長期|1か月|6か月|1年|5年/]]),
+      cpk211('kawasaki-med-safety', /アスピリン|グロブリン|IVIG|ベニロン/, 'IVIG・アスピリン治療後の服薬安全と予防接種', ['日本小児循環器学会 川崎病急性期治療のガイドライン2020年改訂版 S1.18-S1.20', '日本小児科学会「ワクチン接種に注意が必要な場合」2025'],
+        'アスピリン・大量IVIGを実際に受けた小児に使う。生ワクチンの延期期間は製剤・量・ワクチンの種類・最新の接種指針で確認し、すべてのワクチンを一律6か月延期する規則にはしない',
+        [['鼻出血・歯肉出血・紫斑・黒色便・腹痛・嘔吐、肝機能、発熱時の感染症状、予防接種歴', /出血|紫斑|黒色便|腹痛|嘔吐|肝機能|発熱|感染|予防接種/]],
+        [['処方量・期間を確認し、自己中断や市販の解熱鎮痛薬の追加を避けるよう医師・薬剤師と調整する。予防接種歴を退院支援に組み込む', /処方|期間|自己中断|解熱鎮痛|薬剤師|予防接種|退院/]],
+        [['インフルエンザ・水痘が疑われるときは早く受診してアスピリンを続けてよいか医師に確認する。大量IVIG後の生ワクチンの時期は、接種医へ治療歴を必ず伝える', /インフルエンザ|水痘|受診|アスピリン|生ワクチン|接種|治療歴/]])
+    ];
+    CARE_PLAN_KNOWLEDGE.push(...CPK_ROWS_211);
+
     // v.179: rows from the app-wide knowledge research (2026-10). General conditions only; sources with unconfirmed pages are marked 頁未確認. Doctor-ordered actions stay 「指示に従う」.
     const CPK_ROWS_RESEARCH = [
       cp100('mi', /心筋梗塞|急性冠症候群|ACS/, '急性冠症候群（心筋梗塞）', ['日本循環器学会「急性冠症候群ガイドライン」（頁未確認）'], '成人の急性冠症候群。非心原性の胸痛には使わない。高齢者・糖尿病・女性では胸痛がないこともあり、胸痛なしを否定の根拠にしない',
@@ -2773,10 +2806,10 @@
         groups.set(r.term, g);
       });
       let out = `知識リクエスト：${cp && cp.title || ''}（${new Date().toLocaleDateString('ja-JP')}）\n`;
-      out += '[Purpose] This is a research request to raise the quality of a Japanese nursing-assessment support website as a whole. The topics below are only points where the site could not decide by its own rules (or held very little knowledge); they were found in one case. Do NOT answer for that case alone: collect general nursing and medical knowledge that applies to any patient.\n';
+      out += '[Purpose] This is a research request to raise the quality of a Japanese nursing-assessment support website as a whole. The topics below are only points where the site could not decide by its own rules (or held very little knowledge); they were found in one case. Collect knowledge normally: disease-specific, symptom-specific, drug-specific and test-specific knowledge are all wanted and will be stored as knowledge (disease relation maps, care-plan rows, drug rows). Write it so that it holds for every patient with that disease, symptom, drug or test, not only for this case; leave out only facts about the individual patient (names, dates, personal values).\n';
       out += `[Trigger case, as an example only] ${krPatientSummary(cp)}. No personal information is included.\n`;
       out += '[How to research] For each topic, also look at its surroundings (same disease group, same symptom group, related drugs and lab tests, commonly co-occurring problems). If you find knowledge useful to the site that was not requested, add it, with one line on why you thought it was needed (なぜ必要と考えたか).\n';
-      out += '[Generalization] For every topic, state the general condition it rests on (disease group, symptom class, lab key, phase, age group) and say whether it also applies to other cases of that group; mark patient-specific or one-case advice as such. Prefer answers that can be written as a reusable rule or table row over answers that describe one case.\n';
+      out += '[Generalization] For every topic, state the general condition it rests on (disease group, symptom class, lab key, phase, age group) and say whether it also applies to other cases of that group; mark patient-specific or one-case advice as such. Disease-specific content is welcome: the scope line is where you say who it applies to. Prefer answers that can be written as a reusable table row, but never drop disease-specific knowledge just because it is specific.\n';
       out += '[Sources] Prefer textbooks (title, edition, page) and official guidelines (name, year). Mark anything you cannot verify as 未確認 but still include it; missing sources are not a reason to leave something out.\n';
       out += '[Language] Write the answers in Japanese. Keep nursing terms as they are (看護問題, ヘンダーソンの14項目, OP/TP/EP).\n';
       out += '[Answer format] Use exactly this template, once per topic, in the same order as the topic list. Be concise; do not pad.\n';

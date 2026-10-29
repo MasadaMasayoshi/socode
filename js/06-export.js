@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.199'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.211'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1119,6 +1119,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         "【依頼対象：サイトのコード修正】",
         "この依頼は、添付シートやカードの文章を訂正して返す作業ではありません。サイトのコードを修正し、次回の分類・判定・表示・書き出しで同じ問題が再発しないようにしてください。添付資料は再現用の検証資料です。",
         "",
+        "0-K. Knowledge is not subject to the one-case ban (owner rule): the generalization rules below govern CODE RULES for classification and judgment. When a request, a pasted research memo or a knowledge answer contains disease-, drug-, symptom- or test-specific knowledge (e.g. what a disease causes, what to observe, what to teach), ingest it as knowledge in the site's knowledge stores (disease relation maps, care-plan knowledge rows, drug dictionary, lab references, the js/02 notebook) with its scope conditions and sources (write 未確認 for unverified pages) instead of discarding or watering it down for being specific. Only facts about the individual patient (names, dates, personal values) stay out.\n" +
         "0. Generalize: the attached case is only a reproduction sample, never the criterion. Do not hard-code patient names, case wording, exact values, dates or device names into rules; write conditions that apply to any patient and test them with the sample plus counterexamples from other situations (planned/performed/cancelled, present/removed/uncertain, resting/movement, before/after). Do not copy this case into the notebook or tests as the rule; use short generic examples. Remove any existing rule that only matches one case's wording.",
         "1. Reproduce: compare source, surrounding records, saved cards and edit history; separate automatic processing from manual edits; trace splits/merges, tag changes, dates and output defects to the responsible code. Explicit split/merge records show actions, not proof of their justification. Mark missing evidence 『理由未記録』/『確認不能』; never invent causes or clinical facts.",
         "2. Implement: fix the actual extraction (js/03), classification (js/01, js/07), sufficiency (js/11), export (js/06) and saved-data/learning paths. Rewriting a sample report, prompt or one patient is not completion. Keep Japanese clinical text intact; classify Henderson needs by meaning, not S/O; assess pre/post admission separately; classification stays local (AI is OCR only).",
