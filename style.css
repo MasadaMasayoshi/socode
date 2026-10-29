@@ -1616,9 +1616,12 @@ tr.cmp-row>td.cmp-cell{padding:2px 6px}
   #view-labs .lab-evaluation > summary { min-height: 44px; display: flex; align-items: center; }
 }
 /* 検査値の評価の中の比較表は、表の中だけで縦に動く入れ物にしない（指でページを縦にスクロールしても表に取られない）。横だけ動く */
+/* 指で操作する画面（幅が狭い・タッチ）では、推移の表も表の中で縦に動く入れ物にしない */
+@media (max-width: 999px), (hover: none) { .lab-trend-wrap { max-height: none; overflow-y: hidden; overflow-x: auto; } }
 #view-labs #lab-evaluation-panel .cmp-wrap { max-height: none; overflow-x: auto; overflow-y: hidden; overscroll-behavior-y: auto; }
 @media (min-width: 1000px) {
-  #view-labs > #lab-evaluation-panel { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow: auto; }
+  /* 評価を画面に貼り付けない：下の推移の表と重なって文字が崩れていた */
+  #view-labs > #lab-evaluation-panel { position: static; max-height: none; overflow: visible; }
   #view-labs #lab-evaluation-panel .cmp-wrap { overflow-x: auto; }
 }
 
