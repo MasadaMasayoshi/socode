@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.219'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.222'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -3092,6 +3092,39 @@
 
 
     // 一般則: 直接のタグが付かなかった記録（検査値・薬・処置など）にも、評価に関わる欲求を通常のタグとして付ける。直接のタグや文脈のタグが付いたカード、家族の発言、見出し・基本情報には付けない。
+    // v.222: 産科（産褥）の記録に共通する、ヘンダーソン14欲求の付け直し。一般条件=産科の文脈（産褥・分娩・授乳・褥婦）があるとき、
+    // 概念ごとに「どの欲求へ結ぶか」を表で決める。新生児の所見は母親の欲求に結ばない（母親の充足判定に混ぜない）。理由はカードに残す。
+    const OBSTETRIC_CONTEXT_RE = /産褥|褥婦|分娩|授乳|母乳|母児|母子|会陰/;
+    const OBSTETRIC_NEED_RULES = [
+      { key: 'newborn', re: /新生児|出生(?:時|後)|生後\s*\d+\s*日|^児は|児の(?:健康|哺乳|体重|様子)|吸啜反射|哺乳力|哺乳行動|ミルク\s*\d+\s*ml|(?:尿始|原始)反射|胎児付属物/, not: /母親|褥婦|本人|自分/, needs: [], reason: '新生児の所見は母親の欲求に結ばない（新生児の情報として別管理。授乳は母親の手技と関連づけだけ行う）', subject: 'newborn' },
+      { key: 'defecation-pain', re: /(?:傷|創|会陰)[^。]{0,8}痛[^。]{0,8}(?:いきめ|いきむ|排便)|排便[^。]{0,10}(?:創|傷|会陰)[^。]{0,6}痛/, needs: [3], reason: '会陰の痛みのため排便時にいきめない＝排泄の問題' },
+      { key: 'wound-hygiene', re: /^(?:外陰部|肛門部|会陰)[^：:]{0,8}(?:創部|縫合)|^外陰部・肛門部創部/, needs: [8], reason: '会陰の創部の状態と清潔（身体の清潔・皮膚の保護）' },
+      { key: 'lochia', re: /^悪露/, needs: [3, 9], reason: '悪露＝産後の出血（子宮復古の安全面の観察）と排泄物の観察' },
+      { key: 'night-anxiety', re: /(?:夜|夜間|夜中)[^。]{0,12}(?:どうしよう|不安)|泣[^。]{0,8}どうしよう/, needs: [10], reason: '育児・夜間の対応への不安の表出＝心理社会面（安全・睡眠そのものの問題とは別に、根拠を示して扱う）' },
+      { key: 'technique', re: /含ませ方|抱き方|おむつ交換|オムツ交換|授乳(?:時|の)?[^。]{0,6}(?:どうして|手技)|授乳(?:が)?上手|乳房マッサージ|沐浴/, needs: [14], addIf: [[/不安(?!定)|戸惑|心配|ダメ|大変/, 10]], reason: '授乳・育児の手技の習得＝学習（排泄・摂食には結ばない）' },
+      { key: 'breast-finding', re: /^(?:乳房タイプ|乳頭は|乳輪|乳管開通)|乳房緊満|初乳/, needs: [], reason: '乳房の所見は授乳・乳房（専門概念）として保持し、母親の食事・水分摂取（欲求2）には結ばない', concept: 'lactation' },
+    ];
+    function applyObstetricNeedCorrections(items) {
+      const arr = (items || []).filter(it => it && !it.deleted && it.type !== 'unnecessary');
+      if (!arr.some(it => OBSTETRIC_CONTEXT_RE.test(String(it.text || '')) && /産褥|褥婦/.test(String(it.timestamp || '') + String(it.text || '')))) return items;
+      arr.forEach(it => {
+        if ((it.editLog || []).length) return;
+        const t = String(it.text || '').normalize('NFKC').trim();
+        const r = OBSTETRIC_NEED_RULES.find(x => x.re.test(t) && !(x.not && x.not.test(t)));
+        if (!r) return;
+        const before = Array.from(it.hendersonIds || []);
+        let ids = r.needs.slice();
+        (r.addIf || []).forEach(([re, n]) => { if (re.test(t) && !ids.includes(n)) ids.push(n); });
+        ids.sort((a, b) => a - b);
+        if (JSON.stringify(before) === JSON.stringify(ids)) return;
+        it.hendersonIds = ids;
+        const cols = {}; ids.forEach(id => { cols[id] = (it.assessmentCols && it.assessmentCols[id]) || 'unclassified'; });
+        it.assessmentCols = cols;
+        if (r.subject) it.subject = r.subject;
+        it.needCorrection = { key: r.key, before, after: ids, reason: r.reason };
+      });
+      return items;
+    }
     function applyAssociationTags(items) {
       if (typeof hendersonAssociations !== 'function') return items;
       (items || []).forEach(it => {
@@ -3135,7 +3168,7 @@
         const { detectedHIds, predictedType } = computeLocalTagsAndType(chunk, cleanedText, null);
         out.push({ text: cleanedText, timestamp: chunk.timestamp || '日時不明', type: predictedType, hendersonIds: detectedHIds.slice().sort((a, b) => a - b), fieldLabel: chunk.fieldLabel || null, ruleDecision: automaticRuleDecision(chunk, cleanedText, predictedType), ...({}), ...(chunk.diseaseGeneral ? { diseaseGeneral: true } : {}), ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.soMixed ? { soMixed: true } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}) });
       }));
-      return applyAssociationTags(attachSourceOffsets(dropIncidentalHygieneTag(applyTableColumnRoles(stripPipeArtifacts(splitMixedSpeechCards(markWrappedLineFragments(removeCoveredCompositeCards(applyFamilyScreeningContext(applyPainContextTags(applySceneTagInheritance(rejoinTimeLabelFragments(out))))), src))), tableNorm.roles)), src));
+      return applyAssociationTags(applyObstetricNeedCorrections(attachSourceOffsets(dropIncidentalHygieneTag(applyTableColumnRoles(stripPipeArtifacts(splitMixedSpeechCards(markWrappedLineFragments(removeCoveredCompositeCards(applyFamilyScreeningContext(applyPainContextTags(applySceneTagInheritance(rejoinTimeLabelFragments(out))))), src))), tableNorm.roles)), src)));
     }
 
     function manualClassificationLineage(item, path = new Set()) {
