@@ -16,8 +16,8 @@
     "hash": "ae8f019ce82c480c"
   },
   "js/05-app-state-and-ui.js": {
-    "version": "v.236",
-    "hash": "684a64454bdac4bd"
+    "version": "v.238",
+    "hash": "832bd2973f38cca1"
   },
   "js/06-export.js": {
     "version": "v.227",
@@ -60,8 +60,8 @@
     "hash": "620d898591671546"
   },
   "style.css": {
-    "version": "v.237",
-    "hash": "4730e675a0124464"
+    "version": "v.238",
+    "hash": "4c3a684c9498ab00"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",
@@ -80,7 +80,7 @@
     "hash": "1a4cc5e3cc4a4877"
   },
   "js/18-focus-assessment.js": {
-    "version": "v.236",
-    "hash": "a56bfa3809814bc8"
+    "version": "v.238",
+    "hash": "30882c5e39e017ce"
   }
 }

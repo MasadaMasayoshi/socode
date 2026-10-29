@@ -2107,3 +2107,9 @@ tr.cmp-row{display:table-row;padding:0;border:0;background:none;gap:0}
 .fa-empty { color:var(--ink-muted); font-size:12px; }
 .fa-edit .fa-text { flex:1; min-height:360px; border:0; border-radius:0 0 8px 8px; resize:vertical; font-size:13px; line-height:1.7; }
 /* v.237 */
+/* v.238: 重点アセスメントのS・Oカードに薄い色（S=あたたかい色、O=青系）。文字色は変えず、線と薄い背景だけで見分ける */
+.fa-card { padding:4px 8px; border-radius:6px; border:1px solid var(--line); border-left-width:4px; }
+.fa-s-col .fa-card { background:color-mix(in srgb, var(--gold) 12%, var(--surface)); border-left-color:var(--gold); }
+.fa-o-col .fa-card { background:color-mix(in srgb, var(--accent) 9%, var(--surface)); border-left-color:var(--accent); }
+.fa-s-col .fa-head { background:color-mix(in srgb, var(--gold) 20%, var(--surface)); }
+.fa-o-col .fa-head { background:color-mix(in srgb, var(--accent) 16%, var(--surface)); }

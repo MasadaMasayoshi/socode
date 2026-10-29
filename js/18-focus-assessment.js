@@ -1,7 +1,7 @@
 // 重点アセスメント：欲求ごとに、S・O（入院前／入院後）→ 情報の分析・解釈 → 統合 → 看護問題の明確化を一画面で書く。
-// S・Oは分類ボードの内容から自動で並べ、分析・統合・看護問題は患者ごと・欲求ごとに保存する（myAssessments の追加項目）。
+// S・Oは分類ボードの内容から自動で並べ、分析・解釈／統合／看護問題の明確化も、記録・充足判定・看護計画（関連図の看護問題）から自動で下書きする。手で直した欄は自動では上書きしない（myAssessments の追加項目に保存）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.236'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.238'; // Version stamp (scripts/stamp-version.js)
 
     const FOCUS_FIELDS = [
       { key: 'focusAnalysis', label: '情報の分析・解釈', ph: 'S・Oの情報から、なぜその状態なのか（原因・関連要因）、今後どうなりそうかを書きます。\n例：術後は疼痛（O-3）と荷重への不安（S-2）から、歩行を避けて活動量が低下している。' },
@@ -48,6 +48,95 @@
       return html || '<div class="fa-empty">この欲求に分類された情報はありません</div>';
     }
 
+
+    // ---- 自動作成：記録・充足判定・看護計画（関連図由来の看護問題）から、分析・解釈／統合／看護問題を下書きする ----
+    function focusClip(t, n = 40) {
+      const x = String(t || '').replace(/\s+/g, ' ').replace(/[。.]+$/, '').trim();
+      return x.length > n ? x.slice(0, n) + '…' : x;
+    }
+    function focusNeedName(needId) { return String((HENDERSON_NEEDS.find(n => n.id === needId) || {}).name || '').replace(/^\d+\.\s*/, ''); }
+    function focusPlansForNeed(cp, needId, itemIds) {
+      const list = typeof carePlanList === 'function' ? carePlanList(cp) : [];
+      return list.filter(p => (p.relatedNeeds || []).includes(needId) || (p.evidenceIds || []).some(id => itemIds.has(id)));
+    }
+    function focusLabelsOf(ids, labels) {
+      const out = [...new Set((ids || []).map(id => labels[id]).filter(Boolean))];
+      return out.length ? `（${out.join('・')}）` : '';
+    }
+    function focusQuoteList(facts, items, labels) {
+      return (facts || []).slice(0, 3).map(f => `「${focusClip(f.text, 30)}」${focusLabelsOf([f.id], labels)}`).join('、');
+    }
+    function buildFocusDraft(cp, needId) {
+      const data = focusItemsByColumn(cp, needId);
+      const all = [...data.cols.preadmission, ...data.cols.postadmission, ...data.cols.unclassified];
+      const name = focusNeedName(needId);
+      const itemIds = new Set(all.map(i => i.id));
+      const res = (typeof ruleSufficiencyFor === 'function' ? ruleSufficiencyFor(cp)[needId] : null) || {};
+      const a = res.all || {};
+      const verdict = a.verdict === 'met' ? 'met' : a.verdict === 'unmet' ? 'unmet' : 'unknown';
+      const plans = focusPlansForNeed(cp, needId, itemIds);
+      const subj = /^[A-ZＡ-Ｚ][氏さん]|氏$|さん$/.test(String(cp.title || '').trim()) ? String(cp.title).trim() : '患者';
+      const first = (list, type) => list.filter(i => i.type === type).slice(0, 2);
+      const phrase = list => list.map(i => `${focusClip(i.text, 36)}${focusLabelsOf([i.id], data.labels)}`).join('、');
+      const pre = [...first(data.cols.preadmission, 'o'), ...first(data.cols.preadmission, 's')].slice(0, 3);
+      const post = [...first(data.cols.postadmission, 'o'), ...first(data.cols.postadmission, 's')].slice(0, 3);
+      const vWord = verdict === 'met' ? '概ね満たされている' : verdict === 'unmet' ? '満たされていない' : '判断できる情報が足りない';
+      const para = [];
+      if (!all.length) {
+        para.push(`この欲求に分類された情報がまだない。${name}について、入院前の生活と入院後の状態を確認する必要がある。`);
+      } else {
+        if (pre.length) para.push(`${subj}は、入院前は${phrase(pre)}。`);
+        if (post.length) {
+          const ev = verdict === 'unmet' ? focusQuoteList(a.facts && a.facts.against, all, data.labels) : verdict === 'met' ? focusQuoteList(a.facts && a.facts.for, all, data.labels) : '';
+          para.push(`入院後は${phrase(post)}。${ev ? `${subj}は、${ev}ことから、${name}は${vWord}と考える。` : `${name}は${vWord}。${[res.pre && res.pre.need, res.post && res.post.need].filter(Boolean).join('、')}`.replace(/、$/, '') + '。'}`.replace(/。。/g, '。'));
+        } else if (verdict !== 'unknown') {
+          const ev = focusQuoteList(verdict === 'unmet' ? a.facts && a.facts.against : a.facts && a.facts.for, all, data.labels);
+          para.push(`${ev ? `${subj}は、${ev}ことから、` : ''}${name}は${vWord}と考える。`);
+        } else para.push(`${name}の充足を判断するには情報が足りない。${[res.pre && res.pre.need, res.post && res.post.need].filter(Boolean).join('、')}`.replace(/、$/, '') + '。');
+        plans.slice(0, 3).forEach((p, k) => { if (p.note) para.push(`${k === 0 ? 'また、' : 'さらに、'}${focusClip(p.note, 60)}${focusLabelsOf(p.evidenceIds, data.labels)}ことが、${focusClip(p.problem, 30)}につながっていると考える。`); });
+        const comp = typeof complicationCandidates === 'function' ? complicationCandidates(cp, needId, all.map(i => i.text).join(' ')).slice(0, 2) : [];
+        if (comp.length) para.push(`今後は${comp.map(c => String(c).replace(/（.*$/, '')).join('、')}にも注意が必要である。`);
+        if (plans.length) para.push(`したがって、${plans.slice(0, 3).map(p => focusClip(p.problem, 30)).join('、')}への援助が必要な状態であると考える。`);
+      }
+      const analysis = para;
+      const integration = [];
+      if (all.length) {
+        integration.push(`以上より、${name}は${vWord}。`);
+        if (plans.length) integration.push(`${plans.slice(0, 3).map(p => focusClip(p.problem, 30)).join('、')}があり、継続した観察と援助が必要である。`);
+        else if (verdict === 'met') integration.push('現時点で、この欲求に関する看護問題は挙がらない。経過に合わせて再評価する。');
+        else if (verdict === 'unmet') integration.push('満たされていない状態だが、看護問題として明確にするには、原因や関連要因の情報をさらに集める必要がある。');
+      }
+      const problem = plans.length
+        ? `よって、${plans.slice(0, 5).map(p => focusClip(p.problem, 34)).join('、')}がある。\n` + plans.slice(0, 5).map((p, i) => `#${i + 1} ${p.problem}${p.note ? `\n　${focusClip(p.note, 70)}` : ''}`).join('\n')
+        : (all.length ? 'この欲求から明確になる看護問題は、現時点ではない。' : '');
+      return { focusAnalysis: analysis.join('\n'), focusIntegration: integration.join(''), focusProblem: problem };
+    }
+
+    // 空欄、または前回の自動作成のまま（自分で手を入れていない）の欄だけ、最新の下書きに更新する。手で直した欄は変えない。
+    function applyFocusDraft(cp, needId, force = false) {
+      if (!(cp.items || []).some(i => i.type !== 'unnecessary')) return false;
+      const draft = buildFocusDraft(cp, needId);
+      if (!cp.myAssessments || typeof cp.myAssessments !== 'object' || Array.isArray(cp.myAssessments)) cp.myAssessments = {};
+      const e = cp.myAssessments[needId] || (cp.myAssessments[needId] = {});
+      const auto = e.focusAuto && typeof e.focusAuto === 'object' ? e.focusAuto : (e.focusAuto = {});
+      let changed = false;
+      FOCUS_FIELDS.forEach(f => {
+        const cur = String(e[f.key] || '');
+        if (force || !cur.trim() || cur === auto[f.key]) {
+          if (cur !== draft[f.key]) { e[f.key] = draft[f.key]; changed = true; }
+          auto[f.key] = draft[f.key];
+        }
+      });
+      if (changed) { e.updatedAt = new Date().toISOString(); saveMyAssessmentsSoon(cp.id); }
+      return changed;
+    }
+    window.regenerateFocusAssessment = function() {
+      const cp = getCurrentPatient();
+      applyFocusDraft(cp, focusSelectedNeed(cp), true);
+      renderFocusAssessment();
+      showToast('記録から作り直しました', 'info');
+    };
+
     function renderFocusAssessment() {
       const root = document.getElementById('focus-assessment-body');
       if (!root) return;
@@ -55,6 +144,7 @@
       const needId = focusSelectedNeed(cp);
       focusNeedId = needId;
       const need = HENDERSON_NEEDS.find(n => n.id === needId);
+      applyFocusDraft(cp, needId);
       const data = focusItemsByColumn(cp, needId);
       const e = focusEntry(cp, needId) || {};
       const pills = HENDERSON_NEEDS.map(n => {
@@ -66,8 +156,8 @@
         <div class="fa-pills" role="tablist" aria-label="項目（ヘンダーソンの14の欲求）">${pills}</div>
         <div class="fa-title">項目：${needId}. ${escapeHtml(need.name)}</div>
         <div class="fa-grid">
-          <div class="fa-col"><div class="fa-head">主観的情報（S）</div><div class="fa-cell">${focusCellHtml(needId, 's', data)}</div></div>
-          <div class="fa-col"><div class="fa-head">客観的情報（O）</div><div class="fa-cell">${focusCellHtml(needId, 'o', data)}</div></div>
+          <div class="fa-col fa-s-col"><div class="fa-head">主観的情報（S）</div><div class="fa-cell">${focusCellHtml(needId, 's', data)}</div></div>
+          <div class="fa-col fa-o-col"><div class="fa-head">客観的情報（O）</div><div class="fa-cell">${focusCellHtml(needId, 'o', data)}</div></div>
           ${fields}
         </div>`;
     }
@@ -104,5 +194,5 @@
     };
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { renderFocusAssessment, focusItemsByColumn, focusCellHtml, FOCUS_FIELDS });
+  Object.assign(module.exports, { buildFocusDraft, applyFocusDraft, renderFocusAssessment, focusItemsByColumn, focusCellHtml, FOCUS_FIELDS });
 }
