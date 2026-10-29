@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.200'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.205'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -402,7 +402,7 @@
       { key: 'ep', label: 'EP（教育計画）', short: 'EP', placeholder: '1行に1つずつ書きます\n例：痛みを我慢せずに伝えるよう説明する' }
     ];
     const CARE_PLAN_STATUSES = [
-      { key: 'planned', label: '計画作成済み' }, { key: 'scheduled', label: '実施予定' }, { key: 'active', label: '実施中' }, { key: 'done', label: '実施済み' }, { key: 'evaluating', label: '評価待ち' },
+      { key: 'draft', label: '下書き（要確認）' }, { key: 'planned', label: '計画作成済み' }, { key: 'scheduled', label: '実施予定' }, { key: 'active', label: '実施中' }, { key: 'done', label: '実施済み' }, { key: 'evaluating', label: '評価待ち' },
       { key: 'continue', label: '継続' }, { key: 'revise', label: '修正' }, { key: 'ended', label: '終了' }, { key: 'resolved', label: '解決' }, { key: 'paused', label: '中止・保留' }
     ];
     const CARE_ACHIEVEMENTS = [
@@ -3125,6 +3125,61 @@
       ['op', 'tp', 'ep'].forEach(k => { const a = plan[k] || []; const b = cpDedupeLines(a); if (b.length < a.length) { n += a.length - b.length; plan[k] = b; } });
       return n;
     }
+
+    // v.205: 自動作成した計画の完全性判定。問題文・根拠・目標・OP/TP/EP・関連ニードが揃わない計画は「計画作成済み」にせず「下書き（要確認）」とする。
+    const CP_GENERIC_TP = /本人の希望を確認し|患者の希望を確認し担当看護師|現在の治療・活動上の制限を担当看護師と照合/;
+    function carePlanCompleteness(plan) {
+      const miss = [];
+      if (!plan.problem) miss.push('問題文がない');
+      if (!(plan.evidence || []).length) miss.push('根拠（記録の出典）がない');
+      if (!plan.goalShort || !CP_GOAL_MEASURE.test(plan.goalShort)) miss.push('短期目標がない、または測れる形でない');
+      if (!plan.goalLong) miss.push('長期目標がない');
+      ['op', 'tp', 'ep'].forEach(k => { if (!(plan[k] || []).length) miss.push(k.toUpperCase() + 'がない'); });
+      if (!(plan.relatedNeeds || []).length) miss.push('関連するヘンダーソンの欲求がない');
+      if ((plan.tp || []).length && plan.tp.every(t => CP_GENERIC_TP.test(t))) miss.push('TPが汎用文のみ');
+      return miss;
+    }
+    function cpFinalizeAutoPlans(cp) {
+      const ctx = cpRecordContext(cp);
+      const txt = ctx.text;
+      const pedi = /患児|川崎病|小児科|乳児|幼児|(?:^|\D)(?:[0-9]|1[0-4])歳/.test(txt);
+      const fever = /(?:発熱|熱が(?:続|下が)|3[89]\.\d\s*[℃度])/.test(txt), poorIn = /(?:水分|摂取|食事|食欲)[^\n]{0,10}(?:十分でない|不足|少な|低下|進まない|ない|なく)|何も食べ/.test(txt), lowU = /尿量[^\n]{0,4}(?:減少|少な|低下)/.test(txt);
+      const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && i.text);
+      const findEv = re => items.filter(i => re.test(i.text)).slice(0, 3).map(i => String(i.text).replace(/\s+/g, ' ').slice(0, 48));
+      carePlanList(cp).forEach(p => {
+        if (p.userEdited || !['rules', 'map', 'import', 'ai'].includes(p.source)) return;
+        const set = (k, v) => { p[k] = v; p.autoRevised = true; };
+        if (/体液量不足|脱水/.test(p.problem) && fever && poorIn && lowU) {
+          set('problem', '体液量不足の可能性（高熱の持続・摂取不良・尿量減少があり、現在すでに水分が不足している疑い。確定診断ではない）');
+          set('goalShort', '2日後までに、水分摂取量が医師の指示量（または年齢相当の必要量）に近づき、尿量・尿回数が減らず、口唇・口腔の乾燥が悪化しない');
+          set('goalLong', '退院までに、解熱後も年齢相当の水分を自分で飲め、脱水を示す所見（体重減少・乾燥・尿量減少）がない');
+          set('op', ['水分出納（IN/OUT）・尿量・尿回数・尿の色', '体重（毎日同じ条件で）', '口唇・口腔粘膜・皮膚の乾燥、涙・唾液の量、ツルゴール', '血圧・脈拍・末梢冷感・毛細血管再充満時間・活気', '体温の推移と発汗', 'BUN・Cr・Na・K・Ht・尿比重などの検査値（小児基準は施設基準を確認）']);
+          set('tp', ['好みの飲み物・ゼリー・氷などを少量ずつ頻回に勧める（子どもの好きな容器・遊びを取り入れる）', '医師の指示に基づき輸液の速度・量を確認し、IN/OUTを記録する', '飲めない・尿が出ない・ぐったりしているときは医師へ報告し、輸液・水分量の見直しを相談する']);
+          set('ep', ['保護者へ：水分・尿量を記録する意味と、口が乾く・尿が少ない・ぐったりするときの知らせ方を説明する', '子どもへ：「お口がかわくから少しずつ飲もうね」と年齢に合う言葉と絵で伝える']);
+        } else if (pedi && /睡眠/.test(p.problem) && /かゆ|痒/.test(p.problem + (p.evidence || []).join(''))) {
+          set('goalShort', '3日後までに、かゆみで目が覚める回数が減り、子ども本人（または保護者）が「夜によく眠れた」と言える');
+          set('goalLong', '退院までに、かゆみのために眠れない夜がなくなり、日中の機嫌・遊びが保たれる');
+          set('op', ['夜間の入眠時刻・覚醒回数と、覚醒したときのかゆみ・啼泣の有無', '掻破の様子・皮膚の状態（発疹の範囲・掻き傷）', 'かゆみの程度（フェイススケールや本人の言葉）', '日中の機嫌・眠気・遊びの様子']);
+          set('tp', ['医師の指示に基づく外用薬・保湿・冷却の実施とその効果の確認', '爪を短く整え、手袋や肌ざわりのよい衣類で掻き傷を防ぐ', '室温・寝具・照明を整え、眠る前にぬり絵や絵本など落ち着く遊びを取り入れる']);
+          set('ep', ['保護者へ：かゆみが強い時間帯の記録と、外用薬・保湿の方法を説明する', '子どもへ：かゆいときは掻かずに知らせるよう、絵や人形を使って説明する']);
+        } else if (/心合併症|冠動脈/.test(p.problem)) {
+          if (!(p.relatedNeeds || []).length) set('relatedNeeds', [1]);
+          if (!(p.evidence || []).length) set('evidence', findEv(/川崎病|心エコー|冠動脈|アスピリン|ガンマグロブリン|IVIG/));
+          set('problem', '心合併症（冠動脈病変）のリスク状態（川崎病の診断に基づく予測。現時点で冠動脈の異常所見は記録にない）');
+          set('goalShort', '3日後までに、心拍・心音・顔色・胸痛や苦しがる様子に異常がなく、心エコーで冠動脈の異常所見がない');
+          set('goalLong', '退院までに、心エコー所見の経過が医師から説明され、保護者が外来受診の時期と受診が必要な症状を言える');
+          set('op', ['心拍数・脈拍・心音・血圧・SpO2', '顔色・冷汗・苦しがる様子・不機嫌（胸痛や不快のサイン）', '心エコー・心電図の結果と医師の説明内容', '抗血小板薬（アスピリン等）の内服状況と出血傾向（鼻出血・紫斑・黒色便）']);
+          set('tp', ['医師の指示に基づく抗血小板薬の確実な内服と、飲みやすい工夫（好きな飲み物・ゼリー）', '検査（心エコー）の前に年齢に合う説明を行い、泣かずに受けられる工夫（遊び・保護者の同席）をする', '安静度を医師に確認し、安静が必要な間も遊べる静かな遊びを用意する']);
+          set('ep', ['保護者へ：心臓の検査の目的と、胸痛・顔色不良・ぐったりしたときの連絡方法を説明する', '保護者へ：退院後の定期受診と内服継続の必要性を説明する', '子どもへ：検査や薬が何のためかを絵や人形で簡単に伝える']);
+        }
+        if (!ctx.surgical) ['problem', 'goalShort', 'goalLong'].forEach(k => { if (/術前|術後/.test(p[k] || '')) { p[k] = p[k].replace(/術前の水準/g, '入院前の水準').replace(/術前/g, '入院前').replace(/術後/g, '治療後'); p.autoRevised = true; } });
+        if (!ctx.surgical) ['op', 'tp', 'ep'].forEach(k => { p[k] = (p[k] || []).map(t => /術前|術後/.test(t) ? t.replace(/術前/g, '入院前').replace(/術後/g, '治療後') : t); });
+        const miss = carePlanCompleteness(p);
+        p.draftReasons = miss;
+        if (miss.length) { if (['planned', 'draft'].includes(p.status)) p.status = 'draft'; }
+        else if (p.status === 'draft') p.status = 'planned';
+      });
+    }
     function refineCarePlans(cp) {
       const now = new Date().toISOString();
       const merged = mergeDuplicateCarePlans(cp, now);
@@ -3149,6 +3204,7 @@
         if (p.status === 'active' && !p.records.length && ['rules', 'map', 'import', 'ai'].includes(p.source)) p.status = 'planned';
       });
       carePlanList(cp).forEach(p => { if (['rules', 'map', 'import', 'ai'].includes(p.source)) { cpApplyRiskEvidence(cp, p); cpDedupePlanLines(p); } });
+      cpFinalizeAutoPlans(cp);
       cpLinkRelatedPlans(cp);
       const refsRemoved = cpSanitizeRefs(cp);
       cpExplainDistinct(cp);
@@ -3583,7 +3639,7 @@ if (typeof module !== 'undefined' && module.exports) {
     carePlanInlineNotes, captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,
     cpModelFor, CP_REVIEW_ITEMS, CP_DOMAINS, cpDomainOf, collapseVitalCards, collapseLabCards,
-    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, cpConsistencyWarnings, labBackgroundNotes, labBackgroundContext, drugClassNotes, LAB_REFERENCE_TABLE, DRUG_CLASS_OBSERVATION, cpDedupeOverlappingPlans, krTerms, krNames, krIsMedicalTerm, CARE_PLAN_KNOWLEDGE, cpKnowledgeSuggestions, CP_HIGH_RISK_COMBOS, cpHighRiskCombos, cpStripNegated, cpEvidenceKind, krUnknownTerms, CPK_ROWS_79, CPK_ROWS_100, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
+    globalAppData, GENERATED_RESULT_FIELDS, sourceRevisionOf, foreignTermsInText, cpConsistencyWarnings, labBackgroundNotes, labBackgroundContext, drugClassNotes, LAB_REFERENCE_TABLE, DRUG_CLASS_OBSERVATION, cpDedupeOverlappingPlans, krTerms, krNames, krIsMedicalTerm, CARE_PLAN_KNOWLEDGE, cpKnowledgeSuggestions, CP_HIGH_RISK_COMBOS, cpHighRiskCombos, cpStripNegated, cpEvidenceKind, krUnknownTerms, CPK_ROWS_79, CPK_ROWS_100, beginGeneration, commitGeneratedResult, generatedResultStatus, activeGeneratedResult, quarantinedGeneratedResults, quarantineNoticeText, activeDiagnosisCandidates, carePlanProvenance, classificationHealth, buildKnowledgeRequests, knowledgeRequestText, buildImprovementProposals, diseaseSymptomNeeds, CARE_PLAN_STATUSES, carePlanCompleteness, cpFinalizeAutoPlans, CARE_ACHIEVEMENTS, cpPlanKey, cpIsRisk, cpPlanIncoherent, regenerateCarePlanSections, cpModelOrFallback, mergeDuplicateCarePlans, validateCarePlanEvidence, applyCarePlanValidation, prioritizeCarePlans, cpPriorityOf, cpRiskGoalFor,
     cpEducationLines, cpForeignTerms, cpSanitizeRefs, cpResolvePlanId, refineCarePlans, evaluateCarePlanFromRecords, cpGoalCheck, cpRecordContext, reviewCarePlan, importCarePlansFromMap, carePlanReviewHtml, carePlanBasisHtml, cpObservationLines, reviewCarePlanSet, carePlanSetReviewHtml, carePlanSetState, carePlanSetNextSteps
   });
 }

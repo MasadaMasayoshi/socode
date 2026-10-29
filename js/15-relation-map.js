@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.203'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.205'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -2602,7 +2602,7 @@
         E(delR, N('p_delirium', 'nursing_problem', '急性混乱リスク状態（術後せん妄）', { cat: 'fall' }), 'results_in', { predicted: true });
       }
 
-      const bedItem = findLast(/安静(?!時)|臥床|ADL[^\n]{0,6}(?:低下|介助|一部)|車椅子|移乗|歩行[^\n]{0,8}(?:介助|困難|不安定)|トイレ[^\n]{0,8}介助|(?:清拭|更衣|入浴)[^\n]{0,6}(?:全?介助)|動くと[^\n]{0,4}息切れ|歩くと[^\n]{0,14}(?:低下|息切れ)/, i => notHist(i) && !/食事|摂取|むせ/.test(i.text));
+      const bedItem = findLast(/(?:床上|絶対|ベッド上)安静|安静臥床|臥床|ADL[^\n]{0,6}(?:低下|介助|一部)|車椅子|移乗|歩行[^\n]{0,8}(?:介助|困難|不安定)|トイレ[^\n]{0,8}介助|(?:清拭|更衣|入浴)[^\n]{0,6}(?:全?介助)|動くと[^\n]{0,4}息切れ|歩くと[^\n]{0,14}(?:低下|息切れ)/, i => notHist(i) && !/食事|摂取|むせ/.test(i.text));
       if ((pain && painItem) || bedItem || nodes.has('paralysis')) {
         const mob = N('mobility', 'pathophysiology', '体動の制限・活動耐性の低下', { source: 'knowledge' });
         if (bedItem) E(N('bed', 'symptom', short(bedItem, 32, /安静|臥床|介助|車椅子|移乗|歩行|息切れ|低下/), { items: [bedItem] }), mob, 'causes');
@@ -2641,7 +2641,7 @@
       }
       if (nodes.has('mobility') && nodes.has('anemia')) E(nodes.get('anemia'), nodes.get('mobility'), 'contributes_to', { evidence: '貧血で疲れやすく動きにくい' });
 
-      const skinItem = findItem(/褥瘡|発赤|体位変換[^\n]{0,6}(?:困難|できない|全介助)|骨突出|DESIGN/);
+      const skinItem = findItem(/褥瘡|(?:仙骨|尾骨|踵|大転子|臀|殿|背)部?[^\n]{0,6}発赤|体位変換[^\n]{0,6}(?:困難|できない|全介助)|骨突出|DESIGN/);
       if (skinItem && !nodes.has('dm_ulcer')) {
         const sk = N('skin_sign', 'symptom', short(skinItem, 34), { items: [skinItem] });
         const press = N('pressure', 'pathophysiology', '同じ部位への長い圧迫・ずれによる皮膚の血流低下', { source: 'knowledge' });

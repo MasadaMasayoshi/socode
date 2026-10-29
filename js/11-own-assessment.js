@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.203'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.205'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -455,6 +455,9 @@
     // v.93 (user-authorised 2026-10-16): the rationale integrates the recorded findings of the phase:
     // 「<所見>は〜であるが、<補う/悪化させる記録>なので、<ニード>は充足している／未充足である／判定保留／情報不足。」
     function sufficiencySentence(cp, needId, phase, labelMap) {
+      return String(sufficiencySentenceRaw(cp, needId, phase, labelMap)).replace(/([^・。、]{1,14})・\1(?=・|が|の|を|に|は|$)/g, '$1');
+    }
+    function sufficiencySentenceRaw(cp, needId, phase, labelMap) {
       labelMap = labelMap || myEvidenceLabels(cp, needId);
       const r = ruleSufficiencyFor(cp)[needId];
       const a = r && r[phase];
@@ -573,6 +576,39 @@
 
     // 判定の根拠の状態を4つに分ける: 確認できた充足／確認できた未充足／根拠が食い違う・不完全／関連する根拠なし。
     // 「関連する根拠なし」は、その欲求に自分のカードが1枚もない場合だけ。症状語ひとつで他の欲求に判定保留を作らない。
+
+    // v.205: 充足判定の評価表。段階・状態・直接の根拠・矛盾する事実・解釈・患者への影響・不足情報を、元の記録（カードID）に戻れる形で返す。
+    const FA_STATUS = { met: '充足', unmet: '未充足', conflict: '判断保留', unknown: '情報不足' };
+    function fulfillmentAssessmentRows(cp) {
+      const res = ruleSufficiencyFor(cp), rows = [];
+      const byId = new Map(((cp && cp.items) || []).filter(i => i && !i.deleted).map(i => [i.id, i]));
+      const allText = ((cp && cp.items) || []).filter(i => i && !i.deleted).map(i => i.text).join('\n');
+      const refs = list => (list || []).map(f => ({ id: f.id, text: f.text, resolved: !!(f.id && byId.has(f.id)), sourceText: f.id && byId.has(f.id) ? byId.get(f.id).text : '' }));
+      HENDERSON_NEEDS.forEach(nd => {
+        SUFFICIENCY_UI_PHASES.forEach(ph => {
+          const a = (res[nd.id] || {})[ph.key] || { verdict: 'unknown' };
+          const v = ['met', 'unmet', 'conflict'].includes(a.verdict) ? a.verdict : 'unknown';
+          const f = a.facts || { for: [], against: [] };
+          const support = refs(v === 'met' ? f.for : v === 'unmet' ? f.against : [...(f.for || []), ...(f.against || [])]);
+          if (!support.length && (a.evidence || []).length) support.push(...refs(a.evidence.map(id => ({ id, text: String((byId.get(id) || {}).text || '').slice(0, 60) }))));
+          const contra = refs(v === 'met' ? f.against : v === 'unmet' ? f.for : []);
+          const notes = [], missing = [];
+          const ownTxt = (a.evidence || []).map(id => (byId.get(id) || {}).text || '').join('\n');
+          if (nd.id === 4) { if (/安静/.test(allText)) notes.push('安静は指示された制限であり、実際に動けない状態（体位変換・移動の可否）とは別に評価する'); if (v !== 'unmet') missing.push('実際の動作能力（体位変換・移乗・歩行）の記録'); }
+          if (nd.id === 10) { if (/泣|訴え|痛がる/.test(allText)) notes.push('子どもが泣く・痛みを訴えることは表出の証拠であり、コミュニケーション障害の証拠ではない'); if (v === 'unknown') missing.push('年齢相応の理解・表出（言葉・表情・保護者を介した伝達）の記録'); }
+          if (nd.id === 13) { if (/絵を描く|ぬり絵|趣味|好き/.test(allText) && ph.key === 'post') notes.push('好きな活動の記載は入院中に実施できたことを示さない'); if (ph.key === 'post' && v !== 'met') missing.push('入院中の遊び・気分転換の実施状況'); }
+          if (nd.id === 8 && v === 'unmet' && !/(?:入浴|清拭|更衣|洗髪|歯みがき|口腔ケア|整容)[^。\n]{0,10}(?:できない|困難|介助|不可|制限|禁止|拒否)/.test(ownTxt)) notes.push('皮膚・粘膜の状態の障害であり、清潔行動（入浴・清拭・口腔ケア）を自分で行えない記録は確認できない');
+          if (nd.id === 3 && ph.key === 'post' && /尿量(?:が)?(?:減少|少な)/.test(allText)) notes.push('尿量減少は現在の所見として評価する（過去の下痢の記載があっても置き換えない）');
+          if (nd.id === 1 && /冠動脈|心臓/.test(allText) && !/冠動脈[^。\n]{0,12}(?:瘤|拡大|病変あり|狭窄)/.test(allText)) notes.push('冠動脈病変は観察されていない。リスクとして扱い、実際の心機能障害とは区別する');
+          if (v === 'unknown') missing.push('この段階の直接の記録');
+          if (v === 'conflict') missing.push('矛盾を解消する追加の観察');
+          rows.push({ needId: nd.id, need: nd.name, phase: ph.label, status: FA_STATUS[v], verdict: v, support, contradictory: contra,
+            interpretation: v === 'unknown' ? '記録がなく、充足とも未充足とも判断しない' : String(sufficiencySentence(cp, nd.id, ph.key, {}) || ''),
+            impact: notes.join('／'), missing: [...new Set(missing)], unresolvedRefs: [...support, ...contra].filter(x => !x.resolved).length });
+        });
+      });
+      return rows;
+    }
     function sufficiencyEvidenceState(cp, needId, phase) {
       const r = ruleSufficiencyFor(cp)[needId], a = r && r[phase];
       const v = a && a.verdict;
@@ -1319,7 +1355,7 @@
 
     const SUF_NEG_AFTER = '(?:[^、。,]{0,6})(?:なし|ない|無|訴えず|みられず|見られず|認めず|なく|ありません)';
     const SUF_UNMET_CUES = ['痛み|疼痛|創痛|痛い|NRS\\s*[:：]?\\s*[3-9]|ペインスケール\\s*[「:：]?\\s*[3-9]', '眠れ[なず]|不眠|睡眠(?:不足|障害)|寝つけ|熟睡(?:でき[なず]|できていない|不可)', '全介助|要介助|介助(?:が必要|を要|にて|で)|見守りが必要|できない|困難|不可|禁止|制限', '不安|怖い|恐怖|心配|戸惑|情けない|申し訳', '食欲(?:低下|不振|がない|ない)|摂取量(?:半分|減)|半分のみ|おなかすかない|嘔気|嘔吐', '排便(?:なし|なく)|便秘|下痢|腹部膨満|お腹が張|尿量(?:が)?(?:減少|低下|少な)|乏尿', 'べたべた|べたつき|気持ちが悪い|汚れ|悪臭|掻痒', '発赤|(?<!リンパ節)腫脹|熱感|発熱|排膿|浮腫|褥瘡', '呼吸困難(?:感)?(?:あり|を訴)|息苦しい|息切れ|チアノーゼ|喘鳴|SpO2\\s*[:：]?\\s*(?:[0-8]\\d|9[0-3])\\s*%', '転倒|ふらつき|不安定|せん妄|不穏|混乱|拒否', '体温[^\\d。、]{0,3}3[89]|3[89](?:\\.\\d)?\\s*度', '[↑↓]', '(?:旅行|趣味|外出|散歩|余暇)[^。]{0,20}(?:したい|できず|できない|行けない|行きたい)|早く治して', '(?:わから|分から)ない|教えて(?:ほしい|欲しい|ください)|大丈夫(?:か|なの|でしょうか)|ずれ(?:たり)?しないか|気を付け(?:れば|ること)', '仕事[^。]{0,10}(?:できない|できず|休)|復職[^。]{0,10}(?:不安|心配|難)|働けな', '体重[^。、]{0,8}(?:減|低下)|[0-9.]+\\s*kg\\s*(?:減|低下)|やせ|朝食[^。、]{0,6}(?:抜|食べない|とらない|欠食|ほとんど食べ)|欠食|外食|早食い|偏食|短時間で済ま|早く食べ', '難聴|聞こえ(?:にくい|ない|が悪)|聴力(?:低下|障害)|(?:説明|話|内容)[^。、]{0,8}(?:ほとんど|あまり)?伝わ(?:らない|りにくい)|意思疎通(?:が)?(?:困難|難しい|図れ(?:ない|ず))|失語|構音障害', '口(?:を)?き[かけ]な|一言二言|一言も|無表情|目も合わせ|黙り込|返事をしな|答えな[いか]|会話にならな|言葉をかわ(?:す)?こと(?:も)?できな','(?:経口)?(?:摂取|飲水)(?:量)?(?:が)?(?:低下|減少|不良|不足|ほぼ(?:なし|ない))|(?:食事|食べ物|水分|飲み物|ミルク)(?:は|が|を)?(?:ほとんど)?(?:摂れ|とれ|取れ|食べられ|飲め|摂取でき)(?:て(?:い)?)?(?:ない|ず|なかった)|食べられ(?:ない|ず|なかった)|食事(?:を)?(?:拒否|摂らない|とらない)|食事摂取(?:なし|できず)|食欲(?:が|も)?(?:まったく|全く)?なく|何も(?:食べて|飲めて)(?:い)?(?:ない|なかった)'];
-    const SUF_MET_CUES = ['問題なし|良好|清明|規則的|正常|普通食|常食|整|障害なし|異常なし|理解(?:力)?(?:あり|良好)|前向き|頑張|楽しみ|きれい好き', '睡眠[^\\d。、]{0,3}[6-9](?:\\s*[~〜～-]\\s*[6-9])?\\s*時間|眠れた|よく眠れ', '食欲(?:良好|あり)|全量摂取|摂取量\\s*(?:良好|十分)|残さず(?:食べ|摂取)', 'SpO2\\s*[:：]?\\s*(?:9[4-9]|100)\\s*%', 'ペインスケール\\s*[「:：]?\\s*[0-2]|NRS\\s*[:：]?\\s*[0-2](?!\\d)|痛みなし|疼痛なし', '体温[^\\d。、]{0,3}(?:3[67]|35\\.[5-9])', '排便\\s*[:：]?\\s*\\d\\s*回/日|排尿\\s*[:：]?\\s*\\d+\\s*回/日', '呼吸困難感(?:の)?訴えなし|肺Air入り(?:が)?良好', '意思疎通(?:は)?(?:良好|可能|図れ)|言葉にで|希望を(?:伝え|話)|質問(?:が)?でき|ナースコール[^。]{0,6}(?:使用|押|できる)|コミュニケーション[^。]{0,6}(?:良好|障害なし)', '理解(?:力)?(?:が)?良好|現状認識(?:が)?良好|理解できて|理解している', '(?:旅行|趣味|友人|外出)[^。]{0,12}(?:楽しむ|楽しん|行って|している)', '信仰[^。]{0,8}なし|宗教[^。]{0,8}なし|特別な宗教', '(?:RR|呼吸数)[^\\d。、]{0,3}(?:1[2-9]|20)(?!\\d)|%(?:VC|肺活量)\\s*(?:[89]\\d|1\\d\\d)|胸部[^。、]{0,8}(?:明らかな)?(?:異常|病変)[^。、]{0,4}(?:なし|認めず|ない)|呼吸困難(?:感)?(?:は)?(?:なし|ない|無)', '趣味|テニス|ゴルフ|ジム|ウォーキング|ジョギング|旅行|友人[^。]{0,6}(?:会|食事)', '自立|自力|自分で|一人で'];
+    const SUF_MET_CUES = ['問題なし|良好|清明|規則的|正常|普通食|常食|整|障害なし|異常なし|理解(?:力)?(?:あり|良好)|前向き|頑張|楽しみ|きれい好き', '睡眠[^\\d。、]{0,3}[6-9](?:\\s*[~〜～-]\\s*[6-9])?\\s*時間|眠れた|よく眠れ|よく眠り|寝起きは?(?:良|すっきり)|すっきり(?:と)?起き|ぐっすり眠', '食欲(?:良好|あり)|全量摂取|摂取量\\s*(?:良好|十分)|残さず(?:食べ|摂取)', 'SpO2\\s*[:：]?\\s*(?:9[4-9]|100)\\s*%', 'ペインスケール\\s*[「:：]?\\s*[0-2]|NRS\\s*[:：]?\\s*[0-2](?!\\d)|痛みなし|疼痛なし', '体温[^\\d。、]{0,3}(?:3[67]|35\\.[5-9])', '排便\\s*[:：]?\\s*\\d\\s*回/日|排尿\\s*[:：]?\\s*\\d+\\s*回/日', '呼吸困難感(?:の)?訴えなし|肺Air入り(?:が)?良好', '意思疎通(?:は)?(?:良好|可能|図れ)|言葉にで|希望を(?:伝え|話)|質問(?:が)?でき|ナースコール[^。]{0,6}(?:使用|押|できる)|コミュニケーション[^。]{0,6}(?:良好|障害なし)', '理解(?:力)?(?:が)?良好|現状認識(?:が)?良好|理解できて|理解している', '(?:旅行|趣味|友人|外出)[^。]{0,12}(?:楽しむ|楽しん|行って|している)', '信仰[^。]{0,8}なし|宗教[^。]{0,8}なし|特別な宗教', '(?:RR|呼吸数)[^\\d。、]{0,3}(?:1[2-9]|20)(?!\\d)|%(?:VC|肺活量)\\s*(?:[89]\\d|1\\d\\d)|胸部[^。、]{0,8}(?:明らかな)?(?:異常|病変)[^。、]{0,4}(?:なし|認めず|ない)|呼吸困難(?:感)?(?:は)?(?:なし|ない|無)', '趣味|テニス|ゴルフ|ジム|ウォーキング|ジョギング|旅行|友人[^。]{0,6}(?:会|食事)', '自立|自力|自分で|一人で'];
 
     // v.101: a diagnosis name alone is not a finding and gives no verdict; only recorded symptoms/values do.
     const SUF_DISEASE_NAME_ONLY = /^(?:糖尿病|高血圧|脂質異常症|白内障|[^、。\s]{0,8}(?:がん|癌)|[^、。\s]{0,6}骨折|子宮筋腫|(?:陳旧性)?心筋梗塞|胃全摘|胃切除)$/;
@@ -1618,7 +1654,7 @@
         const t = String(t0).replace(/[^、。「」]{0,8}(?:は|も)(?:ほとんど|全く|まったく|特に|あまり)?(?:なく|ない|なし|みられず|認めず|認めない|なかった)/g, ' ');
         // v.106: a symptom word inside a staff explanation/teaching sentence is not a finding of this patient
         if (/(?:へ|に)[^。]{0,40}(?:説明|指導|オリエンテーション)(?:する|した|を行う|を行った|を受け)/.test(t)) return;
-        DISEASE_SYMPTOM_NEEDS.forEach(([re, ids]) => { const m = t.match(re); if (m && !SUF_DISEASE_NAME_ONLY.test(m[0]) && !(m[0] === '低血糖' && !/低血糖(?:症状)?(?:あり|が出現|を認め|を起こ|のため|により|で(?:搬送|受診|処置))/.test(t))) ids.forEach(need => { if (!(i.hendersonIds || []).includes(need)) out.push({ need, v: 'partial', hit: m[0] === '低血糖' ? (t.match(/低血糖(?:症状)?(?:あり|が出現|を認め|を起こ)/) || m)[0] : m[0], ref: '記録された症状と14項目の対応（参考）', id: i.id, fillOnly: true, tag: false, symptom: true }); }); });
+        DISEASE_SYMPTOM_NEEDS.forEach(([re, ids]) => { const m = t.match(re); if (m && !SUF_DISEASE_NAME_ONLY.test(m[0]) && !(m[0] === '低血糖' && !/低血糖(?:症状)?(?:あり|が出現|を認め|を起こ|のため|により|で(?:搬送|受診|処置))/.test(t))) ids.forEach(need => { if (!(i.hendersonIds || []).includes(need)) out.push({ need, v: 'partial', ...(/^(?:易?感染(?:症)?)$/.test(m[0]) ? { supportOnly: true } : {}), hit: m[0] === '低血糖' ? (t.match(/低血糖(?:症状)?(?:あり|が出現|を認め|を起こ)/) || m)[0] : m[0], ref: '記録された症状と14項目の対応（参考）', id: i.id, fillOnly: true, tag: false, symptom: true }); }); });
       });
       return out;
     }
@@ -2073,7 +2109,7 @@ if (typeof module !== 'undefined' && module.exports) {
     MY_ASSESSMENT_FIELDS,
     ensureMyAssessment, getMyAssessment, ruleSufficiencyFor, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
     myAssessmentStatus, myAssessmentNeedsReview, confirmMyAssessmentEntry, restoreMyAssessmentFromHistory,
-    hasRuleSufficiency, sufficiencyDimensions, sufficiencyDimensionLines, phaseVerdictOf, sufficiencyUiPhases, dischargePhaseOf, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyScoreRules, sufficiencyPerNeedRules, sufficiencyScaleRules, sufficiencyLabRules, sufficiencyListRules, sufficiencyKnowledgeChecks, sufficiencyKnowledgeLine, SUF_LAB_NEEDS, SUF_COMBO_NEEDS, sufficiencyCauseHint, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, sufficiencyEvidenceState, complicationCandidates, patientContextFor, individualizedAssessment, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, sufficiencyMiniHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
+    hasRuleSufficiency, sufficiencyDimensions, sufficiencyDimensionLines, phaseVerdictOf, sufficiencyUiPhases, dischargePhaseOf, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyScoreRules, sufficiencyPerNeedRules, sufficiencyScaleRules, sufficiencyLabRules, sufficiencyListRules, sufficiencyKnowledgeChecks, sufficiencyKnowledgeLine, SUF_LAB_NEEDS, SUF_COMBO_NEEDS, sufficiencyCauseHint, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, sufficiencyEvidenceState, fulfillmentAssessmentRows, complicationCandidates, patientContextFor, individualizedAssessment, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, sufficiencyMiniHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
     renderMyAssessmentRowHtml, evidencePickerCandidates, myAssessmentAlwaysShown
   });
   if (module.exports.__testHooks) Object.assign(module.exports.__testHooks, { flushMyAssessmentSaves, saveMyAssessmentsSoon });
