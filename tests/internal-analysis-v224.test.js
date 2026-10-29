@@ -29,3 +29,9 @@ test('品質監査：食い違い・未完成の計画を指摘し、重要な�
   assert.equal(r2.complete, false);
   assert.match(app.auditExportQualityText(withPlan), /完成とは言えません/);
 });
+test('修正依頼：タグのないカードを載せ、なぜ付かなかったかの調査を求める', () => {
+  const cp = mk('産褥2日目の褥婦。\n川崎病\n児の体重3,050g。');
+  const t = app.untaggedCardsText(cp);
+  assert.match(t, /なぜ付かなかったかを調査/);
+  assert.match(app.correctionRequestInstructionsText(), /なぜ付いていないのか/);
+});

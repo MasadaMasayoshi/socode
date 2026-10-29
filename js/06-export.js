@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.225'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.227'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1120,11 +1120,27 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       });
       return out;
     }
+    // v.227: タグが付いていないカードを、保持先・提案タグとともに依頼に載せる（調査の入口）。内容もタグも変えない。
+    function untaggedCardsText(cp) {
+      try {
+        const rows = typeof buildTagAuditRows === 'function' ? buildTagAuditRows(cp) : [];
+        const byId = new Map(rows.map(r => [r.id, r]));
+        const list = (cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary' && !(i.hendersonIds || []).length && !(typeof isStructuralHeadingLine === 'function' && isStructuralHeadingLine(String(i.text || ''))));
+        if (!list.length) return '';
+        const lines = list.slice(0, 40).map(i => {
+          const r = byId.get(i.id); const pl = typeof cardPlacementOf === 'function' ? cardPlacementOf(i) : null;
+          const prop = r && r.proposedTags && r.proposedTags.length ? `提案タグ=${r.proposedTags.join('・')}` : '提案タグなし';
+          return `・${String(i.text || '').replace(/\s+/g, ' ').slice(0, 44)}｜${i.timestamp || '日時不明'}｜${prop}｜現在の扱い=${pl ? pl.label : '未設定'}${i.editLog && i.editLog.length ? '｜利用者の編集あり' : ''}`;
+        });
+        return `\n【タグが付いていないカード（${list.length}件。なぜ付かなかったかを調査してください）】\n` + lines.join('\n') + (list.length > 40 ? `\n…ほか${list.length - 40}件` : '') + '\n';
+      } catch (e) { return ''; }
+    }
     function correctionRequestInstructionsText() {
       return [
         "",
         "[Developer instructions]",
         "原文・前後の記録・編集履歴を照合し、なぜカードが分割・統合されたのか、なぜタグが付与・除外されたのかを調査してください。アプリの自動処理と利用者の手編集を区別し、該当する処理を原文で再現して原因を確認してください。意図した処理か不具合かを判断し、根拠・原因・修正方針を示してください。確認できない理由は推測で断定せず『確認不能』としてください。特定の患者だけに合わせず、同じ種類の記録にも適用できる規則として修正してください。",
+        "タグが付いていないカードについても、なぜ付いていないのかを調べてください（付くべき欲求があるのに付かなかったのか、どの欲求にも当てはまらないのか。「タグ未設定」「保持先のみ」のカードも対象です）。",
         "",
         "【依頼対象：サイトのコード修正】",
         "この依頼は、添付シートやカードの文章を訂正して返す作業ではありません。サイトのコードを修正し、次回の分類・判定・表示・書き出しで同じ問題が再発しないようにしてください。添付資料は再現用の検証資料です。",
@@ -1157,7 +1173,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const ids = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);
       const items = (cp.items || []).filter(i => ids.has(i.id));
       return buildCardsReportText(cp, items, sourceText, `修正依頼メモ：${cp.title}（選択したカード ${items.length}件）`, includeSourceText,
-        includeAssessment ? buildAssessmentTableText(cp, ids) : null, correctionRequestInstructionsText() + backgroundFactorsText(cp) + sufficiencyJudgmentsText(cp) + (typeof auditExportQualityText === 'function' ? '\n' + auditExportQualityText(cp) + '\n' : '') + drugCorrectionText(cp) + (typeof genogramCorrectionText === 'function' ? genogramCorrectionText(cp) : '') + brokenTextCorrectionText(cp));
+        includeAssessment ? buildAssessmentTableText(cp, ids) : null, correctionRequestInstructionsText() + backgroundFactorsText(cp) + sufficiencyJudgmentsText(cp) + untaggedCardsText(cp) + (typeof auditExportQualityText === 'function' ? '\n' + auditExportQualityText(cp) + '\n' : '') + drugCorrectionText(cp) + (typeof genogramCorrectionText === 'function' ? genogramCorrectionText(cp) : '') + brokenTextCorrectionText(cp));
     }
 
     function assessmentPeriodGroups(cp, col, list) {
@@ -1474,7 +1490,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       let out = `修正依頼：${cp.title}（手で編集したカード ${editedN}件・タグ未設定のカード ${untaggedN}件・不必要のカード ${unnecessaryN}件／書き出し ${items.length}枚）\n`;
       out += `出力日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
       out += `分類プログラム版: ${window.APP_FILE_VERSIONS?.['07'] || '確認不能'}／分類基準版: ${NOTEBOOK_CONTENT_VERSION_MARK}\n`;
-      out += correctionRequestInstructionsText() + backgroundFactorsText(cp) + sufficiencyJudgmentsText(cp) + (typeof auditExportQualityText === 'function' ? '\n' + auditExportQualityText(cp) + '\n' : '') + drugCorrectionText(cp) + (typeof genogramCorrectionText === 'function' ? genogramCorrectionText(cp) : '') + brokenTextCorrectionText(cp);
+      out += correctionRequestInstructionsText() + backgroundFactorsText(cp) + sufficiencyJudgmentsText(cp) + untaggedCardsText(cp) + (typeof auditExportQualityText === 'function' ? '\n' + auditExportQualityText(cp) + '\n' : '') + drugCorrectionText(cp) + (typeof genogramCorrectionText === 'function' ? genogramCorrectionText(cp) : '') + brokenTextCorrectionText(cp);
       out += '【対象】タグ未設定・不必要・手編集のカード。誤りの証拠ではなく調査対象です。原文全体と同じ場面の前後を読み、安静時と動作時・昨日と本日を区別し、根拠があるものは分類ルールと分類基準を修正、不足は必要な確認事項を示してください。理由の記録がなければ「理由未記録」と明記します。除外は妥当なら根拠を示し、誤りなら分類処理と分類基準を修正してください。\n';
       const originalItems = sourceText && sourceText.trim() && typeof classifyTextByRules === 'function' ? classifyTextByRules(sourceText) : [];
       const dropped = droppedEditsForCase(cp, sourceText).slice(-30);
