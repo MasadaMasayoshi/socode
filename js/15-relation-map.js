@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.229'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.232'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -3504,7 +3504,8 @@
 
       box.innerHTML = open ? `<span class="rm-problems-title">看護問題を選ぶ（複数選択できます）</span>`
         + `<button type="button" role="menuitem" class="rm-prob-all${rmState.focusProblem ? '' : ' is-on'}" data-rm-action="focus-all">すべての流れ（全体の図）</button>`
-        + probs.map(n => `<button type="button" role="menuitem" class="rm-prob-btn${/リスク|可能性|おそれ|危険/.test(n.label) ? ' is-risk' : ''}${(Array.isArray(rmState.focusProblem) ? rmState.focusProblem.includes(n.id) : rmState.focusProblem === n.id) ? ' is-on' : ''}" data-rm-action="focus-problem" aria-pressed="${Array.isArray(rmState.focusProblem) ? rmState.focusProblem.includes(n.id) : rmState.focusProblem === n.id}" data-node-id="${escapeHtml(n.id)}" title="${escapeHtml(n.note ? `${n.note}（この看護問題へつながる流れだけを表示します）` : 'この看護問題へつながる流れだけを表示します')}"><span aria-hidden="true">${Array.isArray(rmState.focusProblem) && rmState.focusProblem.includes(n.id) ? '✓ ' : ''}</span>${escapeHtml(rmDisplayLabel(n))}${n.note ? `<small class="rm-prob-note">${escapeHtml(n.note)}</small>` : ''}</button>`).join('') + '<button type="button" class="btn btn-primary" data-rm-action="focus-apply">選択した問題の図を表示</button>' : '';
+        + `<button type="button" role="menuitem" class="rm-prob-apply btn btn-outline text-[11px] py-1" data-rm-action="focus-apply" ${rmPendingIds().size ? '' : 'disabled'}>選んだ ${rmPendingIds().size} 件の図を表示</button>`
+        + probs.map(n => `<button type="button" role="menuitem" class="rm-prob-btn${/リスク|可能性|おそれ|危険/.test(n.label) ? ' is-risk' : ''}${rmPendingIds().has(n.id) ? ' is-on' : ''}" data-rm-action="focus-problem" aria-pressed="${rmPendingIds().has(n.id)}" data-node-id="${escapeHtml(n.id)}" title="${escapeHtml(n.note ? `${n.note}（この看護問題へつながる流れだけを表示します）` : 'この看護問題へつながる流れだけを表示します')}"><span aria-hidden="true">${Array.isArray(rmState.focusProblem) && rmState.focusProblem.includes(n.id) ? '✓ ' : ''}</span>${escapeHtml(rmDisplayLabel(n))}${n.note ? `<small class="rm-prob-note">${escapeHtml(n.note)}</small>` : ''}</button>`).join('') + '<button type="button" class="btn btn-primary" data-rm-action="focus-apply">選択した問題の図を表示</button>' : '';
     }
 
     function rmShowCtx(e) {
@@ -3559,7 +3560,7 @@
       else if (returnFocus) document.querySelector('#view-relation [data-rm-action="toggle-more"]')?.focus();
     }
     function rmSetProblemsOpen(open) {
-      rmState.problemsOpen = !!open;
+      rmState.problemsOpen = !!open; if (!open) rmState.pendingFocus = null;
       rmRenderProblemList(rmMap());
     }
     function rmScrollToNode(id) {
@@ -3643,7 +3644,14 @@
       wrap.querySelectorAll('.rm-link').forEach(g => g.classList.toggle('is-path', pathEdges.has(g.dataset.linkId)));
     }
     function rmSelect(sel) { rmState.selected = sel; rmApplySelectionClasses(); rmRenderSelectionBar(); }
+    // v.232: 看護問題を複数選ぶとき、1つ選ぶたびに図全体を描き直すと重い。選択は「仮の選択」として一覧の表示だけ更新し、「図を表示」で1回だけ描く。
+    function rmPendingIds() {
+      if (rmState.pendingFocus) return rmState.pendingFocus;
+      const cur = rmState.focusProblem;
+      return new Set(Array.isArray(cur) ? cur : cur ? [cur] : []);
+    }
     function rmFocusProblems(ids) {
+      rmState.pendingFocus = null;
       rmState.focusProblem = ids && ids.length ? [...new Set(ids)] : null;
       rmState.selected = null; rmState.connectFrom = null; rmState.lastTap = null;
       renderRelationMap(); rmZoom('fit-readable');
@@ -4041,12 +4049,16 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
         else if (act === 'print') { rmSetMoreOpen(false); rmPrint(); }
         else if (act === 'print-per-problem') { rmSetMoreOpen(false); rmPrint(true); }
         else if (act === 'focus-problem') {
-          const ids = new Set(Array.isArray(rmState.focusProblem) ? rmState.focusProblem : rmState.focusProblem ? [rmState.focusProblem] : []);
+          const ids = new Set(rmPendingIds());
           const id = btn.dataset.nodeId;
           if (ids.has(id)) ids.delete(id); else ids.add(id);
-          rmFocusProblems([...ids]);
+          rmState.pendingFocus = ids;
+          // 図は描き直さず、一覧のボタンの表示だけを更新する
+          btn.classList.toggle('is-on', ids.has(id)); btn.setAttribute('aria-pressed', String(ids.has(id)));
+          const ap = btn.parentElement && btn.parentElement.querySelector('.rm-prob-apply');
+          if (ap) { ap.disabled = !ids.size; ap.textContent = `選んだ ${ids.size} 件の図を表示`; }
         }
-        else if (act === 'focus-apply') { rmSetProblemsOpen(false); renderRelationMap(); rmZoom('fit-readable'); }
+        else if (act === 'focus-apply') { const ids = [...rmPendingIds()]; rmSetProblemsOpen(false); if (ids.length) rmFocusProblems(ids); }
         else if (act === 'focus-all') { rmSetProblemsOpen(false); rmFocusProblems(null); }
         else if (act === 'png') { rmSetMoreOpen(false); rmSavePng(); }
         else if (act === 'clear') { rmSetMoreOpen(false); rmClearAll(); }

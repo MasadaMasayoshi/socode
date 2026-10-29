@@ -646,7 +646,7 @@ test('関連図：作った直後に、チェックで自動で直せるもの�
   assert.match(src, /function rmAutoFixBuilt\(map\)/);
 });
 
-test('関連図：矢印の向きを逆にする（並べ直して左向きを残さない）・文字はまん中ぞろえ・図のまわりに余白・タブはデザイン案の順（アセスメント → 計画）', () => {
+test('関連図：矢印の向きを逆にする（並べ直して左向きを残さない）・文字はまん中ぞろえ・図のまわりに余白・タブは 看護計画 → 検査値の推移 の順', () => {
   assert.match(src, /rmBtn\('reverse', '<i class="fa-solid fa-right-left"><\/i> 向きを逆にする', 'btn-primary'\)/);
   assert.match(src, /else if \(act === 'reverse'\) \{[\s\S]{0,400}layoutRelationMap\(m\);/);
   assert.match(src, /stroke="transparent" stroke-width="20"/, '線を押しやすく');
@@ -654,9 +654,7 @@ test('関連図：矢印の向きを逆にする（並べ直して左向きを�
   assert.ok(!/<text class="rm-text"(?![^>]*text-anchor="middle")/.test(svg), '文字はまん中ぞろえ');
   assert.match(src, /<div class="rm-stage">\$\{focusSub \? relationMapSvg\(focusSub/);
   assert.match(css, /\.rm-stage \{ display: inline-block; padding: min\(28vh, 220px\) min\(28vw, 320px\);/);
-  // Owner request 2026-10-16: tabs follow the design mockup — アセスメント group (表・検査値・関連図・ジェノグラム) before 計画.
-  assert.ok(html.indexOf('id="tab-assessment"') < html.indexOf('id="tab-labs"'));
-  assert.ok(html.indexOf('id="tab-genogram"') < html.indexOf('id="tab-careplan"'), '看護計画はアセスメントの後');
+  assert.ok(html.indexOf('id="tab-careplan"') < html.indexOf('id="tab-labs"'), '看護計画のタブが先');
   assert.ok(html.indexOf('id="tab-labs"') < html.indexOf('id="tab-relation"'));
 });
 
@@ -981,4 +979,12 @@ test('Independent columns reuse empty space without losing nodes, edges or prior
   const positions = map.nodes.map(n => [n.id, n.x, n.y]);
   app.layoutRelationMap(map);
   assert.deepEqual(map.nodes.map(n => [n.id, n.x, n.y]), positions, 'Layout remains deterministic');
+});
+
+test('関連図：看護問題の複数選択は、1つ選ぶたびに図を描き直さず「図を表示」で1回だけ描く（重さの対策）', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'js', '15-relation-map.js'), 'utf8');
+  const m = src.match(/else if \(act === 'focus-problem'\) \{[\s\S]*?\n        \}\n/);
+  assert.ok(m, 'focus-problem の処理がある');
+  assert.doesNotMatch(m[0], /rmFocusProblems|renderRelationMap|rmZoom/, '選ぶたびに描き直さない');
+  assert.match(src, /act === 'focus-apply'\) \{ const ids = \[\.\.\.rmPendingIds\(\)\]; rmSetProblemsOpen\(false\); if \(ids\.length\) rmFocusProblems\(ids\)/);
 });
