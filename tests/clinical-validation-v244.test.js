@@ -48,3 +48,14 @@ test('重点アセスメント：下書きに「継続した観察と援助が�
   assert.doesNotMatch(d.focusIntegration, /^継続した観察と援助が必要。?$/);
   assert.ok(d.focusProblem.length > 0);
 });
+
+test('重点アセスメント：入院前→入院後の順で書き、統合は分析の繰り返しでなく、省略記号で切らない', () => {
+  const cp = mk('入院前は自立しており、一人暮らしで2階建てに住んでいた。\n右大腿骨頸部骨折で人工骨頭置換術を施行した。\n術後1日目 創部痛NRS6。「動くと痛い」と話し、車いす移乗は中止した。\n術後2日目 看護師の見守りで車いすに移乗できた。');
+  app.buildCarePlansByRules(cp);
+  const d = app.buildFocusDraft(cp, 4);
+  const a = d.focusAnalysis;
+  assert.ok(a.indexOf('入院前') >= 0 && (a.indexOf('術後1日目') < 0 || a.indexOf('入院前') < a.indexOf('術後1日目')));
+  assert.ok(!/…/.test(a + d.focusIntegration + d.focusProblem));
+  assert.ok(!d.focusIntegration.includes(a.split('\n')[0]));
+  assert.doesNotMatch(a + d.focusIntegration, /継続した観察と援助が必要/);
+});

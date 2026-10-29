@@ -1,7 +1,7 @@
 // 重点アセスメント：欲求ごとに、S・O（入院前／入院後）→ 情報の分析・解釈 → 統合 → 看護問題の明確化を一画面で書く。
 // S・Oは分類ボードの内容から自動で並べ、分析・解釈／統合／看護問題の明確化も、記録・充足判定・看護計画（関連図の看護問題）から自動で下書きする。手で直した欄は自動では上書きしない（myAssessments の追加項目に保存）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.245'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.246'; // Version stamp (scripts/stamp-version.js)
 
     const FOCUS_FIELDS = [
       { key: 'focusAnalysis', label: '情報の分析・解釈', ph: 'S・Oの情報から、なぜその状態なのか（原因・関連要因）、今後どうなりそうかを書きます。\n例：術後は疼痛（O-3）と荷重への不安（S-2）から、歩行を避けて活動量が低下している。' },
@@ -52,7 +52,7 @@
     // ---- 自動作成：記録・充足判定・看護計画（関連図由来の看護問題）から、分析・解釈／統合／看護問題を下書きする ----
     function focusClip(t, n = 40) {
       const x = String(t || '').replace(/\s+/g, ' ').replace(/^\[[^\]]{1,10}\]\s*/, '').replace(/^[^:：「]{1,10}[:：]\s*/, '').replace(/[「」]/g, '').replace(/[。.]+$/, '').trim();
-      return x.length > n ? x.slice(0, n) + '…' : x;
+      if (x.length <= n * 1.8) return x; const lim = x.slice(0, Math.floor(n * 1.8)); const k = Math.max(lim.lastIndexOf('、'), lim.lastIndexOf(' '), lim.lastIndexOf('。')); return k >= n * 0.5 ? x.slice(0, k) : (x.length <= 100 ? x : lim);
     }
     function focusNeedName(needId) { return String((HENDERSON_NEEDS.find(n => n.id === needId) || {}).name || '').replace(/^\d+\.\s*/, ''); }
     function focusPlansForNeed(cp, needId, itemIds) {
@@ -148,7 +148,9 @@
       const phrase = list => list.map(i => `${focusClip(i.text, 36)}${focusLabelsOf([i.id], data.labels)}`).join('、');
       const nonBg = list => list.filter(i => !(typeof isAssessmentBackgroundItem === 'function' && isAssessmentBackgroundItem(i)));
       const pre = [...first(nonBg(data.cols.preadmission), 'o'), ...first(nonBg(data.cols.preadmission), 's')].slice(0, 3);
-      const postAll = [...data.cols.postadmission, ...data.cols.unclassified];
+      const phaseOf = i => { const c = i.assessmentCols && i.assessmentCols[needId]; if (c === 'preadmission' || c === 'postadmission') return c; const ts = String(i.timestamp || ''); if (/入院前|術前の/.test(ts)) return 'preadmission'; if (ts || (typeof suffDayOf === 'function' && suffDayOf(i) !== null)) return 'postadmission'; return 'preadmission'; };
+      const preSet = all.filter(i => phaseOf(i) === 'preadmission');
+      const postAll = all.filter(i => phaseOf(i) === 'postadmission');
       const days = postAll.map(i => (typeof suffDayOf === 'function' ? suffDayOf(i) : null));
       const lastDay = days.length && days.every(d => d !== null) ? Math.max(...days) : null;
       const postLatest = lastDay === null ? postAll : postAll.filter(i => suffDayOf(i) === lastDay);
@@ -157,52 +159,81 @@
       const vWord = { met: '概ね満たされている', unmet: '満たされていない', hold: '判定を保留する状態', unknown: '判断できる情報が足りない' }[verdict];
       const quoteOf = list => focusQuoteList(list, all, data.labels);
       const para = [];
+      const lab = i => focusLabelsOf([i.id], data.labels);
+      const cl = (t, n) => focusClip(t, n);
+      const sMeaning = t => /不安|怖|こわ|ずれ|脱臼/.test(t) ? '動くことへの不安が、動作や荷重を控えさせている可能性がある'
+        : /遠慮|迷惑|負担|頼れ|申し訳|情けな/.test(t) ? '他者に頼ることへの遠慮や自尊心の揺らぎがあり、援助を求めにくい可能性がある'
+        : /早く|したい|行きたい|会いたい|帰りたい|頑張/.test(t) ? '回復や自立への意欲があり、これが関わりの手がかりになる'
+        : /痛|つら|眠れ|苦し/.test(t) ? '苦痛が本人の行動や休息に影響している' : '';
       if (!all.length) {
         para.push(`この欲求に分類された情報がまだない。${name}について、入院前の生活と入院後の状態を確認する必要がある。`);
       } else {
-        // 1. 入院前の生活・本人の状況（基準）
-        if (pre.length) para.push(`${subj}は、入院前は${phrase(pre)}。`);
-        // 2. 現在（最新の記録）の所見
-        if (post.length) para.push(`${lastDay !== null ? `最新の記録（${lastDay}日目）` : '入院後'}は${phrase(post)}。`);
-        // 3.5. 経過（古い所見は履歴として扱い、最新の状態で判断する）
-        if (['improving', 'worsening', 'unchanged'].includes(prog.value)) {
-          const f = focusDayClause(cp, needId, prog.firstDay, prog.from), l = focusDayClause(cp, needId, prog.lastDay, prog.to);
-          if (f && l && f.id !== l.id) para.push(`${prog.firstDay}日目は「${focusClip(f.text, 30)}」${focusLabelsOf([f.id], data.labels)}、${prog.lastDay}日目は「${focusClip(l.text, 30)}」${focusLabelsOf([l.id], data.labels)}と、${{ improving: '改善している', worsening: '悪化している', unchanged: '大きな変化はない' }[prog.value]}。`);
-        }
-        // 4. 現在の状態の判断（根拠つき）
-        const ev = verdict === 'unmet' || verdict === 'hold' ? quoteOf(a.facts && a.facts.against) : verdict === 'met' ? quoteOf(a.facts && a.facts.for) : '';
-        if (verdict === 'unknown') para.push(`${name}の充足を判断するには情報が足りない。${[res.pre && res.pre.need, res.post && res.post.need].filter(Boolean).join('、')}`.replace(/、$/, '') + '。');
-        else if (a.dimensionConflict) para.push(`${subj}は、${a.reason}ことから、${name}は${vWord}と考える。`);
-        else para.push(`${subj}は、${ev || '記録の内容'}ことから、${name}は${vWord}と考える${prog.value === 'improving' ? '（改善傾向）' : prog.value === 'worsening' ? '（悪化傾向）' : ''}。`);
-        // 5. 保たれている力
+        const EVENT_RE = /骨折|救急車|搬送|受傷|診断|術式|手術|人工|置換/;
+        const events = preSet.filter(i => EVENT_RE.test(i.text) && !/既往|通院/.test(i.text)).slice(0, 2);
+        const preAll = preSet.filter(i => (i.type === 'o' || i.type === 's') && !events.includes(i)).slice(0, 5);
+        const dayOf = i => (typeof suffDayOf === 'function' ? suffDayOf(i) : null);
+        const postRows = postAll.filter(i => !/[〜~]\s*術後\d+日目まで/.test(i.text) && !(typeof isAssessmentBackgroundItem === 'function' && isAssessmentBackgroundItem(i)) && !(typeof cvHeadingOnly === 'function' && cvHeadingOnly(i)) && !(typeof cvOffTopic === 'function' && cvOffTopic(needId, i.text)));
+        // 1. 入院前の生活
+        if (preAll.length) para.push(`${subj}の入院前の状況は、${preAll.map(i => `${cl(i.text, 60)}${lab(i)}`).join('、')}。`);
+        if (events.length) para.push(`今回は${events.map(i => `${cl(i.text, 50)}${lab(i)}`).join('、')}という経過で入院している。`);
+        else para.push(`入院前の${name}の状況は、記録からは確認できない。`);
+        // 2. 疾患・治療と身体への影響（患者の記録に根拠があるものだけ）
+        const chains = established.slice(0, 2).map(p => ({ p, ch: focusMapChain(cp, focusMapNodeOf(cp, p)) })).filter(x => x.ch.length);
+        if (chains.length) para.push(chains.map(x => `${x.ch.slice().reverse().join('、')}が背景にあり、${cl(x.p.problem, 30)}につながりやすい状態にある`).join('。また、') + '。');
+        // 3. 入院後の変化（日ごと。新しい所見ほど後ろ）
+        const dated = postRows.filter(i => dayOf(i) !== null).sort((x, y) => dayOf(x) - dayOf(y));
+        const byDay = new Map(); dated.forEach(i => { if (!byDay.has(dayOf(i))) byDay.set(dayOf(i), []); byDay.get(dayOf(i)).push(i); });
+        const dayKeys = [...byDay.keys()].slice(-3);
+        if (dayKeys.length) para.push(dayKeys.map(d => `${d}日目は${byDay.get(d).slice(0, 2).map(i => `${cl(i.text, 50)}${lab(i)}`).join('、')}`).join('。') + `。${prog.value === 'improving' ? '前の日と比べて改善がみられる。' : prog.value === 'worsening' ? '前の日と比べて悪化がみられる。' : ''}`);
+        else if (postRows.length) para.push(`入院後は${postRows.slice(0, 3).map(i => `${cl(i.text, 50)}${lab(i)}`).join('、')}。`);
+        // 4. 個別的な解釈（患者の言葉の意味・強み）
+        const words = postAll.concat(preSet).filter(i => i.type === 's').map(i => { const q = String(i.text).match(/「([^」]{3,60})」/); return q ? { i, q: q[1], m: sMeaning(q[1]) } : null; }).filter(x => x && x.m).slice(0, 3);
+        words.forEach((x, k) => para.push(`${k === 0 ? '' : 'また、'}「${cl(x.q, 40)}」${lab(x.i)}という言葉から、${x.m}と考える。`));
         const okDims = (dims || []).filter(d => d.state === 'ok').map(d => d.label);
-        const forQ = verdict !== 'met' ? quoteOf((a.facts && a.facts.for || []).filter(f => postIds.has(f.id))) : '';
-        if (okDims.length) para.push(`${okDims.join('・')}は保たれており、この力を活かして関わる。`);
-        else if (forQ) para.push(`${forQ}ことは保たれており、この力を活かして関わる。`);
-        // 6. 患者ごとの原因・関連要因
-        established.slice(0, 3).forEach((p, k) => {
-          const ch = focusMapChain(cp, focusMapNodeOf(cp, p));
-          if (p.note) para.push(`${k === 0 ? 'また、' : 'さらに、'}${focusClip(p.note, 60)}${focusLabelsOf(p.evidenceIds, data.labels)}。${ch.length ? `${ch.join('、')}が背景にあり、` : 'これは、'}${focusClip(p.problem, 30)}につながると考える。`);
-        });
+        const strengths = (a.facts && a.facts.for || []).filter(f => postIds.has(f.id) && /自立|可能|できて|できた|自力|保たれ|良好|問題な|不具合はない/.test(f.text)).slice(0, 2);
+        if (okDims.length) para.push(`${okDims.join('・')}は保たれており、残存能力として活かす。`);
+        else if (strengths.length) para.push(`${strengths.map(f => `「${cl(f.text, 40)}」${focusLabelsOf([f.id], data.labels)}`).join('、')}という状況は保たれており、これを活かして自立を促す。`);
+        // 5. 判断と根拠
+        const evFacts = verdict === 'met' ? a.facts && a.facts.for : a.facts && a.facts.against;
+        const ev = quoteOf(evFacts);
+        if (verdict === 'unknown') para.push(`${name}の充足を判断するには情報が足りない。${[res.pre && res.pre.need, res.post && res.post.need].filter(Boolean).join('、')}`.replace(/、$/, '') + '。');
+        else if (a.dimensionConflict) para.push(`${a.reason}ことから、${name}は${vWord}と判断する。`);
+        else para.push(`${ev ? ev + 'ことから、' : ''}${name}は${vWord}と判断する。`);
+        // 6. 回復を妨げる要因と将来のリスク
+        established.filter(p => stat(p).kind !== 'risk').slice(0, 3).forEach(p => { if (p.note) para.push(`${cl(p.note, 60)}${focusLabelsOf(p.evidenceIds, data.labels)}ため、${cl(p.problem, 30)}が現在の問題である。`); });
+        const riskP = established.filter(p => stat(p).kind === 'risk').slice(0, 3);
         const comp = typeof complicationCandidates === 'function' ? complicationCandidates(cp, needId, all.map(i => i.text).join(' ')).slice(0, 2) : [];
-        if (comp.length) para.push(`今後は${comp.map(c => String(c).replace(/（.*$/, '')).join('、')}にも注意が必要である。`);
-        // 7. 満たされていないことの影響と、いま挙がる看護問題
-        if (established.length) para.push(`したがって、${established.map(p => `${focusClip(p.problem, 30)}（${stat(p).label}）`).join('、')}が挙がると考える。`);
-        // 8. 追加で確認する情報
+        if (riskP.length || comp.length) para.push(`今後は${(() => { const rs = riskP.map(p => cl(p.problem, 30)); const root = t => String(t).replace(/リスク状態.*$|（.*$/, '').replace(/^.*の/, '').replace(/[・･]/g, '').slice(0, 4); const extra = comp.map(c => String(c).replace(/（.*$/, '')).filter(c => !rs.some(r => root(r) && c.replace(/[・･]/g, '').includes(root(r).replace(/[・･]/g, '')))); return [...rs, ...extra].filter((v, k, arr) => arr.indexOf(v) === k); })().join('、')}の可能性があり、起こるとは限らないが予防的な観察が必要である。`);
+        const life = preSet.concat(postAll).find(i => /階段|2階|二階|一人暮らし|独居|段差|エレベーター|布団をひ/.test(i.text) && !/痛/.test(i.text));
+        if (life && verdict !== 'met') para.push(`退院後は「${cl(life.text, 40)}」${lab(life)}という生活環境に合わせて、安全な動作と移動の方法を身につける必要がある。`);
+        // 7. 必要な看護
+        const ops = [...new Set(established.flatMap(p => (p.op || []).slice(0, 1)).map(t => cl(t, 40).replace(/(?:を|について)?(?:観察|確認|測定|把握)(?:する)?$/, '')))].filter(Boolean).slice(0, 3);
+        if (ops.length && verdict !== 'met') para.push(`優先して${ops.join('、')}を観察し、本人の力で行える部分は見守り、できない部分を補う。`);
         const lack = (dims || []).filter(d => d.state === 'none').map(d => d.label);
         if (lack.length && verdict !== 'unknown') para.push(`${lack.join('・')}の記録がないため、確認して判断を確かにする。`);
-        if (candidates.length) para.push(`${candidates.map(p => focusClip(p.problem, 24)).join('、')}は、根拠となる記録がそろっておらず、確認が必要である。`);
+        if (candidates.length) para.push(`${candidates.map(p => cl(p.problem, 24)).join('、')}は、根拠となる記録がそろっておらず、確認が必要である。`);
       }
       const analysis = para;
       const integration = [];
       if (all.length) {
-        integration.push(`以上より、${name}は${vWord}${prog.label && prog.value !== 'unknown' ? `（${prog.label}）` : ''}。`);
-        if (established.length) integration.push(`${established.map(p => focusClip(p.problem, 30)).join('、')}が、この欲求から明確になる看護問題である。`);
-        else if (verdict === 'met') integration.push('この欲求に関する看護問題は、現時点では挙がらない。');
-        else if (verdict === 'unmet' || verdict === 'hold') integration.push('看護問題として明確にするには、原因や関連要因を示す記録が足りない。');
+        const prgW = prog.label && prog.value !== 'unknown' ? `（${prog.label}）` : '';
+        const ngDims = (dims || []).filter(d => d.state === 'ng').map(d => d.label);
+        const okD = (dims || []).filter(d => d.state === 'ok').map(d => d.label);
+        const actualP = established.filter(p => stat(p).kind !== 'risk'), riskP2 = established.filter(p => stat(p).kind === 'risk');
+        let t = `${name}は${vWord}${prgW}。`;
+        if (verdict !== 'unknown') {
+          if (ngDims.length) t += `主な未充足の要因は${ngDims.join('・')}である。`;
+          if (okD.length) t += `一方、${okD.join('・')}は保たれている。`;
+          if (actualP.length) t += `現在残る問題は${actualP.map(p => focusClip(p.problem, 24)).join('、')}で、`;
+          if (riskP2.length) t += `${actualP.length ? '加えて' : ''}${riskP2.map(p => focusClip(p.problem, 24)).join('、')}を予防する必要がある。`;
+          else if (actualP.length) t += '解消に向けた援助が要る。';
+          if (established.length) t += `残存能力を活かし、${established.length > 1 ? '優先順位をつけて' : ''}自立に向けた援助を進める。`;
+          else if (verdict === 'met') t += '現時点で看護問題は挙がらない。';
+        }
+        integration.push(t);
       }
       const problem = established.length
-        ? `よって、${established.map(p => focusClip(p.problem, 34)).join('、')}が、この欲求から明確になる看護問題である。\n` + established.map((p, i) => `#${i + 1} ${p.problem}（${stat(p).label}）${p.note ? `\n　${focusClip(p.note, 70)}` : ''}`).join('\n') + (candidates.length ? `\n（根拠を確かめる候補：${candidates.map(p => focusClip(p.problem, 24)).join('、')}）` : '')
+        ? `よって、${established.map(p => focusClip(p.problem, 34)).join('、')}が、この欲求から明確になる看護問題である。\n` + established.map((p, i) => { const ch = focusMapChain(cp, focusMapNodeOf(cp, p)); const evl = [...new Set((p.evidenceIds || []).map(id => data.labels[id]).filter(Boolean))]; const oth = (p.relatedNeeds || []).filter(n => n !== needId).map(n => focusNeedName(n)); return `#${i + 1} ${p.problem}（${stat(p).label}）${ch.length ? `\n　関連要因：${ch.slice().reverse().join('、')}` : ''}${p.note ? `\n　状態：${focusClip(p.note, 70)}` : ''}${evl.length ? `\n　根拠：${evl.join('・')}` : ''}${oth.length ? `\n　関連する欲求：${oth.join('・')}` : ''}`; }).join('\n') + (candidates.length ? `\n（根拠を確かめる候補：${candidates.map(p => focusClip(p.problem, 24)).join('、')}）` : '')
         : (all.length ? 'この欲求から明確になる看護問題は、現時点ではない。' : '');
       return { focusAnalysis: analysis.join('\n'), focusIntegration: integration.join(''), focusProblem: problem };
     }
