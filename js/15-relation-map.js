@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.205'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.210'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -1540,6 +1540,7 @@
           { k: 'sleep', kind: 'finding', label: '眠れない・熟睡できない', match: /熟睡でき|眠れ[なず]|不眠/ },
           { k: 'cor', kind: 'risk', label: '冠動脈病変（冠動脈瘤など）のリスク（現時点で所見の記載はない）' },
           { k: 'dehyd', kind: 'risk', label: '脱水の可能性（診断ではない）' },
+          { k: 'myoc', kind: 'risk', label: '心筋炎・心機能低下のリスク（現時点で所見の記載はない）' },
           { k: 'ivig', kind: 'treatment', label: 'γ-グロブリン大量療法（IVIG）', match: /グロブリン|IVIG|ベニロン/ },
           { k: 'asa', kind: 'treatment', label: 'アスピリン内服', match: /アスピリン/ }
         ],
@@ -1551,6 +1552,7 @@
           ['vasc', 'muco', 'manifests_as', '皮膚粘膜の血管炎として発疹・口唇・眼の所見が現れうる（この患者の記録に一致）'],
           ['muco', 'itch', 'results_in', '皮膚の炎症に伴うかゆみ（記録に一致）'],
           ['muco', 'oral', 'results_in', '粘膜の炎症（記録に一致）'],
+          ['vasc', 'myoc', 'predicts', '炎症が心筋に及ぶと心筋炎・心機能低下を生じうる（可能性。実際の所見ではない）'],
           ['vasc', 'cor', 'predicts', '血管炎が冠動脈に及ぶと冠動脈病変を生じうる（可能性。実際の所見ではない）'],
           ['ivig', 'vasc', 'treats', '免疫グロブリン療法は血管炎・炎症を抑える（記録にある治療）'],
           ['asa', 'inflam', 'treats', 'アスピリンは炎症と血栓形成を抑える（記録にある治療）'],

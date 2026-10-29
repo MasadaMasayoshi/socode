@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.206'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.210'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -3175,9 +3175,9 @@
           set('problem', '心合併症（冠動脈病変）のリスク状態（川崎病の診断に基づく予測。現時点で冠動脈の異常所見は記録にない）');
           set('goalShort', '3日後までに、心拍・心音・顔色・胸痛や苦しがる様子に異常がなく、心エコーで冠動脈の異常所見がない');
           set('goalLong', '退院までに、心エコー所見の経過が医師から説明され、保護者が外来受診の時期と受診が必要な症状を言える');
-          set('op', ['心拍数・脈拍・心音・血圧・SpO2', '顔色・冷汗・苦しがる様子・不機嫌（胸痛や不快のサイン）', '心エコー・心電図の結果と医師の説明内容', '抗血小板薬（アスピリン等）の内服状況と出血傾向（鼻出血・紫斑・黒色便）']);
+          set('op', ['心拍数・脈拍・心音・血圧・SpO2・呼吸数', '顔色・冷汗・苦しがる様子・不機嫌（胸痛や不快のサイン）', '心エコーの冠動脈径（Z-score）・左室機能・僧帽弁逆流・心膜液と、心電図・BNP等の結果、医師の説明内容', '抗血小板薬（アスピリン等）の内服状況と出血傾向（鼻出血・紫斑・黒色便）']);
           set('tp', ['医師の指示に基づく抗血小板薬の確実な内服と、飲みやすい工夫（好きな飲み物・ゼリー）', '検査（心エコー）の前に年齢に合う説明を行い、泣かずに受けられる工夫（遊び・保護者の同席）をする', '安静度を医師に確認し、安静が必要な間も遊べる静かな遊びを用意する']);
-          set('ep', ['保護者へ：心臓の検査の目的と、胸痛・顔色不良・ぐったりしたときの連絡方法を説明する', '保護者へ：退院後の定期受診と内服継続の必要性を説明する', '子どもへ：検査や薬が何のためかを絵や人形で簡単に伝える']);
+          set('ep', ['保護者へ：心臓の検査の目的と、胸痛・顔色不良・ぐったりしたときの連絡方法を説明する', '保護者へ：冠動脈に異常がなくても医師が指定する時期の定期受診が必要なこと、解熱や発疹の消失だけで治癒としないことを説明する（受診時期の目安は発症後1・2・6か月、1年、5年。主治医の指示を優先）', ...(/アスピリン/.test(txt) ? ['保護者へ：アスピリン内服中は鼻出血・黒色便・紫斑に注意し、インフルエンザ・水痘が疑われるときは早めに受診して継続可否を医師に確認する'] : []), ...(/グロブリン|IVIG|ベニロン/.test(txt) ? ['保護者へ：大量グロブリン投与後は注射生ワクチンの時期を延期する場合があるため、接種医へ治療歴を伝える'] : []), '子どもへ：検査や薬が何のためかを絵や人形で簡単に伝える']);
         }
         if (!ctx.surgical) ['problem', 'goalShort', 'goalLong'].forEach(k => { if (/術前|術後/.test(p[k] || '')) { p[k] = p[k].replace(/術前の水準/g, '入院前の水準').replace(/術前/g, '入院前').replace(/術後/g, '治療後'); p.autoRevised = true; } });
         if (!ctx.surgical) ['op', 'tp', 'ep'].forEach(k => { p[k] = (p[k] || []).map(t => /術前|術後/.test(t) ? t.replace(/術前/g, '入院前').replace(/術後/g, '治療後') : t); });
