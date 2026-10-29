@@ -18,3 +18,11 @@ test('短期目標だけの自動計画に長期目標が補われる', () => {
   assert.match(a.cpDeriveLongGoal('3日後までに、排便があり腹部の張りが強くならない'), /^退院までに、排便があり/);
   assert.strictEqual(a.cpDeriveLongGoal(''), '');
 });
+test('大腿骨骨折：診断の記載がなくても、記録の病名から診断ノードが作られ、他のノードとつながる', () => {
+  const a = loadApp();
+  const SRC2 = '右大腿骨頸部骨折で入院し、人工骨頭置換術を施行した。\n動かすと右足が痛い。荷重をかけると疼痛が増強し、車椅子への移乗は中止した。\n術後に創部痛があり、鎮痛薬を使用した。';
+  const items = Array.from(a.classifyTextByRules(SRC2)).map((c, i) => ({ ...c, id: 'c' + i }));
+  const m = a.buildRelationMapFromRecord({ id: 'p', title: 'D', sourceText: SRC2, items, carePlans: [], myAssessments: {} });
+  const d = Array.from(m.nodes).find(n => n.type === 'disease');
+  assert.ok(d && /大腿骨/.test(d.label));
+});

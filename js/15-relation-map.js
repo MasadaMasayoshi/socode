@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.221'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.229'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -1564,6 +1564,11 @@
           { need: ['oral', 'intake'], mid: null, edges: [['oral', 'intake', 'results_in'], ['intake', 'dehyd', 'predicts']], problem: '体液量不足のリスク状態（摂取低下に伴う脱水の可能性）', from: 'dehyd' },
           { need: ['cor'], mid: null, edges: [], problem: '心合併症（冠動脈病変）のリスク状態：心機能の観察と経過フォロー', from: 'cor' }
         ]
+      }
+      ,{
+        // v.229: 大腿骨近位部骨折（人工骨頭置換術などで治療）。診断ノードだけを作り、所見は既存の規則が作るノードに任せる（同じカードを2つの四角に置かない）。出典の版・頁は未確認。
+        id: 'hip-fracture', dx: /大腿骨(?:頸部|近位部|転子部|頚部)?骨折|人工骨頭置換術/, source: '大腿骨頸部/転子部骨折診療ガイドライン・整形外科看護の一般的な理解（内蔵知識・頁未確認）',
+        nodes: [], edges: [], chains: []
       }
       ,{
         // v.221: 産褥期（正常経過）。診断名ではなく時期の知識で、分娩後の回復・授乳・母親役割・睡眠の連なりを示す。記録に一致した所見だけ作る。出典の版・頁は未確認。
