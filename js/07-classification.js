@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.225'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.226'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -3164,6 +3164,27 @@
       return out;
     }
     function markObstetricConflictsPass(items) { markObstetricConflicts(items); return items; }
+    // v.226: 家族の不安・動揺の表出と、入院・退院の経過の情報にもタグを付ける（一般条件。疾患・産科に限らない）。
+    // 家族の不安＝家族の感情の表出（10）。入院・退院の予定や経過＝療養の場・経過の情報（9。退院先と同じ扱い）。
+    const FAMILY_ANXIETY_RE = /^[「]?(?:母親|父親|母|父|祖母|祖父|両親|ご家族|家族|保護者)[^。\n]{0,24}(?:不安|心配|動揺|ショック|戸惑|どうして|泣[いきくけ])|(?:不安|動揺|ショック)[^。\n]{0,8}(?:母親|父親|祖母|祖父|両親|家族|保護者)/;
+    const STAY_INFO_RE = /(?:入院|退院)(?:予定|日|となる|となった|の(?:予定|見通し))|約?\d+\s*(?:週間|日間|か月|ヶ月)の入院|外泊|転院|転棟/;
+    function applyFamilyAndStayTags(items) {
+      (items || []).forEach(it => {
+        if (!it || it.deleted || it.type === 'unnecessary' || (it.editLog || []).length || it.needCorrection) return;
+        const t = String(it.text || '').normalize('NFKC');
+        if ((typeof isStructuralHeadingLine === 'function' && isStructuralHeadingLine(t))) return;
+        const before = Array.from(it.hendersonIds || []);
+        let ids = null, key = '', reason = '';
+        if (FAMILY_ANXIETY_RE.test(t) && before.length <= 1) { ids = [10]; key = 'family-anxiety'; reason = '家族の不安・動揺の表出＝家族の感情の情報（患者本人の呼吸・食事などの欲求には結ばない）'; }
+        else if (!before.length && STAY_INFO_RE.test(t)) { ids = [9]; key = 'stay-info'; reason = '入院・退院の予定や経過＝療養の場・経過の情報（退院先と同じく環境）'; }
+        if (!ids || JSON.stringify(before) === JSON.stringify(ids)) return;
+        it.hendersonIds = ids;
+        const cols = {}; ids.forEach(id => { cols[id] = (it.assessmentCols && it.assessmentCols[id]) || (typeof inferAssessmentColumn === 'function' && inferAssessmentColumn(it.fieldLabel, it.timestamp, it.admissionPhase)) || 'unclassified'; });
+        it.assessmentCols = cols; it.patientBackground = null;
+        it.needCorrection = { key, before, after: ids, reason };
+      });
+      return items;
+    }
     function applyAssociationTags(items) {
       if (typeof hendersonAssociations !== 'function') return items;
       (items || []).forEach(it => {
@@ -3207,7 +3228,7 @@
         const { detectedHIds, predictedType } = computeLocalTagsAndType(chunk, cleanedText, null);
         out.push({ text: cleanedText, timestamp: chunk.timestamp || '日時不明', type: predictedType, hendersonIds: detectedHIds.slice().sort((a, b) => a - b), fieldLabel: chunk.fieldLabel || null, ruleDecision: automaticRuleDecision(chunk, cleanedText, predictedType), ...({}), ...(chunk.diseaseGeneral ? { diseaseGeneral: true } : {}), ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.soMixed ? { soMixed: true } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}) });
       }));
-      return applyAssociationTags(markObstetricConflictsPass(applyObstetricPhase(applyObstetricNeedCorrections(attachSourceOffsets(dropIncidentalHygieneTag(applyTableColumnRoles(stripPipeArtifacts(splitMixedSpeechCards(markWrappedLineFragments(removeCoveredCompositeCards(applyFamilyScreeningContext(applyPainContextTags(applySceneTagInheritance(rejoinTimeLabelFragments(out))))), src))), tableNorm.roles)), src)))));
+      return applyAssociationTags(applyFamilyAndStayTags(markObstetricConflictsPass(applyObstetricPhase(applyObstetricNeedCorrections(attachSourceOffsets(dropIncidentalHygieneTag(applyTableColumnRoles(stripPipeArtifacts(splitMixedSpeechCards(markWrappedLineFragments(removeCoveredCompositeCards(applyFamilyScreeningContext(applyPainContextTags(applySceneTagInheritance(rejoinTimeLabelFragments(out))))), src))), tableNorm.roles)), src))))));
     }
 
     function manualClassificationLineage(item, path = new Set()) {

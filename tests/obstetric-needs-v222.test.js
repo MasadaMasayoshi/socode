@@ -48,3 +48,9 @@ test('産褥の日ごとの充足：日ごとの値が並ぶ行はその日の�
   const rows = app.buildCardAuditTable({ items: [{ id: 'a', type: 'o', text: 'ミルク10ml 哺乳力良好', hendersonIds: [], subject: 'newborn' }] });
   assert.equal(rows[0].contributesToFulfillment, false);
 });
+test('家族の不安は10、入院・退院の予定や経過は9（一般条件。疾患を問わない）', () => {
+  const c = cls('母親は「この先どうなるのか」と不安を話し、泣いている。\n\n約2週間の入院予定である。\n\n症状が軽快し、退院となる。');
+  assert.deepEqual(Array.from(find(c, /不安を話し/).hendersonIds), [10]);
+  assert.deepEqual(Array.from(find(c, /入院予定/).hendersonIds), [9]);
+  assert.deepEqual(Array.from(find(c, /退院となる/).hendersonIds), [9]);
+});
