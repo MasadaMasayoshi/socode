@@ -1,7 +1,7 @@
 // Genogram (家族構成図): built from the record, then editable. Mirrors the relation map pattern (auto build -> edit -> save with the patient -> export).
 // Kinship words are a built-in dictionary (内蔵辞書 2026-10-16（出典未確認）). Nothing is invented: only members, ages and notes written in the record are drawn.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.201'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.215'; // Version stamp (scripts/stamp-version.js)
 
     const GG_PROVENANCE = '内蔵辞書 2026-10-16（出典未確認）';
     // canonical key -> [role label, sex, generation, order within the row]
@@ -334,7 +334,7 @@
     function ggFor(cp) { return cp && cp.genogram ? ggNormalize(cp.genogram) : ggBuild(cp || {}); }
 
     // ---- layout ------------------------------------------------------------
-    const GG_W = 140, GG_ROW = 190, GG_S = 48, GG_PAD = 64;
+    const GG_W = 156, GG_ROW = 206, GG_S = 56, GG_PAD = 64;
     function ggLayout(g) {
       const live = ggLive(g), pos = new Map();
       const gens = Array.from(new Set(live.map(p => p.gen))).sort((a, b) => a - b);
@@ -431,9 +431,9 @@
         const c = P(p.id);
         const sub = [ggAgeLabel(p) === '年齢不明' ? '年齢不明' : (p.deceased && p.age !== null ? `享年${p.age}` : `${ggAgeLabel(p)}${p.age !== null ? '歳' : ''}`), p.living ? p.living : ''].filter(Boolean).join('・');
         const noteTexts = (p.notes.length ? [mask(p.notes.slice(0, 2).join('・'))] : []);
-        const lines = [{ t: mask(p.index ? '本人' : p.role), size: 14, bold: true, fill: GG_INK, dy: r + 21 }, { t: sub, size: 11.5, bold: false, fill: '#3f3b35', dy: r + 38 }];
-        let dy = r + 54;
-        noteTexts.forEach(n => ggWrap(n, 10, 3).forEach(t => { lines.push({ t, size: 11, bold: false, fill: GG_NOTE_INK, dy }); dy += 14; }));
+        const lines = [{ t: mask(p.index ? '本人' : p.role), size: 16, bold: true, fill: GG_INK, dy: r + 23 }, { t: sub, size: 13, bold: false, fill: '#3f3b35', dy: r + 41 }];
+        let dy = r + 58;
+        noteTexts.forEach(n => ggWrap(n, 10, 3).forEach(t => { lines.push({ t, size: 12.5, bold: false, fill: GG_NOTE_INK, dy }); dy += 16; }));
         const boxes = lines.map(l => { const w = ggTextW(l.t, l.size); return { x1: c.x - w / 2, x2: c.x + w / 2, y1: c.y + l.dy - l.size * 0.95, y2: c.y + l.dy + l.size * 0.3 }; });
         const sym = { x1: c.x - r - 6, x2: c.x + r + 6, y1: c.y - r - 6, y2: c.y + r + 6 };
         const badge = { x1: c.x - r, x2: c.x + r + 16, y1: c.y - r - 14, y2: c.y + r + 6 };
@@ -501,14 +501,14 @@
       geo.outline.forEach(rs => {
         const left = [], right = [];
         rs.forEach(rc => { left.push([rc.x1, rc.t], [rc.x1, rc.b]); right.unshift([rc.x2, rc.b], [rc.x2, rc.t]); });
-        boxes += `<polygon points="${left.concat(right).map(q => `${f(q[0])},${f(q[1])}`).join(' ')}" fill="none" stroke="#5E7458" stroke-width="1.6" stroke-dasharray="8 5" stroke-linejoin="round"/>`;
+        boxes += `<polygon points="${left.concat(right).map(q => `${f(q[0])},${f(q[1])}`).join(' ')}" fill="#5E7458" fill-opacity="0.07" stroke="#5E7458" stroke-width="2" stroke-dasharray="8 5" stroke-linejoin="round"/>`;
       });
       const halo = 'paint-order="stroke" stroke="#fff" stroke-width="4" stroke-linejoin="round"';
       live.forEach(p => {
         const v = geo.people.get(p.id), c = v.c, sel = selected === p.id;
         nodes += `<g class="gg-person${sel ? ' is-selected' : ''}" data-gg-id="${esc(p.id)}"${interactive ? ' style="cursor:grab;"' : ''}>`
           + ggSymbol(p, c.x, c.y, sel)
-          + `<text x="${f(c.x)}" y="${f(c.y + 6)}" text-anchor="middle" font-size="17" fill="${GG_INK}">${esc(p.age !== null ? p.age : '?')}</text>`
+          + `<text x="${f(c.x)}" y="${f(c.y + 6)}" text-anchor="middle" font-size="19" fill="${GG_INK}" paint-order="stroke" stroke="#fff" stroke-width="5" stroke-linejoin="round">${esc(p.age !== null ? p.age : '?')}</text>`
           + v.lines.map(l => `<text x="${f(c.x)}" y="${f(c.y + l.dy)}" text-anchor="middle" font-size="${l.size}"${l.bold ? ' font-weight="700"' : ''} fill="${l.fill}" ${halo}>${esc(l.t)}</text>`).join('')
           + (p.notes.length ? `<circle cx="${f(c.x - r + 3)}" cy="${f(c.y - r + 3)}" r="5" fill="#E08A2E"/>` : '')
           + (p.keyPerson ? `<g><rect x="${f(c.x + r - 6)}" y="${f(c.y - r - 14)}" width="26" height="14" rx="3" fill="#2c4a3e"/><text x="${f(c.x + r + 7)}" y="${f(c.y - r - 3)}" text-anchor="middle" font-size="10" fill="#fff">KP</text></g>` : '')

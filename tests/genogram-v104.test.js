@@ -45,7 +45,7 @@ test('layout: each side of the grandparents sits above its own parent; paternal 
   assert.strictEqual(mid('gfatherP', 'gmotherP'), P('father').x);
   assert.strictEqual(mid('gfatherM', 'gmotherM'), P('mother').x);
   assert.ok(P('gmotherP').x < P('gfatherM').x);
-  assert.ok(P('gfatherP').y === P('father').y - 190 && P('father').y < P('index').y);
+  assert.ok(P('gfatherP').y === P('father').y - 206 && P('father').y < P('index').y);
   const geo = app.ggGeometry(g);
   const vs = geo.segs.filter(s => s.x1 === s.x2), hs = geo.segs.filter(s => s.y1 === s.y2);
   vs.forEach(v => hs.forEach(h => {
