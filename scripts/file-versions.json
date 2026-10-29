@@ -80,11 +80,15 @@
     "hash": "1a4cc5e3cc4a4877"
   },
   "js/18-focus-assessment.js": {
-    "version": "v.246",
-    "hash": "3eb37734e37d5abe"
+    "version": "v.247",
+    "hash": "b4af6c235bd62fde"
   },
   "js/19-clinical-validation.js": {
     "version": "v.245",
     "hash": "e9a205be18b3b83b"
+  },
+  "js/20-clinical-reasoning.js": {
+    "version": "v.247",
+    "hash": "5cddb0bcb0c66ca8"
   }
 }

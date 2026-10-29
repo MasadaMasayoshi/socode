@@ -1,7 +1,7 @@
 // 重点アセスメント：欲求ごとに、S・O（入院前／入院後）→ 情報の分析・解釈 → 統合 → 看護問題の明確化を一画面で書く。
 // S・Oは分類ボードの内容から自動で並べ、分析・解釈／統合／看護問題の明確化も、記録・充足判定・看護計画（関連図の看護問題）から自動で下書きする。手で直した欄は自動では上書きしない（myAssessments の追加項目に保存）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.246'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.247'; // Version stamp (scripts/stamp-version.js)
 
     const FOCUS_FIELDS = [
       { key: 'focusAnalysis', label: '情報の分析・解釈', ph: 'S・Oの情報から、なぜその状態なのか（原因・関連要因）、今後どうなりそうかを書きます。\n例：術後は疼痛（O-3）と荷重への不安（S-2）から、歩行を避けて活動量が低下している。' },
@@ -158,6 +158,7 @@
       const postIds = new Set(postLatest.map(i => i.id));
       const vWord = { met: '概ね満たされている', unmet: '満たされていない', hold: '判定を保留する状態', unknown: '判断できる情報が足りない' }[verdict];
       const quoteOf = list => focusQuoteList(list, all, data.labels);
+      const reasons = typeof crTopicsForNeed === 'function' ? crTopicsForNeed(cp, needId) : [];
       const para = [];
       const lab = i => focusLabelsOf([i.id], data.labels);
       const cl = (t, n) => focusClip(t, n);
@@ -175,11 +176,12 @@
         const postRows = postAll.filter(i => !/[〜~]\s*術後\d+日目まで/.test(i.text) && !(typeof isAssessmentBackgroundItem === 'function' && isAssessmentBackgroundItem(i)) && !(typeof cvHeadingOnly === 'function' && cvHeadingOnly(i)) && !(typeof cvOffTopic === 'function' && cvOffTopic(needId, i.text)));
         // 1. 入院前の生活
         if (preAll.length) para.push(`${subj}の入院前の状況は、${preAll.map(i => `${cl(i.text, 60)}${lab(i)}`).join('、')}。`);
-        if (events.length) para.push(`今回は${events.map(i => `${cl(i.text, 50)}${lab(i)}`).join('、')}という経過で入院している。`);
         else para.push(`入院前の${name}の状況は、記録からは確認できない。`);
+        if (events.length) para.push(`今回は${events.map(i => `${cl(i.text, 50)}${lab(i)}`).join('、')}という経過で入院している。`);
         // 2. 疾患・治療と身体への影響（患者の記録に根拠があるものだけ）
         const chains = established.slice(0, 2).map(p => ({ p, ch: focusMapChain(cp, focusMapNodeOf(cp, p)) })).filter(x => x.ch.length);
         if (chains.length) para.push(chains.map(x => `${x.ch.slice().reverse().join('、')}が背景にあり、${cl(x.p.problem, 30)}につながりやすい状態にある`).join('。また、') + '。');
+        reasons.slice(0, 2).forEach(r => crNarrative(r, data.labels).forEach(x => para.push(x)));
         // 3. 入院後の変化（日ごと。新しい所見ほど後ろ）
         const dated = postRows.filter(i => dayOf(i) !== null).sort((x, y) => dayOf(x) - dayOf(y));
         const byDay = new Map(); dated.forEach(i => { if (!byDay.has(dayOf(i))) byDay.set(dayOf(i), []); byDay.get(dayOf(i)).push(i); });
@@ -232,9 +234,12 @@
         }
         integration.push(t);
       }
-      const problem = established.length
+      let problem = established.length
         ? `よって、${established.map(p => focusClip(p.problem, 34)).join('、')}が、この欲求から明確になる看護問題である。\n` + established.map((p, i) => { const ch = focusMapChain(cp, focusMapNodeOf(cp, p)); const evl = [...new Set((p.evidenceIds || []).map(id => data.labels[id]).filter(Boolean))]; const oth = (p.relatedNeeds || []).filter(n => n !== needId).map(n => focusNeedName(n)); return `#${i + 1} ${p.problem}（${stat(p).label}）${ch.length ? `\n　関連要因：${ch.slice().reverse().join('、')}` : ''}${p.note ? `\n　状態：${focusClip(p.note, 70)}` : ''}${evl.length ? `\n　根拠：${evl.join('・')}` : ''}${oth.length ? `\n　関連する欲求：${oth.join('・')}` : ''}`; }).join('\n') + (candidates.length ? `\n（根拠を確かめる候補：${candidates.map(p => focusClip(p.problem, 24)).join('、')}）` : '')
         : (all.length ? 'この欲求から明確になる看護問題は、現時点ではない。' : '');
+      const cand2 = reasons.filter(r => r.status !== 'confirmed' && !established.some(p => r.topic.plan.test(p.problem)));
+      if (cand2.length && !established.length) problem = '現時点で確定できる看護問題はないが、次の候補を追加のアセスメントで確かめる。';
+      if (cand2.length) problem += (problem ? '\n' : '') + cand2.map(r => `（候補）${crProblemLine(r)}`).join('\n');
       return { focusAnalysis: analysis.join('\n'), focusIntegration: integration.join(''), focusProblem: problem };
     }
 

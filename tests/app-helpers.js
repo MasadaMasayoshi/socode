@@ -29,7 +29,8 @@ const APP_SCRIPT_FILES = [
   'js/16-genogram.js',
   'js/17-clinical-facts.js',
   'js/18-focus-assessment.js',
-  'js/19-clinical-validation.js'
+  'js/19-clinical-validation.js',
+  'js/20-clinical-reasoning.js'
 ];
 const ROOT_DIR = path.join(__dirname, '..');
 
