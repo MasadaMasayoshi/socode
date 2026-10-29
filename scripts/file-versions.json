@@ -20,20 +20,20 @@
     "hash": "733f4ef8a04f00fe"
   },
   "js/06-export.js": {
-    "version": "v.223",
-    "hash": "3660bf9053b0223a"
+    "version": "v.225",
+    "hash": "2388dc1d0618cf5c"
   },
   "js/07-classification.js": {
-    "version": "v.223",
-    "hash": "3ff2421116ed2a04"
+    "version": "v.225",
+    "hash": "1c6bbde1ffe7c6c6"
   },
   "js/08-assessment-tools.js": {
     "version": "v.219",
     "hash": "7f323e9967225be5"
   },
   "js/09-board.js": {
-    "version": "v.208",
-    "hash": "154fea2e6bb43a93"
+    "version": "v.225",
+    "hash": "2701bb1434698471"
   },
   "js/10-reference-page-and-startup.js": {
     "version": "v.201",
@@ -76,7 +76,7 @@
     "hash": "260e9ff6bcbaeab9"
   },
   "js/17-clinical-facts.js": {
-    "version": "v.203",
-    "hash": "b48aa34f3eac4033"
+    "version": "v.225",
+    "hash": "1a4cc5e3cc4a4877"
   }
 }

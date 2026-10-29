@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.223'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.225'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -3167,7 +3167,7 @@
     function applyAssociationTags(items) {
       if (typeof hendersonAssociations !== 'function') return items;
       (items || []).forEach(it => {
-        if (!it || it.deleted || it.type === 'unnecessary' || (it.hendersonIds || []).length || (it.editLog || []).length) return;
+        if (!it || it.deleted || it.type === 'unnecessary' || (it.hendersonIds || []).length || (it.editLog || []).length || it.needCorrection) return;
         const text = String(it.text || '');
         if ((typeof isFamilySpeech === 'function' && isFamilySpeech(text)) || (typeof isStructuralHeadingLine === 'function' && isStructuralHeadingLine(text)) || (typeof isPatientIdentityLine === 'function' && isPatientIdentityLine(text))) return;
         const ids = Array.from(new Set((hendersonAssociations(text) || []).map(a => a.need))).slice(0, 3).sort((a, b) => a - b);

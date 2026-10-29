@@ -1,7 +1,7 @@
 // Structured clinical facts, shared timeline, evidence objects and cross-output audit (v.203).
 // Derived layer only: it never edits or deletes original cards (item.text, tags, editLog stay as they are).
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['17'] = 'v.203'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['17'] = 'v.225'; // Version stamp (scripts/stamp-version.js)
     const CF_SCHEMA_VERSION = 1;
     // ---- tracks and condition-specific phase definitions (shared timeline engine) ----
     const CF_TRACKS = [
@@ -209,6 +209,73 @@
       return { text: lines.join('\n'), audit: a };
     }
 
+    // v.224: カード単位の内部解析（読み取り専用）と、書き出し前の品質監査。どちらも原本のカードや利用者の編集を変更しない。
+    // 一般条件=「見える」カードはそのまま、内部の事実（主語・時期・否定・欲求の関連）と、それに基づく判断の根拠だけを示す。
+    function cardInternalAnalysis(cp, itemId) {
+      const item = (cp && cp.items || []).find(i => i && i.id === itemId);
+      if (!item) return null;
+      let facts = [];
+      try { facts = buildClinicalFacts(cp).facts.filter(f => f.sourceId === itemId); } catch (e) { facts = []; }
+      let audit = null;
+      try { audit = typeof buildCardAuditTable === 'function' ? buildCardAuditTable({ items: [item] })[0] : null; } catch (e) { audit = null; }
+      return { original: String(item.text || ''), type: item.type, userEdited: !!((item.editLog || []).length), tags: Array.from(item.hendersonIds || []), audit, facts,
+        needCorrection: item.needCorrection || null, phaseNote: item.phaseNote || null, dataConflict: item.dataConflict || null };
+    }
+    function cardInternalAnalysisText(cp, itemId) {
+      const a = cardInternalAnalysis(cp, itemId);
+      if (!a) return '';
+      const nm = n => (typeof hendersonNameOf === 'function' ? hendersonNameOf(n) : n);
+      const L = [`元のカード（変更しません）：${a.original}`, `S/O：${a.type === 's' ? 'S' : a.type === 'o' ? 'O' : a.type}／現在のタグ：${a.tags.length ? a.tags.map(nm).join('・') : 'なし'}${a.userEdited ? '（利用者が編集済み。自動では変えません）' : ''}`];
+      if (a.audit) L.push(`主語：${a.audit.subject}／時期：${a.audit.phase}${a.audit.phaseOriginal ? `（見出しの時期 ${a.audit.phaseOriginal} から修正）` : ''}／充足判定に${a.audit.contributesToFulfillment ? '寄与する' : '寄与しない'}`);
+      if (a.needCorrection) L.push(`タグの付け直し：${(a.needCorrection.before || []).join('・') || 'なし'} → ${(a.needCorrection.after || []).join('・') || 'なし'}（${a.needCorrection.reason}）`);
+      if (a.phaseNote) L.push(`時期：${a.phaseNote}`);
+      if (a.dataConflict) L.push(`記録間の食い違い：${a.dataConflict}`);
+      L.push(`内部の事実（${a.facts.length}件）：`);
+      a.facts.forEach((f, k) => L.push(`  ${k + 1}. 「${f.original.slice(0, 40)}」 主語=${f.subject || '不明'}${f.speaker ? ` 発言者=${f.speaker}` : ''} 時期=${f.phase || '不明'} ${f.negated ? '否定 ' : ''}${f.uncertain ? '不確か ' : ''}欲求=${(f.henderson || []).join('・') || 'なし'}`));
+      L.push('※内部の解釈を直したいときは、カードのメニューの「書き込みがおかしい（修正依頼に追加）」を使います。');
+      return L.join('\n');
+    }
+    function auditExportQuality(cp) {
+      const F = [];
+      const add = (level, area, detail, ref) => F.push({ level, area, detail, ref: ref || null });
+      const items = (cp && cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary');
+      // 計画：完成の条件
+      const plans = typeof carePlanList === 'function' ? carePlanList(cp) : [];
+      plans.filter(p => ['planned', 'active'].includes(p.status)).forEach(p => {
+        let miss = []; try { miss = carePlanCompleteness(p); } catch (e) { miss = []; }
+        if (!p.priorityReason && !p.orderLocked) miss.push('優先順位の理由がない');
+        if (miss.length) add('重要', '看護計画', `「${String(p.problem).slice(0, 24)}」は未完成（${miss.join('、')}）のため「計画作成済み」と言えない`, p.id);
+        else if (!(p.evidence || []).length) add('重要', '看護計画', `「${String(p.problem).slice(0, 24)}」に根拠の出典がない`, p.id);
+      });
+      // 充足判定：時期ごとの食い違い
+      try {
+        const res = judgeSufficiencyByRules(cp) || {};
+        Object.keys(res).forEach(n => { const r = res[n] || {}; if (r.all && r.all.verdict === 'conflict') add('確認', '充足判定', `欲求${n}は記録どうしが食い違い「判定保留」（時期ごとの判定を確認）`, n); });
+      } catch (e) { /* 判定が作れない場合は監査対象外 */ }
+      // 記録の食い違い・時期・主語
+      const cf = new Map(); items.filter(i => i.dataConflict).forEach(i => { const c = cf.get(i.dataConflict) || []; c.push(i.id); cf.set(i.dataConflict, c); });
+      cf.forEach((ids, msg) => add('確認', '記録の食い違い', `${msg}（${ids.length}枚のカード）`, ids[0]));
+      const seen = new Map();
+      items.forEach(i => {
+        const k = String(i.text || '').normalize('NFKC').replace(/\s+/g, '');
+        if (k.length >= 12) { if (seen.has(k)) add('軽微', '重複', `同じ文のカードが2枚ある：「${String(i.text).slice(0, 24)}」`, i.id); else seen.set(k, i.id); }
+        if (/^妊娠\s*\d+\s*週/.test(String(i.text || '').normalize('NFKC')) && /産褥/.test(String(i.timestamp || ''))) add('重要', '時期', `妊娠中の記録が「${i.timestamp}」の時期になっている：「${String(i.text).slice(0, 24)}」`, i.id);
+        if (/^児は|新生児|生後\s*\d+\s*日|哺乳力|吸啜反射/.test(String(i.text || '').normalize('NFKC')) && !/母親|褥婦/.test(String(i.text || '')) && (i.hendersonIds || []).length && !/(?:の?)授乳(?:手技|時)/.test(i.text)) add('確認', '主語', `新生児の所見が母親の欲求（${i.hendersonIds.join('・')}）に結ばれている：「${String(i.text).slice(0, 24)}」`, i.id);
+        if (/^[母父]親?[：:]/.test(String(i.text || '').normalize('NFKC')) && /泣|不安/.test(i.text) && (i.hendersonIds || []).some(n => [1, 10].includes(n))) add('確認', '主語', `家族の発言・様子が本人の欲求に結ばれている可能性：「${String(i.text).slice(0, 24)}」`, i.id);
+      });
+      // 知識の出典
+      try {
+        const unv = (CARE_PLAN_KNOWLEDGE || []).filter(k => !k.source || !k.source.length || (k.source || []).some(x => /未確認/.test(x))).length;
+        if (unv) add('確認', '知識の出典', `看護計画の知識 ${unv} 件は出典の版・頁が未確認（頁番号は作っていません）`, null);
+      } catch (e) { /* 知識表がない場合は対象外 */ }
+      const important = F.filter(f => f.level === '重要').length;
+      return { findings: F, important, complete: important === 0 };
+    }
+    function auditExportQualityText(cp) {
+      const r = auditExportQuality(cp);
+      return '【書き出し前の品質監査】' + (r.complete ? '重要な未解決はありません（確認・軽微の指摘は下記。完全性の保証ではありません）' : `重要な未解決が ${r.important} 件あるため、完成とは言えません`) + '\n' + r.findings.map(f => `・[${f.level}] ${f.area}：${f.detail}`).join('\n');
+    }
+
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { CF_SCHEMA_VERSION, cfTracks, cfTimeExpr, cfPhaseOf, cfSubject, cfStatementType, cfNegationUncertainty, cfAtoms, buildClinicalFacts, migrateClinicalFacts, proposeCardSplits, applyCardSplit, revertCardChange, evidenceObjectsFor, auditClinicalOutputs, auditedOutput });
+  Object.assign(module.exports, { cardInternalAnalysis, cardInternalAnalysisText, auditExportQuality, auditExportQualityText, CF_SCHEMA_VERSION, cfTracks, cfTimeExpr, cfPhaseOf, cfSubject, cfStatementType, cfNegationUncertainty, cfAtoms, buildClinicalFacts, migrateClinicalFacts, proposeCardSplits, applyCardSplit, revertCardChange, evidenceObjectsFor, auditClinicalOutputs, auditedOutput });
 }

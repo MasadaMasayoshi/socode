@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.208'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.225'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -319,6 +319,7 @@
       rows.push('<hr>');
       rows.push(act('本文を編集', 'fa-pen', 'edit'));
       rows.push(act('カードを分ける', 'fa-scissors', 'split'));
+      rows.push(act('内部の解析を見る（読み取り専用）', 'fa-magnifying-glass-chart', 'analysis'));
       if (item.type !== 'unnecessary') rows.push(act('不要な情報にする', 'fa-ban', 'type:unnecessary'));
       rows.push(act(item.correctionRequested ? '修正依頼から外す' : '書き込みがおかしい（修正依頼に追加）', 'fa-flag', 'report'));
       rows.push('<hr>');
@@ -337,6 +338,7 @@
         else if (a === 'mixed:on') setItemMixed(id, true);
         else if (a === 'edit') editItemText(id);
         else if (a === 'split') openSplitCard(id);
+        else if (a === 'analysis') { const t = typeof cardInternalAnalysisText === 'function' ? cardInternalAnalysisText(getCurrentPatient(), id) : ''; openDialog({ title: 'このカードの内部の解析', message: t || '解析できませんでした', confirmLabel: '閉じる' }); if (dialogMessageEl) { dialogMessageEl.style.whiteSpace = 'pre-wrap'; dialogMessageEl.style.maxHeight = '60vh'; dialogMessageEl.style.overflowY = 'auto'; } }
         else if (a === 'report') toggleCardCorrectionRequest(id);
         else if (a === 'delete') deleteItem(id);
       }));
