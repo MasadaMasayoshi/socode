@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.200'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.203'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -907,6 +907,7 @@ const CARD_DESTINATIONS = [
   { key: 'labdata', re: /赤血球沈降|沈降速度|[12]時間値|白血球\s*\d|血小板\s*\d|GOT|GPT|LDH|尿タンパク|尿蛋白|心電図|胸部X線/, label: '検査結果（構造化された臨床情報）', to: '検査値として保持。単位が不明確な値は自動で換算せず、原文を残す' },
   { key: 'history', re: /水痘|風疹|予防接種|発育歴|満期正常分娩|既往/, label: '既往・発育・予防接種（背景）', to: '背景情報として保持。現在の問題の根拠にしない' },
   { key: 'childtemper', re: /性格|育児・しつけ|しつけに対する/, label: '本人の性格・養育方針（背景）', to: '本人像・家族の養育方針として保持し、個別化アセスメントの「患者にとっての意味」に使う' },
+  { key: 'familyvoice', re: /^\s*(?:\[[^\]]*\]\s*)?(?:母親|父親|お母さん|お父さん|祖母|祖父|家族|両親|母|父)\s*[：:「]/, label: '家族の発言（家族看護の情報）', to: '発言者（母親・父親など）を残して保持し、家族の不安・理解・支援の評価（家族看護）と看護計画に使う。本人の欲求の充足の根拠にはしない' },
   { key: 'overall', re: /(?:身体的)?異常(?:は)?(?:なし|みられ(?:ず|なかった)|を認めず)|問題なし/, label: '総合所見', to: '評価した範囲を明記した総合所見として保持（単独で充足判定に使わない）' },
   { key: 'puerperal', re: /子宮(?:底|復古|の硬さ|収縮)|悪露|後陣痛|会陰(?:切開|裂傷|創)|分娩(?:直後|後)\s*\d*時間後/, label: '産褥の回復（専門概念）', to: '専門概念タグ「産褥の回復」として保持。痛みで動けない・出血や発熱の徴候があるときだけ4・7・9へ対応づける' },
   { key: 'lactation', re: /乳房|乳頭|乳汁|乳管|初乳|授乳|母乳|哺乳|含ませ|吸着|吸啜/, label: '授乳・乳房（専門概念）', to: '専門概念タグ「授乳・乳房」として保持。母親の食事・水分は2、授乳技術の習得は14、不安の表出は10へ必要に応じて対応づける' },
@@ -931,7 +932,69 @@ function proposeCardDestination(text) {
   const d = CARD_DESTINATIONS.find(x => x.re.test(t));
   return d ? { key: d.key, label: d.label, to: d.to } : null;
 }
+// v.201 治療情報（薬・処置）を構造化して取り出す。処方（指示）・投与済み・中止を区別し、原文の文はそのまま残す。
+function treatmentStatusOf(clause) {
+  const c = String(clause || '');
+  if (/中止|休薬|終了|中断|変更|切り替え/.test(c)) return 'discontinued';
+  if (/使用した|投与した|内服した|施行した|実施した|行った|開始(?:した|し(?:た|て)?)?|を使用|内服開始|投与開始|使用し/.test(c) && !/予定|指示|方針/.test(c)) return 'administered';
+  if (/予定|処方|指示|方針|^\s*[①-⑩]|投与する|内服する|継続/.test(c)) return 'prescribed';
+  return 'recorded';
+}
+function treatmentRecords(cp) {
+  const out = [];
+  ((cp && cp.items) || []).filter(i => i && !i.deleted && i.type !== 'unnecessary').forEach(i => {
+    String(i.text || '').split(/(?<=。)|(?<=、)(?=[^、]{0,12}(?:開始|使用))/).forEach(clause => {
+      const c = clause.trim(); if (!c || !(typeof TREATMENT_WORDS_REGEX !== 'undefined' && TREATMENT_WORDS_REGEX.test(c))) return;
+      if (/(?:自己|自分で)/.test(c) || /説明|指導/.test(c)) return;
+      const names = Array.from(new Set((c.match(new RegExp(TREATMENT_WORDS_REGEX.source, 'g')) || []).concat(typeof findDrugsInText === 'function' ? findDrugsInText(c).map(x => x.term) : [])));
+      const dose = (c.match(/\d+(?:\.\d+)?\s*(?:mg|g|mL|ml|μg|単位|IU|mEq)(?:\s*[\/／]\s*(?:日|回|kg))?(?:\s*[×x]\s*\d+\s*日)?/) || [''])[0].replace(/\s+/g, '');
+      out.push({ id: i.id, source: c, drugs: names, dose, route: (c.match(/内服|坐薬|点滴|静注|輸液|吸入|外用/) || [''])[0], status: treatmentStatusOf(c), timestamp: i.timestamp || '' });
+    });
+  });
+  return out;
+}
+// 薬と看護観察の結びつきは、薬剤リファレンスに根拠がある場合だけ示す（薬名からの推測はしない）。
+function treatmentObservationLinks(rec) {
+  const out = [];
+  if (typeof findDrugsInText !== 'function' || typeof drugClassInfo !== 'function' || typeof DRUG_REFERENCE === 'undefined') return out;
+  findDrugsInText(rec.source || '').forEach(x => { const row = DRUG_REFERENCE.find(r => r.id === x.drug.id); const info = row ? drugClassInfo(row) : null; if (info && info.op) out.push({ drug: x.drug.display || x.term, observe: info.op, basis: '薬剤リファレンス' }); });
+  return out;
+}
+// 家族・医師・看護師など、本人以外の発言者の記録（家族看護・看護計画で使う）。
+function familyStatements(cp) {
+  return ((cp && cp.items) || []).filter(i => i && !i.deleted && i.type !== 'unnecessary').map(i => ({ id: i.id, sp: typeof cardSpeaker === 'function' ? cardSpeaker(i.text) : { role: '' }, text: String(i.text || '') }))
+    .filter(x => x.sp.role && x.sp.role !== 'patient').map(x => ({ id: x.id, speaker: x.sp.role, label: x.sp.label, text: x.text }));
+}
 // Tag audit: compares every card's current Henderson tags with a fresh rule-based proposal. Read-only; it never edits a card or a user's tags.
+// v.203 ヘンダーソン優先の方針：診断・検査値・治療・背景という理由だけで「その他」に退避しない。
+// 直接のタグが付かないカードでも、臨床的に説明できる間接的な関連があれば、欲求の候補と理由を示す（関連があることは未充足の証拠ではない）。
+const HENDERSON_ASSOCIATION_RULES = [
+  { re: /CRP|白血球|WBC|好中球|プロカルシトニン|赤沈|赤血球沈降速度/i, needs: [7], reason: '炎症反応の検査値は、発熱・感染の経過（体温調節）を見る手がかりになる', strength: 'indirect' },
+  { re: /\bHb\b|ヘモグロビン|Ht\b|ヘマトクリット|赤血球(?!沈降)/i, needs: [1, 4], reason: '貧血の程度は酸素の運搬と活動時のふらつき（呼吸・姿勢）に関わる', strength: 'indirect' },
+  { re: /BUN|尿素窒素|クレアチニン|\bCre\b|eGFR/i, needs: [3, 2], reason: '腎機能・脱水の指標は排泄と水分摂取の評価に関わる', strength: 'indirect' },
+  { re: /\bNa\b|ナトリウム|\bK\b|カリウム|\bCl\b|クロール|電解質/i, needs: [2, 3], reason: '電解質は水分・食事の摂取と排泄の評価に関わる', strength: 'indirect' },
+  { re: /Alb|アルブミン|総蛋白|\bTP\b|栄養状態|プレアルブミン/i, needs: [2], reason: '栄養状態の指標は食事・栄養の評価に関わる', strength: 'indirect' },
+  { re: /血糖|HbA1c|グルコース/i, needs: [2], reason: '血糖は食事・インスリンの調整（食事・栄養）に関わる', strength: 'indirect' },
+  { re: /AST|ALT|γ-?GTP|ALP|ビリルビン|T-?Bil/i, needs: [2, 9], reason: '肝機能の値は薬剤の影響・栄養の評価（安全）に関わる', strength: 'indirect' },
+  { re: /抗菌薬|抗生剤|抗生物質|セフ[ァ-ヶ]+|ペニシリン|アンピシリン|メロペネム|ゾシン/, needs: [7, 9], reason: '感染の治療薬。体温経過の観察と、副作用・アレルギーの安全管理に関わる', strength: 'indirect' },
+  { re: /解熱|ボルタレン|アセトアミノフェン|カロナール/, needs: [7], reason: '解熱薬の使用は体温の経過と関わる', strength: 'indirect' },
+  { re: /鎮痛|ロキソ|レペタン|オピオイド|モルヒネ|フェンタニル/, needs: [4, 5, 9], reason: '鎮痛薬は痛みによる活動・睡眠の制限と、眠気・転倒などの安全に関わる', strength: 'indirect' },
+  { re: /インスリン|経口血糖降下薬|メトホルミン/, needs: [2, 14, 9], reason: 'インスリンは食事との調整、自己管理の習得、低血糖への安全に関わる', strength: 'indirect' },
+  { re: /グロブリン|アスピリン|抗凝固|ワルファリン|ヘパリン|ステロイド/, needs: [9], reason: '出血・感染・アレルギーなど薬剤の副作用の安全管理に関わる', strength: 'indirect' },
+  { re: /輸液|点滴|ドレーン|カテーテル|留置針|ルート/, needs: [4, 8, 9], reason: '留置物は活動範囲・清潔の保持・自己抜去などの安全に関わる', strength: 'indirect' },
+  { re: /予防接種|ワクチン/, needs: [9, 14], reason: '感染予防の背景であり、健康管理の知識・習慣に関わる', strength: 'indirect' },
+  { re: /保育(?:園|所)|幼稚園|学校|登校|登園|学年|クラス|部活|学童/, needs: [13, 14], reason: '日中の生活の場は、遊び・学習・集団での生活に関わる', strength: 'indirect' },
+  { re: /会社員|自営|仕事|職業|勤務|復職|育児休|休職/, needs: [12], reason: '仕事・役割は、入院や治療が役割に与える影響の評価に関わる', strength: 'indirect' },
+  { re: /(?:同居|別居|核家族|家族構成|両親|祖父母|祖母|祖父|夫と|妻と|きょうだい|兄弟|姉妹)(?!.*(?:がん|癌|歴))/, needs: [10, 12], reason: '家族構成と支援者は、コミュニケーションと役割・退院後の支援の評価に関わる', strength: 'indirect' },
+  { re: /性格|人見知り|甘えん坊|おとなしい|活発|しつけ|育児方針/, needs: [10, 13], reason: '性格や関わり方の背景は、コミュニケーションと遊び・気分転換の個別化に関わる', strength: 'indirect' },
+  { re: /身長|体重|BMI|体格|出生体重|発育/, needs: [2], reason: '体格・発育は栄養状態（食事）の評価の背景になる', strength: 'indirect' }
+];
+function hendersonAssociations(text, opts) {
+  const t = String(text || '').normalize('NFKC'); const out = [];
+  if (/鑑別診断|除外診断/.test(t) && !/CRP|白血球/.test(t)) return out; // 鑑別の記載そのものは、どの欲求の根拠でもない
+  HENDERSON_ASSOCIATION_RULES.forEach(r => { if (r.re.test(t)) r.needs.forEach(n => { if (!out.some(o => o.need === n)) out.push({ need: n, strength: r.strength, reason: r.reason }); }); });
+  return out.sort((a, b) => a.need - b.need);
+}
 function buildTagAuditRows(cp) {
   const rows = [];
   (cp.items || []).filter(i => !i.deleted && i.type !== 'unnecessary').forEach(i => {
@@ -955,6 +1018,12 @@ function buildTagAuditRows(cp) {
       }
     }
     // どのタグも付かないカードにも、必ず保持先を示す（未設定のまま残さない）。内容は変えず、ヘンダーソンにも無理に入れない。
+    // v.203: 他の保持先（その他・診断・検査など）へ回す前に、ヘンダーソンの欲求との間接的な関連を探す。
+    let assoc = [];
+    if (!cur.length && !prop.length && !structural) {
+      assoc = hendersonAssociations(text);
+      if (assoc.length) dest = { retained: dest && dest.key ? { key: dest.key, label: dest.label } : null, key: 'henderson-indirect', label: 'ヘンダーソンの欲求との関連（間接）', to: `欲求${assoc.map(a => a.need).join('・')}への関連づけ候補（診断・検査・治療・背景のタグは残したまま）` };
+    }
     if (!cur.length && !prop.length && !dest && !structural) dest = { key: 'other', label: 'その他の記録（保持）', to: 'どの欲求にも当てはまらない記録として保持（内容は消さない）。分類が必要なら新しい項目の追加を相談' };
     if (!missing.length && !extra.length && !noType && !(dest && !cur.length)) return;
     const reasons = [];
@@ -963,10 +1032,10 @@ function buildTagAuditRows(cp) {
     if (extra.length && !structural) reasons.push('現在のタグが文の意味から支持されない');
     if (noType) reasons.push('S/Oが未決定');
     rows.push({
-      id: i.id, text, destination: dest, siblingNeeds: sibNeeds, currentTags: cur, proposedTags: prop, missingTags: missing, removeTags: extra, reason: reasons.join('／'),
+      id: i.id, text, destination: dest, siblingNeeds: sibNeeds, associations: assoc, outsideHenderson: !cur.length && !prop.length && !assoc.length && !structural && !sibNeeds.length, currentTags: cur, proposedTags: assoc.length ? assoc.map(a => a.need) : prop, missingTags: assoc.length ? assoc.map(a => a.need) : missing, removeTags: extra, reason: (assoc.length ? '直接のタグはないが、' + assoc.map(a => `欲求${a.need}：${a.reason}`).join('／') + '。関連があることは未充足の証拠ではない' : (!cur.length && !prop.length && !structural && !sibNeeds.length ? 'ヘンダーソンの欲求との関連を検討したが、定義上の関連が見つからないため、記録として保持' : reasons.join('／'))),
       context: [i.timestamp, i.fieldLabel].filter(Boolean).join(' '), confidence: structural ? '高' : (missing.length && !extra.length ? '中' : '低'),
       // Only a pure addition to an untagged card is eligible; any removal or change may be a user edit, so it needs a person.
-      autoFix: !cur.length && missing.length > 0 && !structural,
+      autoFix: !cur.length && missing.length > 0 && !structural && !assoc.length, // 間接の関連づけは承認後のみ
       manual: extra.length || noType ? '現在のタグ・S/Oは利用者の編集の可能性があるため、自動では変更しない' : '追加のみ（承認後に反映）'
     });
   });
@@ -981,7 +1050,7 @@ function buildTagAuditText(cp) {
 
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {
-    buildTagAuditRows, buildTagAuditText, proposeCardDestination, CHECKPOINT_MAX, createCheckpoint, deleteCheckpoint, checkpointList, diffCards, inlineTextDiffHtml, maybeCheckpointOnOpen,
+    buildTagAuditRows, buildTagAuditText, hendersonAssociations, HENDERSON_ASSOCIATION_RULES, proposeCardDestination, treatmentRecords, treatmentObservationLinks, treatmentStatusOf, familyStatements, CHECKPOINT_MAX, createCheckpoint, deleteCheckpoint, checkpointList, diffCards, inlineTextDiffHtml, maybeCheckpointOnOpen,
     restoreCardFromCheckpoint, splitCardIntoParts, undoLast, pushUndo, workflowStatus, REPORT_FORMATS, defaultReportLayout, buildReport, reportToText, reportToHtml, reportDayOptions,
 
     calculateAndAddDerivedMetricCards, parseAiJsonArray, safeDomId, buildPrintAiSectionsHtml, formatEditLogEntry, storedAiHtml, isAiStepRunning

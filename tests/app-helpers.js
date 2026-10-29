@@ -26,7 +26,8 @@ const APP_SCRIPT_FILES = [
   'js/13-compare-and-report.js',
   'js/14-drug-reference.js',
   'js/15-relation-map.js',
-  'js/16-genogram.js'
+  'js/16-genogram.js',
+  'js/17-clinical-facts.js'
 ];
 const ROOT_DIR = path.join(__dirname, '..');
 

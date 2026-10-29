@@ -1,7 +1,7 @@
 // Henderson vocabulary. Match content, not S/O form; insurance belongs to need 9.
 // Uploaded assessment domains inform vocabulary; retain Japanese clinical terms and concise need names.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['01'] = 'v.200'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['01'] = 'v.203'; // Version stamp (scripts/stamp-version.js)
 
     const HENDERSON_NEEDS = [
       { id: 1, name: "呼吸", icon: "fa-lungs", keywords: ["出血量", "輸液量",   "呼吸", "SpO2", "咳", "痰", "喘鳴", "息切れ", "チアノーゼ", "酸素", "息苦し", "PaO2", "呼吸数", "呼吸音", "動脈血ガス", "胸部X線", "胸郭", "呼吸補助筋", "起座呼吸", "wheezes", "発汗", "気道", "分泌物", "狭窄", "喫煙", "人工呼吸器", "酸素マスク", "肥満", "発熱", "副作用", "安楽な姿勢", "湿度", "臭気", "吸入器", "在宅酸素療法", "排痰", "咳嗽", "血圧", "脈拍", "頻脈", "徐脈", "不整脈", "動悸", "浮腫", "末梢冷感", "循環動態", "心拍数", "心電図", "胸痛", "ショック", "麻酔覚醒", "気管挿管", "抜管", "無気肺", "有効咳嗽", "術後肺炎", "肺血栓塞栓症", "PTE",
@@ -64,7 +64,7 @@
       { id: 7, name: "体温", icon: "fa-temperature-high", keywords: ["体温", "発熱", "悪寒", "クーリング", "冷感", "KT", "BT", "℃", "°C", "WBC", "CRP", "放熱", "すきま風", "気温", "湿度",
 
         "検温"] },
-      { id: 8, name: "清潔", icon: "fa-shower", keywords: ["清拭", "入浴", "シャワー", "洗髪", "皮膚発赤", "褥瘡", "創部状態", "口腔ケア", "掻痒", "保清", "毛髪", "爪", "歯", "ひげ", "化粧", "装身具", "身だしなみ", "社会的孤立",
+      { id: 8, name: "清潔", icon: "fa-shower", keywords: ["清拭", "入浴", "シャワー", "洗髪", "皮膚発赤", "発疹", "皮疹", "湿疹", "褥瘡", "創部状態", "口腔ケア", "掻痒", "保清", "毛髪", "爪", "歯", "ひげ", "化粧", "装身具", "身だしなみ", "社会的孤立",
 
         "バイオフィルム", "義歯ブラシ", "粘膜ブラシ", "舌苔", "口腔乾燥",
 

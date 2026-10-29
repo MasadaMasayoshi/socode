@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.200'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.202'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1728,6 +1728,7 @@
         }
       }
       rec.valueStd = valueStd; rec.stdUnit = std.unit;
+      if (valueStd !== null && Number.isFinite(valueStd) && rec.value !== valueStd) { rec.originalValue = rec.value; rec.value = valueStd; } // 原値は originalValue／valueRaw に残し、value は単位と対になる換算後の値にする
       if (rec.quality === 'valid' && rec.convertNote) rec.notes.push(rec.convertNote);
 
       if (rec.quality === 'valid') {
@@ -1744,6 +1745,11 @@
           rec.status = d === null ? 'unknown' : d === 'high' ? 'high' : d === 'low' ? 'low' : 'normal';
         }
       } else rec.status = 'review';
+      // v.201 小児の検査値は年齢別の基準が必要。小児で安全に使える基準（CRP・Na・Cl）以外は、成人の基準で高値・低値を判定しない（値と単位はそのまま残す）。
+      if (rec.quality === 'valid' && typeof extractionContext === 'function' && typeof CHILD_SAFE_LAB_REFERENCE_KEYS !== 'undefined' && extractionContext().child && !CHILD_SAFE_LAB_REFERENCE_KEYS.has(key)) {
+        rec.adultReferenceNotUsed = rec.ref; rec.status = 'unknown'; rec.childReferenceNeeded = true;
+        rec.notes.push('小児のため、成人の基準では判定していません（年齢別の基準で確認）。');
+      }
 
       if (rec.quality === 'suspicious' && range && valueStd !== null && valueStd !== undefined && !rec.reasonKinds.includes('unit') && !rec.reasonKinds.includes('digits')) {
         const dw = labDirection(valueStd, range, rec.arrow);
@@ -1784,6 +1790,10 @@
     const LAB_STATUS_LABEL = { high: '高値', low: '低値', normal: '基準範囲内', review: '要確認', unknown: '判定不可' };
 
     function analyzeLabData(cp) {
+      // 小児の記録では成人の基準で高低を判定しない（患者全体の文脈で判断する）
+      return withExtractionContext(String(cp.sourceText || '') + '\n' + (cp.items || []).map(i => i.text).join('\n'), () => analyzeLabDataCore(cp));
+    }
+    function analyzeLabDataCore(cp) {
       const expanded = expandCombinedLabItems((cp.items || []).filter(isActiveLabEvidence));
 
       const items = groupItemsByDay(expanded).flatMap(group => group.items.slice().sort((a, b) => {
@@ -1844,7 +1854,7 @@
       const ctx = {
         surgery: /術後|手術|術式|全摘|切除|開腹|腹腔鏡|オペ/.test(allText), fasting: /絶飲食|絶食|禁食|NPO/.test(allText),
         bleeding: /出血|血性|ドレーン/.test(allText), infection: /発熱|膿|発赤|腫脹|熱感|排膿|悪寒|感染徴候/.test(allText), smoking: /喫煙|煙草|タバコ|ブリンクマン/.test(allText),
-        fever: vitals.some(v => v.key === '体温' && v.status === 'high')
+        fever: vitals.some(v => v.key === '体温' && v.status === 'high'), kawasaki: /川崎病/.test(allText + String(cp.sourceText || ''))
       };
       const basics = extractClinicalBasics(String(cp.sourceText || '') + '\n' + allText);
       const facts = [], reviews = [], thoughts = [];
@@ -1903,12 +1913,13 @@
           let th = '';
           if (['Hb', 'Ht', 'RBC'].includes(key) && (down || last.status === 'low')) th = ctx.surgery ? `${key}が${down ? '術前より低下している' : '低値である'}ため、手術に伴う出血や周術期の影響ではないかと考えられる。ふらつき・顔色・活動時の息切れなどの確認が必要。` : `${key}が${down ? '低下' : '低値'}しているが、原因は現時点の情報だけでは判断できません。追加情報が必要です。`;
           else if (['Alb', 'TP'].includes(key) && (down || last.status === 'low')) th = (ctx.surgery || ctx.fasting) ? `${key}が${down ? '低下している' : '低値である'}ため、手術侵襲や摂取制限（絶飲食など）の影響がある可能性が考えられる。栄養状態や創傷治癒への影響を経過で確認する必要がある。` : `${key}が${down ? '低下' : '低値'}しているが、原因は現時点の情報だけでは判断できません。追加情報が必要です。`;
+          else if (['WBC', 'CRP'].includes(key) && last.status === 'high' && ctx.kawasaki) th = `${key}の上昇は、川崎病（確定または疑い）の急性期にみられる炎症所見として矛盾しないが、これだけで原因は決められません。細菌感染の有無は発熱の経過・他の検査・医師の判断で確認が必要です。`;
           else if (['WBC', 'CRP'].includes(key) && last.status === 'high') th = ctx.surgery ? `${key}の上昇は術後の炎症反応によるものではないかと考えられるが、${ctx.infection || ctx.fever ? '発熱や創部などの感染徴候の記載があるため、感染の可能性も含めて' : '感染徴候（発熱・創部・ドレーン排液など）との区別のため'}経過観察が必要である。` : `${key}が高値だが、原因は現時点の情報だけでは判断できません。感染徴候などの追加情報が必要です。`;
-          else if (['AST', 'ALT', 'ALP', 'γGTP', 'T-Bil'].includes(key) && last.status === 'high') th = `${key}が高値のため、肝胆道系への影響の可能性が考えられるが、手術・薬剤などの影響も含め、現時点の情報だけでは判断できません。経過の確認が必要です。`;
+          else if (['AST', 'ALT', 'ALP', 'γGTP', 'T-Bil'].includes(key) && last.status === 'high') th = `${key}が高値のため、肝胆道系への影響の可能性が考えられるが、${ctx.surgery ? '手術・' : ''}薬剤などの影響も含め、現時点の情報だけでは判断できません。経過の確認が必要です。`;
           else if (['BUN', 'Cre', 'Cr'].includes(key) && last.status === 'high') th = `${key}が高値のため、脱水や腎機能の変化の可能性が考えられる。尿量・水分出納と合わせて確認が必要である。`;
           else if (['Na', 'K', 'Cl'].includes(key) && abnormal) th = `${key}が${last.status === 'high' ? '高値' : '低値'}のため、摂取状況・輸液・症状（嘔気・倦怠感・不整脈など）と合わせて確認が必要である。`;
           else if (abnormal) th = `${key}が${last.status === 'high' ? '高値' : '低値'}ですが、現時点の情報だけでは判断できません。追加情報が必要です。`;
-          if (th) thoughts.push({ key, text: th, needs: LAB_VAL_RELATED_NEEDS[key] || '' });
+          if (th) thoughts.push({ key, text: th, needs: (LAB_VAL_RELATED_NEEDS[key] || '').replace(ctx.surgery ? /$^/ : /（創部の感染予防）/, '') });
         }
       });
       broken.forEach(b => {

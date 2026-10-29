@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.197'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.203'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -1497,17 +1497,127 @@
     }
 
     const RM_NEG_AFTER = /^[^、。,，\n]{0,6}?(?:なし|無し|無い|ない|認めず|みられず|見られず|\(-\)|（-）|陰性|消失)/;
+    // 列挙の後ろにまとめて付く否定（「口唇紅潮、咽頭発赤、腹部膨満は認めない」）は、列挙の全部にかかる。肯定の述語が途中に入る文はかからない。
+    function rmNegatedInList(rest) {
+      const sent = String(rest).split(/[。\n]/)[0];
+      const segs = sent.split(/[、,，]/);
+      const NEG = /(?:は|も)?(?:認めない|認めず|認められない|みられない|みられず|見られない|見られず|なし|無し|ない|無い)$/;
+      for (let k = 0; k < segs.length; k++) {
+        const sg = segs[k].trim();
+        if (!sg && k === 0) continue;
+        if (NEG.test(sg)) return true;
+        if (!sg || /あり|あっ|認め(?!な)|みられ(?!な)|見られ(?!な)|著明|出現|強|増|悪|した|いる|であ|ため|ので/.test(sg) || sg.length > 14) return false;
+      }
+      return false;
+    }
     function rmPositiveMatch(re, text) {
       const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
       const t = String(text || '').normalize('NFKC');
       let m;
       while ((m = g.exec(t)) !== null) {
-        if (!RM_NEG_AFTER.test(t.slice(m.index + m[0].length))) return m;
+        const rest = t.slice(m.index + m[0].length);
+        if (!RM_NEG_AFTER.test(rest) && !rmNegatedInList(rest)) return m;
         if (m[0] === '') g.lastIndex++;
       }
       return null;
     }
     function rmIsFamilySpeech(text) { try { return typeof isFamilySpeech === 'function' && isFamilySpeech(text); } catch (e) { return false; } }
+
+
+    // v.203: 診断名ごとの病態知識（内蔵知識・頁未確認）。診断が分かっているのに診断ノードから先へ線が出ない状態を防ぐ。
+    // general=一般的な病態（患者の所見ではない）／finding=記録に一致した所見だけ作る／risk=今後起こりうる可能性（実際の所見ではない）／treatment=記録にある治療だけ作る。
+    const RM_DISEASE_KNOWLEDGE = [
+      {
+        id: 'kawasaki', dx: /川崎病/, source: '川崎病診断の手引き等に基づく一般的な理解（内蔵知識・頁未確認）',
+        nodes: [
+          { k: 'vasc', kind: 'general', label: '全身の血管の炎症（血管炎）' },
+          { k: 'inflam', kind: 'general', label: '急性の炎症反応' },
+          { k: 'fever', kind: 'finding', label: '発熱・炎症マーカーの上昇', match: /発熱|\d{2}\.\d\s*℃|CRP/ },
+          { k: 'muco', kind: 'finding', label: '皮膚・粘膜の症状（発疹・口唇・口腔・眼）', match: /発疹|口唇|口腔粘膜|眼球結膜|苺舌|イチゴ舌|膜様落屑|四肢末端|手足/ },
+          { k: 'itch', kind: 'finding', label: '強いかゆみ', match: /掻痒|かゆ|痒/ },
+          { k: 'oral', kind: 'finding', label: '口腔・口唇の炎症', match: /口腔粘膜|口唇(?:紅潮|発赤|びらん)|口内/ },
+          { k: 'intake', kind: 'finding', label: '食事・水分の摂取低下', match: /食欲(?:も|が)?(?:まったく|全く)?(?:なく|ない|低下|不振)|何も食べて|摂取量?(?:低下|減少)|摂取(?:も)?十分でき[なず]|食べられ|飲め/ },
+          { k: 'sleep', kind: 'finding', label: '眠れない・熟睡できない', match: /熟睡でき|眠れ[なず]|不眠/ },
+          { k: 'cor', kind: 'risk', label: '冠動脈病変（冠動脈瘤など）のリスク（現時点で所見の記載はない）' },
+          { k: 'dehyd', kind: 'risk', label: '脱水の可能性（診断ではない）' },
+          { k: 'ivig', kind: 'treatment', label: 'γ-グロブリン大量療法（IVIG）', match: /グロブリン|IVIG|ベニロン/ },
+          { k: 'asa', kind: 'treatment', label: 'アスピリン内服', match: /アスピリン/ }
+        ],
+        // [from, to, relation, evidence]  ('dx' は診断ノード)
+        edges: [
+          ['dx', 'vasc', 'causes', '川崎病は全身の血管炎を主体とする疾患'],
+          ['vasc', 'inflam', 'causes', '血管炎に伴う急性炎症'],
+          ['inflam', 'fever', 'manifests_as', '炎症反応として発熱・炎症マーカー上昇が現れうる（この患者の記録に一致）'],
+          ['vasc', 'muco', 'manifests_as', '皮膚粘膜の血管炎として発疹・口唇・眼の所見が現れうる（この患者の記録に一致）'],
+          ['muco', 'itch', 'results_in', '皮膚の炎症に伴うかゆみ（記録に一致）'],
+          ['muco', 'oral', 'results_in', '粘膜の炎症（記録に一致）'],
+          ['vasc', 'cor', 'predicts', '血管炎が冠動脈に及ぶと冠動脈病変を生じうる（可能性。実際の所見ではない）'],
+          ['ivig', 'vasc', 'treats', '免疫グロブリン療法は血管炎・炎症を抑える（記録にある治療）'],
+          ['asa', 'inflam', 'treats', 'アスピリンは炎症と血栓形成を抑える（記録にある治療）'],
+          ['asa', 'cor', 'treats', '冠動脈病変に伴う血栓形成の予防（記録にある治療）']
+        ],
+        // 所見が2つ以上そろったときだけ作る患者固有の結果と看護問題
+        chains: [
+          { need: ['itch', 'sleep'], mid: { k: 'sleepdiff', kind: 'finding', label: 'かゆみによる睡眠の妨げ' }, edges: [['itch', 'sleepdiff', 'results_in'], ['sleep', 'sleepdiff', 'supports']], problem: '睡眠パターン混乱（かゆみによる睡眠の妨げ）', from: 'sleepdiff' },
+          { need: ['oral', 'intake'], mid: null, edges: [['oral', 'intake', 'results_in'], ['intake', 'dehyd', 'predicts']], problem: '体液量不足のリスク状態（摂取低下に伴う脱水の可能性）', from: 'dehyd' },
+          { need: ['cor'], mid: null, edges: [], problem: '心合併症（冠動脈病変）のリスク状態：心機能の観察と経過フォロー', from: 'cor' }
+        ]
+      }
+      ,{
+        id: 't1dm', dx: /1型糖尿病|1型\s*DM|若年発症.*糖尿病|糖尿病/, source: '糖尿病診療ガイドライン等に基づく一般的な理解（内蔵知識・頁未確認）',
+        nodes: [
+          { k: 'beta', kind: 'general', label: '膵β細胞の障害によるインスリンの欠乏' },
+          { k: 'hyper', kind: 'finding', label: '高血糖', match: /高血糖|血糖(?:値)?\s*[:：]?\s*(?:[2-9]\d{2})|口渇|多尿/ },
+          { k: 'hypo', kind: 'finding', label: '低血糖症状・低血糖', match: /低血糖|冷汗|手の震え|動悸/ },
+          { k: 'ins', kind: 'treatment', label: 'インスリン療法', match: /インスリン|ランタス|ノボラピッド|ヒューマログ|ペン型注入/ },
+          { k: 'dka', kind: 'risk', label: '糖尿病ケトアシドーシスのリスク（現時点で所見の記載はない）' }
+        ],
+        edges: [
+          ['dx', 'beta', 'causes', '1型糖尿病はインスリンの絶対的な欠乏を主体とする'],
+          ['beta', 'hyper', 'manifests_as', 'インスリン不足で血糖が上がる（記録に一致）'],
+          ['ins', 'beta', 'treats', 'インスリンの補充（記録にある治療）'],
+          ['ins', 'hypo', 'may_contribute_to', 'インスリン過量や食事・運動とのずれで低血糖が起こりうる（記録に一致）'],
+          ['beta', 'dka', 'predicts', 'インスリンが著しく不足すると起こりうる（可能性。実際の所見ではない）']
+        ],
+        chains: [{ need: ['hyper'], mid: null, edges: [], problem: '不安定な血糖値のリスク状態', from: 'hyper' }]
+      }
+      ,{
+        id: 'gastric-ca', dx: /胃がん|胃癌/, source: '胃癌取扱い規約・診療ガイドライン等に基づく一般的な理解（内蔵知識・頁未確認）',
+        nodes: [
+          { k: 'tumor', kind: 'general', label: 'がん細胞の増殖と浸潤' },
+          { k: 'op', kind: 'treatment', label: '胃切除術', match: /胃(?:全摘|切除|亜全摘)/ },
+          { k: 'chemo', kind: 'treatment', label: '化学療法', match: /化学療法|抗がん剤|S-?1|CapeOX|XELOX/ },
+          { k: 'intake', kind: 'finding', label: '食事摂取量の低下', match: /食欲(?:低下|不振)|摂取量?(?:低下|減少)|食べられ|体重(?:減少|が減)/ },
+          { k: 'meta', kind: 'risk', label: 'リンパ節・遠隔転移のリスク（現時点で所見の記載はない）' }
+        ],
+        edges: [
+          ['dx', 'tumor', 'causes', '胃がんは胃粘膜の細胞が悪性化して増殖する疾患'],
+          ['tumor', 'intake', 'manifests_as', '腫瘍による通過障害・食欲低下が起こりうる（記録に一致）'],
+          ['tumor', 'meta', 'predicts', '進行するとリンパ節などへ広がりうる（可能性。実際の所見ではない）'],
+          ['op', 'tumor', 'treats', '腫瘍の切除（記録にある治療）'],
+          ['chemo', 'tumor', 'treats', 'がん細胞の増殖を抑える（記録にある治療）']
+        ],
+        chains: []
+      }
+      ,{
+        id: 'ckd', dx: /慢性腎臓病|慢性腎不全|腎不全|CKD/, source: 'CKD診療ガイドライン等に基づく一般的な理解（内蔵知識・頁未確認）',
+        nodes: [
+          { k: 'gfr', kind: 'general', label: '腎機能の低下（糸球体ろ過量の低下）' },
+          { k: 'edema', kind: 'finding', label: '浮腫・体液の貯留', match: /浮腫|むくみ|体重増加/ },
+          { k: 'hk', kind: 'finding', label: '電解質異常（高カリウムなど）', match: /高カリウム|K\s*[5-9]\.\d/ },
+          { k: 'hd', kind: 'treatment', label: '透析療法', match: /透析/ },
+          { k: 'prog', kind: 'risk', label: '腎機能のさらなる低下・体液過剰のリスク（現時点で所見の記載はない）' }
+        ],
+        edges: [
+          ['dx', 'gfr', 'causes', '慢性腎臓病は腎機能の持続的な低下'],
+          ['gfr', 'edema', 'manifests_as', '水分・塩分の排泄低下で浮腫が出る（記録に一致）'],
+          ['gfr', 'hk', 'manifests_as', 'カリウムの排泄低下（記録に一致）'],
+          ['gfr', 'prog', 'predicts', '悪化すると起こりうる（可能性。実際の所見ではない）'],
+          ['hd', 'gfr', 'treats', '腎機能の代替（記録にある治療）']
+        ],
+        chains: [{ need: ['edema'], mid: null, edges: [], problem: '体液量過剰', from: 'edema' }]
+      }
+    ];
 
     const RM_DISEASE_FACTORS = [
       { disease: /胃がん|胃癌/, factor: /喫煙|タバコ|たばこ/, mid: '胃粘膜への慢性的な刺激・防御機能の低下' },
@@ -1702,6 +1812,20 @@
               const detail = [m[1] !== organ ? m[1] : '', size[0] ? size[1] + size[2] : ''].filter(Boolean).join(' ');
               hit = { item: i, label: organ + 'がん' + (detail ? '（' + detail + '）' : '') };
               break;
+            }
+          }
+        }
+        // v.203: 「診断名」欄が無くても、現病歴・既往などの背景に書かれた診断名（登録済みの疾患）から診断ノードを作る
+        if (!hit) {
+          const famRe2 = /家族|祖父|祖母|父|母|兄|姉|弟|妹|亡くし|術式\s*[:：]/;
+          outer: for (const dk of RM_DISEASE_KNOWLEDGE) {
+            for (const i of clinicalRecords) {
+              if (!notSurgeryLine(i) || rmIsFamilySpeech(i.text)) continue;
+              for (const st of String(i.text).normalize('NFKC').split(/(?<=[。\n])/)) {
+                if (famRe2.test(st)) continue;
+                const m = rmPositiveMatch(dk.dx, st);
+                if (m) { hit = { item: i, label: m[0].trim() }; break outer; }
+              }
             }
           }
         }
@@ -2871,6 +2995,50 @@
       const rest = tplProblems.filter(t => !usedTpl.has(t)).sort((a, b) => rmProblemCategory(a.label).rank - rmProblemCategory(b.label).rank);
       rest.forEach(t => { if (userProblems.length) { t.label = `${t.label}（候補）`; t.evidence = '記録から考えられる候補（看護計画には未登録）'; } ordered.push(t); });
 
+
+      // v.203: 診断に対応する病態知識で、診断ノードから治療・所見・リスクへの線を作る。記録にない所見は作らない。
+      if (disease) {
+        if (!RM_DISEASE_KNOWLEDGE.some(dk => dk.dx.test(dxLabel))) { disease.knowledgeStatus = 'unregistered'; disease.evidence = disease.evidence || '病態の知識がこのアプリに未登録のため、診断から先の線は記録に書かれた内容に限る'; }
+        RM_DISEASE_KNOWLEDGE.filter(dk => dk.dx.test(dxLabel)).forEach(dk => {
+          const made = { dx: disease };
+          const recItems = items.filter(i => !rmIsFamilySpeech(i.text));
+          dk.nodes.forEach(def => {
+            if (def.kind === 'general') { made[def.k] = N(`dk_${dk.id}_${def.k}`, 'pathophysiology', def.label, { source: 'knowledge' }); made[def.k].evidence = dk.source; return; }
+            if (def.kind === 'risk') { made[def.k] = null; return; }
+            let hit = null, sent = '';
+            for (const i of recItems) {
+              if (i.id === (dxText[0] || {}).id) continue;
+              const st = String(i.text).normalize('NFKC').split(/(?<=[。\n])/).find(x => rmPositiveMatch(def.match, x));
+              if (st) { hit = i; sent = st.trim(); break; }
+            }
+            if (!hit) return;
+            // 汎用の名前のノードを作り、根拠の文は evidence に残す（記録にある所見だけ。否定された所見は使わない）
+            made[def.k] = N(`dk_${dk.id}_${def.k}`, def.kind === 'treatment' ? 'treatment' : 'symptom', def.label, { items: [hit], evidence: sent, distinctEvidence: true });
+          });
+          const riskNode = k => { const def = dk.nodes.find(x => x.k === k); if (!def) return null; if (!made[k]) { made[k] = N(`dk_${dk.id}_${k}`, 'future_risk', def.label, { source: 'knowledge', observed: false }); made[k].evidence = dk.source; made[k].epistemicStatus = 'predicted'; } return made[k]; };
+          const edgesToMake = dk.edges.slice();
+          // リスクは、それにつながる線の相手（原因・治療）が揃ったときだけ作る
+          edgesToMake.forEach(([a, b, rel, ev]) => {
+            const defA = dk.nodes.find(x => x.k === a), defB = dk.nodes.find(x => x.k === b);
+            const A = defA && defA.kind === 'risk' ? riskNode(a) : made[a], B = defB && defB.kind === 'risk' ? riskNode(b) : made[b];
+            if (A && B) E(A, B, rel, { evidence: ev, predicted: rel === 'predicts' });
+          });
+          dk.chains.forEach(ch => {
+            const needNodes = ch.need.map(k => { const d = dk.nodes.find(x => x.k === k); return d && d.kind === 'risk' ? riskNode(k) : made[k]; });
+            if (needNodes.some(x => !x)) return;
+            if (ch.mid) { made[ch.mid.k] = N(`dk_${dk.id}_${ch.mid.k}`, 'symptom', ch.mid.label, { source: 'knowledge' }); made[ch.mid.k].evidence = 'この患者の記録の所見の組合せから（診断ではなく観察の結果）'; }
+            ch.edges.forEach(([a, b, rel]) => {
+              const d = k => { const df = dk.nodes.find(x => x.k === k); return df && df.kind === 'risk' ? riskNode(k) : made[k]; };
+              const A = d(a), B = d(b); if (A && B) E(A, B, rel, { evidence: '記録に一致した所見どうしのつながり', predicted: rel === 'predicts' });
+            });
+            const pn = N(`dk_${dk.id}_prob_${ch.from}`, 'nursing_problem', ch.problem, { source: 'knowledge' });
+            pn.evidence = '記録の所見と疾患の一般的な理解から導いた候補（確認してください）';
+            const src = made[ch.from] || (dk.nodes.find(x => x.k === ch.from) && riskNode(ch.from));
+            if (src) { E(src, pn, 'results_in', { evidence: pn.evidence }); ordered.unshift(pn); }
+          });
+        });
+      }
+
       const nandaLike = lb => /障害|不足|リスク状態|状態$|過剰|混乱|浄化/.test(lb);
       const simGroups = new Map();
       ordered.filter(p => p.source === 'plan').forEach(p => { const k = rmProblemSimKey(p.label); if (!k) return; if (!simGroups.has(k)) simGroups.set(k, []); simGroups.get(k).push(p); });
@@ -2894,6 +3062,8 @@
       const uniqNodes = [...new Set(nodes.values())];
       const keepIds = new Set(kept.map(p => p.id));
       uniqNodes.filter(n => n.type === 'disease').forEach(n => keepIds.add(n.id));
+      // 診断の病態知識から作ったノード（記録に一致した所見・治療・リスク）は、看護問題に届かなくても診断につながる形で残す
+      uniqNodes.filter(n => /^dk_/.test(n.key || '')).forEach(n => keepIds.add(n.id));
 
       uniqNodes.filter(n => n.key === 'dx_stage' || n.key === 'dx_aim').forEach(n => keepIds.add(n.id));
       let grew = true;

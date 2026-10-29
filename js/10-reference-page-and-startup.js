@@ -1,7 +1,7 @@
 // Startup, references and image OCR. Validate image MIME/size; capture patient before async prompts.
 // Reference notes are not automatic classification rules; file versions detect mixed/reverted assets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = 'v.178'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['10'] = 'v.201'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -702,7 +702,7 @@ if (typeof module !== 'undefined' && module.exports) {
     hasLearnedSignal,
     hasBalancedBrackets,
     groupClinicalPhrasesWithTimestamps,
-    detectMultipleHendersonTags,
+    detectMultipleHendersonTags, cardSpeaker, withExtractionContext,
     detectDiagnosisTagHints,
     fieldLabelHintTags,
     cleanExtractedPhrase, punctuateClause, splitCompoundSentences, joinWithPunctuation,

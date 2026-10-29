@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.200'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.203'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -175,12 +175,31 @@
       if (typeof pastEventWordOf === 'function' && pastEventWordOf({ text: t }) && /骨折|転倒|外傷|手術|入院|ギプス/.test(t) && !/現在|今回|いまも|後遺(?!障害などなし|症なし)|残って|続いて|痛み|制限/.test(t.replace(/後遺障害などなし|後遺症なし/g, ''))) ids = ids.filter(h => h !== 4 && h !== 9);
       // Acid-base values (pH, HCO3, PaCO2…) belong to respiration/circulation (1) as well as the laboratory item.
       if (/(?:^|[^A-Za-z])(?:pH|HCO3|PaCO2|PaO2|BE)\s*[-−]?\s*\d/.test(t) && !ids.includes(1)) ids = [...ids, 1];
+      // v.201 発言者の区別: 本人以外（母親・父親・祖父母・家族・医師・看護師）の発言にある気持ち・不安は、本人のコミュニケーションの欠如ではない。
+      // 本人の話し方・伝達に触れた文（「この子は…話さない」など）だけ10を残す。家族の発言そのものは cardSpeaker で取り出して家族看護に使う。
+      const spk = cardSpeaker(text);
+      if (spk.role && spk.role !== 'patient' && ids.includes(10) && !/(?:本人|患児|この子|お子さん|子ども|娘|息子)[^。]{0,15}(?:話|言葉|伝え|会話|表情|訴え)/.test(t)) ids = ids.filter(h => h !== 10);
+      // v.201 薬・処置の記録: 薬の名前や投与の指示は構造化された治療情報として保持する。「抗生剤」という語だけで 9.環境（安全）に入れない。
+      if (/^\s*[①-⑩]/.test(t) && TREATMENT_WORDS_REGEX.test(t) && !/(?:出現|副作用|嘔気|発疹|出血|訴え|痛み|ふらつき|自己|自分)/.test(t)) return [];
+      if (ids.includes(9) && ANTIINFECTIVE_WORDS_REGEX.test(t) && !detectMultipleHendersonTagsRaw(t.replace(new RegExp(ANTIINFECTIVE_WORDS_REGEX.source, 'g'), '')).includes(9)) ids = ids.filter(h => h !== 9);
       return ids;
+    }
+    const TREATMENT_WORDS_REGEX = /抗生剤|抗菌薬|抗生物質|グロブリン|ベニロン|アスピリン|解熱剤|鎮静剤|鎮痛剤|ボルタレン|ホスミシン|輸液|点滴|ステロイド|内服|坐薬/;
+    const ANTIINFECTIVE_WORDS_REGEX = /抗生剤|抗菌薬|抗生物質|抗菌剤|ホスミシン|ゾシン|セフ[ぁ-んァ-ヶー]{1,6}|ペニシリン|バンコマイシン|メロペン/;
+    // 発言者（行頭の「母親：」「医師：」など）を取り出す。本人の発言・記録（行頭に話者がない）は role=''。
+    function cardSpeaker(text) {
+      const t = String(text || '').normalize('NFKC').replace(/^\s*(?:\[[^\]]*\]|\d{1,2}月\d{1,2}日)?\s*/, '');
+      const lead = (t.match(/^(母親|母|お母さん|父親|父|お父さん|祖母|祖父|祖父母|家族|両親|弟|姉|兄|妹|夫|妻|医師|主治医|Dr\.?|看護師|Ns|本人|患者|患児)\s*[：:「]/) || [])[1] || '';
+      const role = !lead ? '' : /^(?:母親|母|お母さん)$/.test(lead) ? 'mother' : /^(?:父親|父|お父さん)$/.test(lead) ? 'father' : /^(?:医師|主治医|Dr\.?)$/.test(lead) ? 'physician' : /^(?:看護師|Ns)$/.test(lead) ? 'nurse' : /^(?:本人|患者|患児)$/.test(lead) ? 'patient' : 'family';
+      const also = /（問い：[^）]*）/.test(String(text || '')) ? ['physician'] : [];
+      return { role, label: lead, also };
     }
     function detectMultipleHendersonTagsRaw(text) {
 
       text = String(text || '').replace(/（問い：[^）]*）/g, '');
       // 意識 as attention/awareness (意識して・意識的・意識づけ) is not the level of consciousness, so it must not trigger 1.呼吸.
+      // 薬・造影剤・食物などで出た発疹の既往は、現在の皮膚の状態ではなくアレルギー歴（安全）。皮膚（清潔）の語として数えない。
+      text = text.replace(/((?:薬|造影剤|食物|ラテックス|テープ|金属|アレルギー)[^。\n]{0,8})(?:発疹|皮疹|湿疹)|(?:発疹|皮疹|湿疹)(?=[^。\n]{0,4}の既往)/g, (m, a) => (a || '') + 'アレルギー反応');
       text = text.replace(/意識(?=して|し(?:た|て|ない|ませ)|的|づけ|付け|する|させ|が(?:高|低)い人)/g, '気に留め');
       if (typeof isLabTextUnreliable === 'function' && isLabTextUnreliable(text)) return [];
       const tags = new Set();
@@ -1612,6 +1631,23 @@
       text = String(text == null ? '' : text).replace(/\u2113/g, 'L');
       return withExtractionContext(text, () => groupClinicalPhrasesWithTimestampsInner(text));
     }
+    // 検査名だけの見出し行と、その直下に箇条書きで並ぶ測定値（「* 1時間値 91mm」）は、同じ検査の結果なので1枚にまとめる。
+    // 条件：見出しは数字を含まない短い検査名／測定の語で終わる行、子は同じ日時の「* ・ -」で始まり数字を含む行。原文は変えず、まとめた理由を残す。
+    const LAB_TABLE_HEADING_REGEX = /(?:検査|速度|値|測定|試験|分画|培養|濃度|ガス|数|率|時間|ペプチド|抗体|抗原)$/;
+    function mergeLabTableChildren(list) {
+      for (let k = 0; k < list.length; k++) {
+        const h = list[k];
+        const ht = String(h.text || '').trim();
+        if (!ht || /\d/.test(ht) || ht.length > 20 || /[。]/.test(ht) || !LAB_TABLE_HEADING_REGEX.test(ht) || h.isUnnecessaryBoilerplate) continue;
+        let j = k + 1; const kids = [];
+        while (j < list.length && String(list[j].timestamp || '') === String(h.timestamp || '') && /^[*＊・\-]\s*\S/.test(String(list[j].text || '').trim()) && /\d/.test(list[j].text)) { kids.push(list[j]); j++; }
+        if (!kids.length) continue;
+        h.mergedFrom = [ht, ...kids.map(c => String(c.text))];
+        h.mergeReason = '検査名の見出しと、その直下に並ぶ測定値は同じ検査の結果のため1枚にまとめた（原文は変更していない）';
+        h.text = ht + '　' + kids.map(c => String(c.text).trim().replace(/^[*＊・\-]\s*/, '').replace(/\s+/g, ' ')).join('／');
+        list.splice(k + 1, kids.length);
+      }
+    }
     function groupClinicalPhrasesWithTimestampsInner(text) {
       const extracted = [];
       let globalTimestamp = "日時不明";
@@ -2425,6 +2461,7 @@
       attachStaffQuestions(extracted);
       splitFamilySpeechSentences(extracted);
       splitMixedSubjectiveObjective(extracted);
+      mergeLabTableChildren(extracted);
       mergeDanglingObservations(extracted);
       extracted.forEach(item => {
         if (!item.diseaseGeneral && (isSourceStructureText(item.text) || isTestExplanationMemo(item.text) || isGenericSymptomList(item.text))) item.isUnnecessaryBoilerplate = true;
@@ -2521,12 +2558,12 @@
     const DISEASE_SYMPTOM_NEEDS = [
       [/発熱|熱型/, [7]], [/倦怠|疲れやす|易疲労|疲労/, [4, 5]], [/体重減少|食欲/, [2]], [/脱毛|光線過敏|凍瘡|レイノー|紅斑|皮疹|発疹|潰瘍/, [8]],
       [/光線過敏/, [8, 9]], [/関節痛|筋肉痛|筋痛|関節炎/, [4]], [/むくみ|浮腫|腎炎|蛋白尿|腎/, [3]], [/出血|貧血|めまい|けいれん|痙攣/, [9]],
-      [/息切れ|呼吸困難|胸膜炎|胸水|咳/, [1]], [/頭痛/, [4, 5]], [/不安|抑うつ|うつ/, [10]],
+      [/息切れ|呼吸困難|胸膜炎|胸水|咳/, [1]], [/頭痛/, [5]], [/不安|抑うつ|うつ/, [10]],
       // v.71 knowledge ingestion (SLE research brief; see docs/knowledge-guideline.md ledger). Numbers are nursing-assessment associations, not a source table.
       [/関節痛|関節炎|筋肉痛|筋痛/, [5, 12]], [/脱毛|蝶形紅斑|円板状|瘢痕/, [8, 10]], [/光線過敏/, [14]], [/凍瘡/, [8, 9]], [/レイノー/, [4, 8, 9]],
       [/ループス腎炎|腎炎|蛋白尿/, [2, 9, 14]], [/出血傾向|出血/, [8, 9]], [/貧血/, [1, 4, 5, 12]], [/息切れ|呼吸困難|胸膜炎|胸水/, [4, 5]],
       [/心外膜炎|心膜炎|心膜液|タンポナーデ/, [1, 4, 5, 9]], [/蝶形紅斑|円板状/, [9]], [/神経精神|NPSLE|精神神経|神経症状|^神経|神経[、,・]/, [4, 9, 10, 14]],
-      [/頭痛/, [9, 10]], [/感染|日和見/, [7, 9, 14]], [/抗リン脂質|血栓|APS/, [9]],
+      [/感染|日和見/, [7, 9, 14]], [/抗リン脂質|血栓|APS/, [9]],
       // v.78 site research (ledger): disease-level associations only; drug names are not pasted onto one item.
       [/胸痛|胸の痛み/, [1, 9]], [/膵頭部(?:がん|癌)|膵(?:がん|癌)/, [2, 3, 4, 9, 14]], [/胃全摘|胃切除/, [2, 3, 4, 8, 9, 14]], [/S状結腸(?:がん|癌)|結腸(?:がん|癌)/, [2, 3, 4, 9, 14]],
       [/大腿骨(?:頸|頚)部骨折/, [3, 4, 5, 9, 14]], [/糖尿病/, [2, 3, 4, 8, 9, 14]], [/高血圧/, [4, 9, 14]], [/脂質異常症/, [2, 4, 14]],

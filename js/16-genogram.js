@@ -1,7 +1,7 @@
 // Genogram (家族構成図): built from the record, then editable. Mirrors the relation map pattern (auto build -> edit -> save with the patient -> export).
 // Kinship words are a built-in dictionary (内蔵辞書 2026-10-16（出典未確認）). Nothing is invented: only members, ages and notes written in the record are drawn.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.200'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.201'; // Version stamp (scripts/stamp-version.js)
 
     const GG_PROVENANCE = '内蔵辞書 2026-10-16（出典未確認）';
     // canonical key -> [role label, sex, generation, order within the row]
@@ -78,7 +78,7 @@
         return people.get(key);
       };
       const note = (p, s) => { if (s && !p.notes.includes(s)) p.notes.push(s); };
-      const src = (p, s) => { const t = ggTrim(s); if (t && !p.src.includes(t) && p.src.length < 3) p.src.push(t); };
+      const src = (p, s) => { const t = ggTrim(s); if (t && !p.src.includes(t) && p.src.length < 3) p.src.push(t); (p.fullSrc = p.fullSrc || []).includes(s) || p.fullSrc.push(s); };
       sentences.forEach(sent => {
         const toks = ggTokens(sent);
         const clauses = sent.split(/[、，,;；]/);
@@ -195,6 +195,16 @@
         if (people.has(g) && (spec.some(k => g === 'child' || k.startsWith(g)))) { const q = people.get(g); const t = people.get(spec.find(k => g === 'child' || k.startsWith(g))); q.notes.forEach(n => note(t, n)); people.delete(g); }
         if (none.has('child') && !keys.some(k => /^(?:son|daughter|child)/.test(k) && people.has(k) && people.get(k).src.length)) { /* nothing */ }
       });
+      // 原文に「父方は健在」「母方も健在」とある親族は、続柄を決めつけず「父方（母方）の親族」として載せる（祖父母と断定しない）。
+      sentences.forEach(sent => {
+        for (const m of sent.matchAll(/(父方|母方)(?:の)?(?:親族|親戚)?(?:は|も)(?:ともに|両方とも)?健在/g)) {
+          const side = m[1] === '父方' ? 'P' : 'M';
+          if (Array.from(people.keys()).some(k => new RegExp(`^g(?:father|mother)${side}$`).test(k))) continue;
+          const q = get('side' + side, { role: `${m[1]}の親族`, sex: 'u', gen: -2, ord: side === 'P' ? 1.5 : 3.5 });
+          src(q, sent); note(q, `原文「${m[0]}」。続柄（祖父母など）は原文に記載なし`);
+          if (/遠方|遠く|離れて/.test(sent) && !/同居/.test(sent)) q.living = '別居';
+        }
+      });
       // v.101: a generic sibling word is dropped when specific siblings (兄・姉・弟・妹) are present.
       if (Array.from(people.keys()).some(k => /^(?:brother|sister)[OY]$/.test(k))) people.delete('sibling');
       if (none.has('child')) Array.from(people.keys()).filter(k => /^(?:son|daughter|child)/.test(k) && !/^(?:son|daughter)[123]$/.test(k)).forEach(k => { if (people.get(k).src.every(s => /いない|なし|いません/.test(s))) people.delete(k); });
@@ -231,8 +241,21 @@
       if (sentences.some(s => /一人暮らし|ひとり暮らし|独居/.test(s))) idx.living = '独居';
       else if (list.some(p => p.living === '同居')) idx.living = '同居';
       list.unshift(idx);
-      // v.200: 本人が小児（15歳未満）のとき、「妻」「夫」は本人の配偶者ではない（親の発言・描写中の語）。本人の配偶者・姻族は作らない。
-      if (idx.age !== null && idx.age < 15) list = list.filter(p => p.index || !/^(?:wife|husband|spouse|partner|fil|mil)$/.test(String(p.id).replace(/#\d+$/, '')));
+      // v.200: 配偶者語（妻・夫・配偶者・パートナー）は、原文が本人との関係を示すときだけ本人の配偶者にする（根拠に基づく検証）。
+      //  ・他の家族が主語の文（「父親：…と妻を慰めている」）の「妻」は、その家族の配偶者であり、本人の配偶者ではない（すでにいる母などと重複させない）。
+      //  ・本人が小児で本人の婚姻を示す記述がないときは、年齢・発達の整合性の確認として載せない（年齢だけで消すのではなく、根拠がないことが条件）。
+      {
+        const SPOUSE = /^(?:wife|husband|spouse|partner)$/, patientEv = /(?:本人|患者|[A-ZＡ-Ｚ][^。]{0,3}さん)[^。]{0,8}の(?:妻|夫|配偶者)|(?:夫|妻|配偶者|パートナー)と(?:2人|二人|同居|暮ら|生活)|(?:妻|夫)(?:が|は)[^。]{0,10}(?:キーパーソン|付き添)|結婚|婚姻/, otherSubj = /(?:父親|母親|父|母|祖父|祖母|両親|医師|看護師|家族)\s*[：:「][^。]*(?:妻|夫|配偶者)|(?:父親|母親|父|母|祖父|祖母)(?:は|が)[^。、]{0,12}(?:妻|夫|配偶者)/;
+        list = list.filter(p => {
+          if (p.index || !SPOUSE.test(String(p.id).replace(/#\d+$/, ''))) return true;
+          const full = (p.fullSrc || p.src || []).join('\n');
+          const own = patientEv.test(full);
+          if (otherSubj.test(full) && !own) return false;
+          if (idx.age !== null && idx.age < 15 && !own) return false;
+          return true;
+        });
+        if (idx.age !== null && idx.age < 15) list = list.filter(p => p.index || !/^(?:fil|mil)$/.test(String(p.id)));
+      }
       // links
       const by = k => people.get(k) || null;
       list.forEach(p => {

@@ -1,7 +1,7 @@
 // Local record extraction. Preserve source wording, units, timestamps and admission context.
 // Headings supply context; narrative numbers are not automatically laboratory measurements.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.200'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.203'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -299,6 +299,8 @@
     // Local, rule-based. The source is never changed here: each finding carries the original line, the neighbouring lines and, only when a rule can
     // justify it, a labelled restoration candidate (推定・要確認). Where nothing can be inferred the candidate is null (確認不能).
     const BROKEN_TERMINAL_REGEX = /[。！？!?)）」』】〕:：;；.]$|\d\s*(?:%|％|mg|g|kg|mL|ml|L|cm|mm|回|度|℃|°C|mmHg|bpm|点|日|時|分|歳)?$/;
+    // 「異常なし」「陰性」「(-)」など、それだけで完結する所見の終わり方。語尾の「し」「い」が途中切れに見えても壊れた文ではない。
+    const BROKEN_COMPLETE_FINDING_REGEX = /(?:異常|問題|変化|所見|障害|症状|出血|浮腫|黄疸|発赤|腫脹|疼痛|雑音|嘔吐|下痢|なし|無し|ない|ありません|認めず|認めない|みられず|陰性|陽性|正常|良好|著明|軽度|中等度|高度|なし。?)$|[(（]\s*[-－+＋±]\s*[)）]$/;
     const BROKEN_CONT_END_REGEX = /(?:の|を|に|へ|が|は|も|や|と|で|から|まで|より|など|ため|ので|ながら|し|して|され|され、|、|・|[毎各約再未不非第当両諸])$/;
     const BROKEN_CONT_START_REGEX = /^(?:[、。，．)）」』】〕ぁぃぅぇぉっゃゅょゎー゛゜]|(?:の|を|に|へ|が|は|も|と|で|から|まで|より|など|ため|ので|ながら|して|され|して)(?![一-龥ァ-ヶ]{0,1}[:：]))/;
     const BROKEN_MOJIBAKE_REGEX = /[�□■◆◇▯]|[ÃÂ][\u0080-¿]|縺[぀-ヿ一-龥]|繧[぀-ヿ一-龥]|郢[぀-ヿ一-龥]|(.)\1{6,}|[?？]{3,}|[\u0000-\u0008\u000B\u000C\u000E-\u001F]/;
@@ -333,7 +335,7 @@
           if (prev && !BROKEN_TERMINAL_REGEX.test(prev.t)) setCand(prev.t + t, '前の行の続きとして連結', '中');
         }
         // ends in the middle of a phrase and the next line is not a new entry
-        if (next && t.length >= 6 && !BROKEN_TERMINAL_REGEX.test(t) && BROKEN_CONT_END_REGEX.test(t) && !BROKEN_STRUCT_START_REGEX.test(next.t)) {
+        if (next && t.length >= 6 && !BROKEN_TERMINAL_REGEX.test(t) && BROKEN_CONT_END_REGEX.test(t) && !BROKEN_COMPLETE_FINDING_REGEX.test(t) && !BROKEN_STRUCT_START_REGEX.test(next.t)) {
           reasons.push('文の途中で終わる（次の行に続く可能性）');
           setCand(t + next.t, '次の行を連結', next.t.length <= 30 ? '中' : '低');
         }

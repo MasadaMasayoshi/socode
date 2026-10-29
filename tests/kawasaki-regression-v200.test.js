@@ -51,7 +51,7 @@ test('分類: 遊び→余暇、食べ物の好み→食事、睡眠の習慣→
 test('分類: 鑑別診断は欲求に入れず、診断・治療・検査・既往は保持先として示す', () => {
   items.filter(i => /鑑別診断|敗血症|白血病|一般感染症/.test(i.text)).forEach(i => assert.equal(i.hendersonIds.length, 0, i.text));
   const rows = Array.from(app.buildTagAuditRows(cp));
-  const dest = re => { const r = rows.find(x => re.test(x.text)); return r && r.destination && r.destination.key; };
+  const dest = re => { const r = rows.find(x => re.test(x.text)); return r && r.destination && (r.destination.retained ? r.destination.retained.key : r.destination.key); }; // v.203: ヘンダーソンへの間接的な関連づけ候補が付く場合も、診断・治療・検査の保持先は残す
   assert.equal(dest(/^鑑別診断/), 'differential');
   assert.equal(dest(/ベニロン/), 'treatment');
   assert.equal(dest(/GOT/), 'labdata');
