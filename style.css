@@ -396,7 +396,8 @@
     .lab-trend-table .lt-name { display: block; color: var(--ink); font-size: 12.5px; }
     .lab-trend-table .lt-unit { font-size: 10px; color: var(--ink-muted); font-weight: 500; margin-right: .4rem; }
     .lab-trend-table .lt-ref { font-size: 10px; color: var(--ink-muted); font-weight: 500; }
-    .lab-trend-table tr.lt-group th { position: sticky; left: 0; text-align: left; background: var(--accent-soft); color: var(--accent-dark); font-size: 11px; font-weight: 700; padding: .25rem .6rem; }
+    .lab-trend-table tr.lt-group th .lt-group-label { position: sticky; left: .6rem; display: inline-block; }
+.lab-trend-table tr.lt-group th { position: static; left: 0; text-align: left; background: var(--accent-soft); color: var(--accent-dark); font-size: 11px; font-weight: 700; padding: .25rem .6rem; }
     .lab-trend-table tbody tr:hover td { background: var(--zebra); }
     .lab-trend-table td.lt-empty { background: transparent; }
     .lt-val { display: inline-flex; align-items: baseline; gap: .15rem; padding: .1rem .35rem; border-radius: var(--radius-sm); color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -1614,6 +1615,8 @@ tr.cmp-row>td.cmp-cell{padding:2px 6px}
   #view-labs .lab-trend-table th.lt-item, #view-labs .lab-trend-table td.lt-item { position: sticky; left: 0; background: var(--surface); z-index: 1; }
   #view-labs .lab-evaluation > summary { min-height: 44px; display: flex; align-items: center; }
 }
+/* 検査値の評価の中の比較表は、表の中だけで縦に動く入れ物にしない（指でページを縦にスクロールしても表に取られない）。横だけ動く */
+#view-labs #lab-evaluation-panel .cmp-wrap { max-height: none; overflow-x: auto; overflow-y: hidden; overscroll-behavior-y: auto; }
 @media (min-width: 1000px) {
   #view-labs > #lab-evaluation-panel { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow: auto; }
   #view-labs #lab-evaluation-panel .cmp-wrap { overflow-x: auto; }

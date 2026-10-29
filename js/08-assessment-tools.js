@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.208'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.217'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1359,7 +1359,7 @@
       table.rows.forEach(r => {
         if (r.group !== group) {
           group = r.group;
-          html += `<tr class="lt-group"><th colspan="${table.columns.length + 1}">${escapeHtml(group)}</th></tr>`;
+          html += `<tr class="lt-group"><th colspan="${table.columns.length + 1}"><span class="lt-group-label">${escapeHtml(group)}</span></th></tr>`;
         }
         html += `<tr><th class="lt-item"><span class="lt-name">${escapeHtml(r.key)}</span>${r.unit ? `<span class="lt-unit">${escapeHtml(r.unit)}</span>` : ''}${r.ref ? `<span class="lt-ref">${r.refIsGuide ? '目安 ' : '基準 '}${escapeHtml(r.ref)}</span>` : ''}</th>`;
         html += table.columns.map(c => {
@@ -1405,7 +1405,7 @@
       let body = '';
       let group = null;
       table.rows.forEach(r => {
-        if (r.group !== group) { group = r.group; body += `<tr class="lt-group"><th colspan="${cols.length + 2}">${escapeHtml(group)}</th></tr>`; }
+        if (r.group !== group) { group = r.group; body += `<tr class="lt-group"><th colspan="${cols.length + 2}"><span class="lt-group-label">${escapeHtml(group)}</span></th></tr>`; }
         const ch = compareValueChange(r, cols);
         const cells = cols.map(c => {
           const list = r.cells[c.key];
