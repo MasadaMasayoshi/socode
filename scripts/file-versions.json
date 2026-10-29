@@ -16,8 +16,8 @@
     "hash": "ae8f019ce82c480c"
   },
   "js/05-app-state-and-ui.js": {
-    "version": "v.178",
-    "hash": "733f4ef8a04f00fe"
+    "version": "v.236",
+    "hash": "684a64454bdac4bd"
   },
   "js/06-export.js": {
     "version": "v.227",
@@ -48,8 +48,8 @@
     "hash": "b59993514fddfa5a"
   },
   "js/13-compare-and-report.js": {
-    "version": "v.223",
-    "hash": "25b47cbe3868fc07"
+    "version": "v.236",
+    "hash": "1acf8920fa4e4178"
   },
   "js/14-drug-reference.js": {
     "version": "v.210",
@@ -60,8 +60,8 @@
     "hash": "620d898591671546"
   },
   "style.css": {
-    "version": "v.236",
-    "hash": "e1d1e4a70c8380e5"
+    "version": "v.237",
+    "hash": "4730e675a0124464"
   },
   "vendor/tailwind.css": {
     "version": "2026-10-06.14",
@@ -78,5 +78,9 @@
   "js/17-clinical-facts.js": {
     "version": "v.225",
     "hash": "1a4cc5e3cc4a4877"
+  },
+  "js/18-focus-assessment.js": {
+    "version": "v.236",
+    "hash": "a56bfa3809814bc8"
   }
 }

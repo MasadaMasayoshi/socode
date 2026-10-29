@@ -6,15 +6,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>看護アセスメント支援システム</title>
 
-  <meta name="app-version" content="v.236">
-  <meta name="app-file-versions" content="01:v.220,02:v.220,03:v.219,04:v.147,05:v.178,06:v.227,07:v.226,08:v.219,09:v.225,10:v.227,11:v.223,12:v.221,13:v.223,14:v.210,15:v.235,16:v.230,17:v.225">
+  <meta name="app-version" content="v.237">
+  <meta name="app-file-versions" content="01:v.220,02:v.220,03:v.219,04:v.147,05:v.236,06:v.227,07:v.226,08:v.219,09:v.225,10:v.227,11:v.223,12:v.221,13:v.236,14:v.210,15:v.235,16:v.230,17:v.225,18:v.236">
 
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css?v=2026-10-06.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preload" href="vendor/fonts/NotoSerifJP-subset.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=v.236">
+  <link rel="stylesheet" href="style.css?v=v.237">
 
   <link rel="stylesheet" href="vendor/tailwind.css?v=2026-10-06.14">
   <script>
@@ -119,6 +119,9 @@
         <button id="tab-genogram" class="tab-pill">
           ジェノグラム
         </button>
+        <button id="tab-focus" class="tab-pill">
+          重点アセスメント
+        </button>
         </div>
         <div class="nav-grp" data-step="plan"><span class="nav-gl"><span class="nav-no">3</span>計画</span>
         <button id="tab-careplan" class="tab-pill">
@@ -144,6 +147,7 @@
     <button type="button" data-tab-target="tab-labs">検査値</button>
     <button type="button" data-tab-target="tab-relation">関連図</button>
     <button type="button" data-tab-target="tab-genogram">ジェノグラム</button>
+    <button type="button" data-tab-target="tab-focus">重点アセスメント</button>
   </nav>
   <nav id="mobile-step-nav" class="mobile-step-nav" aria-label="作業の段階">
     <button type="button" data-step-key="collect" data-tab-target="tab-so-board"><span class="msn-no">1</span><span>情報収集</span></button>
@@ -375,6 +379,14 @@
       <p class="cp-help-text text-[11px] text-[var(--ink-muted)] leading-relaxed" onclick="this.classList.toggle('is-open')">看護問題ごとに目標とOP（観察）・TP（援助）・EP（教育）を書き、毎日の実施内容・患者の反応・目標の達成状況を記録します。上下の矢印で優先順位を入れ替えられます。書いた内容は自動で保存されます。「全計画を評価」で、計画の不足と記録に応じた次の見直しを確認できます。</p>
       <div id="careplan-set-review"></div>
       <div id="careplan-list" class="flex flex-col gap-3"></div>
+    </div>
+
+    <div id="view-focus" class="hidden surface p-4 flex flex-col gap-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="font-display font-semibold text-[var(--ink)] text-[15px] flex items-center"><i class="fa-solid fa-table-list text-[var(--accent)] mr-2"></i>重点アセスメント<span class="text-[11px] font-normal text-[var(--ink-muted)] ml-2">S・O → 分析・解釈 → 統合 → 看護問題の明確化</span></h2>
+        <button type="button" class="btn btn-outline" onclick="copyFocusAssessment()"><i class="fa-regular fa-copy"></i> この欲求をコピー</button>
+      </div>
+      <div id="focus-assessment-body"></div>
     </div>
 
     <div id="view-genogram" class="hidden surface p-4 flex flex-col gap-3">
@@ -1341,7 +1353,7 @@
   <script src="js/02-reference-data.js?v=v.220"></script>
   <script src="js/03-extraction-helpers.js?v=v.219"></script>
   <script src="js/04-server-sync.js?v=v.147"></script>
-  <script src="js/05-app-state-and-ui.js?v=v.178"></script>
+  <script src="js/05-app-state-and-ui.js?v=v.236"></script>
   <script src="js/06-export.js?v=v.227"></script>
   <script src="js/07-classification.js?v=v.226"></script>
   <script src="js/08-assessment-tools.js?v=v.219"></script>
@@ -1349,11 +1361,12 @@
   <script src="js/10-reference-page-and-startup.js?v=v.227"></script>
   <script src="js/11-own-assessment.js?v=v.223"></script>
   <script src="js/12-missing-checks-and-care-plan.js?v=v.221"></script>
-  <script src="js/13-compare-and-report.js?v=v.223"></script>
+  <script src="js/13-compare-and-report.js?v=v.236"></script>
   <script src="js/14-drug-reference.js?v=v.210"></script>
   <script src="js/15-relation-map.js?v=v.235"></script>
   <script src="js/16-genogram.js?v=v.230"></script>
   <script src="js/17-clinical-facts.js?v=v.225"></script>
+  <script src="js/18-focus-assessment.js?v=v.236"></script>
   <script>
   // Manual source comparison and reversible text edits on the active chart.
   (function(){

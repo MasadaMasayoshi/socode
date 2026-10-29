@@ -2,7 +2,7 @@
 // Confirmations and Undo verify the captured patient/target; local writes require full readback.
 // AI transport accepts image OCR only; classification and clinical generation stay local.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = 'v.178'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['05'] = 'v.236'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ==========================================================================
@@ -2603,6 +2603,7 @@
     document.getElementById('tab-careplan')?.addEventListener('click', () => switchView('careplan'));
     document.getElementById('tab-relation')?.addEventListener('click', () => switchView('relation'));
     document.getElementById('tab-genogram')?.addEventListener('click', () => switchView('genogram'));
+    document.getElementById('tab-focus')?.addEventListener('click', () => switchView('focus'));
 
     function updateNeedNavTop() {
       const header = document.querySelector('header');
@@ -2638,6 +2639,10 @@
       const tabGenogram = document.getElementById('tab-genogram');
       if (tabGenogram) tabGenogram.className = `tab-pill ${viewName === 'genogram' ? 'active' : ''}`;
       if (viewName === 'genogram' && typeof renderGenogram === 'function') renderGenogram();
+      document.getElementById('view-focus')?.classList.toggle('hidden', viewName !== 'focus');
+      const tabFocus = document.getElementById('tab-focus');
+      if (tabFocus) tabFocus.className = `tab-pill ${viewName === 'focus' ? 'active' : ''}`;
+      if (viewName === 'focus' && typeof renderFocusAssessment === 'function') renderFocusAssessment();
       if (viewName === 'assessment') renderAssessmentTable();
       if (viewName === 'reference') renderReferenceList();
       if (viewName === 'labs') renderLabTrend();

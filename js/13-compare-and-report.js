@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.223'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.236'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -748,9 +748,9 @@
     (function v108Presentation() {
       if (typeof document === 'undefined' || !document.getElementById) return;
       const $ = id => document.getElementById(id);
-      const VIEW_TABS = ['tab-so-board', 'tab-assessment', 'tab-labs', 'tab-relation', 'tab-genogram', 'tab-careplan', 'tab-reference'];
-      const ASSESS_TABS = ['tab-assessment', 'tab-labs', 'tab-relation', 'tab-genogram'];
-      const STEP_OF = { 'tab-so-board': 'collect', 'tab-assessment': 'assess', 'tab-labs': 'assess', 'tab-relation': 'assess', 'tab-genogram': 'assess', 'tab-careplan': 'plan', 'tab-reference': 'ref' };
+      const VIEW_TABS = ['tab-so-board', 'tab-assessment', 'tab-labs', 'tab-relation', 'tab-genogram', 'tab-focus', 'tab-careplan', 'tab-reference'];
+      const ASSESS_TABS = ['tab-assessment', 'tab-labs', 'tab-relation', 'tab-genogram', 'tab-focus'];
+      const STEP_OF = { 'tab-so-board': 'collect', 'tab-assessment': 'assess', 'tab-labs': 'assess', 'tab-relation': 'assess', 'tab-genogram': 'assess', 'tab-focus': 'assess', 'tab-careplan': 'plan', 'tab-reference': 'ref' };
       function currentTab() { return VIEW_TABS.find(id => $(id) && $(id).classList.contains('active')) || 'tab-so-board'; }
       function syncStepNav() {
         const cur = currentTab(), step = STEP_OF[cur];
