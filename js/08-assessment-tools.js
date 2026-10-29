@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.202'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.208'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -662,7 +662,8 @@
           const untagged = isUntaggedItem(i);
           const selected = selectedCardIds.has(i.id);
 
-          const untaggedBadge = untagged ? `<span class="ov-untagged-badge" title="${escapeHtml(untaggedReasonOf(i))}"><i class="fa-solid fa-triangle-exclamation"></i> タグ未設定</span>` : '';
+          const placed = untagged && typeof cardPlacementOf === 'function' ? cardPlacementOf(i) : null;
+          const untaggedBadge = placed ? `<span class="ov-untagged-badge" style="background:var(--slate-soft);color:var(--slate);" title="${escapeHtml(placed.title)}"><i class="fa-solid fa-box-archive"></i> ${escapeHtml(placed.label)}</span>` : untagged ? `<span class="ov-untagged-badge" title="${escapeHtml(untaggedReasonOf(i))}"><i class="fa-solid fa-triangle-exclamation"></i> タグ未設定</span>` : '';
           const tagsHtml = (type === 'unnecessary' || untagged || !tags) ? '' : ` <span class="ov-tags">〔${escapeHtml(tags)}〕</span>`;
 
           const check = `<input type="checkbox" class="ov-check" ${selected ? 'checked' : ''} onclick="event.stopPropagation()" onchange="selectCardFromOverview('${safeDomId(i.id)}', this.checked)" title="選択して元の文章の該当箇所を表示（選択は保持されます）">`;

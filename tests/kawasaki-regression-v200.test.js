@@ -31,14 +31,14 @@ test('孤立した単位行（表の断片）がない／情報は失われな�
   ['白血球', '血小板', 'CRP', 'GOT', 'GPT', 'LDH', '尿タンパク', '心電図'].forEach(k => assert.ok(items.some(i => i.text.includes(k)), k));
   ['ベニロン', 'アスピリン', 'ホスミシン', '一般感染症', '敗血症', '白血病'].forEach(k => assert.ok(items.some(i => i.text.includes(k)), k));
 });
-test('検査値の単位: 上付き指数を保ち、等価な単位だけを換算する（LDHなど基準のない項目は換算しない）', () => {
+test('検査値の単位: 上付き指数を保ち、等価な単位だけを換算する（基準のない項目は換算しない）', () => {
   const w = app.analyzeLabCard('白血球　173×10²/mm³', null);
   assert.equal(w.valueStd, 17300); assert.equal(w.stdUnit, '/μL');
   const p = app.analyzeLabCard('血小板　44.5×10⁴/μL', null);
   assert.equal(p.unitRaw, '×10^4/μL'); assert.equal(p.value, 44.5);
   const a = app.analyzeLabCard('GPT　96mIU/mL', null);
   assert.equal(a.unit, 'U/L'); assert.equal(a.value, 96);
-  assert.equal(app.analyzeLabCard('LDH　416', null), null);
+  assert.equal(app.analyzeLabCard('フェリチン　416', null), null);
 });
 test('分類: 遊び→余暇、食べ物の好み→食事、睡眠の習慣→睡眠、掻痒で眠れない→睡眠と皮膚', () => {
   assert.deepEqual(Array.from(byText(/^好きな遊び/).hendersonIds), [13]);

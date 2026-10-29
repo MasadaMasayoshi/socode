@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.207'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.208'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -1045,6 +1045,20 @@ function buildTagAuditRows(cp) {
   });
   return rows;
 }
+
+// v.208: タグを付けないカードの置き場（保持先・ヘンダーソンとの間接関連）。カード画面の「タグ未設定」表示に代えて使う。内容もタグも変えない表示用の判定。
+function cardPlacementOf(item) {
+  const text = String((item && item.text) || '');
+  if (!text) return null;
+  const assoc = typeof hendersonAssociations === 'function' ? (hendersonAssociations(text) || []) : [];
+  const dest = typeof proposeCardDestination === 'function' ? proposeCardDestination(text) : null;
+  if (assoc.length) {
+    const names = assoc.map(a => (typeof hendersonNameOf === 'function' ? hendersonNameOf(a.need) : a.need)).join('・');
+    return { label: `間接：${names}`, title: Array.from(new Set(assoc.map(a => a.reason))).join(' / ') + (dest ? `（保持先：${dest.label}）` : '') + '。直接の所見ではないためタグは付けず、手がかりとして保持しています。' };
+  }
+  if (dest) return { label: `保持先：${dest.label.replace(/（.*$/, '')}`, title: `${dest.label}：${dest.to}` };
+  return null;
+}
 function buildTagAuditText(cp) {
   const rows = buildTagAuditRows(cp);
   if (!rows.length) return '【タグ監査】修正候補はありません（未分類0件を、分類が正しい根拠にはしていません）';
@@ -1054,7 +1068,7 @@ function buildTagAuditText(cp) {
 
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {
-    buildTagAuditRows, buildTagAuditText, hendersonAssociations, HENDERSON_ASSOCIATION_RULES, proposeCardDestination, treatmentRecords, treatmentObservationLinks, treatmentStatusOf, familyStatements, CHECKPOINT_MAX, createCheckpoint, deleteCheckpoint, checkpointList, diffCards, inlineTextDiffHtml, maybeCheckpointOnOpen,
+    buildTagAuditRows, buildTagAuditText, cardPlacementOf, hendersonAssociations, HENDERSON_ASSOCIATION_RULES, proposeCardDestination, treatmentRecords, treatmentObservationLinks, treatmentStatusOf, familyStatements, CHECKPOINT_MAX, createCheckpoint, deleteCheckpoint, checkpointList, diffCards, inlineTextDiffHtml, maybeCheckpointOnOpen,
     restoreCardFromCheckpoint, splitCardIntoParts, undoLast, pushUndo, workflowStatus, REPORT_FORMATS, defaultReportLayout, buildReport, reportToText, reportToHtml, reportDayOptions,
 
     calculateAndAddDerivedMetricCards, parseAiJsonArray, safeDomId, buildPrintAiSectionsHtml, formatEditLogEntry, storedAiHtml, isAiStepRunning

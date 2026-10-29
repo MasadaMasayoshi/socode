@@ -79,7 +79,7 @@ test('検査値: 元の文は変えず、指数を保ち、換算は数学的に
   assert.equal(app.analyzeLabCard('GPT　96mIU/mL', null).valueStd, 96);
   const bad = app.analyzeLabCard('白血球　173×10²/dl', null);
   assert.ok(!bad || bad.quality !== 'valid' || bad.unitRaw !== '', 'unknown unit must not silently become valid with a made-up conversion');
-  assert.equal(app.analyzeLabCard('LDH　416', null), null);
+  assert.equal(app.analyzeLabCard('フェリチン　416', null), null);
 });
 test('検査値: 小児では成人の基準で高値・低値を判定しない（CRPなど小児で使える基準は使う）', () => {
   const run = f => app.withExtractionContext(kText, f);

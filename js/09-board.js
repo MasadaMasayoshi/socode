@@ -1,7 +1,7 @@
 // Board editing and source navigation. All views share the same saved cards.
 // Preserve source ownership during selection, bulk actions, merges and Undo.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.164'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['09'] = 'v.208'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -228,7 +228,8 @@
         const need = HENDERSON_NEEDS.find(n => n.id === hId);
         return need ? `<span class="tag-chip">${need.name} <button onclick="removeHendersonTag(${jsArg(item.id)}, ${need.id})" class="text-[var(--accent)]/60 hover:text-[var(--brick)] transition"><i class="fa-solid fa-times"></i></button></span>` : '';
       }).join('');
-      const untaggedWarningHtml = isUntagged ? `<span class="field-chip" style="background:var(--brick);color:var(--on-fill);cursor:help;" title="${escapeHtml(untaggedReasonOf(item))}"><i class="fa-solid fa-triangle-exclamation mr-0.5"></i>タグ未設定 <i class="fa-regular fa-circle-question ml-0.5"></i></span>` : '';
+      const placement = isUntagged && typeof cardPlacementOf === 'function' ? cardPlacementOf(item) : null;
+      const untaggedWarningHtml = placement ? `<span class="field-chip" style="background:var(--slate-soft);color:var(--slate);cursor:help;" title="${escapeHtml(placement.title)}"><i class="fa-solid fa-box-archive mr-0.5"></i>${escapeHtml(placement.label)}</span>` : isUntagged ? `<span class="field-chip" style="background:var(--brick);color:var(--on-fill);cursor:help;" title="${escapeHtml(untaggedReasonOf(item))}"><i class="fa-solid fa-triangle-exclamation mr-0.5"></i>タグ未設定 <i class="fa-regular fa-circle-question ml-0.5"></i></span>` : '';
 
       const familyChipHtml = isFamilySpeech(item.text) ? '<span class="field-chip" style="background:var(--gold-soft);color:var(--gold);" title="家族の発言です（本人の発言ではありません）"><i class="fa-solid fa-people-roof mr-0.5"></i>家族</span>' : '';
       const basicInfoChipHtml = isBasicInfoItem(item) ? '<span class="field-chip" style="background:var(--slate-soft);color:var(--slate);" title="患者の基礎情報です。ヘンダーソンの14項目には入れず、タグ未設定の警告にもしません。"><i class="fa-solid fa-id-card mr-0.5"></i>基礎情報</span>' : '';
