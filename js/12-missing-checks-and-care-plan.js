@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.212'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.213'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -2855,6 +2855,7 @@
       out += '[Generalization] For every topic, state the general condition it rests on (disease group, symptom class, lab key, phase, age group) and say whether it also applies to other cases of that group; mark patient-specific or one-case advice as such. Disease-specific content is welcome: the scope line is where you say who it applies to. Prefer answers that can be written as a reusable table row, but never drop disease-specific knowledge just because it is specific.\n';
       out += '[Sources] Prefer textbooks (title, edition, page) and official guidelines (name, year). Mark anything you cannot verify as 未確認 but still include it; missing sources are not a reason to leave something out.\n';
       out += '[Language] Write the answers in Japanese. Keep nursing terms as they are (看護問題, ヘンダーソンの14項目, OP/TP/EP).\n';
+      out += '[Delivery] Return the answer as a downloadable Markdown (.md) file if you can create files; otherwise split the answer into parts of at most about 4 topics each and label them Part 1/N, 2/N… so that nothing is cut off. Keep every number, unit, day count and source exactly as written; do not summarize at the end.\n';
       out += '[Answer format] Use exactly this template, once per topic, in the same order as the topic list. Be concise; do not pad.\n';
       out += '  Topic: 「term」\n';
       out += '  1. 内容: 1-3 sentences, general facts only.\n';

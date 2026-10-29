@@ -40,6 +40,7 @@ out += '[Generalization] For every topic state the general condition it rests on
 out += '[Sources] Prefer Japanese textbooks (title, edition, page) and official guidelines (name, year, page). Write 不明 where unknown; never fill gaps with guesses.\n';
 out += '[New categories] If a piece of information does not fit any of the 14 needs or the existing concept tags without distortion, do not force it. Say where it belongs and whether a NEW concept/category is warranted: give the general condition (disease group, phase, subject, age group), at least 3 distinct cases it would cover, and why an existing destination is insufficient.\n';
 out += '[Language] Answer in Japanese. Keep nursing terms (看護問題, ヘンダーソンの14項目, OP/TP/EP).\n';
+out += '[Delivery] Return the answer as a downloadable Markdown (.md) file if you can create files; otherwise split the answer into parts of at most about 4 topics each and label them Part 1/N, 2/N… so that nothing is cut off. Keep every number, unit, day count and source exactly as written; do not summarize at the end.\n';
 out += '[Answer format] One block per topic: 1. 内容 2. ヘンダーソン14項目（番号と理由）3. 因果（原因→途中の変化→結果）4. 看護 OP/TP/EP 5. 出典 6. 範囲（当てはまらない条件）。Add useful topics you find under 追加提案 with 理由.\n\n';
 out += '## A. 知識が薄い・未登録の疾患・症状\n';
 Object.entries(byGroup).forEach(([g, l]) => { out += `- ${g}: ${l.join('、')}\n`; });
