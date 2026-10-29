@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.226'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.249'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -1506,6 +1506,7 @@
 
       // 表（タブ区切り）の読み取り：一般条件＝先頭の角セルが空の見出し行（「　\t1日目\t2日目」）と、途中の空セル（その時点で未記録の欄）を、列の位置を保ったまま扱う。
       // 見出し行の先頭の空セルを trim で落とすと、見出しが1列少なくなり、最初のデータ行が見出しに取り違えられる。
+      const TABLE_MEASURE_CELL_REGEX = /\d[\d.,]*\s*(?:[~～〜\-−]\s*[\d.,]+)?\s*(?:mg|g|mL|ml|μ|µ|u\/|U\/|%|mEq|mmol|mmHg|×|\/|kg|cm|秒|万|千|回|度|℃|以下|以上)|[~～〜]\s*\d/;
       const tabCells = line => {
         const raw = String(line).replace(/\r$/, '').split('\t').map(c => c.trim());
         const packed = String(line).trim().split(/\t+/).map(c => c.trim());
@@ -1515,7 +1516,7 @@
         const hc = tabCells(step1[i]);
         let header = hc.packed, corner = false;
         if (hc.raw.length >= 3 && hc.raw[0] === '' && hc.raw.slice(1).every(Boolean)) { header = hc.raw; corner = true; }
-        if (header.length < 3 || header.slice(corner ? 1 : 0).some(c => !c) || /基準|正常値|検査|単位/.test(header.join(' ')) || header.slice(1).some(c => /^[\d.,]+$/.test(c))) continue;
+        if (header.length < 3 || header.slice(corner ? 1 : 0).some(c => !c) || /基準|正常値|検査|単位/.test(header.join(' ')) || header.slice(1).some(c => /^[\d.,]+$/.test(c) || TABLE_MEASURE_CELL_REGEX.test(c))) continue; // 一般条件: 数値＋単位や範囲の入った行は、列の見出しではなくデータ行（検査表の最初の行を見出しに取り違えない）
         let j = i + 1;
         const rows = [];
         while (j < step1.length) {
@@ -1580,7 +1581,7 @@
       });
     }
 
-    const TAB_TABLE_REF_HEADER_REGEX = /^(?:基準値|基準範囲|正常値|参考値|正常範囲)$/;
+    const TAB_TABLE_REF_HEADER_REGEX = /^(?:基準値|基準範囲|正常値|参考値|正常範囲)(?:\s*[（(][^）)]{0,14}[）)])?$/; // 列名の後ろの注記（資料記載・参考）は列の判定に影響させない
     function tabTableColumnDay(label) {
       const t = String(label || '').normalize('NFKC').trim();
       let m;
@@ -1870,7 +1871,7 @@
         const numberedChapterHeadingMatch = cleanLine.match(/^\d{1,2}[.．)）]\s*([^\d\s:：。、,][^:：。、,]{0,29})$/);
         const isNumberedChapterHeading = !!numberedChapterHeadingMatch &&
           !/(なし|無し|あり|有り|良好|不良|痛|実施|施行|使用|↑|↓|認め|みられ|見られ|摂取|覚醒|出現|持続|訴え|増強|軽減|低下|上昇|改善|悪化|している|していた|した$|する$)/.test(numberedChapterHeadingMatch[1]) &&
-          !/\d/.test(numberedChapterHeadingMatch[1].replace(/(?:術後|術前|入院|産褥)?\s*\d+\s*日目/g, ''));
+          !/\d/.test(numberedChapterHeadingMatch[1].replace(/(?:術後|術前|入院|産褥)?\s*\d+\s*日目/g, '').replace(/\s*[（(]\s*(?:\d{1,4}年)?\d{1,2}月\d{1,2}日(?:\s*[（(][月火水木金土日][）)])?\s*[）)]\s*$/, '')); // 見出しの末尾の暦日（6月10日）は、見出しの判定で数字として数えない（時期は見出し語から取る）
         cleanLine = cleanLine.replace(/^(?:[・○●◯◎□■▪▫◆◇][\s　]*)+/, '');
 
         const beforeSheetPrefix = cleanLine;
@@ -1900,7 +1901,7 @@
           continue;
         }
 
-        const periodHeading = cleanLine.match(/^(入院時|入院前|術前|術中|術後|手術当日|手術前日)の(?:状況|様子|経過|状態|記録|情報)$/) ||
+        const periodHeading = cleanLine.match(/^(入院時|入院前|術前|術中|術後|手術当日|手術前日)の(?:状況|様子|経過|状態|記録|情報)(?:\s*[（(]\s*(?:\d{1,4}年)?\d{1,2}月\d{1,2}日\s*[）)])?$/) ||
           (/^入院から手術(?:まで|前)の経過$/.test(cleanLine) ? [cleanLine, '術前'] : null);
         if (periodHeading) {
           globalTimestamp = applyTimeMarker(periodHeading[1]);
