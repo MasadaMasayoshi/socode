@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.186'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.200'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -161,6 +161,8 @@
     }
     function detectMultipleHendersonTags(text) {
       if (isPatientIdentityLine(text) || isStructuralHeadingLine(text)) return [];
+      // 鑑別診断の列挙（「鑑別診断」「1）発熱：一般感染症」「2）発熱・発疹：敗血症、…」）は、診断を考える材料であって本人の状態の記述ではない。欲求には入れない。
+      if (/^\s*鑑別診断/.test(String(text || '')) || (/^\s*[0-9０-９]\s*[)）][^：:]{1,20}[：:]/.test(String(text || '')) && /(?:症候群|白血病|敗血症|リウマチ熱|感染症|リンパ節炎|川崎病)/.test(String(text || '')) && !/[。「]/.test(String(text || '')))) return [];
       const raw = detectMultipleHendersonTagsRaw(text);
       const clean = String(text || '').replace(/（問い：[^）]*）/g, '');
       let ids = hendersonRelevanceFilter(clean, raw);
@@ -452,13 +454,13 @@
     const LAB_UNIT_EQUIVALENTS = {
       WBC: ['/μL', '/mm3'], RBC: ['×10^4/μL', '万/μL', '万/mm3'], Plt: ['×10^4/μL', '万/μL', '万/mm3', '万'],
       Na: ['mEq/L', 'mmol/L'], K: ['mEq/L', 'mmol/L'], Cl: ['mEq/L', 'mmol/L'], 'Dダイマー': ['μg/mL', 'mg/L'],
-      AST: ['U/L', 'IU/L'], ALT: ['U/L', 'IU/L'], ALP: ['U/L', 'IU/L'], 'γGTP': ['U/L', 'IU/L'], 'アミラーゼ': ['U/L', 'IU/L']
+      AST: ['U/L', 'IU/L', 'mIU/mL'], ALT: ['U/L', 'IU/L', 'mIU/mL'], ALP: ['U/L', 'IU/L', 'mIU/mL'], 'γGTP': ['U/L', 'IU/L', 'mIU/mL'], 'アミラーゼ': ['U/L', 'IU/L', 'mIU/mL']
     };
     const LAB_UNIT_CONVERSIONS = {
       CRP: { 'mg/L': 0.1 }, Hb: { 'g/L': 0.1 }, TP: { 'g/L': 0.1 }, Alb: { 'g/L': 0.1 },
       Cre: { 'μmol/L': 1 / 88.4 }, Cr: { 'μmol/L': 1 / 88.4 }, BUN: {}, 'T-Bil': { 'μmol/L': 1 / 17.1 },
       '血糖': { 'mmol/L': 18 },
-      WBC: { '×10^3/μL': 1000, '千/μL': 1000, '×10^2/μL': 100 },
+      WBC: { '×10^3/μL': 1000, '千/μL': 1000, '×10^2/μL': 100, '×10^2/mm3': 100 },
       Plt: { '×10^3/μL': 0.1, '/μL': 0.0001, '/mm3': 0.0001 },
       RBC: { '×10^6/μL': 100 }
     };
@@ -1606,7 +1608,8 @@
       return out;
     }
     function groupClinicalPhrasesWithTimestamps(text) {
-
+      // 単位の「ℓ」（リットルの筆記体 U+2113）は L と同じ文字。分割や単位認識を妨げないよう L にそろえる（値は変えない）。
+      text = String(text == null ? '' : text).replace(/\u2113/g, 'L');
       return withExtractionContext(text, () => groupClinicalPhrasesWithTimestampsInner(text));
     }
     function groupClinicalPhrasesWithTimestampsInner(text) {
@@ -1717,6 +1720,8 @@
       const WRAPPED_ENUM_VALUE_CONTINUATION_REGEX =
         /(●[^\n：:。、,]{1,20})\r?\n[ \t]*([0-9０-９]+(?:\.[0-9]+)?[^\s、,。\n]{0,10}[、,])/g;
       text = text.replace(WRAPPED_ENUM_VALUE_CONTINUATION_REGEX, '$1：$2');
+      // 「●住環境」の次の行（空行をはさむ・「：」で始まる）に内容が続く形は、見出しを内容に結んで1行にする（見出しだけが前のカード末尾に残らないようにする）。
+      text = text.replace(/^[ \t]*●[ \t]*([^\n：:。、,，「」（）()＜＞<>]{1,16}?)[ \t]*\r?\n(?:[ \t]*\r?\n)*[ \t]*[：:]?[ \t]*(?=[^\s●＜<【■◆])/gm, '●$1：');
 
       const SPEAKER_LEAD_ONLY_REGEX = /^(?:本人|患者|患者様|担当看護師|受け?持ち?看護師|看護師|Ns|主治医|担当医|執刀医|医師|Dr\.?|PT|OT|理学療法士|作業療法士|薬剤師|栄養士|家族|長男|長女|次男|次女|妻|夫|息子|娘|嫁)(?:さん|氏)?(?:より|から|が|は)?[:：]?$/;
       const lines = (() => {

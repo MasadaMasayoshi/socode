@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.187'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.200'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1668,7 +1668,8 @@
 
     function analyzeLabCard(text, previous) {
       const src = String(text || '').trim();
-      const t = src.normalize('NFKC');
+      // 上付き指数（10⁴）は NFKC で「104」になり桁が変わるため、先に 10^4 の形にそろえる。
+      const t = src.replace(/10([⁰¹²³⁴⁵⁶⁷⁸⁹]+)/g, (m0, sup) => '10^' + Array.from(sup).map(c => '⁰¹²³⁴⁵⁶⁷⁸⁹'.indexOf(c)).join('')).normalize('NFKC');
       const m = LAB_VAL_START_REGEX.exec(t);
       if (!m) {
 

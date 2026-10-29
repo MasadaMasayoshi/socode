@@ -1,7 +1,7 @@
 // Local record extraction. Preserve source wording, units, timestamps and admission context.
 // Headings supply context; narrative numbers are not automatically laboratory measurements.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.186'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.200'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -29,7 +29,7 @@
     ];
 
     const LAB_NUMBER_SOURCE = '\\d(?:[\\d,]*\\d)?(?:\\.\\d+)?';
-    const LAB_UNIT_WORDS = ['mL/min/1.73m2', 'mL/分/1.73m2', '×10^6/μL', '×10^4/μL', '×10^3/μL', '×10^2/μL', '×10^4/uL', '×10^3/uL', 'x10^4/μL', 'x10^3/μL',
+    const LAB_UNIT_WORDS = ['×10²/mm³', '×10^2/mm3', '×10²/μL', '×10²/uL', '×10^2/μL', 'mIU/mL', 'mIU/L', 'μIU/mL', 'uIU/mL', 'mL/min/1.73m2', 'mL/分/1.73m2', '×10^6/μL', '×10^4/μL', '×10^3/μL', '×10^2/μL', '×10^4/uL', '×10^3/uL', 'x10^4/μL', 'x10^3/μL',
       '×10⁴/μL', '×10³/μL', '万/μL', '万/uL', '万/µL', '万/mm3', '万/mm³', '千/μL', '千/uL', '/μL', '/uL', '/µL', '/mm3', '/mm³',
       'μg/mL', 'ug/mL', 'µg/mL', 'μg/dL', 'ng/mL', 'pg/mL', 'mg/dL', 'mg/L', 'g/dL', 'g/L', 'mEq/L', 'mmol/L', 'μmol/L', 'umol/L', 'µmol/L',
       'IU/L', 'U/L', 'fL', 'pg', '%', '秒', '万', '/mL',

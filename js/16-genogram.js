@@ -1,7 +1,7 @@
 // Genogram (家族構成図): built from the record, then editable. Mirrors the relation map pattern (auto build -> edit -> save with the patient -> export).
 // Kinship words are a built-in dictionary (内蔵辞書 2026-10-16（出典未確認）). Nothing is invented: only members, ages and notes written in the record are drawn.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.181'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['16'] = 'v.200'; // Version stamp (scripts/stamp-version.js)
 
     const GG_PROVENANCE = '内蔵辞書 2026-10-16（出典未確認）';
     // canonical key -> [role label, sex, generation, order within the row]
@@ -231,6 +231,8 @@
       if (sentences.some(s => /一人暮らし|ひとり暮らし|独居/.test(s))) idx.living = '独居';
       else if (list.some(p => p.living === '同居')) idx.living = '同居';
       list.unshift(idx);
+      // v.200: 本人が小児（15歳未満）のとき、「妻」「夫」は本人の配偶者ではない（親の発言・描写中の語）。本人の配偶者・姻族は作らない。
+      if (idx.age !== null && idx.age < 15) list = list.filter(p => p.index || !/^(?:wife|husband|spouse|partner|fil|mil)$/.test(String(p.id).replace(/#\d+$/, '')));
       // links
       const by = k => people.get(k) || null;
       list.forEach(p => {
