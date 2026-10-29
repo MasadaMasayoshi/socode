@@ -1347,7 +1347,7 @@ html[data-theme="dark"] .rm-canvas-wrap .rm-marker-arrow-sel path { fill: #F59E6
 .rm-toolbar .rm-more .rm-group { display: grid; grid-template-columns: 1fr; gap: 2px; padding: 0 0 6px; border: 0; border-bottom: 1px solid var(--line-soft); width: 100%; }
 .rm-toolbar .rm-more .rm-more-item { min-height: 40px; flex-shrink: 0; }
 .rm-toolbar .rm-more .rm-bridge-btn.is-on { background: var(--surface); color: var(--accent-dark); }
-@media (max-width: 1100px) {
+@media (max-width: 999px) {
   .toolbar-label-tail { display: none; }
 }
 @media (max-width: 767px) {
@@ -1511,7 +1511,7 @@ tr.cmp-row>td.cmp-cell{padding:2px 6px}
 #assessment-single .asc-card { font-size: 14px; line-height: 1.6; padding: .55rem .7rem; border-radius: var(--radius-sm); }
 #assessment-single .asm-col-title { font-size: 15px; }
 #assessment-single .asm-single-head b { font-size: 18px; }
-@media (min-width: 1100px) {
+@media (min-width: 1000px) {
   #view-assessment:not(.hidden) { display: grid; grid-template-columns: 240px minmax(0, 1fr); column-gap: 20px; row-gap: 14px; align-items: start; }
   #view-assessment > * { grid-column: 1 / -1; }
   #view-assessment > .need-nav { grid-column: 1; grid-row: span 3; position: sticky; top: var(--need-nav-top, 0px); flex-direction: column; align-items: stretch; padding: 8px; gap: 4px; }
@@ -1846,7 +1846,7 @@ option:checked { background: var(--accent-soft); color: var(--accent-dark); font
 .suf-evidence-chip:hover { box-shadow: 0 3px 8px rgba(0,0,0,.18); }
 
 /* --- v.115 tablet portrait: let the step tabs wrap so 看護計画 is never cut off --- */
-@media (min-width: 641px) and (max-width: 1099px) {
+@media (min-width: 641px) and (max-width: 999px) {
   .nav-groups { flex-wrap: wrap !important; overflow: visible; row-gap: 4px; }
   .nav-grp { flex: 0 0 auto; }
 }
