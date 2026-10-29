@@ -34,3 +34,9 @@ test('ジェノグラム：複合語の「母親」と夫婦それぞれの親�
   const by = r => Array.from(g2.persons).find(p => p.role === r);
   assert.equal(by('父').age, 35); assert.equal(by('母').age, 30);
 });
+
+test('退院先・住まい・自宅周辺の環境は9（環境）に付く。入浴など別の行為の「自宅で」は付けない', () => {
+  const ids = t => Array.from(Array.from(app.classifyTextByRules(t))[0].hendersonIds);
+  ['退院先は自宅の予定', '施設入所の予定', '自宅周辺は坂道が多い', '自宅の近くにスーパーがある'].forEach(t => assert.ok(ids(t).includes(9), t));
+  assert.ok(!ids('自宅で入浴している').includes(9));
+});
