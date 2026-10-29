@@ -1,10 +1,10 @@
 # Nursing assessment support
 
-Japanese learning-support app with a shared Node/Express backend. AI is limited to image OCR; classification, assessment, plans and diagrams use local rules. Reference material is not clinical approval.
+Japanese learning-support app (static web app; the Node/Express server was removed in v.203). AI is limited to image OCR; classification, assessment, plans and diagrams use local rules. Reference material is not clinical approval.
 
 ## Develop
 
-Use Node 20. Run `npm ci`, then `npm start`; open `http://localhost:3000`. Directly opening `index.html` supports local use but cannot persist shared learning or synchronize patients. Keep one working checkout; `scripts/move-to-dev-folder.ps1` can copy a Windows checkout outside OneDrive, including private files. Verify the copy before removing anything.
+Use Node 20. Open `index.html` directly (or serve the folder statically). Data is kept in the browser only; there is no shared server, so shared learning and cross-device sync are unavailable. Keep one working checkout; `scripts/move-to-dev-folder.ps1` can copy a Windows checkout outside OneDrive, including private files. Verify the copy before removing anything.
 
 ## Code map
 
@@ -16,7 +16,6 @@ Use Node 20. Run `npm ci`, then `npm start`; open `http://localhost:3000`. Direc
 | `js/06–10` | Exports, classification, assessment tools, board, startup/OCR |
 | `js/11–15` | Own assessment, care plans/records, comparison/history, semantic rules, relation map |
 | `clinical-knowledge/` | Read-only references, quality checks, fictional practice |
-| `server.js` | Shared persistence and API |
 | `vendor/` | Bundled CSS/icons and licenses |
 | `scripts/`, `tests/` | Maintenance, packaging, regression and browser checks |
 
@@ -68,6 +67,6 @@ After runtime asset changes, use `npm run stamp -- <version>` to update changed 
 
 ## Hosting and publication
 
-GitHub source hosting alone does not run Express. A Node host runs `npm ci` and `npm start`. JSON persistence needs durable disk; set `MONGODB_URI` to use MongoDB on ephemeral hosts. Keep credentials and `data/` private, use HTTPS, and configure database access for the chosen host. Gemini credentials are user-local in the browser; shared patient data is a separate backend boundary.
+The app is static (no server). GitHub Pages or any static host is enough.
 
 [Publication runbook](docs/publication-runbook.md) describes the isolated static payload, evidence and rollback. CI packages assets without deploying. The owner accepted latest-code full public regression and real-browser success as sufficient on 2026-10-10; [release policy](docs/release-conditions.json) preserves pending external checks as follow-up. Expert approval remains zero, live OCR remains unverified, and neither merge nor publication has been performed. Current commit-specific evidence is in [PR #1](https://github.com/MasadaMasayoshi/socode/pull/1).

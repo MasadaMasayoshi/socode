@@ -131,16 +131,6 @@ test('④記録は8件まで（自動の記録から消す）・消した記録�
   assert.equal(app.maybeCheckpointOnOpen(cp3), null, '同じ画面の中では1回だけ');
 });
 
-test('複数の端末：記録した時点・看護計画・不足情報の確認は、それぞれ新しい方を残す（サーバー）', () => {
-  const server = require('../server.js');
-  const a = { id: 'P', items: [], updatedAt: '2026-09-29T02:00:00.000Z', carePlans: { p1: { id: 'p1', problem: 'A', updatedAt: '2026-09-29T02:00:00.000Z' } }, checkpoints: { c1: { id: 'c1', items: [], updatedAt: '2026-09-29T02:00:00.000Z' } } };
-  const b = { id: 'P', items: [], updatedAt: '2026-09-29T01:00:00.000Z', carePlans: { p2: { id: 'p2', problem: 'B', updatedAt: '2026-09-29T01:00:00.000Z' } }, missingChecks: { m1: { status: 'checked', updatedAt: '2026-09-29T01:00:00.000Z' } } };
-  const m = server.mergePatientRecord(a, b);
-  assert.deepEqual(Object.keys(m.carePlans).sort(), ['p1', 'p2']);
-  assert.equal(m.missingChecks.m1.status, 'checked');
-  assert.ok(m.checkpoints.c1);
-});
-
 test('⑤SOAP形式：看護問題ごとに S・O・A・P、項目と順番を選べて、日で絞れる', () => {
   const app = loadApp();
   const cp = patient();

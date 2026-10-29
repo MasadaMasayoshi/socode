@@ -1,11 +1,9 @@
 {
   "name": "nursing-assessment-support",
   "version": "1.0.0",
-  "description": "Nursing assessment support with a shared learning backend",
+  "description": "Nursing assessment support (static web app)",
   "private": true,
-  "main": "server.js",
   "scripts": {
-    "start": "node server.js",
     "test": "node scripts/test-quiet.js",
     "golden": "node scripts/golden.js",
     "golden:update": "node scripts/golden.js --update",
@@ -22,11 +20,5 @@
   },
   "engines": {
     "node": "20.x"
-  },
-  "dependencies": {
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "mongodb": "^6.9.0",
-    "nodemailer": "^10.1.0"
   }
 }
