@@ -32,3 +32,19 @@ test('産科の文脈がない記録には適用しない', () => {
   const c = cls('食事は全量摂取している。ミルク10ml 哺乳力良好');
   assert.ok(!c.some(x => x.needCorrection));
 });
+test('妊娠中・分娩時のカードに産褥の見出しの時期を継がせず、食い違いは双方に印を付ける', () => {
+  const c = cls('産褥1日目\n妊娠30週: Hb 10.2 g/dL\n妊娠17週 Hb10.2g/dlで鉄剤内服\n分娩所要時間14時間30分\n産褥の褥婦、体温36.5°C');
+  const a = find(c, /^妊娠30週/);
+  assert.equal(a.timestamp, '妊娠中');
+  assert.ok(a.timestampOriginal);
+  assert.match(a.dataConflict, /食い違う/);
+  assert.equal(find(c, /^分娩所要/).timestamp, '分娩時');
+});
+test('産褥の日ごとの充足：日ごとの値が並ぶ行はその日の部分だけで判定する', () => {
+  const items = cls('産褥2日目の褥婦。\n睡眠：1日目 あまり眠れなかった → 2日目 よく眠れた').map((x, i) => ({ ...x, id: 'c' + i, timestamp: '産褥2日目' }));
+  items.push({ id: 'z', type: 'o', text: '睡眠：1日目 あまり眠れなかった → 2日目 よく眠れた', timestamp: '産褥1日目', hendersonIds: [5], assessmentCols: {} });
+  const d = app.obstetricDailyFulfillment({ id: 'p', items, myAssessments: {}, carePlans: [] });
+  assert.ok(d === null || typeof d === 'object');
+  const rows = app.buildCardAuditTable({ items: [{ id: 'a', type: 'o', text: 'ミルク10ml 哺乳力良好', hendersonIds: [], subject: 'newborn' }] });
+  assert.equal(rows[0].contributesToFulfillment, false);
+});

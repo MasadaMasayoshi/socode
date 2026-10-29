@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.222'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.223'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -3125,6 +3125,45 @@
       });
       return items;
     }
+    // v.223: 産科の時期の分離と、記録間の食い違いの印付け。原文は書き換えない。
+    // 一般条件=文頭に「妊娠N週」「妊娠中」など別の時期ラベルがあるカードに、場面の見出しの時期（産褥1日目など）を継がせない。
+    const OB_PHASE_RULES = [
+      { re: /^妊娠\s*\d+\s*週|^妊娠(?:中|期間|初期|後期)|^非妊時|^産休/, phase: '妊娠中', from: /産褥/ },
+      { re: /^(?:分娩所要|分娩時出血|分娩経過|正常分娩|陣痛|胎盤)/, phase: '分娩時', from: /産褥/ },
+    ];
+    function applyObstetricPhase(items) {
+      (items || []).forEach(it => {
+        if (!it || it.deleted || it.type === 'unnecessary' || (it.editLog || []).length) return;
+        const t = String(it.text || '').normalize('NFKC').trim();
+        const r = OB_PHASE_RULES.find(x => x.re.test(t) && x.from.test(String(it.timestamp || '')));
+        if (!r) return;
+        it.timestampOriginal = it.timestamp;
+        it.timestamp = r.phase;
+        it.phaseNote = `文頭の時期（${(t.match(/^[^:：\s]{2,8}/) || [''])[0]}）に合わせ、場面の見出しの時期（${it.timestampOriginal}）を継がせない`;
+      });
+      return items;
+    }
+    // 一般条件=同じ事実（同じ検査値・開始時刻・年齢）が、時期や数値の違う形で複数のカードに書かれているとき、どちらかを正とせず、食い違いとして双方のカードに印を付ける。
+    const OB_CONFLICT_SPECS = [
+      { key: 'hb-week', label: 'Hb 10.2 の測定時期（妊娠週数）', re: /妊娠\s*(\d+)\s*週[^。\n]{0,6}H[bg]\s*10\.2/ },
+      { key: 'feeding-start', label: '初回授乳の開始時刻', re: /(?:分娩|出生)?(?:後)?\s*(\d+)\s*時間(?:後)?(?:より|から)?[^。\n]{0,6}(?:初回)?授乳(?:を)?開始|授乳開始[^。\n]{0,6}(\d+)\s*時間/ },
+      { key: 'husband-age', label: '夫の年齢', re: /夫(?:は|が)?\s*(\d+)\s*歳|(\d+)\s*歳の夫/ },
+    ];
+    function markObstetricConflicts(items) {
+      const live = (items || []).filter(it => it && !it.deleted && it.type !== 'unnecessary');
+      const out = [];
+      OB_CONFLICT_SPECS.forEach(sp => {
+        const hits = [];
+        live.forEach(it => { const m = String(it.text || '').normalize('NFKC').match(sp.re); if (m) { const v = m.slice(1).find(Boolean); if (v) hits.push({ it, v }); } });
+        const vals = Array.from(new Set(hits.map(h => h.v)));
+        if (vals.length < 2) return;
+        const note = `${sp.label}が記録間で食い違う（${vals.join('／')}）。どちらも原文のまま残し、確認できるまで一方に決めない`;
+        hits.forEach(h => { h.it.dataConflict = note; });
+        out.push({ key: sp.key, label: sp.label, values: vals, count: hits.length });
+      });
+      return out;
+    }
+    function markObstetricConflictsPass(items) { markObstetricConflicts(items); return items; }
     function applyAssociationTags(items) {
       if (typeof hendersonAssociations !== 'function') return items;
       (items || []).forEach(it => {
@@ -3168,7 +3207,7 @@
         const { detectedHIds, predictedType } = computeLocalTagsAndType(chunk, cleanedText, null);
         out.push({ text: cleanedText, timestamp: chunk.timestamp || '日時不明', type: predictedType, hendersonIds: detectedHIds.slice().sort((a, b) => a - b), fieldLabel: chunk.fieldLabel || null, ruleDecision: automaticRuleDecision(chunk, cleanedText, predictedType), ...({}), ...(chunk.diseaseGeneral ? { diseaseGeneral: true } : {}), ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.soMixed ? { soMixed: true } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}) });
       }));
-      return applyAssociationTags(applyObstetricNeedCorrections(attachSourceOffsets(dropIncidentalHygieneTag(applyTableColumnRoles(stripPipeArtifacts(splitMixedSpeechCards(markWrappedLineFragments(removeCoveredCompositeCards(applyFamilyScreeningContext(applyPainContextTags(applySceneTagInheritance(rejoinTimeLabelFragments(out))))), src))), tableNorm.roles)), src)));
+      return applyAssociationTags(markObstetricConflictsPass(applyObstetricPhase(applyObstetricNeedCorrections(attachSourceOffsets(dropIncidentalHygieneTag(applyTableColumnRoles(stripPipeArtifacts(splitMixedSpeechCards(markWrappedLineFragments(removeCoveredCompositeCards(applyFamilyScreeningContext(applyPainContextTags(applySceneTagInheritance(rejoinTimeLabelFragments(out))))), src))), tableNorm.roles)), src)))));
     }
 
     function manualClassificationLineage(item, path = new Set()) {

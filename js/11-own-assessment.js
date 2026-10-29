@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.205'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.223'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -2011,6 +2011,33 @@
       post.forEach(i => { const m = nz(i.text).match(SUF_RESP_DIRECT); if (m) { const mm = stable ? m.filter(x => !OXY_ONLY.test(x)) : m; if (!mm.length) return; mm.forEach(x => { if (!found.includes(x)) found.push(x); }); evs.push(i); } });
       if (found.length) set(1, `術後の直接の所見（${found.slice(0, 5).join('・')}）`, evs, true);
     }
+    // v.223: 産褥の日ごとの充足の見立て（参考）。一般条件=記録に「産褥N日目」の時期がある患者について、その日の記録だけで判定し直す。
+    // 前の日の「未充足」を後の日にそのまま持ち越さない（後の日に改善の記録があれば、その日の判定に現れる）。
+    function obstetricDailyFulfillment(cp) {
+      const items = (cp && cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary');
+      const days = Array.from(new Set(items.map(i => (String(i.timestamp || '').normalize('NFKC').match(/^産褥\s*(\d+)\s*日目/) || [])[1]).filter(Boolean))).sort((a, b) => a - b);
+      if (days.length < 2) return null;
+      const out = {};
+      days.forEach(d => {
+        const sub = { ...cp, id: (cp.id || 'p') + '#d' + d, sourceText: '', items: items.flatMap(i => {
+          const t = String(i.text || '').normalize('NFKC');
+          // 「項目：1日目 … → 2日目 …」のように日ごとの値が1枚に並ぶ行は、その日の部分だけを取り出す
+          const chain = t.split('→').map(x => x.trim());
+          if (chain.length > 1 && chain.some(x => /^\d+日目/.test(x))) {
+            const seg = chain.find(x => new RegExp('^' + d + '日目').test(x));
+            if (!seg) return [];
+            const head = (t.match(/^[^:：→]{1,16}[:：]/) || [''])[0];
+            return [{ ...i, text: head + seg.replace(new RegExp('^' + d + '日目\\s*'), '') }];
+          }
+          return new RegExp('^産褥\\s*' + d + '\\s*日目').test(String(i.timestamp || '').normalize('NFKC')) ? [i] : [];
+        }) };
+        let res = {};
+        try { res = judgeSufficiencyByRules(sub) || {}; } catch (e) { res = {}; }
+        out[d] = {};
+        Object.keys(res).forEach(n => { const v = res[n] && res[n].all && res[n].all.verdict; if (v) out[d][n] = v; });
+      });
+      return out;
+    }
     function judgeSufficiencyByRules(cp) {
 
       const HISTORY_LABELS = ['現病歴', '診断名', '既往歴', '手術術式', '氏名', '年齢', '性別'];
@@ -2109,7 +2136,7 @@ if (typeof module !== 'undefined' && module.exports) {
     MY_ASSESSMENT_FIELDS,
     ensureMyAssessment, getMyAssessment, ruleSufficiencyFor, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
     myAssessmentStatus, myAssessmentNeedsReview, confirmMyAssessmentEntry, restoreMyAssessmentFromHistory,
-    hasRuleSufficiency, sufficiencyDimensions, sufficiencyDimensionLines, phaseVerdictOf, sufficiencyUiPhases, dischargePhaseOf, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, sufficiencyScoreRules, sufficiencyPerNeedRules, sufficiencyScaleRules, sufficiencyLabRules, sufficiencyListRules, sufficiencyKnowledgeChecks, sufficiencyKnowledgeLine, SUF_LAB_NEEDS, SUF_COMBO_NEEDS, sufficiencyCauseHint, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, sufficiencyEvidenceState, fulfillmentAssessmentRows, complicationCandidates, patientContextFor, individualizedAssessment, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, sufficiencyMiniHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
+    hasRuleSufficiency, sufficiencyDimensions, sufficiencyDimensionLines, phaseVerdictOf, sufficiencyUiPhases, dischargePhaseOf, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, obstetricDailyFulfillment, sufficiencyScoreRules, sufficiencyPerNeedRules, sufficiencyScaleRules, sufficiencyLabRules, sufficiencyListRules, sufficiencyKnowledgeChecks, sufficiencyKnowledgeLine, SUF_LAB_NEEDS, SUF_COMBO_NEEDS, sufficiencyCauseHint, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, sufficiencyEvidenceState, fulfillmentAssessmentRows, complicationCandidates, patientContextFor, individualizedAssessment, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, sufficiencyMiniHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
     renderMyAssessmentRowHtml, evidencePickerCandidates, myAssessmentAlwaysShown
   });
   if (module.exports.__testHooks) Object.assign(module.exports.__testHooks, { flushMyAssessmentSaves, saveMyAssessmentsSoon });

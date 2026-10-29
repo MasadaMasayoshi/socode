@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.219'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.223'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -999,6 +999,26 @@ function hendersonAssociations(text, opts) {
   HENDERSON_ASSOCIATION_RULES.forEach(r => { if (r.re.test(t)) r.needs.forEach(n => { if (!out.some(o => o.need === n)) out.push({ need: n, strength: r.strength, reason: r.reason }); }); });
   return out.sort((a, b) => a.need - b.need);
 }
+// v.223: 事実ごとの監査表（原文カード・主語・時期・現在のタグ・付け直しの前後と理由・食い違い・充足判定への寄与）。内容もタグも変えない表示用。
+function buildCardAuditTable(cp) {
+  return (cp.items || []).filter(i => i && !i.deleted && i.type !== 'unnecessary').map(i => {
+    const tags = Array.from(i.hendersonIds || []);
+    const nc = i.needCorrection || null;
+    const subject = i.subject || (/^児は|新生児|生後|出生/.test(String(i.text || '')) ? 'newborn' : /夫|父親/.test(String(i.text || '')) && !/母/.test(String(i.text || '')) ? 'father' : 'mother');
+    return {
+      id: i.id, text: String(i.text || ''), subject, phase: i.timestamp || '日時不明', phaseOriginal: i.timestampOriginal || null,
+      currentTags: tags, tagsBefore: nc ? nc.before : null, correctionReason: nc ? nc.reason : null,
+      phaseNote: i.phaseNote || null, dataConflict: i.dataConflict || null,
+      contributesToFulfillment: tags.length > 0 && subject !== 'newborn'
+    };
+  });
+}
+function buildCardAuditText(cp) {
+  const rows = buildCardAuditTable(cp);
+  const nm = a => a && a.length ? a.join('・') : 'なし';
+  return '【事実ごとの監査】\n' + rows.filter(r => r.correctionReason || r.phaseNote || r.dataConflict).map(r =>
+    `・${r.text.slice(0, 40)}｜主語=${r.subject}｜時期=${r.phase}${r.phaseOriginal ? `（見出しの時期 ${r.phaseOriginal} から修正）` : ''}｜現在=${nm(r.currentTags)}${r.tagsBefore ? `（以前=${nm(r.tagsBefore)}）` : ''}${r.correctionReason ? `｜理由=${r.correctionReason}` : ''}${r.dataConflict ? `｜食い違い=${r.dataConflict}` : ''}｜充足判定に${r.contributesToFulfillment ? '寄与する' : '寄与しない'}`).join('\n');
+}
 function buildTagAuditRows(cp) {
   const rows = [];
   (cp.items || []).filter(i => !i.deleted && i.type !== 'unnecessary').forEach(i => {
@@ -1068,7 +1088,7 @@ function buildTagAuditText(cp) {
 
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {
-    buildTagAuditRows, buildTagAuditText, cardPlacementOf, hendersonAssociations, HENDERSON_ASSOCIATION_RULES, proposeCardDestination, treatmentRecords, treatmentObservationLinks, treatmentStatusOf, familyStatements, CHECKPOINT_MAX, createCheckpoint, deleteCheckpoint, checkpointList, diffCards, inlineTextDiffHtml, maybeCheckpointOnOpen,
+    buildTagAuditRows, buildTagAuditText, buildCardAuditTable, buildCardAuditText, cardPlacementOf, hendersonAssociations, HENDERSON_ASSOCIATION_RULES, proposeCardDestination, treatmentRecords, treatmentObservationLinks, treatmentStatusOf, familyStatements, CHECKPOINT_MAX, createCheckpoint, deleteCheckpoint, checkpointList, diffCards, inlineTextDiffHtml, maybeCheckpointOnOpen,
     restoreCardFromCheckpoint, splitCardIntoParts, undoLast, pushUndo, workflowStatus, REPORT_FORMATS, defaultReportLayout, buildReport, reportToText, reportToHtml, reportDayOptions,
 
     calculateAndAddDerivedMetricCards, parseAiJsonArray, safeDomId, buildPrintAiSectionsHtml, formatEditLogEntry, storedAiHtml, isAiStepRunning

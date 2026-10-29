@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.211'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.223'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1090,6 +1090,16 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       if (allUnknown.length) lines.push(`  ・記録がなく、すべての時期が情報不足の項目：${allUnknown.join('・')}`);
       unknownChecks.forEach(l => lines.push(mask(l)));
       if (cand.omitted) lines.push(`　　・分類前文章の未使用記録：他${cand.omitted}件省略`);
+      try {
+        const daily = typeof obstetricDailyFulfillment === 'function' ? obstetricDailyFulfillment(cp) : null;
+        if (daily) {
+          lines.push('  ■ 産褥の日ごとの判定（その日の記録だけで判定。前の日の未充足を持ち越さない）');
+          Object.keys(daily).forEach(d => {
+            const parts = HENDERSON_NEEDS.filter(n => daily[d][n.id] && daily[d][n.id] !== 'unknown').map(n => `${n.id}.${n.name.replace(/^\d+\.\s*/, '')}＝${SUFFICIENCY_LABELS[daily[d][n.id]] || daily[d][n.id]}`);
+            if (parts.length) lines.push(`    産褥${d}日目：${parts.join('、')}`);
+          });
+        }
+      } catch (e) { /* 日ごとの判定は補助情報 */ }
       return lines.length ? '\n【アプリの充足状態の判定】項目ごと・時期ごとの現在の判定と理由（アプリの表示・書き出しと同じ文章）、根拠カード、不足情報（原文と比べて、判定の妥当性を評価してください。氏名は含めません）\n' + lines.join('\n') + '\n' : '';
     }
     // v.105: lines of the source that look broken, with neighbouring lines and a rule-based restoration candidate (推定・要確認). The source itself is never changed.
