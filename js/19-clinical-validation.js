@@ -6,7 +6,7 @@
 // ⑤ 検査値の単位の誤りを見つける（元の値は直さない）
 // 元の表示カードは変えない。判定の4区分（充足・未充足・判定保留・情報不足）も増やさない。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['19'] = 'v.248'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['19'] = 'v.257'; // Version stamp (scripts/stamp-version.js)
 
     const cvNorm = t => String(t || '').normalize('NFKC');
     const cvPlain = t => cvNorm(t).replace(/[「」『』\s]/g, '');
@@ -101,14 +101,14 @@
         { key: 'comfort', label: '不快感', ok: /(?!)/, ng: /腹部?膨満|腹痛|残便感|排尿時痛|腹満/ }
       ],
       8: [
-        { key: 'ability', label: '自分で清潔にできるか', ok: /(?:入浴|洗髪|清拭|更衣|整容)[^。]{0,8}自立/, ng: /(?:全介助|一部介助)|(?:入浴|清拭|更衣|洗髪)[^。]{0,8}介助/ },
+        { key: 'ability', label: '自分で清潔にできるか', ok: /(?:入浴|洗髪|清拭|更衣|整容)[^。]{0,8}自立/, ng: /(?:全介助|一部介助)|(?:入浴|清拭|更衣|洗髪)[^。]{0,8}介助|看護師[^。]{0,12}(?:清拭|清潔ケア|更衣|洗髪)|入浴[:：\s]*(?:不可|禁止)/ },
         { key: 'skin', label: '皮膚の状態', ok: /皮膚(?:問題なし|良好|異常なし)/, ng: /発赤|褥瘡|びらん|皮膚トラブル|創[^。]{0,4}(?:腫脹|熱感|滲出)/ },
-        { key: 'comfort', label: '本人の快・好み', ok: /さっぱり|気持ちよ/, ng: /ベタベタ|かゆい|不快|気持ちが悪い/ }
+        { key: 'comfort', label: '清潔についての本人の快・不快', ok: /さっぱり|気持ちよ/, ng: /ベタベタ|べたべた|べたつき|かゆい|不快|気持ち(?:が)?悪い/ }
       ]
     };
     function cvDimensions(cp, needId) {
       const defs = CV_DIMENSIONS[needId]; if (!defs) return null;
-      const cards = (cp.items || []).filter(i => i && !i.deleted && !i.aiSuggested && i.type !== 'unnecessary' && !i.diseaseGeneral && (i.hendersonIds || []).includes(needId) && (i.assessmentCols?.[needId] || '') !== 'preadmission' && !cvHeadingOnly(i));
+      const cards = (cp.items || []).filter(i => i && !i.deleted && !i.aiSuggested && i.type !== 'unnecessary' && !i.diseaseGeneral && (i.hendersonIds || []).includes(needId) && (i.assessmentCols?.[needId] || '') !== 'preadmission' && !/^入院前/.test(String(i.timestamp || '')) && !cvHeadingOnly(i));
       return defs.map(d => {
         const hits = cards.map(i => ({ i, ng: !!cvAffirmed(d.ng, i.text), ok: !!cvAffirmed(d.ok, i.text) })).filter(x => x.ng || x.ok);
         const days = hits.map(x => suffDayOf(x.i));

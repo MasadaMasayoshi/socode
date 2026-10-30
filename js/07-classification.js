@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.256'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.257'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -2457,7 +2457,9 @@
           const it = extracted[k];
           if (it.isUnnecessaryBoilerplate || (it.timestamp && it.timestamp !== '日時不明')) continue;
           let ts = /^(?:入院日|入院時|入院目的|入院の経緯)/.test(it.text) || it.fieldLabel === '入院日' ? '入院時' : '入院前';
-          if (it.fieldLabel === '主訴' || /^主訴\s*[:：]/.test(it.text)) ts = '入院時';
+          // The chief complaint is the reason for this admission, whether it is labelled (主訴：) or written under a 主訴 heading line.
+          const headAbove = typeof it._line === 'number' ? String(lines[it._line - 1] || '').normalize('NFKC').trim() : '';
+          if (it.fieldLabel === '主訴' || /^主訴\s*[:：]/.test(it.text) || /^主訴[:：]?$/.test(headAbove)) ts = '入院時';
           if (/と診断され|入院となっ|入院後|入院し(?:た|て)|手術の説明/.test(it.text)) { ts = '入院時'; admittedLine = it._line === undefined ? null : it._line; }
           else if (admittedLine !== null && it._line === admittedLine) ts = '入院時';
           it.timestamp = ts;

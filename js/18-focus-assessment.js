@@ -1,7 +1,7 @@
 // 重点アセスメント：欲求ごとに、S・O（入院前／入院後）→ 情報の分析・解釈 → 統合 → 看護問題の明確化を一画面で書く。
 // S・Oは分類ボードの内容から自動で並べ、分析・解釈／統合／看護問題の明確化も、記録・充足判定・看護計画（関連図の看護問題）から自動で下書きする。手で直した欄は自動では上書きしない（myAssessments の追加項目に保存）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.256'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.257'; // Version stamp (scripts/stamp-version.js)
 
     const FOCUS_FIELDS = [
       { key: 'focusAnalysis', label: '情報の分析・解釈', ph: 'S・Oの情報から、なぜその状態なのか（原因・関連要因）、今後どうなりそうかを書きます。\n例：術後は疼痛（O-3）と荷重への不安（S-2）から、歩行を避けて活動量が低下している。' },
@@ -54,6 +54,26 @@
       const x = String(t || '').replace(/\s+/g, ' ').replace(/^\[[^\]]{1,10}\]\s*/, '').replace(/^[^:：「]{1,10}[:：]\s*/, '').replace(/[「」]/g, '').replace(/[。.]+$/, '').trim();
       if (x.length <= n * 1.8) return x; const lim = x.slice(0, Math.floor(n * 1.8)); const k = Math.max(lim.lastIndexOf('、'), lim.lastIndexOf(' '), lim.lastIndexOf('。')); return k >= n * 0.5 ? x.slice(0, k) : (x.length <= 100 ? x : lim);
     }
+    // A record turned into a clause for the narrative. Unlike focusClip it keeps quotation marks and turns a field label into
+    // 「labelは」 (タバコ：なし → タバコはなし); scene labels (検温・回診・昼食 ...) and heading words left at the edge of a card by the
+    // layout (…理解良好、趣味) are dropped from the sentence only — the card itself is unchanged.
+    const FOCUS_HEAD_WORD = '(?:性格|宗教|理解力|趣味|嗜好品?|清潔|更衣|身体的特徴|食事|排泄|活動|睡眠|職業|家族構成|家族歴|既往歴|生活様式|夕食|昼食|朝食)';
+    function focusFact(t, n = 50, item) {
+      const PROFILE = /^(?:保険|介護保険|職業|家族構成|趣味|性格|宗教|嗜好品?|生活様式)$/;
+      if (item && item.fieldLabel && PROFILE.test(item.fieldLabel) && !String(t || '').startsWith(item.fieldLabel)) t = `${item.fieldLabel}：${t}`;
+      t = String(t || '').replace(/^([^\t:：「」、。]{1,8})\t+/, '$1：');
+      let x = String(t || '').normalize('NFKC').replace(/\s+/g, ' ').replace(/^\[[^\]]{1,10}\]\s*/, '').trim();
+      x = x.replace(new RegExp('[、。]\\s*' + FOCUS_HEAD_WORD + '$'), '').replace(new RegExp('^' + FOCUS_HEAD_WORD + '[、]\\s*'), '');
+      x = x.replace(/^(?:検温|回診|ケア|RH|リハビリ|昼食|夕食|朝食|処置|観察)\s*[:：。、]\s*/, '');
+      x = x.replace(/^([^:：「」、。]{1,8})\s*[:：]\s*(?=\S)/, '$1は').replace(/、([^:：「」、。]{1,6})\s*[:：]\s*(?=\S)/g, '、$1');
+      x = x.replace(/[。.]+$/, '');
+      if (x.length <= n * 1.8) return x;
+      const lim = x.slice(0, Math.floor(n * 1.8)); const k = Math.max(lim.lastIndexOf('、'), lim.lastIndexOf('。'));
+      let out = k >= n * 0.5 ? x.slice(0, k) : lim;
+      if ((out.match(/「/g) || []).length > (out.match(/」/g) || []).length) out += '…」';
+      return out;
+    }
+    function focusIsHeadingCard(i) { return new RegExp('^' + FOCUS_HEAD_WORD + '$').test(String(i && i.text || '').normalize('NFKC').trim()); }
     function focusNeedName(needId) { return String((HENDERSON_NEEDS.find(n => n.id === needId) || {}).name || '').replace(/^\d+\.\s*/, ''); }
     function focusPlansForNeed(cp, needId, itemIds) {
       const list = typeof carePlanList === 'function' ? carePlanList(cp) : [];
@@ -65,7 +85,12 @@
       return out.length ? `（${out.join('・')}）` : '';
     }
     function focusQuoteList(facts, items, labels) {
-      return (facts || []).slice(0, 3).map(f => `「${focusClip(f.text, 30)}」${focusLabelsOf([f.id], labels)}`).join('、');
+      // Inner quotation marks become 『』 so a quoted remark inside the evidence stays readable.
+      const bal = t => { let x = t; if (x.includes('』') && !x.includes('『')) x = x.replace(/』/g, ''); if (x.includes('『') && !x.includes('』')) x = x.replace(/『/g, ''); return x; };
+      const clipQ = t => { const full = String(t || '').replace(/「/g, '『').replace(/」/g, '』'); const c = focusClip(full, 30); return focusClip(full, 1000).length > c.length || full.length >= 40 ? c + '…' : c; };
+      // The same card or the same wording is quoted once.
+      const seen = new Set();
+      return (facts || []).filter(f => { const k = String(f.id); const w = String(f.text || '').replace(/[(（][^)）]*[)）]/g, '').trim(); if (seen.has(k) || seen.has(w)) return false; seen.add(k); seen.add(w); return true; }).slice(0, 3).map(f => `「${bal(clipQ(f.text))}」${focusLabelsOf([f.id], labels)}`).join('、');
     }
 
     // ---- 関連図・看護計画との連動 ----
@@ -159,7 +184,11 @@
       const name = focusNeedName(needId);
       const itemIds = new Set(all.map(i => i.id));
       const res = (typeof ruleSufficiencyFor === 'function' ? ruleSufficiencyFor(cp)[needId] : null) || {};
-      const a = res.all || {};
+      // The judgment describes the latest state: after surgery the post-operative phase, otherwise the in-hospital phase;
+      // the whole-stay result is used only when those phases cannot be judged (progress is computed on the whole stay).
+      const surgicalNow = typeof isSurgicalPatient === 'function' && isSurgicalPatient(cp);
+      const phKey = surgicalNow && res.postop && res.postop.verdict && res.postop.verdict !== 'unknown' ? 'postop' : res.post && res.post.verdict && res.post.verdict !== 'unknown' ? 'post' : 'all';
+      const a = phKey === 'all' ? (res.all || {}) : { ...(res[phKey] || {}), progress: (res.all || {}).progress, dimensions: (res[phKey] || {}).dimensions || (res.all || {}).dimensions };
       const verdict = a.verdict === 'met' ? 'met' : a.verdict === 'unmet' ? 'unmet' : a.verdict === 'conflict' ? 'hold' : 'unknown';
       const prog = a.progress || { value: 'unknown' };
       const dims = a.dimensions || null;
@@ -180,7 +209,7 @@
       const postLatest = lastDay === null ? postAll : postAll.filter(i => suffDayOf(i) === lastDay);
       const post = [...first(nonBg(postLatest), 'o'), ...first(nonBg(postLatest), 's')].slice(0, 3);
       const postIds = new Set(postLatest.map(i => i.id));
-      const vWord = { met: '概ね満たされている', unmet: '満たされていない', hold: '判定を保留する状態', unknown: '判断できる情報が足りない' }[verdict];
+      const vWord = { met: '概ね満たされている', unmet: '満たされていない', hold: '判定保留の段階にある', unknown: '判断できる情報が足りない' }[verdict];
       const quoteOf = list => focusQuoteList(list, all, data.labels);
       const reasons = typeof crTopicsForNeed === 'function' ? crTopicsForNeed(cp, needId) : [];
       const para = [];
@@ -191,29 +220,41 @@
         : /不安|怖|こわ|ずれ|脱臼/.test(t) ? '動くことへの不安が、動作や荷重を控えさせている可能性がある'
         : /遠慮|迷惑|負担|頼れ|申し訳|情けな/.test(t) ? '他者に頼ることへの遠慮や自尊心の揺らぎがあり、援助を求めにくい可能性がある'
         : /早く|したい|行きたい|会いたい|帰りたい|頑張/.test(t) ? '回復や自立への意欲があり、これが関わりの手がかりになる'
-        : /痛|つら|眠れ|苦し/.test(t) ? '苦痛が本人の行動や休息に影響している' : '';
+        : /眠れた|楽になっ|ひどくなく|軽くなっ|和らい/.test(t) ? (/痛/.test(t) ? '痛みが和らぐとともに休息がとれるようになってきている' : '休息がとれるようになってきている')
+        : /痛|つら|苦し/.test(t) ? '苦痛が本人の行動や休息に影響している'
+        : /眠れ(?:な|ず)/.test(t) ? '十分な休息がとれていない' : '';
       if (!all.length) {
         para.push(`この欲求に分類された情報がまだない。${name}について、入院前の生活と入院後の状態を確認する必要がある。`);
       } else {
         const EVENT_RE = /骨折|救急車|搬送|受傷|診断|術式|手術|人工|置換/;
-        const events = preSet.filter(i => EVENT_RE.test(i.text) && !/既往|通院/.test(i.text)).slice(0, 2);
-        const preAll = preSet.filter(i => (i.type === 'o' || i.type === 's') && !events.includes(i)).slice(0, 5);
+        // Admission-day records (主訴・受傷の経緯・診断) describe why the patient came in, not the life before admission.
+        const atAdmission = i => /入院時|入院日|入院当日/.test(String(i.timestamp || '')) || i.fieldLabel === '主訴' || i.fieldLabel === '診断名';
+        const events = preSet.filter(i => (EVENT_RE.test(i.text) || atAdmission(i)) && !/既往|通院|^氏名[:：]/.test(String(i.text).normalize('NFKC')) && !focusIsHeadingCard(i)).sort((x, y) => (x.fieldLabel === '診断名') - (y.fieldLabel === '診断名')).slice(0, 3);
+        const preAll = preSet.filter(i => (i.type === 'o' || i.type === 's') && !events.includes(i) && !focusIsHeadingCard(i) && !/^氏名[:：]/.test(String(i.text).normalize('NFKC')) && !(typeof cvOffTopic === 'function' && cvOffTopic(needId, i.text)) && !(EVENT_RE.test(i.text) && !/既往|通院/.test(i.text))).slice(0, 5);
         const dayOf = i => (typeof suffDayOf === 'function' ? suffDayOf(i) : null);
         const postRows = postAll.filter(i => !/[〜~]\s*術後\d+日目まで/.test(i.text) && !(typeof isAssessmentBackgroundItem === 'function' && isAssessmentBackgroundItem(i)) && !(typeof cvHeadingOnly === 'function' && cvHeadingOnly(i)) && !(typeof cvOffTopic === 'function' && cvOffTopic(needId, i.text)));
         // 1. 入院前の生活
-        if (preAll.length) para.push(`${subj}の入院前の状況は、${preAll.map(i => `${cl(i.text, 60)}${lab(i)}`).join('、')}。`);
-        else para.push(`入院前の${name}の状況は、記録からは確認できない。`);
-        if (events.length) para.push(`今回は${events.map(i => `${cl(i.text, 50)}${lab(i)}`).join('、')}という経過で入院している。`);
+        if (preAll.length) para.push(`入院前は、${preAll.map(i => `${focusFact(i.text, 50, i)}${lab(i)}`).join('、')}。`);
+        // No pre-admission record: say nothing here; the judgment sentence names what is missing when it matters.
+
+        if (events.length) para.push(`今回は、${events.map(i => `${focusFact(i.text, 50)}${i.fieldLabel === '診断名' ? 'と診断された' : ''}${lab(i)}`).join('。')}。`);
         // 2. 疾患・治療と身体への影響（患者の記録に根拠があるものだけ）
         const chains = established.slice(0, 2).map(p => ({ p, ch: focusMapChainRoles(cp, focusMapNodeOf(cp, p)).causes })).filter(x => x.ch.length);
         if (chains.length) para.push(chains.map(x => `${x.ch.slice().reverse().join('、')}が背景にあり、${cl(x.p.problem, 30)}につながりやすい状態にある`).join('。また、') + '。');
         reasons.slice(0, 2).forEach(r => crNarrative(r, data.labels).forEach(x => para.push(x)));
         // 3. 入院後の変化（日ごと。新しい所見ほど後ろ）
-        const dated = postRows.filter(i => dayOf(i) !== null).sort((x, y) => dayOf(x) - dayOf(y));
+        // Rows used in the day-by-day narrative: drop lab lines with reference ranges and, when the need has a domain vocabulary,
+        // prefer the records that speak about this need (an antibiotic order is not part of the cleanliness course).
+        const DOM = typeof SUF_MET_DOMAIN !== 'undefined' ? SUF_MET_DOMAIN[needId] : null;
+        const narr0 = postRows.filter(i => !/[(（]基準値[:：]/.test(String(i.text).normalize('NFKC')) && !focusIsHeadingCard(i));
+        const narrRows = DOM && narr0.some(i => DOM.test(String(i.text))) ? narr0.filter(i => DOM.test(String(i.text)) || i.type === 's') : narr0;
+        const dated = narrRows.filter(i => dayOf(i) !== null).sort((x, y) => dayOf(x) - dayOf(y));
         const byDay = new Map(); dated.forEach(i => { if (!byDay.has(dayOf(i))) byDay.set(dayOf(i), []); byDay.get(dayOf(i)).push(i); });
         const dayKeys = [...byDay.keys()].slice(-3);
-        if (dayKeys.length) para.push(dayKeys.map(d => `${d}日目は${byDay.get(d).slice(0, 2).map(i => `${cl(i.text, 50)}${lab(i)}`).join('、')}`).join('。') + `。${prog.value === 'improving' ? '前の日と比べて改善がみられる。' : prog.value === 'worsening' ? '前の日と比べて悪化がみられる。' : ''}`);
-        else if (postRows.length) para.push(`入院後は${postRows.slice(0, 3).map(i => `${cl(i.text, 50)}${lab(i)}`).join('、')}。`);
+        // The day is named the way the record names it (術後2日目・産褥2日目・入院3日目); a bare number only when nothing says.
+        const dayWord = d => { const ts = (byDay.get(d) || []).map(i => String(i.timestamp || '').normalize('NFKC').match(/(術後|産褥|入院|病日|治療)\s*(?:第)?\s*\d+\s*日目?/)).find(Boolean); return ts ? `${ts[1]}${d}日目` : (typeof isSurgicalPatient === 'function' && isSurgicalPatient(cp) ? `術後${d}日目` : `${d}日目`); };
+        if (dayKeys.length) para.push(dayKeys.map(d => `${dayWord(d)}は、${byDay.get(d).filter(i => !focusIsHeadingCard(i)).slice(0, 2).map(i => `${focusFact(i.text, 45)}${lab(i)}`).join('、')}`).join('。') + `。${prog.value === 'improving' ? '前の日と比べて改善がみられる。' : prog.value === 'worsening' ? '前の日と比べて悪化がみられる。' : ''}`);
+        else if (narrRows.length) para.push(`入院後は、${narrRows.slice(0, 3).map(i => `${focusFact(i.text, 45)}${lab(i)}`).join('、')}。`);
         // 4. 個別的な解釈（患者の言葉の意味・強み）
         const words = postAll.concat(preSet).filter(i => i.type === 's').map(i => { const q = String(i.text).match(/「([^」]{3,60})」/); return q ? { i, q: q[1], m: sMeaning(q[1]) } : null; }).filter(x => x && x.m).slice(0, 3);
         // One sentence per meaning: several quotes with the same meaning are cited together instead of repeating the interpretation.
@@ -227,14 +268,17 @@
         // 5. 判断と根拠
         const evFacts = verdict === 'met' ? a.facts && a.facts.for : a.facts && a.facts.against;
         const ev = quoteOf(evFacts);
-        if (verdict === 'unknown') para.push(`${name}の充足を判断するには情報が足りない。${[res.pre && res.pre.need, res.post && res.post.need].filter(Boolean).join('、')}`.replace(/、$/, '') + '。');
-        else if (a.dimensionConflict) para.push(`${a.reason}ことから、${name}は${vWord}と判断する。`);
-        else para.push(`${ev ? ev + 'ことから、' : ''}${name}は${vWord}と判断する。`);
+        if (verdict === 'unknown') { const why = [...new Set([res.pre && res.pre.need, res.post && res.post.need].filter(Boolean))]; para.push(why.length ? `${name}は、${why.join('うえ、')}ため、現時点では判断できない。` : `${name}の充足を判断するには情報が足りない。`); }
+        else if (a.dimensionConflict) para.push(`${a.reason}ため、${name}は${vWord}と判断する。`);
+        else if (verdict === 'hold') para.push(`${ev ? ev + 'という記録があり、' : ''}${name}が満たされているかは、現時点では判断を保留する。`);
+        // When every piece of evidence is a pre-admission record already cited above, say so instead of quoting it again.
+        else if (evFacts && evFacts.length && evFacts.every(f => preAll.some(i => i.id === f.id)) && phKey === 'all') para.push(`入院前の${name}は${vWord}と判断する。入院後の${name}の状態は記録からは確認できないため、入院による変化を確かめる。`);
+        else para.push(`${ev ? ev + 'という記録から、' : ''}${name}は${vWord}と判断する。`);
         // 6. 回復を妨げる要因と将来のリスク
         established.filter(p => stat(p).kind !== 'risk').slice(0, 3).forEach(p => { if (p.note) para.push(`${cl(p.note, 60)}${focusLabelsOf(p.evidenceIds, data.labels)}ため、${cl(p.problem, 30)}が現在の問題である。`); });
         const riskP = established.filter(p => stat(p).kind === 'risk').slice(0, 3);
         const comp = typeof complicationCandidates === 'function' ? complicationCandidates(cp, needId, all.map(i => i.text).join(' ')).slice(0, 2) : [];
-        if (riskP.length || comp.length) para.push(`今後は${(() => { const rs = riskP.map(p => cl(p.problem, 30)); const root = t => String(t).replace(/リスク状態.*$|（.*$/, '').replace(/^.*の/, '').replace(/[・･]/g, '').slice(0, 4); const extra = comp.map(c => String(c).replace(/（.*$/, '')).filter(c => !rs.some(r => root(r) && c.replace(/[・･]/g, '').includes(root(r).replace(/[・･]/g, '')))); return [...rs, ...extra].filter((v, k, arr) => arr.indexOf(v) === k); })().join('、')}の可能性があり、起こるとは限らないが予防的な観察が必要である。`);
+        if (riskP.length || comp.length) para.push(`今後は${(() => { const rs = riskP.map(p => cl(p.problem, 30)); const root = t => String(t).replace(/リスク状態.*$|（.*$/, '').replace(/^.*の/, '').replace(/[・･]/g, '').slice(0, 4); const extra = comp.map(c => String(c).replace(/（.*$/, '')).filter(c => !rs.some(r => root(r) && c.replace(/[・･]/g, '').includes(root(r).replace(/[・･]/g, '')))); return [...rs, ...extra].filter((v, k, arr) => arr.indexOf(v) === k); })().join('、')}が起こるおそれがあるため、予防と早期発見のための観察を続ける。`);
         const life = preSet.concat(postAll).find(i => /階段|2階|二階|一人暮らし|独居|段差|エレベーター|布団をひ/.test(i.text) && !/痛/.test(i.text));
         if (life && verdict !== 'met') para.push(`退院後は「${cl(life.text, 40)}」${lab(life)}という生活環境に合わせて、安全な動作と移動の方法を身につける必要がある。`);
         // 7. 必要な看護
@@ -269,7 +313,7 @@
       const cand2 = reasons.filter(r => r.status !== 'confirmed' && !established.some(p => r.topic.plan.test(p.problem)));
       const sup2 = cand2.filter(r => r.status === 'supported'), weak2 = cand2.filter(r => r.status !== 'supported');
       if (cand2.length && !established.length) problem = sup2.length ? '' : '現時点で確定できる看護問題はないが、次の候補を追加のアセスメントで確かめる。';
-      if (cand2.length) problem += (problem ? '\n' : '') + sup2.map(r => `（候補）${crProblemLine(r)}（記録から原因と症状が確認できる）`).concat(weak2.map(r => `（候補）${crProblemLine(r)}`)).join('\n');
+      if (cand2.length) problem += (problem ? '\n' : '') + sup2.map(r => `（候補）${crProblemLine(r)}（記録から原因と症状が確認できる）`).concat(weak2.map(r => crProblemLine(r))).join('\n');
       return { focusAnalysis: analysis.join('\n'), focusIntegration: integration.join(''), focusProblem: problem };
     }
 

@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.256'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.257'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -1440,6 +1440,8 @@
       if (needId === 1 && /トライボール|呼吸訓練/.test(String(item.text || '')) && !/呼吸困難|息苦|息切れ|チアノーゼ|SpO2|呼吸数/.test(String(item.text || ''))) return { v: '', hit: '', clause: '' };
 
       if (needId === 11 && /記載なし|情報なし|不明|未確認|聴取(?:して)?(?:い)?ない|確認(?:でき|して)ない/.test(String(item.text || '').normalize('NFKC'))) return { v: '', hit: '', clause: '' };
+      // The account of how the injury happened (転倒し…救急車で搬送された) explains the admission; it is not a finding of the stay.
+      if (phase !== 'pre' && /救急車|搬送(?:され|した)/.test(String(item.text || ''))) return { v: '', hit: '', clause: '' };
       // A remote past event (e.g. a fracture at age 8) explains history but is not a finding of the current time point.
       if (phase === 'post' && typeof pastEventWordOf === 'function' && pastEventWordOf(item) && !/(?:現在|今回|現在も|いまも|後遺|残って|続い)/.test(String(item.text || ''))) return { v: '', hit: '', clause: '' };
       // Laboratory-reference cards describe physiology; they are not evidence of the need to learn, communicate, play, etc.
@@ -1486,7 +1488,8 @@
           if (!unmet) unmet = { v: 'unmet', hit: r.hit, clause: p, severe: SUF_SEVERE.test(p) };
           else if (SUF_SEVERE.test(p)) unmet.severe = true;
         }
-        if (r.v === 'met' && !met) met = { v: 'met', hit: r.hit, clause: p };
+        // For sleep, a clause about sleep itself (「眠れた」) is better evidence than a neighbouring clause that only mentions pain.
+        if (r.v === 'met' && (!met || (needId === 5 && /眠|睡眠|寝/.test(p) && !/眠|睡眠|寝/.test(met.clause)))) met = { v: 'met', hit: r.hit, clause: p };
         if (r.v === 'pending' && !pending) pending = { v: 'pending', hit: r.hit, clause: p };
       }
 
