@@ -84,7 +84,8 @@ test('patient wishes get a cross-cutting destination; an unmet verdict with impr
   ];
   const cp = { id: 'p', title: 'p', items, carePlans: {}, sourceText: '', myAssessments: {}, missingChecks: {} };
   app.judgeSufficiencyByRules(cp);
-  assert.match(app.sufficiencyDimensionLines(cp, 5, 'post').join('\n'), /根拠の確かさ：中（経過で改善を示す記録を含む/);
+  // v.256: the patient's own 「よく眠れた」 now counts for sleep, so the latest day decides (met); certainty must still not be rated high.
+  assert.doesNotMatch(app.sufficiencyDimensionLines(cp, 5, 'post').join('\n'), /根拠の確かさ：高/);
   const only = { ...cp, items: [items[0]] };
   app.judgeSufficiencyByRules(only);
   assert.doesNotMatch(app.sufficiencyDimensionLines(only, 5, 'post').join('\n'), /経過で改善を示す/);

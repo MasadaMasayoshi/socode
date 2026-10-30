@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.255'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.256'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -2464,6 +2464,24 @@
         }
       }
 
+      // A background/life-habit section heading (既往歴・家族構成・職業・生活習慣・食事・睡眠 ...) ends the scope of an earlier
+      // admission heading such as 「入院時の様子」: what follows describes the life before admission, unless the sentence itself
+      // says it is the current state (現在・入院後 ...). A later period heading (入院時の状況・術後N日目 ...) starts a new scope.
+      (() => {
+        const BG = /^(?:\d{1,2}\s*[.．、]\s*)?(?:既往歴|家族構成|家族歴|職業|性格|宗教|理解力|趣味|嗜好品?|生活習慣[^\s]*|生活歴|生活様式|身体的特徴|食事|排泄|活動|睡眠|清潔|更衣)\s*$/;
+        const PERIOD = /入院時|入院後|入院から|入院中|術前|術中|術後|手術|\d+\s*日目|\d{1,2}\s*月\s*\d{1,2}\s*日|^\d{1,2}[:：]\d{2}/;
+        const marks = [];
+        lines.forEach((l, k) => { const t = String(l || '').normalize('NFKC').trim(); if (BG.test(t)) marks.push([k, 'bg']); else if (t.length <= 30 && !/[。]/.test(t) && PERIOD.test(t) && !/\t/.test(t)) marks.push([k, 'period']); });
+        if (!marks.some(m => m[1] === 'bg')) return;
+        extracted.forEach(it => {
+          if (it.isUnnecessaryBoilerplate || it.timestamp !== '入院時' || typeof it._line !== 'number') return;
+          const last = marks.filter(m => m[0] < it._line).pop();
+          if (!last || last[1] !== 'bg') return;
+          if (/現在|入院後|入院時|入院中|今回|術後|術前|手術/.test(String(it.text || ''))) return;
+          it.timestamp = '入院前';
+          if (it.admissionPhase) it.admissionPhase = 'preadmission';
+        });
+      })();
       extracted.forEach(it => { if (!it.isUnnecessaryBoilerplate && isOcrNoiseText((it.text || '').trim())) it.isUnnecessaryBoilerplate = true; });
       splitHistoricalCurrentStatements(extracted, text);
       mergeSameTimeVitals(extracted);

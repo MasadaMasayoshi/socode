@@ -1,7 +1,7 @@
 // 重点アセスメント：欲求ごとに、S・O（入院前／入院後）→ 情報の分析・解釈 → 統合 → 看護問題の明確化を一画面で書く。
 // S・Oは分類ボードの内容から自動で並べ、分析・解釈／統合／看護問題の明確化も、記録・充足判定・看護計画（関連図の看護問題）から自動で下書きする。手で直した欄は自動では上書きしない（myAssessments の追加項目に保存）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.254'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.256'; // Version stamp (scripts/stamp-version.js)
 
     const FOCUS_FIELDS = [
       { key: 'focusAnalysis', label: '情報の分析・解釈', ph: 'S・Oの情報から、なぜその状態なのか（原因・関連要因）、今後どうなりそうかを書きます。\n例：術後は疼痛（O-3）と荷重への不安（S-2）から、歩行を避けて活動量が低下している。' },
@@ -186,7 +186,9 @@
       const para = [];
       const lab = i => focusLabelsOf([i.id], data.labels);
       const cl = (t, n) => focusClip(t, n);
-      const sMeaning = t => /不安|怖|こわ|ずれ|脱臼/.test(t) ? '動くことへの不安が、動作や荷重を控えさせている可能性がある'
+      const sMeaning = t => needId === 14 && /わから|教えて|知りたい|気を付け/.test(t) ? '退院後の生活で何に気を付ければよいかを知りたいという関心があり、指導の手がかりになる'
+        : needId === 14 && /[?？]|かしら|のかな|ですか/.test(t) ? '術後の動き方について確かな情報を求めており、不安の背景に知識の不足がある'
+        : /不安|怖|こわ|ずれ|脱臼/.test(t) ? '動くことへの不安が、動作や荷重を控えさせている可能性がある'
         : /遠慮|迷惑|負担|頼れ|申し訳|情けな/.test(t) ? '他者に頼ることへの遠慮や自尊心の揺らぎがあり、援助を求めにくい可能性がある'
         : /早く|したい|行きたい|会いたい|帰りたい|頑張/.test(t) ? '回復や自立への意欲があり、これが関わりの手がかりになる'
         : /痛|つら|眠れ|苦し/.test(t) ? '苦痛が本人の行動や休息に影響している' : '';
@@ -214,11 +216,14 @@
         else if (postRows.length) para.push(`入院後は${postRows.slice(0, 3).map(i => `${cl(i.text, 50)}${lab(i)}`).join('、')}。`);
         // 4. 個別的な解釈（患者の言葉の意味・強み）
         const words = postAll.concat(preSet).filter(i => i.type === 's').map(i => { const q = String(i.text).match(/「([^」]{3,60})」/); return q ? { i, q: q[1], m: sMeaning(q[1]) } : null; }).filter(x => x && x.m).slice(0, 3);
-        words.forEach((x, k) => para.push(`${k === 0 ? '' : 'また、'}「${cl(x.q, 40)}」${lab(x.i)}という言葉から、${x.m}と考える。`));
+        // One sentence per meaning: several quotes with the same meaning are cited together instead of repeating the interpretation.
+        const byMeaning = [];
+        words.forEach(x => { const g = byMeaning.find(b => b.m === x.m); if (g) g.list.push(x); else byMeaning.push({ m: x.m, list: [x] }); });
+        byMeaning.forEach((g, k) => para.push(`${k === 0 ? '' : 'また、'}${g.list.map(x => `「${cl(x.q, 40)}」${lab(x.i)}`).join('、')}という言葉から、${g.m}と考える。`));
         const okDims = (dims || []).filter(d => d.state === 'ok').map(d => d.label);
         const strengths = (a.facts && a.facts.for || []).filter(f => postIds.has(f.id) && /自立|可能|できて|できた|自力|保たれ|良好|問題な|不具合はない/.test(f.text)).slice(0, 2);
-        if (okDims.length) para.push(`${okDims.join('・')}は保たれており、残存能力として活かす。`);
-        else if (strengths.length) para.push(`${strengths.map(f => `「${cl(f.text, 40)}」${focusLabelsOf([f.id], data.labels)}`).join('、')}という状況は保たれており、これを活かして自立を促す。`);
+        if (okDims.length) para.push(`${okDims.join('・')}は保たれている。`);
+        else if (strengths.length) para.push(`${strengths.map(f => `「${cl(f.text, 40)}」${focusLabelsOf([f.id], data.labels)}`).join('、')}は保たれている。`);
         // 5. 判断と根拠
         const evFacts = verdict === 'met' ? a.facts && a.facts.for : a.facts && a.facts.against;
         const ev = quoteOf(evFacts);

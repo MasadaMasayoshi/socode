@@ -1,7 +1,7 @@
 // 問題の推論 → 理論的裏付け → 患者固有の原因分析 を、症状ごとの知識表から共通の手順で行う。
 // 一般的な知識（定義・病態・典型的な原因）は、患者に実際に起きた事実とは分けて扱う。
 // 記録にない原因（水分摂取不足など）は作らず、「記録がない」「可能性がある」と書く。
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['20'] = 'v.254'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['20'] = 'v.256'; // Version stamp (scripts/stamp-version.js)
 
     const CR_TOPICS = [
       { id: 'bowel', label: '便秘', needs: [3], plan: /便秘|排便|イレウス|腸管|消化管運動/,
@@ -18,7 +18,7 @@
         counter: [{ label: '排ガスがある', re: /排ガス(?:は)?\s*(?:あり|有|認め)/, bearing: '腸管の通過は保たれていると考えられる' }, { label: '腸蠕動がある', re: /腸蠕動(?:は)?\s*(?:あり|聴取|良好|正常)/, bearing: '腸の動きは保たれていると考えられる' }],
         info: [{ label: '入院前の排便習慣', re: /普段|排便習慣|便通|毎日.{0,3}排便|\d回\/(?:日|週)/ }, { label: '便の性状', re: /硬便|軟便|普通便|兎糞|性状|ブリストル/ }, { label: '腸蠕動音', re: /腸蠕動|腸音/ }, { label: '排ガスの有無', re: /排ガス/ }, { label: '水分摂取量', re: /水分[^。]{0,6}(?:\d|量)|飲水|輸液/ }, { label: '下剤・整腸薬の使用', re: /下剤|酸化マグネシウム|センノシド|ラキソ|緩下|整腸/ }],
         note: '排便がない日数だけで、便秘やイレウスとは判断しない。' },
-      { id: 'pain', label: '疼痛', needs: [4, 5, 9, 14], plan: /疼痛|痛み/,
+      { id: 'pain', label: '疼痛', needs: [4, 5, 9], plan: /疼痛|痛み/,
         definition: '組織の損傷やその刺激によって生じる、不快な感覚や情動の体験',
         patho: '手術や外傷で組織が傷つくと発痛物質が放出されて痛みが生じ、動かす・荷重するなどの刺激で強まりやすい。痛みは動作の拒否、睡眠や食欲の低下、不安の増強につながり、回復に必要な離床を妨げる',
         triggers: [{ label: '痛みの訴え', re: /痛(?:い|み|くて)|疼痛|NRS|ペインスケール|苦痛表情/ }],
@@ -54,6 +54,17 @@
         counter: [{ label: '自力で動作ができる', re: /自力で|自分で[^。]{0,6}(?:動|移|立)|ひとりで/, bearing: '自力で行える動作が残っている' }],
         info: [{ label: '入院前のADL', re: /ADL|自立|入院前/ }, { label: '筋力（MMT）', re: /MMT|筋力/ }, { label: '退院後の住環境', re: /階段|2階|段差|住居|布団/ }],
         note: '動作の改善は、動作そのものの記録で確かめ、他の側面の改善とは分けて見る。' },
+      // Scope: need 14 in any phase. A question or 「わからない」 about daily life, movement or drugs shows a knowledge gap; it is
+      // expected before teaching, so the problem is the gap itself plus readiness to learn, never a lack of will.
+      { id: 'knowledge', label: '療養生活に関する知識の不足', needs: [14], plan: /知識|指導|理解|学習/,
+        definition: '回復や退院後の生活に必要な知識・技術を、まだ十分に持てていない状態',
+        patho: '初めての手術や入院では、動いてよい範囲や生活上の注意を知らないことが不安や行動の控えにつながる。説明や練習を重ねることで、自分で判断して行動できるようになる',
+        triggers: [{ label: '知りたいこと・わからないことの表明', re: /わから(?:ない|ず)|教えて|知りたい|どうすれば|気を付け(?:ないと|る)[^。]{0,8}(?:か|わから)/ }],
+        findings: [{ label: '術後の動作や治療についての質問', re: /いいの[?？]|大丈夫なの[?？]|しないかしら|ですか[?？]|でしょうか|のかな/ }],
+        causes: [{ label: '初めての入院・手術', re: /初めて/ }, { label: '鎮痛薬の使い方の思い込み', re: /我慢できなくなってから|痛み止め[^。]{0,10}我慢/ }, { label: '生活上の注意の指導が未実施', re: /指導を行う予定|今後指導|(?:説明|指導)(?:は)?(?:未|まだ)/ }, { label: '脱臼・転倒への不安', re: /ずれ|脱臼|怖|転倒/ }],
+        counter: [{ label: '理解力が保たれている', re: /理解(?:力)?(?:あり|良好)|理解している|理解できている/, bearing: '説明を受け止めて活かす力がある' }],
+        info: [{ label: '理解力', re: /理解/ }, { label: '退院後の生活環境', re: /階段|2階|布団|一人暮らし|独居|住居|家の中/ }, { label: '学習への意欲', re: /頑張|教えて|知りたい|よくなって帰りたい/ }],
+        note: '知識の不足は、意欲や意思の弱さとは区別する。説明を受ける前の不足は当然であり、本人の関心と理解力を手がかりに指導の時期と内容を決める。' },
       // Scope: self-care of cleanliness/dressing after surgery or fracture (needs 6 and 8); the cause is read from the record, not assumed.
       { id: 'selfcare', label: 'セルフケア不足（清潔・更衣）', needs: [6, 8], plan: /清潔|更衣|入浴|清拭|セルフケア/,
         definition: '入浴・清拭・更衣などの動作を、必要な水準まで自分で行えない状態',
@@ -126,7 +137,7 @@
     function crProblemLine(r) {
       const t = r.topic;
       const fac = r.supported.slice(0, 2).map(x => x.label);
-      const base = fac.length ? `${fac.join('・')}に関連した${t.label}` : `${t.label}`;
+      const base = fac.length ? `${fac.join('、')}に関連した${t.label}` : `${t.label}`;
       return r.status === 'confirmed' || r.status === 'supported' ? base : `${base}の疑い（候補。追加のアセスメントが必要）`;
     }
 
