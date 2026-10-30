@@ -27,3 +27,12 @@ test('文章：経過は記録の呼び方（術後N日目）で書き、睡眠�
   assert.match(t, /休息がとれるようになってきている/);
   assert.doesNotMatch(t, /睡眠の障害の疑い/);
 });
+test('文章（v.259）：経過は根拠となる所見を日ごとにつなぎ、記録を並べるだけにしない', () => {
+  const t = draft(5);
+  assert.match(t, /術後1日目は「痛みのため昨晩は眠れなかった」（S-\d）と話していた。一方、術後2日目は/);
+  assert.match(t, /経過とともに改善している/);
+  assert.match(t, /以上から、睡眠は概ね満たされていると判断する/);
+  assert.equal(app.focusPredicate('皮膚トラブル見られず', false), '皮膚トラブルは見られなかった');
+  assert.equal(app.focusPredicate('皮膚のべたつきあり', true), '皮膚のべたつきがある');
+  assert.equal(app.focusPredicate('入浴：不可 全身清拭', false), '入浴は不可で、全身清拭であった');
+});

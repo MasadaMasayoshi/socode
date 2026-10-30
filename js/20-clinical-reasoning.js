@@ -1,7 +1,7 @@
 // 問題の推論 → 理論的裏付け → 患者固有の原因分析 を、症状ごとの知識表から共通の手順で行う。
 // 一般的な知識（定義・病態・典型的な原因）は、患者に実際に起きた事実とは分けて扱う。
 // 記録にない原因（水分摂取不足など）は作らず、「記録がない」「可能性がある」と書く。
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['20'] = 'v.257'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['20'] = 'v.259'; // Version stamp (scripts/stamp-version.js)
 
     const CR_TOPICS = [
       { id: 'bowel', label: '便秘', needs: [3], plan: /便秘|排便|イレウス|腸管|消化管運動/,
@@ -148,7 +148,7 @@
       if (nonDoc.length && r.status !== 'none') ask.push(`${nonDoc.slice(0, 3).join('・')}が関わっているかは記録からはわからない`);
       if (r.missing.length) ask.push(`${r.missing.slice(0, 4).join('・')}の記録がないため、確認して判断を確かにする`);
       if (ask.length) out.push(ask.join('。') + '。');
-      if (t.note) out.push(t.note);
+      // The topic note is a reasoning rule for the program, not a sentence for the patient's assessment.
       return out;
     }
     function crProblemLine(r) {

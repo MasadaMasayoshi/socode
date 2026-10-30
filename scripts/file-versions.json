@@ -24,8 +24,8 @@
     "hash": "571d7e759778f40d"
   },
   "js/07-classification.js": {
-    "version": "v.258",
-    "hash": "85e8422307b8afe9"
+    "version": "v.259",
+    "hash": "ffb0871babb4fc59"
   },
   "js/08-assessment-tools.js": {
     "version": "v.248",
@@ -80,15 +80,15 @@
     "hash": "226e9e1f050ea0a8"
   },
   "js/18-focus-assessment.js": {
-    "version": "v.258",
-    "hash": "0b13fe4ab63b3798"
+    "version": "v.259",
+    "hash": "507335de66207b79"
   },
   "js/19-clinical-validation.js": {
     "version": "v.257",
     "hash": "72c3667d9d97d6db"
   },
   "js/20-clinical-reasoning.js": {
-    "version": "v.257",
-    "hash": "66251a35f4eb9b14"
+    "version": "v.259",
+    "hash": "4dbc276f5899f155"
   }
 }

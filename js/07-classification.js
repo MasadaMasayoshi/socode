@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.258'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.259'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -182,7 +182,38 @@
       // v.201 薬・処置の記録: 薬の名前や投与の指示は構造化された治療情報として保持する。「抗生剤」という語だけで 9.環境（安全）に入れない。
       if (/^\s*[①-⑩]/.test(t) && TREATMENT_WORDS_REGEX.test(t) && !/(?:出現|副作用|嘔気|発疹|出血|訴え|痛み|ふらつき|自己|自分)/.test(t)) return [];
       if (ids.includes(9) && ANTIINFECTIVE_WORDS_REGEX.test(t) && !detectMultipleHendersonTagsRaw(t.replace(new RegExp(ANTIINFECTIVE_WORDS_REGEX.source, 'g'), '')).includes(9)) ids = ids.filter(h => h !== 9);
+      // Pain is filed under the need whose function it disturbs, read from the same sentence (owner rule 2026-10-30).
+      const painAdd = painEffectNeeds(t);
+      if (painAdd.length) ids = [...new Set([...ids, ...painAdd])].sort((x, y) => x - y);
       return ids;
+    }
+    // Owner rule (2026-10-30), extended with the usual nursing reading of pain: pain belongs to the need whose function it disturbs.
+    //  1 呼吸: shallow breathing / cannot breathe deeply, cough or bring up sputum because of pain
+    //  3 排泄: cannot bear down (いきめない) or reach the toilet because of pain
+    //  4 姿勢: cannot turn, move, transfer or walk (keyword rules already cover this)
+    //  5 睡眠: wakes at night / cannot sleep (keyword rules already cover this)
+    //  9 環境: pain together with a fall risk or analgesic side effects (ふらつき・眠気・めまい)
+    // 10 コミュニケーション: fear or anxiety about pain, or how the pain is expressed or endured (我慢・鎮痛薬を希望しない・苦痛表情)
+    // 12 仕事・役割 / 13 遊び: pain keeps the person from household roles or from hobbies and diversion
+    // 14 学び: a mistaken idea about pain relief (「痛み止めは我慢できなくなってから」)
+    // 2 食事・6 更衣・8 清潔 are tagged by their own keywords when the sentence names the activity.
+    const PAIN_EFFECT_DIRECT = [
+      [1, /呼吸が浅|浅い呼吸|浅呼吸|深呼吸[^。]{0,8}(?:でき(?:ない|ず)|しづら|しにく|控え)|咳(?:嗽)?[^。]{0,8}(?:でき(?:ない|ず)|しづら|しにく|控え)|痰[^。]{0,6}(?:出せ(?:ない|ず)|出しにく|出しづら)/],
+      [3, /いきめ(?:ない|ず)|いきむ[^。]{0,6}(?:でき|痛)|怒責|努責|トイレ[^。]{0,8}(?:行け(?:ない|ず)|動け(?:ない|ず))|排便[^。]{0,6}(?:でき(?:ない|ず)|我慢)/],
+      [9, /転倒|ふらつ|眠気|めまい|ふらふら/],
+      // 「我慢できる」 says the pain is tolerable (an intensity), not that it is held back; a grimace is an observation of pain.
+      [10, /不安|怖|恐|(?:我慢|がまん)(?!でき(?:る|ます|そう)|強)|遠慮|言い出せ|鎮痛(?:剤|薬)[^。]{0,4}希望(?:なし|せず|しない)|痛み止め[^。]{0,4}(?:いらない|希望しない)/],
+      [12, /(?:仕事|家事|役割)[^。]{0,10}(?:でき(?:ない|ず)|休|できるか)/],
+      [13, /(?:趣味|楽しみ|気分転換|レク)[^。]{0,10}(?:でき(?:ない|ず)|行け(?:ない|ず)|楽しめ)/],
+      [14, /我慢できなくなってから|痛み止め[^。]{0,15}(?:我慢|使わない|飲まない|使いたくない|癖になる)|鎮痛(?:剤|薬)[^。]{0,12}(?:知らな|わからな|誤解|癖になる)/]
+    ];
+    function painEffectNeeds(text) {
+      const out = new Set();
+      String(text || '').normalize('NFKC').split(/[。\n]/).forEach(cl => {
+        if (!PAIN_TEXT_REGEX.test(cl) || /(?:痛み|疼痛|創痛)(?:は|も)?(?:なし|ない|なく|みられず|見られず)|疼痛増強(?:なし|なく|見られず)/.test(cl)) return;
+        PAIN_EFFECT_DIRECT.forEach(([id, re]) => { if (re.test(cl)) out.add(id); });
+      });
+      return [...out];
     }
     const TREATMENT_WORDS_REGEX = /抗生剤|抗菌薬|抗生物質|グロブリン|ベニロン|アスピリン|解熱剤|鎮静剤|鎮痛剤|ボルタレン|ホスミシン|輸液|点滴|ステロイド|内服|坐薬/;
     const ANTIINFECTIVE_WORDS_REGEX = /抗生剤|抗菌薬|抗生物質|抗菌剤|ホスミシン|ゾシン|セフ[ぁ-んァ-ヶー]{1,6}|ペニシリン|バンコマイシン|メロペン/;
@@ -2732,7 +2763,8 @@
       { id: 2, re: /食欲|食事|摂取|昼食|夕食|朝食|嘔気|嘔吐/, label: '食事' },
       { id: 3, re: /トイレ|排尿|排便|尿|便/, label: '排泄' },
       { id: 8, re: /清拭|入浴|洗髪|清潔ケア|陰部洗浄/, label: '清潔' },
-      { id: 6, re: /更衣|着替/, label: '更衣' }
+      { id: 6, re: /更衣|着替/, label: '更衣' },
+      { id: 1, re: /呼吸|深呼吸|咳|痰/, label: '呼吸' }
     ];
     function painCurrentContextText(text) {
       const source = String(text || '');
