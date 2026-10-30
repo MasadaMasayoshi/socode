@@ -49,7 +49,10 @@ test('重点アセスメント：関連図・看護計画と連動（関連図�
   cp.relationMap = app.buildRelationMapFromRecord(cp);
   app.buildCarePlansByRules(cp);
   const d = app.buildFocusDraft(cp, 4);
-  assert.match(d.focusAnalysis, /が背景にあり/);
+  // v.258: the fixed chain sentence 「…が背景にあり、…につながりやすい状態にある」 is banned by the owner's spec; the map flow
+  // is reflected either as 「〈問題〉の背景には…がある」 or through the record-based reasoning that names the same causes.
+  assert.match(d.focusAnalysis, /の背景には|関係していると考えられる/);
+  assert.doesNotMatch(d.focusAnalysis, /が背景にあり|につながりやすい状態にある/);
   assert.doesNotMatch(d.focusAnalysis, /関連図では/);
   assert.match(require('fs').readFileSync(require('path').join(__dirname, '../js/12-missing-checks-and-care-plan.js'), 'utf8'), /openFocusForNeed/);
 });

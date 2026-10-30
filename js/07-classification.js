@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.257'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.258'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -1604,15 +1604,16 @@
           rows.push(rc);
         }
         if (!rows.length || !valueCols.length) { out.push(lines[i]); continue; }
-        const unitOf = ref => ((String(ref).normalize('NFKC').match(/\d\s*((?:[×x]\s*10\^?\d+\s*)?[\/A-Za-zμµ%][^\s]*)\s*$/) || [])[1] || '');
+        // The unit is taken from the reference range without its comparison words (0.2mg/dL以下 → mg/dL).
+        const unitOf = ref => ((String(ref).normalize('NFKC').replace(/(?:以下|以上|未満|超)\s*$/, '').match(/\d\s*((?:[×x]\s*10\^?\d+\s*)?[\/A-Za-zμµ%][^\s]*)\s*$/) || [])[1] || '');
         const line = (row, k) => {
           const v = (row[k] || '').trim();
-          if (!v || /^[-ー－―‐]+$/.test(v)) return null;
+          if (!v || /^[-ー－―‐—–]+$/.test(v)) return null;
           const ref = (row[refIdx] || '').trim();
           const unit = /[A-Za-zμµ%]/.test(v) ? '' : unitOf(ref);
 
           const name = /^P$/i.test(row[0]) && /mg\/dL/i.test(unit || v) ? 'P(リン)' : row[0];
-          return `${name} ${v}${unit ? ` ${unit}` : ''}${ref && !/^[-ー－―‐]+$/.test(ref) ? ` (基準値: ${ref})` : ''}`;
+          return `${name} ${v}${unit ? ` ${unit}` : ''}${ref && !/^[-ー－―‐—–]+$/.test(ref) ? ` (基準値: ${ref})` : ''}`;
         };
         const days = valueCols.map(k => tabTableColumnDay(cells[k]));
         out.push(SOURCE_TITLE_MARK + cells.join(' '));
@@ -1629,7 +1630,7 @@
         } else {
 
           rows.forEach(r => {
-            const parts = valueCols.map(k => ((r[k] || '').trim() && !/^[-ー－―‐]+$/.test(r[k].trim()) ? `${cells[k]} ${r[k].trim()}` : null)).filter(Boolean);
+            const parts = valueCols.map(k => ((r[k] || '').trim() && !/^[-ー－―‐—–]+$/.test(r[k].trim()) ? `${cells[k]} ${r[k].trim()}` : null)).filter(Boolean);
             if (!parts.length) return;
             const ref = (r[refIdx] || '').trim();
             out.push(`${r[0]} ${parts.join(' → ')}${unitOf(ref) ? ` ${unitOf(ref)}` : ''}${ref ? ` (基準値: ${ref})` : ''}`);
@@ -1642,6 +1643,9 @@
     function groupClinicalPhrasesWithTimestamps(text) {
       // 単位の「ℓ」（リットルの筆記体 U+2113）は L と同じ文字。分割や単位認識を妨げないよう L にそろえる（値は変えない）。
       text = String(text == null ? '' : text).replace(/\u2113/g, 'L');
+      // A correction/lab row that names its own time point before the test (「入院時WBC<TAB>8,100/μL」) is dated by that time
+      // point and does not move the surrounding record's day.
+      text = text.replace(/^[ \t]*(入院時|術前|手術当日|(?:術後|産褥|入院)\s*\d+\s*日目)\s*([A-Za-z][A-Za-z0-9%]*(?:[(（][^)）\t]{1,12}[)）])?)[ \t]*\t[ \t]*(\S[^\n]*)$/gm, (m, when, name, val) => `${DAY_SAVE_MARK}\n【${when}】\n${name} ${val.trim()}\n${DAY_RESTORE_MARK}`);
       return withExtractionContext(text, () => groupClinicalPhrasesWithTimestampsInner(text));
     }
     // 検査名だけの見出し行と、その直下に箇条書きで並ぶ測定値（「* 1時間値 91mm」）は、同じ検査の結果なので1枚にまとめる。
@@ -1830,9 +1834,20 @@
       const peekText = k => { const t = String(lines[k] || '').trim(); const hm = t.match(NEED_HINT_REGEX); return hm ? t.slice(hm[0].length).trim() : t; };
 
       let savedDayState = null;
+      // A table row whose first cell names a day (リハビリ予定表の「術後4～5日目」) dates that row only: once the table ends,
+      // the record goes back to the day it was in (the schedule must not move later notes to 術後4～5日目).
+      const DAY_ROW = /^(?:[＜<【\[]?\s*)?(?:術後|産褥|入院|治療|病日)?\s*(?:第)?\s*\d+\s*(?:[~〜～\-・、]\s*\d+\s*)?日目?(?:\s*[＞>】\]])?\s*\t|^退院(?:目標|時)?[^\t]{0,12}\t/;
+      let rowDayRestore = null;
       for (let li = 0; li < lines.length; li++) {
         currentSourceLine = li;
-        let cleanLine = lines[li].trim();
+        const rawLi = String(lines[li] || '').normalize('NFKC').trim();
+        if (DAY_ROW.test(rawLi)) { if (!rowDayRestore) rowDayRestore = { ts: globalTimestamp, day: dayLabel, clock: lastClockMin, phase: admissionPhase }; }
+        else if (rowDayRestore && rawLi) { globalTimestamp = rowDayRestore.ts; dayLabel = rowDayRestore.day; lastClockMin = rowDayRestore.clock; admissionPhase = rowDayRestore.phase; rowDayRestore = null; }
+        // A list bullet (* / ＊) is layout, not text.
+        // Kept when it lists measured values under a lab heading (「赤血球沈降速度」→「* 1時間値 91mm」): those are merged as one lab.
+        const prevNonEmpty = (() => { for (let k = li - 1; k >= 0; k--) { const t = String(lines[k] || '').trim(); if (t) return t; } return ''; })();
+        const labChild = /\d/.test(lines[li]) && (LAB_TABLE_HEADING_REGEX.test(prevNonEmpty.replace(/^[*＊]\s*/, '')) || /^[*＊]\s*\S/.test(prevNonEmpty) && /\d/.test(prevNonEmpty) && !/[。、]/.test(prevNonEmpty));
+        let cleanLine = labChild ? lines[li].trim() : lines[li].trim().replace(/^[*＊]\s+(?=\S)/, '');
         if (!cleanLine) continue;
         const needHintMatch = cleanLine.match(NEED_HINT_REGEX);
         currentNeedHint = needHintMatch ? Number(needHintMatch[1]) : null;
@@ -2992,7 +3007,7 @@
       const planned = new Set();
       lines.forEach(l => {
         const t = l.trim();
-        if (/(?:スケジュール|予定表|計画表)\s*$/.test(t) && !SEP.test(t)) { inPlan = true; return; }
+        if (/(?:スケジュール|予定表|計画表)\s*(?:[:：][^\t]*)?$/.test(t) && !SEP.test(t)) { inPlan = true; return; }
         if (!t || !SEP.test(t)) { if (inPlan && t && !SEP.test(t)) inPlan = false; return; }
         if (inPlan) t.split(/\t|\||｜/).slice(1).forEach(cell => planned.add(cell.replace(/\s+/g, '')));
       });

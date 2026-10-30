@@ -1,7 +1,7 @@
 // Local record extraction. Preserve source wording, units, timestamps and admission context.
 // Headings supply context; narrative numbers are not automatically laboratory measurements.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.219'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.258'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -423,6 +423,10 @@
     function isUnnecessaryBoilerplateText(str) {
       if (!str) return false;
       const trimmed = str.trim();
+      // Document information (who wrote it, for which class, on which date) is not about the patient.
+      // 「担当：長男」 (who is in charge at home) is a family fact, not document information.
+      if (/^(?:担当(?:者|教員|指導者)?|作成者|記録者|提出日|作成日|科目|授業|学籍番号|学生(?:氏名|番号)?)\s*[:：]\s*\S/.test(trimmed.normalize('NFKC')) && !/[:：]\s*(?:長男|長女|次男|次女|三男|夫|妻|嫁|息子|娘|家族|母|父|兄|姉|弟|妹|祖父|祖母|本人|患者|看護師|医師|主治医|PT|OT|MSW)/.test(trimmed.normalize('NFKC'))) return true;
+      if (/^日付\s*[:：]\s*(?:R|令和|H|平成|20\d\d)\s*\d*\s*年?/.test(trimmed.normalize('NFKC'))) return true;
       return isSourceStructureText(trimmed) || LAB_TABLE_TITLE_ONLY_REGEX.test(trimmed) || (UNNECESSARY_BOILERPLATE_REGEX.test(trimmed) && !isSectionTitleWithValues(trimmed)) || BARE_PATIENT_HONORIFIC_REGEX.test(trimmed) ||
         STUDENT_CARE_START_REGEX.test(trimmed) || ROOM_MOVE_ONLY_REGEX.test(trimmed) || SCHEDULE_COLUMN_HEADER_REGEX.test(trimmed) ||
         SECTION_TITLE_ONLY_REGEX.test(trimmed) || COURSE_INFO_REGEX.test(trimmed) || CARE_START_ONLY_REGEX.test(trimmed) || isOcrNoiseText(trimmed);

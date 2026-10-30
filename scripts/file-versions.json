@@ -8,8 +8,8 @@
     "hash": "2678b9d2768fc895"
   },
   "js/03-extraction-helpers.js": {
-    "version": "v.219",
-    "hash": "aab1ee10125177b2"
+    "version": "v.258",
+    "hash": "0b36dd576f566066"
   },
   "js/04-server-sync.js": {
     "version": "v.147",
@@ -24,8 +24,8 @@
     "hash": "571d7e759778f40d"
   },
   "js/07-classification.js": {
-    "version": "v.257",
-    "hash": "8f0e9dd5a368d01f"
+    "version": "v.258",
+    "hash": "85e8422307b8afe9"
   },
   "js/08-assessment-tools.js": {
     "version": "v.248",
@@ -80,8 +80,8 @@
     "hash": "226e9e1f050ea0a8"
   },
   "js/18-focus-assessment.js": {
-    "version": "v.257",
-    "hash": "d64a495e13a04c86"
+    "version": "v.258",
+    "hash": "0b13fe4ab63b3798"
   },
   "js/19-clinical-validation.js": {
     "version": "v.257",

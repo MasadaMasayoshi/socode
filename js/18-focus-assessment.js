@@ -1,7 +1,7 @@
 // 重点アセスメント：欲求ごとに、S・O（入院前／入院後）→ 情報の分析・解釈 → 統合 → 看護問題の明確化を一画面で書く。
 // S・Oは分類ボードの内容から自動で並べ、分析・解釈／統合／看護問題の明確化も、記録・充足判定・看護計画（関連図の看護問題）から自動で下書きする。手で直した欄は自動では上書きしない（myAssessments の追加項目に保存）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.257'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.258'; // Version stamp (scripts/stamp-version.js)
 
     const FOCUS_FIELDS = [
       { key: 'focusAnalysis', label: '情報の分析・解釈', ph: 'S・Oの情報から、なぜその状態なのか（原因・関連要因）、今後どうなりそうかを書きます。\n例：術後は疼痛（O-3）と荷重への不安（S-2）から、歩行を避けて活動量が低下している。' },
@@ -74,6 +74,14 @@
       return out;
     }
     function focusIsHeadingCard(i) { return new RegExp('^' + FOCUS_HEAD_WORD + '$').test(String(i && i.text || '').normalize('NFKC').trim()); }
+    // The need a problem is explained under (usual nursing convention); falls back to the first related need.
+    const FOCUS_HOME_RULES = [[/気道|ガス交換|換気|無気肺|肺炎|呼吸/, 1], [/清潔|入浴|皮膚|褥瘡|更衣/, 8], [/栄養|摂取|嚥下|体液量|脱水|血糖/, 2], [/便秘|排尿|排便|尿閉|イレウス|失禁/, 3], [/睡眠/, 5], [/体温|発熱|低体温/, 7], [/感染|転倒|転落|血栓|塞栓|出血|せん妄|脱臼|損傷リスク/, 9], [/知識|自己管理|指導|学習/, 14], [/不安|恐怖|コミュニケーション/, 10], [/役割|家族/, 12], [/可動|移動|活動|疼痛|痛み|廃用|離床|セルフケア/, 4]];
+    function focusHomeNeed(p) {
+      const rel = (p && p.relatedNeeds) || [];
+      const hit = FOCUS_HOME_RULES.find(([re, n]) => re.test(String(p && p.problem || '')) && (!rel.length || rel.includes(n)));
+      if (!rel.length) return hit ? hit[1] : null;
+      return hit ? hit[1] : rel[0];
+    }
     function focusNeedName(needId) { return String((HENDERSON_NEEDS.find(n => n.id === needId) || {}).name || '').replace(/^\d+\.\s*/, ''); }
     function focusPlansForNeed(cp, needId, itemIds) {
       const list = typeof carePlanList === 'function' ? carePlanList(cp) : [];
@@ -81,7 +89,7 @@
       return list.filter(p => (p.relatedNeeds || []).length ? p.relatedNeeds.includes(needId) : (p.evidenceIds || []).some(id => itemIds.has(id)));
     }
     function focusLabelsOf(ids, labels) {
-      const out = [...new Set((ids || []).map(id => labels[id]).filter(Boolean))];
+      const out = [...new Set((ids || []).map(id => labels[id]).filter(Boolean))].sort((x, y) => x.localeCompare(y, 'ja', { numeric: true }));
       return out.length ? `（${out.join('・')}）` : '';
     }
     function focusQuoteList(facts, items, labels) {
@@ -116,7 +124,8 @@
           if (!n || seen.has(n.id)) return;
           seen.add(n.id); next.push(n.id);
           const label = focusClip(n.label, 30);
-          if (n.type === 'symptom') out.symptoms.push(label);
+          // A symptom predicted from general knowledge (排痰困難 when 自力排痰可能 is recorded) is not a symptom of this patient.
+          if (n.type === 'symptom') { if (n.observed !== false && n.source !== 'knowledge') out.symptoms.push(label); }
           else if (FOCUS_INTERVENTION_RE.test(n.label) && !FOCUS_RESTRICT_RE.test(n.label)) out.interventions.push(label);
           else if (['pathophysiology', 'treatment', 'disease'].includes(n.type)) out.causes.push(label);
         }));
@@ -194,7 +203,12 @@
       const dims = a.dimensions || null;
       const plans = focusPlansForNeed(cp, needId, itemIds);
       const stat = p => (typeof cvProblemStatus === 'function' ? cvProblemStatus(cp, p) : { kind: 'actual', label: '' });
-      const established = plans.filter(p => stat(p).kind !== 'candidate').slice(0, 4);
+      // A problem belongs to its main need (the first related need). In the other related needs it is only referred to, so the
+      // same problem is not judged, summarised and listed again under every need.
+      const isHomeP = p => { const h = focusHomeNeed(p); return h === null || h === needId; };
+      const establishedAll = plans.filter(p => stat(p).kind !== 'candidate').slice(0, 6);
+      const established = establishedAll.filter(isHomeP).slice(0, 4);
+      const awayP = establishedAll.filter(p => !isHomeP(p)).slice(0, 3);
       const candidates = plans.filter(p => stat(p).kind === 'candidate').slice(0, 3);
       const subj = /^[A-ZＡ-Ｚ][氏さん]|氏$|さん$/.test(String(cp.title || '').trim()) ? String(cp.title).trim() : '患者';
       const first = (list, type) => list.filter(i => i.type === type).slice(0, 2);
@@ -239,8 +253,14 @@
 
         if (events.length) para.push(`今回は、${events.map(i => `${focusFact(i.text, 50)}${i.fieldLabel === '診断名' ? 'と診断された' : ''}${lab(i)}`).join('。')}。`);
         // 2. 疾患・治療と身体への影響（患者の記録に根拠があるものだけ）
-        const chains = established.slice(0, 2).map(p => ({ p, ch: focusMapChainRoles(cp, focusMapNodeOf(cp, p)).causes })).filter(x => x.ch.length);
-        if (chains.length) para.push(chains.map(x => `${x.ch.slice().reverse().join('、')}が背景にあり、${cl(x.p.problem, 30)}につながりやすい状態にある`).join('。また、') + '。');
+        // A problem is explained once, in its main need (the first related need); other needs refer to it instead of repeating it.
+        const isHome = p => !(p.relatedNeeds || []).length || p.relatedNeeds[0] === needId;
+        // When the reasoning step below already explains the same problem from the record, the map chain is not repeated.
+        const byTopic = p => reasons.slice(0, 2).some(r => r.topic.plan.test(p.problem));
+        const chains = established.filter(p => isHome(p) && !byTopic(p)).slice(0, 2).map(p => ({ p, ch: focusMapChainRoles(cp, focusMapNodeOf(cp, p)).causes })).filter(x => x.ch.length);
+        if (chains.length) para.push(chains.map(x => `${cl(x.p.problem, 30)}の背景には、${x.ch.slice().reverse().join('、')}がある`).join('。また、') + '。');
+        const away = awayP;
+        if (away.length) para.push(`${away.map(p => `${cl(p.problem, 30)}は「${focusNeedName(focusHomeNeed(p))}」`).join('、')}の項で述べたとおりで、この欲求にも影響している。`);
         reasons.slice(0, 2).forEach(r => crNarrative(r, data.labels).forEach(x => para.push(x)));
         // 3. 入院後の変化（日ごと。新しい所見ほど後ろ）
         // Rows used in the day-by-day narrative: drop lab lines with reference ranges and, when the need has a domain vocabulary,
@@ -299,21 +319,22 @@
         if (verdict !== 'unknown') {
           if (ngDims.length) t += `主な未充足の要因は${ngDims.join('・')}である。`;
           if (okD.length) t += `一方、${okD.join('・')}は保たれている。`;
-          if (actualP.length) t += `現在残る問題は${actualP.map(p => focusClip(p.problem, 24)).join('、')}で、`;
+          if (actualP.length) t += `今ある問題は${actualP.map(p => focusClip(p.problem, 24)).join('、')}で、`;
           if (riskP2.length) t += `${actualP.length ? '加えて' : ''}${riskP2.map(p => focusClip(p.problem, 24)).join('、')}を予防する必要がある。`;
           else if (actualP.length) t += '解消に向けた援助が要る。';
-          if (established.length) t += `行える動作は本人に任せ、できない部分を補う援助を${established.length > 1 ? '優先順位をつけて' : ''}進める。`;
+          if (established.length && [2, 3, 4, 6, 8].includes(needId) && actualP.length) t += `行える動作は本人に任せ、できない部分を補う援助を${established.length > 1 ? '優先順位をつけて' : ''}進める。`;
           else if (verdict === 'met') t += '現時点で看護問題は挙がらない。';
         }
         integration.push(t);
       }
       let problem = established.length
-        ? `よって、${established.map(p => focusClip(p.problem, 34)).join('、')}が、この欲求の看護問題として挙がる。\n` + established.map((p, i) => { const rl = focusMapChainRoles(cp, focusMapNodeOf(cp, p)); const ch = rl.causes; const evl = [...new Set((p.evidenceIds || []).map(id => data.labels[id]).filter(Boolean))]; const oth = (p.relatedNeeds || []).filter(n => n !== needId).map(n => focusNeedName(n)); return `#${i + 1} ${p.problem}（${stat(p).label}）${ch.length ? `\n　関連要因：${ch.slice().reverse().join('、')}` : ''}${rl.symptoms.length ? `\n　症状・状態：${rl.symptoms.join('、')}` : ''}${rl.interventions.length ? `\n　実施中の介入：${rl.interventions.join('、')}` : ''}${p.note ? `\n　状態：${focusClip(p.note, 70)}` : ''}${evl.length ? `\n　根拠：${evl.join('・')}` : ''}${oth.length ? `\n　関連する欲求：${oth.join('・')}` : ''}`; }).join('\n') + (candidates.length ? `\n（根拠を確かめる候補：${candidates.map(p => focusClip(p.problem, 24)).join('、')}）` : '')
+        ? `よって、${established.map(p => focusClip(p.problem, 34)).join('、')}が、この欲求の看護問題として挙がる。\n` + established.map((p, i) => { if (focusHomeNeed(p) !== null && focusHomeNeed(p) !== needId) return `#${i + 1} ${p.problem}（${stat(p).label}・詳しくは「${focusNeedName(focusHomeNeed(p))}」の項）`; const rl = focusMapChainRoles(cp, focusMapNodeOf(cp, p)); const ch = rl.causes; const evl = [...new Set((p.evidenceIds || []).map(id => data.labels[id]).filter(Boolean))]; const oth = (p.relatedNeeds || []).filter(n => n !== needId).map(n => focusNeedName(n)); return `#${i + 1} ${p.problem}（${stat(p).label}）${ch.length ? `\n　関連要因：${ch.slice().reverse().join('、')}` : ''}${rl.symptoms.length ? `\n　症状・状態：${rl.symptoms.join('、')}` : ''}${rl.interventions.length ? `\n　実施中の介入：${rl.interventions.join('、')}` : ''}${p.note ? `\n　状態：${focusClip(p.note, 70)}` : ''}${evl.length ? `\n　根拠：${evl.join('・')}` : ''}${oth.length ? `\n　関連する欲求：${oth.join('・')}` : ''}`; }).join('\n') + (candidates.length ? `\n（根拠を確かめる候補：${candidates.map(p => focusClip(p.problem, 24)).join('、')}）` : '')
         : (all.length ? 'この欲求から明確になる看護問題は、現時点ではない。' : '');
       const cand2 = reasons.filter(r => r.status !== 'confirmed' && !established.some(p => r.topic.plan.test(p.problem)));
       const sup2 = cand2.filter(r => r.status === 'supported'), weak2 = cand2.filter(r => r.status !== 'supported');
       if (cand2.length && !established.length) problem = sup2.length ? '' : '現時点で確定できる看護問題はないが、次の候補を追加のアセスメントで確かめる。';
       if (cand2.length) problem += (problem ? '\n' : '') + sup2.map(r => `（候補）${crProblemLine(r)}（記録から原因と症状が確認できる）`).concat(weak2.map(r => crProblemLine(r))).join('\n');
+      if (awayP.length) problem += (problem ? '\n' : '') + awayP.map(p => `関連する問題：${p.problem}（詳しくは「${focusNeedName(focusHomeNeed(p))}」の項）`).join('\n');
       return { focusAnalysis: analysis.join('\n'), focusIntegration: integration.join(''), focusProblem: problem };
     }
 
@@ -470,5 +491,5 @@
     }
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { focusPrintSection, focusAssessmentText, buildFocusDraft, applyFocusDraft, renderFocusAssessment, focusItemsByColumn, focusCellHtml, FOCUS_FIELDS });
+  Object.assign(module.exports, { focusPrintSection, focusAssessmentText, focusHomeNeed, focusFact, buildFocusDraft, applyFocusDraft, renderFocusAssessment, focusItemsByColumn, focusCellHtml, FOCUS_FIELDS });
 }
