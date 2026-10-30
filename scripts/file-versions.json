@@ -4,8 +4,8 @@
     "hash": "3178a2b7edeee2a2"
   },
   "js/02-reference-data.js": {
-    "version": "v.220",
-    "hash": "2678b9d2768fc895"
+    "version": "v.260",
+    "hash": "0cda7b3bec4d1150"
   },
   "js/03-extraction-helpers.js": {
     "version": "v.258",
@@ -24,8 +24,8 @@
     "hash": "571d7e759778f40d"
   },
   "js/07-classification.js": {
-    "version": "v.259",
-    "hash": "ffb0871babb4fc59"
+    "version": "v.260",
+    "hash": "5efc5dd243e75e0d"
   },
   "js/08-assessment-tools.js": {
     "version": "v.248",

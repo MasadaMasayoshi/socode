@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.259'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.260'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -182,9 +182,10 @@
       // v.201 薬・処置の記録: 薬の名前や投与の指示は構造化された治療情報として保持する。「抗生剤」という語だけで 9.環境（安全）に入れない。
       if (/^\s*[①-⑩]/.test(t) && TREATMENT_WORDS_REGEX.test(t) && !/(?:出現|副作用|嘔気|発疹|出血|訴え|痛み|ふらつき|自己|自分)/.test(t)) return [];
       if (ids.includes(9) && ANTIINFECTIVE_WORDS_REGEX.test(t) && !detectMultipleHendersonTagsRaw(t.replace(new RegExp(ANTIINFECTIVE_WORDS_REGEX.source, 'g'), '')).includes(9)) ids = ids.filter(h => h !== 9);
-      // Pain is filed under the need whose function it disturbs, read from the same sentence (owner rule 2026-10-30).
-      const painAdd = painEffectNeeds(t);
-      if (painAdd.length) ids = [...new Set([...ids, ...painAdd])].sort((x, y) => x - y);
+      // Pain and other symptoms are filed under every need whose function they disturb, read from the same sentence
+      // (owner rule 2026-10-30; see CONDITIONAL_NEED_RULES).
+      const effAdd = [...painEffectNeeds(t), ...conditionalNeedIds(t)];
+      if (effAdd.length) ids = [...new Set([...ids, ...effAdd])].sort((x, y) => x - y);
       return ids;
     }
     // Owner rule (2026-10-30), extended with the usual nursing reading of pain: pain belongs to the need whose function it disturbs.
@@ -207,6 +208,42 @@
       [13, /(?:趣味|楽しみ|気分転換|レク)[^。]{0,10}(?:でき(?:ない|ず)|行け(?:ない|ず)|楽しめ)/],
       [14, /我慢できなくなってから|痛み止め[^。]{0,15}(?:我慢|使わない|飲まない|使いたくない|癖になる)|鎮痛(?:剤|薬)[^。]{0,12}(?:知らな|わからな|誤解|癖になる)/]
     ];
+    // Conditional routing (owner request 2026-10-30, after the pain rule): a symptom or state is filed under its usual need,
+    // and ALSO under each need whose function the same sentence says it disturbs. General condition: the symptom word and
+    // the effect word must stand in one sentence, and the symptom must not be negated there. Sources: Henderson's 14-item
+    // data lists (kango-roo, nurse-plus, nurscode) and the usual reading of 常在条件/病理的状態 in nursing-process teaching.
+    const CONDITIONAL_NEED_RULES = [
+      { key: 'dyspnea', subject: /呼吸困難|息切れ|息苦し|息が苦し|喘鳴|呼吸が苦し/, base: [1], effects: [[5, /眠れ|夜間|起座|横にな(?:れ|って)/], [4, /歩行|歩く|動く|労作|移動|階段|離床|ADL/], [2, /食事|食べ|摂取|食欲/], [8, /入浴|清拭|洗髪|更衣/], [10, /不安|怖|恐/]] },
+      { key: 'itch', subject: /掻痒|かゆ|痒み|痒い/, base: [8], effects: [[5, /眠れ|熟睡|夜間|寝つ/], [10, /イライラ|不機嫌|泣/]] },
+      { key: 'nausea', subject: /嘔気|悪心|吐き気|嘔吐|吐いた/, base: [2], effects: [[3, /嘔吐(?:量|回数)|吐物|胃液/], [9, /誤嚥|窒息/], [5, /眠れ/]] },
+      { key: 'diarrhea', subject: /下痢|水様便|軟便/, base: [3], effects: [[8, /肛門周囲|殿部|臀部|発赤|びらん|皮膚|かぶれ/], [2, /脱水|水分|口渇|食事/], [5, /夜間|眠れ/]] },
+      { key: 'incontinence', subject: /失禁|尿漏れ|漏らし/, base: [3], effects: [[8, /汚染|皮膚|発赤|かぶれ|陰部/], [10, /恥ずかし|羞恥|情けな|申し訳/]] },
+      { key: 'edema', subject: /浮腫|むくみ|むくん/, base: [2], effects: [[8, /皮膚(?:が)?(?:脆弱|損傷|裂|発赤)|褥瘡|水疱/], [4, /歩き|歩行|動き|重い|重だる/], [6, /靴|衣服|衣類|服が|ズボン|靴下/]] },
+      { key: 'fever', subject: /発熱|熱がある|高熱|悪寒|38\.?\d*\s*(?:度|℃)/, base: [7], effects: [[2, /脱水|水分|食欲|食べ/], [5, /眠れ|寝つ/], [8, /発汗|寝衣交換|清拭|汗/], [4, /倦怠|だる|動け/]] },
+      { key: 'fatigue', subject: /倦怠感|だるい|だるさ|疲労感|疲れやす|易疲労/, base: [4], effects: [[5, /眠|休息|横にな/], [2, /食欲|食べ/], [8, /入浴|清拭|洗/]] },
+      { key: 'anxiety', subject: /不安|心配|怖い|恐怖/, base: [10], effects: [[5, /眠れ|寝つ/], [2, /食欲|食べられ|喉を通ら/], [14, /わから|知りたい|理解|どうすれば/], [12, /仕事|家事|役割|家族に迷惑/], [4, /動くのが|歩くのが|離床|荷重/]] },
+      { key: 'paralysis', subject: /麻痺|筋力低下|握力低下|巧緻(?:性)?(?:障害|低下)/, base: [4], effects: [[6, /更衣|着替|ボタン/], [8, /入浴|清拭|洗|歯磨き/], [2, /食事|箸|スプーン|摂取|嚥下/], [3, /トイレ|排泄/], [9, /転倒|ふらつ/], [10, /言葉|構音|失語|話しにく/]] },
+      { key: 'sensory', subject: /難聴|聞こえ(?:にくい|づらい)|視力低下|見えにくい|視野(?:欠損|狭窄)|老眼/, base: [10], effects: [[9, /転倒|段差|ぶつか|ナースコール|危険/], [14, /説明|指導|パンフレット|読め|理解/]] },
+      { key: 'device', subject: /点滴|ドレーン|カテーテル|ルート|チューブ|留置/, base: [9], effects: [[4, /動き|離床|体位|制限|動作/], [8, /清潔|入浴|清拭|刺入部|皮膚/], [5, /眠れ|気になって/]] },
+      { key: 'delirium', subject: /せん妄|見当識障害|認知(?:機能)?(?:の)?低下|もうろう|不穏/, base: [9], effects: [[10, /会話|意思疎通|つじつま|話がかみ合/], [5, /昼夜逆転|夜間|不眠|眠れ/], [14, /理解|覚え|指導/]] },
+      { key: 'dysphagia', subject: /嚥下障害|嚥下困難|むせ|飲み込み(?:にくい|づらい)/, base: [2], effects: [[1, /誤嚥|肺炎|痰|SpO2|呼吸/], [9, /窒息|誤嚥/]] },
+      { key: 'hypoglycemia', subject: /低血糖/, base: [2], effects: [[9, /ふらつ|転倒|意識|冷汗/], [14, /補食|自己管理|対処/]] },
+      { key: 'restriction', subject: /安静(?:度)?|ベッド上|床上|臥床|行動制限|面会制限/, base: [4], effects: [[13, /退屈|暇|気分転換|楽しみ|テレビ/], [5, /眠れ|昼夜/], [12, /仕事|役割|家事/]] }
+    ];
+    const NEG_AFTER_SYMPTOM = /^[^。、]{0,4}(?:なし|無し|ない|なく|認めず|見られず|みられず|消失)/;
+    function conditionalNeedIds(text, only) {
+      const out = new Set();
+      String(text || '').normalize('NFKC').split(/[。\n]/).forEach(cl => {
+        CONDITIONAL_NEED_RULES.forEach(r => {
+          if (only && r.key !== only) return;
+          const m = cl.match(r.subject);
+          if (!m || NEG_AFTER_SYMPTOM.test(cl.slice(m.index + m[0].length))) return;
+          // The effect itself must be affirmed (「ふらつきは少ない」「眠れている」 are not a disturbance).
+          r.effects.forEach(([id, re]) => { const rest = cl.replace(r.subject, ''); const e = rest.match(re); if (e && !/^[^。、]{0,4}(?:なし|無し|は少な|が少な|少な|みられず|見られず|認めず|良好)/.test(rest.slice(e.index + e[0].length)) && !/よく眠れ|眠れてい|眠れた/.test(rest)) out.add(id); });
+        });
+      });
+      return [...out];
+    }
     function painEffectNeeds(text) {
       const out = new Set();
       String(text || '').normalize('NFKC').split(/[。\n]/).forEach(cl => {
