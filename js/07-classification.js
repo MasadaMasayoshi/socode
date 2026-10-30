@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.249'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.253'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -2538,7 +2538,7 @@
 
     const S_QUOTE_REGEX = /["「][^"「」]*[ぁ-んァ-ヶ一-龠々][^"「」]*["」]/;
 
-    const S_KEYWORD_REGEX = /(?:訴え|発言|(?:と|」)\s*話す)(?!\s*(?:なし|無し|なく|無く|ない|無い|は(?:なし|無し|ない|無い|なく)|も(?:なし|なく|ない)))/;
+    const S_KEYWORD_REGEX = /(?:訴え|発言|(?:と|」)\s*話す|(?:たい|ほしい|欲しい|したくない|いやだ|嫌だ)(?:と(?:の(?:こと|希望|発言)|希望|思う|思って|いう|言)|旨)|(?:希望|要望)(?:あり|が聞かれ|を話)|(?:(?<!ないと)気持ち(?:が)?悪い|べたべた|ベタベタ|べとべと)(?:と(?:の(?:こと|訴え)|いう|言)|[^。]{0,6}$))(?!\s*(?:なし|無し|なく|無く|ない|無い|は(?:なし|無し|ない|無い|なく)|も(?:なし|なく|ない)))/;
     function countSubstantiveLeadSentences(leadText) {
       return leadText.split('。').map(s => s.trim()).filter(s => s.length >= 4).length;
     }
@@ -3218,6 +3218,37 @@
       }
       return drop.size ? arr.filter((_, i) => !drop.has(i)) : (Array.isArray(items) ? items : arr);
     }
+    // Owner rule (2026-10-30): name, age and sex are kept on ONE card, whether they come from a title line or from separate table rows.
+    function mergeIdentityCards(list) {
+      const NAME_ONLY = /^[^\s、。,:：\d]{1,12}(?:氏|さん|様)$/;
+      const LABELLED = /^(?:氏名|年齢・性別|年齢|性別)\s*[\t:：]\s*/;
+      const AGE_SEX = /^\d{1,3}歳\s*(?:男性|女性|男児|女児)/;
+      const idxs = [];
+      list.forEach((c, i) => {
+        if (!c || c.type === 'unnecessary') return;
+        const t = String(c.text || '').normalize('NFKC').trim();
+        if (NAME_ONLY.test(t) || LABELLED.test(t) || AGE_SEX.test(t) || isPatientIdentityLine(t)) idxs.push(i);
+      });
+      if (idxs.length < 2) return list;
+      let name = '', age = '', sex = '', rest = '';
+      const tags = new Set();
+      idxs.forEach(i => {
+        const c = list[i];
+        let t = String(c.text || '').normalize('NFKC').trim().replace(LABELLED, '');
+        (c.hendersonIds || []).forEach(h => tags.add(h));
+        const nm = t.match(/^([^\s、。,:：\d]{1,12}(?:氏|さん|様))(?=$|[・、,\s／/])/); if (nm) { name = name || nm[1]; t = t.slice(nm[0].length).replace(/^[・、,\s]+/, ''); }
+        const ag = t.match(/^(\d{1,3})歳\s*(男性|女性|男児|女児)?/); if (ag) { age = age || ag[1] + '歳'; sex = sex || ag[2] || ''; t = t.slice(ag[0].length).replace(/^[・、,\s]+/, ''); }
+        else { const sx = t.match(/^(男性|女性|男児|女児)/); if (sx) { sex = sex || sx[1]; t = t.slice(sx[0].length); } }
+        t = t.replace(/^[／/、,\s]+/, '').trim();
+        if (t && !rest.includes(t)) rest += (rest ? '　' : '') + t;
+      });
+      const first = list[idxs[0]];
+      const parts = [name && `氏名：${name}`, age && `年齢：${age}`, sex && `性別：${sex}`].filter(Boolean);
+      if (parts.length < 2 && !rest) return list;
+      const merged = { ...first, text: parts.join('　') + (rest ? `　／${rest}` : ''), hendersonIds: Array.from(tags).sort((x, y) => x - y) };
+      return list.filter((c, i) => !idxs.includes(i) || i === idxs[0]).map(c => c === first ? merged : c);
+    }
+
     function classifyTextByRules(text) {
       const tableNorm = normalizeBrokenTableRows((text || '').trim().normalize('NFKC'));
       const src = stripHtmlArtifacts(tableNorm.text).trim();
@@ -3229,7 +3260,7 @@
         const { detectedHIds, predictedType } = computeLocalTagsAndType(chunk, cleanedText, null);
         out.push({ text: cleanedText, timestamp: chunk.timestamp || '日時不明', type: predictedType, hendersonIds: detectedHIds.slice().sort((a, b) => a - b), fieldLabel: chunk.fieldLabel || null, ruleDecision: automaticRuleDecision(chunk, cleanedText, predictedType), ...({}), ...(chunk.diseaseGeneral ? { diseaseGeneral: true } : {}), ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.soMixed ? { soMixed: true } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}) });
       }));
-      return applyAssociationTags(applyFamilyAndStayTags(markObstetricConflictsPass(applyObstetricPhase(applyObstetricNeedCorrections(attachSourceOffsets(dropIncidentalHygieneTag(applyTableColumnRoles(stripPipeArtifacts(splitMixedSpeechCards(markWrappedLineFragments(removeCoveredCompositeCards(applyFamilyScreeningContext(applyPainContextTags(applySceneTagInheritance(rejoinTimeLabelFragments(out))))), src))), tableNorm.roles)), src))))));
+      return mergeIdentityCards(applyAssociationTags(applyFamilyAndStayTags(markObstetricConflictsPass(applyObstetricPhase(applyObstetricNeedCorrections(attachSourceOffsets(dropIncidentalHygieneTag(applyTableColumnRoles(stripPipeArtifacts(splitMixedSpeechCards(markWrappedLineFragments(removeCoveredCompositeCards(applyFamilyScreeningContext(applyPainContextTags(applySceneTagInheritance(rejoinTimeLabelFragments(out))))), src))), tableNorm.roles)), src)))))));
     }
 
     function manualClassificationLineage(item, path = new Set()) {

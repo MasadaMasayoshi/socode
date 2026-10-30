@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.236'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.252'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -898,6 +898,8 @@
 // General layers: structure (headings/tables), specialty concept (kept separate from the 14 needs), background, subject-specific (newborn / family), incomplete fragment.
 const CARD_DESTINATIONS = [
   { key: 'fragment', re: /^[^\s。、]{1,6}(?:時|後|前|中)(?:付|に|を|が|の)$/, label: '不完全な断片', to: '元の文章へ復元して照合（単独カードにしない）' },
+  // 不要な情報への振り分け（2026-10-30 依頼）。一般条件=患者の状態・経過・背景のどれでもない、授業・演習・書式上の事務的記載や装飾。氏名・年齢・日付などの基本情報は含めない。候補として示し、自動では移さない。
+  { key: 'unnecessary', re: /^\s*(?:科目|担当(?:教員|者)?|実習(?:先|期間|日)|演習(?:日|名)?|提出(?:日|期限)|学籍|学生(?:氏名|番号)|指導者|記録者|作成者)\s*[：:]|^\s*(?:以下|以上)(?:省略|余白)|^\s*[-=＝ー―─*＊・]{3,}\s*$|^\s*[（(]?\s*続き\s*[）)]?\s*$|^\s*(?:術後|入院|手術)\s*\d*\s*日目より受け持つ。?\s*$|^\s*第?\s*\d+\s*(?:ページ|頁)\s*$/, label: '不要な情報（臨床事実ではない事務的記載）', to: '「不必要な情報」へ振り分け可（原文は消さず、種類の変更として履歴に残す）。患者の状態・経過・背景に関わる記載は対象にしない' },
   // 新分類先（2026-10-28 承認）: データ品質。一般条件=本人の状態ではなく「記録そのものの読み取りの確かさ」を述べた文。
   { key: 'dataquality', re: /原本(?:で)?(?:の)?確認|原文(?:が)?(?:不明瞭|不鮮明|読めない)|判読(?:不能|できない|困難)|読み取れ(?:ない|ず|なかった)|単位(?:が)?(?:不明|欠落|読めない)|転記(?:ミス|誤り)の可能性/, label: 'データ品質・根拠確度（メタ情報）', to: '情報の確かさを示すメタ情報として保持し、判定の根拠確度に反映する（患者の所見にしない）' },
   // 診断・鑑別・検査・治療は、ヘンダーソンに無理に入れず、構造化された臨床情報として保持する。

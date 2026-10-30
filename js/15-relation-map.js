@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.245'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.251'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -2150,6 +2150,7 @@
       if (!(surgery && surgeryDone) && /肺炎|気管支炎|COPD|慢性閉塞|呼吸不全|肺気腫/.test(dxLabel)) {
         const lung = N('lung_inflam', 'pathophysiology', '肺胞・気道の炎症・分泌物（滲出液）の増加', { source: 'knowledge' });
         if (disease) E(disease, lung, 'causes', { evidence: '病原体による炎症' });
+        if (smoke) E(smoke, lung, 'contributes_to', { evidence: '喫煙で気道の線毛運動が弱まり分泌物が増え、肺の感染・炎症が起こりやすい（発症の原因とは断定しない）' });
         const fever = lab('体温');
 
         [wbcEarly, crpEarly, fever].filter(l => l && l.flag === 'high').forEach(l => E(labNode(l), lung, 'supports', { evidence: '炎症の強さを示す' }));
@@ -2230,6 +2231,7 @@
         const asp = N('aspiration', 'future_risk', /肺炎/.test(dxLabel) ? '誤嚥（誤嚥性肺炎の再発）の可能性' : '誤嚥・誤嚥性肺炎の可能性', { source: 'knowledge', observed: false });
         E(sw, asp, 'predicts', { predicted: true, evidence: '食物・唾液が気道に入る' });
         if (oral) E(N('oral', 'symptom', short(oral, 30), { items: [oral] }), asp, 'contributes_to', { predicted: true, evidence: '口の中の細菌が増える' });
+        if (smoke) E(smoke, asp, 'contributes_to', { evidence: '喫煙で気道の防御機能（線毛運動・咳嗽反射）が弱まり、誤嚥したものを排出しにくい（肺炎の背景要因。原因とは断定しない）' });
         if (disease && /肺炎/.test(dxLabel)) E(sw, disease, 'contributes_to', { evidence: '口腔内細菌を含む唾液・食物が気道へ入る' });
         if (swSign) {
           const pDys = N('p_dysphagia', 'nursing_problem', '嚥下障害', { cat: 'nutr' });
