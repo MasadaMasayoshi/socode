@@ -1,7 +1,7 @@
 // Checkpoints, Japanese reports and patient-scoped board history.
 // Restore only matching post-operation state; imports use verified checkpoints, not blanket replacement.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.252'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['13'] = 'v.255'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -934,6 +934,11 @@ function proposeCardDestination(text) {
   const t = String(text || '').normalize('NFKC').trim();
   if (typeof isStructuralHeadingLine === 'function' && isStructuralHeadingLine(t)) return { key: 'structure', label: '見出し・表の参照（構造情報）', to: '見出しとして保持し、続く行の文脈にする（患者の所見にしない）' };
   const d = CARD_DESTINATIONS.find(x => x.re.test(t));
+  if (d) return { key: d.key, label: d.label, to: d.to };
+  // Chapter numbers ("5.手術当日(6月10日)") and known section titles are document structure: kept as context, never a patient finding.
+  const chapter = /^\d{1,2}\s*[.．]\s*[^\s。、]{2,30}(?:\s*[（(][^）)]{1,12}[）)])?$/.test(t);
+  const section = t.length <= 20 && !/[\d氏]|受け?持|室$/.test(t) && typeof isUnnecessaryBoilerplateText === 'function' && isUnnecessaryBoilerplateText(t);
+  if (chapter || section) return { key: 'structure', label: '見出し・表の参照（構造情報）', to: '見出しとして保持し、続く行の文脈にする（患者の所見としては扱わない）' };
   return d ? { key: d.key, label: d.label, to: d.to } : null;
 }
 // v.201 治療情報（薬・処置）を構造化して取り出す。処方（指示）・投与済み・中止を区別し、原文の文はそのまま残す。

@@ -2,7 +2,7 @@
 // Source structure and identity rules precede learned preferences; creation does not vote.
 // Preserve meaningful source fragments, S/O context, dates and separate admission periods.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.253'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['07'] = 'v.255'; // Version stamp (scripts/stamp-version.js)
 
     const FAMILY_HISTORY_DISEASE_CONTEXT_REGEX =
       /(祖父|祖母|父|母|兄|姉|弟|妹|叔父|叔母|伯父|伯母)を?[^。、]{0,20}(がん|癌)[^。]{0,15}(亡くな|亡くし|他界|死去)/;
@@ -2964,14 +2964,32 @@
       });
       return updated;
     }
+    // Rows of a schedule/plan table (リハビリスケジュール etc.) describe what is planned, not what was done: mark them so they are kept as plans.
+    function markScheduleRows(list, src) {
+      const lines = String(src || '').split(/\r?\n/);
+      const SEP = /\t|\||｜/;
+      let inPlan = false;
+      const planned = new Set();
+      lines.forEach(l => {
+        const t = l.trim();
+        if (/(?:スケジュール|予定表|計画表)\s*$/.test(t) && !SEP.test(t)) { inPlan = true; return; }
+        if (!t || !SEP.test(t)) { if (inPlan && t && !SEP.test(t)) inPlan = false; return; }
+        if (inPlan) t.split(/\t|\||｜/).slice(1).forEach(cell => planned.add(cell.replace(/\s+/g, '')));
+      });
+      if (planned.size) list.forEach(it => { if (it && planned.has(String(it.text || '').replace(/\s+/g, ''))) it.planned = true; });
+      return list;
+    }
     // A short, unterminated, untagged card whose text is contained in another card is a wrapped-line fragment, not a separate fact.
     function markWrappedLineFragments(list, src) {
       const norm = x => String(x || '').replace(/\s+/g, '');
       const lines = String(src || '').split(/\r?\n/).map(l => l.trim().replace(/^(?:\d{1,2}\s*月\s*\d{1,2}\s*日(?:[（(][^）)]*[）)])?\s*[:：]?|\d{1,2}\s*[:：]\s*\d{2}|[〇○◯・●■◆▶\-－|｜\s])+/, '')).filter(Boolean).map(norm);
+      const rawLines = String(src || '').split(/\r?\n/);
       const others = (item, v) => { const full = norm(item.text).length; return lines.some(l => l.length > full && l.includes(v)) || list.some(o => o !== item && norm(o.text).length > full && norm(o.text).includes(v)); };
       list.forEach(item => {
         const t = String(item.text || '').trim();
         if (item.isUnnecessaryBoilerplate || item.fieldLabel || item.diseaseGeneral || (item.hendersonIds && item.hendersonIds.length) || t.length < 5 || t.length > 30 || /[0-9\[\]【】。」）)！？!?]/.test(t)) return;
+        // A table cell (a whole tab/pipe-separated cell of a source row) is its own fact, not a wrapped-line fragment.
+        if (rawLines.some(l => l.split(/\t|\||｜/).some(cell => norm(cell) === norm(t)) && /\t|\||｜/.test(l))) return;
         const n = norm(t);
         // v.106: the fragment may be cut anywhere (also by a lost leading/trailing character, e.g. a masked name): contained as is, or without its first or last 1-2 characters
         const variants = [n, n.slice(1), n.slice(0, -1), n.slice(0, -2)].filter(v => v.length >= 6);
@@ -3260,7 +3278,7 @@
         const { detectedHIds, predictedType } = computeLocalTagsAndType(chunk, cleanedText, null);
         out.push({ text: cleanedText, timestamp: chunk.timestamp || '日時不明', type: predictedType, hendersonIds: detectedHIds.slice().sort((a, b) => a - b), fieldLabel: chunk.fieldLabel || null, ruleDecision: automaticRuleDecision(chunk, cleanedText, predictedType), ...({}), ...(chunk.diseaseGeneral ? { diseaseGeneral: true } : {}), ...(chunk.sceneId ? { sceneId: chunk.sceneId } : {}), ...(chunk.soMixed ? { soMixed: true } : {}), ...(chunk.labRows ? { labRows: chunk.labRows } : {}) });
       }));
-      return mergeIdentityCards(applyAssociationTags(applyFamilyAndStayTags(markObstetricConflictsPass(applyObstetricPhase(applyObstetricNeedCorrections(attachSourceOffsets(dropIncidentalHygieneTag(applyTableColumnRoles(stripPipeArtifacts(splitMixedSpeechCards(markWrappedLineFragments(removeCoveredCompositeCards(applyFamilyScreeningContext(applyPainContextTags(applySceneTagInheritance(rejoinTimeLabelFragments(out))))), src))), tableNorm.roles)), src)))))));
+      return mergeIdentityCards(markScheduleRows(applyAssociationTags(applyFamilyAndStayTags(markObstetricConflictsPass(applyObstetricPhase(applyObstetricNeedCorrections(attachSourceOffsets(dropIncidentalHygieneTag(applyTableColumnRoles(stripPipeArtifacts(splitMixedSpeechCards(markWrappedLineFragments(removeCoveredCompositeCards(applyFamilyScreeningContext(applyPainContextTags(applySceneTagInheritance(rejoinTimeLabelFragments(out))))), src))), tableNorm.roles)), src)))))), src));
     }
 
     function manualClassificationLineage(item, path = new Set()) {
