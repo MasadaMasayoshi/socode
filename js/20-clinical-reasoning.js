@@ -1,7 +1,7 @@
 // 問題の推論 → 理論的裏付け → 患者固有の原因分析 を、症状ごとの知識表から共通の手順で行う。
 // 一般的な知識（定義・病態・典型的な原因）は、患者に実際に起きた事実とは分けて扱う。
 // 記録にない原因（水分摂取不足など）は作らず、「記録がない」「可能性がある」と書く。
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['20'] = 'v.247'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['20'] = 'v.254'; // Version stamp (scripts/stamp-version.js)
 
     const CR_TOPICS = [
       { id: 'bowel', label: '便秘', needs: [3], plan: /便秘|排便|イレウス|腸管|消化管運動/,
@@ -53,7 +53,17 @@
         causes: [{ label: '痛み', re: /動[^。]{0,8}痛|痛[^。]{0,8}動|疼痛/ }, { label: '脱臼や転倒への不安', re: /ずれ|脱臼|怖|不安|転倒/ }, { label: '治療による制限', re: /股関節|屈曲禁止|荷重|牽引|固定|安静/ }, { label: '入院前からの筋力・バランスの低下', re: /筋力|バランス|ふらつき|MMT/ }],
         counter: [{ label: '自力で動作ができる', re: /自力で|自分で[^。]{0,6}(?:動|移|立)|ひとりで/, bearing: '自力で行える動作が残っている' }],
         info: [{ label: '入院前のADL', re: /ADL|自立|入院前/ }, { label: '筋力（MMT）', re: /MMT|筋力/ }, { label: '退院後の住環境', re: /階段|2階|段差|住居|布団/ }],
-        note: '動作の改善は、動作そのものの記録で確かめ、他の側面の改善とは分けて見る。' }
+        note: '動作の改善は、動作そのものの記録で確かめ、他の側面の改善とは分けて見る。' },
+      // Scope: self-care of cleanliness/dressing after surgery or fracture (needs 6 and 8); the cause is read from the record, not assumed.
+      { id: 'selfcare', label: 'セルフケア不足（清潔・更衣）', needs: [6, 8], plan: /清潔|更衣|入浴|清拭|セルフケア/,
+        definition: '入浴・清拭・更衣などの動作を、必要な水準まで自分で行えない状態',
+        patho: '動作の制限や痛み、ライン類があると、体を動かして洗う・着替える動作が難しくなり、清潔の保持を介助に頼ることになる',
+        triggers: [{ label: '清潔・更衣に介助が必要', re: /清拭|陰部洗浄|全介助|入浴(?:不可|できない|禁止)|更衣[^。]{0,6}介助|介助[^。]{0,6}更衣/ }, { label: '清潔が保てない感じ', re: /べたつき|べたべた|気持ち(?:が)?悪|お風呂に入りたい/ }],
+        findings: [{ label: '清拭・更衣の実施', re: /清拭|更衣|陰部洗浄|洗髪/ }],
+        causes: [{ label: '痛み', re: /疼痛|痛[^。]{0,8}(?:動|増強)|動[^。]{0,8}痛/ }, { label: '動作の制限', re: /屈曲禁止|荷重|安静|牽引|固定|ベッド上|禁止/ }, { label: 'ラインやドレーン', re: /ドレーン|SBチューブ|カテーテル|ルート|点滴/ }, { label: '脱臼や転倒への不安', re: /怖|不安|ずれ|脱臼/ }],
+        counter: [{ label: '一部は自分で行える', re: /自分で[^。]{0,8}(?:洗|拭|着替|更衣|歯磨)|洗面[^。]{0,6}自立|歯磨き[^。]{0,6}(?:自立|自分)/, bearing: '行える動作が残っている' }],
+        info: [{ label: '入院前の清潔習慣', re: /入浴|洗髪|歯磨き|きれい好き/ }, { label: '皮膚の状態', re: /皮膚|発赤|掻痒|湿疹/ }, { label: '本人の希望', re: /お風呂に入りたい|さっぱり|気持ち(?:が)?悪/ }],
+        note: '清潔の保持（皮膚の状態）と、清潔動作を自分で行える度合いは分けて評価する。入院前の自立は、術後の自立を意味しない。' }
     ];
 
     function crCards(cp) { return (cp.items || []).filter(i => i && !i.deleted && !i.aiSuggested && i.type !== 'unnecessary' && !i.diseaseGeneral && i.text); }
