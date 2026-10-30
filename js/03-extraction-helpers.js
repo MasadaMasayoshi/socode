@@ -506,9 +506,13 @@
 
     // ------------------------------------------------------------------------
 
-    const PATIENT_BACKGROUND_BASIC_FIELD_LABELS = new Set(["氏名", "性別", "生活歴", "入院日", "学歴", "アレルギー"]);
+    // Scope: patient demographics, household, lifestyle, social support and insurance
+    // are background even when they do not directly establish a Henderson need.
+    // Diagnoses, medication, procedures and clinical tests remain medical information.
+    const PATIENT_BACKGROUND_BASIC_FIELD_LABELS = new Set(["氏名", "年齢", "年齢・性別", "性別", "血液型", "保険", "介護保険", "職業", "学歴", "家族構成", "家族関係", "同居者", "キーパーソン", "援助者", "住宅", "住環境", "生活歴", "生活様式", "食生活", "嗜好品", "喫煙", "飲酒", "趣味", "入院日", "アレルギー"]);
     function classifyPatientBackground(fieldLabel) {
-      return PATIENT_BACKGROUND_BASIC_FIELD_LABELS.has(fieldLabel) ? '基本情報' : '医学情報';
+      const normalized = String(fieldLabel || '').normalize('NFKC').replace(/[：:]\\s*$/, '').trim();
+      return PATIENT_BACKGROUND_BASIC_FIELD_LABELS.has(normalized) ? '基本情報' : '医学情報';
     }
 
     const DIAGNOSIS_TAG_HINTS = [
