@@ -1,7 +1,7 @@
 // 重点アセスメント：欲求ごとに、S・O（入院前／入院後）→ 情報の分析・解釈 → 統合 → 看護問題の明確化を一画面で書く。
 // S・Oは分類ボードの内容から自動で並べ、分析・解釈／統合／看護問題の明確化も、記録・充足判定・看護計画（関連図の看護問題）から自動で下書きする。手で直した欄は自動では上書きしない（myAssessments の追加項目に保存）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.259'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.261'; // Version stamp (scripts/stamp-version.js)
 
     const FOCUS_FIELDS = [
       { key: 'focusAnalysis', label: '情報の分析・解釈', ph: 'S・Oの情報から、なぜその状態なのか（原因・関連要因）、今後どうなりそうかを書きます。\n例：術後は疼痛（O-3）と荷重への不安（S-2）から、歩行を避けて活動量が低下している。' },
@@ -442,7 +442,7 @@
     };
 
     function renderFocusAssessment() {
-      const root = document.getElementById('focus-zoom');
+      const root = document.getElementById('focus-assessment-body');
       const pillBox = document.getElementById('focus-pills');
       if (!root) return;
       const cp = getCurrentPatient();
@@ -465,7 +465,6 @@
           <div class="fa-col fa-o-col"><div class="fa-head">客観的情報（O）</div><div class="fa-cell">${focusCellHtml(needId, 'o', data)}</div></div>
           ${fields}
         </div>`;
-      focusApplyZoom();
     }
 
     window.focusSelectNeed = function(id) { focusNeedId = Number(id); renderFocusAssessment(); };
@@ -498,41 +497,6 @@
       const done = () => showToast('重点アセスメントをコピーしました', 'info');
       if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, () => showToast('コピーできませんでした', 'warn')); else showToast('コピーできませんでした', 'warn');
     };
-
-    // ---- 拡大・縮小（ピンチ／Ctrl+ホイール／ボタン）。縦横のスワイプは標準のスクロールで動かす ----
-    const FOCUS_ZOOM_MIN = 0.4, FOCUS_ZOOM_MAX = 2.5;
-    let focusZoom = 1;
-    function focusApplyZoom() {
-      const z = document.getElementById('focus-zoom');
-      if (z) z.style.zoom = String(focusZoom);
-      const l = document.getElementById('focus-zoom-label');
-      if (l) l.textContent = `${Math.round(focusZoom * 100)}%`;
-    }
-    function focusSetZoom(v) {
-      focusZoom = Math.min(FOCUS_ZOOM_MAX, Math.max(FOCUS_ZOOM_MIN, Math.round(v * 100) / 100));
-      focusApplyZoom();
-    }
-    window.focusZoomBy = function(f) { focusSetZoom(focusZoom * f); };
-    window.focusZoomFit = function() {
-      const wrap = document.getElementById('focus-assessment-body'), z = document.getElementById('focus-zoom');
-      if (!wrap || !z) return;
-      const prev = z.style.zoom; z.style.zoom = '1';
-      const need = z.scrollWidth || 1; z.style.zoom = prev;
-      focusSetZoom(Math.min(1, (wrap.clientWidth - 4) / need));
-    };
-    window.focusZoomReset = function() { focusSetZoom(1); };
-    function initFocusZoom() {
-      const wrap = document.getElementById('focus-assessment-body');
-      if (!wrap || wrap.dataset.faReady) return;
-      wrap.dataset.faReady = '1';
-      let d0 = 0, z0 = 1;
-      const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY) || 1;
-      wrap.addEventListener('touchstart', e => { if (e.touches.length === 2) { d0 = dist(e.touches); z0 = focusZoom; } }, { passive: true });
-      wrap.addEventListener('touchmove', e => { if (e.touches.length === 2 && d0) { e.preventDefault(); focusSetZoom(z0 * dist(e.touches) / d0); } }, { passive: false });
-      wrap.addEventListener('touchend', e => { if (e.touches.length < 2) d0 = 0; }, { passive: true });
-      wrap.addEventListener('wheel', e => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); focusSetZoom(focusZoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1)); } }, { passive: false });
-    }
-    try { if (typeof document !== 'undefined' && document.getElementById) initFocusZoom(); } catch (err) { /* offline test sandbox */ }
 
     // ---- 書き出し（印刷／PDF・テキスト） ----
     function focusExportNeeds(cp) {

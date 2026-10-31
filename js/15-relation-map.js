@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.251'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.261'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -4301,6 +4301,44 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
       });
     }
 
+    // ---- 書き出し（印刷／PDF・テキスト）：関連図の内容 ----
+    // 看護問題ごとに「原因 → … → 問題」の順で流れを書き、どの問題にもつながっていない項目は最後にまとめる。
+    function rmExportChains(map) {
+      const probs = map.nodes.filter(n => n.type === 'nursing_problem').sort((a, b) => (a.priority || 999) - (b.priority || 999));
+      const used = new Set();
+      const rows = probs.map(p => {
+        used.add(p.id);
+        const chains = rmCauseChains(map, p.id).map(ch => ch.slice().reverse().concat([p]));
+        chains.forEach(ch => ch.forEach(n => used.add(n.id)));
+        return { problem: p, chains };
+      });
+      const loose = map.nodes.filter(n => !used.has(n.id));
+      return { rows, loose };
+    }
+    function relationMapExportText(cp) {
+      const map = typeof rmMap === 'function' ? rmMap(cp) : null;
+      if (!map || !Array.isArray(map.nodes) || !map.nodes.length) return '';
+      const { rows, loose } = rmExportChains(map);
+      const name = n => `${rmType(n).label}：${rmDisplayLabel(n)}`;
+      const lines = [];
+      rows.forEach(r => {
+        lines.push(`看護問題 ${rmDisplayLabel(r.problem)}`);
+        if (!r.chains.length) lines.push('　（つながる原因の記載なし）');
+        r.chains.forEach((ch, k) => lines.push(`　流れ${k + 1}：${ch.map(n => rmDisplayLabel(n).replace(/^#\d+\s*/, '')).join(' → ')}`));
+      });
+      if (loose.length) lines.push('', 'どの看護問題ともつながっていない項目', ...loose.map(n => `　・${name(n)}`));
+      return lines.join('\n');
+    }
+    function relationMapPrintSection(cp, n) {
+      const map = typeof rmMap === 'function' ? rmMap(cp) : null;
+      if (!map || !Array.isArray(map.nodes) || !map.nodes.length) return '';
+      const esc = escapeHtml;
+      const text = relationMapExportText(cp);
+      return `<h2>${n}. 関連図</h2><div class="ai"><div style="max-width:100%;">${relationMapSvg(map, { interactive: false, title: `${cp.title || ''}の関連図` })}</div><p style="white-space:pre-wrap;margin:4pt 0 0;">${esc(text)}</p></div>`;
+    }
+    window.relationMapExportText = relationMapExportText;
+    window.relationMapPrintSection = relationMapPrintSection;
+
     function onRelationMapPatientReloaded() {
       const view = document.getElementById('view-relation');
       if (view && !view.classList.contains('hidden')) renderRelationMap();
@@ -4309,5 +4347,5 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
     if (typeof document !== 'undefined' && document.getElementById && document.getElementById('view-relation')) initRelationMapUi();
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { rmChainReport, RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, rmClinicalFields, rmEpistemicStatus, rmPrepareClinicalMap, findRelationEvidence, relationMapTextHtml, rmImportClinicalEntities, layoutRelationMap, buildRelationMapFromRecord, rmSufficiencyLineHtml, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmDragRoutes, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel, rmShorten, rmProblemSubmap, rmReduceShortcuts, rmNodeSize, RM_PROBLEM_NOTES, rmPlainNote, rmLifeStage, rmMergeDuplicateProblems, rmLabsAsEvidence, layoutRelationMapOnce });
+  Object.assign(module.exports, { relationMapExportText, relationMapPrintSection, rmChainReport, RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, rmClinicalFields, rmEpistemicStatus, rmPrepareClinicalMap, findRelationEvidence, relationMapTextHtml, rmImportClinicalEntities, layoutRelationMap, buildRelationMapFromRecord, rmSufficiencyLineHtml, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmDragRoutes, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel, rmShorten, rmProblemSubmap, rmReduceShortcuts, rmNodeSize, RM_PROBLEM_NOTES, rmPlainNote, rmLifeStage, rmMergeDuplicateProblems, rmLabsAsEvidence, layoutRelationMapOnce });
 }

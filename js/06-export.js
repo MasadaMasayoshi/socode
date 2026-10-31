@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.252'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.261'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -370,6 +370,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       if (on('plans') && plansText) body += `<h2>${n++}. 看護計画と実施・評価</h2><p style="white-space:pre-wrap;margin:0;">${escapeHtml(plansText)}</p>`;
       if (on('planEval')) { const pe = buildPlanEvaluationHtml(cp, n); if (pe) { body += pe; n++; } }
       body += buildPrintAiSectionsHtml(cp, n, want);
+      if (on('relation') && typeof relationMapPrintSection === 'function') { const rs = relationMapPrintSection(cp, n); if (rs) { body += rs; n++; } }
       if (on('genogram') && typeof genogramPrintSection === 'function') { const gs = genogramPrintSection(cp, n); if (gs) { body += gs; n++; } }
       if (on('drugs') && typeof drugInfoSectionText === 'function') { const dt = drugInfoSectionText(cp); if (dt) body += `<h2>${n++}. 薬剤の情報</h2><p style="white-space:pre-wrap;margin:0;">${escapeHtml(dt)}</p>`; }
       const notes = cp.referenceNotes || [];
@@ -414,6 +415,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       { key: 'focus', label: '重点アセスメント' },
       { key: 'plans', label: '看護計画と実施・評価' },
       { key: 'planEval', label: '全計画の評価' },
+      { key: 'relation', label: '関連図' },
       { key: 'genogram', label: 'ジェノグラム' },
       { key: 'drugs', label: '薬剤の情報' },
       { key: 'notes', label: '参考データ' }
@@ -685,6 +687,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const plansText = typeof buildCarePlansText === 'function' ? buildCarePlansText(cp, { withRecords: true }) : '';
       if (on('plans') && plansText) { out += plainSectionTitle('看護計画と実施・評価'); out += plansText + '\n'; }
       if (on('planEval')) out += buildPlanEvaluationText(cp);
+      if (on('relation') && typeof relationMapExportText === 'function') { const rt = relationMapExportText(cp); if (rt) { out += plainSectionTitle('関連図'); out += rt + '\n'; } }
       if (on('genogram') && typeof genogramText === 'function') { const gt = genogramText(cp); if (gt) { out += plainSectionTitle('ジェノグラム'); out += gt + '\n'; } }
       if (on('drugs') && typeof drugInfoSectionText === 'function') { const dt = drugInfoSectionText(cp); if (dt) { out += plainSectionTitle('薬剤の情報'); out += dt + '\n'; } }
 
