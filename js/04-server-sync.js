@@ -1,7 +1,7 @@
 // Shared patient and learning persistence. Keep patient identity, per-card merge and map revisions.
 // Only deliberate corrections vote; source snapshots and raw research history remain shared.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = 'v.147'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['04'] = 'v.262'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -515,7 +515,7 @@
     function notebookLineHash(k) { let x = 5381; for (const c of k) x = ((x * 33) ^ c.codePointAt(0)) >>> 0; return x.toString(36); }
     const NOTEBOOK_CHAPTER_RULES = [
       { no: 2, re: /S\s*\/\s*O|Sデータ|Oデータ|主観|客観|不必要|不要|unnecessary/i },
-      { no: 4, re: /タグ|項目|検査値|基準値|(?:^|[^\d])(?:1[0-4]|[1-9])\s*[.．](?:呼吸|食事|排泄|姿勢|睡眠|衣服|体温|清潔|環境|コミュニケーション|信仰|仕事|余暇|学び)|呼吸|食事|排泄|姿勢|睡眠|衣服|体温|清潔|環境|信仰|仕事|余暇|学び/ },
+      { no: 4, re: /タグ|項目|検査値|基準値|(?:^|[^\d])(?:1[0-4]|[1-9])\s*[.．](?:呼吸|食事|排泄|姿勢|睡眠|衣服|更衣|体温|清潔|環境|コミュニケーション|信仰|仕事|余暇|レクリエーション|学び)|呼吸|食事|排泄|姿勢|睡眠|衣服|更衣|体温|清潔|環境|信仰|仕事|余暇|レクリエーション|学び/ },
       { no: 1, re: /カード|1枚|一枚|まとめ|分け|区切|日時|時刻|見出し|抽出|切り出|表の/ },
       { no: 8, re: /看護計画|看護診断|アセスメント|SOAP|評価|関連図|目標/ }
     ];
