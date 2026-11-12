@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.263'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.264'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1047,7 +1047,6 @@
         let unit = unitM ? unitM[1] : '';
 
         if (/のため|ので|に上昇|に低下|まで低下|まで上昇|確認した|確認する/.test(unit)) return null;
-        if (/以上|以下|未満|超|を維持|を目標/.test(unit)) return null; // a target or threshold phrase, not a measurement
 
         if (/^(?:か月|ヶ月|ヵ月|カ月|ケ月|週|日間|日で|年|時間)/.test(unit)) return null;
         rest = rest.slice(unitM ? unitM[0].length : 0);
@@ -1065,6 +1064,7 @@
 
         if (unit === '度' || unit === '℃') unit = '°C';
         let { key, vital } = labTrendCanonicalKey(mm[1], mm[2]);
+        if (vital && /以上|以下|未満|超|を維持|を目標/.test(unit)) return null; // a vital-sign target or threshold phrase, not a measurement
 
         if (vital && vital.key === '脈拍' && /^P$/i.test(mm[1]) && (/mg\/?d?l/i.test(unit) || Number(String(mm[3]).replace(/,/g, '')) < 20)) {
           key = 'P(リン)'; vital = null;
@@ -1144,7 +1144,7 @@
       { key: 'PEF', unit: 'L/分', ref: '', regex: /(PEF|ピークフロー)\s*[:：]?\s*(\d{2,3})(?![\d%])/i }
     ];
     // A target/threshold phrase ("37.5℃以上で報告", "SpO2 95%以上を維持") is not a measurement.
-    const LAB_TREND_THRESHOLD_AFTER = /^\s*(?:以上|以下|未満|超|を超え|を上回|を下回|になっ|なら|の場合|時に|で報告|を目標|を維持)/;
+    const LAB_TREND_THRESHOLD_AFTER = /^\s*(?:以上|以下|未満|超|を超え|を上回|を下回|になっ|なら|の場合|時に|で報告|を目標|を維持|に上昇|に低下|まで上昇|まで低下|に改善|に回復|に戻|まで)/;
     // Vital signs and spirometry written inside a sentence ("入院時のバイタルは体温36.5℃、…", "呼吸機能検査：1秒率62%") are read here.
     // Only whitelisted keys with a plausible value are taken; patient quotes (「」) and subjective cards are skipped.
     function labTrendProseEntries(text, have, item) {
@@ -1153,7 +1153,8 @@
       const taken = new Set((have || []).map(e => e.key));
       const out = [];
       const push = (key, value, unit, vital) => { if (!taken.has(key)) { taken.add(key); out.push({ key, name: key, value: String(value).replace(/\s+/g, ''), unit, ref: '', flag: '', note: '', vital: vital || null }); } };
-      const ok = m => m && !LAB_TREND_THRESHOLD_AFTER.test(t.slice(m.index + m[0].length));
+      // The same clause may describe a change caused by an intervention ("酸素2L開始し、SpO2 94%に上昇"): that value is a course note, not a separate measurement.
+      const ok = m => m && !LAB_TREND_THRESHOLD_AFTER.test(t.slice(m.index + m[0].length)) && !/(?:開始|投与|吸入|施行|実施|変更|増量|減量|使用)(?:し|後|して|した)[、,]?\s*$/.test(t.slice(Math.max(0, m.index - 12), m.index));
       LAB_VITAL_DEFS.forEach(d => {
         const re = new RegExp(d.regex.source, d.regex.flags.replace('g', '') + 'g');
         let m; while ((m = re.exec(t)) !== null) { if (ok(m)) { push(d.key, m[m.length - 1] && /^\d/.test(m[m.length - 1]) ? m[m.length - 1] : m[1], LAB_TREND_VITALS.find(v => v.key === d.key).unit, LAB_TREND_VITALS.find(v => v.key === d.key)); break; } }
