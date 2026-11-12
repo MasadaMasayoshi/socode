@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.248'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.263'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1047,6 +1047,7 @@
         let unit = unitM ? unitM[1] : '';
 
         if (/のため|ので|に上昇|に低下|まで低下|まで上昇|確認した|確認する/.test(unit)) return null;
+        if (/以上|以下|未満|超|を維持|を目標/.test(unit)) return null; // a target or threshold phrase, not a measurement
 
         if (/^(?:か月|ヶ月|ヵ月|カ月|ケ月|週|日間|日で|年|時間)/.test(unit)) return null;
         rest = rest.slice(unitM ? unitM[0].length : 0);
@@ -1086,6 +1087,8 @@
       const key = String(entry.key || ''), unit = String(entry.unit || '').toLowerCase().replace(/\s+/g, '');
       if (/^(?:血糖|BS|Glu|グルコース)$/i.test(key) && /mg\/dl/.test(unit || 'mg/dl')) return { low: 70, high: 200, fallback: true };
       if (/^HbA1c$/i.test(key)) return { low: null, high: 6.4, fallback: true };
+      if (key === '1秒率') return { low: 70, high: null, fallback: true };
+      if (key === '%肺活量') return { low: 80, high: null, fallback: true };
       if (/^pH$/i.test(key)) return { low: 7.35, high: 7.45, fallback: true };
       if (/^(?:HCO3|HCO3-|重炭酸)$/i.test(key)) return { low: 22, high: 26, fallback: true };
       return null;
@@ -1126,10 +1129,40 @@
     function labTrendGroupOf(key) {
       const vital = LAB_TREND_VITALS.find(v => v.key === key);
       if (vital) return vital.body ? '身体計測' : 'バイタルサイン';
+      if (LAB_TREND_RESP.some(r => r.key === key)) return '呼吸機能';
       const hit = LAB_GROUP_DEFS.find(([, re]) => re.test(key));
       return hit ? hit[0] : 'その他の検査';
     }
-    const LAB_TREND_GROUP_ORDER = ['バイタルサイン', '身体計測', ...LAB_GROUP_DEFS.map(([n]) => n), 'その他の検査'];
+    const LAB_TREND_GROUP_ORDER = ['バイタルサイン', '身体計測', '呼吸機能', ...LAB_GROUP_DEFS.map(([n]) => n), 'その他の検査'];
+
+    // Respiratory-function values (spirometry) shown in the trend; reference values are a general guide, never a record range.
+    const LAB_TREND_RESP = [
+      { key: '1秒率', unit: '%', ref: '70以上', low: 70, regex: /((?:一|1)秒率|FEV\s*1(?:\.0)?\s*%)\D{0,4}(\d+(?:\.\d+)?)\s*%/i },
+      { key: '%肺活量', unit: '%', ref: '80以上', low: 80, regex: /(%\s*肺活量|%\s*VC)\D{0,4}(\d+(?:\.\d+)?)\s*%/i },
+      { key: '1秒量', unit: 'L', ref: '', regex: /((?:一|1)秒量|FEV\s*1(?:\.0)?(?![\d.%]))\s*[:：]?\s*(\d(?:\.\d+)?)\s*L(?![A-Za-z])/i },
+      { key: '肺活量', unit: 'mL', ref: '', regex: /((?<![%A-Za-z])肺活量)\s*[:：]?\s*(\d[\d,]*(?:\.\d+)?)\s*(?:mL|ml|ＭＬ)/ },
+      { key: 'PEF', unit: 'L/分', ref: '', regex: /(PEF|ピークフロー)\s*[:：]?\s*(\d{2,3})(?![\d%])/i }
+    ];
+    // A target/threshold phrase ("37.5℃以上で報告", "SpO2 95%以上を維持") is not a measurement.
+    const LAB_TREND_THRESHOLD_AFTER = /^\s*(?:以上|以下|未満|超|を超え|を上回|を下回|になっ|なら|の場合|時に|で報告|を目標|を維持)/;
+    // Vital signs and spirometry written inside a sentence ("入院時のバイタルは体温36.5℃、…", "呼吸機能検査：1秒率62%") are read here.
+    // Only whitelisted keys with a plausible value are taken; patient quotes (「」) and subjective cards are skipped.
+    function labTrendProseEntries(text, have, item) {
+      const t = String(text || '').normalize('NFKC');
+      if (!t || /[「」]/.test(t) || (item && item.type === 's')) return [];
+      const taken = new Set((have || []).map(e => e.key));
+      const out = [];
+      const push = (key, value, unit, vital) => { if (!taken.has(key)) { taken.add(key); out.push({ key, name: key, value: String(value).replace(/\s+/g, ''), unit, ref: '', flag: '', note: '', vital: vital || null }); } };
+      const ok = m => m && !LAB_TREND_THRESHOLD_AFTER.test(t.slice(m.index + m[0].length));
+      LAB_VITAL_DEFS.forEach(d => {
+        const re = new RegExp(d.regex.source, d.regex.flags.replace('g', '') + 'g');
+        let m; while ((m = re.exec(t)) !== null) { if (ok(m)) { push(d.key, m[m.length - 1] && /^\d/.test(m[m.length - 1]) ? m[m.length - 1] : m[1], LAB_TREND_VITALS.find(v => v.key === d.key).unit, LAB_TREND_VITALS.find(v => v.key === d.key)); break; } }
+      });
+      const bp = /(?:血圧|(?<![A-Za-z])BP)\s*[:：]?\s*(\d{2,3})\s*\/\s*(\d{2,3})(?!\d)/.exec(t);
+      if (ok(bp) && Number(bp[1]) > Number(bp[2])) push('血圧', `${bp[1]}/${bp[2]}`, 'mmHg', LAB_TREND_VITALS.find(v => v.key === '血圧'));
+      LAB_TREND_RESP.forEach(d => { const m = d.regex.exec(t); if (ok(m)) push(d.key, m[2], d.key === '肺活量' && /L$/.test(m[0]) && !/mL|ml/i.test(m[0]) ? 'L' : d.unit); });
+      return out;
+    }
 
     function buildLabTrendTable(items, options = {}) {
       const includeVitals = options.includeVitals !== false;
@@ -1137,8 +1170,9 @@
       const expanded = expandCombinedLabItems((items || []).filter(i => isActiveLabEvidence(i) && !/^(?:児|新生児)\s*[:：]/.test(String(i.text || '').normalize('NFKC'))));
       const parsed = [];
       expanded.forEach(item => {
-        const entries = parseLabTrendEntries(item.text);
-        if (!entries) return;
+        const core = parseLabTrendEntries(item.text) || [];
+        const entries = core.concat(labTrendProseEntries(item.text, core, item));
+        if (!entries.length) return;
         const usable = entries.filter(e => includeVitals || !e.vital);
         if (usable.length) parsed.push({ item, entries: usable });
       });
@@ -1198,7 +1232,8 @@
           c.flag = labTrendFlag(entry, useRange, childGuide);
           delete c._e;
         }));
-        return { key: row.key, group: row.group, unit, ref: row.ref || (row.vital ? vitalRefText(row.key) : ''), refIsGuide: !row.ref && !!row.vital, cells: row.cells };
+        const respGuide = !row.ref && !row.vital ? (LAB_TREND_RESP.find(r => r.key === row.key) || {}).ref || '' : '';
+        return { key: row.key, group: row.group, unit, ref: row.ref || (row.vital ? vitalRefText(row.key) : respGuide), refIsGuide: !row.ref && (!!row.vital || !!respGuide), cells: row.cells };
       });
       const vitalOrder = k => LAB_TREND_VITALS.findIndex(v => v.key === k);
       rows.sort((a, b) => (LAB_TREND_GROUP_ORDER.indexOf(a.group) - LAB_TREND_GROUP_ORDER.indexOf(b.group)) ||
