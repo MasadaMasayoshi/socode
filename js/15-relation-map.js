@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.267'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.272'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -36,7 +36,7 @@
       { s: /ドレーン|カテーテル|留置/, t: /バリア機能/, step: '体の外と中をつなぐ管（細菌の侵入経路）', why: '' },
       { s: /バリア機能の低下/, t: /感染/, step: '細菌が体内に入り込み増えやすい', why: '' },
       { s: /1回に食べられる量|摂取量の低下|食事量の低下|食欲の?低下|食事摂取/, t: /体重.*減|低栄養|栄養摂取量不足|栄養が足り|Alb/, step: 'エネルギー・たんぱく質の摂取不足', why: '必要量より少ない状態が続くと体の蓄えを使う' },
-      { s: /創部痛|疼痛|痛み/, t: /体動の制限|活動耐性|離床/, step: '動くと痛みが強まるため動くことを控える', why: '' },
+      { s: /創部痛|疼痛|痛み/, t: /体動の制限|活動耐性|離床/, step: '動くと痛みが強まるため動くことを控える', why: '痛みの強さ・動作時の増強・動かない理由が記録で確認できたときに確定する（痛みの記載だけでは可能性にとどめる）', soft: true },
       { s: /ドレーン|カテーテル|点滴|ルート/, t: /体動の制限|活動耐性/, step: '管があり、動作が制約される', why: '管が入っていると、寝返り・起き上がりなどの動作がしにくくなる（「抜けるのが心配」と本人が言っていなくても言える範囲にとどめる）' },
       { s: /体動の制限|活動耐性の低下|臥床|安静/, t: /セルフケア不足|身の回りのこと/, step: '筋力・体力の低下で身の回りの動作に介助が必要', why: '' },
       { s: /抗凝固|ワルファリン|ワーファリン|エドキサバン|リクシアナ|アピキサバン|エリキュース|リバーロキサバン|イグザレルト|ヘパリン/, t: /出血/, step: '血液が固まりにくくなる（凝固能の低下）', why: '' },
@@ -396,13 +396,15 @@
       const byId = new Map(map.nodes.map(n => [n.id, n]));
       const out = [];
       const walk = (id, path) => {
-        if (out.length >= 8) return;
+        if (out.length >= 24) return;
         const ups = (into.get(id) || []).filter(x => byId.has(x) && !path.includes(x));
         if (!ups.length || path.length >= 8) { if (path.length) out.push(path.slice()); return; }
         ups.forEach(u => { path.push(u); walk(u, path); path.pop(); });
       };
       walk(pid, []);
-      return out.map(ids => ids.map(i => byId.get(i)));
+      // v.272: a path that only skips steps of a longer path (same start, same end, steps in the same order) is the same route — keep the one with the steps.
+      const isSub = (a, b) => a.length < b.length && a[a.length - 1] === b[b.length - 1] && (() => { let k = 0; for (const x of b) if (x === a[k]) k++; return k === a.length; })();
+      return out.filter((ids, i) => !out.some((o, j) => j !== i && isSub(ids, o))).slice(0, 8).map(ids => ids.map(i => byId.get(i)));
     }
     function rmChainListHtml(map) {
       const esc = escapeHtml;
@@ -573,7 +575,7 @@
     const RM_PROBLEM_CATEGORIES = [
       { key: 'resp', rank: 1, re: /気道|呼吸|ガス交換|換気|無気肺|肺炎|肺合併症|誤嚥|窒息|排痰|痰|息苦し|酸素を十分/ },
       { key: 'circ', rank: 2, re: /心拍出|循環|出血|ショック|体液量|組織灌流|不整脈|血栓|塞栓|神経血管|脱水|水分がたまり|むくみ|浮腫/ },
-      { key: 'inf', rank: 3, re: /感染/ },
+      { key: 'inf', rank: 3, re: /感染|縫合不全/ },
       { key: 'skin', rank: 3.5, re: /皮膚|褥瘡|床ずれ|血糖/ },
       { key: 'pain', rank: 4, re: /疼痛|痛/ },
       { key: 'disloc', rank: 4.6, re: /脱臼/ },
@@ -1769,7 +1771,7 @@
       const E = (a, b, relation = 'causes', o = {}) => {
         if (!a || !b || a === b) return;
         if (edges.some(e => (e.source === a.id && e.target === b.id) || (e.source === b.id && e.target === a.id))) return;
-        edges.push({ id: rmNewId('e'), source: a.id, target: b.id, relation, predicted: !!o.predicted, evidence: o.evidence || '', ...(o.noBridge ? { noBridge: true } : {}) });
+        edges.push({ id: rmNewId('e'), source: a.id, target: b.id, relation, predicted: !!o.predicted, evidence: o.evidence || '', ...(o.noBridge ? { noBridge: true } : {}), ...(o.certainty ? { certainty: o.certainty } : {}) });
       };
       const has = re => !!rmPositiveMatch(re, all);
       const findItem = (re, filter = () => true) => items.find(i => filter(i) && rmPositiveMatch(re, i.text));
@@ -1782,6 +1784,7 @@
 
       const short = (i, max = 34, re = null) => {
         let t = String(i.text).replace(/^【[^】]{1,10}】/, '').replace(/^\d{1,2}[:：]\d{2}\s*/, '').trim();
+        if (/●/.test(t)) t = t.replace(/^[●\s]+/, '').replace(/[●]+/g, '、').replace(/、{2,}/g, '、');
 
         if (i.soMixed && i.type === 's') { const q = t.match(/「[^」]+」/); if (q) t = q[0]; }
         const sents = t.split(/。/).filter(x => x.trim());
@@ -2091,8 +2094,11 @@
       if (surgery && surgeryDone) {
         invasion = N('invasion', 'pathophysiology', '手術侵襲（組織の損傷）', { source: 'knowledge' });
         E(surgery, invasion, 'causes', { evidence: '手術により組織が損傷する' });
-        pain = N('pain', 'symptom', `創部痛${nrs ? `（NRS ${nrs.replace(/\s/g, '')}）` : ''}`, { items: [painItem], observed: !!painItem });
-        E(invasion, pain, 'causes', { evidence: '組織損傷による疼痛刺激', predicted: !painItem });
+        // v.272: a pain score alone does not give the pain's site — 「創部痛」 is used only when the record names the wound/incision; otherwise 疼痛 with the site left unconfirmed.
+        const painSiteStated = !!painItem && /創部痛|創痛|創(?:部)?[^\n。]{0,6}痛|痛[^\n。]{0,6}創(?:部)?|切開部[^\n。]{0,6}痛|ドレーン[^\n。]{0,6}痛/.test(String(painItem.text).normalize('NFKC'));
+        pain = N('pain', 'symptom', painSiteStated || !painItem ? `創部痛${nrs ? `（NRS ${nrs.replace(/\s/g, '')}）` : ''}` : `疼痛${nrs ? `（NRS ${nrs.replace(/\s/g, '')}）` : ''}・部位の記載なし`, { items: [painItem], observed: !!painItem });
+        pain.siteConfirmed = painSiteStated;
+        E(invasion, pain, 'causes', { evidence: painItem && !painSiteStated ? '組織損傷による疼痛刺激の可能性（術後の疼痛だが、部位は記録にないため創部痛とは決めない）' : '組織損傷による疼痛刺激', predicted: !painItem, ...(painItem && !painSiteStated ? { certainty: 'possible' } : {}) });
         const analgesiaItem = findItem(/PCA|硬膜外|鎮痛|ロキソ|アセトアミノフェン|カロナール|フェンタニル|モルヒネ|オキシコドン/);
         if (analgesiaItem && painItem) { const an = N('analgesia', 'treatment', /PCA|硬膜外/.test(analgesiaItem.text) ? '鎮痛薬・硬膜外PCA' : '鎮痛薬', { items: [analgesiaItem] }); E(an, pain, 'treats', { evidence: '創部痛に対する鎮痛' }); }
         const suppress = N('suppress', 'pathophysiology', '深呼吸・咳嗽の抑制', { source: 'knowledge', observed: !!painItem });
@@ -2103,7 +2109,7 @@
         const reflex = N('reflex', 'pathophysiology', '咳嗽反射の低下・気道クリアランスの低下', { source: 'knowledge' });
         E(anes, reflex, 'causes', { evidence: '麻酔薬・挿管による気道の線毛運動・咳嗽反射の低下', noBridge: true });
         E(surgery, anes, 'results_in', { evidence: '手術のための麻酔' });
-        const sputum = N('sputum', 'symptom', sputumActual ? `排痰困難（${short(sputumActual, 24)}）` : sputumWet ? `湿性咳嗽・痰の絡み（${short(sputumWet, 24)}）` : '排痰困難', { items: [sputumActual || sputumWet], observed: !!(sputumActual || sputumWet) });
+        const sputum = N('sputum', 'symptom', sputumActual ? `排痰困難（${short(sputumActual, 24)}）` : sputumWet ? (/痰|喀痰|分泌物/.test(String(sputumWet.text)) ? `湿性咳嗽・痰の絡み（${short(sputumWet, 24)}）` : `湿性咳嗽（${short(sputumWet, 24)}）`) : '排痰困難', { items: [sputumActual || sputumWet], observed: !!(sputumActual || sputumWet) });
         E(suppress, sputum, 'causes', { evidence: '咳が弱く痰を出しにくい', predicted: !sputumActual, noBridge: true });
         E(reflex, sputum, 'contributes_to', { evidence: '気道の分泌物を出す力が下がる', predicted: !sputumActual, noBridge: true });
         let reserve = null;
@@ -2117,7 +2123,7 @@
           E(reserve, sputum, 'contributes_to', { evidence: '分泌物が多く出しにくい', predicted: !sputumActual });
         }
         const secretion = N('secretion', 'pathophysiology', '気道内の分泌物の貯留', { source: secretionObs ? 'record' : 'knowledge', observed: secretionObs });
-        E(sputum, secretion, 'causes', { predicted: !secretionObs, evidence: '出せない痰が気道にたまる' });
+        E(sputum, secretion, 'causes', { predicted: !secretionObs, evidence: secretionObs ? '出せない痰が気道にたまる' : '湿性咳嗽だけでは痰の貯留は確認できない（痰の量・性状・呼吸音の確認が必要）', ...(secretionObs ? {} : { certainty: sputumActual ? 'probable' : 'possible' }) });
         const atel = N('atel', atelObs ? 'symptom' : 'future_risk', atelObs ? '無気肺・肺炎' : '無気肺・肺炎の可能性', { observed: atelObs, source: atelObs ? 'record' : 'knowledge' });
         E(secretion, atel, atelObs ? 'causes' : 'predicts', { predicted: !atelObs, evidence: '分泌物で気道が詰まり肺胞がつぶれる・感染する', noBridge: true });
         const pResp = N('p_resp', 'nursing_problem', sputumActual ? '非効果的気道浄化' : '術後呼吸器合併症リスク状態', { cat: 'resp' });
@@ -2566,7 +2572,7 @@
         }
       }
 
-      if (pain && painItem) E(pain, N('p_pain', 'nursing_problem', '急性疼痛（手術創部の侵襲）', { cat: 'pain' }), 'results_in');
+      if (pain && painItem) E(pain, N('p_pain', 'nursing_problem', pain.siteConfirmed ? '急性疼痛（手術創部の侵襲）' : '急性疼痛（手術侵襲に関連）', { cat: 'pain' }), 'results_in');
 
       const abdOp = surgery && surgeryDone && /胃|腸|結腸|直腸|腹腔|肝|胆|膵|脾|虫垂|ヘルニア|子宮|卵巣/.test(surgery.label + dxLabel);
       const ileusItem = abdOp && findItem(/排ガス(?:なし|が無い|がない)|腸蠕動[^\n]{0,4}(?:弱|低下|減弱|聴取できず)|腹部膨満|イレウス|嘔吐|悪心|嘔気/);
@@ -2657,7 +2663,7 @@
         const bleedRec = findItem(/出血量|術中出血|出血\s*\d+\s*(?:g|ml|mL)/);
         const drainBlood = findItem(/(?:ドレーン|排液)[^\n]{0,14}(?:血性|淡血性|血液)|(?:淡血性|血性)[^\n]{0,6}\d+\s*(?:ml|mL)/);
         const paleItem = findItem(/蒼白|顔色[^\n]{0,4}(?:不良|悪|やや)/, i => notHist(i));
-        const bpItem = findItem(/帰室(?:時|後)[^\n]{0,20}(?:BP|血圧)|(?:BP|血圧)[^\n]{0,4}\d{2,3}\s*\/\s*\d{2,3}/, i => notHist(i) && /帰室|術後|手術当日/.test(`${i.timestamp || ''}${i.text}`));
+        const bpItem = findItem(/帰室(?:時|後)[^\n]{0,20}(?:BP|血圧)|(?:BP|血圧)[^\n]{0,4}\d{2,3}\s*\/\s*\d{2,3}/, i => notHist(i) && !/受け持ち前|術前|手術前|入院時|入院前/.test(String(i.text)) && /帰室|術後|手術当日/.test(`${i.timestamp || ''}${i.text}`));
         const hbL = lab('Hb');
         if (surgery && surgeryDone && (bleedRec || drainBlood || hbL)) {
           const bleedActual = /術後出血(?:あり|を認め|と診断|が疑)|(?:創部|ドレーン排液|排液)[^\n]{0,10}(?:鮮血|出血が?(?:持続|増加|多い))|血性[^\n]{0,6}(?:増加|急に増え)/.test(all);
@@ -2680,17 +2686,66 @@
 
       const ddMatch = all.match(/D\s*-?\s*ダイマー\s*[:：]?\s*(\d+(?:\.\d+)?)/);
       const lowerLimbOp = surgery && /股関節|大腿|膝|下肢|人工骨頭|人工関節|骨盤|脊椎/.test(surgery.label + dxLabel);
-      if (lowerLimbOp || (ddMatch && Number(ddMatch[1]) >= 1)) {
+      // v.272: venous thromboembolism is judged on its own risk factors (malignancy, abdominal/pelvic surgery, general anaesthesia, bed rest, obesity, age) — not on activity tolerance, and not excluded by a negative Homans sign.
+      const vteStay = findLast(/(?:床上|ベッド上|絶対)安静|安静臥床/, i => notHist(i));
+      const vteStocking = findItem(/弾性ストッキング|フットポンプ|間欠的空気圧迫|間歇的空気圧迫|IPC/, i => notHist(i) && !/採寸/.test(i.text) || /着用/.test(i.text));
+      const vteCancer = disease && /がん|癌|悪性|肉腫|腫瘍/.test(dxLabel) ? disease : null;
+      const vteGa = has(/全身麻酔|挿管|麻酔(?:からの|下での?)?覚醒|麻酔導入/);
+      const vteObese = findItem(/肥満|BMI\s*[:：]?\s*(?:2[5-9]|[3-4]\d)/);
+      const vteFactors = [
+        abdOp && 'abd', vteCancer && 'cancer', vteGa && 'ga', vteStay && 'stay', vteObese && 'obese', (aging && elderly) && 'aging'
+      ].filter(Boolean);
+      const vteRisk = surgery && surgeryDone && (lowerLimbOp || vteFactors.length >= 2 || (ddMatch && Number(ddMatch[1]) >= 1));
+      if (vteRisk || (ddMatch && Number(ddMatch[1]) >= 1)) {
         const stasis = N('stasis', 'pathophysiology', lowerLimbOp ? '安静・下肢の手術による静脈血のうっ滞・凝固能の亢進' : '術後の安静による静脈血のうっ滞・手術侵襲による凝固能の亢進', { source: 'knowledge' });
-        const obeseItem = findItem(/肥満|BMI\s*[:：]?\s*(?:2[5-9]|[3-4]\d)/);
-        if (obeseItem) E(N('obese', 'patient_fact', (String(obeseItem.text).match(/肥満(?:\s*[（(]BMI\s*[\d.]+[）)])?|BMI\s*[\d.]+/) || ['肥満'])[0], { items: [obeseItem] }), stasis, 'contributes_to', { evidence: '肥満は血栓の危険因子' });
+        if (vteObese) E(N('obese', 'patient_fact', (String(vteObese.text).match(/肥満(?:\s*[（(]BMI\s*[\d.]+[）)])?|BMI\s*[\d.]+/) || ['肥満'])[0], { items: [vteObese] }), stasis, 'contributes_to', { evidence: '肥満は血栓の危険因子' });
         if (invasion) E(invasion, stasis, 'contributes_to', { evidence: '手術侵襲で血液が固まりやすくなる' });
+        if (vteCancer && surgeryDone) E(N('vte_cancer', 'patient_fact', `悪性腫瘍（${dxLabel}）`, { items: items.filter(i => (vteCancer.itemIds || []).includes(i.id)).slice(0, 1) }), stasis, 'contributes_to', { evidence: '悪性腫瘍は血液が固まりやすくなる危険因子' });
+        if (vteStay) E(N('vte_stay', 'symptom', short(vteStay, 28, /安静|臥床/), { items: [vteStay] }), stasis, 'contributes_to', { evidence: '動かないと下肢の静脈血が滞る' });
+        if (vteGa) E(nodes.get('anes') || N('anes', 'treatment', '全身麻酔・気管内挿管（手術時）', { source: 'knowledge' }), stasis, 'contributes_to', { evidence: '全身麻酔中・術後は筋肉が動かず静脈血が滞りやすい' });
+        if (vteStocking) E(N('vte_stocking', 'treatment', short(vteStocking, 28, /弾性ストッキング|フットポンプ|圧迫/), { items: [vteStocking] }), stasis, 'treats', { evidence: '血流の停滞を防ぐ予防策（実施の有無・装着状況は別に確認する）' });
         const dvt = N('dvt', 'future_risk', '深部静脈血栓症・肺塞栓症の可能性', { source: 'knowledge', observed: false });
         E(stasis, dvt, 'predicts', { predicted: true, evidence: '血栓ができやすい' });
-        const pDvt = N('p_dvt', 'nursing_problem', '静脈血栓塞栓症リスク状態（深部静脈血栓症・肺塞栓症）', { cat: 'circ' });
+        const pDvt = N('p_dvt', 'nursing_problem', '静脈血栓塞栓症リスク状態（深部静脈血栓症・肺塞栓症）', { cat: 'circ', evidence: rmRiskEvidence(['悪性腫瘍', '腹部・骨盤の手術', '全身麻酔', '術後の床上安静'].filter((_, k) => [vteCancer, abdOp, vteGa, vteStay][k]), '離床が進み、下肢の腫脹・疼痛・呼吸困難などの所見がなく、予防策が継続できていれば、問題から外す。ホーマンズ徴候が陰性でも血栓は否定しない') });
         E(dvt, pDvt, 'results_in', { predicted: true });
-
+        const homans = findItem(/ホーマンズ|Homans/);
+        if (homans && homans !== painItem) E(N('homans', 'symptom', short(homans, 28, /ホーマンズ|Homans/), { items: [homans] }), pDvt, 'supports', { evidence: 'ホーマンズ徴候の陰性だけでは血栓を除外しない（下肢の腫脹・疼痛・色調、呼吸の変化と合わせて見る）' });
         if (ddMatch) E(N('lab_dd', 'lab', `Dダイマー ${ddMatch[1]}μg/mL`, { items: [findItem(/ダイマー/)] }), pDvt, 'supports', { evidence: '血栓を疑うときに参考にする検査（危険因子ではない）' });
+      }
+
+      // v.272: anastomotic leak risk — a surgery that joins the digestive tract (stomach/oesophagus/intestine: anastomosis or reconstruction), with a drain placed to watch it.
+      {
+        const gutOp = surgery && surgeryDone && /胃|食道|腸|結腸|直腸|膵|胆管|空腸/.test(surgery.label + dxLabel) && /切除|全摘|吻合|再建|R-?Y|RY|ルーワイ/.test(surgery.label + all) && !/ストーマ造設のみ|人工肛門造設のみ|ハルトマン|試験開腹|バイパス術のみ/.test(surgery.label + all);
+        const anastItem = gutOp && (/吻合|再建|R-?Y|RY|ルーワイ/.test(surgery.label) || findItem(/吻合|再建|R-?Y|RY|ルーワイ/, i => notHist(i)));
+        if (gutOp) {
+          const drainAn = findItem(/吻合部[^\n]{0,8}ドレーン|ドレーン[^\n]{0,8}吻合|横隔膜下ドレーン|膵[^\n]{0,4}ドレーン/);
+          const leakPath = N('leak_path', 'pathophysiology', '吻合部の縫合線が離開し、消化液や腸内容が腹腔内へ漏れる（縫合不全）可能性', { source: 'knowledge' });
+          E(surgery, leakPath, 'contributes_to', { evidence: '消化管をつなぎ直した部位は、治る途中で縫い目がゆるむことがある（術後数日に起こりやすい）' });
+          if (drainAn) E(N('leak_drain', 'treatment', short(drainAn, 30, /ドレーン/), { items: [drainAn] }), leakPath, 'treats', { evidence: '漏れを早く見つけ、たまった液を外へ出すための管（排液の量・性状の変化を観察する）' });
+          const leakRisk = N('leak_risk', 'future_risk', '縫合不全・腹腔内感染（腹膜炎）の可能性', { source: 'knowledge', observed: false });
+          E(leakPath, leakRisk, 'predicts', { predicted: true });
+          E(leakRisk, N('p_leak', 'nursing_problem', '縫合不全リスク状態（吻合部）', { cat: 'inf', evidence: rmRiskEvidence([anastItem ? '消化管の吻合・再建' : '消化管の切除（吻合の有無は記録で確認する）', drainAn ? '吻合部付近のドレーン留置' : ''].filter(Boolean), '術後の時期を過ぎても発熱・腹痛・排液の性状変化がなく、経口摂取が進んでいれば、問題から外す') }), 'results_in', { predicted: true });
+        }
+      }
+
+      // v.272: fall risk at the start of getting out of bed — a candidate only when several of the patient's own factors are present (not added to every surgical patient).
+      {
+        const fallLines = nodes.get('lines');
+        const fallDrugs = findItem(/硬膜外|PCA|オピオイド|フェンタニル|モルヒネ|レペタン|ブプレノルフィン|睡眠薬|眠剤|鎮静/);
+        const fallStay = vteStay;
+        const fallFactors = [
+          fallDrugs && '麻酔・鎮痛薬の影響', fallLines && /ドレーン|カテーテル|膀胱|ライン/.test(fallLines.label + (lineItem ? lineItem.text : '')) && 'ライン・ドレーン類', fallStay && '術後の安静による下肢の筋力・循環の変化', nodes.get('anemia') && '貧血による起立時のふらつき', elderly && '高齢'
+        ].filter(Boolean);
+        if (surgery && surgeryDone && !nodes.has('p_fall') && fallFactors.length >= 3) {
+          const fr = N('fall_risk', 'future_risk', '離床開始後の転倒・転落の可能性', { source: 'knowledge', observed: false });
+          if (fallDrugs) E(N('fall_drug', 'medication', ((String(fallDrugs.text).normalize('NFKC').match(/硬膜外PCA|硬膜外|PCA|オピオイド|フェンタニル|モルヒネ|レペタン|ブプレノルフィン|睡眠薬|眠剤|鎮静/) || [])[0] || '鎮痛薬・鎮静薬'), { items: [fallDrugs] }), fr, 'contributes_to', { predicted: true, evidence: '眠気・ふらつきが出ることがある（実際の症状は離床時に確認する）' });
+          if (fallStay) E(nodes.get('vte_stay') || N('fall_stay', 'symptom', short(fallStay, 28, /安静|臥床/), { items: [fallStay] }), fr, 'contributes_to', { predicted: true, evidence: '安静が続いた後は、起立時に血圧が下がったり足に力が入りにくくなったりすることがある' });
+          if (fallLines && fallFactors.includes('ライン・ドレーン類')) E(fallLines, fr, 'contributes_to', { predicted: true, evidence: '管の取り回しで動作が制約される・引っかかる' });
+          if (nodes.get('anemia')) E(nodes.get('anemia'), fr, 'contributes_to', { predicted: true, evidence: 'ふらつきやすい' });
+          if (aging) E(aging, fr, 'contributes_to', { predicted: true, evidence: '筋力・バランス機能の低下' });
+          const pf = N('p_fall', 'nursing_problem', '転倒転落リスク状態（離床開始時）', { cat: 'fall', evidence: rmRiskEvidence(fallFactors, '離床が許可され、起立・歩行でふらつきがなく、ライン類の管理が安定していれば、問題から外す') });
+          E(fr, pf, 'results_in', { predicted: true });
+        }
       }
 
       const dislocation = surgery && /人工骨頭|人工股関節|THA|BHA/.test(surgery.label);
@@ -2724,7 +2779,13 @@
       if ((pain && painItem) || bedItem || nodes.has('paralysis')) {
         const mob = N('mobility', 'pathophysiology', '体動の制限・活動耐性の低下', { source: 'knowledge' });
         if (bedItem) E(N('bed', 'symptom', short(bedItem, 32, /安静|臥床|介助|車椅子|移乗|歩行|息切れ|低下/), { items: [bedItem] }), mob, 'causes');
-        if (pain && painItem) E(pain, mob, 'causes', { evidence: '痛みで動きにくい' });
+        if (pain && painItem) {
+          // v.272: a low score or a bare 「疼痛あり」 does not show that pain stops the patient moving — that link is a possibility until movement-related pain, a score of 4+ or a refusal to move is recorded.
+          const moveItem = findItem(/(?:動[くけき]|体動|動作|離床|起き上が|歩[くけ]|咳)[^\n。]{0,8}(?:痛[いみ]|疼痛)|痛[いみ][^\n。]{0,10}(?:動け|動かな|動きたくない|動けない|控え)/, i => notHist(i));
+          const nrsNum = nrs ? Number(String(nrs).split('/')[0]) : NaN;
+          pain.moveRelated = !!moveItem || (Number.isFinite(nrsNum) && nrsNum >= 4);
+          E(pain, mob, 'causes', { evidence: pain.moveRelated ? '痛みで動きにくい' : '痛みが動きを妨げているかは、痛みの強さ・動作時の増強・動かない理由の記録がないため確定できない', ...(pain.moveRelated ? {} : { certainty: 'possible', predicted: true }) });
+        }
         if (lineItem && nodes.has('lines')) E(nodes.get('lines'), mob, 'contributes_to', { evidence: '管があり動きにくい' });
         if (nodes.has('paralysis')) E(nodes.get('paralysis'), mob, 'causes', { evidence: '麻痺で体を動かしにくい' });
 
@@ -2735,7 +2796,7 @@
           && items.some(i => notHist(i) && /(?:寝返り|起き上が|立ち上が|起立|端坐位|歩行|移乗)[^\n]{0,10}(?:困難|できない|全?介助)|免荷|荷重(?:制限|不可)|麻痺/.test(i.text));
         // v.265: therapeutic bed rest / activity restriction alone is not an activity-intolerance finding; without exertional dyspnea, fatigue, or ADL limitation it stays a risk state.
         const actDirect = !!(adlItem || tolItem || (bedItem && /動くと[^\n]{0,4}息切れ|歩くと[^\n]{0,14}(?:低下|息切れ)|ADL[^\n]{0,6}(?:低下|介助|一部)|車椅子|移乗|歩行[^\n]{0,8}(?:介助|困難|不安定)|トイレ[^\n]{0,8}介助/.test(String(bedItem.text).normalize('NFKC'))));
-        const actFactors = [bedItem && /安静|臥床/.test(bedItem.text) ? '術後安静' : '', gastric || (surgery && surgeryDone) ? '術後侵襲' : '', pain && painItem ? '創部痛' : '', lineItem ? 'ライン・ドレーン類' : ''].filter(Boolean);
+        const actFactors = [bedItem && /安静|臥床/.test(bedItem.text) ? '術後安静' : '', gastric || (surgery && surgeryDone) ? '術後侵襲' : '', pain && painItem ? (pain.siteConfirmed ? '創部痛' : '疼痛') : '', lineItem ? 'ライン・ドレーン類' : ''].filter(Boolean);
         const pAct = mobOnly ? null : N('p_act', 'nursing_problem', adlItem ? 'セルフケア不足（活動制限・体力の低下）' : actDirect ? '活動耐性低下（動くと息切れ・体力の低下）' : '活動耐性低下リスク状態（術後安静・侵襲による体力の低下）', actDirect ? { cat: 'act' } : { cat: 'act', evidence: rmRiskEvidence(actFactors, '離床後の息切れ・疲労・活動の中断がなく、ADLが保たれていれば、問題から外す') });
 
         const adlRe = /清拭|更衣|入浴|排泄|整容|洗面|身の回り|ADL|介助/;
@@ -3179,7 +3240,7 @@
           ordered.splice(ordered.indexOf(p), 1);
         });
       });
-      const MAX_PROBLEMS = Math.max(10, ordered.filter(p => p.source === 'plan').length);
+      const MAX_PROBLEMS = Math.max(12, ordered.filter(p => p.source === 'plan').length);
       const kept = ordered.slice(0, MAX_PROBLEMS);
       kept.forEach((p, i) => { p.priority = i + 1; });
 
@@ -3301,21 +3362,22 @@
       return total;
     }
 
-    function rmInsertBetween(map, edge, label, { why = '' } = {}) {
+    function rmInsertBetween(map, edge, label, { why = '', soft = false } = {}) {
       if (!edge || map.nodes.length >= RM_MAX_NODES || map.edges.length >= RM_MAX_EDGES) return null;
       const a = map.nodes.find(n => n.id === edge.source), b = map.nodes.find(n => n.id === edge.target);
       if (!a || !b) return null;
 
       const factTarget = b.observed !== false && !['future_risk', 'nursing_problem'].includes(b.type);
-      const pred = !!edge.predicted && !factTarget;
-      const node = { id: rmNewId('n'), type: 'pathophysiology', label: rmShorten(String(label || '').trim(), RM_TEXT_MAX), evidence: rmShorten(why, 120), observed: !pred, source: 'knowledge', added: true, priority: 0, x: Math.round((a.x + b.x) / 2), y: Math.round((a.y + b.y) / 2), itemIds: [] };
+      const pred = (!!edge.predicted && !factTarget) || soft;
+      const node = { id: rmNewId('n'), type: 'pathophysiology', label: rmShorten(String(label || '').trim(), RM_TEXT_MAX), evidence: rmShorten(why, 120), observed: !pred, source: 'knowledge', added: true, ...(soft ? { certainty: 'possible' } : {}), priority: 0, x: Math.round((a.x + b.x) / 2), y: Math.round((a.y + b.y) / 2), itemIds: [] };
       if (!node.label) return null;
       map.nodes.push(node);
       if (!pred) edge.predicted = false;
-      map.edges.push({ id: rmNewId('e'), source: node.id, target: b.id, relation: edge.relation === 'treats' ? 'causes' : edge.relation, predicted: pred, evidence: edge.evidence || '' });
+      map.edges.push({ id: rmNewId('e'), source: node.id, target: b.id, relation: edge.relation === 'treats' ? 'causes' : edge.relation, predicted: pred, evidence: edge.evidence || '', ...((soft || edge.certainty === 'possible') ? { certainty: 'possible' } : {}) });
       edge.target = node.id;
       edge.relation = 'causes';
       edge.evidence = why || '';
+      if (soft) { edge.certainty = 'possible'; edge.predicted = true; } else if (edge.certainty === 'possible') delete edge.certainty;
       return node;
     }
 
@@ -3344,7 +3406,7 @@
           }
           return;
         }
-        if (rmInsertBetween(map, e, rule.step, { why: rule.why })) added++;
+        if (rmInsertBetween(map, e, rule.step, { why: rule.why, soft: !!rule.soft && !a.moveRelated })) added++;
       });
       return added;
     }
@@ -4372,6 +4434,13 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
 
     // ---- 書き出し（印刷／PDF・テキスト）：関連図の内容 ----
     // 看護問題ごとに「原因 → … → 問題」の順で流れを書き、どの問題にもつながっていない項目は最後にまとめる。
+    // v.272: an observation that only supports a judgement is not a cause, and a link whose cause is not confirmed is a possibility — the arrow says which.
+    function rmChainConnector(map, a, b) {
+      const e = (map.edges || []).find(x => x.source === a.id && x.target === b.id);
+      if (e && e.relation === 'supports' && b.type !== 'nursing_problem') return ' ―根拠として参照→ ';
+      if (e && e.certainty === 'possible') return ' ―可能性→ ';
+      return ' → ';
+    }
     function rmExportChains(map) {
       const probs = map.nodes.filter(n => n.type === 'nursing_problem').sort((a, b) => (a.priority || 999) - (b.priority || 999));
       const used = new Set();
@@ -4394,7 +4463,7 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
         lines.push(`看護問題 ${rmDisplayLabel(r.problem)}`);
         if (/^危険因子：/.test(r.problem.evidence || '')) lines.push(`　${r.problem.evidence}`);
         if (!r.chains.length) lines.push('　（つながる原因の記載なし）');
-        r.chains.forEach((ch, k) => lines.push(`　流れ${k + 1}：${ch.map(n => rmDisplayLabel(n).replace(/^#\d+\s*/, '')).join(' → ')}`));
+        r.chains.forEach((ch, k) => lines.push(`　流れ${k + 1}：${ch.map((n, idx) => (idx ? rmChainConnector(map, ch[idx - 1], n) : '') + rmDisplayLabel(n).replace(/^#\d+\s*/, '')).join('')}`));
       });
       if (loose.length) lines.push('', 'どの看護問題ともつながっていない項目', ...loose.map(n => `　・${name(n)}`));
       return lines.join('\n');

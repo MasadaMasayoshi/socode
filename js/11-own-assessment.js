@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.266'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.272'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -1833,6 +1833,8 @@
           }
           // never overwrite a verdict that already rests on other recorded evidence unless a problem is recorded over a 充足
           const keep = () => { if (cur.verdict) cur.facts = facts; };
+          // v.272: a verdict held back by a medical restriction (e.g. NPO order) is not replaced by laboratory/body-measure values alone — the restriction says nothing about whether the need is met, and a lab value is not an intake record.
+          if (cur.restriction && rs.every(x => /\d/.test(x.hit || ''))) return keep();
           if (cur.verdict === 'unmet' && !cur.restriction && verdict !== 'unmet') return keep();
           if (cur.verdict === 'met' && verdict === 'met' && !compensated) return keep();
           if (cur.verdict && cur.verdict !== 'unknown' && cur.verdict !== 'met' && verdict === 'met' && !compensated) return keep();
@@ -2015,11 +2017,11 @@
           const cur = r.post;
           if (cur && cur.verdict === 'unmet' && !cur.restriction) return;
           const v0 = { verdict: 'conflict', reason, evidence: evIds, need: '', restriction: true };
-          r.post = v0; if (r.postop) r.postop = v0; if (!r.all || r.all.verdict !== 'unmet') r.all = v0;
+          r.post = v0; if (r.postop) r.postop = { ...v0, facts: v0.facts ? { against: [...(v0.facts.against || [])], for: [...(v0.facts.for || [])] } : undefined }; if (!r.all || r.all.verdict !== 'unmet') r.all = v0; // 術後だけの欄は別のオブジェクトにする（術前の記録が混ざらないように）
           return;
         }
         const v = { verdict: 'unmet', reason, evidence: evIds, need: '', facts: { against: ev.slice(0, 5).map(i => ({ id: i.id, text: nz(i.text).slice(0, 40), kind: 'obs' })), for: [] } };
-        r.post = v; if (r.postop) r.postop = v; if (!r.all || r.all.verdict !== 'unmet') r.all = v;
+        r.post = v; if (r.postop) r.postop = { ...v, facts: { against: [...v.facts.against], for: [] } }; if (!r.all || r.all.verdict !== 'unmet') r.all = v;
       };
       SUF_STATE_RULES.forEach(rule => {
         const hit = post.filter(i => rule.re.test(nz(i.text)));

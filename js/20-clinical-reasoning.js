@@ -1,7 +1,7 @@
 // 問題の推論 → 理論的裏付け → 患者固有の原因分析 を、症状ごとの知識表から共通の手順で行う。
 // 一般的な知識（定義・病態・典型的な原因）は、患者に実際に起きた事実とは分けて扱う。
 // 記録にない原因（水分摂取不足など）は作らず、「記録がない」「可能性がある」と書く。
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['20'] = 'v.265'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['20'] = 'v.272'; // Version stamp (scripts/stamp-version.js)
 
     // v.265: a cause/finding/info entry with `ctx` applies only when the record's own context fits (e.g. dislocation only for hip/joint-replacement or fracture cases).
     const CR_CTX_ORTHO = /股関節|人工骨頭|人工関節|人工膝|THA|BHA|TKA|大腿骨|骨折|脱臼|免荷|荷重制限|下肢の手術/;
@@ -145,7 +145,7 @@
       // The general explanation is kept to the definition and its first mechanism sentence; the patient's own record carries the rest.
       out.push(`一般に、${t.label}とは${t.definition}。${String(t.patho || '').split('。')[0]}。`);
       const parts = [];
-      if (r.supported.length) parts.push(`A氏の場合は、${r.supported.map(x => `${x.label}${L(x.ids)}`).join('、')}が関係していると考えられる`.replace(/^A氏の場合は/, 'この患者では'));
+      if (r.supported.length) parts.push(`この患者では、${r.supported.map(x => `${x.label}${L(x.ids)}`).join('、')}が関係していると考えられる`);
       if (r.contradicted.length) parts.push(`${r.contradicted.map(x => `${x.label}${L(x.ids)}`).join('、')}は記録上みられない`);
       if (r.counter.length) parts.push(`一方で、${r.counter.map(x => `${crNoun(x.label)}${L(x.ids)}`).join('、')}から、${r.counter[0].bearing || '判断の材料になる'}`);
       if (parts.length) out.push(parts.join('。') + '。');

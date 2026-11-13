@@ -130,6 +130,8 @@ test('整合性検査：満たされていない欲求に対応する問題が�
   app.buildCarePlansByRules(cp);
   const target = app.carePlanList(cp).find(p => /術後呼吸器合併症リスク状態/.test(p.problem));
   app.deleteCarePlan(cp, target.id);
+  // 呼吸を扱う他の計画（例：肺塞栓を含む血栓塞栓症の予防）が残っていると、呼吸の未充足は対応済みになる。ここでは呼吸に対応する計画をすべて外す。
+  app.carePlanList(cp).filter(p => (p.relatedNeeds || []).includes(1)).forEach(p => app.deleteCarePlan(cp, p.id));
   const issues = Array.from(app.cvConsistencyIssues(cp)).map(x => x.msg).join('\n');
   assert.match(issues, /「呼吸」は満たされていないと判断しているが、対応する看護問題がない/);
   assert.match(issues, /関連図の問題「術後呼吸器合併症リスク状態」が看護計画にない/);
@@ -283,7 +285,7 @@ test('手術のない記録では、出血の看護計画に術後出血の内�
 test('関連図：1秒率70%未満とブリンクマン指数（本数×年数）が呼吸予備力の低下につながる／繊毛機能の低下とは書かない', { skip: !have }, () => {
   const t = chainsText(gold);
   assert.match(t, /ブリンクマン指数 560（20本\/日×28年） → 閉塞性の換気障害の傾向（呼吸予備力の低下）/);
-  assert.match(t, /（1秒率 69\.33%） → 閉塞性の換気障害の傾向/);
+  assert.match(t, /（1秒率 69\.33%） ―根拠として参照→ 閉塞性の換気障害の傾向/);
   const edge = gold.relationMap.edges.find(e => /ブリンクマン/.test(label(gold.relationMap, e.source)));
   assert.match(edge.evidence, /繊毛機能そのものの評価ではない/);
   assert.doesNotMatch(t, /喫煙[^\n]*→ 気道の線毛機能/);
@@ -308,7 +310,7 @@ test('関連図：ブリンクマン指数が400未満なら結ばない／年�
 
 test('v.270: full text and print exports lead each need with its verdict AND the reason (existing wording), then the records', { skip: !have }, () => {
   const txt = app.buildExportPlainText(gold), html = app.buildExportBodyHtml(gold);
-  assert.match(txt, /【5\. 欲求の充足状況（判定の理由と記録）】/);
+  assert.match(txt, /【5\. 欲求の充足状況】/);
   assert.doesNotMatch(txt, /ヘンダーソン14項目別アセスメント整理/);
   const needs = app.HENDERSON_NEEDS.filter(n => app.sufficiencyTextOf(gold, n.id));
   assert.ok(needs.length >= 10);

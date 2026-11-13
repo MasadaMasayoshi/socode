@@ -37,5 +37,5 @@ test('記録整理シート（PDF書き出し）：A4縦で、S/Oデータは表
   assert.doesNotMatch(html, /<button|onclick=/);
   assert.match(html, /<h2>1\. 主観的情報（Sデータ）<\/h2><table>/);
   assert.match(html, /<th>日時<\/th><th>内容<\/th><th>タグ<\/th>/);
-  assert.match(html, /欲求の充足状況（判定の理由と記録）/);
+  assert.match(html, /欲求の充足状況/);
 });

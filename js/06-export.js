@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.271'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.272'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -346,7 +346,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const destRows = typeof buildTagAuditRows === 'function' ? buildTagAuditRows({ items }).filter(r => r.destination && !r.currentTags.length) : [];
       if (on('unclassified') && destRows.length) body += `<h2>${n++}. 保持先（ヘンダーソンに無理に入れないカードの置き場）</h2><ul>${destRows.map(r => `<li>${escapeHtml(r.text)}<br><span class="muted">→ ${escapeHtml(r.destination.label)}：${escapeHtml(r.destination.to)}</span></li>`).join('')}</ul>`;
       if (on('henderson')) {
-      body += `<h2>${n++}. 欲求の充足状況（判定の理由と記録）</h2>`;
+      body += `<h2>${n++}. 欲求の充足状況</h2>`;
       const active = items.filter(i => i.type !== 'unnecessary');
       let anyNeed = false;
       HENDERSON_NEEDS.forEach(need => {
@@ -414,7 +414,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       { key: 'o', label: '客観的情報（Oデータ）' },
       { key: 'missing', label: '不足情報と確認状況' },
       { key: 'unclassified', label: '未分類のカード' },
-      { key: 'henderson', label: '欲求の充足状況（判定の理由と記録）' },
+      { key: 'henderson', label: '欲求の充足状況' },
       { key: 'own', label: '自分のアセスメント' },
       { key: 'focus', label: '重点アセスメント' },
       { key: 'plans', label: '看護計画と実施・評価' },
@@ -424,6 +424,8 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       { key: 'drugs', label: '薬剤の情報' },
       { key: 'notes', label: '参考データ' }
     ];
+    // v.272: 「実習提出用」は患者の看護情報だけ（確認メモ・未分類カード・参考データは開発・検証用）。
+    const EXPORT_DEV_ONLY_KEYS = ['missing', 'unclassified', 'notes'];
     function exportSectionOn(want, key) { return !want || (typeof want.has === 'function' ? want.has(key) : Array.from(want).includes(key)); }
     function exportSelectionFromKeys(keys) {
       const valid = new Set(EXPORT_SECTIONS.map(x => x.key));
@@ -671,7 +673,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       }
 
       if (on('henderson')) {
-      out += plainSectionTitle('5. 欲求の充足状況（判定の理由と記録）');
+      out += plainSectionTitle('5. 欲求の充足状況');
       HENDERSON_NEEDS.forEach(need => {
         const matching = cp.items.filter(i => i.type !== 'unnecessary' && i.hendersonIds?.includes(need.id));
         const verdict = typeof sufficiencyTextOf === 'function' ? sufficiencyTextOf(cp, need.id) : '';
@@ -1364,7 +1366,8 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         box.hidden = !opts.sections;
         if (opts.sections) {
           const off = new Set(loadExportSectionsOff());
-          box.innerHTML = '<div class="flex items-center justify-between"><b>書き出す項目</b><span><button type="button" class="btn btn-outline text-[11px] py-0.5" data-export-all="1">全選択</button> <button type="button" class="btn btn-outline text-[11px] py-0.5" data-export-all="0">全解除</button></span></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1" style="max-height:38vh;overflow-y:auto;">' + EXPORT_SECTIONS.map(x => `<label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" data-export-section="${x.key}"${off.has(x.key) ? '' : ' checked'}><span>${escapeHtml(x.label)}</span></label>`).join('') + '</div>';
+          box.innerHTML = '<div class="flex items-center justify-between"><b>書き出す項目</b><span><button type="button" class="btn btn-outline text-[11px] py-0.5" data-export-all="1">全選択</button> <button type="button" class="btn btn-outline text-[11px] py-0.5" data-export-all="0">全解除</button></span></div><div class="flex flex-wrap items-center gap-1"><span class="text-[11px]">用途：</span><button type="button" class="btn btn-outline text-[11px] py-0.5" data-export-preset="submit" title="患者の看護情報だけ。管理情報・確認メモ・未分類カード・参考データは含めません">実習提出用</button><button type="button" class="btn btn-outline text-[11px] py-0.5" data-export-preset="dev" title="根拠・内部判定・確認メモ・未分類カード・参考データを含め、すべて書き出します">開発・検証用</button></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1" style="max-height:38vh;overflow-y:auto;">' + EXPORT_SECTIONS.map(x => `<label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" data-export-section="${x.key}"${off.has(x.key) ? '' : ' checked'}><span>${escapeHtml(x.label)}</span></label>`).join('') + '</div>';
+          box.querySelectorAll('[data-export-preset]').forEach(b => { b.onclick = () => { const submit = b.getAttribute('data-export-preset') === 'submit'; box.querySelectorAll('input[data-export-section]').forEach(c => { c.checked = submit ? !EXPORT_DEV_ONLY_KEYS.includes(c.getAttribute('data-export-section')) : true; }); }; });
           box.querySelectorAll('[data-export-all]').forEach(b => { b.onclick = () => box.querySelectorAll('input[data-export-section]').forEach(c => { c.checked = b.getAttribute('data-export-all') === '1'; }); });
         }
         document.getElementById('export-options-title').textContent = title;
