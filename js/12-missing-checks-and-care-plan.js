@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.272'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.273'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -495,6 +495,7 @@
       const order = carePlanList(cp).reduce((m, p) => Math.max(m, Number(p.order) || 0), 0) + 1;
       const plan = normalizeCarePlan({ ...fields, id: newRecordId('plan'), order, createdAt: now, updatedAt: now });
       plan.patientId = cp.id; plan.sourceRev = sourceRevisionOf(cp);
+      if (['rules', 'map', 'import', 'ai'].includes(plan.source)) plan.genVersion = CP_GEN_VERSION;
       captureCarePlanEvidence(cp, plan);
       cp.carePlans[plan.id] = plan;
       return plan;
@@ -676,6 +677,17 @@
       return true;
     };
     document.getElementById('careplan-evidence-return')?.addEventListener('click',window.returnToCarePlanEvidenceOrigin);
+    // v.273: 自動更新の前の内容を、計画の中に残して見比べられるようにする。
+    function cpRegenBackupHtml(p) {
+      const list = Array.isArray(p.regenBackups) ? p.regenBackups : [];
+      if (!list.length) return '';
+      const b = list[list.length - 1];
+      const lines = (label, a) => (a && a.length) ? `<div><b>${label}</b>${a.map(x => `<div>・${escapeHtml(x)}</div>`).join('')}</div>` : '';
+      return `<details class="cp-why"><summary>更新前の内容（${escapeHtml(formatMyDateTime ? formatMyDateTime(b.at) : b.at)}に自動更新）</summary>
+        <div><b>看護問題</b>　${escapeHtml(b.problem || '')}</div>
+        ${b.goalLong ? `<div><b>長期目標</b>　${escapeHtml(b.goalLong)}</div>` : ''}${b.goalShort ? `<div><b>短期目標</b>　${escapeHtml(b.goalShort)}</div>` : ''}
+        ${lines('OP', b.op)}${lines('TP', b.tp)}${lines('EP', b.ep)}</details>`;
+    }
     function renderCarePlans() {
       const wrap = document.getElementById('careplan-list');
       if (!wrap) return;
@@ -742,6 +754,7 @@
           ${cpWhyHtml(design.indicators)}
           ${CARE_PLAN_SECTIONS.map(sec => `<div class="cp-seq">${field(sec.key, `<i class="fa-solid fa-list-ol"></i> ${sec.label}`, Math.min(24, Math.max(4, (Array.isArray(p[sec.key]) ? p[sec.key] : []).reduce((a, t) => a + Math.max(1, Math.ceil(String(t).length / 62)), 0) + 1)), sec.placeholder)}${cpWhyHtml(design[sec.key])}</div>`).join('')}
           ${design.notes.length ? `<div class="cp-why cp-why-notes">${design.notes.map(([l, t]) => `<div><b class="cpd-l">${escapeHtml(l)}</b><span class="cpd-t">${escapeHtml(t)}</span></div>`).join('')}</div>` : ''}
+          ${cpRegenBackupHtml(p)}
           <div class="cp-actions">
             <label class="cp-status-select"><span class="my-asm-label">状態</span><select class="field" onchange="setCarePlanStatus('${pid}', this.value)">${CARE_PLAN_STATUSES.map(s => `<option value="${s.key}"${p.status === s.key ? ' selected' : ''}>${s.label}</option>`).join('')}</select></label>
             <button type="button" class="btn btn-outline my-asm-btn${carePlanReviewOpen.has(p.id) ? ' active' : ''}" onclick="toggleCarePlanReview('${pid}')" aria-expanded="${carePlanReviewOpen.has(p.id)}" title="目標・OP/TP/EPを7つの項目で確かめます"><i class="fa-solid fa-clipboard-list"></i> 計画をチェック</button>
@@ -863,7 +876,7 @@
       const before = cpHistoryClone(p[key]);
       p[key] = CARE_PLAN_SECTIONS.some(s => s.key === key) ? carePlanLinesToList(el.value) : el.value;
       rememberCarePlanField(cp,id,key,before,p[key]);
-      if (key !== 'problem') p.userEdited = true;
+      if (key !== 'problem') p.userEdited = true; else p.problemUserSet = true;
 
       p.updatedAt = new Date().toISOString();
       saveMyAssessmentsSoon(cp.id);
@@ -2468,6 +2481,47 @@
       resp: [[/気道浄化|排痰|喀痰/, 'clear'], [/ガス交換|換気/, 'gas'], [/合併症|無気肺|肺炎|呼吸器/, 'comp']],
       pain: [[/慢性/, 'chronic']], nutr: [[/過剰/, 'over']], inf: [[/創|手術部位|SSI/, 'wound'], [/尿路|カテーテル/, 'uti']], anx: [[/死/, 'death']]
     };
+    // v.273: 自動作成した計画の生成版。文の作り方を変えたときに上げると、古い版の自動作成分だけが次に開いたとき新しい内容へ更新される（手で書いた・直した計画は対象外）。
+    const CP_GEN_VERSION = 2;
+    // 自動作成のまま利用者が手を入れていない計画（看護問題の名前を打ち直した計画、目標・OP/TP/EPを編集した計画は含まない）。
+    function cpIsAutoPlan(p) {
+      return !!p && !p.deleted && ['rules', 'map', 'import', 'ai'].includes(p.source) && !p.userEdited && !p.problemUserSet;
+    }
+    function cpPlanSnapshot(p) {
+      return { at: new Date().toISOString(), fromVersion: Number(p.genVersion) || 0, problem: p.problem, goalLong: p.goalLong, goalShort: p.goalShort, op: [...(p.op || [])], tp: [...(p.tp || [])], ep: [...(p.ep || [])], relatedNeeds: [...(p.relatedNeeds || [])], evidence: [...(p.evidence || [])] };
+    }
+    // 古い版で作られた（または関連図の看護問題と名前が変わった）自動作成の計画を、関連図の看護問題に合わせて作り直す。
+    // 実施・評価の記録がある計画は触らない。更新前の内容は計画に残す。途中で失敗したら更新前に戻す。同じ処理を繰り返しても何も増えない。
+    function cpUpdateStalePlans(cp, map) {
+      const nodes = map ? map.nodes.filter(n => n.type === 'nursing_problem') : [];
+      const flat = t => String(t || '').normalize('NFKC').replace(/[\s()（）]/g, '');
+      const claimed = new Set();
+      let updated = 0, kept = 0;
+      carePlanList(cp).forEach(p => {
+        if (!cpIsAutoPlan(p)) return;
+        const key = cpPlanKey(p);
+        const node = nodes.find(n => !claimed.has(n.id) && cpPlanKey({ problem: String(n.label).replace(/（候補）$/, '').trim() }) === key);
+        if (node) claimed.add(node.id);
+        const newName = node ? String(node.label).replace(/（候補）$/, '').trim() : '';
+        const renamed = !!newName && flat(newName) !== flat(p.problem);
+        const stale = (Number(p.genVersion) || 0) < CP_GEN_VERSION;
+        if (!renamed && !stale) { if (node && p.mapNodeId !== node.id) p.mapNodeId = node.id; return; }
+        if ((p.records || []).length) { kept++; return; }
+        const before = cpPlanSnapshot(p), saved = { problem: p.problem, mapNodeId: p.mapNodeId, genVersion: p.genVersion, genKey: p.genKey, status: p.status, reasonNeeded: p.reasonNeeded, userEdited: p.userEdited };
+        try {
+          if (renamed) p.problem = newName;
+          if (node) p.mapNodeId = node.id;
+          regenerateCarePlanSections(cp, p);
+          p.regenBackups = [...(Array.isArray(p.regenBackups) ? p.regenBackups : []), before].slice(-3);
+          p.reasonNeeded = true;
+          updated++;
+        } catch (err) {
+          console.warn('Care plan update failed; restored:', err);
+          Object.assign(p, saved, { goalLong: before.goalLong, goalShort: before.goalShort, op: before.op, tp: before.tp, ep: before.ep });
+        }
+      });
+      return { updated, kept };
+    }
     function cpPlanKey(plan) {
       const head = cpNorm(plan && plan.problem);
       const dom = cpDomainOf(plan);
@@ -3199,6 +3253,7 @@
       ['op', 'tp', 'ep'].forEach(k => { plan[k] = m && m[k] ? [...m[k]] : []; });
       plan.genKey = cpPlanKey(plan);
       plan.userEdited = false;
+      plan.genVersion = CP_GEN_VERSION;
       plan.updatedAt = new Date().toISOString();
       return plan;
     }
@@ -3509,6 +3564,8 @@
       if (!map || !map.nodes.some(n => n.type === 'nursing_problem')) map = typeof buildRelationMapFromRecord === 'function' ? buildRelationMapFromRecord(cp) : null;
       const deletedKeys = new Set(Object.values(cp.carePlans || {}).filter(p => p && p.deleted && p.problemKey).map(p => p.problemKey));
       if (map && skipDeleted && deletedKeys.size) map = { ...map, nodes: map.nodes.filter(n => n.type !== 'nursing_problem' || !deletedKeys.has(carePlanProblemKey(String(n.label).replace(/（候補）$/, '').trim()))) };
+      let stale = { updated: 0, kept: 0 };
+      if (map) { try { stale = cpUpdateStalePlans(cp, map); } catch (e) { console.warn('Stale plan update failed:', e); } }
       const fresh0 = map ? importCarePlansFromMap(cp, new Date().toISOString(), map) : [];
 
       fresh0.forEach(p => applyCarePlanValidation(cp, p));
@@ -3526,7 +3583,7 @@
         if (Object.keys(patch).length) { updateCarePlan(cp, p.id, { ...patch, reasonNeeded: true, source: 'rules' }); withModel++; }
       });
       refineCarePlans(cp);
-      return { fresh, withModel };
+      return { fresh, withModel, updated: stale.updated, kept: stale.kept };
     }
 
     function autoBuildCarePlans(cp, { notify = true } = {}) {
@@ -3540,9 +3597,11 @@
           refineCarePlans(cp);
           if (JSON.stringify(cp.carePlans || {}) !== before) commitCarePlanChange(cp, false);
         } catch (err) { console.warn('Care plan refinement failed:', err); }
+        if (notify && r.updated) showToast(`古い版で自動作成した看護計画を${r.updated}件、新しい内容に更新しました。更新前の内容は、各計画の「更新前の内容」に残っています`, 'info', 8000);
         return 0;
       }
       commitCarePlanChange(cp, false);
+      if (notify && r.updated) showToast(`古い版で自動作成した看護計画を${r.updated}件、新しい内容に更新しました。更新前の内容は、各計画の「更新前の内容」に残っています`, 'info', 8000);
       if (notify) showToast(`記録から看護計画を${r.fresh.length}件、自動で作りました。この患者に合うか確かめて、理由を書いて直してください。内容は「計画をチェック」で確かめられます`, 'success', 7000);
       return r.fresh.length;
     }
@@ -3900,6 +3959,7 @@ ${body}
 
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {
+    cpIsAutoPlan, cpUpdateStalePlans, CP_GEN_VERSION,
     inferUntaggedReason, untaggedContextEffects, untaggedTextKey, untaggedReviewOf, setUntaggedReview, applyUntaggedReviews, untaggedReviewItems, untaggedReviewCounts, untaggedSectionHtml,
     buildCarePlansPrintHtml, buildCarePlansText, buildCarePlansByRules, autoBuildCarePlans, carePlanList, deleteCarePlan, cpEnrichPlan, cpDesignLines, cpDesignBy, CP_ORAL_CARE_TP,
     formatCardTimestamp, MISSING_CHECK_STATUSES, missingInfoItems, missingCheckStatus, missingCheckCounts, setMissingCheck, missingCheckCardHtml,

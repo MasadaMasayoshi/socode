@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.272'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.273'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -187,7 +187,7 @@
 
     const RM_NOTE_FONT = 11.5, RM_NOTE_LINE_H = 15, RM_NOTE_GAP = 7, RM_NOTE_MAX = 60;
 
-    const RM_BUILD_VERSION = 7;
+    const RM_BUILD_VERSION = 8;
     const RM_LAYOUT_STYLE = 6;
     const RM_COL_GAP = 80, RM_ROW_GAP = 36;
 
@@ -3114,7 +3114,8 @@
       }
 
       const userProblems = (() => {
-        const plans = typeof carePlanList === 'function' ? carePlanList(cp).filter(p => String(p.problem || '').trim()) : [];
+        // v.273: 自動作成のまま手を入れていない計画の看護問題名は使わない（関連図から作った名前が、作り直した関連図に逆戻りして古い名前が残るため）。手で作った・直した計画だけを反映する。
+        const plans = typeof carePlanList === 'function' ? carePlanList(cp).filter(p => String(p.problem || '').trim() && !(typeof cpIsAutoPlan === 'function' && cpIsAutoPlan(p))) : [];
         if (plans.length) return plans.map(p => ({ label: rmCleanProblemLabel(p.problem), needs: p.relatedNeeds || [] }));
         const sel = new Set(cp.selectedDiagnosisIds || []);
         return (cp.diagnosisCandidates || []).filter(c => sel.has(c.id) && String(c.name || '').trim()).map(c => ({ label: rmCleanProblemLabel(c.name), needs: [] }));
@@ -3178,7 +3179,8 @@
       });
 
       const rest = tplProblems.filter(t => !usedTpl.has(t)).sort((a, b) => rmProblemCategory(a.label).rank - rmProblemCategory(b.label).rank);
-      rest.forEach(t => { if (userProblems.length) { t.label = `${t.label}（候補）`; t.evidence = '記録から考えられる候補（看護計画には未登録）'; } ordered.push(t); });
+      const plannedKeys = new Set(typeof carePlanList === 'function' && typeof cpPlanKey === 'function' ? carePlanList(cp).map(p => cpPlanKey(p)) : []);
+      rest.forEach(t => { if (userProblems.length && !plannedKeys.has(typeof cpPlanKey === 'function' ? cpPlanKey({ problem: t.label }) : '')) { t.label = `${t.label}（候補）`; t.evidence = '記録から考えられる候補（看護計画には未登録）'; } ordered.push(t); });
 
 
       // v.203: 診断に対応する病態知識で、診断ノードから治療・所見・リスクへの線を作る。記録にない所見は作らない。
@@ -3562,6 +3564,8 @@
       const map = buildRelationMapFromRecord(cp);
       if (!map.nodes.length) { showToast('記録から関連図に使える情報が見つかりませんでした。「追加」で手で作ってください', 'warn'); return; }
       rmCommit(cp, map, { pushUndo: true });
+      // v.273: 作り直した関連図に、古い自動作成の看護計画をそろえる（手で書いた・直した計画と実施記録のある計画は変えない）
+      try { if (typeof autoBuildCarePlans === 'function') autoBuildCarePlans(cp); } catch (e) { console.warn(e); }
       rmZoom('fit-readable');
       const nAdded = map.nodes.filter(n => n.added).length;
       showToast(`記録から関連図を作りました（${map.nodes.length}個${nAdded ? `・うち紫の「＋補足」${nAdded}個は矢印の間に補った過程` : ''}）。病態のつながりを確かめて直してください`, 'success', 8000);
