@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.266'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.270'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -696,7 +696,7 @@
       if (reasons.length) parts.push(`<div class="cp-reasons"><span class="my-asm-label"><i class="fa-solid fa-graduation-cap"></i> この患者に必要な理由</span><ul>${reasons.slice(-5).map(r => `<li>${r.about ? `<b>${escapeHtml(r.about)}</b>：` : ''}${escapeHtml(r.text)}</li>`).join('')}</ul><button type="button" class="my-asm-link" onclick="writeCareReasonUI('${pid}')">理由を足す</button></div>`);
 
       const dl = cpDesignLines(p);
-      if (dl.length) parts.push(`<div class="cp-design"><span class="my-asm-label"><i class="fa-solid fa-clipboard-check"></i> この患者の計画の根拠</span><ul>${dl.map(([l, t]) => `<li><b>${escapeHtml(l)}</b>：${escapeHtml(t)}</li>`).join('')}</ul></div>`);
+      if (dl.length) parts.push(`<div class="cp-design"><span class="my-asm-label"><i class="fa-solid fa-clipboard-check"></i> この患者の計画の根拠</span><ul>${dl.map(([l, t]) => `<li><b class="cpd-l">${escapeHtml(l)}</b><span class="cpd-t">${escapeHtml(t)}</span></li>`).join('')}</ul></div>`);
       if (p.distinct) parts.push(`<p class="cp-note">${escapeHtml(p.distinct)}</p>`);
       const refs = cp ? (p.refs || []).map(r => { const id = cpResolvePlanId(cp, r.id); const q = id && getCarePlan(cp, id); const n = q ? carePlanList(cp).findIndex(x => x.id === q.id) + 1 : 0; return q ? `<li>#${n} ${escapeHtml(q.problem)}：${escapeHtml(r.why)}</li>` : ''; }).join('') : '';
       if (refs) parts.push(`<div class="cp-note"><b>関連する計画：</b><ul>${refs}</ul></div>`);

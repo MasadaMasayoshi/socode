@@ -1532,7 +1532,7 @@ tr.cmp-row>td.cmp-cell{padding:2px 6px}
   #assessment-single > * { grid-column: 1; min-width: 0; }
   #assessment-single > .asm-single-head { grid-column: 1 / -1; }
   #assessment-single .asm-followup { display: contents; }
-  #assessment-single .asm-aux-miss { grid-column: 2; grid-row: 2 / span 4; position: sticky; top: calc(var(--need-nav-top, 0px) + 8px); }
+  #assessment-single .asm-aux-miss { grid-column: 2; grid-row: auto / span 3; position: sticky; top: calc(var(--need-nav-top, 0px) + 8px); }
 }
 @media (max-width: 640px) {
   .need-nav { position: static; padding: 6px; }
@@ -2123,3 +2123,11 @@ tr.cmp-row{display:table-row;padding:0;border:0;background:none;gap:0}
 /* --- v.269 labs: indicator panel uses the full row width and cards in one row share a height (no blank gaps) --- */
 #view-labs .clinical-indices { width: 100%; }
 #view-labs .ci-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); align-items: stretch; }
+
+/* --- v.269 care plan "この患者の計画の根拠": one labelled row per item, smaller regular text, spacing between rows (display only; wording unchanged) --- */
+.cp-design ul { list-style: none; margin: .4rem 0 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); overflow: hidden; }
+.cp-design li { display: grid; grid-template-columns: 8.5em minmax(0, 1fr); column-gap: .75rem; padding: .55rem .8rem; font-size: 12.5px; line-height: 1.8; color: var(--ink); }
+.cp-design li + li { border-top: 1px solid var(--line-soft); }
+.cp-design .cpd-l { font-size: 11.5px; font-weight: 700; color: var(--ink-muted); line-height: 1.8; }
+.cp-design .cpd-t { font-weight: 400; overflow-wrap: anywhere; }
+@media (max-width: 640px) { .cp-design li { grid-template-columns: 1fr; row-gap: .1rem; } }
