@@ -6,7 +6,7 @@
 // ⑤ 検査値の単位の誤りを見つける（元の値は直さない）
 // 元の表示カードは変えない。判定の4区分（充足・未充足・判定保留・情報不足）も増やさない。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['19'] = 'v.274'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['19'] = 'v.275'; // Version stamp (scripts/stamp-version.js)
 
     const cvNorm = t => String(t || '').normalize('NFKC');
     const cvPlain = t => cvNorm(t).replace(/[「」『』\s]/g, '');
@@ -37,7 +37,9 @@
     const CV_CLAUSE_OFFTOPIC = {
       2: { off: /端坐位|起き上が|起立|歩行|移乗|立位|寝返り|ADL/, need: /摂取|食べ|食欲|食事量|割|嚥下|むせ|栄養|水分/ },
       3: { off: /端坐位|起き上が|歩行|移乗|立位|寝返り/, need: /排尿|排便|尿|便|トイレ|排泄|ガス|腸/ },
-      8: { off: /端坐位|起き上が|歩行|立位/, need: /入浴|清拭|更衣|洗髪|皮膚|創|発赤|清潔|整容|口腔/ }
+      8: { off: /端坐位|起き上が|歩行|立位/, need: /入浴|清拭|更衣|洗髪|皮膚|創|発赤|清潔|整容|口腔/ },
+      // 環境（安全な環境を保てるか）：保険・家族の病歴や構成・嗜好品・年齢性別・基準値つきの検査値は、安全の判断に直接つながらない
+      9: { off: /保険|家系|(?:祖|父|母).{0,6}亡くし|家族構成|同居|喫煙|飲酒|アルコール|嗜好|\d+\s*[歳歲]|基準値[:：]|血小板|Plt|ヘマトクリット|Ht\b/, need: /転倒|転落|安全|危険|ライン|ドレーン|チューブ|カテーテル|ベッド|柵|ナースコール|せん妄|離床|感染|褥瘡|出血|手すり|段差|住環境|階段|見当識|ふらつ|眼鏡|補聴|義歯|視力|聴力|ふらつき/ }
     };
     function cvOffTopic(needId, text) { const r = CV_CLAUSE_OFFTOPIC[needId]; const t = cvNorm(text); return !!r && r.off.test(t) && !r.need.test(t); }
     function cvTraceableNeedWord(needId, text) { const r = CV_CLAUSE_OFFTOPIC[needId]; return !r || r.need.test(cvNorm(text)); }
@@ -58,7 +60,7 @@
         r.invalidatedEvidence = bad;
         const A = r.facts.against.length, F = r.facts.for.length;
         const quote = l => l.slice(0, 3).map(f => `「${String(f.text).slice(0, 30)}」`).join('');
-        if (!A && !F) { r.verdict = 'unknown'; r.reason = ''; r.evidence = []; r.need = '判定の根拠として使える記録が確認できない'; delete r.needsConfirmation; return; }
+        if (!A && !F) { r.verdict = 'unknown'; r.reason = ''; r.evidence = []; r.need = `判定の根拠として使える記録（${(typeof sufficiencyNeededInfo === 'function' && sufficiencyNeededInfo(Number(nid))) || '実際の状態や自立度'}）が確認できない`; delete r.needsConfirmation; return; }
         if (r.verdict === 'unmet' && !A) r.verdict = F ? 'met' : 'unknown';
         else if (r.verdict === 'met' && !F) r.verdict = A ? 'unmet' : 'unknown';
         else if (r.verdict === 'conflict') { if (A && !F) r.verdict = 'unmet'; else if (F && !A) r.verdict = 'met'; }

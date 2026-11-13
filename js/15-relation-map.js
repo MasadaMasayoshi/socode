@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.274'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.275'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -3581,8 +3581,7 @@
           if (map && map.nodes.length) { try { rmImportClinicalEntities(map, cp); } catch (e) { /* keep the base map */ } rmCommit(cp, map, { pushUndo: false, render: false }); }
         }
         if (view === 'careplan' && cp.relationMap && typeof importCarePlansFromMap === 'function') {
-          const fresh = importCarePlansFromMap(cp);
-          if (fresh.length) { fresh.forEach(pl => carePlanOpen.add(pl.id)); commitCarePlanChange(cp, false); }
+          if (typeof autoBuildCarePlans === 'function') autoBuildCarePlans(cp, { notify: false });
         }
         if (view === 'genogram' && !cp.genogram) {
           const g = ggBuild(cp);

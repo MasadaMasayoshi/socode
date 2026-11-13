@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.274'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.275'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -472,7 +472,14 @@
       const labs = (a.evidence || []).slice(0, 3).map(id => {
         const lb = (labelMap || {})[id]; if (!lb) return '';
         const it = byId.get(id); if (!it) return lb;
-        const t = cleanSheetRecordText(it.text).replace(/\s+/g, ' ').trim();
+        let t = cleanSheetRecordText(it.text).replace(/\s+/g, ' ').trim();
+        // 長い記録（指示書・バイタルなど）は、判断の理由になった部分だけを示す
+        if (t.length > 40) {
+          const kws = (String(a.reason || '').replace(/（.*$/, '').match(/[一-龥ァ-ヶ]{2,}/g) || []).sort((x, y) => y.length - x.length);
+          const segs = t.split(/(?=【)|[。、]/).map(x => x.trim()).filter(Boolean);
+          const seg = segs.find(sg => kws.some(k => sg.includes(k)));
+          if (seg) t = seg;
+        }
         const when = it.timestamp && it.timestamp !== '日時不明' ? `${it.timestamp}：` : '';
         return `${lb}（${when}${t}）`;
       }).filter(Boolean);
@@ -494,6 +501,7 @@
         if (ag.length) { const t = sum(ag); return /(?:ない|ず|なかった|低下|減少|不足|困難|痛い|つらい|苦しい)$/.test(t) ? `${t}ことから、${name}は未充足である。` : `${t}のため、${name}は未充足である。`; }
         return `${basis}から、${name}は未充足である。`;
       }
+      if (a.verdict === 'conflict' && a.valueOnly) { const t = sum(a.facts.for || []); return `${t}は通常の範囲であるが、${a.need ? a.need + 'の' : ''}経過や自覚症状などの記録がなく、これだけでは充足を決められないため、${name}は判定保留。`; }
       if (a.verdict === 'conflict' && a.restriction) return `${labs.length ? labs.join('・') + 'により、' : ''}治療上の制限（${String(a.reason).replace(/（.*$/, '')}）は確認できるが、実際の自立度・介助の必要・症状の記録がないので、${name}は判定保留。`;
       if (a.verdict === 'conflict' && a.needsConfirmation && /^「[^」]*」$/.test(String(a.reason || '').trim())) return `${a.reason}の記載はあるが、${name}の充足を決める直接の根拠が足りないため、${name}は判定保留。`;
       if (a.verdict === 'conflict') {
@@ -529,6 +537,8 @@
       13: [['楽しみ・趣味・気分転換', /趣味|楽しみ|レクリエーション|気分転換|テレビ|読書|散歩/]],
       14: [['疾患や療養の理解・学習への意欲', /理解|知識|説明|学習|指導|退院|セルフ/]]
     };
+    // 判定に足りない情報（欲求ごとに、何が分かれば充足を判断できるか）
+    function sufficiencyNeededInfo(needId) { const r = PC_REQUIRED[needId]; return r ? r.map(x => x[0]).join('・') : ''; }
     function patientContextFor(cp, needId, phase) {
       const items = (cp.items || []).filter(i => (i.hendersonIds || []).includes(needId));
       const inPhase = i => { const col = (i.assessmentCols || {})[needId] || 'unclassified'; return !phase || phase === 'all' || col === phase || (phase === 'unclassified' && col === 'unclassified'); };
@@ -1355,7 +1365,7 @@
     let sufficiencyAiRunning = false;
 
     const SUF_NEG_AFTER = '(?:[^、。,]{0,6})(?:なし|ない|無|訴えず|みられず|見られず|認めず|なく|ありません)';
-    const SUF_UNMET_CUES = ['痛み(?!止め|どめ)|疼痛|創痛|痛い|NRS\\s*[:：]?\\s*[3-9]|ペインスケール\\s*[「:：]?\\s*[3-9]', '眠れ[なず]|不眠|睡眠(?:不足|障害)|寝つけ|熟睡(?:でき[なず]|できていない|不可)', '全介助|要介助|介助(?:が必要|を要|にて|で)|見守りが必要|できない|困難|不可|禁止|制限', '不安|怖い|恐怖|心配|戸惑|情けない|申し訳', '食欲(?:低下|不振|がない|ない)|摂取量(?:半分|減)|半分のみ|おなかすかない|嘔気|嘔吐', '排便(?:なし|なく)|便秘|下痢|腹部膨満|お腹が張|尿量(?:が)?(?:減少|低下|少な)|乏尿', 'べたべた|べたつき|気持ちが悪い|汚れ|悪臭|掻痒', '発赤|(?<!リンパ節)腫脹|熱感|発熱|排膿|浮腫|褥瘡', '呼吸困難(?:感)?(?:あり|を訴)|息苦しい|息切れ|チアノーゼ|喘鳴|SpO2\\s*[:：]?\\s*(?:[0-8]\\d|9[0-3])\\s*%', '転倒|ふらつき|不安定|せん妄|不穏|混乱|拒否', '体温[^\\d。、]{0,3}3[89]|3[89](?:\\.\\d)?\\s*度', '[↑↓]', '(?:旅行|趣味|外出|散歩|余暇)[^。]{0,20}(?:したい|できず|できない|行けない|行きたい)|早く治して', '(?:わから|分から)ない|教えて(?:ほしい|欲しい|ください)|大丈夫(?:か|なの|でしょうか)|ずれ(?:たり)?しないか|気を付け(?:れば|ること)', '仕事[^。]{0,10}(?:できない|できず|休)|復職[^。]{0,10}(?:不安|心配|難)|働けな', '体重[^。、]{0,8}(?:減|低下)|[0-9.]+\\s*kg\\s*(?:減|低下)|やせ|朝食[^。、]{0,6}(?:抜|食べない|とらない|欠食|ほとんど食べ)|欠食|外食|早食い|偏食|短時間で済ま|早く食べ', '難聴|聞こえ(?:にくい|ない|が悪)|聴力(?:低下|障害)|(?:説明|話|内容)[^。、]{0,8}(?:ほとんど|あまり)?伝わ(?:らない|りにくい)|意思疎通(?:が)?(?:困難|難しい|図れ(?:ない|ず))|失語|構音障害', '口(?:を)?き[かけ]な|一言二言|一言も|無表情|目も合わせ|黙り込|返事をしな|答えな[いか]|会話にならな|言葉をかわ(?:す)?こと(?:も)?できな','(?:経口)?(?:摂取|飲水)(?:量)?(?:が)?(?:低下|減少|不良|不足|ほぼ(?:なし|ない))|(?:食事|食べ物|水分|飲み物|ミルク)(?:は|が|を)?(?:ほとんど)?(?:摂れ|とれ|取れ|食べられ|飲め|摂取でき)(?:て(?:い)?)?(?:ない|ず|なかった)|食べられ(?:ない|ず|なかった)|食事(?:を)?(?:拒否|摂らない|とらない)|食事摂取(?:なし|できず)|食欲(?:が|も)?(?:まったく|全く)?なく|何も(?:食べて|飲めて)(?:い)?(?:ない|なかった)'];
+    const SUF_UNMET_CUES = ['(?:痛み(?!止め|どめ)|疼痛|創痛|痛い)(?![^。、]{0,6}(?:NRS|ペインスケール)\\s*[:：]?\\s*[0-2](?!\\d))|NRS\\s*[:：]?\\s*[3-9]|ペインスケール\\s*[「:：]?\\s*[3-9]', '眠れ[なず]|不眠|睡眠(?:不足|障害)|寝つけ|熟睡(?:でき[なず]|できていない|不可)', '全介助|要介助|介助(?:が必要|を要|にて|で)|見守りが必要|できない|困難|不可|禁止|制限', '不安|怖い|恐怖|心配|戸惑|情けない|申し訳', '食欲(?:低下|不振|がない|ない)|摂取量(?:半分|減)|半分のみ|おなかすかない|嘔気|嘔吐', '排便(?:なし|なく)|便秘|下痢|腹部膨満|お腹が張|尿量(?:が)?(?:減少|低下|少な)|乏尿', 'べたべた|べたつき|気持ちが悪い|汚れ|悪臭|掻痒', '発赤|(?<!リンパ節)腫脹|熱感|発熱|排膿|浮腫|褥瘡', '呼吸困難(?:感)?(?:あり|を訴)|息苦しい|息切れ|チアノーゼ|喘鳴|SpO2\\s*[:：]?\\s*(?:[0-8]\\d|9[0-3])\\s*%', '転倒|ふらつき|不安定|せん妄|不穏|混乱|拒否', '体温[^\\d。、]{0,3}3[89]|3[89](?:\\.\\d)?\\s*度', '[↑↓]', '(?:旅行|趣味|外出|散歩|余暇)[^。]{0,20}(?:したい|できず|できない|行けない|行きたい)|早く治して', '(?:わから|分から)ない|教えて(?:ほしい|欲しい|ください)|大丈夫(?:か|なの|でしょうか)|ずれ(?:たり)?しないか|気を付け(?:れば|ること)', '仕事[^。]{0,10}(?:できない|できず|休)|復職[^。]{0,10}(?:不安|心配|難)|働けな', '体重[^。、]{0,8}(?:減|低下)|[0-9.]+\\s*kg\\s*(?:減|低下)|やせ|朝食[^。、]{0,6}(?:抜|食べない|とらない|欠食|ほとんど食べ)|欠食|外食|早食い|偏食|短時間で済ま|早く食べ', '難聴|聞こえ(?:にくい|ない|が悪)|聴力(?:低下|障害)|(?:説明|話|内容)[^。、]{0,8}(?:ほとんど|あまり)?伝わ(?:らない|りにくい)|意思疎通(?:が)?(?:困難|難しい|図れ(?:ない|ず))|失語|構音障害', '口(?:を)?き[かけ]な|一言二言|一言も|無表情|目も合わせ|黙り込|返事をしな|答えな[いか]|会話にならな|言葉をかわ(?:す)?こと(?:も)?できな','(?:経口)?(?:摂取|飲水)(?:量)?(?:が)?(?:低下|減少|不良|不足|ほぼ(?:なし|ない))|(?:食事|食べ物|水分|飲み物|ミルク)(?:は|が|を)?(?:ほとんど)?(?:摂れ|とれ|取れ|食べられ|飲め|摂取でき)(?:て(?:い)?)?(?:ない|ず|なかった)|食べられ(?:ない|ず|なかった)|食事(?:を)?(?:拒否|摂らない|とらない)|食事摂取(?:なし|できず)|食欲(?:が|も)?(?:まったく|全く)?なく|何も(?:食べて|飲めて)(?:い)?(?:ない|なかった)'];
     const SUF_MET_CUES = ['問題なし|良好|清明|規則的|正常|普通食|常食|整|障害なし|異常なし|理解(?:力)?(?:あり|良好)|前向き|頑張|楽しみ|きれい好き', '睡眠[^\\d。、]{0,3}[6-9](?:\\s*[~〜～-]\\s*[6-9])?\\s*時間|眠れた|よく眠れ|よく眠り|寝起きは?(?:良|すっきり)|すっきり(?:と)?起き|ぐっすり眠', '食欲(?:良好|あり)|全量摂取|摂取量\\s*(?:良好|十分)|残さず(?:食べ|摂取)', '(?!)', 'ペインスケール\\s*[「:：]?\\s*[0-2]|NRS\\s*[:：]?\\s*[0-2](?!\\d)|痛みなし|疼痛なし', '(?!)', '排便\\s*[:：]?\\s*\\d\\s*回/日|排尿\\s*[:：]?\\s*\\d+\\s*回/日', '呼吸困難感(?:の)?訴えなし|肺Air入り(?:が)?良好', '意思疎通(?:は)?(?:良好|可能|図れ)|言葉にで|希望を(?:伝え|話)|質問(?:が)?でき|ナースコール[^。]{0,6}(?:使用|押|できる)|コミュニケーション[^。]{0,6}(?:良好|障害なし)', '理解(?:力)?(?:が)?良好|現状認識(?:が)?良好|理解できて|理解している', '(?:旅行|趣味|友人|外出)[^。]{0,12}(?:楽しむ|楽しん|行って|している)', '信仰[^。]{0,8}なし|宗教[^。]{0,8}なし|特別な宗教', '胸部[^。、]{0,8}(?:明らかな)?(?:異常|病変)[^。、]{0,4}(?:なし|認めず|ない)|呼吸困難(?:感)?(?:は)?(?:なし|ない|無)', '趣味|テニス|ゴルフ|ジム|ウォーキング|ジョギング|旅行|友人[^。]{0,6}(?:会|食事)', '自立|自力|自分で|一人で', '(?<!(?:夫|妻|息子|娘|長男|次男|三男|長女|次女|父|母|嫁|兄|弟|姉|妹|家族)[^。、]{0,8})(?:専業主婦|主婦|会社員|自営業?|就労中|勤務(?:して|中)|家事(?:全般)?を(?:して|担|こなし))'];
 
     // v.101: a diagnosis name alone is not a finding and gives no verdict; only recorded symptoms/values do.
@@ -1807,15 +1817,26 @@
           const cur0 = phaseKeys.map(k => r[k]).find(Boolean) || {};
           const has0 = !!(cur0.verdict && cur0.verdict !== 'unknown');
           const rs = byNeed[n].filter(x => !x.fillOnly || !has0);
-          if (!rs.length || (rs.every(x => x.supportOnly) && !has0)) return;
+          if (!rs.length) return;
+          // v.275: 正常な値だけが記録されている（値は補助の根拠で、それだけでは充足を決めない）ときは「記録なし」とせず、
+          // 確認できた値を示したうえで、足りない観察を示して判定保留にする（既存の判定保留の言い方を使う）
+          if (rs.every(x => x.supportOnly) && !has0) {
+            const nf = t => String(t || '').normalize('NFKC').replace(/\s+/g, '');
+            const valueEv = rs.filter(x => x.v === 'met').slice(0, 3).map(x => x.id ? x : { ...x, id: ((list.find(i => nf(i.text).includes(nf(x.hit))) || {}).id) });
+            if (!valueEv.length) return;
+            const req = (typeof PC_REQUIRED !== 'undefined' && PC_REQUIRED[n] ? PC_REQUIRED[n].map(x => x[0]).join('・') : '');
+            const vv = { verdict: 'conflict', needsConfirmation: true, valueOnly: true, reason: `「${valueEv[0].hit}」`, evidence: valueEv.map(x => x.id).filter(Boolean), need: req, refStandard: valueEv[0].ref, facts: { against: [], for: valueEv.map(x => ({ id: x.id, text: x.hit, kind: 'value', ref: x.ref })) } };
+            phaseKeys.forEach(k => { if (r[k] || k === 'all') r[k] = vv; });
+            return;
+          }
           const um = rs.filter(x => x.v === 'unmet'), mt = rs.filter(x => x.v === 'met'), pt = rs.filter(x => x.v === 'partial');
           const pick = um.length ? um : (!um.length && pt.length) ? pt : mt;
           let verdict = um.length ? 'unmet' : pt.length ? 'conflict' : 'met';
           const g = pick[0];
           const cur = phaseKeys.map(k => r[k]).find(Boolean) || {};
-          const mkFact = x => ({ id: x.id, text: x.hit, kind: /\d/.test(x.hit) ? 'value' : 'obs', ref: x.ref });
+          const mkFact = x => ({ id: x.id, text: x.hit, kind: /\d/.test(x.hit) ? 'value' : 'obs', ref: x.ref, ...(x.supportOnly ? { supportOnly: true } : {}) });
           const newAgainst = um.map(mkFact).concat(pt.map(mkFact));
-          const newFor = mt.map(mkFact);
+          const newFor = (um.length ? mt.filter(x => !x.supportOnly) : mt).map(mkFact); // 未充足の根拠に、無関係な正常値を並べない
           const curF = cur.facts || { against: [], for: [] };
           const dedupe = arr => { const seen = new Set(); return arr.filter(f => { const k = /^高リスクの組合せ/.test(f.ref || '') ? 'combo|' + f.text : f.id + '|' + f.text; if (seen.has(k)) return false; seen.add(k); return true; }); };
           const cleanFor = (fors, ag) => fors.filter(f => !ag.some(a => sufSameFact(f.text, a.text)) && !(/(?:ない|なし|なく)[、]?(?:が|けど|ものの|のに)/.test(String(f.text)) && ag.some(a => a.id === f.id))); // 一方を否定して他方に支障がある文（「嘔気はないが食べられない」）は良好な根拠にしない
@@ -1832,7 +1853,7 @@
             if (comp) { compensated = comp; verdict = 'met'; if (!facts.for.some(f => f.id === comp.id && f.text === comp.text)) facts.for.push(comp); }
           }
           // never overwrite a verdict that already rests on other recorded evidence unless a problem is recorded over a 充足
-          const keep = () => { if (cur.verdict) cur.facts = facts; };
+          const keep = () => { if (cur.verdict) { if (cur.verdict === 'unmet') facts.for = (facts.for || []).filter(f => !f.supportOnly); cur.facts = facts; } }; // 未充足の根拠に、補助の正常値（基準内の値）を並べない
           // v.272: a verdict held back by a medical restriction (e.g. NPO order) is not replaced by laboratory/body-measure values alone — the restriction says nothing about whether the need is met, and a lab value is not an intake record.
           if (cur.restriction && rs.every(x => /\d/.test(x.hit || ''))) return keep();
           if (cur.verdict === 'unmet' && !cur.restriction && verdict !== 'unmet') return keep();
@@ -1973,13 +1994,13 @@
       });
       const num = re => { const m = t.match(re); return m ? Number(m[1]) : null; };
       // 呼吸: 充足 needs gas exchange AND comfortable breathing
-      const sp = num(/SpO2\s*[:：=]?\s*(\d{2,3})\s*%/i), rr = num(/(?:RR|呼吸数)\s*[:：=]?\s*(\d{1,2})(?!\d)/) ?? num(/(?<![A-Za-z])呼吸\s*[:：=]?\s*(\d{1,2})\s*(?:回)?\s*[\/／]\s*(?:分|min)/);
+      const sp = num(/SpO2[】\])）]?\s*[:：=]?\s*(\d{2,3})\s*%/i), rr = num(/(?:RR|呼吸数)[】\])）]?\s*[:：=]?\s*(\d{1,2})(?!\d)/) ?? num(/(?<![A-Za-z])呼吸\s*[:：=]?\s*(\d{1,2})\s*(?:回)?\s*[\/／]\s*(?:分|min)/);
       const comfort = /呼吸困難(?:感)?(?:の訴え)?(?:は)?(?:なし|ない|無)|息苦しさ(?:は)?(?:なし|ない)|呼吸音(?:は)?(?:清|正常|良好)|副雑音(?:なし|を認めず)|肺Air入り(?:が)?良好/.test(t);
       if (sp !== null && sp >= 95 && sp <= 100 && (comfort || (rr !== null && rr >= 12 && rr <= 20)) && !out.some(x => x.need === 1 && x.v === 'unmet')) out.push({ need: 1, v: 'met', hit: `SpO2 ${sp}%`, ref: 'SpO2 95%以上かつ呼吸困難なし／呼吸数12〜20（ガス交換と安楽な呼吸の両方）', ...(comfort ? {} : { supportOnly: true }) }); // v.274: 呼吸困難なし等の状態の記録がない値だけでは単独で充足にしない
       if (rr !== null && rr > 20 && rr < 60 && sp === null) out.push({ need: 1, v: 'partial', hit: `呼吸数 ${rr}`, ref: '呼吸数が12〜20の外（判定保留。症状・SpO2と合わせて確認）' });
       if (rr !== null && rr >= 12 && rr <= 20 && sp === null) out.push({ need: 1, v: 'met', hit: `呼吸数 ${rr}`, ref: '呼吸数12〜20（記録された値のみ。他の所見と合わせて判断）', supportOnly: true });
       // 体温: 36.0〜37.2 充足（36.5〜37.2が基準、36.0〜37.4を通常域として偽の未充足を避ける）、37.3〜37.5 判定保留、37.5超または35.0未満 未充足
-      const bt = t.match(/(?:体温|BT|KT)\s*[:：=]?\s*(3[3-9](?:\.\d)?|4[0-2](?:\.\d)?)/);
+      const bt0 = t.match(/(?:体温|BT|KT)[】\])）]?\s*[:：=]?\s*(3[3-9](?:[.、]\d)?|4[0-2](?:[.、]\d)?)/), bt = bt0 ? [`体温 ${bt0[1].replace('、', '.')}℃`, bt0[1].replace('、', '.')] : null;
       if (bt) {
         const v = Number(bt[1]), hit = bt[0];
         const row = v > 37.5 || v < 35.0 ? 'unmet' : v >= 37.3 ? 'partial' : v < 36.0 ? 'partial' : 'met';
@@ -2017,7 +2038,9 @@
           const cur = r.post;
           if (cur && cur.verdict === 'unmet' && !cur.restriction) return;
           const v0 = { verdict: 'conflict', reason, evidence: evIds, need: '', restriction: true };
-          r.post = v0; if (r.postop) r.postop = { ...v0, facts: v0.facts ? { against: [...(v0.facts.against || [])], for: [...(v0.facts.for || [])] } : undefined }; if (!r.all || r.all.verdict !== 'unmet') r.all = v0; // 術後だけの欄は別のオブジェクトにする（術前の記録が混ざらないように）
+          // 術後だけの欄には、術前（手術前日など）の指示を根拠として入れない
+          const postEv = ev.filter(i => surgPhaseOf(i) !== 'pre').slice(0, 5).map(i => i.id);
+          r.post = v0; if (r.postop && postEv.length) r.postop = { ...v0, evidence: postEv, facts: v0.facts ? { against: [...(v0.facts.against || [])], for: [...(v0.facts.for || [])] } : undefined }; if (!r.all || r.all.verdict !== 'unmet') r.all = v0; // 術後だけの欄は別のオブジェクトにする（術前の記録が混ざらないように）
           return;
         }
         const v = { verdict: 'unmet', reason, evidence: evIds, need: '', facts: { against: ev.slice(0, 5).map(i => ({ id: i.id, text: nz(i.text).slice(0, 40), kind: 'obs' })), for: [] } };
@@ -2112,7 +2135,7 @@
           const pending = rs.filter(x => x.r.v === 'pending');
           if (pending.length) return { verdict: 'conflict', needsConfirmation: true, reason: need.id === 14 ? '説明・練習は実施されているが、理解の程度や自分で実施できるかの確認が必要' : need.id === 10 ? '不安や思いを言葉にできているが、伝達上の困りごとがないかは別に確認する必要がある' : need.id === 11 ? '価値観や希望を言葉にできているが、それが尊重され実践できているかは別に確認する必要がある' : '感染症検査の陰性結果は確認できるが、転倒など他の安全面は別に確認する必要がある', evidence: pending.slice(0, 5).map(x => x.i.id), need: '' };
           if (need.id === 11 && cards.some(i => /宗教|信仰|信条|祈|礼拝/.test(String(i.text || '')) && !/記載なし|情報なし|不明|未確認/.test(String(i.text || '')) && !SUF_NOT_CONFIRMED.test(String(i.text || '').normalize('NFKC')))) return { verdict: 'met', reason: '信仰による問題の記載なし', evidence: cards.slice(0, 3).map(i => i.id), need: '' };
-          return { verdict: 'unknown', reason: '', evidence: [], need: cards.length ? `${label}の充足を判断できる直接の記録がない` : `${label}の記録がない` };
+          return { verdict: 'unknown', reason: '', evidence: [], need: cards.length ? `${label}の充足を判断できる直接の記録（${sufficiencyNeededInfo(need.id) || '実際の状態や自立度'}）がない` : `${label}の記録がない` };
         };
         const res = {};
 

@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.274'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.275'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -3571,8 +3571,20 @@
       fresh0.forEach(p => applyCarePlanValidation(cp, p));
       mergeDuplicateCarePlans(cp);
       const fresh = fresh0.filter(p => getCarePlan(cp, p.id));
-      let withModel = 0;
-      fresh.forEach(p => {
+      // 取り込んだだけで中身が空の自動作成の計画（保存済みのもの）も、同じ処理で補う（利用者が書いた計画・実施記録のある計画は触らない）
+      const emptyAuto = carePlanList(cp).filter(p => cpIsEmptyAutoPlan(p) && !fresh.some(f => f.id === p.id));
+      const withModel = cpFillFromModel(cp, [...fresh, ...emptyAuto]);
+      refineCarePlans(cp);
+      return { fresh, withModel, updated: stale.updated, kept: stale.kept, filled: emptyAuto.length };
+    }
+    // 計画の目標・OP/TP/EPが全て空で、利用者が手を入れていない自動作成の計画か
+    function cpIsEmptyAutoPlan(p) {
+      return cpIsAutoPlan(p) && !(p.records || []).length && !String(p.goalLong || '').trim() && !String(p.goalShort || '').trim() && !(p.op || []).length && !(p.tp || []).length && !(p.ep || []).length;
+    }
+    // 関連図から取り込んだ計画に、この患者の記録から作った目標・OP/TP/EPを入れる。取り込み方によらず同じ処理を通す（空の計画を作らない）
+    function cpFillFromModel(cp, plans) {
+      let n = 0;
+      plans.forEach(p => {
         carePlanOpen.add(p.id);
         const m = cpModelOrFallback(cp, p);
         if (!m) return;
@@ -3580,10 +3592,9 @@
         if (!String(p.goalLong || '').trim()) patch.goalLong = m.goalLong;
         if (!String(p.goalShort || '').trim()) patch.goalShort = m.goalShort;
         ['op', 'tp', 'ep'].forEach(k => { if (!p[k].length && m[k] && m[k].length) patch[k] = [...m[k]]; });
-        if (Object.keys(patch).length) { updateCarePlan(cp, p.id, { ...patch, reasonNeeded: true, source: 'rules' }); withModel++; }
+        if (Object.keys(patch).length) { updateCarePlan(cp, p.id, { ...patch, reasonNeeded: true, source: 'rules' }); n++; }
       });
-      refineCarePlans(cp);
-      return { fresh, withModel, updated: stale.updated, kept: stale.kept };
+      return n;
     }
 
     function autoBuildCarePlans(cp, { notify = true } = {}) {
@@ -3621,7 +3632,8 @@
       if (!cp.relationMap) return showToast('関連図がまだありません。「関連図」のページで作ってから取り込んでください', 'warn', 6000);
       const fresh = importCarePlansFromMap(cp);
       if (!fresh.length) return showToast('関連図の看護問題は、すべて看護計画にあります', 'info');
-      fresh.forEach(p => carePlanOpen.add(p.id));
+      fresh.forEach(p => applyCarePlanValidation(cp, p));
+      cpFillFromModel(cp, fresh);
       rememberCareOperation(cp, operationBefore);
       commitCarePlanChange(cp);
       showToast(`関連図から看護問題を${fresh.length}件取り込みました（根拠データつき）。目標・OP/TP/EPはこの患者に合わせて書きましょう`, 'success', 6000);
@@ -3959,7 +3971,7 @@ ${body}
 
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {
-    clauseClip, cpIsAutoPlan, cpUpdateStalePlans, CP_GEN_VERSION,
+    clauseClip, cpIsAutoPlan, cpIsEmptyAutoPlan, cpFillFromModel, cpUpdateStalePlans, CP_GEN_VERSION,
     inferUntaggedReason, untaggedContextEffects, untaggedTextKey, untaggedReviewOf, setUntaggedReview, applyUntaggedReviews, untaggedReviewItems, untaggedReviewCounts, untaggedSectionHtml,
     buildCarePlansPrintHtml, buildCarePlansText, buildCarePlansByRules, autoBuildCarePlans, carePlanList, deleteCarePlan, cpEnrichPlan, cpDesignLines, cpDesignBy, CP_ORAL_CARE_TP,
     formatCardTimestamp, MISSING_CHECK_STATUSES, missingInfoItems, missingCheckStatus, missingCheckCounts, setMissingCheck, missingCheckCardHtml,

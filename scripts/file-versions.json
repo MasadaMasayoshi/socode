@@ -40,12 +40,12 @@
     "hash": "e8efca85cb5ee334"
   },
   "js/11-own-assessment.js": {
-    "version": "v.274",
-    "hash": "7e31a39e9edcd59e"
+    "version": "v.275",
+    "hash": "19c91d593a6b1f3b"
   },
   "js/12-missing-checks-and-care-plan.js": {
-    "version": "v.274",
-    "hash": "24be3cfb16273272"
+    "version": "v.275",
+    "hash": "0fefd1d664e65dfc"
   },
   "js/13-compare-and-report.js": {
     "version": "v.255",
@@ -56,8 +56,8 @@
     "hash": "37636c1b1004a9ba"
   },
   "js/15-relation-map.js": {
-    "version": "v.274",
-    "hash": "fcdd40fef52ebb41"
+    "version": "v.275",
+    "hash": "c069f0a6b3d2dbea"
   },
   "style.css": {
     "version": "v.271",
@@ -84,8 +84,8 @@
     "hash": "bbea080fd25ab696"
   },
   "js/19-clinical-validation.js": {
-    "version": "v.274",
-    "hash": "2a83aa89e2b8c95e"
+    "version": "v.275",
+    "hash": "95ecddab8514878d"
   },
   "js/20-clinical-reasoning.js": {
     "version": "v.272",
