@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.266'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.267'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -2066,7 +2066,27 @@
       const spo2 = lab('SpO2');
       const wbcEarly = lab('WBC'), crpEarly = lab('CRP');
       const o2Item = findItem(/酸素\s*\d|(?<!Sp)O2\s*\d|カニュ[ラー]|酸素マスク|リザーバー|酸素投与/);
-      const fev = all.match(/FEV1(?:\.0)?\s*%?\s*[:：]?\s*(\d+(?:\.\d+)?)\s*%/);
+      // v.267: 1秒率 (FEV1/FVC) is read under all of its written forms; only a value under 70% is evidence of an obstructive tendency.
+      const fevM = all.normalize('NFKC').match(/(?:[1１一]秒率|FEV\s*1(?:\.0)?\s*%?)\s*[:：]?\s*(\d+(?:\.\d+)?)\s*%/i);
+      const fev = fevM && Number(fevM[1]) < 70 ? fevM : null;
+      const fevAny = fevM || null;
+      // Brinkman index = cigarettes per day x years smoked; a cumulative-exposure marker, not a measure of ciliary function.
+      const bri = (() => {
+        const t = smokeItem ? String(smokeItem.text).normalize('NFKC') : '';
+        if (!t) return null;
+        const perDay = (t.match(/(\d+)\s*本\s*(?:\/|／|あたり)?\s*日?/) || t.match(/1日\s*(\d+)\s*本/) || [])[1];
+        const box = (t.match(/(\d+(?:\.\d+)?)\s*箱\s*(?:\/|／)?\s*日?/) || [])[1];
+        const n = perDay ? Number(perDay) : box ? Number(box) * 20 : null;
+        let yrs = (t.match(/喫煙歴\s*(\d+)\s*年|(\d+)\s*年間\s*(?:喫煙|吸)/) || []).slice(1).find(Boolean);
+        yrs = yrs ? Number(yrs) : null;
+        if (yrs === null) {
+          const startAge = (t.match(/(\d+)\s*歳\s*(?:頃)?(?:から|より)[^\n]{0,8}(?:喫煙|吸)/) || [])[1];
+          const ageM = all.normalize('NFKC').match(/(\d{2})\s*[歳歲]\s*[,、，・]?\s*(?:男|女)/);
+          const quit = (t.match(/(\d+)\s*年前[^\n]{0,8}禁煙/) || [])[1];
+          if (startAge && ageM) yrs = Number(ageM[1]) - Number(quit || 0) - Number(startAge);
+        }
+        return n && yrs && yrs > 0 ? { perDay: n, years: yrs, index: n * yrs } : null;
+      })();
       let invasion = null, pain = null;
       if (surgery && surgeryDone) {
         invasion = N('invasion', 'pathophysiology', '手術侵襲（組織の損傷）', { source: 'knowledge' });
@@ -2087,11 +2107,13 @@
         E(suppress, sputum, 'causes', { evidence: '咳が弱く痰を出しにくい', predicted: !sputumActual, noBridge: true });
         E(reflex, sputum, 'contributes_to', { evidence: '気道の分泌物を出す力が下がる', predicted: !sputumActual, noBridge: true });
         let reserve = null;
-        if (smokeNow || aging || fev) {
-          reserve = N('reserve', 'pathophysiology', smokeNow ? '気道の線毛機能の低下・分泌物の増加（呼吸予備力の低下）' : '加齢による呼吸予備力の低下', { source: 'knowledge' });
+        const briHigh = bri && bri.index >= 400;
+        if (smokeNow || aging || fev || briHigh) {
+          reserve = N('reserve', 'pathophysiology', smokeNow ? '気道の線毛機能の低下・分泌物の増加（呼吸予備力の低下）' : fev ? '閉塞性の換気障害の傾向（呼吸予備力の低下）' : briHigh ? '累積喫煙量による呼吸予備力の低下の可能性' : '加齢による呼吸予備力の低下', { source: 'knowledge' });
           if (smokeNow) E(smokeNow, reserve, 'contributes_to', { evidence: '喫煙による気道への影響' });
+          if (briHigh) E(N('brinkman', 'patient_fact', `ブリンクマン指数 ${bri.index}（${bri.perDay}本/日×${bri.years}年）`, { items: [smokeItem], distinctEvidence: true }), reserve, 'contributes_to', { evidence: 'ブリンクマン指数は累積喫煙量の目安で、数値が大きいほど呼吸器疾患・術後合併症のリスクが高いとされる。繊毛機能そのものの評価ではない' });
           if (aging) E(aging, reserve, 'contributes_to', { evidence: '加齢による呼吸機能の低下' });
-          if (fev) E(N('lab_fev', 'lab', `FEV1% ${fev[1]}%`), reserve, 'supports', { evidence: 'FEV1%70%未満は閉塞性の換気障害の目安' });
+          if (fev) E(N('lab_fev', 'lab', `1秒率 ${fev[1]}%`), reserve, 'supports', { evidence: '1秒率70%未満は閉塞性の換気障害の目安' });
           E(reserve, sputum, 'contributes_to', { evidence: '分泌物が多く出しにくい', predicted: !sputumActual });
         }
         const secretion = N('secretion', 'pathophysiology', '気道内の分泌物の貯留', { source: secretionObs ? 'record' : 'knowledge', observed: secretionObs });

@@ -278,3 +278,30 @@ test('手術のない記録では、出血の看護計画に術後出血の内�
   const p = plansOf(cp).find(q => /出血/.test(q.problem));
   if (p) assert.doesNotMatch(p.op.concat(p.tp).join('\n'), /ドレーン排液|術後/);
 });
+
+// ---- 呼吸予備力：1秒率とブリンクマン指数を関連図に組み込む（v.267）----
+test('関連図：1秒率70%未満とブリンクマン指数（本数×年数）が呼吸予備力の低下につながる／繊毛機能の低下とは書かない', { skip: !have }, () => {
+  const t = chainsText(gold);
+  assert.match(t, /ブリンクマン指数 560（20本\/日×28年） → 閉塞性の換気障害の傾向（呼吸予備力の低下）/);
+  assert.match(t, /（1秒率 69\.33%） → 閉塞性の換気障害の傾向/);
+  const edge = gold.relationMap.edges.find(e => /ブリンクマン/.test(label(gold.relationMap, e.source)));
+  assert.match(edge.evidence, /繊毛機能そのものの評価ではない/);
+  assert.doesNotMatch(t, /喫煙[^\n]*→ 気道の線毛機能/);
+});
+
+test('関連図：1秒率が70%以上なら呼吸予備力の低下の根拠にしない／従来の「FEV1%」表記も読む', () => {
+  const base = fs.readFileSync(goldenPath, 'utf8').replace(/\r\n?/g, '\n');
+  const normal = mk(base.replace('一秒率69.33％', '一秒率82.10％'), 'p15fn');
+  assert.doesNotMatch(chainsText(normal), /1秒率 82/);
+  const old = mk(base.replace('一秒率69.33％', 'FEV1% 62%'), 'p15fo');
+  assert.match(chainsText(old), /1秒率 62%/);
+});
+
+test('関連図：ブリンクマン指数が400未満なら結ばない／年数の書き方（喫煙歴○年）も読む', () => {
+  const base = fs.readFileSync(goldenPath, 'utf8').replace(/\r\n?/g, '\n');
+  assert.ok(base.includes('20歳から喫煙（20本／日）していたが、10年前に禁煙した'));
+  const low = mk(base.replace('20歳から喫煙（20本／日）していたが、10年前に禁煙した', '喫煙歴5年（10本／日）、10年前に禁煙した'), 'p15bl');
+  assert.doesNotMatch(chainsText(low), /ブリンクマン/);
+  const yrs = mk(base.replace('20歳から喫煙（20本／日）していたが、10年前に禁煙した', '喫煙歴30年（20本／日）、10年前に禁煙した'), 'p15by');
+  assert.match(chainsText(yrs), /ブリンクマン指数 600（20本\/日×30年）/);
+});
