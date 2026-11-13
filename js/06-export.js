@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.272'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.276'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1220,7 +1220,9 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       if (!x) return '';
       const m = x.match(/^判定：(.*?)／判定根拠：([\s\S]*)$/);
       const dims = typeof sufficiencyDimensionLines === 'function' ? sufficiencyDimensionLines(cp, needId, key).map(l => `      ・${l}\n`).join('') : '';
-      return (m ? `    ▶${label}の判定：${m[1]}\n    ▶説明：${m[2]}\n` : `    ▶${label}の判定：${x}\n`) + dims;
+      let ana = ''; try { ana = typeof sufficiencyAnalysis === 'function' ? sufficiencyAnalysis(cp, needId, key) : ''; } catch (e) { ana = ''; }
+      const anaText = ana ? `    ▶状況の分析：${ana.split('\n').join('\n      ')}\n` : '';
+      return (m ? `    ▶${label}の判定：${m[1]}\n${anaText}    ▶説明：${m[2]}\n` : `    ▶${label}の判定：${x}\n${anaText}`) + dims;
     }
     // Need-by-need sufficiency for the full text/print export. Reuses the existing judgement and wording as-is (frozen); nothing is recomputed or reworded.
     function needSufficiencyDetailText(cp, needId) {
@@ -1234,7 +1236,9 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         if (!x) return '';
         const m = x.match(/^判定：(.*?)／判定根拠：([\s\S]*)$/);
         const dims = typeof sufficiencyDimensionLines === 'function' ? sufficiencyDimensionLines(cp, needId, ph.key).map(l => `<br>・${escapeHtml(l)}`).join('') : '';
-        return `<div style="margin:3px 0 4px;padding:2px 4px;border-left:2px solid #8a9a8e;font-size:9pt;"><b>▶${escapeHtml(ph.label)}の判定：${escapeHtml(m ? m[1] : x)}</b>${m ? `<br>説明：${escapeHtml(m[2])}` : ''}${dims}</div>`;
+        let ana = ''; try { ana = typeof sufficiencyAnalysis === 'function' ? sufficiencyAnalysis(cp, needId, ph.key) : ''; } catch (e) { ana = ''; }
+        const anaHtml = ana ? `<br>状況の分析：${ana.split('\n').map(escapeHtml).join('<br>')}` : '';
+        return `<div style="margin:3px 0 4px;padding:2px 4px;border-left:2px solid #8a9a8e;font-size:9pt;"><b>▶${escapeHtml(ph.label)}の判定：${escapeHtml(m ? m[1] : x)}</b>${anaHtml}${m ? `<br>説明：${escapeHtml(m[2])}` : ''}${dims}</div>`;
       }).join('');
       return rows;
     }

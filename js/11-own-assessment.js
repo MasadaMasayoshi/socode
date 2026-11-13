@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.275'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.276'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -264,7 +264,11 @@
         if (!e || !(sufficiencyHasVerdict(cp, need.id) || MY_ASSESSMENT_FIELDS.some(f => String(e[f.key] || '').trim()))) return null;
         const labels = myEvidenceLabels(cp, need.id);
         const lines = [`${need.id}. ${need.name.replace(/^\d+\.\s*/, '')}`];
-        if (sufficiencyHasVerdict(cp, need.id)) sufficiencyUiPhases(cp).forEach(ph => lines.push(`・${ph.label}：${SUFFICIENCY_LABELS[getSufficiency(cp, need.id, ph.key) || 'unknown']}　${sufficiencySentence(cp, need.id, ph.key)}`));
+        if (sufficiencyHasVerdict(cp, need.id)) sufficiencyUiPhases(cp).forEach(ph => {
+          lines.push(`・${ph.label}：${SUFFICIENCY_LABELS[getSufficiency(cp, need.id, ph.key) || 'unknown']}　${sufficiencySentence(cp, need.id, ph.key)}`);
+          let t = ''; try { t = sufficiencyAnalysis(cp, need.id, ph.key); } catch (e) { t = ''; }
+          if (t) lines.push(`　状況の分析：${t.replace(/\n/g, '')}`);
+        });
         MY_ASSESSMENT_FIELDS.forEach(f => { if (String(e[f.key] || '').trim()) lines.push(`${f.label}：${e[f.key].trim()}`); });
         if (withEvidence && (e.evidenceIds || []).length) {
           lines.push('根拠：' + e.evidenceIds.map(id => { const d = describeMyEvidence(cp, need.id, id, labels, e); return `${d.label}「${d.text}」${d.removed ? '（消されたカード）' : ''}`; }).join('／'));
@@ -585,6 +589,130 @@
       return { ctx, sections: sec, text: sec.join(' → '), verdict: a.verdict };
     }
 
+    // v.276: 欲求の充足状況の「状況の分析」。表示カードは変えず、内部で臨床的な事実を選び、時期ごとに比べて文章にする。
+    // 流れ：情報の選択（その欲求に直接関係する記録だけ）→ 事実の比較（入院前・術前・術後）→ 原因の分析（記録で確かめられる範囲だけ）
+    //       → 欲求への影響（治療上の制限か、体力・意思・知識の不足か）。判定の文（充足・未充足・判定保留・情報不足）はここでは作らず、既存の文をそのまま使う。
+    // 入院前の生活・習慣を述べる言い方（時期の記録がない記録でも、入院前の情報として扱う）
+    const SUFA_BASELINE = /入院前|普段|いつも|従来|もともと|自宅では|習慣|外来記録|\d+\s*(?:か月|ヶ月|年|週間)前/;
+    const SUFA_RESTRICT = /絶飲食|絶食|禁食|飲水制限|安静|床上|臥床|禁止|制限|ベッド上|免荷|NPO/;
+    const SUFA_VOCAB = {
+      1: /喫煙|禁煙|ブリンクマン|1秒率|肺活量|%VC|呼吸機能|挿管|麻酔|胸部|排痰|トライボール|呼吸訓練|脈拍|血圧/,
+      2: /体重|BMI|食欲|嘔気|嘔吐|むかつき|胃部|摂取|栄養|朝食|昼食|夕食|間食|義歯|嚥下|血糖|Alb|アルブミン|絶飲食|絶食|禁食/,
+      3: /排便|排尿|便秘|下痢|尿量|腹部膨満|ガス|腸蠕動|カテーテル|ストーマ|緩下/,
+      4: /ADL|安静|離床|歩行|体位|運動|筋力|疼痛|痛み|麻痺|ふらつ|転倒|床上|体動|寝返/,
+      5: /睡眠|眠|覚醒|不眠|頭痛|夜間|疼痛|痛み/,
+      6: /更衣|着脱|衣類|寝衣|ボタン/,
+      7: /体温|発熱|悪寒|熱感|寒気|発汗|室温/,
+      8: /入浴|清拭|シャワー|洗髪|口腔|歯|皮膚|創|発赤|掻痒|褥瘡|汚染|整容/,
+      9: /転倒|転落|安全|危険|ライン|ドレーン|チューブ|ベッド|柵|ナースコール|せん妄|離床|感染|褥瘡|出血|眼鏡|補聴|義歯|視力|聴力|見当識|ふらつ|麻酔|鎮痛/,
+      10: /不安|心配|気持ち|訴え|会話|表情|意思|希望|家族|面会|伝え|質問/,
+      11: /信仰|宗教|価値|大切|信念|生き方|輸血/,
+      12: /仕事|職業|役割|家事|育児|復職|学校|休職|生きがい/,
+      13: /趣味|楽しみ|テニス|散歩|読書|テレビ|気分転換|旅行|レクリエーション/,
+      14: /理解|知識|説明|指導|オリエンテーション|学習|質問|訓練|練習|退院|セルフ|方法|目的/
+    };
+    // その欲求の状態を表さない記録（診断・術式・検診・薬の指示など）。事実として並べない
+    const SUFA_NOT_FACT = /術式|予定術式|腫瘍|がんを指摘|精密検査|検診|入院の予定|胃カメラ|内視鏡|既往|通院|疼痛時指示|頓用|PCA|処方|がん家系/;
+    function sufficiencyRelevanceRe(needId) {
+      const parts = [SUFA_VOCAB[needId], typeof SUF_MET_DOMAIN !== 'undefined' ? SUF_MET_DOMAIN[needId] : null, PC_REQUIRED[needId] ? PC_REQUIRED[needId][0][1] : null].filter(Boolean);
+      return parts.length ? new RegExp(parts.map(r => r.source).join('|')) : null;
+    }
+    // その欲求に直接関係する事実を、時期（入院前／術前／術後／入院後）つきで取り出す。
+    function sufficiencyFacts(cp, needId) {
+      const surgical = typeof isSurgicalPatient === 'function' && isSurgicalPatient(cp);
+      const re = sufficiencyRelevanceRe(needId);
+      const labels = (() => { try { return myEvidenceLabels(cp, needId) || {}; } catch (e) { return {}; } })();
+      const out = [], seen = new Set();
+      (cp.items || []).forEach(i => {
+        if (!i || i.deleted || !(i.type === 'o' || i.type === 's') || !(i.hendersonIds || []).includes(needId)) return;
+        if (typeof isAssessmentBackgroundItem === 'function' && isAssessmentBackgroundItem(i)) return;
+        if (typeof cvHeadingOnly === 'function' && cvHeadingOnly(i)) return;
+        const col = (i.assessmentCols || {})[needId] || 'unclassified';
+        if (col === 'missing') return;
+        const ts = String(i.timestamp || '');
+        let stage = 'adm';
+        if (col === 'preadmission' || /^入院前/.test(ts)) stage = 'base';
+        else if (surgical) { const sp = surgPhaseOf(i, cp); stage = sp === 'pre' ? 'preop' : (sp === 'post' || sp === 'op') ? 'postop' : 'adm'; }
+        const raw = cleanSheetRecordText(i.text).normalize('NFKC');
+        raw.replace(/「[^」]*」/g, m => m.replace(/。/g, '\u0001')).split(/[。\n]+/).map(x => x.replace(/\u0001/g, '。')).forEach(clause => clause.split(/(?=【)/).forEach(part => {
+          let c = part.trim();
+          if (/^【[^】]*】$/.test(c)) return;
+          c = c.replace(/【([^】]*)】\s*/g, '$1：').replace(/^[^「」:：]{0,14}(?:状況|指示|時|前日|当日|日目|後)[:：]\s*/, '').replace(/^[(（]学生同席[)）]\s*/, '').replace(/^[^「」:：\s]{1,6}さん[:：]\s*/, '').replace(/[：:]+$/, '').trim();
+          if (c.length < 2) return;
+          if (/[(（]基準値[:：]/.test(c) && !/[↑↓]|高値|低値/.test(c)) return;
+          if (typeof cvOffTopic === 'function' && cvOffTopic(needId, c)) return;
+          if (re && !re.test(c)) return;
+          if (SUFA_NOT_FACT.test(c)) return;
+          c = c.replace(/:/g, '：').replace(/[、,，]+$/, '');
+          // 元の記録の括弧が閉じていない・対になっていないときは、その括弧だけを除く（元の記録は変えない）
+          [['(', ')'], ['（', '）'], ['【', '】'], ['「', '」'], ['『', '』']].forEach(([o, cl]) => { if (c.split(o).length !== c.split(cl).length) c = c.split(o).join('').split(cl).join(''); });
+          const stg = SUFA_BASELINE.test(c) ? 'base' : stage;
+          const key = stg + '|' + c.replace(/[\s、,，。]/g, '');
+          const lb0 = String(labels[i.id] || '').match(/^[SO]-\d+/);
+          if (seen.has(key)) { const prev = out.find(x => x.key === key); if (prev && lb0 && prev.ref && !prev.ref.split('・').includes(lb0[0])) { prev.ref += '・' + lb0[0]; prev.ids.push(i.id); } return; }
+          seen.add(key);
+          const lb = String(labels[i.id] || '').match(/^[SO]-\d+/);
+          let pol = '';
+          try { pol = sufficiencyCardVerdict({ ...i, text: c }, needId, 'post').v || ''; } catch (e) { pol = ''; }
+          out.push({ key, ids: [i.id], id: i.id, ref: lb ? lb[0] : '', stage: stg, text: c, pol, restrict: i.type !== 's' && !/[「」]/.test(c) && SUFA_RESTRICT.test(c) && !/(?:制限|禁止|安静)(?:は|も)?(?:ない|なし|なく|解除)/.test(c) && /指示|安静度|食事[:：]|絶|禁|制限|床上|NPO|免荷/.test(c), quote: i.type === 's' });
+        }));
+      });
+      return out;
+    }
+    function sufficiencyAnalysis(cp, needId, phaseKey) {
+      const facts = sufficiencyFacts(cp, needId);
+      const stagesOf = { pre: ['base'], preop: ['base', 'preop'], postop: ['base', 'preop', 'postop'], post: ['base', 'adm'] }[phaseKey];
+      if (!stagesOf || !facts.length) return '';
+      const cur = phaseKey === 'pre' ? 'base' : phaseKey === 'preop' ? 'preop' : phaseKey === 'postop' ? 'postop' : 'adm';
+      const curName = { base: '入院前', preop: '術前', postop: '術後', adm: '入院後' }[cur];
+      const by = st => facts.filter(f => f.stage === st);
+      const evSet = new Set((((ruleSufficiencyFor(cp)[needId] || {})[phaseKey]) || {}).evidence || []);
+      const VITAL_ONLY = /^(?:血圧|脈拍|呼吸数|体温|SpO2|Spo2)[:：]/i;
+      const rankOf = f => (evSet.has(f.id) ? 0 : f.pol === 'unmet' ? 1 : f.pol === 'met' ? 2 : VITAL_ONLY.test(f.text) ? 4 : 3);
+      const ordered = list => list.map((f, k) => ({ f, k })).sort((a, b) => rankOf(a.f) - rankOf(b.f) || a.k - b.k).map(x => x.f);
+      const show = (list, n = 3) => ordered(list).slice(0, n).map(f => `${f.quote ? '' : ''}${clauseClip(f.text, 46)}${f.ref ? `（${f.ref}）` : ''}`).join('、');
+      const paras = [];
+      const base = by('base'), pre = phaseKey === 'postop' ? by('preop') : [], now = by(cur);
+      if (phaseKey !== 'pre' && base.length) paras.push(`入院前は、${show(base)}。`);
+      if (pre.length) paras.push(`術前は、${show(pre)}。`);
+      const rank = f => (f.pol === 'unmet' ? 0 : f.pol === 'met' ? 1 : 2);
+      const rest = now.filter(f => f.restrict), obs = now.filter(f => !f.restrict).map((f, k) => ({ f, k })).sort((a, b) => rank(a.f) - rank(b.f) || a.k - b.k).map(x => x.f);
+      const cs = [];
+      if (obs.length) cs.push(`${curName}は、${show(obs, 4)}。`);
+      if (rest.length) cs.push(`${obs.length ? 'また、' : `${curName}は、`}治療上の制限として${show(rest, 2)}がある。`);
+      if (phaseKey === 'pre') { if (now.length && !cs.length) cs.push(`入院前は、${show(now)}。`); }
+      if (cs.length) paras.push(cs.join(''));
+      if (phaseKey === 'pre') return paras.join('\n');
+      // 事実の比較と原因の分析：以前の状態（入院前・術前）と比べた変化。確かめられるのは記録にある事実の範囲だけ。
+      const polOf = list => list.some(f => f.pol === 'unmet') ? 'unmet' : list.some(f => f.pol === 'met') ? 'met' : '';
+      const pick = (list, pol) => { const o = ordered(list.filter(f => f.pol === pol)); return o.length ? clauseClip(o[0].text, 32) : ''; };
+      const CAP = '制限によるものか、本人の体力・意思・知識の不足によるものかは、制限が解除された後の状況をみて判断する';
+      // 隣り合う時期（入院前→術前→術後）を比べる。記録の事実（充足を示す・問題を示す）の組み合わせから、変化・改善・持続を書く
+      const compare = (prev, prevName, curList, curRest, curLabel) => {
+        const pP = polOf(prev), cP = polOf(curList);
+        if (!prev.length || !(curList.length || curRest.length)) return '';
+        const pm = pick(prev, 'met'), pn = pick(prev, 'unmet'), cm = pick(curList, 'met'), cn = pick(curList, 'unmet');
+        if (pP === 'met' && cP === 'unmet') {
+          const hint = typeof sufficiencyCauseHint === 'function' ? sufficiencyCauseHint(curList.filter(f => f.pol === 'unmet').map(f => f.text).join('。')) : [];
+          return `${prevName}は問題がみられなかった（${pm}）が、${curLabel}は${cn}という変化がみられる${hint.length ? `。記録からは、${hint.join('・')}の面の不足が関係していると考えられる` : ''}。`;
+        }
+        if (pP === 'met' && cP === '' && curRest.length) return `${prevName}は問題がみられなかった（${pm}）が、${curLabel}は治療上の制限があり、いまの状態は${CAP}。`;
+        if (pP === 'unmet' && cP === 'met') return `${prevName}は${pn}という課題がみられたが、${curLabel}は${cm}と改善している。`;
+        if (pP === 'unmet' && cP === 'unmet') return `${prevName}からみられる${pn}が、${curLabel}も続いている。`;
+        if (pP === 'unmet' && curRest.length && cP === '') return `${prevName}から${pn}という課題があり、${curLabel}は治療上の制限も加わっている。`;
+        if (pP === 'met' && cP === 'met') return `${prevName}の${pm}に続き、${curLabel}も${cm}と、保たれている。`;
+        return '';
+      };
+      const seq = [];
+      if (cur === 'preop') { if (base.length) seq.push(compare(base, '入院前', obs, rest, '術前')); }
+      else if (cur === 'postop') { const usePre = pre.some(f => f.pol); if (base.length && pre.length) seq.push(compare(base, '入院前', pre.filter(f => !f.restrict), pre.filter(f => f.restrict), '術前')); seq.push(compare(usePre ? pre : base, usePre ? '術前' : '入院前', obs, rest, '術後')); }
+      else if (cur === 'adm') { if (base.length) seq.push(compare(base, '入院前', obs, rest, '入院後')); }
+      seq.filter(Boolean).forEach(x => paras.push(x));
+      if (!seq.some(Boolean) && rest.length && !obs.some(f => f.pol)) paras.push(`${curName}は治療上の制限があり、いまの状態は${CAP}。`);
+      if (now.length && !base.length && !pre.length) paras.push('入院前の記録がなく、以前の状態と比べて評価することはできない。');
+      return paras.join('\n');
+    }
+
     // 判定の根拠の状態を4つに分ける: 確認できた充足／確認できた未充足／根拠が食い違う・不完全／関連する根拠なし。
     // 「関連する根拠なし」は、その欲求に自分のカードが1枚もない場合だけ。症状語ひとつで他の欲求に判定保留を作らない。
 
@@ -650,9 +778,9 @@
       const why = `<div class="suf-phase-why"><span class="suf-reason-label">判定理由</span><p>${escapeHtml(reason)}</p>${ev ? `<div class="suf-ev"><span>根拠カード</span>${ev}</div>` : ''}</div>`;
       const kl = sufficiencyKnowledgeLine(cp, needId, phaseKey);
       const know = kl ? `<div class="suf-know"><span class="suf-reason-label">知識の利用</span><p>${escapeHtml(kl)}</p></div>` : '';
-      let ind = '';
-      try { const ia = individualizedAssessment(cp, needId, phaseKey, reason); if (ia && ia.sections.length > 1) ind = `<details class="suf-individual"><summary>この患者の状況（記録から）</summary>${ia.sections.slice(0, -1).map(x => `<p>${escapeHtml(x)}</p>`).join('')}</details>`; } catch (e) { ind = ''; }
-      return `<section class="suf-phase-block suf-expanded suf-b-${v}" data-suf-phase="${phaseKey}"><div class="suf-phase-head">${head}</div>${why}${ind}${know}</section>`;
+      let ana = '';
+      try { const t = sufficiencyAnalysis(cp, needId, phaseKey); if (t) ana = `<div class="suf-phase-why suf-analysis"><span class="suf-reason-label">状況の分析</span>${t.split('\n').map(x => `<p>${escapeHtml(x)}</p>`).join('')}</div>`; } catch (e) { ana = ''; }
+      return `<section class="suf-phase-block suf-expanded suf-b-${v}" data-suf-phase="${phaseKey}"><div class="suf-phase-head">${head}</div>${ana}${why}${know}</section>`;
     }
 
     function sufficiencyMiniHtml(cp, needId) {
@@ -2191,7 +2319,7 @@ if (typeof module !== 'undefined' && module.exports) {
     MY_ASSESSMENT_FIELDS,
     ensureMyAssessment, getMyAssessment, ruleSufficiencyFor, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
     myAssessmentStatus, myAssessmentNeedsReview, confirmMyAssessmentEntry, restoreMyAssessmentFromHistory,
-    hasRuleSufficiency, sufficiencyDimensions, sufficiencyDimensionLines, phaseVerdictOf, sufficiencyUiPhases, dischargePhaseOf, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, obstetricDailyFulfillment, sufficiencyScoreRules, sufficiencyPerNeedRules, sufficiencyScaleRules, sufficiencyLabRules, sufficiencyListRules, sufficiencyKnowledgeChecks, sufficiencyKnowledgeLine, SUF_LAB_NEEDS, SUF_COMBO_NEEDS, sufficiencyCauseHint, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, sufficiencyEvidenceState, fulfillmentAssessmentRows, complicationCandidates, patientContextFor, individualizedAssessment, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, sufficiencyMiniHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
+    hasRuleSufficiency, sufficiencyAnalysis, sufficiencyFacts, sufficiencyNeededInfo, sufficiencyDimensions, sufficiencyDimensionLines, phaseVerdictOf, sufficiencyUiPhases, dischargePhaseOf, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, obstetricDailyFulfillment, sufficiencyScoreRules, sufficiencyPerNeedRules, sufficiencyScaleRules, sufficiencyLabRules, sufficiencyListRules, sufficiencyKnowledgeChecks, sufficiencyKnowledgeLine, SUF_LAB_NEEDS, SUF_COMBO_NEEDS, sufficiencyCauseHint, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, sufficiencyEvidenceState, fulfillmentAssessmentRows, complicationCandidates, patientContextFor, individualizedAssessment, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, sufficiencyMiniHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
     renderMyAssessmentRowHtml, evidencePickerCandidates, myAssessmentAlwaysShown
   });
   if (module.exports.__testHooks) Object.assign(module.exports.__testHooks, { flushMyAssessmentSaves, saveMyAssessmentsSoon });
