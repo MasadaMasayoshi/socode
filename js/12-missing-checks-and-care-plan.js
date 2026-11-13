@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.277'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.278'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -1939,7 +1939,7 @@
         goal: () => '次の評価日までに、介助を受けながら車椅子へ移乗できる' },
       { key: 'act', re: /活動|セルフケア|ADL|廃用/, words: /活動|歩行|ADL|清潔|更衣|息切れ|疲労/,
         op: [['活動の前後のバイタル（脈拍・SpO2・血圧）', /前後|脈拍|SpO2|血圧|バイタル/], ['息切れ・疲れ', /息切れ|疲|倦怠/], ['歩行・移動の状態', /歩行|移動|離床/], ['ADL（清潔・更衣・排泄）のできる所・介助が要る所', /ADL|清潔|更衣|排泄|入浴|自立/]],
-        goal: () => '次の評価日までに、休憩を入れながら病棟のトイレまで歩いて行け、歩行後もSpO2 90%以上を保てる' },
+        goal: () => '次の評価日までに、休憩を入れながら病棟のトイレまで歩いて行け、歩行後もSpO2が医師の指示した目標範囲（または普段の値）を保てる' },
       { key: 'sleep', re: /睡眠|眠/, words: /睡眠|眠|覚醒/,
         op: [['睡眠時間・途中で目が覚めた回数', /睡眠時間|中途覚醒|覚醒|回数|眠/], ['眠れない理由（痛み・トイレ・不安・環境）', /理由|痛|トイレ|不安|環境|音/], ['日中の様子（眠気・活動）', /日中|眠気|昼/]],
         goal: () => '次の評価日までに、夜に5時間以上続けて眠れたと言える' },
@@ -2046,8 +2046,8 @@
         tp: ['疲労の程度や本人の希望に合わせて、安心して話せる機会を確保し、不安を否定せずに聴く（時間を守ることより、安心して話せることを優先する）', ...(/低血糖/.test(c.text || '') ? ['低血糖が起きたときの対処の手順を一緒に紙に書き、枕元に置く'] : ['心配なことを一緒に紙に書き出し、答えられるものから説明する'])],
         ep: ['不安なときは我慢せず、いつでも看護師を呼んでよいことを説明し、呼び方を言ってもらって確認する', '不安の内容（病気・再燃・治療・仕事・退院後の生活など）のうち、本人が知りたいことを確認し、説明が必要なことは医師・多職種と共有して、療養や退院後の生活を一緒に整理する'],
         op: ['不安の内容（何が心配か）・強さ・強くなる場面と、睡眠・食欲・療養への影響を、まず確認する', '表情・言動（不安の言葉）を観察する', '病気・再燃・治療・仕事について、理解していることと分からないことを確認する', 'これまでの対処方法と、家族など相談できる人の有無・支援を確認する'] }),
-      resp: c => ({ goalLong: '退院までに、自分で痰を出せ、SpO2 95%以上を保って病棟内を歩ける',
-        goalShort: '次の評価日までに、深呼吸と咳で痰を自分で出すことができ、SpO2 95%以上を保てる',
+      resp: c => ({ goalLong: '退院までに、自分で痰を出せ、SpO2が医師の指示した目標範囲（または普段の値）を保って病棟内を歩ける',
+        goalShort: '次の評価日までに、深呼吸と咳で痰を自分で出すことができ、SpO2が医師の指示した目標範囲（または普段の値）を保てる',
         op: ['SpO2・呼吸数・呼吸の深さ（低下・増加は無気肺や肺炎の早期のサイン）', '呼吸音（副雑音・左右差・減弱）', '痰の量・性状と、自分で喀出できているか', '咳嗽の強さ（創部痛で咳を我慢していないか）と、体温・熱型', '疼痛の程度（NRS）と、深呼吸・咳嗽・体位変換への影響'],
         opExtra: [cpAnalgesiaSafetyOp(c)].filter(Boolean),
         tp: [cpAnalgesiaTp(c, '深呼吸・咳嗽・離床'), '咳嗽のときは枕・バスタオルで創部を保護し、深呼吸3回のあとに咳をしてもらう（創部痛・循環動態が許す範囲で）', '許可された安静度の範囲で、体位調整・離床（ベッド上座位→端座位→立位）を進め、実施の前後でSpO2・呼吸状態を確認する', '呼吸訓練器具を使うときは、医師の指示と使用方法に従い回数・頻度を決めて一緒に行う。SpO2低下・呼吸困難が出たら中止し、医師へ報告する'],
@@ -2195,7 +2195,8 @@
       const last = (re) => { const all = [...text.matchAll(re)]; return all.length ? all[all.length - 1] : null; };
       const nrs = last(/NRS\s*[:：]?\s*(\d{1,2})(?!\d)/g);
       const spo2 = last(/SpO2\s*[:：]?\s*(\d{2,3})\s*%/g);
-      const site = /創部痛|創痛|創部/.test(text) ? '創部痛' : /腰痛/.test(text) ? '腰痛' : '';
+      // v.278: the pain site is named only when the record ties the pain to it ("創部" appearing elsewhere in the record is not a pain site).
+      const site = /創部痛|創痛|創(?:部)?[^\n。]{0,6}痛(?!み止め)|痛[^\n。]{0,6}創部|切開部[^\n。]{0,6}痛/.test(text) ? '創部痛' : /腰痛/.test(text) ? '腰痛' : '';
       const skin = (text.match(/(仙骨部|踵部?|大転子部|尾骨部)[^\n]{0,6}発赤/) || [])[1];
       return { nrs: nrs ? Number(nrs[1]) : null, spo2: spo2 ? Number(spo2[1]) : null, painSite: site, skin: skin ? `${skin}の発赤` : '',
         stoma: /ストーマ|ストマ|人工肛門/.test(text), urinary: /膀胱留置|バルーン|尿道カテーテル/.test(text), text,
@@ -2698,7 +2699,7 @@
     }
 
     const CP_RISK_GOALS = {
-      resp: c => ({ long: '退院までに、呼吸器合併症（肺炎・無気肺）の徴候（発熱・SpO2低下・呼吸音の変化・痰の増加）を認めず、自分で深呼吸と咳嗽を行える', short: `${c.post ? '次の評価日まで' : '次の評価日までの観察期間中'}、発熱・SpO2の低下（${c.spo2 && c.spo2 < 95 ? '現在の値から下がる' : '95%未満になる'}こと${/酸素\s*[0-9]|O2\s*[0-9]|酸素(?:投与|吸入)/i.test(String(c.text || '')) ? '。酸素投与の有無・流量を併記して同じ条件で比べる' : ''}）・呼吸音の変化がなく、創部を保護しながら深呼吸と咳嗽を自分で実施できる` }),
+      resp: c => ({ long: '退院までに、呼吸器合併症（肺炎・無気肺）の徴候（発熱・SpO2低下・呼吸音の変化・痰の増加）を認めず、自分で深呼吸と咳嗽を行える', short: `${c.post ? '次の評価日まで' : '次の評価日までの観察期間中'}、発熱・SpO2の低下（${c.spo2 ? `記録した値（${c.spo2}%）から下がる、または酸素の必要量が増える` : '医師の指示した目標範囲（または術前の値）を下回る、または酸素の必要量が増える'}こと${/酸素\s*[0-9]|O2\s*[0-9]|酸素(?:投与|吸入)/i.test(String(c.text || '')) ? '。酸素投与の有無・流量を併記して同じ条件で比べる' : ''}）・呼吸音の変化がなく、創部を保護しながら深呼吸と咳嗽を自分で実施できる` }),
       ileus: () => ({ long: '退院までに、消化管運動の回復が順調に経過し、食事が進められる', short: '次の評価日までの観察期間中、腹部膨満・反復する嘔吐・排ガス停止などの異常を認めず、異常が起きたときにすぐに対応できる' }),
       inf: c => c && c.immunoOnly ? { long: CP_INF_IMMUNO().goalLong, short: CP_INF_IMMUNO().goalShort } : (!/創|傷口|潰瘍|褥瘡|ドレーン|手術|術後|熱傷|縫合|膀胱留置|バルーン/.test(String((c && c.text) || '').replace(/創傷治癒/g, '')) ? { long: '点滴など血管内に入れた管を使っている間、挿入部に感染の徴候（発赤・腫脹・熱感・痛み・排膿）を認めない', short: '管を使っている間、毎日の観察で挿入部の発赤・腫脹・痛みが出ていないことを確認できる' } : { long: '退院まで、創部・刺入部に感染の徴候（発赤・腫脹・熱感・滲出液・においの増加）を認めない', short: '次の評価日までの観察期間中、創部・刺入部の所見が初回の記録より悪化せず、発熱が持続せず、異常があればすぐに報告・対応できる' }),
       vte: () => ({ long: '離床が進むまで、下肢の腫脹・痛み・左右差や肺塞栓の徴候（胸痛・呼吸困難）を認めない', short: '次の評価日までの観察期間中、下肢の腫脹・痛みがなく、許可された範囲で足関節運動・離床を行える' }),
@@ -3428,11 +3429,24 @@
       let factors = [], signs = [], refute = '';
       if (hit) {
         const ev = String(hit.node.evidence || '').match(/^危険因子：([^／]*)／反証条件：(.*)$/);
-        if (ev) { factors = ev[1].split('・').filter(Boolean); refute = ev[2]; }
+        if (ev) {
+          factors = ev[1].split('・').filter(Boolean); refute = ev[2];
+          // v.278: the recorded findings that bear on the problem are the current-state observations, listed apart from the risk factors.
+          if (typeof rmCauseChains === 'function') {
+            const seenS = new Set();
+            rmCauseChains(hit.map, hit.node.id).forEach(ch => ch.slice(0, 3).forEach(n => {
+              if (n.observed === false || seenS.has(n.label) || !['symptom', 'lab', 'vital'].includes(n.type)) return;
+              seenS.add(n.label); signs.push(cpClip(n.label, 28));
+            }));
+            signs = signs.slice(0, 3);
+          }
+        }
         else if (typeof rmCauseChains === 'function') {
           const seen = new Set();
           rmCauseChains(hit.map, hit.node.id).forEach(ch => ch.forEach(n => {
             if (n.observed === false || seen.has(n.label)) return;
+            // v.278: a line/drain/catheter is a factor only for problems it can actually bear on (infection, falls, activity, self-removal, skin); it is not a factor of e.g. ileus or a leak.
+            if (n.type === 'treatment' && /ライン|ドレーン|カテーテル|チューブ|ルート/.test(n.label) && !/感染|転倒|転落|活動|抜去|皮膚|褥瘡|血栓/.test(plan.problem)) return;
             if (['patient_fact', 'treatment', 'medication'].includes(n.type)) { seen.add(n.label); factors.push(cpClip(String(n.label).replace(/\(入院[^)]*$/, ''), 28)); }
             else if (['symptom', 'lab', 'vital'].includes(n.type)) { seen.add(n.label); signs.push(cpClip(n.label, 28)); }
           }));
@@ -3465,6 +3479,15 @@
         planned: '計画であり、実施済みではない。実施したことは「実施・評価」に記録したものだけを実施済みとする'
       };
       plan.design = design;
+      // v.278: a plan whose problem rests on recorded findings always carries them as 根拠データ — taken from the recorded (not knowledge) nodes on its cause chain when the plan has none of its own.
+      if (hit && !(plan.evidence || []).length) {
+        const evs = [], ids = [];
+        rmCauseChains(hit.map, hit.node.id).forEach(ch => ch.forEach(n => {
+          if (n.observed === false || n.source === 'knowledge' || !(n.itemIds || []).length || evs.length >= 4 || evs.includes(n.label)) return;
+          evs.push(n.label); n.itemIds.forEach(id => { if (!ids.includes(id)) ids.push(id); });
+        }));
+        if (evs.length) { plan.evidence = evs.map(e => cpClip(e, 48)); plan.evidenceIds = [...new Set([...(plan.evidenceIds || []), ...ids])]; }
+      }
       // Conditional oral care: respiratory-complication risk after surgery / with aspiration risk. Not offered for other problems.
       if (risk && dom && dom.key === 'resp' && (ctx.surgical || /誤嚥|嚥下|人工呼吸|挿管/.test(ctx.text)) && !(plan.tp || []).some(t => /口腔ケア/.test(t))) plan.tp = [...(plan.tp || []), CP_ORAL_CARE_TP];
     }

@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.275'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.278'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -1783,13 +1783,17 @@
       const o2Label = () => { const m = o2Item && String(o2Item.text).normalize('NFKC').match(/(?:鼻カニュ[ラー]|マスク|リザーバー[^\s]*|ネーザル)?\s*(?:酸素|O2)\s*\d+(?:\.\d+)?\s*L(?:\/分|\/min)?/); return m ? `酸素投与（${m[0].trim()}）` : '酸素投与'; };
 
       const short = (i, max = 34, re = null) => {
-        let t = String(i.text).replace(/^【[^】]{1,10}】/, '').replace(/^\d{1,2}[:：]\d{2}\s*/, '').trim();
+        let t = String(i.text).replace(/^[\d:：~〜～\-－時間分\s]*【[^】]{1,12}】(?!\s*(?:in|out)\s*[:：])/i, '').replace(/^\d{1,2}[:：]\d{2}\s*/, '').trim();
         if (/●/.test(t)) t = t.replace(/^[●\s]+/, '').replace(/[●]+/g, '、').replace(/、{2,}/g, '、');
+        // v.278: when the caller names the topic (re), keep only the 、-separated parts that carry it (e.g. the line/drain names, not a garbled neighbour such as 「胃退室時去」).
+        if (re && /、/.test(t) && !/[「」]/.test(t) && !/。/.test(t)) { const parts = t.split('、').map(x => x.trim()).filter(Boolean); const hit = parts.filter(x => re.test(x)); if (hit.length && hit.length < parts.length) t = hit.join('、'); }
 
         if (i.soMixed && i.type === 's') { const q = t.match(/「[^」]+」/); if (q) t = q[0]; }
         const sents = t.split(/。/).filter(x => x.trim());
         const first = (re && sents.find(x => re.test(x))) || sents[0] || t;
         if (first.length >= 6 && first.length < t.length) t = first;
+        t = t.replace(/^[^:：、。「」]{2,10}の(?:状況|様子)[:：]\s*/, '');
+        if (re && /、/.test(t) && !/[「」]/.test(t) && !/。/.test(t)) { const parts = t.split('、').map(x => x.trim()).filter(Boolean); const hit = parts.filter(x => re.test(x)); if (hit.length && hit.length < parts.length) t = hit.join('、'); }
 
         let r = rmShorten(t, max);
         if ((r.match(/「/g) || []).length > (r.match(/」/g) || []).length) r += '」';
@@ -2110,8 +2114,12 @@
         E(anes, reflex, 'causes', { evidence: '麻酔薬・挿管による気道の線毛運動・咳嗽反射の低下', noBridge: true });
         E(surgery, anes, 'results_in', { evidence: '手術のための麻酔' });
         const sputum = N('sputum', 'symptom', sputumActual ? `排痰困難（${short(sputumActual, 24)}）` : sputumWet ? (/痰|喀痰|分泌物/.test(String(sputumWet.text)) ? `湿性咳嗽・痰の絡み（${short(sputumWet, 24)}）` : `湿性咳嗽（${short(sputumWet, 24)}）`) : '排痰困難', { items: [sputumActual || sputumWet], observed: !!(sputumActual || sputumWet) });
-        E(suppress, sputum, 'causes', { evidence: '咳が弱く痰を出しにくい', predicted: !sputumActual, noBridge: true });
-        E(reflex, sputum, 'contributes_to', { evidence: '気道の分泌物を出す力が下がる', predicted: !sputumActual, noBridge: true });
+        // v.278: a wet cough is an observation that suggests secretions, not their cause. When only such an observation exists, the causal path runs through 排痰能力の低下 and the finding hangs off the secretion node (manifests_as).
+        const sputumObsOnly = !sputumActual && !!sputumWet;
+        const clearance = sputumObsOnly ? N('clearance', 'pathophysiology', '排痰能力・換気量の低下（咳が弱く、深く息を吸えない）の可能性', { source: 'knowledge' }) : null;
+        const sputumTarget = clearance || sputum;
+        E(suppress, sputumTarget, 'causes', { evidence: '咳が弱く痰を出しにくい', predicted: !sputumActual, noBridge: true });
+        E(reflex, sputumTarget, 'contributes_to', { evidence: '気道の分泌物を出す力が下がる', predicted: !sputumActual, noBridge: true });
         let reserve = null;
         const briHigh = bri && bri.index >= 400;
         if (smokeNow || aging || fev || briHigh) {
@@ -2120,16 +2128,19 @@
           if (briHigh) E(N('brinkman', 'patient_fact', `ブリンクマン指数 ${bri.index}（${bri.perDay}本/日×${bri.years}年）`, { items: [smokeItem], distinctEvidence: true }), reserve, 'contributes_to', { evidence: 'ブリンクマン指数は累積喫煙量の目安で、数値が大きいほど呼吸器疾患・術後合併症のリスクが高いとされる。繊毛機能そのものの評価ではない' });
           if (aging) E(aging, reserve, 'contributes_to', { evidence: '加齢による呼吸機能の低下' });
           if (fev) E(N('lab_fev', 'lab', `1秒率 ${fev[1]}%`), reserve, 'supports', { evidence: '1秒率70%未満は閉塞性の換気障害の目安' });
-          E(reserve, sputum, 'contributes_to', { evidence: '分泌物が多く出しにくい', predicted: !sputumActual });
+          E(reserve, sputumTarget, 'contributes_to', { evidence: '分泌物が多く出しにくい', predicted: !sputumActual });
         }
         const secretion = N('secretion', 'pathophysiology', '気道内の分泌物の貯留', { source: secretionObs ? 'record' : 'knowledge', observed: secretionObs });
-        E(sputum, secretion, 'causes', { predicted: !secretionObs, evidence: secretionObs ? '出せない痰が気道にたまる' : '湿性咳嗽だけでは痰の貯留は確認できない（痰の量・性状・呼吸音の確認が必要）', ...(secretionObs ? {} : { certainty: sputumActual ? 'probable' : 'possible' }) });
+        if (clearance) {
+          E(clearance, secretion, 'causes', { predicted: !secretionObs, evidence: '出しきれない痰が気道にたまる', ...(secretionObs ? {} : { certainty: 'possible' }) });
+          E(secretion, sputum, 'manifests_as', { predicted: true, evidence: '湿性咳嗽は分泌物があることを示す観察所見（実際に貯留しているかは、痰の量・性状・呼吸音で確認する）', certainty: 'possible' });
+        } else E(sputum, secretion, 'causes', { predicted: !secretionObs, evidence: secretionObs ? '出せない痰が気道にたまる' : '湿性咳嗽だけでは痰の貯留は確認できない（痰の量・性状・呼吸音の確認が必要）', ...(secretionObs ? {} : { certainty: sputumActual ? 'probable' : 'possible' }) });
         const atel = N('atel', atelObs ? 'symptom' : 'future_risk', atelObs ? '無気肺・肺炎' : '無気肺・肺炎の可能性', { observed: atelObs, source: atelObs ? 'record' : 'knowledge' });
         E(secretion, atel, atelObs ? 'causes' : 'predicts', { predicted: !atelObs, evidence: '分泌物で気道が詰まり肺胞がつぶれる・感染する', noBridge: true });
         const pResp = N('p_resp', 'nursing_problem', sputumActual ? '非効果的気道浄化' : '術後呼吸器合併症リスク状態', { cat: 'resp' });
-        E(sputum, pResp, 'results_in', { evidence: '排痰困難', predicted: !sputumActual });
+        E(sputum, pResp, sputumObsOnly ? 'supports' : 'results_in', { evidence: sputumObsOnly ? '湿性咳嗽は気道の状態を評価する観察所見' : '排痰困難', predicted: !sputumActual });
 
-        if (patternItem) { const pt = N('pattern_sign', 'symptom', short(patternItem, 30, /浅い|努力|補助筋|肩呼吸|頻呼吸|鼻翼|陥没/), { items: [patternItem] }); E(suppress, pt, 'causes', { evidence: '痛みで深く息を吸えない' }); E(pt, N('p_pattern', 'nursing_problem', '非効果的呼吸パターン', { cat: 'resp' }), 'results_in'); }
+        if (patternItem) { const pt = N('pattern_sign', 'symptom', short(patternItem, 30, /浅い|努力|補助筋|肩呼吸|頻呼吸|鼻翼|陥没/), { items: [patternItem] }); E(suppress, pt, 'manifests_as', { evidence: '深く息を吸えない状態が、浅い呼吸として現れる（観察所見）' }); E(pt, N('p_pattern', 'nursing_problem', '非効果的呼吸パターン', { cat: 'resp' }), 'results_in'); }
         E(atel, pResp, 'results_in', { predicted: !atelObs, evidence: '術後呼吸器合併症の予防が必要' });
         if (spo2 && (spo2.flag || o2Item)) {
           const sp = labNode(spo2, 'lab_spo2');
@@ -2514,7 +2525,7 @@
 
         const abdominal = surgery && /胃|腸|腹腔|肝|胆|膵|脾|虫垂|ヘルニア/.test(surgery.label + dxLabel);
         const urinary = !!lineItem && /膀胱|尿道|バルーン/.test(lineItem.text);
-        const ln = (lineItem && nodes.get('dm_drip') && /持続点滴/.test(lineItem.text) && !/ドレーン|カテーテル|(?<![A-Za-z])CV(?![A-Za-z])|PICC/.test(lineItem.text)) ? nodes.get('dm_drip') : lineItem ? N('lines', 'treatment', short(lineItem, 30), { items: [lineItem] }) : null;
+        const ln = (lineItem && nodes.get('dm_drip') && /持続点滴/.test(lineItem.text) && !/ドレーン|カテーテル|(?<![A-Za-z])CV(?![A-Za-z])|PICC/.test(lineItem.text)) ? nodes.get('dm_drip') : lineItem ? N('lines', 'treatment', short(lineItem, 30, /ライン|ドレーン|カテーテル|(?<![A-Za-z])CV(?![A-Za-z])|PICC|ルート|点滴|チューブ|管/), { items: [lineItem] }) : null;
         if (ln && surgery && !edges.some(e => e.target === ln.id)) E(surgery, ln, 'results_in');
         const risks = [];
         let barrier = null;
@@ -2658,7 +2669,7 @@
       }
 
       // v.265: post-operative bleeding / circulation — a risk is kept apart from an occurrence. Intra-operative blood loss, a thin
-      // serosanguineous drain output or a Hb change alone make a risk; only a recorded bleeding finding makes it an actual problem.
+      // v.278: drain output and Hb are observations of the current state, not risk factors — the factors are the surgical invasion, the intra-operative loss and the anastomosis. Serosanguineous drain output or a Hb change alone make a risk; only a recorded bleeding finding makes it an actual problem.
       {
         const bleedRec = findItem(/出血量|術中出血|出血\s*\d+\s*(?:g|ml|mL)/);
         const drainBlood = findItem(/(?:ドレーン|排液)[^\n]{0,14}(?:血性|淡血性|血液)|(?:淡血性|血性)[^\n]{0,6}\d+\s*(?:ml|mL)/);
@@ -2671,15 +2682,15 @@
           E(invasion || surgery, bp, 'contributes_to', { evidence: '手術で血管・組織を切離・縫合した部位から術後に出血することがある' });
           const factors = [];
           if (bleedRec) { const n = N('bleed_rec', 'patient_fact', short(bleedRec, 34, /出血/), { items: [bleedRec] }); E(n, bp, 'supports', { evidence: '術中出血量は危険度を見る材料の一つ（出血量だけで術後出血とは判断しない）' }); factors.push('術中出血量'); }
-          if (drainBlood) { const n = N('bleed_drain', 'symptom', short(drainBlood, 34, /血性|血/), { items: [drainBlood] }); E(n, bp, 'supports', { evidence: '排液の色（淡血性→鮮血性）と量の推移で見る（淡血性の少量は術直後にみられる）' }); factors.push('血性のドレーン排液'); }
-          if (hbL) { E(labNode(hbL), bp, 'supports', { evidence: 'Hbの術前後の推移（同じ条件で比べる）' }); factors.push('Hbの変動'); }
+          if (drainBlood) { const n = N('bleed_drain', 'symptom', short(drainBlood, 34, /血性|血/), { items: [drainBlood] }); E(n, bp, 'supports', { evidence: '排液の色（淡血性→鮮血性）と量の推移で見る（淡血性の少量は術直後にみられる）' }); }
+          if (hbL) { E(labNode(hbL), bp, 'supports', { evidence: 'Hbの術前後の推移（同じ条件で比べる）' }); }
           if (paleItem) { const n = N('bleed_pale', 'symptom', short(paleItem, 30, /蒼白|顔色/), { items: [paleItem] }); E(n, bp, 'supports', { evidence: '循環の変化を見る所見の一つ（単独では判断しない）' }); }
           if (bpItem) { const n = N('bleed_bp', 'symptom', short(bpItem, 30, /BP|血圧|\d{2,3}\s*\/\s*\d{2,3}/), { items: [bpItem] }); E(n, bp, 'supports', { evidence: '血圧・脈拍は帰室時の値と比べて推移を見る' }); }
           const risk = N('bleed_risk', 'future_risk', '術後出血の可能性', { source: 'knowledge', observed: false });
           E(bp, risk, bleedActual ? 'causes' : 'predicts', { predicted: !bleedActual });
           const pB = bleedActual
             ? N('p_bleed', 'nursing_problem', '出血（術後出血）', { cat: 'circ' })
-            : N('p_bleed', 'nursing_problem', '出血リスク状態（術後出血）', { cat: 'circ', evidence: rmRiskEvidence(['手術侵襲', ...factors, abdOpBleed(surgery, dxLabel) ? '腹腔内の吻合部・ドレーン留置' : ''].filter(Boolean), '排液が淡血性のまま量が増えず、血圧・脈拍・Hbが安定して推移すれば、問題から外す') });
+            : N('p_bleed', 'nursing_problem', '出血リスク状態（術後出血）', { cat: 'circ', evidence: rmRiskEvidence(['手術侵襲', ...factors, abdOpBleed(surgery, dxLabel) ? '腹腔内の吻合部（切離・縫合面）' : ''].filter(Boolean), '排液が淡血性のまま量が増えず、血圧・脈拍・Hbが安定して推移すれば、問題から外す') });
           E(risk, pB, 'results_in', { predicted: !bleedActual });
         }
       }
@@ -2706,7 +2717,7 @@
         if (vteStocking) E(N('vte_stocking', 'treatment', short(vteStocking, 28, /弾性ストッキング|フットポンプ|圧迫/), { items: [vteStocking] }), stasis, 'treats', { evidence: '血流の停滞を防ぐ予防策（実施の有無・装着状況は別に確認する）' });
         const dvt = N('dvt', 'future_risk', '深部静脈血栓症・肺塞栓症の可能性', { source: 'knowledge', observed: false });
         E(stasis, dvt, 'predicts', { predicted: true, evidence: '血栓ができやすい' });
-        const pDvt = N('p_dvt', 'nursing_problem', '静脈血栓塞栓症リスク状態（深部静脈血栓症・肺塞栓症）', { cat: 'circ', evidence: rmRiskEvidence(['悪性腫瘍', '腹部・骨盤の手術', '全身麻酔', '術後の床上安静'].filter((_, k) => [vteCancer, abdOp, vteGa, vteStay][k]), '離床が進み、下肢の腫脹・疼痛・呼吸困難などの所見がなく、予防策が継続できていれば、問題から外す。ホーマンズ徴候が陰性でも血栓は否定しない') });
+        const pDvt = N('p_dvt', 'nursing_problem', '静脈血栓塞栓症リスク状態（深部静脈血栓症・肺塞栓症）', { cat: 'circ', evidence: rmRiskEvidence(['悪性腫瘍', '腹部・骨盤の手術', '全身麻酔', '術後の床上安静'].filter((_, k) => [vteCancer, abdOp, vteGa, vteStay][k]), '悪性腫瘍・手術後の時期など危険因子が残る間は、離床できて下肢の腫脹・疼痛・呼吸困難などの所見がなくても問題から外さず、医師が予防策の終了を判断してから外す。ホーマンズ徴候が陰性でも血栓は否定しない') });
         E(dvt, pDvt, 'results_in', { predicted: true });
         const homans = findItem(/ホーマンズ|Homans/);
         if (homans && homans !== painItem) E(N('homans', 'symptom', short(homans, 28, /ホーマンズ|Homans/), { items: [homans] }), pDvt, 'supports', { evidence: 'ホーマンズ徴候の陰性だけでは血栓を除外しない（下肢の腫脹・疼痛・色調、呼吸の変化と合わせて見る）' });
@@ -2724,7 +2735,7 @@
           if (drainAn) E(N('leak_drain', 'treatment', short(drainAn, 30, /ドレーン/), { items: [drainAn] }), leakPath, 'treats', { evidence: '漏れを早く見つけ、たまった液を外へ出すための管（排液の量・性状の変化を観察する）' });
           const leakRisk = N('leak_risk', 'future_risk', '縫合不全・腹腔内感染（腹膜炎）の可能性', { source: 'knowledge', observed: false });
           E(leakPath, leakRisk, 'predicts', { predicted: true });
-          E(leakRisk, N('p_leak', 'nursing_problem', '縫合不全リスク状態（吻合部）', { cat: 'inf', evidence: rmRiskEvidence([anastItem ? '消化管の吻合・再建' : '消化管の切除（吻合の有無は記録で確認する）', drainAn ? '吻合部付近のドレーン留置' : ''].filter(Boolean), '術後の時期を過ぎても発熱・腹痛・排液の性状変化がなく、経口摂取が進んでいれば、問題から外す') }), 'results_in', { predicted: true });
+          E(leakRisk, N('p_leak', 'nursing_problem', '縫合不全リスク状態（吻合部）', { cat: 'inf', evidence: rmRiskEvidence([anastItem ? '消化管の吻合・再建' : '消化管の切除（吻合の有無は記録で確認する）'].filter(Boolean), '術後の時期を過ぎても発熱・腹痛・排液の性状変化がなく、経口摂取が進んでいれば、問題から外す') }), 'results_in', { predicted: true });
         }
       }
 
@@ -4454,7 +4465,12 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
         chains.forEach(ch => ch.forEach(n => used.add(n.id)));
         return { problem: p, chains };
       });
-      const loose = map.nodes.filter(n => !used.has(n.id));
+      // v.278: "not connected" means no line of any kind leads to a nursing problem — nodes dropped from the cause chains (shortened routes, treatment/management links, the 8-chain cap) are still connected.
+      const adj = new Map();
+      (map.edges || []).forEach(e => { [[e.source, e.target], [e.target, e.source]].forEach(([a, b]) => { if (!adj.has(a)) adj.set(a, []); adj.get(a).push(b); }); });
+      const reached = new Set(probs.map(p => p.id)), queue = probs.map(p => p.id);
+      while (queue.length) { const id = queue.pop(); (adj.get(id) || []).forEach(x => { if (!reached.has(x)) { reached.add(x); queue.push(x); } }); }
+      const loose = map.nodes.filter(n => !used.has(n.id) && !reached.has(n.id));
       return { rows, loose };
     }
     function relationMapExportText(cp) {

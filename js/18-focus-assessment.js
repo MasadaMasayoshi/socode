@@ -1,7 +1,7 @@
 // 重点アセスメント：欲求ごとに、S・O（入院前／入院後）→ 情報の分析・解釈 → 統合 → 看護問題の明確化を一画面で書く。
 // S・Oは分類ボードの内容から自動で並べ、分析・解釈／統合／看護問題の明確化も、記録・充足判定・看護計画（関連図の看護問題）から自動で下書きする。手で直した欄は自動では上書きしない（myAssessments の追加項目に保存）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.277'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.278'; // Version stamp (scripts/stamp-version.js)
 
     const FOCUS_FIELDS = [
       { key: 'focusAnalysis', label: '情報の分析・解釈', ph: 'S・Oの情報から、なぜその状態なのか（原因・関連要因）、今後どうなりそうかを書きます。\n例：術後は疼痛（O-3）と荷重への不安（S-2）から、歩行を避けて活動量が低下している。' },
@@ -135,6 +135,9 @@
         frontier.forEach(id => map.edges.filter(e => e.target === id).forEach(e => {
           const n = byId.get(e.source);
           if (!n || seen.has(n.id)) return;
+          // v.278: a treatment/management link (a drain that monitors a leak, an analgesic that treats pain) is an intervention, never a cause.
+          const nonCausal = typeof RM_NON_CAUSAL_RELATIONS !== 'undefined' && RM_NON_CAUSAL_RELATIONS.has(e.relation);
+          if (nonCausal && !(FOCUS_INTERVENTION_RE.test(n.label) && !FOCUS_RESTRICT_RE.test(n.label))) return;
           seen.add(n.id); next.push(n.id);
           const label = focusClip(n.label, 30);
           // A symptom predicted from general knowledge (排痰困難 when 自力排痰可能 is recorded) is not a symptom of this patient.

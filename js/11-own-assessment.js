@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.277'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.278'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -661,6 +661,47 @@
       });
       return out;
     }
+    // v.278: 欲求ごとに「分けて評価する面」を書く。記録にある事実から、確認できた面と、まだ確認できていない面を区別する。
+    // 一般条件：その欲求の判定材料が、本来別々に評価する2つ以上の面にまたがっている（原因を1つに決めない）。
+    function sufficiencySeparationNote(needId, ctx) {
+      const F = ctx.facts || [], now = ctx.now || [], v = ctx.verdict;
+      const has = (list, re) => list.filter(f => re.test(String(f.text)));
+      const first = (list, re, n = 30) => { const h = has(list, re)[0]; return h ? clauseClip(h.text, n) : ''; };
+      if (needId === 2) {
+        const nutr = F.filter(f => /体重[^。\n]{0,24}(?:減|低下)|(?:Alb|アルブミン)[^。\n]{0,12}(?:低|↓)|るい痩|低栄養|BMI[^。\n]{0,10}(?:低|18)/i.test(f.text));
+        const intake = F.filter(f => /全量|[0-9]割|摂取|食べ/.test(f.text) && f.pol === 'met');
+        if (nutr.length && intake.length && v === 'met') return `食事を自分で摂る力（${clauseClip(intake[0].text, 24)}）と、栄養状態（${clauseClip(nutr[0].text, 30)}）は別の面として評価する。摂取できていても栄養が足りているとは限らないため、体重・Alb・摂取量の推移をみて栄養摂取が十分かを判断する。`;
+        if (nutr.length && v !== 'met') return `栄養状態の面では、${clauseClip(nutr[0].text, 30)}がみられる。食事を自分で摂る力とは別に、体重・Alb・摂取量の推移で評価する。`;
+      }
+      if (needId === 9) {
+        const risks = F.filter(f => /点滴|ライン|ドレーン|カテーテル|チューブ|PCA|硬膜外|ふらつき|転倒|床上安静|創部|酸素/.test(f.text));
+        const safety = F.filter(f => /ベッド柵|ナースコール|センサー|環境整備|見守り|手指衛生|滅菌|清潔操作|ベッド周囲|(?:ドレーン|ルート|チューブ|ライン)[^。\n]{0,6}固定を?(?:確認|整|行)/.test(f.text));
+        if (risks.length && !safety.length && v !== 'met' && v !== 'unmet') {
+        const names = [...new Set((now.some(f => risks.includes(f)) ? risks.filter(f => now.includes(f)) : risks).flatMap(f => String(f.text).match(/末梢静脈ライン|点滴|[A-ZＡ-Ｚ]ライン|[A-Za-z]-?line|中心静脈|[^、：:●\s]{0,6}ドレーン|硬膜外チューブ|膀胱留置カテーテル|尿道カテーテル|PCA|酸素[^、。]{0,6}|床上安静|ふらつき|創部/g) || []))].filter((x, _, a) => !(x === '点滴' && a.includes('末梢静脈ライン'))).slice(0, 4);
+        if (names.length) return `危険因子の面では、${names.join('、')}が記録で確認できる（転倒・感染・自己抜去などの危険を高める）。一方、安全対策の面では、これらへの対策（固定・ナースコールの位置・環境整備など）が実際に行われ十分かを示す記録がなく、安全が保たれているかは確認できていない。`;
+        }
+      }
+      if (needId === 10) {
+        const nonverbal = now.filter(f => f.pol === 'met' && /指|示し|うなず|頷|首を|短く|一言|ジェスチャ|筆談|表情|手を/.test(f.text));
+        const strainRe = /苦悶(?:の表情|様)?|苦痛様(?:表情)?|顔をしかめ[^、。]{0,4}|短い返事|短く返事[^、。]{0,6}|声が出な[^、。]{0,3}|声を出せ[^、。]{0,3}|話せ(?:ない|ず)|ささやき|聞き取りにく[^、。]{0,3}/;
+        const sm = now.map(f => String(f.text).match(strainRe)).find(Boolean);
+        if (nonverbal.length && v === 'met') return `意思表示の方法の面では、${clauseClip(nonverbal[0].text, 30)}という形で、気持ちや症状を伝えられている。一方、必要なことを十分に伝えられているかの面では、${sm ? `${sm[0]}がみられ、` : ''}痛み・要望・不安などを言葉や確認への応答で伝えられるかを、続けて確認する。`;
+      }
+      if (needId === 14 && (v === 'unmet' || v === 'conflict')) {
+        const know = first(F, /オリエンテーション|説明を受け|説明を聞|理解|説明でき|パンフレット|資料/);
+        const skill = first(F.filter(f => f.pol === 'unmet'), /できない|できず|維持|うまく|困難|吸えな/) || first(F.filter(f => !/[「」]/.test(f.text)), /訓練|練習|実施/);
+        const motive = first(F, /「[^」]*(?:やらなく|いや|嫌|面倒|必要|なぜ|どうして|本当|やりたく)[^」]*」|拒否|意欲|やる気|消極/);
+        const anx = first(F, /不安|怖|心配|緊張/);
+        const parts = [];
+        if (know) parts.push(`知識の面（${know}）`);
+        if (skill) parts.push(`技術・実施の面（${skill}）`);
+        if (motive && motive !== skill) parts.push(`意欲の面（${motive}）`);
+        if (anx) parts.push(`不安の面（${anx}）`);
+        const missing = [!know && '知識（説明を理解できているか）', !skill && '技術（実際にできるか）', !motive && '意欲（取り組む気持ち）', !anx && '不安'].filter(Boolean);
+        if (parts.length) return `学びの面を分けると、${parts.join('、')}の記録がある。うまくできないという結果だけでは、知識不足・身体的に実施できる力・意欲・不安のどれが関わるかは決められないため、${missing.length ? `${missing.join('・')}は確認できていない。` : ''}それぞれを確かめる。`;
+      }
+      return '';
+    }
     function sufficiencyAnalysis(cp, needId, phaseKey) {
       const facts = sufficiencyFacts(cp, needId);
       const stagesOf = { pre: ['base'], preop: ['base', 'preop'], postop: ['base', 'preop', 'postop'], post: ['base', 'adm'] }[phaseKey];
@@ -726,11 +767,20 @@
       if (!seq.some(Boolean) && rest.length && !obs.some(f => f.pol)) paras.push(`${curName}は治療上の制限があり、いまの状態は${CAP}。`);
       // 酸素を使っているときのSpO2は、酸素なしの呼吸の状態を表さない
       if (cur !== 'base' && now.some(f => /SpO2/i.test(f.text) && /酸素|O2|[0-9]\s*L\s*\/\s*分/.test(f.text))) paras.push('SpO2は酸素を投与している間の値であり、酸素を使わない状態での呼吸は、この記録からは分からない。');
+      // v.278: 判定の材料になる事実が「別の面」にまたがるときは、面を分けて書く（判定の文は変えない）。
+      //  食事＝摂取する力と栄養状態／環境＝危険因子と安全対策／意思疎通＝表出の方法と必要な伝達／学び＝知識・技術・意欲・不安
+      try {
+        const verdictNow = phaseVerdictOf(cp, needId, phaseKey);
+        const upto = facts.filter(f => stagesOf.includes(f.stage));
+        const txt = list => list.map(f => f.text).join('。');
+        const sepNote = sufficiencySeparationNote(needId, { verdict: verdictNow, facts: upto, now, cur, show: l => show(l, 2) });
+        if (sepNote) paras.push(sepNote);
+      } catch (e) { /* 補助の記述。失敗しても事実の分析は出す */ }
       // 解釈：この欲求を主に扱う看護問題について、関連図で確かめられている要因だけを書く（記録にない原因は書かない）
       try {
         if (cur !== 'base' && typeof focusPlansForNeed === 'function' && typeof focusHomeNeed === 'function' && typeof focusMapNodeOf === 'function' && typeof focusMapChainRoles === 'function') {
           const ids = new Set((cp.items || []).filter(i => (i.hendersonIds || []).includes(needId)).map(i => i.id));
-          const plan = focusPlansForNeed(cp, needId, ids).filter(p => { const h = focusHomeNeed(p); return (h === null || h === needId) && !(typeof cvProblemStatus === 'function' && cvProblemStatus(cp, p).kind === 'candidate'); })[0];
+          const plan = focusPlansForNeed(cp, needId, ids).filter(p => { const h = focusHomeNeed(p); return h === needId && !(typeof cvProblemStatus === 'function' && cvProblemStatus(cp, p).kind === 'candidate'); })[0];
           const roles = plan ? focusMapChainRoles(cp, focusMapNodeOf(cp, plan)) : null;
           if (roles && roles.causes.length) paras.push(`${clauseClip(plan.problem, 30)}につながる要因として、${roles.causes.slice().reverse().join('、')}が考えられる${/リスク/.test(plan.problem) ? '。現時点で、その状態が起きたと判断できる記録はない' : ''}。`);
         }
@@ -2347,7 +2397,7 @@ if (typeof module !== 'undefined' && module.exports) {
     MY_ASSESSMENT_FIELDS,
     ensureMyAssessment, getMyAssessment, ruleSufficiencyFor, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
     myAssessmentStatus, myAssessmentNeedsReview, confirmMyAssessmentEntry, restoreMyAssessmentFromHistory,
-    hasRuleSufficiency, sufficiencyAnalysis, sufficiencyFacts, sufficiencyNeededInfo, sufficiencyDimensions, sufficiencyDimensionLines, phaseVerdictOf, sufficiencyUiPhases, dischargePhaseOf, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, obstetricDailyFulfillment, sufficiencyScoreRules, sufficiencyPerNeedRules, sufficiencyScaleRules, sufficiencyLabRules, sufficiencyListRules, sufficiencyKnowledgeChecks, sufficiencyKnowledgeLine, SUF_LAB_NEEDS, SUF_COMBO_NEEDS, sufficiencyCauseHint, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, sufficiencyEvidenceState, fulfillmentAssessmentRows, complicationCandidates, patientContextFor, individualizedAssessment, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, sufficiencyMiniHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
+    hasRuleSufficiency, sufficiencyAnalysis, sufficiencySeparationNote, sufficiencyFacts, sufficiencyNeededInfo, sufficiencyDimensions, sufficiencyDimensionLines, phaseVerdictOf, sufficiencyUiPhases, dischargePhaseOf, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, obstetricDailyFulfillment, sufficiencyScoreRules, sufficiencyPerNeedRules, sufficiencyScaleRules, sufficiencyLabRules, sufficiencyListRules, sufficiencyKnowledgeChecks, sufficiencyKnowledgeLine, SUF_LAB_NEEDS, SUF_COMBO_NEEDS, sufficiencyCauseHint, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, sufficiencyEvidenceState, fulfillmentAssessmentRows, complicationCandidates, patientContextFor, individualizedAssessment, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, sufficiencyMiniHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
     renderMyAssessmentRowHtml, evidencePickerCandidates, myAssessmentAlwaysShown
   });
   if (module.exports.__testHooks) Object.assign(module.exports.__testHooks, { flushMyAssessmentSaves, saveMyAssessmentsSoon });
