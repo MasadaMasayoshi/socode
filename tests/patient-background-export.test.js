@@ -91,5 +91,5 @@ test('buildExportPlainText: セクション番号は「2. 患者背景」が無�
   assert.match(out, /【2\. 主観的情報（Sデータ）】/);
   assert.match(out, /【3\. 客観的情報（Oデータ）】/);
   assert.match(out, /【4\. 未分類のカード】/);
-  assert.match(out, /【5\. ヘンダーソン14項目別アセスメント整理】/);
+  assert.match(out, /【5\. 欲求の充足状況（判定の理由と記録）】/);
 });

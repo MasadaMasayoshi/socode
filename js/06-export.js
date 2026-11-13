@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.268'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.271'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -346,21 +346,23 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const destRows = typeof buildTagAuditRows === 'function' ? buildTagAuditRows({ items }).filter(r => r.destination && !r.currentTags.length) : [];
       if (on('unclassified') && destRows.length) body += `<h2>${n++}. 保持先（ヘンダーソンに無理に入れないカードの置き場）</h2><ul>${destRows.map(r => `<li>${escapeHtml(r.text)}<br><span class="muted">→ ${escapeHtml(r.destination.label)}：${escapeHtml(r.destination.to)}</span></li>`).join('')}</ul>`;
       if (on('henderson')) {
-      body += `<h2>${n++}. ヘンダーソン14項目別アセスメント整理</h2>`;
-      const sufOv = needSufficiencyOverview(cp);
-      if (sufOv.length) body += `<h3>欲求の充足状況（一覧）</h3><ul>${sufOv.map(r => `<li>${r.need.id}. ${escapeHtml(r.need.name.replace(/^\d+\.\s*/, ''))}＝${escapeHtml(r.text)}</li>`).join('')}</ul>`;
+      body += `<h2>${n++}. 欲求の充足状況（判定の理由と記録）</h2>`;
       const active = items.filter(i => i.type !== 'unnecessary');
       let anyNeed = false;
       HENDERSON_NEEDS.forEach(need => {
         const matching = active.filter(i => i.hendersonIds?.includes(need.id));
-        if (matching.length === 0) return;
+        const verdict = typeof sufficiencyTextOf === 'function' ? sufficiencyTextOf(cp, need.id) : '';
+        if (matching.length === 0 && !verdict) return;
         anyNeed = true;
+        // 先に「判定とその理由」、そのあとに根拠になる記録（カード）の順に並べる
+        body += `<h3>${need.id}. ${escapeHtml(need.name.replace(/^\d+\.\s*/, ''))}${verdict ? `　<span style="font-weight:400;font-size:10pt;">＝${escapeHtml(verdict)}</span>` : ''}</h3>${needSufficiencyDetailHtml(cp, need.id)}`;
+        if (!matching.length) { body += '<p class="muted">（この項目に分類された記録はありません）</p>'; return; }
         const labels = assessmentSeqLabels(matching, need.id);
         const cols = ['unclassified', 'preadmission', 'postadmission', 'missing'].filter(col => col !== 'unclassified' || matching.some(i => (i.assessmentCols?.[need.id] || 'unclassified') === 'unclassified'));
-        body += `<h3>${need.id}. ${escapeHtml(need.name.replace(/^\d+\.\s*/, ''))}</h3><table><thead><tr>${cols.map(c => `<th style="width:${Math.floor(100 / cols.length)}%">${PRINT_COL_LABELS[c]}</th>`).join('')}</tr></thead><tbody><tr>${cols.map(col => {
+        body += `<table><thead><tr>${cols.map(c => `<th style="width:${Math.floor(100 / cols.length)}%">${PRINT_COL_LABELS[c]}</th>`).join('')}</tr></thead><tbody><tr>${cols.map(col => {
           const list = matching.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === col);
           return list.length ? `<td>${printAssessmentCellList(col, list, labels, need.id)}</td>` : '<td class="empty">—</td>';
-        }).join('')}</tr></tbody></table>${needSufficiencyDetailHtml(cp, need.id)}`;
+        }).join('')}</tr></tbody></table>`;
       });
       if (!anyNeed) body += '<p class="muted">（タグが付いたカードがありません）</p>';
       }
@@ -412,7 +414,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       { key: 'o', label: '客観的情報（Oデータ）' },
       { key: 'missing', label: '不足情報と確認状況' },
       { key: 'unclassified', label: '未分類のカード' },
-      { key: 'henderson', label: 'ヘンダーソン14項目別アセスメント整理' },
+      { key: 'henderson', label: '欲求の充足状況（判定の理由と記録）' },
       { key: 'own', label: '自分のアセスメント' },
       { key: 'focus', label: '重点アセスメント' },
       { key: 'plans', label: '看護計画と実施・評価' },
@@ -669,20 +671,22 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       }
 
       if (on('henderson')) {
-      out += plainSectionTitle('5. ヘンダーソン14項目別アセスメント整理');
-      const sufOv = needSufficiencyOverview(cp);
-      if (sufOv.length) out += '\n【欲求の充足状況（一覧）】\n' + sufOv.map(r => `${r.need.id}. ${r.need.name.replace(/^\d+\.\s*/, '')}＝${r.text}`).join('\n') + '\n';
+      out += plainSectionTitle('5. 欲求の充足状況（判定の理由と記録）');
       HENDERSON_NEEDS.forEach(need => {
         const matching = cp.items.filter(i => i.type !== 'unnecessary' && i.hendersonIds?.includes(need.id));
-        if (matching.length === 0) return;
-        out += `\n${need.id}. ${need.name}\n`;
+        const verdict = typeof sufficiencyTextOf === 'function' ? sufficiencyTextOf(cp, need.id) : '';
+        if (matching.length === 0 && !verdict) return;
+        // 先に「判定とその理由」、そのあとに根拠になる記録（カード）の順に並べる
+        out += `\n${need.id}. ${need.name}${verdict ? `　＝${verdict}` : ''}\n`;
+        const sufDetail = needSufficiencyDetailText(cp, need.id);
+        if (sufDetail) out += '  判定と理由\n' + sufDetail;
+        if (!matching.length) { out += '  記録：この項目に分類された記録はありません\n'; return; }
+        out += '  記録\n';
         out += plainList(collapseLabCards(collapseVitalCards(matching, need.id), need.id).map(i => {
           const col = i.assessmentCols?.[need.id] || 'unclassified';
           const colName = col === 'preadmission' ? '入院前' : (col === 'postadmission' ? '入院後' : (col === 'missing' ? '不足情報' : '未分類'));
           return `[${colName}] [${i.type.toUpperCase()}]${i.fieldLabel ? ` [${i.fieldLabel}]` : ''}${i.aiSuggested ? ' [自動推定]' : ''} ${i.text}`;
         }));
-        const sufDetail = needSufficiencyDetailText(cp, need.id);
-        if (sufDetail) out += '  充足状況\n' + sufDetail;
       });
       }
 
@@ -1220,10 +1224,6 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     function needSufficiencyDetailText(cp, needId) {
       if (typeof sufficiencyUiPhases !== 'function') return '';
       return sufficiencyUiPhases(cp).map(ph => periodJudgeText(cp, needId, ph.key, ph.label)).join('');
-    }
-    function needSufficiencyOverview(cp) {
-      if (typeof sufficiencyTextOf !== 'function') return [];
-      return HENDERSON_NEEDS.map(need => ({ need, text: sufficiencyTextOf(cp, need.id) })).filter(r => r.text);
     }
     function needSufficiencyDetailHtml(cp, needId) {
       if (typeof sufficiencyUiPhases !== 'function' || typeof sufficiencyPhaseText !== 'function') return '';

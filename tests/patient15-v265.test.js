@@ -306,16 +306,44 @@ test('関連図：ブリンクマン指数が400未満なら結ばない／年�
   assert.match(chainsText(yrs), /ブリンクマン指数 600（20本\/日×30年）/);
 });
 
-test('v.268: full text and print exports list each need\'s sufficiency, using the existing judgement text verbatim', { skip: !have }, () => {
+test('v.270: full text and print exports lead each need with its verdict AND the reason (existing wording), then the records', { skip: !have }, () => {
   const txt = app.buildExportPlainText(gold), html = app.buildExportBodyHtml(gold);
-  assert.match(txt, /【欲求の充足状況（一覧）】\n1\. /);
-  assert.match(html, /<h3>欲求の充足状況（一覧）<\/h3>/);
+  assert.match(txt, /【5\. 欲求の充足状況（判定の理由と記録）】/);
+  assert.doesNotMatch(txt, /ヘンダーソン14項目別アセスメント整理/);
   const needs = app.HENDERSON_NEEDS.filter(n => app.sufficiencyTextOf(gold, n.id));
   assert.ok(needs.length >= 10);
-  for (const n of needs) assert.ok(txt.includes(`${n.id}. ${n.name.replace(/^\d+\.\s*/, '')}＝${app.sufficiencyTextOf(gold, n.id)}`), `list line for need ${n.id}`);
-  // detail: the same phase sentence as the sufficiency table export, never reworded
+  for (const n of needs) {
+    const head = `${n.id}. ${n.name}　＝${app.sufficiencyTextOf(gold, n.id)}`;
+    assert.ok(txt.includes(head), 'verdict line for need ' + n.id);
+    const at = txt.indexOf(head), next = txt.indexOf('\n\n', at) > 0 ? txt.indexOf('\n\n', at) : txt.length;
+    const block = txt.slice(at, next > at ? next : txt.length);
+    if (block.includes('判定と理由')) assert.ok(block.indexOf('判定と理由') < (block.indexOf('  記録') < 0 ? Infinity : block.indexOf('  記録')), 'reason comes before the records');
+  }
+  // the reason sentence is the existing (frozen) one
   const ph = app.sufficiencyUiPhases(gold)[0], x = app.sufficiencyPhaseText(gold, needs[0].id, ph.key);
-  assert.ok(x, 'phase text exists');
-  assert.ok(txt.includes(x.match(/判定根拠：([\s\S]*)$/)[1]), 'text detail uses the frozen sentence');
-  assert.ok(html.includes('の判定：'), 'print detail present');
+  assert.ok(x && txt.includes(x.match(/判定根拠：([\s\S]*)$/)[1]), 'text detail uses the frozen sentence');
+  assert.match(txt, /▶説明：/);
+  assert.match(html, /<h3>1\. 呼吸[^<]*<span[^>]*>＝/);
+  assert.match(html, /の判定：[\s\S]*<table>/);
+  assert.ok(html.indexOf('の判定：') < html.indexOf('<table>', html.indexOf('<h3>1.')), 'print: reason before the card table');
+});
+
+test('v.270: lab evaluation follows the review memo (sex-specific Hb, ALP method, Alb/CRP context, OCR estimates, timing)', { skip: !have }, () => {
+  const t = app.buildLabAssessment(gold).text;
+  assert.match(t, /Hb：13\.5 → 12\.2 g\/dL\n　判定：記録の基準値[^\n]*ただし男性の貧血の目安/);
+  assert.match(t, /ALP：221 U\/L\n　判定：判定保留/);
+  assert.doesNotMatch(t, /ALPが高値のため/);
+  assert.match(t, /WBCは5,880から11,600\/μLに増加している。手術侵襲による炎症反応の可能性があるが、数値だけでは感染の有無を判断できない/);
+  assert.match(t, /Albが4\.1から3\.5 g\/dLに低下している[^\n]*低栄養と断定せず/);
+  assert.match(t, /CRPは術前から0\.66と高く[^\n]*術後の変化だけが原因とはいえない/);
+  assert.match(t, /手術当日の値は、採血時刻（手術の前か後か）が記録から分からない/);
+  assert.equal((t.match(/採血時刻（手術の前か後か）/g) || []).length, 1, 'said once');
+  assert.match(t, /ALT：原文「ALT 250[^\n]*\n[\s\S]*確認の優先度：高/);
+  assert.match(t, /TP 6\.0 g\/dL 前後[^\n]*推定確度：不明/);
+  assert.match(t, /RBC 458\.7[^\n]*推定確度：不明/);
+  assert.match(t, /項目不明・判定不可/);
+  assert.doesNotMatch(t, /ALP 264/);
+  assert.match(t, /血圧：133\/80mmHg[^\n]*診察室血圧の分類では高値血圧/);
+  assert.match(t, /1秒率：69\.33%[\s\S]*検査を実施した日の記載がありません/);
+  assert.match(t, /%肺活量は110\.6%と目安の範囲内である一方、1秒率が69\.33%/);
 });

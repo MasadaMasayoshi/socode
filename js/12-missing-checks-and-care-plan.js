@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.270'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.271'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -686,6 +686,10 @@
       renderCarePlanSetReview();
     }
 
+    // One rationale row, shown directly under the plan part it explains.
+    function cpWhyHtml(pair) {
+      return pair && pair[1] ? `<div class="cp-why"><b class="cpd-l">根拠</b><span class="cpd-t">${escapeHtml(pair[1])}</span></div>` : '';
+    }
     function carePlanBasisHtml(p, cp) {
       const pid = safeDomId(p.id);
       const parts = [];
@@ -695,8 +699,6 @@
       const reasons = Array.isArray(p.reasons) ? p.reasons : [];
       if (reasons.length) parts.push(`<div class="cp-reasons"><span class="my-asm-label"><i class="fa-solid fa-graduation-cap"></i> この患者に必要な理由</span><ul>${reasons.slice(-5).map(r => `<li>${r.about ? `<b>${escapeHtml(r.about)}</b>：` : ''}${escapeHtml(r.text)}</li>`).join('')}</ul><button type="button" class="my-asm-link" onclick="writeCareReasonUI('${pid}')">理由を足す</button></div>`);
 
-      const dl = cpDesignLines(p);
-      if (dl.length) parts.push(`<div class="cp-design"><span class="my-asm-label"><i class="fa-solid fa-clipboard-check"></i> この患者の計画の根拠</span><ul>${dl.map(([l, t]) => `<li><b class="cpd-l">${escapeHtml(l)}</b><span class="cpd-t">${escapeHtml(t)}</span></li>`).join('')}</ul></div>`);
       if (p.distinct) parts.push(`<p class="cp-note">${escapeHtml(p.distinct)}</p>`);
       const refs = cp ? (p.refs || []).map(r => { const id = cpResolvePlanId(cp, r.id); const q = id && getCarePlan(cp, id); const n = q ? carePlanList(cp).findIndex(x => x.id === q.id) + 1 : 0; return q ? `<li>#${n} ${escapeHtml(q.problem)}：${escapeHtml(r.why)}</li>` : ''; }).join('') : '';
       if (refs) parts.push(`<div class="cp-note"><b>関連する計画：</b><ul>${refs}</ul></div>`);
@@ -722,13 +724,17 @@
       const field = (key, label, rows, placeholder) => `<label class="cp-field"><span class="my-asm-label">${label}</span><textarea class="field my-asm-text" rows="${rows}" data-cp-plan="${pid}" data-cp-field="${key}" placeholder="${escapeHtml(placeholder)}" oninput="onCarePlanInput('${pid}','${key}',this)">${escapeHtml(Array.isArray(p[key]) ? p[key].join('\n') : p[key])}</textarea></label>`;
       const needBtns = HENDERSON_NEEDS.map(nd => `<button type="button" class="cp-need-btn${p.relatedNeeds.includes(nd.id) ? ' active' : ''}" onclick="toggleCarePlanNeed('${pid}', ${nd.id})" title="${escapeHtml(nd.name)}">${nd.id}.${escapeHtml(nd.name.replace(/^\d+\.\s*/, ''))}</button>`).join('');
       const records = p.records.slice().reverse().map(r => careRecordHtml(p, r, cp)).join('');
+      const design = cpDesignBy(p);
       return `<section class="cp-card open" data-care-plan-id="${pid}">${head}
         <div class="cp-body">
           <label class="cp-field"><span class="my-asm-label"><i class="fa-solid fa-triangle-exclamation"></i> 看護問題（看護診断）</span><input type="text" class="field my-asm-text" data-cp-plan="${pid}" data-cp-field="problem" value="${escapeHtml(p.problem)}" placeholder="例：術後の創部痛に関連した急性疼痛" oninput="onCarePlanInput('${pid}','problem',this)" onchange="onCarePlanProblemCommit('${pid}')"></label>
+          ${cpWhyHtml(design.clarification)}
           ${carePlanBasisHtml(p, cp)}
           <div class="cp-row"><span class="my-asm-label"><i class="fa-solid fa-table-cells"></i> 関係する項目</span><div class="cp-need-btns">${needBtns}</div></div>
           <div class="cp-grid2">${field('goalLong', '<i class="fa-solid fa-flag-checkered"></i> 長期目標', 2, '例：退院までに歩行器で病棟内を自立して移動できる')}${field('goalShort', '<i class="fa-solid fa-flag"></i> 短期目標', 2, '例：3日後までに、痛みがNRS3以下でリハビリに参加できる')}</div>
-          <div class="cp-grid3">${CARE_PLAN_SECTIONS.map(s => field(s.key, `<i class="fa-solid fa-list-ol"></i> ${s.label}`, 5, s.placeholder)).join('')}</div>
+          ${cpWhyHtml(design.indicators)}
+          ${CARE_PLAN_SECTIONS.map(sec => `<div class="cp-seq">${field(sec.key, `<i class="fa-solid fa-list-ol"></i> ${sec.label}`, Math.min(24, Math.max(4, (Array.isArray(p[sec.key]) ? p[sec.key] : []).reduce((a, t) => a + Math.max(1, Math.ceil(String(t).length / 62)), 0) + 1)), sec.placeholder)}${cpWhyHtml(design[sec.key])}</div>`).join('')}
+          ${design.notes.length ? `<div class="cp-why cp-why-notes">${design.notes.map(([l, t]) => `<div><b class="cpd-l">${escapeHtml(l)}</b><span class="cpd-t">${escapeHtml(t)}</span></div>`).join('')}</div>` : ''}
           <div class="cp-actions">
             <label class="cp-status-select"><span class="my-asm-label">状態</span><select class="field" onchange="setCarePlanStatus('${pid}', this.value)">${CARE_PLAN_STATUSES.map(s => `<option value="${s.key}"${p.status === s.key ? ' selected' : ''}>${s.label}</option>`).join('')}</select></label>
             <button type="button" class="btn btn-outline my-asm-btn${carePlanReviewOpen.has(p.id) ? ' active' : ''}" onclick="toggleCarePlanReview('${pid}')" aria-expanded="${carePlanReviewOpen.has(p.id)}" title="目標・OP/TP/EPを7つの項目で確かめます"><i class="fa-solid fa-clipboard-list"></i> 計画をチェック</button>
@@ -3363,6 +3369,12 @@
       if (!d) return [];
       return [['問題の明確化', d.clarification], ['OPの根拠', d.basis && d.basis.op], ['CP（TP）の根拠', d.basis && d.basis.tp], ['EPの根拠', d.basis && d.basis.ep], ['評価指標', (d.indicators || []).join('／')], ['時期の注意', d.timing], ['計画の状態', d.planned]].filter(x => x[1]);
     }
+    // Reading order (screen, text, print): each part of the plan is followed directly by its own rationale
+    // (problem → its basis, goals → indicators, OP → OP basis, TP → TP basis, EP → EP basis). Wording is the same as cpDesignLines.
+    function cpDesignBy(p) {
+      const d = (p && p.design) || {}, b = d.basis || {};
+      return { clarification: ['問題の明確化', d.clarification], indicators: ['評価指標', (d.indicators || []).join('／')], op: ['OPの根拠', b.op], tp: ['CP（TP）の根拠', b.tp], ep: ['EPの根拠', b.ep], notes: [['時期の注意', d.timing], ['計画の状態', d.planned]].filter(x => x[1]) };
+    }
     function refineCarePlans(cp) {
       const now = new Date().toISOString();
       const merged = mergeDuplicateCarePlans(cp, now);
@@ -3747,10 +3759,13 @@
         if (p.relatedNeeds.length) lines.push(`関係する項目：${p.relatedNeeds.map(h => `${h}.${hendersonNameOf(h).replace(/^\d+\.\s*/, '')}`).join('・')}`);
         if (p.evidence && p.evidence.length) lines.push(`根拠データ：${p.evidence.join('／')}`);
         if (p.reasons && p.reasons.length) lines.push(`この患者に必要な理由：${p.reasons.map(r => `${r.about ? `（${r.about}）` : ''}${r.text}`).join('／')}`);
-        cpDesignLines(p).forEach(([l, t]) => lines.push(`${l}：${t}`));
+        const by = cpDesignBy(p), why = pair => { if (pair && pair[1]) lines.push(`${pair[0]}：${pair[1]}`); };
+        why(by.clarification);
         if (p.goalLong) lines.push(`長期目標：${p.goalLong}`);
         if (p.goalShort) lines.push(`短期目標：${p.goalShort}`);
-        CARE_PLAN_SECTIONS.forEach(s => { if (p[s.key].length) lines.push(`${s.label}`, ...p[s.key].map((t, n) => `  ${s.short}${n + 1}. ${t}`)); });
+        why(by.indicators);
+        CARE_PLAN_SECTIONS.forEach(s => { if (p[s.key].length) lines.push(`${s.label}`, ...p[s.key].map((t, n) => `  ${s.short}${n + 1}. ${t}`)); why(by[s.key]); });
+        by.notes.forEach(([l, t]) => lines.push(`${l}：${t}`));
         const recs = withRecords ? p.records.filter(r => !recordFilter || recordFilter(r)) : [];
         if (recs.length) {
           lines.push('実施・評価');
@@ -3785,7 +3800,7 @@
           return `<tr><td>${esc(formatMyDateTime(r.at))}${ach && ach.key ? `<br><b>${ach.label}</b>` : ''}</td><td>${done || '—'}</td><td>${esc(r.response) || '—'}</td><td>${esc(r.evaluation) || '—'}</td><td>${esc(r.revision) || '—'}</td></tr>`;
         }).join('')}</tbody></table>` : '';
         return `<h2>#${k + 1} ${esc(p.problem || '（無題）')}　<span style="font-weight:400;font-size:9pt;">［${esc(st ? st.label : '')}］</span></h2>
-<table style="break-inside:auto;"><tbody>${row('順番の理由', p.orderLocked ? '' : esc(String(p.priorityReason || '').replace(/ため、この順番にしました$/, '')))}${row('関係する項目', esc(needs))}${row('根拠データ', esc((p.evidence || []).join('／')))}${cpDesignLines(p).map(([l, t]) => row(esc(l), esc(t))).join('')}${row('この患者に必要な理由', (p.reasons || []).map(r => `${r.about ? `（${esc(r.about)}）` : ''}${esc(r.text)}`).join('<br>'))}${row('長期目標', esc(p.goalLong))}${row('短期目標', esc(p.goalShort))}${CARE_PLAN_SECTIONS.map(s => row(esc(s.label), list(p[s.key]))).join('')}</tbody></table>
+<table style="break-inside:auto;"><tbody>${row('順番の理由', p.orderLocked ? '' : esc(String(p.priorityReason || '').replace(/ため、この順番にしました$/, '')))}${row('関係する項目', esc(needs))}${row('根拠データ', esc((p.evidence || []).join('／')))}${row('この患者に必要な理由', (p.reasons || []).map(r => `${r.about ? `（${esc(r.about)}）` : ''}${esc(r.text)}`).join('<br>'))}${(by => { const w = pair => pair && pair[1] ? row(esc(pair[0]), esc(pair[1])) : ''; return w(by.clarification) + row('長期目標', esc(p.goalLong)) + row('短期目標', esc(p.goalShort)) + w(by.indicators) + CARE_PLAN_SECTIONS.map(s => row(esc(s.label), list(p[s.key])) + w(by[s.key])).join('') + by.notes.map(([l, t]) => row(esc(l), esc(t))).join(''); })(cpDesignBy(p))}</tbody></table>
 ${recs.length ? `<div style="font-weight:700;margin:6pt 0 0;">実施・評価の記録</div>${recTable}` : ''}`;
       }).join('');
       const title = `${cp.title || ''}_看護計画`;
@@ -3819,7 +3834,7 @@ ${body}
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {
     inferUntaggedReason, untaggedContextEffects, untaggedTextKey, untaggedReviewOf, setUntaggedReview, applyUntaggedReviews, untaggedReviewItems, untaggedReviewCounts, untaggedSectionHtml,
-    buildCarePlansPrintHtml, buildCarePlansText, buildCarePlansByRules, autoBuildCarePlans, carePlanList, deleteCarePlan, cpEnrichPlan, cpDesignLines, CP_ORAL_CARE_TP,
+    buildCarePlansPrintHtml, buildCarePlansText, buildCarePlansByRules, autoBuildCarePlans, carePlanList, deleteCarePlan, cpEnrichPlan, cpDesignLines, cpDesignBy, CP_ORAL_CARE_TP,
     formatCardTimestamp, MISSING_CHECK_STATUSES, missingInfoItems, missingCheckStatus, missingCheckCounts, setMissingCheck, missingCheckCardHtml,
     carePlanInlineNotes, captureCarePlanEvidence, carePlanEvidenceChanges, refreshCarePlanEvidence, CARE_PLAN_SECTIONS, carePlanList, createCarePlan, getCarePlan, updateCarePlan, deleteCarePlan, moveCarePlan, carePlanLinesToList,
     addCareRecord, updateCareRecord, deleteCareRecord, parseCarePlanText, buildMissingInfoText, importCarePlans, guessPlanNeeds, buildCarePlansText, carePlanCardHtml,

@@ -29,12 +29,12 @@ test('原文は書き換えず、単位・桁が崩れた値は「要確認」�
   assert.equal(tp.source, 'TP 60g/21');
   assert.equal(tp.quality, 'suspicious');
   assert.equal(tp.status, 'review');
-  assert.equal(tp.prediction.confidence, 'medium');
+  assert.equal(tp.prediction.confidence, 'unknown'); // unit read-over AND decimal shift: confidence is not claimed
   assert.equal(tp.prediction.text, 'TP 6.0 g/dL');
   assert.equal(tp.valueRaw, '60');
   const rbc = app.analyzeLabCard('RBC4587/uL', { valueStd: 511, phase: '術前' });
   assert.equal(rbc.status, 'review');
-  assert.equal(rbc.prediction.confidence, 'high');
+  assert.equal(rbc.prediction.confidence, 'unknown');
   assert.match(rbc.prediction.text, /RBC 458\.7/);
   assert.equal(rbc.source, 'RBC4587/uL');
 });
@@ -70,18 +70,26 @@ test('基準値の判定・推移・呼吸機能・バイタルサイン・考�
   const t = a.text;
   assert.match(t, /【検査データ臨床評価・アセスメントノート】/);
   assert.doesNotMatch(t, /まだ行っていません/);
-  assert.match(t, /TP：原文「TP 60g\/21」[\s\S]*判定：要確認[\s\S]*TP 6\.0 g\/dL 前後ではないかと予想されます（推定確度：中）/);
-  assert.match(t, /Hb：13\.5 → 12\.2 g\/dL\n　判定：基準範囲内[\s\S]*推移：術前より低下しています（基準範囲内の変化）/);
+  assert.match(t, /TP：原文「TP 60g\/21」[\s\S]*判定：要確認[\s\S]*TP 6\.0 g\/dL 前後ではないかと予想されます（推定確度：不明/);
+  assert.match(t, /この候補どおりなら低値になります/);
+  assert.doesNotMatch(t, /一般的な範囲に収まる読み方/);
+  assert.match(t, /Hb：13\.5 → 12\.2 g\/dL\n　判定：基準範囲内[\s\S]*推移：術前より低下しています（基準範囲内の変化）/); // sex not written: the common range is used as before
   assert.match(t, /WBC：.*\n　判定：高値/);
-  assert.match(t, /RBC：原文「RBC4587\/uL」[\s\S]*推定確度：高/);
+  assert.match(t, /RBC：原文「RBC4587\/uL」[\s\S]*推定確度：不明/);
   assert.match(t, /AST：原文「AST 2 U\/L[^」]*」[\s\S]*判定：要確認/);
   assert.match(t, /ALT：原文「ALT 250 U\/L[^」]*」[\s\S]*判定：要確認/);
-  assert.match(t, /原文「7\/ ML\. \. PE5-t 264U\/L\. \. \.」[\s\S]*判定：原文不明瞭/);
+  assert.match(t, /原文「7\/ ML\. \. PE5-t 264U\/L\. \. \.」[\s\S]*判定：項目不明・判定不可/);
+  assert.doesNotMatch(t, /ALP 264/);
+  assert.match(t, /ALT：原文[\s\S]*確認の優先度：高（原文どおりなら基準の上限の約5\.6倍/);
+  assert.match(t, /ALP：221 U\/L\n　判定：判定保留（測定法が記録にないため。IFCC法の基準（38〜113 U\/L）なら高値、JSCC法の基準（106〜322 U\/L）なら基準範囲内）/);
+  assert.doesNotMatch(t, /ALPが高値/);
+  assert.match(t, /ASTが150 U\/Lと高値である。肝細胞の障害のほか、骨格筋由来や溶血/);
   assert.match(t, /%肺活量：110\.6%[\s\S]*基準範囲内/);
   assert.match(t, /1秒率：69\.33%[\s\S]*低値（一般的な目安 70%以上。年齢・性別・施設・判定法で基準が異なる/);
   assert.match(t, /血圧：112\/72mmHg[\s\S]*基準範囲内/);
-  assert.match(t, /Hbが術前より低下しているため、手術に伴う出血や周術期の影響ではないかと考えられる/);
-  assert.match(t, /WBCの上昇は術後の炎症反応によるものではないかと考えられるが、感染徴候/);
+  assert.match(t, /Hbが13\.5から12\.2 g\/dLに低下している。手術に伴う出血や輸液による希釈などが影響した可能性がある/);
+  assert.match(t, /WBCは11,600\/μLと高値である。手術侵襲による炎症反応の可能性があるが、数値だけでは感染の有無を判断できない/);
+  assert.match(t, /手術当日の値は、採血時刻（手術の前か後か）が記録から分からないため、術後の変化と決めずに/);
   assert.doesNotMatch(t, /感染している|正しい値は|修正しました/);
 
   assert.doesNotMatch(t, /ALTが高値/);
@@ -161,4 +169,28 @@ test('新生児の値を母親の検査判定に混ぜない', () => {
   assert.equal(result.vitals.length,1);
   assert.equal(result.vitals[0].value,98);
   assert.doesNotMatch(JSON.stringify(app.buildLabAssessment({items:[child,mother]})),/88/);
+});
+
+test('性別が書かれている記録では、性別ごとの定義を使う（男性のHb 13.0未満は貧血の目安に該当）。性別が不明なら使わない', () => {
+  const male = cp(); male.items.push(card('s', '58歳 男性', '入院前'));
+  const t = app.buildLabAssessment(male).text;
+  assert.match(t, /Hb：13\.5 → 12\.2 g\/dL\n　判定：記録の基準値（11\.5〜16\.5 g\/dL）の範囲内。ただし男性の貧血の目安（13\.0 g\/dL未満・WHO 2024・成人）に該当します\n　推移：術前より低下しています。/);
+  assert.match(t, /Hbが13\.5から12\.2 g\/dLに低下している。男性では貧血を示唆する所見であり、手術に伴う出血や輸液による希釈/);
+  assert.doesNotMatch(app.buildLabAssessment(cp()).text, /貧血の目安/);
+});
+
+test('測定法が記録にある場合や、施設の基準値が書かれている場合はALPを判定保留にしない', () => {
+  const withMethod = cp(); withMethod.items.push(card('t', 'ALP測定法：IFCC法', '術前'));
+  assert.doesNotMatch(app.buildLabAssessment(withMethod).text, /ALP：221 U\/L\n　判定：判定保留/);
+  const own = cp(); own.items = own.items.map(i => i.id === 'f' ? { ...i, text: 'ALP 221 U/L (基準値: 106〜322 U/L)' } : i);
+  const t = app.buildLabAssessment(own).text;
+  assert.match(t, /ALP：221 U\/L\n　判定：基準範囲内/);
+});
+
+test('血圧は診察室血圧の分類（高血圧治療ガイドライン2019）も併記し、1回の値で高血圧とは判断しない', () => {
+  const x = { id: 'b', myAssessments: {}, items: [card('a', '【血圧】133/80mmHg', '術後'), card('b', '【血圧】112/72mmHg', '術前')] };
+  const t = app.buildLabAssessment(x).text;
+  assert.match(t, /血圧：133\/80mmHg[^\n]*診察室血圧の分類では高値血圧/);
+  assert.match(t, /1回の値で高血圧とは判断せず/);
+  assert.doesNotMatch(t, /血圧：112\/72mmHg[^\n]*診察室血圧の分類/);
 });

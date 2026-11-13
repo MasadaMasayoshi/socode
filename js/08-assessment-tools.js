@@ -1,7 +1,7 @@
 // Evidence-based local assessment and laboratory trends. Evaluate admission periods separately.
 // Exclude inactive/AI-proposed evidence; retain units, source uncertainty and chronological ordering.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.264'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['08'] = 'v.271'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -1791,6 +1791,7 @@
       if (rec.quality === 'suspicious' && range && valueStd !== null && valueStd !== undefined && !rec.reasonKinds.includes('unit') && !rec.reasonKinds.includes('digits')) {
         const dw = labDirection(valueStd, range, rec.arrow);
         rec.asWritten = dw === 'high' ? '高値' : dw === 'low' ? '低値' : dw === 'normal' ? '基準範囲内' : '';
+        rec.asWrittenRatio = dw === 'high' && range.high ? valueStd / range.high : null;
       }
 
       if (rec.quality === 'suspicious' && (rec.reasonKinds.includes('digits') || rec.reasonKinds.includes('unit')) && !rec.valueRaw.includes('.') && range) {
@@ -1802,11 +1803,15 @@
         if (cands.length === 1) {
           const cand = cands[0];
           const prevOk = previous && Number.isFinite(previous.valueStd) && Math.abs(cand / previous.valueStd - 1) <= 0.3;
-          const conf = prevOk ? 'high' : (rec.reasonKinds.includes('unit') && !unitFixed ? 'low' : 'medium');
+          const conf0 = prevOk ? 'high' : (rec.reasonKinds.includes('unit') && !unitFixed ? 'low' : 'medium');
+          // 単位の読み替えと小数点の補正を両方行う推定は、確度を高くも中ともせず「不明」にする（原本確認まで判断しない）
+          const dual = !!m[3] && normalizeLabUnit(m[3]) !== normalizeLabUnit(std.unit) && places[0] > 0;
+          const conf = conf0 !== 'low' && dual ? 'unknown' : conf0;
           const why = [];
           if (rec.reasonKinds.includes('unit')) why.push(unitFixed ? `単位「${m[3]}」が「${std.unit}」の読み間違いではないか` : `単位「${m[3]}」が崩れている`);
           if (rec.reasonKinds.includes('digits')) why.push('単位または小数点が崩れた可能性');
-          if (prevOk) why.push(`${previous.phase ? previous.phase + 'の' : '前の'}値 ${labValFmt(previous.valueStd)} ${std.unit} との表記・桁の整合性`); else why.push(`${std.unit}で一般的な範囲に収まる読み方が1つだけ`);
+          if (prevOk) why.push(`${previous.phase ? previous.phase + 'の' : '前の'}値 ${labValFmt(previous.valueStd)} ${std.unit} との表記・桁の整合性`); else why.push(`桁を動かして${std.unit}の想定の幅（基準のおよそ0.6〜1.6倍）に入る読み方が1つだけ（基準範囲に入るという意味ではありません）`);
+          if (conf !== 'low' && ((range.low !== null && range.low !== undefined && cand < range.low) || (range.high !== null && range.high !== undefined && cand > range.high))) why.push(`この候補どおりなら${range.low !== null && range.low !== undefined && cand < range.low ? '低値' : '高値'}になります`);
           rec.prediction = { confidence: conf, value: conf === 'low' ? null : cand, text: conf === 'low' ? '' : `${key} ${cand.toFixed(places[0])} ${std.unit}`, reason: why.join('、') };
         } else rec.prediction = { confidence: 'low', value: null, text: '', reason: cands.length ? '読み方の候補が複数あり、1つに絞れません' : '一般的な範囲に収まる読み方が見つかりません' };
       }
@@ -1825,6 +1830,19 @@
       { key: 'SpO2', regex: /(?:SpO2|SPO2|Spo2|SpO₂|酸素飽和度)\D{0,3}(\d{2,3})\s*%/i, unit: '%', judge: v => v < 95 ? 'low' : 'normal', ref: '95%以上' }
     ];
     const LAB_STATUS_LABEL = { high: '高値', low: '低値', normal: '基準範囲内', review: '要確認', unknown: '判定不可' };
+    // v.270 lab-reading rules from the owner's review memo (2026-11-13; it cites WHO 2024 haemoglobin cut-offs, JCCLS common reference ranges, ASPEN, JSH 2019, ACG).
+    // General conditions (not case branches): (1) a sex-specific definition applies when the sex is written in the record; (2) an assay-method-dependent item is held (判定保留) when the record
+    // gives neither its method nor its own reference range; (3) a value that cannot be confirmed but would be a major abnormality if it were right gets a higher confirmation priority.
+    const LAB_SEX_DEFINITION = { Hb: { male: 13.0, female: 12.0, unit: 'g/dL', what: '貧血', source: 'WHO 2024・成人' } };
+    const LAB_METHOD_DEPENDENT = { ALP: { unit: 'U/L', methods: [{ name: 'IFCC法', re: /IFCC/i, lo: 38, hi: 113 }, { name: 'JSCC法', re: /JSCC|JSS|ＪＳＣＣ/i, lo: 106, hi: 322 }] } };
+    const LAB_PRIORITY_RATIO = { AST: 5, ALT: 5 }; // written value at or above this multiple of the upper limit: confirm the original first (ACG: 5×ULN and above is beyond a mild elevation)
+    const BP_OFFICE_CLASSES = ['正常血圧', '正常高値血圧', '高値血圧', 'Ⅰ度高血圧', 'Ⅱ度高血圧', 'Ⅲ度高血圧'];
+    function bpOfficeClass(s, d) { // 高血圧治療ガイドライン2019・診察室血圧。収縮期と拡張期のうち高い方の分類
+      const rs = s >= 180 ? 5 : s >= 160 ? 4 : s >= 140 ? 3 : s >= 130 ? 2 : s >= 120 ? 1 : 0;
+      const rd = d >= 110 ? 5 : d >= 100 ? 4 : d >= 90 ? 3 : d >= 80 ? 2 : 0;
+      const rank = Math.max(rs, rd);
+      return { rank, name: BP_OFFICE_CLASSES[rank] };
+    }
 
     function analyzeLabData(cp) {
       // 小児の記録では成人の基準で高低を判定しない（患者全体の文脈で判断する）
@@ -1868,9 +1886,8 @@
         const mm = b.source.normalize('NFKC').match(/(\d+(?:\.\d+)?)\s*(U\/L|mg\/dL|g\/dL)/i);
         if (!mm) return;
         const v = Number(mm[1]), unit = normalizeLabUnit(mm[2]);
-        const seenHere = new Set(labs.filter(l => l.phase === b.phase).map(l => l.key));
-        const cands = Object.keys(LAB_STANDARDS).filter(k => normalizeLabUnit(LAB_STANDARDS[k].unit) === unit && !seenHere.has(k)).map(k => ({ k, prev: lastValid[k] })).filter(x => x.prev && x.prev.valueStd > 0 && Math.abs(v / x.prev.valueStd - 1) <= 0.35);
-        if (cands.length === 1) b.prediction = { confidence: 'low', key: cands[0].k, text: `${cands[0].k} ${mm[1]} ${LAB_STANDARDS[cands[0].k].unit}`, reason: `同じ単位で、この時点にまだ記録が無く、前の値（${labValFmt(cands[0].prev.valueStd)}）に近い項目は${cands[0].k}だけです` };
+        // 項目名が読めない値は、数値と単位が近いという理由だけで項目を推定しない（別の項目の可能性を残す）
+        b.partial = { value: mm[1], unit: mm[2] };
       });
 
       const ast = labs.find(l => l.key === 'AST' && l.reasonKinds.includes('change')), alt = labs.find(l => l.key === 'ALT' && l.reasonKinds.includes('change'));
@@ -1891,10 +1908,11 @@
       const ctx = {
         surgery: /術後|手術|術式|全摘|切除|開腹|腹腔鏡|オペ/.test(allText), fasting: /絶飲食|絶食|禁食|NPO/.test(allText),
         bleeding: /出血|血性|ドレーン/.test(allText), infection: /発熱|膿|発赤|腫脹|熱感|排膿|悪寒|感染徴候/.test(allText), smoking: /喫煙|煙草|タバコ|ブリンクマン/.test(allText),
-        fever: vitals.some(v => v.key === '体温' && v.status === 'high'), kawasaki: /川崎病/.test(allText + String(cp.sourceText || ''))
+        fever: vitals.some(v => v.key === '体温' && v.status === 'high'), kawasaki: /川崎病/.test(allText + String(cp.sourceText || '')), preg: /妊娠|妊婦|産褥|褥婦|周産期/.test(allText)
       };
       const basics = extractClinicalBasics(String(cp.sourceText || '') + '\n' + allText);
       const facts = [], reviews = [], thoughts = [];
+      let timeNoteShown = false; // 採血時刻の注意は、同じ時期の値について最初の考察に1回だけ書く
       const byKey = {};
       labs.forEach(l => { (byKey[l.key] = byKey[l.key] || []).push(l); });
       const phaseText = l => l.phase ? `（${l.phase}）` : '';
@@ -1909,8 +1927,21 @@
         const lines = [];
         if (valid.length) {
           const last = valid[valid.length - 1];
+          // (1) sex-specific definition (only when the sex is written; pregnancy is not judged with the non-pregnant cut-off)
+          const sd = LAB_SEX_DEFINITION[key], sexKey = basics.sex === 'male' ? 'male' : (basics.sex === 'female' && !ctx.preg ? 'female' : '');
+          last.sexLow = sd && sexKey && Number.isFinite(last.valueStd) && last.valueStd < sd[sexKey] ? { limit: sd[sexKey], who: sexKey === 'male' ? '男性' : '女性', what: sd.what, source: sd.source, unit: sd.unit } : null;
+          // (2) assay-method-dependent item: hold when neither the method nor the record's own reference range is written
+          const md = LAB_METHOD_DEPENDENT[key];
+          if (md && Number.isFinite(last.valueStd) && !(last.ref && last.ref.origin === 'source') && !md.methods.some(x => x.re.test(allText))) {
+            const vs = md.methods.map(x => last.valueStd > x.hi ? 'high' : last.valueStd < x.lo ? 'low' : 'normal');
+            if (new Set(vs).size > 1) { last.methodPending = { unit: md.unit, parts: md.methods.map((x, i) => ({ name: x.name, v: vs[i], range: `${x.lo}〜${x.hi}` })) }; last.status = 'unknown'; }
+          }
+          last.belowSex = !!last.sexLow || (basics.sex === 'male' && (key === 'Hb' || key === 'Ht') && Number.isFinite(last.valueStd) && last.valueStd < (key === 'Hb' ? 13.5 : 40));
+          const belowSex = last.belowSex;
           lines.push(`${key}：${seq} ${last.stdUnit || (std ? std.unit : '')}${last.unitRaw && last.valueRaw && !sameLabUnit(last.unitRaw, last.stdUnit || '') ? `（原文：${last.valueRaw} ${last.unitRaw}）` : ''}`.trim());
-          if (last.ref) lines.push(`　判定：${LAB_STATUS_LABEL[last.status]}${last.ref.text ? `（基準値 ${last.ref.text}・${last.ref.origin === 'source' ? '記録に記載された基準値（出典未確認）' : last.ref.origin === 'unverified' ? '記録の基準値（内蔵値と一致・由来未確認）' : 'アプリ内蔵の一般的な基準値（性別・年齢・施設で異なります）'}）` : ''}`);
+          if (last.methodPending) lines.push(`　判定：判定保留（測定法が記録にないため。${last.methodPending.parts.map(x => `${x.name}の基準（${x.range} ${last.methodPending.unit}）なら${LAB_STATUS_LABEL[x.v]}`).join('、')}）`);
+          else if (last.sexLow && last.status === 'normal' && last.ref && last.ref.text) lines.push(`　判定：記録の基準値（${last.ref.text}）の範囲内。ただし${last.sexLow.who}の${last.sexLow.what}の目安（${Number(last.sexLow.limit).toFixed(1)} ${last.sexLow.unit}未満・${last.sexLow.source}）に該当します`);
+          else if (last.ref) lines.push(`　判定：${LAB_STATUS_LABEL[last.status]}${last.ref.text ? `（基準値 ${last.ref.text}・${last.ref.origin === 'source' ? '記録に記載された基準値（出典未確認）' : last.ref.origin === 'unverified' ? '記録の基準値（内蔵値と一致・由来未確認）' : 'アプリ内蔵の一般的な基準値（性別・年齢・施設で異なります）'}）` : ''}`);
           else lines.push(`　判定：${LAB_STATUS_LABEL[last.status]}`);
           if (!ordered) lines.push('　日時の順序を確認できない値を含むため、数値の並びを推移として判定していません。');
           if (samePhase && /妊娠\s*\d+\s*週/.test(allText) && /産褥|分娩後|産後/.test(valid[0].phase)) lines.push('　これらの値は妊娠中の記録に由来する可能性があり、産褥の測定値としては扱いません（測定時期・週数は原文で確認）。');
@@ -1918,21 +1949,22 @@
           if (ordered && valid.length >= 2) {
             const first = valid[0], pct = (last.valueStd - first.valueStd) / (first.valueStd || 1);
             const dir = pct <= -0.05 ? '低下' : pct >= 0.05 ? '上昇' : '';
-            if (dir) lines.push(`　推移：${first.phase ? first.phase + 'より' : '以前より'}${dir}しています${last.status === 'normal' ? '（基準範囲内の変化）' : ''}。`);
+            if (dir) lines.push(`　推移：${first.phase ? first.phase + 'より' : '以前より'}${dir}しています${last.status === 'normal' && !belowSex ? '（基準範囲内の変化）' : ''}。`);
             else lines.push('　推移：大きな変化はありません。');
             last.trend = dir ? (dir === '低下' ? 'down' : 'up') : 'flat'; last.trendPct = pct;
           }
           last.notes.forEach(n => lines.push(`　注：${n}`));
-          if (basics.sex === 'male' && (key === 'Hb' || key === 'Ht') && last.status === 'normal' && Number.isFinite(last.valueStd) && last.valueStd < (key === 'Hb' ? 13.5 : 40)) lines.push(`　注：男性の一般的な目安（${key === 'Hb' ? '13.5〜17.5 g/dL' : '40〜52%'}）より低めです。男女共通の広い基準範囲の中でも、男性としては低めの可能性があります。施設の男性用の基準値があれば、それで確認してください。`);
-          if (key === 'ALP' && !(last.ref && last.ref.origin === 'source')) lines.push('　注：ALPの基準値は測定法（JSS法・IFCC法）で大きく異なります（目安：JSS法 約100〜340 U/L、IFCC法 約38〜113 U/L）。原文の基準値・測定法を確認し、内蔵の基準との比較は参考にとどめてください。');
+          if (!last.sexLow && basics.sex === 'male' && (key === 'Hb' || key === 'Ht') && last.status === 'normal' && Number.isFinite(last.valueStd) && last.valueStd < (key === 'Hb' ? 13.5 : 40)) lines.push(`　注：男性の一般的な目安（${key === 'Hb' ? '13.5〜17.5 g/dL' : '40〜52%'}）より低めです。男女共通の広い基準範囲の中でも、男性としては低めの可能性があります。施設の男性用の基準値があれば、それで確認してください。`);
+          if (key === 'ALP' && !(last.ref && last.ref.origin === 'source')) lines.push(`　注：ALPの基準値は測定法で大きく異なります（共用基準範囲：${LAB_METHOD_DEPENDENT.ALP.methods.map(x => `${x.name} ${x.lo}〜${x.hi} U/L`).join('、')}）。原文の測定法と施設の基準値を確認してください。内蔵の基準との比較は参考にとどめます。`);
         }
         list.filter(l => l.quality !== 'valid').forEach(l => {
           lines.push(`${key}：原文「${l.source}」${phaseText(l)}`);
           lines.push('　データ確認：原本確認が必要');
           lines.push(l.reasonKinds.includes('unit') || l.reasonKinds.includes('digits') ? '　判定：要確認（判定不可：単位・桁の確認が必要。この値では低値・高値を判断しません）' : '　判定：要確認');
           if (l.asWritten && l.asWritten !== '基準範囲内') lines.push(`　仮に原文どおりなら：${l.asWritten}（原本で確認できるまで、看護問題・看護計画の根拠には使いません）`);
-          if (l.prediction && l.prediction.value !== null && l.prediction.value !== undefined && ['medium', 'high'].includes(l.prediction.confidence)) {
-            lines.push(`　推定候補：${l.prediction.text} 前後ではないかと予想されます（推定確度：${l.prediction.confidence === 'high' ? '高' : '中'}）。原文の値は書き換えていません。`);
+          if (l.asWritten === '高値' && l.asWrittenRatio && LAB_PRIORITY_RATIO[l.key] && l.asWrittenRatio >= LAB_PRIORITY_RATIO[l.key]) lines.push(`　確認の優先度：高（原文どおりなら基準の上限の約${l.asWrittenRatio.toFixed(1)}倍で、重要な異常です。まず原本で読み取りを確認し、原文どおりだった場合は医療者に確認・報告してください）`);
+          if (l.prediction && l.prediction.value !== null && l.prediction.value !== undefined && ['medium', 'high', 'unknown'].includes(l.prediction.confidence)) {
+            lines.push(`　推定候補：${l.prediction.text} 前後ではないかと予想されます（推定確度：${{ high: '高', medium: '中', unknown: '不明（単位の読み替えと桁の補正を両方行っているため、原本で確認できるまで確度は判断しません）' }[l.prediction.confidence]}）。原文の値は書き換えていません。`);
             lines.push(`　理由：${l.prediction.reason}。OCRで単位または小数点が崩れた可能性があります。原本確認が必要です。`);
           } else {
             lines.push(`　${l.reasons.join('。')}。OCR誤読の可能性があります。原本確認が必要です。`);
@@ -1948,10 +1980,21 @@
           const abnormal = last.status === 'high' || last.status === 'low';
           const down = last.trend === 'down', up = last.trend === 'up';
           let th = '';
-          if (['Hb', 'Ht', 'RBC'].includes(key) && (down || last.status === 'low')) th = ctx.surgery ? `${key}が${down ? '術前より低下している' : '低値である'}ため、手術に伴う出血や周術期の影響ではないかと考えられる。ふらつき・顔色・活動時の息切れなどの確認が必要。` : `${key}が${down ? '低下' : '低値'}しているが、原因は現時点の情報だけでは判断できません。追加情報が必要です。`;
-          else if (['Alb', 'TP'].includes(key) && (down || last.status === 'low')) th = (ctx.surgery || ctx.fasting) ? `${key}が${down ? '低下している' : '低値である'}ため、手術侵襲や摂取制限（絶飲食など）の影響がある可能性が考えられる。栄養状態や創傷治癒への影響を経過で確認する必要がある。` : `${key}が${down ? '低下' : '低値'}しているが、原因は現時点の情報だけでは判断できません。追加情報が必要です。`;
+          const belowSex = last.belowSex;
+          const fv = valid[0], fm = labValFmt, un0 = last.stdUnit || (std ? std.unit : ''), un = /^[%/]/.test(un0) || !un0 ? un0 : ' ' + un0;
+          const seqTxt = ordered && valid.length >= 2 ? `${fm(fv.valueStd)}から${fm(last.valueStd)}${un}` : '';
+          // 測定時刻が「手術当日」などで術前か術後か分からない値は、術後の変化と断定しない
+          const timeAmbiguous = ctx.surgery && !/術後|POD|帰室後/i.test(last.phase || '') && (!last.phase || /^(?:手術)?当日$|術中/.test(last.phase));
+          const timeNote = timeAmbiguous && !timeNoteShown ? (timeNoteShown = true, `${last.phase || 'この時期'}の値は、採血時刻（手術の前か後か）が記録から分からないため、術後の変化と決めずに採血時刻を確認する。`) : '';
+          const infNote = ctx.infection || ctx.fever ? '発熱や創部などの感染徴候の記載があるため、感染の可能性も含めて評価が必要である。' : '数値だけでは感染の有無を判断できない。';
+          const lookAt = '検査実施時刻・体温・創部・ドレーン排液・呼吸状態などを合わせて評価する必要がある。';
+          if (['Hb', 'Ht', 'RBC'].includes(key) && (down || last.status === 'low' || last.sexLow || belowSex) && ctx.surgery) th = `${key}が${seqTxt ? seqTxt + 'に低下している' : (down ? '低下している' : last.sexLow || belowSex ? `${fm(last.valueStd)}${un}である` : '低値である')}。${last.sexLow ? `${last.sexLow.who}では${last.sexLow.what}を示唆する所見であり、` : belowSex ? '男性としては低めの値であり、' : ''}手術に伴う出血や輸液による希釈などが影響した可能性がある。出血量・循環動態・顔色・倦怠感・活動時の症状を確認する必要がある。${timeNote}`;
+          else if (['Hb', 'Ht', 'RBC'].includes(key) && (down || last.status === 'low') && !ctx.surgery) th = `${key}が${down ? '低下' : '低値'}しているが、原因は現時点の情報だけでは判断できません。追加情報が必要です。`;
+          else if (['Alb', 'TP'].includes(key) && (down || last.status === 'low')) th = (ctx.surgery || ctx.fasting) ? `${key}が${seqTxt ? seqTxt + 'に低下している' : (down ? '低下している' : '低値である')}。手術侵襲に伴う炎症や体液変動（輸液による希釈など）${ctx.fasting ? '、摂取制限（絶飲食など）' : ''}の影響が考えられる。低栄養と断定せず、食事摂取量・体重変化・浮腫・創傷治癒の経過などと合わせて評価する${key === 'Alb' ? '（Albは単独で栄養状態の指標にしない）' : ''}。${timeNote}` : `${key}が${down ? '低下' : '低値'}しているが、原因は現時点の情報だけでは判断できません。低栄養と断定せず、食事摂取量・体重変化・浮腫などの追加情報が必要です。`;
           else if (['WBC', 'CRP'].includes(key) && last.status === 'high' && ctx.kawasaki) th = `${key}の上昇は、川崎病（確定または疑い）の急性期にみられる炎症所見として矛盾しないが、これだけで原因は決められません。細菌感染の有無は発熱の経過・他の検査・医師の判断で確認が必要です。`;
-          else if (['WBC', 'CRP'].includes(key) && last.status === 'high') th = ctx.surgery ? `${key}の上昇は術後の炎症反応によるものではないかと考えられるが、${ctx.infection || ctx.fever ? '発熱や創部などの感染徴候の記載があるため、感染の可能性も含めて' : '感染徴候（発熱・創部・ドレーン排液など）との区別のため'}経過観察が必要である。` : `${key}が高値だが、原因は現時点の情報だけでは判断できません。感染徴候などの追加情報が必要です。`;
+          else if (['WBC', 'CRP'].includes(key) && last.status === 'high') th = ctx.surgery ? (key === 'CRP' && fv && fv !== last && fv.status === 'high' ? `CRPは${fv.phase || '以前'}から${fm(fv.valueStd)}と高く、その後${fm(last.valueStd)}${un}となっている。以前から上昇しているため、術後の変化だけが原因とはいえない（以前からの上昇の原因も確認する）。手術侵襲による炎症反応の可能性はあるが、${infNote}${lookAt}${timeNote}` : `${key}は${seqTxt ? `${seqTxt}に${up ? '増加' : '変化'}している` : `${fm(last.valueStd)}${un}と高値である`}。手術侵襲による炎症反応の可能性があるが、${infNote}${lookAt}${timeNote}`) : `${key}が高値だが、原因は現時点の情報だけでは判断できません。感染徴候などの追加情報が必要です。`;
+          else if (key === 'ALP' && last.methodPending) th = `ALPは${fm(last.valueStd)}${un}で、測定法によって判定が分かれる（${last.methodPending.parts.map(x => `${x.name}の基準なら${LAB_STATUS_LABEL[x.v]}`).join('、')}）。測定法を確認するまで、肝胆道系への影響の根拠にはしない。γGTP・ALT・T-Bilなどと合わせて評価する。`;
+          else if (key === 'AST' && last.status === 'high') th = `ASTが${fm(last.valueStd)}${un}と高値である。肝細胞の障害のほか、骨格筋由来や溶血なども考える。ALT・γGTP・T-Bilなどと合わせて評価する${ctx.surgery ? '（手術・薬剤の影響も含めて）' : ''}。`;
           else if (['AST', 'ALT', 'ALP', 'γGTP', 'T-Bil'].includes(key) && last.status === 'high') th = `${key}が高値のため、肝胆道系への影響の可能性が考えられるが、${ctx.surgery ? '手術・' : ''}薬剤などの影響も含め、現時点の情報だけでは判断できません。経過の確認が必要です。`;
           else if (['BUN', 'Cre', 'Cr'].includes(key) && last.status === 'high') th = `${key}が高値のため、脱水や腎機能の変化の可能性が考えられる。尿量・水分出納と合わせて確認が必要である。`;
           else if (['Na', 'K', 'Cl'].includes(key) && abnormal) th = `${key}が${last.status === 'high' ? '高値' : '低値'}のため、摂取状況・輸液・症状（嘔気・倦怠感・不整脈など）と合わせて確認が必要である。`;
@@ -1960,16 +2003,17 @@
         }
       });
       broken.forEach(b => {
-        const lines = [`原文「${b.source}」${phaseText(b)}`, '　判定：原文不明瞭', '　検査項目名または数値がOCRで崩れている可能性があります。原本確認が必要です。（検査値としては扱わず、ヘンダーソンの分類にも入れていません）'];
-        if (b.prediction) lines.push(`　推定候補：${b.prediction.text} の検査値ではないかと予想されます（推定確度：低）。理由：${b.prediction.reason}。`);
+        const lines = [`原文「${b.source}」${phaseText(b)}`, '　判定：項目不明・判定不可', '　検査項目名または数値がOCRで崩れている可能性があります。原本確認が必要です。（検査値としては扱わず、ヘンダーソンの分類にも入れていません）'];
+        if (b.partial) lines.push(`　読み取れた数値と単位「${b.partial.value} ${b.partial.unit}」は、どの検査項目の値か特定できないため、項目名の候補は示しません。`);
         facts.push(lines.join('\n'));
         reviews.push('読み取れない文字列');
       });
 
       const respLines = [];
       resp.forEach(r => {
-        respLines.push(`${r.key}：${r.raw}%${r.phase ? `（${r.phase}）` : ''}\n　判定：${r.status === 'normal' ? '基準範囲内' : '低値'}（一般的な目安 ${r.ref}。年齢・性別・施設・判定法で基準が異なるため、参考として見てください）${r.key === '1秒率' ? '\n　注：1秒率だけで慢性閉塞性肺疾患（COPD）とは診断できません（気管支拡張薬後の測定・症状・画像などを合わせた医師の判断です）。年齢とともに低下しやすく、固定の70%では評価が難しい場合があります。' : ''}`);
-        if (r.key === '1秒率' && r.status === 'low') thoughts.push({ key: '1秒率', text: `1秒率が一般的な目安（70%）を下回っているため、閉塞性の換気パターンの可能性が考えられるが、年齢・基準の違いもあり、診断は医師の判断です。${ctx.smoking ? '喫煙歴の影響の可能性も考えられるが、現時点では推測に留まります。' : ''}術後の呼吸器合併症のリスク評価として、呼吸状態の観察が必要です。`, needs: '1.呼吸' });
+        const dateNote = /\d{1,2}\s*[\/月]\s*\d{1,2}|\d{4}\s*[\/\-年]|\d{1,2}[:：]\d{2}/.test(String(r.source || '').normalize('NFKC')) ? '' : `\n　注：検査を実施した日の記載がありません。記録されている場所${r.phase ? `（${r.phase}）` : ''}の日時は、実施した日時とは限りません（先に実施した結果が転記されている場合があります）。`;
+        respLines.push(`${r.key}：${r.raw}%${r.phase ? `（${r.phase}）` : ''}\n　判定：${r.status === 'normal' ? '基準範囲内' : '低値'}（一般的な目安 ${r.ref}。年齢・性別・施設・判定法で基準が異なるため、参考として見てください）${r.key === '1秒率' ? '\n　注：1秒率だけで慢性閉塞性肺疾患（COPD）とは診断できません（気管支拡張薬後の測定・症状・画像などを合わせた医師の判断です）。年齢とともに低下しやすく、固定の70%では評価が難しい場合があります。' : ''}${dateNote}`);
+        if (r.key === '1秒率' && r.status === 'low') thoughts.push({ key: '1秒率', text: `${(resp.find(x => x.key === '%肺活量' && x.status === 'normal') || {}).raw ? `%肺活量は${resp.find(x => x.key === '%肺活量' && x.status === 'normal').raw}%と目安の範囲内である一方、` : ''}1秒率が${r.raw}%と一般的な目安（70%）を下回っているため、気流閉塞（閉塞性の換気パターン）が疑われるが、年齢・基準の違いもあり、診断は医師の判断です。${ctx.smoking ? '喫煙歴の影響の可能性も考えられるが、現時点では推測に留まります。' : ''}術後の呼吸器合併症のリスク評価として、呼吸状態の観察が必要です。`, needs: '1.呼吸' });
         if (r.key === '%肺活量' && r.status === 'low') thoughts.push({ key: '%肺活量', text: '%肺活量が一般的な目安（80%）を下回っているため、拡張しにくい（拘束性の）換気パターンの可能性が考えられるが、診断は医師の判断です。', needs: '1.呼吸' });
       });
       // v.79 lab-reading rules (context links; change and context over a single value; the facility's own reference range comes first)
@@ -1981,22 +2025,23 @@
         const glu = lastOf('血糖');
         if (glu && glu.status !== 'normal' && /インスリン|糖尿病|血糖降下|SU薬|ステロイド/.test(allText)) thoughts.push({ key: '血糖と治療', text: '血糖が基準を外れ、糖尿病・インスリンなどの記載があります。食事摂取量・投与時刻・低血糖症状と合わせ、前回値からの変化で見ます。', needs: '2.飲食' });
         const hb = lastOf('Hb');
-        const hbCtx = hb && hb.status === 'low' ? Array.from(new Set(allText.match(/出血|子宮筋腫|過多月経|がん|癌|ドレーン/g) || [])) : []; // only terms documented in this record
+        const hbCtx = hb && (hb.status === 'low' || hb.sexLow) ? Array.from(new Set(allText.match(/出血|子宮筋腫|過多月経|がん|癌|ドレーン/g) || [])) : []; // only terms documented in this record
         if (hbCtx.length) thoughts.push({ key: 'Hbと背景', text: 'Hbが低く、' + hbCtx.join('・') + 'の記載があります。出血量・めまい・息切れと合わせ、変化量（前回値との差）で見ます。', needs: '9.安全' });
         const liver = ['AST', 'ALT', 'ALP', 'γGTP', 'T-Bil'].map(lastOf).filter(Boolean);
         if (liver.some(l => l.status === 'high') && /膵頭部|肝転移|胆管|胆道|黄疸/.test(allText)) thoughts.push({ key: '肝胆道系と背景', text: '肝胆道系の値が高く、膵頭部・肝転移・黄疸などの記載があります。黄疸・掻痒・尿便の色・発熱と合わせて見ます（胆道感染の可能性は医師が判断します）。', needs: '3.排泄' });
       }
-      if (resp.some(r => r.status === 'normal') && !resp.some(r => r.status === 'low')) thoughts.push({ key: '呼吸機能', text: '術前の呼吸機能は、一般的な目安では保たれていると考えられる。', needs: '1.呼吸' });
+      if (resp.some(r => r.status === 'normal') && !resp.some(r => r.status === 'low')) thoughts.push({ key: '呼吸機能', text: '呼吸機能検査の結果は、一般的な目安では保たれていると考えられる（実施時期は記録の記載で確認する）。', needs: '1.呼吸' });
 
       const vitalLines = [];
       vitals.forEach(v => {
-        vitalLines.push(`${v.key}：${v.raw || v.value}${v.unit}${v.phase ? `（${v.phase}）` : ''}　判定：${LAB_STATUS_LABEL[v.status]}（一般的な目安 ${v.ref}）${v.roomAir ? '　（室内気の値）' : ''}${v.oxygen ? '　※酸素投与下の値のため、室内気の状態とは評価できません' : ''}`);
+        const bpm = v.key === '血圧' ? String(v.value).match(/^(\d+)\/(\d+)$/) : null, bpc = bpm ? bpOfficeClass(+bpm[1], +bpm[2]) : null;
+        vitalLines.push(`${v.key}：${v.raw || v.value}${v.unit}${v.phase ? `（${v.phase}）` : ''}　判定：${bpc && bpc.rank >= 2 && v.status === 'normal' ? `診察室血圧の分類では${bpc.name}（高血圧治療ガイドライン2019）。一般的な目安の範囲内` : LAB_STATUS_LABEL[v.status]}（一般的な目安 ${v.ref}）${v.roomAir ? '　（室内気の値）' : ''}${v.oxygen ? '　※酸素投与下の値のため、室内気の状態とは評価できません' : ''}${bpc && bpc.rank >= 2 ? '\n　注：術後の痛み・体位・測定条件で変わるため、1回の値で高血圧とは判断せず、経過で見ます。' : ''}`);
       });
       const hasAny = labs.length || broken.length || resp.length || vitals.length;
       if (!hasAny) return { has: false, text: '', html: '', labs, broken, resp, vitals, checks: [] };
 
       const checks = [];
-      labs.forEach(l => { if (!l.source) checks.push('原文が残っていません'); if (l.quality !== 'valid' && l.status !== 'review') checks.push(`${l.key}：要確認の値に判定が付いています`); if (l.prediction && l.prediction.value != null && !['medium', 'high'].includes(l.prediction.confidence)) checks.push(`${l.key}：確度が低い予想に値が付いています`); });
+      labs.forEach(l => { if (!l.source) checks.push('原文が残っていません'); if (l.quality !== 'valid' && l.status !== 'review') checks.push(`${l.key}：要確認の値に判定が付いています`); if (l.prediction && l.prediction.value != null && !['medium', 'high', 'unknown'].includes(l.prediction.confidence)) checks.push(`${l.key}：確度が低い予想に値が付いています`); });
       broken.forEach(b => { if (labs.some(l => l.source === b.source)) checks.push('読めない文字列が検査値になっています'); });
       let out = '【検査データ臨床評価・アセスメントノート】\n（記録に基づく評価：記録と、登録された基準との比較です。「事実」と「考察・予測」を分けています。予想は原文の値を書き換えるものではありません）\n';
       if (facts.length) out += `\n■ 検査値（事実：原文・基準との比較）\n${facts.join('\n')}\n`;
