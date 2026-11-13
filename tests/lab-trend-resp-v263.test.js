@@ -31,3 +31,10 @@ test('trend: targets, thresholds and patient quotes are not measurements', () =>
   assert.strictEqual(keys(t), '体温');
   assert.strictEqual(t.rows[0].cells['10/5 9:00'].length, 1);
 });
+
+test('trend: lab values stay even with words glued to the unit; a course note after an intervention is not a measurement', () => {
+  const t = app.buildLabTrendTable([card('a', 'CRP 3.8mg/dLで基準値を超えている', '10/5 9:00'), card('b', 'Cr 1.3 mg/dL', '10/5 9:00'),
+    card('c', '酸素2L鼻カニューレ開始し、SpO2 94%に上昇。', '10/5 9:00')], { includeVitals: true });
+  assert.strictEqual(keys(t), 'CRP,Cre'.split(',').sort((x, y) => keys(t).indexOf(x) - keys(t).indexOf(y)).join(','));
+  assert.ok(!keys(t).includes('SpO2'));
+});

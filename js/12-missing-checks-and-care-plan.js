@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.248'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.265'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -2479,7 +2479,7 @@
         if (/酸素/.test(t.now) && /SpO2/.test(t.now)) msgs.push('SpO2は、酸素投与中の値と室内気の値を分けて評価します（酸素投与中の値から、室内気での酸素化を推測しません）');
       }
       if (rule.key === 'inf') {
-        const dev = [[/ドレーン/, 'ドレーン'], [/膀胱留置|バルーン|尿道カテーテル/, '尿道カテーテル'], [/CV|中心静脈|末梢ライン|点滴|ルート/, '血管内ライン'], [/創|手術/, '手術創']].filter(([re]) => re.test(t.all)).map(([, n]) => n);
+        const dev = [[/ドレーン/, 'ドレーン'], [/膀胱留置|バルーン|尿道カテーテル/, '尿道カテーテル'], [/(?<![A-Za-z])CV(?![A-Za-z])|中心静脈|末梢ライン|点滴|ルート/, '血管内ライン'], [/創|手術/, '手術創']].filter(([re]) => re.test(t.all)).map(([, n]) => n);
         if (dev.length) msgs.push(`感染のリスク要因（${dev.join('・')}）と、実際の感染の徴候（発熱・創部の発赤や腫脹・排液の性状の変化）は分けて評価します`);
       }
       return msgs;
@@ -2620,7 +2620,7 @@
       return out;
     }
 
-    const CP_CASE_TERMS = [[/ストーマ|パウチ/, 'ストーマ'], [/股関節|脱臼肢位|人工骨頭/, '股関節'], [/インスリン/, 'インスリン'], [/胃管|NGチューブ|経鼻胃管/, '胃管'], [/膀胱留置|バルーン|尿道カテーテル/, '尿道カテーテル'], [/ドレーン/, 'ドレーン'], [/酸素(?:投与|吸入|カニュ)/, '酸素投与'], [/CV|中心静脈/, '中心静脈カテーテル'], [/弾性ストッキング|フットポンプ/, '弾性ストッキング']];
+    const CP_CASE_TERMS = [[/ストーマ|パウチ/, 'ストーマ'], [/股関節|脱臼肢位|人工骨頭/, '股関節'], [/インスリン/, 'インスリン'], [/胃管|NGチューブ|経鼻胃管/, '胃管'], [/膀胱留置|バルーン|尿道カテーテル/, '尿道カテーテル'], [/ドレーン/, 'ドレーン'], [/酸素(?:投与|吸入|カニュ)/, '酸素投与'], [/(?<![A-Za-z])CV(?![A-Za-z])|中心静脈/, '中心静脈カテーテル'], [/弾性ストッキング|フットポンプ/, '弾性ストッキング']];
     function cpForeignTerms(cp, plan) {
       const text = cpEvidenceTexts(cp).all;
       const body = cpNorm([plan.problem, plan.goalLong, plan.goalShort, ...plan.op, ...plan.tp, ...plan.ep].join('\n'));

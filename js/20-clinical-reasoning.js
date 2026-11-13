@@ -1,8 +1,11 @@
 // 問題の推論 → 理論的裏付け → 患者固有の原因分析 を、症状ごとの知識表から共通の手順で行う。
 // 一般的な知識（定義・病態・典型的な原因）は、患者に実際に起きた事実とは分けて扱う。
 // 記録にない原因（水分摂取不足など）は作らず、「記録がない」「可能性がある」と書く。
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['20'] = 'v.259'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['20'] = 'v.265'; // Version stamp (scripts/stamp-version.js)
 
+    // v.265: a cause/finding/info entry with `ctx` applies only when the record's own context fits (e.g. dislocation only for hip/joint-replacement or fracture cases).
+    const CR_CTX_ORTHO = /股関節|人工骨頭|人工関節|人工膝|THA|BHA|TKA|大腿骨|骨折|脱臼|免荷|荷重制限|下肢の手術/;
+    const CR_CTX_FRAIL = /(?:[7-9]\d)\s*歳|高齢|筋力|ふらつ|転倒歴|フレイル|サルコペニア|麻痺|歩行器|杖|要介護|MMT|骨折/;
     const CR_TOPICS = [
       { id: 'bowel', label: '便秘', needs: [3], plan: /便秘|排便|イレウス|腸管|消化管運動/,
         definition: '便が腸内にとどまり、排便の回数や量が減る、または出しにくくなった状態',
@@ -20,10 +23,10 @@
         note: '排便がない日数だけで、便秘やイレウスとは判断しない。' },
       { id: 'pain', label: '疼痛', needs: [4], plan: /疼痛|痛み/,
         definition: '組織の損傷やその刺激によって生じる、不快な感覚や情動の体験',
-        patho: '手術や外傷で組織が傷つくと発痛物質が放出されて痛みが生じ、動かす・荷重するなどの刺激で強まりやすい。痛みは動作の拒否、睡眠や食欲の低下、不安の増強につながり、回復に必要な離床を妨げる',
+        patho: '手術や外傷で組織が傷つくと発痛物質が放出されて痛みが生じ、動かす・体位を変えるなどの刺激で強まりやすい。痛みは動作の拒否、睡眠や食欲の低下、不安の増強につながり、回復に必要な離床を妨げる',
         triggers: [{ label: '痛みの訴え', re: /痛(?:い|み|くて)|疼痛|NRS|ペインスケール|苦痛表情/ }],
         findings: [{ label: '痛みの強さの数値化', re: /NRS\s*\d|ペインスケール\s*[「]?\d|VAS/ }, { label: '動作による増強', re: /動(?:く|かす|き始め|かし始め)[^。]{0,8}痛|体位変換時|荷重[^。]{0,6}痛/ }],
-        causes: [{ label: '手術による組織損傷', re: /術後|手術|創部|骨折/ }, { label: '体動・荷重の刺激', re: /動(?:く|かす)|体位変換|荷重|移乗|リハ/ }, { label: '痛みへの不安・恐怖', re: /怖|不安|こわ|ずれ/ }],
+        causes: [{ label: '手術による組織損傷', re: /術後|手術|創部|骨折/ }, { label: '体動・体位変換の刺激', re: /動(?:く|かす)|体位変換|荷重|移乗|リハ/ }, { label: '痛みへの不安・恐怖', re: /怖|不安|こわ|ずれ/ }],
         counter: [{ label: '鎮痛薬で緩和している', re: /鎮痛[^。]{0,8}(?:効|軽減|落ち着)|痛み[^。]{0,6}(?:軽減|落ち着|改善)/, bearing: '痛みは薬で調整できている部分がある' }],
         info: [{ label: '痛みの部位・性質', re: /部位|ズキ|鈍痛|創部痛|右.{0,4}痛/ }, { label: '鎮痛薬の使用と効果', re: /鎮痛|ロキソ|アセリオ|カロナール|レペタン|坐薬/ }, { label: '安静時と動作時の違い', re: /安静時|体位変換時|動作時|体動時/ }],
         note: '痛みの訴えは主観であり、数値・表情・行動と合わせて判断する。' },
@@ -47,12 +50,12 @@
         note: '前日に眠れなくても、最新の記録で眠れていれば現在は改善している。' },
       { id: 'mobility', label: '移動・活動の制限', needs: [4], plan: /可動|廃用|転倒|活動|移動/,
         definition: '体位を変える、移乗する、歩くといった動作を自分の力で安全に行うことが制限された状態',
-        patho: '骨折や手術で動かせる範囲や荷重に制限が生じ、痛みや不安が重なると動く機会が減る。動かない状態が続くと筋力低下や関節拘縮、血栓などの合併症が起こりやすい',
+        patho: '骨折・手術・痛み・治療上の安静などで動かせる範囲に制限が生じ、痛みや不安が重なると動く機会が減る。動かない状態が続くと筋力低下や関節拘縮、血栓などの合併症が起こりやすい',
         triggers: [{ label: '動作の制限や介助の必要性', re: /介助|見守り|動けない|制限|禁止|免荷|安静|中止|不可/ }],
         findings: [{ label: '移乗・歩行の実施', re: /移乗|歩行訓練|端坐位|車いす|車椅子/ }],
-        causes: [{ label: '痛み', re: /動[^。]{0,8}痛|痛[^。]{0,8}動|疼痛/ }, { label: '脱臼や転倒への不安', re: /ずれ|脱臼|怖|不安|転倒/ }, { label: '治療による制限', re: /股関節|屈曲禁止|荷重|牽引|固定|安静/ }, { label: '入院前からの筋力・バランスの低下', re: /筋力|バランス|ふらつき|MMT/ }],
+        causes: [{ label: '痛み', re: /動[^。]{0,8}痛|痛[^。]{0,8}動|疼痛/ }, { label: '動くことへの不安・転倒への不安', re: /(?:動|歩|立)[^。]{0,8}(?:不安|怖)|(?:不安|怖)[^。]{0,8}(?:動|歩|立)|転倒|ずれ|脱臼/ }, { label: '脱臼への不安', re: /ずれ|脱臼/, ctx: CR_CTX_ORTHO }, { label: '治療による制限', re: /股関節|屈曲禁止|荷重|牽引|固定|安静/ }, { label: '入院前からの筋力・バランスの低下', re: /筋力(?:の)?(?:低下|が弱|が落ち)|ふらつ|(?:立位|歩行|姿勢)バランス|バランス(?:不良|低下|が悪|が不安定)|MMT/, ctx: CR_CTX_FRAIL }],
         counter: [{ label: '自力で動作ができる', re: /自力で|自分で[^。]{0,6}(?:動|移|立)|ひとりで/, bearing: '自分で行える動作を足がかりに離床を進められる' }],
-        info: [{ label: '入院前のADL', re: /ADL|自立|入院前/ }, { label: '筋力（MMT）', re: /MMT|筋力/ }, { label: '退院後の住環境', re: /階段|2階|段差|住居|布団/ }],
+        info: [{ label: '入院前のADL', re: /ADL|自立|入院前/ }, { label: '筋力（MMT）', re: /MMT|筋力/, ctx: CR_CTX_FRAIL }, { label: '退院後の住環境', re: /階段|2階|段差|住居|布団/ }],
         note: '動作の改善は、動作そのものの記録で確かめ、他の側面の改善とは分けて見る。' },
       // Scope: need 14 in any phase. A question or 「わからない」 about daily life, movement or drugs shows a knowledge gap; it is
       // expected before teaching, so the problem is the gap itself plus readiness to learn, never a lack of will.
@@ -94,9 +97,12 @@
       return out;
     }
     // 1つのテーマについて、記録に基づく推論の結果を返す（創作はしない）
-    function crAnalyzeTopic(cp, topic) {
+    function crAnalyzeTopic(cp, topic0) {
       // Pre-admission records are the baseline: they inform what is missing, but are not signs of the present problem.
-      const all = crCards(cp); const cur = all.filter(c => String(c.timestamp || '').trim() && !/^入院前/.test(String(c.timestamp))); const cards = cur.length ? cur : all.filter(c => !/^入院前/.test(String(c.timestamp || '')));
+      const all = crCards(cp);
+      const ctxText = all.map(c => String(c.text || '')).join('\n').normalize('NFKC');
+      const fit = list => (list || []).filter(x => !x.ctx || x.ctx.test(ctxText));
+      const topic = { ...topic0, triggers: fit(topic0.triggers), findings: fit(topic0.findings), causes: fit(topic0.causes), counter: fit(topic0.counter), info: fit(topic0.info) }; const cur = all.filter(c => String(c.timestamp || '').trim() && !/^入院前/.test(String(c.timestamp))); const cards = cur.length ? cur : all.filter(c => !/^入院前/.test(String(c.timestamp || '')));
       const trig = crScan(cards, topic.triggers, 'pos');
       const finds = crScan(cards, topic.findings, 'pos');
       const supported = crScan(cards, topic.causes, 'pos');

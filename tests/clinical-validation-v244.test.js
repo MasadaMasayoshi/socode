@@ -54,7 +54,8 @@ test('重点アセスメント：入院前→入院後の順で書き、統合�
   app.buildCarePlansByRules(cp);
   const d = app.buildFocusDraft(cp, 4);
   const a = d.focusAnalysis;
-  assert.ok(a.indexOf('入院前') >= 0 && (a.indexOf('術後1日目') < 0 || a.indexOf('入院前') < a.indexOf('術後1日目')));
+  // v.265: the old `>= 0` passed only because the cause label 「入院前からの筋力・バランスの低下」 happened to contain the words; the order rule is what matters.
+  assert.ok(a.indexOf('入院前') < 0 || a.indexOf('術後1日目') < 0 || a.indexOf('入院前') < a.indexOf('術後1日目'));
   assert.ok(!/…/.test(a + d.focusIntegration + d.focusProblem));
   assert.ok(!d.focusIntegration.includes(a.split('\n')[0]));
   assert.doesNotMatch(a + d.focusIntegration, /継続した観察と援助が必要/);

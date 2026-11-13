@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.261'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.265'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -175,6 +175,9 @@
       { key: 'related_to', label: '関連する' }
     ];
     const RM_RELATION_KEYS = new Set(RM_RELATIONS.map(r => r.key));
+    // v.265: risk-state problems carry the risk factors found in the record and the condition that refutes them.
+    function rmRiskEvidence(factors, refutation) { return `危険因子：${(factors && factors.length ? factors : ['記録上の危険因子は未確認']).join('・')}／反証条件：${refutation}`; }
+    const RM_NON_CAUSAL_RELATIONS = new Set(['treats', 'managed_by', 'addresses', 'improves', 'contradicts']);
 
     const RM_V1_KIND = { patient: 'patient_fact', psychosocial: 'patient_fact', disease: 'disease', treatment: 'treatment', pathology: 'pathophysiology', symptom: 'symptom', problem: 'nursing_problem', risk: 'nursing_problem' };
 
@@ -387,7 +390,8 @@
     // v.126: per-problem cause chains (nearest cause first, "↑ 原因" between steps)
     function rmCauseChains(map, pid) {
       const into = new Map();
-      map.edges.forEach(e => { if (!into.has(e.target)) into.set(e.target, []); into.get(e.target).push(e.source); });
+      // v.265: treatment/management links are not causes of the finding they treat (e.g. an analgesic does not cause the wound pain).
+      map.edges.forEach(e => { if (RM_NON_CAUSAL_RELATIONS.has(e.relation)) return; if (!into.has(e.target)) into.set(e.target, []); into.get(e.target).push(e.source); });
       const byId = new Map(map.nodes.map(n => [n.id, n]));
       const out = [];
       const walk = (id, path) => {
@@ -1880,6 +1884,10 @@
 
       const smokeItem = backgroundRecords.find(i => !/家族歴/.test(`${i.fieldLabel || ''}${i.text}`) && !rmIsFamilySpeech(i.text) && rmPositiveMatch(/喫煙|タバコ|たばこ|煙草/, i.text) && !/非喫煙|喫煙[^\n]{0,4}(?:なし|無)|吸わない/.test(String(i.text).normalize('NFKC')));
       const smoke = smokeItem ? B('smoking', smokeItem, short(smokeItem, 90), evidenceKey(short(smokeItem, 500))) : null;
+      // v.265: a smoking history that ended a year or more ago is background only; it is not "current" ciliary dysfunction.
+      const smokeQuit = smokeItem ? String(smokeItem.text).normalize('NFKC').match(/(\d+)\s*年前[^\n]{0,8}禁煙|禁煙[^\n]{0,6}(\d+)\s*年(?!間)/) : null;
+      const smokeFormer = !!(smokeQuit && Number(smokeQuit[1] || smokeQuit[2]) >= 1);
+      const smokeNow = smokeFormer ? null : smoke;
       if (disease) {
         const factorRecords = backgroundRecords;
         RM_DISEASE_FACTORS.forEach((f, k) => {
@@ -2078,9 +2086,9 @@
         E(suppress, sputum, 'causes', { evidence: '咳が弱く痰を出しにくい', predicted: !sputumActual, noBridge: true });
         E(reflex, sputum, 'contributes_to', { evidence: '気道の分泌物を出す力が下がる', predicted: !sputumActual, noBridge: true });
         let reserve = null;
-        if (smoke || aging || fev) {
-          reserve = N('reserve', 'pathophysiology', smoke ? '気道の線毛機能の低下・分泌物の増加（呼吸予備力の低下）' : '加齢による呼吸予備力の低下', { source: 'knowledge' });
-          if (smoke) E(smoke, reserve, 'contributes_to', { evidence: '喫煙による気道への影響' });
+        if (smokeNow || aging || fev) {
+          reserve = N('reserve', 'pathophysiology', smokeNow ? '気道の線毛機能の低下・分泌物の増加（呼吸予備力の低下）' : '加齢による呼吸予備力の低下', { source: 'knowledge' });
+          if (smokeNow) E(smokeNow, reserve, 'contributes_to', { evidence: '喫煙による気道への影響' });
           if (aging) E(aging, reserve, 'contributes_to', { evidence: '加齢による呼吸機能の低下' });
           if (fev) E(N('lab_fev', 'lab', `FEV1% ${fev[1]}%`), reserve, 'supports', { evidence: 'FEV1%70%未満は閉塞性の換気障害の目安' });
           E(reserve, sputum, 'contributes_to', { evidence: '分泌物が多く出しにくい', predicted: !sputumActual });
@@ -2150,7 +2158,7 @@
       if (!(surgery && surgeryDone) && /肺炎|気管支炎|COPD|慢性閉塞|呼吸不全|肺気腫/.test(dxLabel)) {
         const lung = N('lung_inflam', 'pathophysiology', '肺胞・気道の炎症・分泌物（滲出液）の増加', { source: 'knowledge' });
         if (disease) E(disease, lung, 'causes', { evidence: '病原体による炎症' });
-        if (smoke) E(smoke, lung, 'contributes_to', { evidence: '喫煙で気道の線毛運動が弱まり分泌物が増え、肺の感染・炎症が起こりやすい（発症の原因とは断定しない）' });
+        if (smokeNow) E(smokeNow, lung, 'contributes_to', { evidence: '喫煙で気道の線毛運動が弱まり分泌物が増え、肺の感染・炎症が起こりやすい（発症の原因とは断定しない）' });
         const fever = lab('体温');
 
         [wbcEarly, crpEarly, fever].filter(l => l && l.flag === 'high').forEach(l => E(labNode(l), lung, 'supports', { evidence: '炎症の強さを示す' }));
@@ -2231,7 +2239,7 @@
         const asp = N('aspiration', 'future_risk', /肺炎/.test(dxLabel) ? '誤嚥（誤嚥性肺炎の再発）の可能性' : '誤嚥・誤嚥性肺炎の可能性', { source: 'knowledge', observed: false });
         E(sw, asp, 'predicts', { predicted: true, evidence: '食物・唾液が気道に入る' });
         if (oral) E(N('oral', 'symptom', short(oral, 30), { items: [oral] }), asp, 'contributes_to', { predicted: true, evidence: '口の中の細菌が増える' });
-        if (smoke) E(smoke, asp, 'contributes_to', { evidence: '喫煙で気道の防御機能（線毛運動・咳嗽反射）が弱まり、誤嚥したものを排出しにくい（肺炎の背景要因。原因とは断定しない）' });
+        if (smokeNow) E(smokeNow, asp, 'contributes_to', { evidence: '喫煙で気道の防御機能（線毛運動・咳嗽反射）が弱まり、誤嚥したものを排出しにくい（肺炎の背景要因。原因とは断定しない）' });
         if (disease && /肺炎/.test(dxLabel)) E(sw, disease, 'contributes_to', { evidence: '口腔内細菌を含む唾液・食物が気道へ入る' });
         if (swSign) {
           const pDys = N('p_dysphagia', 'nursing_problem', '嚥下障害', { cat: 'nutr' });
@@ -2470,14 +2478,14 @@
       // A temporary IV line (持続点滴 / ルート確保) belongs to the hospital phase: once the record documents discharge or
       // post-discharge follow-up, it is not evidence of a current line-related infection risk.
       const dischargedInRecord = /退院(?!予定|の目安|準備|前|指導|調整|後の)|退院後|外来(?:通院|診療|にて|受診)|通院(?:を継続|中)/.test(items.map(i => i.text).join('\n'));
-      const lineItem = findItem(/ドレーン|カテーテル|膀胱留置|バルーン|中心静脈|CV|PICC|ルート確保|持続点滴/, i => !(dischargedInRecord && /持続点滴|ルート確保/.test(i.text) && !/ドレーン|カテーテル|膀胱留置|バルーン|中心静脈|CV|PICC/.test(i.text)));
+      const lineItem = findItem(/ドレーン|カテーテル|膀胱留置|バルーン|中心静脈|(?<![A-Za-z])CV(?![A-Za-z])|PICC|ルート確保|持続点滴/, i => !(dischargedInRecord && /持続点滴|ルート確保/.test(i.text) && !/ドレーン|カテーテル|膀胱留置|バルーン|中心静脈|(?<![A-Za-z])CV(?![A-Za-z])|PICC/.test(i.text)));
       const dmItem = findItem(/糖尿病|DM\b/);
       const wbc = lab('WBC'), crp = lab('CRP');
       if ((surgery && surgeryDone) || lineItem) {
 
         const abdominal = surgery && /胃|腸|腹腔|肝|胆|膵|脾|虫垂|ヘルニア/.test(surgery.label + dxLabel);
         const urinary = !!lineItem && /膀胱|尿道|バルーン/.test(lineItem.text);
-        const ln = (lineItem && nodes.get('dm_drip') && /持続点滴/.test(lineItem.text) && !/ドレーン|カテーテル|CV|PICC/.test(lineItem.text)) ? nodes.get('dm_drip') : lineItem ? N('lines', 'treatment', short(lineItem, 30), { items: [lineItem] }) : null;
+        const ln = (lineItem && nodes.get('dm_drip') && /持続点滴/.test(lineItem.text) && !/ドレーン|カテーテル|(?<![A-Za-z])CV(?![A-Za-z])|PICC/.test(lineItem.text)) ? nodes.get('dm_drip') : lineItem ? N('lines', 'treatment', short(lineItem, 30), { items: [lineItem] }) : null;
         if (ln && surgery && !edges.some(e => e.target === ln.id)) E(surgery, ln, 'results_in');
         const risks = [];
         let barrier = null;
@@ -2600,7 +2608,15 @@
         else if (disease) E(disease, low, 'contributes_to');
         const lowSalt = findItem(/塩分制限|減塩/);
         if (lowSalt && intakeItem && /味がしない|味が薄|おいしくない/.test(intakeItem.text)) E(N('lowsalt', 'treatment', '塩分制限食', { items: [lowSalt] }), low, 'contributes_to', { evidence: '味が薄く食欲が落ちる' });
-        const pNutr = N('p_nutr', 'nursing_problem', gastric ? '栄養摂取量不足（消化吸収の変化に関連した低栄養状態）' : '栄養摂取量不足', { cat: 'nutr' });
+        // v.265: an NPO order, a small weight change or one lab value alone does not establish "insufficient intake" — keep it as a risk state with its risk factors and the condition that would refute it.
+        const wlm = weightItem ? String(weightItem.text).normalize('NFKC').match(/体重\s*(\d+(?:\.\d+)?)\s*kg[^\n]{0,20}?(\d+(?:\.\d+)?)\s*kg\s*減/) : null;
+        const weightLossPct = wlm ? 100 * Number(wlm[2]) / (Number(wlm[1]) + Number(wlm[2])) : null;
+        const intakeDirect = !!intakeItem && /摂取[^\n]{0,4}[0-4]割|[0-4]割摂取|食事量[^\n]{0,6}(?:低下|減)|食欲(?:不振|低下|がない)/.test(String(intakeItem.text).normalize('NFKC'));
+        const nutrDirect = intakeDirect || (!!weightItem && (weightLossPct === null || weightLossPct >= 5));
+        const nutrFactors = [gastric ? '胃切除後の貯留機能の消失' : '', intakeItem && /絶食|禁食/.test(intakeItem.text) ? '絶食' : '', wlm ? `体重${wlm[2]}kg減` : '', albL && albL.flag === 'low' ? `${albL.key || 'Alb'}低値` : ''].filter(Boolean);
+        const pNutr = nutrDirect
+          ? N('p_nutr', 'nursing_problem', gastric ? '栄養摂取量不足（消化吸収の変化に関連した低栄養状態）' : '栄養摂取量不足', { cat: 'nutr' })
+          : N('p_nutr', 'nursing_problem', gastric ? '栄養摂取量不足リスク状態（胃切除後・術後絶食）' : '栄養摂取量不足リスク状態', { cat: 'nutr', evidence: rmRiskEvidence(nutrFactors, '食事摂取量・体重・栄養指標の推移で摂取量が保たれていれば、問題から外す') });
         E(low, pNutr, 'results_in', { noBridge: true });
         if (albToProblem) E(labNode(albL), pNutr, 'supports', { evidence: '栄養状態を示す客観データ' });
       } else if (nutrSign) E(nutrSign, N('p_nutr', 'nursing_problem', '栄養摂取量不足（消化吸収の変化に関連）', { cat: 'nutr' }), 'results_in', { predicted: true });
@@ -2667,7 +2683,10 @@
         const tolItem = findLast(/息切れ|息が切れ|SpO2[^\n]{0,12}(?:低下|↓|下が)|疲れやす|すぐ疲れ|疲労感|倦怠感/, i => notHist(i));
         const mobOnly = !adlItem && !tolItem && !(nodes.get('lung_hyp') || nodes.get('hypoxia'))
           && items.some(i => notHist(i) && /(?:寝返り|起き上が|立ち上が|起立|端坐位|歩行|移乗)[^\n]{0,10}(?:困難|できない|全?介助)|免荷|荷重(?:制限|不可)|麻痺/.test(i.text));
-        const pAct = mobOnly ? null : N('p_act', 'nursing_problem', adlItem ? 'セルフケア不足（活動制限・体力の低下）' : '活動耐性低下（動くと息切れ・体力の低下）', { cat: 'act' });
+        // v.265: therapeutic bed rest / activity restriction alone is not an activity-intolerance finding; without exertional dyspnea, fatigue, or ADL limitation it stays a risk state.
+        const actDirect = !!(adlItem || tolItem || (bedItem && /動くと[^\n]{0,4}息切れ|歩くと[^\n]{0,14}(?:低下|息切れ)|ADL[^\n]{0,6}(?:低下|介助|一部)|車椅子|移乗|歩行[^\n]{0,8}(?:介助|困難|不安定)|トイレ[^\n]{0,8}介助/.test(String(bedItem.text).normalize('NFKC'))));
+        const actFactors = [bedItem && /安静|臥床/.test(bedItem.text) ? '術後安静' : '', gastric || (surgery && surgeryDone) ? '術後侵襲' : '', pain && painItem ? '創部痛' : '', lineItem ? 'ライン・ドレーン類' : ''].filter(Boolean);
+        const pAct = mobOnly ? null : N('p_act', 'nursing_problem', adlItem ? 'セルフケア不足（活動制限・体力の低下）' : actDirect ? '活動耐性低下（動くと息切れ・体力の低下）' : '活動耐性低下リスク状態（術後安静・侵襲による体力の低下）', actDirect ? { cat: 'act' } : { cat: 'act', evidence: rmRiskEvidence(actFactors, '離床後の息切れ・疲労・活動の中断がなく、ADLが保たれていれば、問題から外す') });
 
         const adlRe = /清拭|更衣|入浴|排泄|整容|洗面|身の回り|ADL|介助/;
         const adlText = adlItem ? short(adlItem, 30, adlRe) : '';
@@ -4323,6 +4342,7 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
       const lines = [];
       rows.forEach(r => {
         lines.push(`看護問題 ${rmDisplayLabel(r.problem)}`);
+        if (/^危険因子：/.test(r.problem.evidence || '')) lines.push(`　${r.problem.evidence}`);
         if (!r.chains.length) lines.push('　（つながる原因の記載なし）');
         r.chains.forEach((ch, k) => lines.push(`　流れ${k + 1}：${ch.map(n => rmDisplayLabel(n).replace(/^#\d+\s*/, '')).join(' → ')}`));
       });
@@ -4347,5 +4367,5 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
     if (typeof document !== 'undefined' && document.getElementById && document.getElementById('view-relation')) initRelationMapUi();
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { relationMapExportText, relationMapPrintSection, rmChainReport, RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, rmClinicalFields, rmEpistemicStatus, rmPrepareClinicalMap, findRelationEvidence, relationMapTextHtml, rmImportClinicalEntities, layoutRelationMap, buildRelationMapFromRecord, rmSufficiencyLineHtml, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmDragRoutes, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel, rmShorten, rmProblemSubmap, rmReduceShortcuts, rmNodeSize, RM_PROBLEM_NOTES, rmPlainNote, rmLifeStage, rmMergeDuplicateProblems, rmLabsAsEvidence, layoutRelationMapOnce });
+  Object.assign(module.exports, { relationMapExportText, relationMapPrintSection, rmChainReport, RM_TYPES, RM_RELATIONS, rmWrapText, rmDisplayLabel, normalizeRelationMap, rmClinicalFields, rmEpistemicStatus, rmPrepareClinicalMap, findRelationEvidence, relationMapTextHtml, rmImportClinicalEntities, layoutRelationMap, buildRelationMapFromRecord, rmSufficiencyLineHtml, relationMapSvg, relationMapPrintHtml, rmRouteEdges, rmDragRoutes, rmRoutePath, rmRect, rmApplyBridges, rmInsertBetween, RM_BRIDGE_RULES, rmZoomAt, rmHideAdded, rmShowAdded, rmLabAttachments, validateRelationMap, rmApplyFixes, rmProblemCategory, rmSetFullscreen, rmPhaseOfItems, rmCleanProblemLabel, rmShorten, rmProblemSubmap, rmCauseChains, rmReduceShortcuts, rmNodeSize, RM_PROBLEM_NOTES, rmPlainNote, rmLifeStage, rmMergeDuplicateProblems, rmLabsAsEvidence, layoutRelationMapOnce });
 }
