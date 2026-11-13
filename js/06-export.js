@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.261'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.268'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -347,6 +347,8 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       if (on('unclassified') && destRows.length) body += `<h2>${n++}. 保持先（ヘンダーソンに無理に入れないカードの置き場）</h2><ul>${destRows.map(r => `<li>${escapeHtml(r.text)}<br><span class="muted">→ ${escapeHtml(r.destination.label)}：${escapeHtml(r.destination.to)}</span></li>`).join('')}</ul>`;
       if (on('henderson')) {
       body += `<h2>${n++}. ヘンダーソン14項目別アセスメント整理</h2>`;
+      const sufOv = needSufficiencyOverview(cp);
+      if (sufOv.length) body += `<h3>欲求の充足状況（一覧）</h3><ul>${sufOv.map(r => `<li>${r.need.id}. ${escapeHtml(r.need.name.replace(/^\d+\.\s*/, ''))}＝${escapeHtml(r.text)}</li>`).join('')}</ul>`;
       const active = items.filter(i => i.type !== 'unnecessary');
       let anyNeed = false;
       HENDERSON_NEEDS.forEach(need => {
@@ -358,7 +360,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
         body += `<h3>${need.id}. ${escapeHtml(need.name.replace(/^\d+\.\s*/, ''))}</h3><table><thead><tr>${cols.map(c => `<th style="width:${Math.floor(100 / cols.length)}%">${PRINT_COL_LABELS[c]}</th>`).join('')}</tr></thead><tbody><tr>${cols.map(col => {
           const list = matching.filter(i => (i.assessmentCols?.[need.id] || 'unclassified') === col);
           return list.length ? `<td>${printAssessmentCellList(col, list, labels, need.id)}</td>` : '<td class="empty">—</td>';
-        }).join('')}</tr></tbody></table>`;
+        }).join('')}</tr></tbody></table>${needSufficiencyDetailHtml(cp, need.id)}`;
       });
       if (!anyNeed) body += '<p class="muted">（タグが付いたカードがありません）</p>';
       }
@@ -668,6 +670,8 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
 
       if (on('henderson')) {
       out += plainSectionTitle('5. ヘンダーソン14項目別アセスメント整理');
+      const sufOv = needSufficiencyOverview(cp);
+      if (sufOv.length) out += '\n【欲求の充足状況（一覧）】\n' + sufOv.map(r => `${r.need.id}. ${r.need.name.replace(/^\d+\.\s*/, '')}＝${r.text}`).join('\n') + '\n';
       HENDERSON_NEEDS.forEach(need => {
         const matching = cp.items.filter(i => i.type !== 'unnecessary' && i.hendersonIds?.includes(need.id));
         if (matching.length === 0) return;
@@ -677,6 +681,8 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
           const colName = col === 'preadmission' ? '入院前' : (col === 'postadmission' ? '入院後' : (col === 'missing' ? '不足情報' : '未分類'));
           return `[${colName}] [${i.type.toUpperCase()}]${i.fieldLabel ? ` [${i.fieldLabel}]` : ''}${i.aiSuggested ? ' [自動推定]' : ''} ${i.text}`;
         }));
+        const sufDetail = needSufficiencyDetailText(cp, need.id);
+        if (sufDetail) out += '  充足状況\n' + sufDetail;
       });
       }
 
@@ -1209,6 +1215,26 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const m = x.match(/^判定：(.*?)／判定根拠：([\s\S]*)$/);
       const dims = typeof sufficiencyDimensionLines === 'function' ? sufficiencyDimensionLines(cp, needId, key).map(l => `      ・${l}\n`).join('') : '';
       return (m ? `    ▶${label}の判定：${m[1]}\n    ▶説明：${m[2]}\n` : `    ▶${label}の判定：${x}\n`) + dims;
+    }
+    // Need-by-need sufficiency for the full text/print export. Reuses the existing judgement and wording as-is (frozen); nothing is recomputed or reworded.
+    function needSufficiencyDetailText(cp, needId) {
+      if (typeof sufficiencyUiPhases !== 'function') return '';
+      return sufficiencyUiPhases(cp).map(ph => periodJudgeText(cp, needId, ph.key, ph.label)).join('');
+    }
+    function needSufficiencyOverview(cp) {
+      if (typeof sufficiencyTextOf !== 'function') return [];
+      return HENDERSON_NEEDS.map(need => ({ need, text: sufficiencyTextOf(cp, need.id) })).filter(r => r.text);
+    }
+    function needSufficiencyDetailHtml(cp, needId) {
+      if (typeof sufficiencyUiPhases !== 'function' || typeof sufficiencyPhaseText !== 'function') return '';
+      const rows = sufficiencyUiPhases(cp).map(ph => {
+        const x = sufficiencyPhaseText(cp, needId, ph.key);
+        if (!x) return '';
+        const m = x.match(/^判定：(.*?)／判定根拠：([\s\S]*)$/);
+        const dims = typeof sufficiencyDimensionLines === 'function' ? sufficiencyDimensionLines(cp, needId, ph.key).map(l => `<br>・${escapeHtml(l)}`).join('') : '';
+        return `<div style="margin:3px 0 4px;padding:2px 4px;border-left:2px solid #8a9a8e;font-size:9pt;"><b>▶${escapeHtml(ph.label)}の判定：${escapeHtml(m ? m[1] : x)}</b>${m ? `<br>説明：${escapeHtml(m[2])}` : ''}${dims}</div>`;
+      }).join('');
+      return rows;
     }
     const ASSESSMENT_COL_ORDER = [['unclassified', '未分類'], ['preadmission', '入院前'], ['postadmission', '入院後'], ['missing', '不足情報']];
     // Display/export only: vital-sign cards of the same tag, period and day become ONE card.

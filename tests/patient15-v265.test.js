@@ -305,3 +305,17 @@ test('関連図：ブリンクマン指数が400未満なら結ばない／年�
   const yrs = mk(base.replace('20歳から喫煙（20本／日）していたが、10年前に禁煙した', '喫煙歴30年（20本／日）、10年前に禁煙した'), 'p15by');
   assert.match(chainsText(yrs), /ブリンクマン指数 600（20本\/日×30年）/);
 });
+
+test('v.268: full text and print exports list each need\'s sufficiency, using the existing judgement text verbatim', { skip: !have }, () => {
+  const txt = app.buildExportPlainText(gold), html = app.buildExportBodyHtml(gold);
+  assert.match(txt, /【欲求の充足状況（一覧）】\n1\. /);
+  assert.match(html, /<h3>欲求の充足状況（一覧）<\/h3>/);
+  const needs = app.HENDERSON_NEEDS.filter(n => app.sufficiencyTextOf(gold, n.id));
+  assert.ok(needs.length >= 10);
+  for (const n of needs) assert.ok(txt.includes(`${n.id}. ${n.name.replace(/^\d+\.\s*/, '')}＝${app.sufficiencyTextOf(gold, n.id)}`), `list line for need ${n.id}`);
+  // detail: the same phase sentence as the sufficiency table export, never reworded
+  const ph = app.sufficiencyUiPhases(gold)[0], x = app.sufficiencyPhaseText(gold, needs[0].id, ph.key);
+  assert.ok(x, 'phase text exists');
+  assert.ok(txt.includes(x.match(/判定根拠：([\s\S]*)$/)[1]), 'text detail uses the frozen sentence');
+  assert.ok(html.includes('の判定：'), 'print detail present');
+});
