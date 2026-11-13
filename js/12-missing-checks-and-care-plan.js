@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.273'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.274'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -3408,7 +3408,7 @@
     // v.265: patient-specific design of an auto-built plan — problem clarification, the basis of each section, evaluation indicators,
     // and a conditional oral-care line. Everything is read from the record/relation map; nothing is written as already done.
     const CP_ORAL_CARE_TP = '口腔ケア（誤嚥・肺炎の予防の一部として）：行う前に、意識の状態・嚥下の状態・咳嗽の力・本人が自分でできる範囲・誤嚥のリスク・絶飲食の指示・口腔内の状態（汚れ・乾燥・義歯）を確認する。そのうえで、食事の前後・就寝前・離床の前など生活の流れに合わせて、看護師が（本人ができる部分は本人に）、上体を起こせる安静度なら座位または上体挙上の姿勢で、歯みがき・うがいを行う（絶飲食やうがいができないときは、指示の範囲で湿らせたスポンジ等による清拭）。誤嚥させない姿勢と吸引の準備を整え、回数や使う物は指示・状態に合わせて決める。口腔ケアだけで肺炎を完全に防げるわけではなく、離床・排痰の援助と合わせて行う';
-    function cpClip(t, n) { const x = String(t || '').replace(/\s+/g, ' ').trim(); return x.length > n ? x.slice(0, n) + '…' : x; }
+    function cpClip(t, n) { return clauseClip(t, n); }
     function cpPlanMapNode(cp, plan) {
       try {
         const m = typeof rmMap === 'function' ? rmMap(cp) : null;
@@ -3959,7 +3959,7 @@ ${body}
 
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {
-    cpIsAutoPlan, cpUpdateStalePlans, CP_GEN_VERSION,
+    clauseClip, cpIsAutoPlan, cpUpdateStalePlans, CP_GEN_VERSION,
     inferUntaggedReason, untaggedContextEffects, untaggedTextKey, untaggedReviewOf, setUntaggedReview, applyUntaggedReviews, untaggedReviewItems, untaggedReviewCounts, untaggedSectionHtml,
     buildCarePlansPrintHtml, buildCarePlansText, buildCarePlansByRules, autoBuildCarePlans, carePlanList, deleteCarePlan, cpEnrichPlan, cpDesignLines, cpDesignBy, CP_ORAL_CARE_TP,
     formatCardTimestamp, MISSING_CHECK_STATUSES, missingInfoItems, missingCheckStatus, missingCheckCounts, setMissingCheck, missingCheckCardHtml,

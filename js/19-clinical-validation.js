@@ -6,7 +6,7 @@
 // ⑤ 検査値の単位の誤りを見つける（元の値は直さない）
 // 元の表示カードは変えない。判定の4区分（充足・未充足・判定保留・情報不足）も増やさない。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['19'] = 'v.266'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['19'] = 'v.274'; // Version stamp (scripts/stamp-version.js)
 
     const cvNorm = t => String(t || '').normalize('NFKC');
     const cvPlain = t => cvNorm(t).replace(/[「」『』\s]/g, '');
@@ -106,9 +106,18 @@
         { key: 'comfort', label: '清潔についての本人の快・不快', ok: /さっぱり|気持ちよ/, ng: /ベタベタ|べたべた|べたつき|かゆい|不快|気持ち(?:が)?悪い/ }
       ]
     };
-    function cvDimensions(cp, needId) {
+    function cvDimensions(cp, needId, phaseKey) {
       const defs = CV_DIMENSIONS[needId]; if (!defs) return null;
-      const cards = (cp.items || []).filter(i => i && !i.deleted && !i.aiSuggested && i.type !== 'unnecessary' && !i.diseaseGeneral && (i.hendersonIds || []).includes(needId) && (i.assessmentCols?.[needId] || '') !== 'preadmission' && !/^入院前/.test(String(i.timestamp || '')) && !cvHeadingOnly(i));
+      const isPreAdm = i => (i.assessmentCols?.[needId] || '') === 'preadmission' || /^入院前/.test(String(i.timestamp || ''));
+      const surgical = typeof isSurgicalPatient === 'function' && typeof surgPhaseOf === 'function' && isSurgicalPatient(cp);
+      // v.274: 側面（実際の摂取量など）は、判定する時期の記録だけで評価する。術前の「全量摂取」を、術後（絶飲食など）の現在の状態として数えない。
+      const inPhase = i => {
+        if (phaseKey === 'pre') return isPreAdm(i);
+        if (isPreAdm(i)) return false;
+        if (phaseKey === 'preop') return !surgical || surgPhaseOf(i, cp) === 'pre';
+        return !(surgical && surgPhaseOf(i, cp) === 'pre');
+      };
+      const cards = (cp.items || []).filter(i => i && !i.deleted && !i.aiSuggested && i.type !== 'unnecessary' && !i.diseaseGeneral && (i.hendersonIds || []).includes(needId) && inPhase(i) && !cvHeadingOnly(i));
       return defs.map(d => {
         const hits = cards.map(i => ({ i, ng: !!cvAffirmed(d.ng, i.text), ok: !!cvAffirmed(d.ok, i.text) })).filter(x => x.ng || x.ok);
         const days = hits.map(x => suffDayOf(x.i));
@@ -122,8 +131,8 @@
     function cvApplyDimensions(cp, res) {
       Object.keys(CV_DIMENSIONS).forEach(nid => {
         const r = res && res[nid]; if (!r) return;
-        const dims = cvDimensions(cp, Number(nid)); if (!dims) return;
-        Object.keys(r).forEach(ph => { r[ph].dimensions = dims; });
+        const dims = cvDimensions(cp, Number(nid), 'all'); if (!dims) return;
+        Object.keys(r).forEach(ph => { if (r[ph]) r[ph].dimensions = ph === 'all' ? dims : cvDimensions(cp, Number(nid), ph); });
         const all = r.all; if (!all || all.verdict !== 'met') return;
         const ng = dims.filter(d => d.state === 'ng');
         if (ng.length) {

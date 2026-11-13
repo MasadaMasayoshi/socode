@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.273'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.274'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -234,9 +234,7 @@
       }
       if (t.length <= max) return t;
 
-      const cut = t.slice(0, max - 1);
-      const at = Math.max(cut.lastIndexOf('、'), cut.lastIndexOf('。'));
-      return (at >= max * 0.5 ? cut.slice(0, at) : cut) + '…';
+      return clauseClip(t, max);
     }
     function rmNewId(prefix) { return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`; }
     function rmSafeId(id) { return /^[\w.:-]{1,80}$/.test(String(id || '')) ? String(id) : null; }
@@ -414,7 +412,9 @@
         const chains = rmCauseChains(map, p.id);
         const head = `<span class="rm-cl-prob">${esc(rmDisplayLabel(p))}</span>`;
         if (!chains.length) return `<section class="rm-cl-card">${head}</section>`;
-        const body = chains.map(ch => `<ol class="rm-cl-chain"><li class="rm-cl-cause">↑ 原因</li>${ch.map((n, k) => { const t = rmType(n); return `${k ? '<li class="rm-cl-arrow" aria-hidden="true">↑</li>' : ''}<li><span class="rm-cl-node${t.shape === 'ellipse' ? ' is-ellipse' : ''}" style="border-color:${t.stroke};background:${t.fill}">${esc(rmDisplayLabel(n))}</span></li>`; }).join('')}</ol>`).join('');
+        // v.274: 線の種類を画面の一覧でも区別する（原因／可能性／根拠として参照）。
+        const linkWord = (a, b) => { const c = rmChainConnector(map, a, b); return /根拠として参照/.test(c) ? '根拠として参照' : /可能性/.test(c) ? '可能性' : ''; };
+        const body = chains.map(ch => `<ol class="rm-cl-chain"><li class="rm-cl-cause">↑ ${linkWord(ch[0], p) || '原因'}</li>${ch.map((n, k) => { const t = rmType(n); return `${k ? `<li class="rm-cl-arrow" aria-hidden="true">↑${linkWord(ch[k], ch[k - 1]) ? ' ' + linkWord(ch[k], ch[k - 1]) : ''}</li>` : ''}<li><span class="rm-cl-node${t.shape === 'ellipse' ? ' is-ellipse' : ''}" style="border-color:${t.stroke};background:${t.fill}">${esc(rmDisplayLabel(n))}</span></li>`; }).join('')}</ol>`).join('');
         return i === 0
           ? `<section class="rm-cl-card">${head}${body}</section>`
           : `<details class="rm-cl-card"><summary>${head}<span class="rm-cl-count">原因 ${chains.length} ›</span></summary>${body}</details>`;
@@ -1987,7 +1987,7 @@
       const surgeryDone = !!surgeryItem && has(/術後|手術|術式|術日|施行/);
       let surgery = null;
       if (surgeryItem) {
-        const m = String(surgeryItem.text).normalize('NFKC').match(new RegExp(`${surgeryRe.source}[^、。]{0,24}`));
+        const m = String(surgeryItem.text).normalize('NFKC').match(new RegExp(`${surgeryRe.source}[^、。]{0,60}`)); // v.274: 24字で切ると「(入院翌々」のように括弧の途中で切れるため、節の終わりまで取り、短縮は共通の切り方に任せる
         const sLabel = (m ? m[0] : short(surgeryItem, 30)).replace(/^[^、。]*?(?:下で|下に|にて)/, '').replace(/(?:を)?(?:施行|実施|予定)[。.]?$/, '').replace(/を$/, '');
         surgery = N('surgery', 'treatment', sLabel, { items: [surgeryItem] });
 
@@ -4441,7 +4441,8 @@ ${perProblem ? probs.map(p => { const sub = rmProblemSubmap(map, p.id); return s
     // v.272: an observation that only supports a judgement is not a cause, and a link whose cause is not confirmed is a possibility — the arrow says which.
     function rmChainConnector(map, a, b) {
       const e = (map.edges || []).find(x => x.source === a.id && x.target === b.id);
-      if (e && e.relation === 'supports' && b.type !== 'nursing_problem') return ' ―根拠として参照→ ';
+      // v.274: 「根拠として参照」の線は、向かう先が看護問題でも原因とは書かない（検査値の低下などは、問題の原因ではなく根拠として参照する所見）。
+      if (e && e.relation === 'supports') return ' ―根拠として参照→ ';
       if (e && e.certainty === 'possible') return ' ―可能性→ ';
       return ' → ';
     }

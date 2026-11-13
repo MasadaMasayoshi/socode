@@ -1,7 +1,7 @@
 // 重点アセスメント：欲求ごとに、S・O（入院前／入院後）→ 情報の分析・解釈 → 統合 → 看護問題の明確化を一画面で書く。
 // S・Oは分類ボードの内容から自動で並べ、分析・解釈／統合／看護問題の明確化も、記録・充足判定・看護計画（関連図の看護問題）から自動で下書きする。手で直した欄は自動では上書きしない（myAssessments の追加項目に保存）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.266'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.274'; // Version stamp (scripts/stamp-version.js)
 
     const FOCUS_FIELDS = [
       { key: 'focusAnalysis', label: '情報の分析・解釈', ph: 'S・Oの情報から、なぜその状態なのか（原因・関連要因）、今後どうなりそうかを書きます。\n例：術後は疼痛（O-3）と荷重への不安（S-2）から、歩行を避けて活動量が低下している。' },
@@ -52,7 +52,7 @@
     // ---- 自動作成：記録・充足判定・看護計画（関連図由来の看護問題）から、分析・解釈／統合／看護問題を下書きする ----
     function focusClip(t, n = 40) {
       const x = String(t || '').replace(/\s+/g, ' ').replace(/^\[[^\]]{1,10}\]\s*/, '').replace(/^[^:：「]{1,10}[:：]\s*/, '').replace(/[「」]/g, '').replace(/[。.]+$/, '').trim();
-      if (x.length <= n * 1.8) return x; const lim = x.slice(0, Math.floor(n * 1.8)); const k = Math.max(lim.lastIndexOf('、'), lim.lastIndexOf(' '), lim.lastIndexOf('。')); return k >= n * 0.5 ? x.slice(0, k) : (x.length <= 100 ? x : lim);
+      return clauseClip(x, Math.floor(n * 1.8));
     }
     // A record turned into a clause for the narrative. Unlike focusClip it keeps quotation marks and turns a field label into
     // 「labelは」 (タバコ：なし → タバコはなし); scene labels (検温・回診・昼食 ...) and heading words left at the edge of a card by the

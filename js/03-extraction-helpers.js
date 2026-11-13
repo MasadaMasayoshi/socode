@@ -1,7 +1,7 @@
 // Local record extraction. Preserve source wording, units, timestamps and admission context.
 // Headings supply context; narrative numbers are not automatically laboratory measurements.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.258'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.274'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -295,6 +295,34 @@
         .replace(/&nbsp;|&#160;/gi, ' ').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'").replace(/&amp;/gi, '&')
         .replace(/ {2,}/g, ' '); // 表の空欄（連続するタブ）は列の位置を表すので潰さない
     }
+    // v.274: 長い記録を、語・節の途中で切らずに短くする（「…（入院翌々」「胃退室時去」のように、切れた断片が分析文・関連図・計画の根拠に流れないようにする）。
+    // 切るのは読点・句点・区切り・閉じ括弧の直後だけで、括弧が閉じていない形・「〜が」「〜ため」などで終わる形では切らない。
+    // 適切な切れ目がないときは、無理に切らず全文を返す（「…」を付けて切ることはしない）。
+    function clauseClip(text, limit) {
+      const t = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+      if (!limit || t.length <= limit) return t;
+      const OPEN = '(（【[「『', CLOSE = ')）】]」』';
+      const dangling = /(?:が|けれど|けど|ものの|のに|ため|ので|から|ながら|し|て|で|と|や|の|を|に|は|も|[+＋])$/;
+      const okEnd = end => {
+        const head = t.slice(0, end).replace(/[、，,；;／/・\s]+$/, '');
+        if (!head) return false;
+        let depth = 0;
+        for (const ch of head) { if (OPEN.includes(ch)) depth++; else if (CLOSE.includes(ch)) depth = Math.max(0, depth - 1); }
+        return depth === 0 && !dangling.test(head);
+      };
+      const ends = [];
+      for (let i = 0; i < t.length; i++) {
+        const ch = t[i];
+        if ('。、，,；;／'.includes(ch) || (ch === ' ' && i > 0)) ends.push(i);
+        else if (CLOSE.includes(ch) || ch === '．') ends.push(i + 1);
+      }
+      const before = ends.filter(e => e <= limit && e >= limit * 0.4 && okEnd(e)).pop();
+      if (before) return t.slice(0, before).replace(/[、，,；;／/・\s]+$/, '');
+      const after = ends.find(e => e > limit && e <= limit * 2 && okEnd(e));
+      if (after) return t.slice(0, after).replace(/[、，,；;／/・\s]+$/, '');
+      return t;
+    }
+
     // ---- v.105: broken source text (wrapped-cell fragments, dropped characters, OCR/PDF artifacts) ----------------------------------------------
     // Local, rule-based. The source is never changed here: each finding carries the original line, the neighbouring lines and, only when a rule can
     // justify it, a labelled restoration candidate (推定・要確認). Where nothing can be inferred the candidate is null (確認不能).

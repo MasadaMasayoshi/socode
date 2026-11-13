@@ -91,7 +91,7 @@ test('教員の指導：結論を言い切る理由文と、未充足のとき�
 test('共通ルール：入院前・入院後それぞれで自立して満たされているかを見る', () => {
   const mk = (id, text, ts, h, col) => ({ id, type: 'o', text, timestamp: ts, hendersonIds: h, assessmentCols: Object.fromEntries(h.map(x => [x, col])) });
   const cp = { id: 'p', myAssessments: {}, items: [
-    mk('a', '呼吸状態:呼吸器疾患既往なし SpO2 98%', '入院前', [1], 'preadmission'),
+    mk('a', '呼吸状態:呼吸器疾患既往なし 呼吸困難なし SpO2 98%', '入院前', [1], 'preadmission'),
     mk('b', '呼吸困難なし 自力排痰可能', '術後1日目', [1], 'postadmission'),
     mk('c', '排泄: 排尿 7回/日 自立 便秘なし', '入院前', [3], 'preadmission'),
     mk('d', '膀胱留置カテーテル挿入中 排便なし 「お腹が張っている」', '術後2日目', [3], 'postadmission'),

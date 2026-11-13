@@ -154,7 +154,11 @@ test('術前から術後への変化を「悪化」と書かず、術前と比�
   app.buildCarePlansByRules(cp);
   const d = app.buildFocusDraft(cp, 1);
   assert.doesNotMatch(d.focusAnalysis, /経過とともに悪化/);
-  assert.match(d.focusAnalysis, /術前の状態と比べて、術後に新たな課題が出てきている/);
+  // 術前の直接の所見（正常値だけでは術前「良好」と言わない）があって術後に課題が出た場合に、新たな課題として書く
+  const t = '氏名：Z氏 62歳 男性\n診断名：S状結腸がん\n手術：腹腔鏡下S状結腸切除術を全身麻酔で実施\n手術前日\nO：呼吸困難なし。胸部異常なし。\n術後1日目\nO：SpO2 90%。呼吸困難あり、痰が喀出できない。\n';
+  const d2 = app.buildFocusDraft(mk(t, 'p15g'), 1);
+  assert.doesNotMatch(d2.focusAnalysis, /経過とともに悪化/);
+  assert.match(d2.focusAnalysis, /術前の状態と比べて、術後に新たな課題が出てきている/);
 });
 
 // ---- 段階C：看護計画（問題ごとの明確化・根拠・評価指標・条件付き口腔ケア・実施済みにしない）----
