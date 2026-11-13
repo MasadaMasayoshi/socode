@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.257'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.266'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -2036,7 +2036,9 @@
       const allPost = post.map(i => nz(i.text)).join(' ');
       const stable = /呼吸困難(?:感)?(?:の訴え)?(?:は)?(?:なし|ない|無)|訴えなし/.test(allPost) && /SpO2\s*[:：]?\s*(?:9[4-9]|100)/.test(allPost);
       const OXY_ONLY = /^(?:酸素|O2)/;
-      post.forEach(i => { const m = nz(i.text).match(SUF_RESP_DIRECT); if (m) { const mm = stable ? m.filter(x => !OXY_ONLY.test(x)) : m; if (!mm.length) return; mm.forEach(x => { if (!found.includes(x)) found.push(x); }); evs.push(i); } });
+      // v.265: oxygen being given is a treatment, not a deficit; when the same card records SpO2 94% or more under it, the oxygen alone is not evidence of 未充足.
+      const spo2UnderO2 = t => /SpO2\s*[:：]?\s*】?\s*(?:9[4-9]|100)/i.test(t);
+      post.forEach(i => { const m = nz(i.text).match(SUF_RESP_DIRECT); if (m) { const mm = (stable || spo2UnderO2(nz(i.text))) ? m.filter(x => !OXY_ONLY.test(x)) : m; if (!mm.length) return; mm.forEach(x => { if (!found.includes(x)) found.push(x); }); evs.push(i); } });
       if (found.length) set(1, `術後の直接の所見（${found.slice(0, 5).join('・')}）`, evs, true);
     }
     // v.223: 産褥の日ごとの充足の見立て（参考）。一般条件=記録に「産褥N日目」の時期がある患者について、その日の記録だけで判定し直す。

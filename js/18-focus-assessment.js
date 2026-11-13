@@ -1,7 +1,7 @@
 // 重点アセスメント：欲求ごとに、S・O（入院前／入院後）→ 情報の分析・解釈 → 統合 → 看護問題の明確化を一画面で書く。
 // S・Oは分類ボードの内容から自動で並べ、分析・解釈／統合／看護問題の明確化も、記録・充足判定・看護計画（関連図の看護問題）から自動で下書きする。手で直した欄は自動では上書きしない（myAssessments の追加項目に保存）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.265'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.266'; // Version stamp (scripts/stamp-version.js)
 
     const FOCUS_FIELDS = [
       { key: 'focusAnalysis', label: '情報の分析・解釈', ph: 'S・Oの情報から、なぜその状態なのか（原因・関連要因）、今後どうなりそうかを書きます。\n例：術後は疼痛（O-3）と荷重への不安（S-2）から、歩行を避けて活動量が低下している。' },
@@ -345,7 +345,7 @@
           evNarr = sentences.reduce((acc, cur, k) => !k ? cur : acc + (polOf(evDays[k - 1]) !== polOf(evDays[k]) ? (turns++ ? '。しかし、' : '。一方、') : '。') + cur, '') + '。';
           if (evDays.length > 1 && polOf(evDays[0]) === 'ng' && polOf(evDays[evDays.length - 1]) === 'ok') evNarr += '経過とともに改善している。';
           // 「悪化」 is said of body functions; for understanding, communication, roles and the like a new issue has appeared instead.
-          else if (evDays.length > 1 && polOf(evDays[0]) === 'ok' && polOf(evDays[evDays.length - 1]) === 'ng') evNarr += [1, 2, 3, 4, 5, 6, 7, 8, 9].includes(needId) ? '経過とともに悪化している。' : (typeof isSurgicalPatient === 'function' && isSurgicalPatient(cp) ? '術後になって新たな課題が出てきている。' : '入院後に新たな課題が出てきている。');
+          else if (evDays.length > 1 && polOf(evDays[0]) === 'ok' && polOf(evDays[evDays.length - 1]) === 'ng') evNarr += (evDays[0] <= -2 && evDays[evDays.length - 1] >= -1 && typeof isSurgicalPatient === 'function' && isSurgicalPatient(cp)) ? '術前の状態と比べて、術後に新たな課題が出てきている（手術の侵襲や術後の治療による変化で、術前からの悪化とは区別する）。' : [1, 2, 3, 4, 5, 6, 7, 8, 9].includes(needId) ? '経過とともに悪化している。' : (typeof isSurgicalPatient === 'function' && isSurgicalPatient(cp) ? '術後になって新たな課題が出てきている。' : '入院後に新たな課題が出てきている。');
         }
         if (evNarr) para.push(evNarr);
         else if (dayKeys.length) para.push(dayKeys.map(d => `${dayWord(d)}は、${byDay.get(d).filter(i => !focusIsHeadingCard(i)).slice(0, 2).map(i => `${focusFact(i.text, 45)}${lab(i)}`).join('、')}`).join('。') + `。${prog.value === 'improving' ? '前の日と比べて改善がみられる。' : prog.value === 'worsening' ? '前の日と比べて悪化がみられる。' : ''}`);

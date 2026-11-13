@@ -6,7 +6,7 @@
 // ⑤ 検査値の単位の誤りを見つける（元の値は直さない）
 // 元の表示カードは変えない。判定の4区分（充足・未充足・判定保留・情報不足）も増やさない。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['19'] = 'v.257'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['19'] = 'v.266'; // Version stamp (scripts/stamp-version.js)
 
     const cvNorm = t => String(t || '').normalize('NFKC');
     const cvPlain = t => cvNorm(t).replace(/[「」『』\s]/g, '');
@@ -283,16 +283,93 @@
       });
       return issues;
     }
+    // v.265: implausible or unclear lab values. The recorded text is kept as written; the check only names why a value looks wrong,
+    // offers correction candidates, and marks them unconfirmed. It never rewrites a card or fills in a "probably intended" value.
+    const CV_LAB_PLAUS = [
+      { re: /^(?:TP|総蛋白|総タンパク)/i, name: 'TP', unit: 'g/dL', min: 3, max: 10, cands: v => (v >= 30 && v <= 100 ? [{ text: `${v} g/L（g/L 表記）`, why: 'g/L なら通常範囲（60〜80 g/L）に入る' }, { text: `${(v / 10).toFixed(1)} g/dL`, why: '桁の位置の違い（60→6.0）で g/dL の通常範囲に入る' }] : []) },
+      { re: /^(?:Alb|アルブミン)/i, name: 'Alb', unit: 'g/dL', min: 1, max: 6, cands: v => (v >= 10 && v <= 60 ? [{ text: `${v} g/L（g/L 表記）`, why: 'g/L なら通常範囲に入る' }] : []) },
+      { re: /^(?:RBC|赤血球)/i, name: 'RBC', unit: '×10^4/μL', min: 150, max: 800, cands: (v, u) => (/^\/?[μµu]L$/i.test(u) && v >= 1000 && v <= 9999 ? [{ text: `${v} ×10^3/μL（＝${(v / 10).toFixed(1)}×10^4/μL）`, why: '/μL のまま 4 桁だと通常範囲（約 400〜550×10^4/μL）より 3 桁少ない。×10^3 の抜けの可能性' }] : []) },
+      { re: /^(?:AST|GOT)/i, name: 'AST', unit: 'U/L', min: 3, max: 2000, cands: v => (v < 3 ? [{ text: `${v}□ U/L（末尾の桁の欠落）`, why: '1 桁の値は通常あり得ない。原文の桁が切れている可能性' }] : []) },
+      { re: /^(?:ALT|GPT)/i, name: 'ALT', unit: 'U/L', min: 3, max: 2000, cands: v => (v < 3 ? [{ text: `${v}□ U/L（末尾の桁の欠落）`, why: '1 桁の値は通常あり得ない。原文の桁が切れている可能性' }] : []) }
+    ];
+    function cvCheckLabPlausibility(cp) {
+      const issues = [];
+      if (typeof parseLabTrendEntries !== 'function') return issues;
+      const seen = [];
+      (cp.items || []).filter(i => i && !i.deleted && i.text && i.type !== 'unnecessary').forEach(i => {
+        let ents = null; try { ents = parseLabTrendEntries(cvNorm(i.text)); } catch (e) { ents = null; }
+        (ents || []).forEach(e => {
+          const rule = CV_LAB_PLAUS.find(r => r.re.test(String(e.key || e.name || '')));
+          if (!rule) return;
+          const v = Number(String(e.value).replace(/,/g, ''));
+          if (!Number.isFinite(v)) return;
+          const unit = String(e.unit || '');
+          const raw = `${e.key} ${e.value}${unit}`.trim();
+          seen.push({ rule, v, unit, item: i, e });
+          const unitDigits = /\d/.test(unit.replace(/[×x]\s*10\^?\d+/gi, ''));
+          const lowOrHigh = v < rule.min || v > rule.max;
+          const tail = '（原文はそのまま保持。補正候補は未確定で、自動では書き換えません）';
+          if (unitDigits) {
+            issues.push({ id: i.id, msg: `${rule.name}「${raw}」：単位に数字が混じっていて読み取れない。「${rule.unit}」の読み取り誤りの可能性がある。補正候補：${rule.cands(v, unit).map(c => `${c.text}（${c.why}）`).join('／') || `${v} ${rule.unit}`}${tail}` });
+          } else if (lowOrHigh) {
+            const c = rule.cands(v, unit);
+            issues.push({ id: i.id, msg: `${rule.name}「${raw}」：通常あり得る範囲（${rule.min}〜${rule.max} ${rule.unit}）から大きく外れている。${c.length ? `補正候補：${c.map(x => `${x.text}（${x.why}）`).join('／')}` : '読み取り・記録の誤りかを原文で確認する'}${tail}` });
+          }
+        });
+      });
+      // Same-time AST/ALT that contradict each other, and abrupt same-analyte jumps across times.
+      const byTs = new Map();
+      seen.forEach(x => { const k = String(x.item.timestamp || ''); if (!byTs.has(k)) byTs.set(k, {}); byTs.get(k)[x.rule.name] = x; });
+      byTs.forEach((g, ts) => {
+        if (g.AST && g.ALT && g.ALT.v >= 100 && g.AST.v < 10) issues.push({ id: g.ALT.item.id, msg: `${ts || '同じ時期'}のAST ${g.AST.v}・ALT ${g.ALT.v}：ALTだけが高くASTが極端に低い組み合わせは通常考えにくい。どちらかの桁の読み取り誤りの可能性がある（原文はそのまま保持。補正は未確定）` });
+        if (g.AST && g.ALT && g.AST.v >= 100 && g.AST.v / Math.max(g.ALT.v, 1) >= 8) issues.push({ id: g.AST.item.id, msg: `${ts || '同じ時期'}のAST ${g.AST.v}・ALT ${g.ALT.v}：ASTがALTの約${Math.round(g.AST.v / g.ALT.v)}倍。原文の単位表記（例：「150/L」）が崩れていないか、桁の読み取り誤りがないかを確認する（原文はそのまま保持。補正は未確定）` });
+      });
+      ['AST', 'ALT', 'Alb', 'TP'].forEach(n => {
+        const xs = seen.filter(x => x.rule.name === n && x.v >= x.rule.min && x.v <= x.rule.max);
+        for (let a = 0; a < xs.length; a++) for (let b = a + 1; b < xs.length; b++) {
+          const lo = Math.min(xs[a].v, xs[b].v), hi = Math.max(xs[a].v, xs[b].v);
+          if (lo > 0 && hi / lo >= 10 && String(xs[a].item.timestamp) !== String(xs[b].item.timestamp) && /U\/L/.test(xs[a].unit + xs[b].unit)) issues.push({ id: xs[b].item.id, msg: `${n}が${xs[a].item.timestamp || '前の時期'}の ${xs[a].v} から${xs[b].item.timestamp || '後の時期'}の ${xs[b].v} へ約${Math.round(hi / lo)}倍に動いている。実際の変化か、読み取り誤りかを原文で確認する（原文はそのまま保持）` });
+        }
+      });
+      return issues;
+    }
+    // v.265: the verdict a need is judged at (latest phase first), the same way the focus assessment reads it.
+    function cvNeedVerdict(cp, needId) {
+      const res = (typeof ruleSufficiencyFor === 'function' ? ruleSufficiencyFor(cp)[needId] : null) || {};
+      const surgical = typeof isSurgicalPatient === 'function' && isSurgicalPatient(cp);
+      const ok = x => x && x.verdict && x.verdict !== 'unknown';
+      const a = surgical && ok(res.postop) ? res.postop : ok(res.post) ? res.post : (res.all || {});
+      return a.verdict === 'met' ? 'met' : a.verdict === 'unmet' ? 'unmet' : a.verdict === 'conflict' ? 'hold' : 'unknown';
+    }
+    // v.265: the focus assessment (need verdict), the care-plan problems and the relation-map problems must tell the same story.
+    function cvConsistencyIssues(cp) {
+      const out = [];
+      const plans = typeof carePlanList === 'function' ? carePlanList(cp) : [];
+      const needName = n => (typeof focusNeedName === 'function' ? focusNeedName(n) : `欲求${n}`);
+      const mapProblems = (() => { try { const m = typeof rmMap === 'function' ? rmMap(cp) : null; return m ? m.nodes.filter(n => n.type === 'nursing_problem') : []; } catch (e) { return []; } })();
+      const key = t => String(t || '').replace(/（候補）$/, '').replace(/\s+/g, '');
+      const planKeys = new Set(plans.map(p => key(p.problem)));
+      for (let n = 1; n <= 14; n++) {
+        const v = cvNeedVerdict(cp, n);
+        const mine = plans.filter(p => (p.relatedNeeds || []).includes(n));
+        if (v === 'unmet' && !mine.length) out.push({ id: `need${n}`, msg: `「${needName(n)}」は満たされていないと判断しているが、対応する看護問題がない（記録から問題を立てるか、判断の根拠を見直す）。` });
+        if (v === 'met') mine.forEach(p => { const k = typeof cvProblemStatus === 'function' ? cvProblemStatus(cp, p).kind : 'actual'; const home = typeof focusHomeNeed === 'function' ? focusHomeNeed(p) : null; if (k === 'actual' && (home === null || home === n)) out.push({ id: `plan${p.id}`, msg: `「${needName(n)}」は満たされていると判断しているが、実在の問題「${String(p.problem).slice(0, 24)}」が挙がっている。` }); });
+      }
+      mapProblems.forEach(m => { const k = key(m.label); if (k && plans.length && !planKeys.has(k) && !plans.some(p => key(p.problem).includes(k) || k.includes(key(p.problem)))) out.push({ id: `map${m.id}`, msg: `関連図の問題「${String(m.label).slice(0, 24)}」が看護計画にない。` }); });
+      return out;
+    }
     // 書き出し前の監査に出す指摘（時系列・検査値の単位と解析・退けた根拠）
     function cvAuditFindings(cp) {
       const F = [];
+      try { cvConsistencyIssues(cp).forEach(x => F.push({ level: '確認', area: '問題の整合', detail: x.msg, ref: x.id })); } catch (e) { /* 監査対象外 */ }
       try { cvTimelineIssues(cp).forEach(x => F.push({ level: '重要', area: '時期', detail: x.msg, ref: x.id })); } catch (e) { /* 監査対象外 */ }
       try { cvCheckLabUnits(cp).forEach(x => F.push({ level: '確認', area: '検査値の単位', detail: x.msg, ref: x.id })); } catch (e) { /* 監査対象外 */ }
       try { cvCheckLabParse(cp).forEach(x => F.push({ level: '重要', area: '検査値の解析', detail: x.msg, ref: x.id })); } catch (e) { /* 監査対象外 */ }
+      try { cvCheckLabPlausibility(cp).forEach(x => F.push({ level: '確認', area: '検査値の妥当性', detail: x.msg, ref: x.id })); } catch (e) { /* 監査対象外 */ }
       try { (typeof carePlanList === 'function' ? carePlanList(cp) : []).forEach(p => (p.rejectedEvidence || []).forEach(r => F.push({ level: '軽微', area: '根拠の退け', detail: `「${String(p.problem).slice(0, 20)}」の根拠から外した：「${r.text}」（${r.reason}）`, ref: r.id }))); } catch (e) { /* 監査対象外 */ }
       return F;
     }
 
 if (typeof module !== 'undefined' && module.exports) {
-  Object.assign(module.exports, { cvAffirmed, cvTraceable, cvHeadingOnly, cvValidateSufficiency, cvProgress, cvDimensions, cvApplyDimensions, cvPostProcessSufficiency, cvFamilyOf, cvEvidenceRelevant, cvFilterEvidenceTexts, cvProblemStatus, cvCheckLabUnits, CV_DIMENSIONS, cvTimeOf, cvTimelineIssues, cvCheckLabParse, cvAuditFindings });
+  Object.assign(module.exports, { cvAffirmed, cvTraceable, cvHeadingOnly, cvValidateSufficiency, cvProgress, cvDimensions, cvApplyDimensions, cvPostProcessSufficiency, cvFamilyOf, cvEvidenceRelevant, cvFilterEvidenceTexts, cvProblemStatus, cvCheckLabUnits, CV_DIMENSIONS, cvTimeOf, cvTimelineIssues, cvCheckLabParse, cvAuditFindings, cvConsistencyIssues, cvNeedVerdict, cvCheckLabPlausibility });
 }

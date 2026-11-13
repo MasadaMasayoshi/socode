@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.265'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.266'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -177,6 +177,7 @@
     const RM_RELATION_KEYS = new Set(RM_RELATIONS.map(r => r.key));
     // v.265: risk-state problems carry the risk factors found in the record and the condition that refutes them.
     function rmRiskEvidence(factors, refutation) { return `危険因子：${(factors && factors.length ? factors : ['記録上の危険因子は未確認']).join('・')}／反証条件：${refutation}`; }
+    function abdOpBleed(surgery, dxLabel) { return !!surgery && /胃|腸|腹腔|肝|胆|膵|脾|虫垂|ヘルニア/.test(`${surgery.label}${dxLabel || ''}`); }
     const RM_NON_CAUSAL_RELATIONS = new Set(['treats', 'managed_by', 'addresses', 'improves', 'contradicts']);
 
     const RM_V1_KIND = { patient: 'patient_fact', psychosocial: 'patient_fact', disease: 'disease', treatment: 'treatment', pathology: 'pathophysiology', symptom: 'symptom', problem: 'nursing_problem', risk: 'nursing_problem' };
@@ -2626,6 +2627,33 @@
         const anemia = N('anemia', 'pathophysiology', surgery && surgeryDone ? '術中・術後の出血による貧血（酸素運搬能の低下）' : '貧血（酸素運搬能の低下）', { source: 'knowledge' });
         E(labNode(hb), anemia, 'supports', { evidence: 'Hbの低下' });
         if (surgery && surgeryDone) E(invasion || surgery, anemia, 'contributes_to', { evidence: '手術中・後の出血' });
+      }
+
+      // v.265: post-operative bleeding / circulation — a risk is kept apart from an occurrence. Intra-operative blood loss, a thin
+      // serosanguineous drain output or a Hb change alone make a risk; only a recorded bleeding finding makes it an actual problem.
+      {
+        const bleedRec = findItem(/出血量|術中出血|出血\s*\d+\s*(?:g|ml|mL)/);
+        const drainBlood = findItem(/(?:ドレーン|排液)[^\n]{0,14}(?:血性|淡血性|血液)|(?:淡血性|血性)[^\n]{0,6}\d+\s*(?:ml|mL)/);
+        const paleItem = findItem(/蒼白|顔色[^\n]{0,4}(?:不良|悪|やや)/, i => notHist(i));
+        const bpItem = findItem(/帰室(?:時|後)[^\n]{0,20}(?:BP|血圧)|(?:BP|血圧)[^\n]{0,4}\d{2,3}\s*\/\s*\d{2,3}/, i => notHist(i) && /帰室|術後|手術当日/.test(`${i.timestamp || ''}${i.text}`));
+        const hbL = lab('Hb');
+        if (surgery && surgeryDone && (bleedRec || drainBlood || hbL)) {
+          const bleedActual = /術後出血(?:あり|を認め|と診断|が疑)|(?:創部|ドレーン排液|排液)[^\n]{0,10}(?:鮮血|出血が?(?:持続|増加|多い))|血性[^\n]{0,6}(?:増加|急に増え)/.test(all);
+          const bp = N('bleed_path', 'pathophysiology', '手術創・吻合部・切離面からの出血（術後出血）の起こりやすさ', { source: 'knowledge' });
+          E(invasion || surgery, bp, 'contributes_to', { evidence: '手術で血管・組織を切離・縫合した部位から術後に出血することがある' });
+          const factors = [];
+          if (bleedRec) { const n = N('bleed_rec', 'patient_fact', short(bleedRec, 34, /出血/), { items: [bleedRec] }); E(n, bp, 'supports', { evidence: '術中出血量は危険度を見る材料の一つ（出血量だけで術後出血とは判断しない）' }); factors.push('術中出血量'); }
+          if (drainBlood) { const n = N('bleed_drain', 'symptom', short(drainBlood, 34, /血性|血/), { items: [drainBlood] }); E(n, bp, 'supports', { evidence: '排液の色（淡血性→鮮血性）と量の推移で見る（淡血性の少量は術直後にみられる）' }); factors.push('血性のドレーン排液'); }
+          if (hbL) { E(labNode(hbL), bp, 'supports', { evidence: 'Hbの術前後の推移（同じ条件で比べる）' }); factors.push('Hbの変動'); }
+          if (paleItem) { const n = N('bleed_pale', 'symptom', short(paleItem, 30, /蒼白|顔色/), { items: [paleItem] }); E(n, bp, 'supports', { evidence: '循環の変化を見る所見の一つ（単独では判断しない）' }); }
+          if (bpItem) { const n = N('bleed_bp', 'symptom', short(bpItem, 30, /BP|血圧|\d{2,3}\s*\/\s*\d{2,3}/), { items: [bpItem] }); E(n, bp, 'supports', { evidence: '血圧・脈拍は帰室時の値と比べて推移を見る' }); }
+          const risk = N('bleed_risk', 'future_risk', '術後出血の可能性', { source: 'knowledge', observed: false });
+          E(bp, risk, bleedActual ? 'causes' : 'predicts', { predicted: !bleedActual });
+          const pB = bleedActual
+            ? N('p_bleed', 'nursing_problem', '出血（術後出血）', { cat: 'circ' })
+            : N('p_bleed', 'nursing_problem', '出血リスク状態（術後出血）', { cat: 'circ', evidence: rmRiskEvidence(['手術侵襲', ...factors, abdOpBleed(surgery, dxLabel) ? '腹腔内の吻合部・ドレーン留置' : ''].filter(Boolean), '排液が淡血性のまま量が増えず、血圧・脈拍・Hbが安定して推移すれば、問題から外す') });
+          E(risk, pB, 'results_in', { predicted: !bleedActual });
+        }
       }
 
       const ddMatch = all.match(/D\s*-?\s*ダイマー\s*[:：]?\s*(\d+(?:\.\d+)?)/);
