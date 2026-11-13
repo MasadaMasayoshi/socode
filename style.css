@@ -2119,3 +2119,7 @@ tr.cmp-row{display:table-row;padding:0;border:0;background:none;gap:0}
 .fa-link-row > span { flex:1; min-width:0; overflow-wrap:anywhere; }
 .fa-link-row .btn { padding:2px 8px; font-size:11px; }
 #view-genogram .gg-canvas{touch-action:pan-x pan-y}
+
+/* --- v.269 labs: indicator panel uses the full row width and cards in one row share a height (no blank gaps) --- */
+#view-labs .clinical-indices { width: 100%; }
+#view-labs .ci-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); align-items: stretch; }
