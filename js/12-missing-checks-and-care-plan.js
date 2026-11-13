@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.278'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.279'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -3447,7 +3447,7 @@
             if (n.observed === false || seen.has(n.label)) return;
             // v.278: a line/drain/catheter is a factor only for problems it can actually bear on (infection, falls, activity, self-removal, skin); it is not a factor of e.g. ileus or a leak.
             if (n.type === 'treatment' && /ライン|ドレーン|カテーテル|チューブ|ルート/.test(n.label) && !/感染|転倒|転落|活動|抜去|皮膚|褥瘡|血栓/.test(plan.problem)) return;
-            if (['patient_fact', 'treatment', 'medication'].includes(n.type)) { seen.add(n.label); factors.push(cpClip(String(n.label).replace(/\(入院[^)]*$/, ''), 28)); }
+            if (['patient_fact', 'treatment', 'medication'].includes(n.type) || (n.type === 'symptom' && /(?:床上|ベッド上|術後)安静|臥床/.test(n.label))) { seen.add(n.label); factors.push(cpClip(String(n.label).replace(/\(入院[^)]*$/, ''), 28)); }
             else if (['symptom', 'lab', 'vital'].includes(n.type)) { seen.add(n.label); signs.push(cpClip(n.label, 28)); }
           }));
           factors = factors.slice(0, 4); signs = signs.slice(0, 3);

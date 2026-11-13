@@ -94,3 +94,29 @@ test('関連図の解釈は、その欲求に属する看護問題に限り、�
     assert.doesNotMatch(t, /縫合不全リスク状態.*につながる要因/, `need ${n} ${ph}`);
   });
 });
+
+test('術後イレウス：手術操作・炎症→腸の動きの低下の経路を主とし、排ガス・膨満・嘔吐は「現れる所見」として結ぶ（全事例）', () => {
+  files.forEach(f => {
+    const cp = caseOf(f); const m = cp.relationMap; if (!m) return;
+    const il = m.nodes.find(n => n.key === 'ileus_path' || /^腸の動き（蠕動運動）の低下$/.test(n.label));
+    if (!il) return;
+    const byId = new Map(m.nodes.map(n => [n.id, n]));
+    const into = m.edges.filter(e => e.target === il.id);
+    assert.ok(into.some(e => e.relation === 'causes' && /手術操作|炎症/.test(byId.get(e.source).label)), `${f}: 手術操作・炎症の経路がない`);
+    m.edges.filter(e => e.source === il.id).forEach(e => { if (byId.get(e.target).type === 'symptom' && /排ガス|膨満|嘔吐|悪心|嘔気|蠕動/.test(byId.get(e.target).label)) assert.equal(e.relation, 'manifests_as', `${f}: ${byId.get(e.target).label}`); });
+    into.forEach(e => assert.ok(!/ライン|ドレーン/.test(byId.get(e.source).label), `${f}: 管類が腸の動きの原因になっている`));
+  });
+});
+
+test('術前の「嘔吐なし」「胃のむかつき」や、悪心・嘔吐だけでは、イレウスの所見・実際の問題にしない', () => {
+  const head = '氏名：Z氏 62歳 男性\n診断名：S状結腸がん\n手術：腹腔鏡下S状結腸切除術を全身麻酔で実施\n';
+  const a = mk(head + '手術前日\nO：症状：胃のむかつき感あり、嘔吐なし\n術後1日目\nO：疼痛はNRS 2\n');
+  app.cpEnsureBuilt(a);
+  assert.ok(!(a.relationMap.nodes || []).some(n => n.type === 'nursing_problem' && /^消化管運動機能障害（/.test(n.label)));
+  const b = mk(head + '術後1日目\nO：悪心あり、嘔吐1回\n');
+  app.cpEnsureBuilt(b);
+  assert.ok(!(b.relationMap.nodes || []).some(n => n.type === 'nursing_problem' && /^消化管運動機能障害（/.test(n.label)));
+  const c = mk(head + '術後2日目\nO：腹部膨満あり、排ガスなし\n');
+  app.cpEnsureBuilt(c);
+  assert.ok((c.relationMap.nodes || []).some(n => n.type === 'nursing_problem' && /^消化管運動機能障害（/.test(n.label)));
+});

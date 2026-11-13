@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.278'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.279'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -2586,11 +2586,22 @@
       if (pain && painItem) E(pain, N('p_pain', 'nursing_problem', pain.siteConfirmed ? '急性疼痛（手術創部の侵襲）' : '急性疼痛（手術侵襲に関連）', { cat: 'pain' }), 'results_in');
 
       const abdOp = surgery && surgeryDone && /胃|腸|結腸|直腸|腹腔|肝|胆|膵|脾|虫垂|ヘルニア|子宮|卵巣/.test(surgery.label + dxLabel);
-      const ileusItem = abdOp && findItem(/排ガス(?:なし|が無い|がない)|腸蠕動[^\n]{0,4}(?:弱|低下|減弱|聴取できず)|腹部膨満|イレウス|嘔吐|悪心|嘔気/);
+      // v.278: ileus findings are read from the post-operative record only (a pre-operative 「胃のむかつき」 is not a sign of ileus), and nausea/vomiting alone is a weak sign (opioids and anaesthesia cause it too).
+      const ileusPost = i => notHist(i) && !/術前|手術前|入院前|入院時|受け持ち前/.test(`${i.timestamp || ''}${String(i.text).slice(0, 12)}`);
+      const ileusStrong = abdOp && findItem(/排ガス(?:なし|が無い|がない)|腸蠕動[^\n]{0,4}(?:弱|低下|減弱|聴取できず)|腹部膨満|イレウス|反復する嘔吐|嘔吐を繰り返|嘔吐が(?:続|持続)/, ileusPost);
+      const ileusWeak = abdOp && !ileusStrong && findItem(/嘔吐|悪心|嘔気/, ileusPost);
+      const ileusItem = ileusStrong || null;
+      const gutOpIleus = abdOp && /胃|食道|腸|結腸|直腸|空腸/.test(surgery.label + dxLabel) && /切除|全摘|吻合|再建|R-?Y|RY|ルーワイ/.test(surgery.label + all);
       const opiItem = findItem(/オピオイド|フェンタニル|モルヒネ|オキシコドン/);
       if (abdOp) {
+        // v.278: post-operative (paralytic) ileus — bowel handling and the inflammation of the abdominal cavity slow peristalsis (the main cause); anaesthesia, opioids, low potassium and bed rest add to it.
+        // The findings (no flatus, distension, vomiting) are what the slowed bowel looks like (manifests_as), not its cause. A blockage by adhesion/anastomotic oedema is a separate mechanical route.
         const il = N('ileus_path', 'pathophysiology', '腸の動き（蠕動運動）の低下', { source: 'knowledge', observed: !!ileusItem });
-        E(invasion || surgery, il, 'causes', { evidence: '手術で腸を触ったり麻酔を使ったりすると腸の動きが止まる', predicted: !ileusItem });
+        const handling = N('bowel_handling', 'pathophysiology', '腸管の手術操作・腹腔内の炎症（交感神経の緊張）', { source: 'knowledge' });
+        E(invasion || surgery, handling, 'causes', { evidence: '腹部の手術で腸を触る・切る・つなぐと、腸管と腹腔内に炎症が起こる' });
+        E(handling, il, 'causes', { evidence: '腸管の炎症と交感神経の緊張で、腸の動きが止まる（術後の麻痺性イレウスのいちばんの原因）', predicted: !ileusItem });
+        const hypokN = nodes.get('hypok');
+        if (hypokN && hypokN.observed !== false) E(hypokN, il, 'contributes_to', { evidence: 'カリウムが低いと腸の動きが弱まる' });
 
         if (nodes.has('anes')) E(nodes.get('anes'), il, 'contributes_to', { evidence: '麻酔薬で腸の動きが一時的に止まる', predicted: !ileusItem });
         const anaN = nodes.get('analgesia');
@@ -2601,7 +2612,7 @@
 
         if (ileusItem) {
           const sign = N('ileus_sign', 'symptom', short(ileusItem, 30, /排ガス|蠕動|膨満|イレウス|嘔吐|悪心|嘔気/), { items: [ileusItem] });
-          E(il, sign, 'causes');
+          E(il, sign, 'manifests_as', { evidence: '腸の動きが止まると、排ガスの停止・腹部膨満・嘔吐として現れる（観察所見）' });
           E(sign, ileusRisk, 'predicts', { predicted: true });
           const pGi = N('p_elim', 'nursing_problem', '消化管運動機能障害（術後の腸蠕動の低下）', { cat: 'elim' });
           E(sign, pGi, 'results_in');
@@ -2609,12 +2620,23 @@
         } else {
           E(il, ileusRisk, 'predicts', { predicted: true });
           E(ileusRisk, N('p_elim', 'nursing_problem', '消化管運動機能障害リスク状態（術後イレウス）', { cat: 'elim' }), 'results_in', { predicted: true });
+          if (ileusWeak) {
+            const w = N('ileus_weak', 'symptom', short(ileusWeak, 30, /嘔吐|悪心|嘔気/), { items: [ileusWeak] });
+            E(il, w, 'manifests_as', { certainty: 'possible', evidence: '悪心・嘔吐は腸の動きの低下でも起こるが、麻酔・オピオイドでも起こる（排ガス・腹部膨満・腸蠕動音とあわせて見る）' });
+            E(w, ileusRisk, 'supports', { certainty: 'possible', evidence: '悪心・嘔吐だけではイレウスとは判断しない' });
+          }
+        }
+        // mechanical route (only after a gut anastomosis/reconstruction): oedema, narrowing or adhesion block the passage.
+        if (gutOpIleus) {
+          const mech = N('ileus_mech', 'pathophysiology', '吻合部の浮腫・狭窄、腸管の癒着による通過障害の可能性', { source: 'knowledge' });
+          E(invasion || surgery, mech, 'contributes_to', { evidence: '腸をつなぎ直した部位は、むくみや癒着で通りにくくなることがある' });
+          E(mech, ileusRisk, 'predicts', { predicted: true, evidence: '通りにくくなると、腸の内容が先へ進まずイレウス（機械的）になる' });
         }
       }
 
       const albL = lab('Alb') || lab('TP');
       const weightItem = findItem(/体重[^\n]{0,12}(?:減少|減|kg減)|kg減少/);
-      const intakeItem = findItem(/摂取[^\n]{0,4}[0-4]割|[0-4]割摂取|食事量[^\n]{0,6}(?:低下|減)|食欲(?:不振|低下|がない)|絶食|禁食/);
+      const intakeItem = findItem(/摂取[^\n]{0,4}(?<![0-9０-９])[0-4]割|(?<![0-9０-９])[0-4]割摂取|食事量[^\n]{0,6}(?:低下|減)|食欲(?:不振|低下|がない)|絶食|禁食/);
       let nutrSign = null;
       if (gastric && surgeryDone) {
         const loss = N('gastric_loss', 'pathophysiology', '胃の貯留機能の消失（胃切除後）', { source: 'knowledge' });
@@ -2734,6 +2756,7 @@
           E(surgery, leakPath, 'contributes_to', { evidence: '消化管をつなぎ直した部位は、治る途中で縫い目がゆるむことがある（術後数日に起こりやすい）' });
           if (drainAn) E(N('leak_drain', 'treatment', short(drainAn, 30, /ドレーン/), { items: [drainAn] }), leakPath, 'treats', { evidence: '漏れを早く見つけ、たまった液を外へ出すための管（排液の量・性状の変化を観察する）' });
           const leakRisk = N('leak_risk', 'future_risk', '縫合不全・腹腔内感染（腹膜炎）の可能性', { source: 'knowledge', observed: false });
+          if (nodes.has('ileus_path')) E(leakRisk, nodes.get('ileus_path'), 'contributes_to', { predicted: true, certainty: 'possible', evidence: '縫合不全で腹膜炎になると、腹腔内の炎症で腸の動きがさらに止まる（起きた場合の二次的な経路）' });
           E(leakPath, leakRisk, 'predicts', { predicted: true });
           E(leakRisk, N('p_leak', 'nursing_problem', '縫合不全リスク状態（吻合部）', { cat: 'inf', evidence: rmRiskEvidence([anastItem ? '消化管の吻合・再建' : '消化管の切除（吻合の有無は記録で確認する）'].filter(Boolean), '術後の時期を過ぎても発熱・腹痛・排液の性状変化がなく、経口摂取が進んでいれば、問題から外す') }), 'results_in', { predicted: true });
         }
@@ -2818,7 +2841,8 @@
           E(mob, adl, 'causes', { evidence: '動ける範囲が限られる' });
           E(adl, pAct, 'results_in');
         } else if (pAct) E(mob, pAct, 'results_in');
-        if (nodes.has('ileus_path')) E(mob, nodes.get('ileus_path'), 'contributes_to', { evidence: '動かないと腸の動きも戻りにくい' });
+        // v.278: it is the bed rest itself (not every cause of limited movement, such as lines or pain) that slows the bowel's recovery.
+        if (nodes.has('ileus_path')) E(bedNode && bedNode.observed !== false ? bedNode : mob, nodes.get('ileus_path'), 'contributes_to', { evidence: '動かないと腸の動きも戻りにくい' });
 
         const mobItem = findLast(/(?:寝返り|起き上が|立ち上が|起立|端坐位|歩行|移乗)[^\n]{0,10}(?:困難|できない|介助|不安定|ふらつ|痛)|免荷|荷重(?:制限|不可)|片麻痺|麻痺[^\n]{0,6}(?:あり|で動かない)|ベッド上安静/, i => notHist(i) && !/食事|摂取/.test(i.text));
         if (mobItem) {
