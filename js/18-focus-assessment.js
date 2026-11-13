@@ -1,7 +1,7 @@
 // 重点アセスメント：欲求ごとに、S・O（入院前／入院後）→ 情報の分析・解釈 → 統合 → 看護問題の明確化を一画面で書く。
 // S・Oは分類ボードの内容から自動で並べ、分析・解釈／統合／看護問題の明確化も、記録・充足判定・看護計画（関連図の看護問題）から自動で下書きする。手で直した欄は自動では上書きしない（myAssessments の追加項目に保存）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.274'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.277'; // Version stamp (scripts/stamp-version.js)
 
     const FOCUS_FIELDS = [
       { key: 'focusAnalysis', label: '情報の分析・解釈', ph: 'S・Oの情報から、なぜその状態なのか（原因・関連要因）、今後どうなりそうかを書きます。\n例：術後は疼痛（O-3）と荷重への不安（S-2）から、歩行を避けて活動量が低下している。' },
@@ -201,6 +201,7 @@
       return null;
     }
     function buildFocusDraft(cp, needId) {
+      if (typeof cpEnsureBuilt === 'function') cpEnsureBuilt(cp);
       const data = focusItemsByColumn(cp, needId);
       const all = [...data.cols.preadmission, ...data.cols.postadmission, ...data.cols.unclassified];
       const name = focusNeedName(needId);
@@ -501,6 +502,7 @@
 
     // ---- 書き出し（印刷／PDF・テキスト） ----
     function focusExportNeeds(cp) {
+      if (typeof cpEnsureBuilt === 'function') cpEnsureBuilt(cp);
       return HENDERSON_NEEDS.map(n => {
         const data = focusItemsByColumn(cp, n.id);
         const has = [...data.cols.preadmission, ...data.cols.postadmission, ...data.cols.unclassified].length > 0;

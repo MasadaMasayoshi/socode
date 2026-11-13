@@ -44,6 +44,6 @@ test('重点アセスメント：排便の欲求に推論（問題の推論→�
   const d = app.buildFocusDraft(cp, 3);
   assert.match(d.focusAnalysis, /一般に、便秘とは/);
   assert.match(d.focusAnalysis, /この患者では/);
-  assert.match(d.focusProblem, /（候補）.*便秘/);
+  assert.match(d.focusProblem, /便秘/); // 看護問題・計画が作られていれば「挙がる」、まだなければ（候補）で出る
   assert.doesNotMatch(d.focusAnalysis + d.focusProblem, /要確認/);
 });

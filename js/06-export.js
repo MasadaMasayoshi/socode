@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.276'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.277'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -324,6 +324,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
     };
 
     function buildExportBodyHtml(cp, want) {
+      if (typeof cpEnsureBuilt === 'function') cpEnsureBuilt(cp);
       const on = k => exportSectionOn(want, k);
       cp = { ...cp, items: sheetRecordItems(cp) };
       const items = cp.items || [];
@@ -628,6 +629,7 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       }).map(i => ({ ...i, text: cleanSheetRecordText(i.text) }));
     }
     function buildExportPlainText(cp, want) {
+      if (typeof cpEnsureBuilt === 'function') cpEnsureBuilt(cp);
       const on = k => exportSectionOn(want, k);
       cp = { ...cp, items: sheetRecordItems(cp) };
       const formatLine = i => `[${i.timestamp}]${pastEventWordOf(i) ? ' [過去の出来事]' : ''}${i.fieldLabel ? ` [${i.fieldLabel}]` : ''} ${i.text}`;

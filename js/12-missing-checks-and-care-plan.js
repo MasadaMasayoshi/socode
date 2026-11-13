@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.275'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.277'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -3597,6 +3597,23 @@
       return n;
     }
 
+    // 書き出し・重点アセスメントなど、看護問題や看護計画を使う出力の前に呼ぶ。看護計画の画面を開いていなくても、記録から看護問題と計画を作ってから使う
+    // （作る処理は何度呼んでも増えない。手を入れた計画・消した問題には触らない。記録が変わらない間は再計算しない）
+    const cpEnsureMemo = new WeakMap();
+    function cpEnsureBuilt(cp) {
+      if (!cp || !Array.isArray(cp.items) || !cp.items.some(i => i && i.type !== 'unnecessary')) return;
+      const sig = cp.items.length + '|' + cp.items.map(i => `${i.id}:${String(i.text || '').length}:${(i.hendersonIds || []).join('.')}`).join(',') + '|' + Object.keys(cp.carePlans || {}).length;
+      if (cpEnsureMemo.get(cp) === sig) return;
+      // 関連図がまだないときは、先に記録から作る（看護問題の要因の説明・計画の根拠は、関連図の因果関係を使う）
+      try {
+        if (!(cp.relationMap && cp.relationMap.nodes && cp.relationMap.nodes.length) && typeof buildRelationMapFromRecord === 'function') {
+          const map = buildRelationMapFromRecord(cp);
+          if (map && map.nodes.length) { try { rmImportClinicalEntities(map, cp); } catch (e) { /* keep the base map */ } if (typeof rmCommit === 'function') rmCommit(cp, map, { pushUndo: false, render: false }); else cp.relationMap = map; }
+        }
+      } catch (e) { console.warn('Relation map preparation failed:', e); }
+      try { autoBuildCarePlans(cp, { notify: false }); } catch (e) { console.warn('Care plan preparation failed:', e); }
+      cpEnsureMemo.set(cp, cp.items.length + '|' + cp.items.map(i => `${i.id}:${String(i.text || '').length}:${(i.hendersonIds || []).join('.')}`).join(',') + '|' + Object.keys(cp.carePlans || {}).length);
+    }
     function autoBuildCarePlans(cp, { notify = true } = {}) {
       if (!cp) return 0;
       const before = JSON.stringify(cp.carePlans || {});
@@ -3890,6 +3907,7 @@
     };
 
     function buildCarePlansText(cp, { withRecords = true, recordFilter = null } = {}) {
+      cpEnsureBuilt(cp);
       return carePlanList(cp).filter(p => carePlanProvenance(cp, p).ok).map((p, k) => {
         const lines = [`#${k + 1} ${p.problem || '（無題）'}（${CARE_PLAN_STATUSES.find(s => s.key === p.status).label}）`];
         if (p.overlapNote) lines.push(`注：${p.overlapNote}`);
@@ -3971,7 +3989,7 @@ ${body}
 
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, {
-    clauseClip, cpIsAutoPlan, cpIsEmptyAutoPlan, cpFillFromModel, cpUpdateStalePlans, CP_GEN_VERSION,
+    clauseClip, cpIsAutoPlan, cpEnsureBuilt, cpIsEmptyAutoPlan, cpFillFromModel, cpUpdateStalePlans, CP_GEN_VERSION,
     inferUntaggedReason, untaggedContextEffects, untaggedTextKey, untaggedReviewOf, setUntaggedReview, applyUntaggedReviews, untaggedReviewItems, untaggedReviewCounts, untaggedSectionHtml,
     buildCarePlansPrintHtml, buildCarePlansText, buildCarePlansByRules, autoBuildCarePlans, carePlanList, deleteCarePlan, cpEnrichPlan, cpDesignLines, cpDesignBy, CP_ORAL_CARE_TP,
     formatCardTimestamp, MISSING_CHECK_STATUSES, missingInfoItems, missingCheckStatus, missingCheckCounts, setMissingCheck, missingCheckCardHtml,

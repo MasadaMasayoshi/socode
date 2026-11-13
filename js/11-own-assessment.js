@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.276'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.277'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -322,6 +322,8 @@
     function surgPhaseOf(i, cp) {
       const ts = String(i.timestamp || '').normalize('NFKC');
       const head = String(i.text || '').normalize('NFKC').slice(0, 30);
+      // 記録の先頭の見出しが「受け持ち前」「術前」のとき（手術当日の指示書に載っていても）術前の記録として扱う
+      if (/^[<＜(（【\[]\s*[^>＞)）】\]]{0,20}(?:受け持ち前|術前|手術前)/.test(head)) return 'pre';
       if (/術後|POD\s*\d|手術(?:翌日|後)|術直後|帰室/.test(ts) || /^[【\[]?術後/.test(head)) return 'post';
       if (/手術当日|術中|手術日|入室|OP当日/.test(ts) && !/術後|帰室/.test(ts)) return 'op';
       if (/術前|手術前|入院時|入院日|入院当日/.test(ts) || /^[【\[]?術前/.test(head)) return 'pre';
@@ -612,7 +614,7 @@
       14: /理解|知識|説明|指導|オリエンテーション|学習|質問|訓練|練習|退院|セルフ|方法|目的/
     };
     // その欲求の状態を表さない記録（診断・術式・検診・薬の指示など）。事実として並べない
-    const SUFA_NOT_FACT = /術式|予定術式|腫瘍|がんを指摘|精密検査|検診|入院の予定|胃カメラ|内視鏡|既往|通院|疼痛時指示|頓用|PCA|処方|がん家系/;
+    const SUFA_NOT_FACT = /[(（](?:一|ー|-|－|−)[)）]|沈渣|陰性|術式|予定術式|腫瘍|がんを指摘|精密検査|検診|入院の予定|胃カメラ|内視鏡|既往|通院|疼痛時指示|頓用|PCA|処方|がん家系/;
     function sufficiencyRelevanceRe(needId) {
       const parts = [SUFA_VOCAB[needId], typeof SUF_MET_DOMAIN !== 'undefined' ? SUF_MET_DOMAIN[needId] : null, PC_REQUIRED[needId] ? PC_REQUIRED[needId][0][1] : null].filter(Boolean);
       return parts.length ? new RegExp(parts.map(r => r.source).join('|')) : null;
@@ -687,20 +689,33 @@
       const polOf = list => list.some(f => f.pol === 'unmet') ? 'unmet' : list.some(f => f.pol === 'met') ? 'met' : '';
       const pick = (list, pol) => { const o = ordered(list.filter(f => f.pol === pol)); return o.length ? clauseClip(o[0].text, 32) : ''; };
       const CAP = '制限によるものか、本人の体力・意思・知識の不足によるものかは、制限が解除された後の状況をみて判断する';
+      // 比べるのは「同じ種類の指標」どうしだけ。体重の変化（ある期間の状態）と1回の食事の摂取量（その時点の状態）のように、意味の違う記録は変化として比べない
+      const KINDS = [['体重・栄養指標', /体重|BMI|Alb|アルブミン|るい痩|栄養状態/], ['摂取量', /摂取|全量|[0-9]割|食べ|食事量|水分量|飲水|経口/], ['食欲', /食欲/], ['睡眠', /睡眠|眠れ|覚醒/], ['疼痛', /疼痛|痛み|NRS|ペインスケール/], ['動作', /ADL|歩行|体位|体動|離床|移動|起き上が|寝返|立位|座位|自立/], ['呼吸', /呼吸|SpO2|咳|痰|喘鳴/], ['排泄', /排便|排尿|便秘|下痢|尿量/], ['体温', /体温|発熱|熱感/], ['症状', /嘔気|嘔吐|むかつき/], ['気持ち', /不安|心配|気持ち/], ['理解', /理解|知識|説明|質問|オリエンテーション/]];
+      const kindOf = f => (KINDS.find(([, re]) => re.test(f.text)) || ['その他'])[0];
+      const stmt = (pm, pn, cm, cn, pP, cP, prevName, curLabel, kindName, hint) => {
+        if (pP === 'met' && cP === 'unmet') return `${prevName}は問題がみられなかった（${pm}）が、${curLabel}は${cn}という変化がみられる${hint && hint.length ? `。記録からは、${hint.join('・')}の面の不足が関係していると考えられる` : ''}。`;
+        if (pP === 'unmet' && cP === 'met') return `${prevName}は${pn}という課題がみられたが、${curLabel}は${cm}という記録がある。この記録は一時点のもので、継続しているかは経過をみて判断する。`;
+        if (pP === 'unmet' && cP === 'unmet') return `${prevName}からみられる${pn}が、${curLabel}も続いている。`;
+        if (pP === 'met' && cP === 'met') return `${prevName}の${pm}に続き、${curLabel}も${cm}と、保たれている。`;
+        return '';
+      };
       // 隣り合う時期（入院前→術前→術後）を比べる。記録の事実（充足を示す・問題を示す）の組み合わせから、変化・改善・持続を書く
       const compare = (prev, prevName, curList, curRest, curLabel) => {
-        const pP = polOf(prev), cP = polOf(curList);
         if (!prev.length || !(curList.length || curRest.length)) return '';
-        const pm = pick(prev, 'met'), pn = pick(prev, 'unmet'), cm = pick(curList, 'met'), cn = pick(curList, 'unmet');
-        if (pP === 'met' && cP === 'unmet') {
-          const hint = typeof sufficiencyCauseHint === 'function' ? sufficiencyCauseHint(curList.filter(f => f.pol === 'unmet').map(f => f.text).join('。')) : [];
-          return `${prevName}は問題がみられなかった（${pm}）が、${curLabel}は${cn}という変化がみられる${hint.length ? `。記録からは、${hint.join('・')}の面の不足が関係していると考えられる` : ''}。`;
-        }
-        if (pP === 'met' && cP === '' && curRest.length) return `${prevName}は問題がみられなかった（${pm}）が、${curLabel}は治療上の制限があり、いまの状態は${CAP}。`;
-        if (pP === 'unmet' && cP === 'met') return `${prevName}は${pn}という課題がみられたが、${curLabel}は${cm}と改善している。`;
-        if (pP === 'unmet' && cP === 'unmet') return `${prevName}からみられる${pn}が、${curLabel}も続いている。`;
-        if (pP === 'unmet' && curRest.length && cP === '') return `${prevName}から${pn}という課題があり、${curLabel}は治療上の制限も加わっている。`;
-        if (pP === 'met' && cP === 'met') return `${prevName}の${pm}に続き、${curLabel}も${cm}と、保たれている。`;
+        const out = [];
+        KINDS.concat([['その他']]).forEach(([kn]) => {
+          if (out.length >= 2) return;
+          const pk = prev.filter(f => f.pol && kindOf(f) === kn), ck = curList.filter(f => f.pol && kindOf(f) === kn);
+          if (!pk.length || !ck.length) return;
+          const hint = typeof sufficiencyCauseHint === 'function' ? sufficiencyCauseHint(ck.filter(f => f.pol === 'unmet').map(f => f.text).join('。')) : [];
+          const t = stmt(pick(pk, 'met'), pick(pk, 'unmet'), pick(ck, 'met'), pick(ck, 'unmet'), polOf(pk), polOf(ck), prevName, curLabel, kn, hint);
+          if (t) out.push(t);
+        });
+        if (out.length) return out.join('');
+        const pP = polOf(prev), cP = polOf(curList);
+        if (pP && cP) return `${prevName}は${pick(prev, pP)}、${curLabel}は${pick(curList, cP)}という記録で、見ている指標が異なるため、そのまま比べて変化とは言えない。`;
+        if (pP === 'met' && cP === '' && curRest.length) return `${prevName}は問題がみられなかった（${pick(prev, 'met')}）が、${curLabel}は治療上の制限があり、いまの状態は${CAP}。`;
+        if (pP === 'unmet' && curRest.length && cP === '') return `${prevName}から${pick(prev, 'unmet')}という課題があり、${curLabel}は治療上の制限も加わっている。`;
         return '';
       };
       const seq = [];
@@ -709,6 +724,17 @@
       else if (cur === 'adm') { if (base.length) seq.push(compare(base, '入院前', obs, rest, '入院後')); }
       seq.filter(Boolean).forEach(x => paras.push(x));
       if (!seq.some(Boolean) && rest.length && !obs.some(f => f.pol)) paras.push(`${curName}は治療上の制限があり、いまの状態は${CAP}。`);
+      // 酸素を使っているときのSpO2は、酸素なしの呼吸の状態を表さない
+      if (cur !== 'base' && now.some(f => /SpO2/i.test(f.text) && /酸素|O2|[0-9]\s*L\s*\/\s*分/.test(f.text))) paras.push('SpO2は酸素を投与している間の値であり、酸素を使わない状態での呼吸は、この記録からは分からない。');
+      // 解釈：この欲求を主に扱う看護問題について、関連図で確かめられている要因だけを書く（記録にない原因は書かない）
+      try {
+        if (cur !== 'base' && typeof focusPlansForNeed === 'function' && typeof focusHomeNeed === 'function' && typeof focusMapNodeOf === 'function' && typeof focusMapChainRoles === 'function') {
+          const ids = new Set((cp.items || []).filter(i => (i.hendersonIds || []).includes(needId)).map(i => i.id));
+          const plan = focusPlansForNeed(cp, needId, ids).filter(p => { const h = focusHomeNeed(p); return (h === null || h === needId) && !(typeof cvProblemStatus === 'function' && cvProblemStatus(cp, p).kind === 'candidate'); })[0];
+          const roles = plan ? focusMapChainRoles(cp, focusMapNodeOf(cp, plan)) : null;
+          if (roles && roles.causes.length) paras.push(`${clauseClip(plan.problem, 30)}につながる要因として、${roles.causes.slice().reverse().join('、')}が考えられる${/リスク/.test(plan.problem) ? '。現時点で、その状態が起きたと判断できる記録はない' : ''}。`);
+        }
+      } catch (e) { /* 解釈は補助。失敗しても事実の分析は出す */ }
       if (now.length && !base.length && !pre.length) paras.push('入院前の記録がなく、以前の状態と比べて評価することはできない。');
       return paras.join('\n');
     }
@@ -1494,7 +1520,7 @@
 
     const SUF_NEG_AFTER = '(?:[^、。,]{0,6})(?:なし|ない|無|訴えず|みられず|見られず|認めず|なく|ありません)';
     const SUF_UNMET_CUES = ['(?:痛み(?!止め|どめ)|疼痛|創痛|痛い)(?![^。、]{0,6}(?:NRS|ペインスケール)\\s*[:：]?\\s*[0-2](?!\\d))|NRS\\s*[:：]?\\s*[3-9]|ペインスケール\\s*[「:：]?\\s*[3-9]', '眠れ[なず]|不眠|睡眠(?:不足|障害)|寝つけ|熟睡(?:でき[なず]|できていない|不可)', '全介助|要介助|介助(?:が必要|を要|にて|で)|見守りが必要|できない|困難|不可|禁止|制限', '不安|怖い|恐怖|心配|戸惑|情けない|申し訳', '食欲(?:低下|不振|がない|ない)|摂取量(?:半分|減)|半分のみ|おなかすかない|嘔気|嘔吐', '排便(?:なし|なく)|便秘|下痢|腹部膨満|お腹が張|尿量(?:が)?(?:減少|低下|少な)|乏尿', 'べたべた|べたつき|気持ちが悪い|汚れ|悪臭|掻痒', '発赤|(?<!リンパ節)腫脹|熱感|発熱|排膿|浮腫|褥瘡', '呼吸困難(?:感)?(?:あり|を訴)|息苦しい|息切れ|チアノーゼ|喘鳴|SpO2\\s*[:：]?\\s*(?:[0-8]\\d|9[0-3])\\s*%', '転倒|ふらつき|不安定|せん妄|不穏|混乱|拒否', '体温[^\\d。、]{0,3}3[89]|3[89](?:\\.\\d)?\\s*度', '[↑↓]', '(?:旅行|趣味|外出|散歩|余暇)[^。]{0,20}(?:したい|できず|できない|行けない|行きたい)|早く治して', '(?:わから|分から)ない|教えて(?:ほしい|欲しい|ください)|大丈夫(?:か|なの|でしょうか)|ずれ(?:たり)?しないか|気を付け(?:れば|ること)', '仕事[^。]{0,10}(?:できない|できず|休)|復職[^。]{0,10}(?:不安|心配|難)|働けな', '体重[^。、]{0,8}(?:減|低下)|[0-9.]+\\s*kg\\s*(?:減|低下)|やせ|朝食[^。、]{0,6}(?:抜|食べない|とらない|欠食|ほとんど食べ)|欠食|外食|早食い|偏食|短時間で済ま|早く食べ', '難聴|聞こえ(?:にくい|ない|が悪)|聴力(?:低下|障害)|(?:説明|話|内容)[^。、]{0,8}(?:ほとんど|あまり)?伝わ(?:らない|りにくい)|意思疎通(?:が)?(?:困難|難しい|図れ(?:ない|ず))|失語|構音障害', '口(?:を)?き[かけ]な|一言二言|一言も|無表情|目も合わせ|黙り込|返事をしな|答えな[いか]|会話にならな|言葉をかわ(?:す)?こと(?:も)?できな','(?:経口)?(?:摂取|飲水)(?:量)?(?:が)?(?:低下|減少|不良|不足|ほぼ(?:なし|ない))|(?:食事|食べ物|水分|飲み物|ミルク)(?:は|が|を)?(?:ほとんど)?(?:摂れ|とれ|取れ|食べられ|飲め|摂取でき)(?:て(?:い)?)?(?:ない|ず|なかった)|食べられ(?:ない|ず|なかった)|食事(?:を)?(?:拒否|摂らない|とらない)|食事摂取(?:なし|できず)|食欲(?:が|も)?(?:まったく|全く)?なく|何も(?:食べて|飲めて)(?:い)?(?:ない|なかった)'];
-    const SUF_MET_CUES = ['問題なし|良好|清明|規則的|正常|普通食|常食|整|障害なし|異常なし|理解(?:力)?(?:あり|良好)|前向き|頑張|楽しみ|きれい好き', '睡眠[^\\d。、]{0,3}[6-9](?:\\s*[~〜～-]\\s*[6-9])?\\s*時間|眠れた|よく眠れ|よく眠り|寝起きは?(?:良|すっきり)|すっきり(?:と)?起き|ぐっすり眠', '食欲(?:良好|あり)|全量摂取|摂取量\\s*(?:良好|十分)|残さず(?:食べ|摂取)', '(?!)', 'ペインスケール\\s*[「:：]?\\s*[0-2]|NRS\\s*[:：]?\\s*[0-2](?!\\d)|痛みなし|疼痛なし', '(?!)', '排便\\s*[:：]?\\s*\\d\\s*回/日|排尿\\s*[:：]?\\s*\\d+\\s*回/日', '呼吸困難感(?:の)?訴えなし|肺Air入り(?:が)?良好', '意思疎通(?:は)?(?:良好|可能|図れ)|言葉にで|希望を(?:伝え|話)|質問(?:が)?でき|ナースコール[^。]{0,6}(?:使用|押|できる)|コミュニケーション[^。]{0,6}(?:良好|障害なし)', '理解(?:力)?(?:が)?良好|現状認識(?:が)?良好|理解できて|理解している', '(?:旅行|趣味|友人|外出)[^。]{0,12}(?:楽しむ|楽しん|行って|している)', '信仰[^。]{0,8}なし|宗教[^。]{0,8}なし|特別な宗教', '胸部[^。、]{0,8}(?:明らかな)?(?:異常|病変)[^。、]{0,4}(?:なし|認めず|ない)|呼吸困難(?:感)?(?:は)?(?:なし|ない|無)', '趣味|テニス|ゴルフ|ジム|ウォーキング|ジョギング|旅行|友人[^。]{0,6}(?:会|食事)', '自立|自力|自分で|一人で', '(?<!(?:夫|妻|息子|娘|長男|次男|三男|長女|次女|父|母|嫁|兄|弟|姉|妹|家族)[^。、]{0,8})(?:専業主婦|主婦|会社員|自営業?|就労中|勤務(?:して|中)|家事(?:全般)?を(?:して|担|こなし))'];
+    const SUF_MET_CUES = ['問題なし|良好|清明|規則的|正常|普通食|常食|整|障害なし|異常なし|理解(?:力)?(?:あり|良好)|前向き|頑張|楽しみ|きれい好き', '睡眠[^\\d。、]{0,3}[6-9](?:\\s*[~〜～-]\\s*[6-9])?\\s*時間|眠れた|よく眠れ|よく眠り|寝起きは?(?:良|すっきり)|すっきり(?:と)?起き|ぐっすり眠', '食欲(?:良好|あり)|全量摂取|摂取量\\s*(?:良好|十分)|残さず(?:食べ|摂取)', '(?!)', 'ペインスケール\\s*[「:：]?\\s*[0-2]|NRS\\s*[:：]?\\s*[0-2](?!\\d)|痛みなし|疼痛なし', '(?!)', '排便\\s*[:：]?\\s*\\d\\s*回/日|排尿\\s*[:：]?\\s*\\d+\\s*回/日', '呼吸困難感(?:の)?訴えなし|肺Air入り(?:が)?良好', '意思疎通(?:は)?(?:良好|可能|図れ)|短く返事|返事(?:を|は|が)?(?:する|でき|あり)|うなず|頷|(?:のど|喉|傷|腹|痛い所|部位)[^。、]{0,8}(?:を)?(?:示し|指さ|指差|指し)|ジェスチャー|筆談|言葉にで|希望を(?:伝え|話)|質問(?:が)?でき|ナースコール[^。]{0,6}(?:使用|押|できる)|コミュニケーション[^。]{0,6}(?:良好|障害なし)', '理解(?:力)?(?:が)?良好|現状認識(?:が)?良好|理解できて|理解している', '(?:旅行|趣味|友人|外出)[^。]{0,12}(?:楽しむ|楽しん|行って|している)', '信仰[^。]{0,8}なし|宗教[^。]{0,8}なし|特別な宗教', '胸部[^。、]{0,8}(?:明らかな)?(?:異常|病変)[^。、]{0,4}(?:なし|認めず|ない)|呼吸困難(?:感)?(?:は)?(?:なし|ない|無)', '趣味|テニス|ゴルフ|ジム|ウォーキング|ジョギング|旅行|友人[^。]{0,6}(?:会|食事)', '自立|自力|自分で|一人で', '(?<!(?:夫|妻|息子|娘|長男|次男|三男|長女|次女|父|母|嫁|兄|弟|姉|妹|家族)[^。、]{0,8})(?:専業主婦|主婦|会社員|自営業?|就労中|勤務(?:して|中)|家事(?:全般)?を(?:して|担|こなし))'];
 
     // v.101: a diagnosis name alone is not a finding and gives no verdict; only recorded symptoms/values do.
     const SUF_DISEASE_NAME_ONLY = /^(?:糖尿病|高血圧|脂質異常症|白内障|[^、。\s]{0,8}(?:がん|癌)|[^、。\s]{0,6}骨折|子宮筋腫|(?:陳旧性)?心筋梗塞|胃全摘|胃切除)$/;
@@ -1820,7 +1846,9 @@
         const t = String(t0).replace(/[^、。「」]{0,8}(?:は|も)(?:ほとんど|全く|まったく|特に|あまり)?(?:なく|ない|なし|みられず|認めず|認めない|なかった)/g, ' ');
         // v.106: a symptom word inside a staff explanation/teaching sentence is not a finding of this patient
         if (/(?:へ|に)[^。]{0,40}(?:説明|指導|オリエンテーション)(?:する|した|を行う|を行った|を受け)/.test(t)) return;
-        DISEASE_SYMPTOM_NEEDS.forEach(([re, ids]) => { const m = t.match(re); if (m && !SUF_DISEASE_NAME_ONLY.test(m[0]) && !(m[0] === '低血糖' && !/低血糖(?:症状)?(?:あり|が出現|を認め|を起こ|のため|により|で(?:搬送|受診|処置))/.test(t))) ids.forEach(need => { if (!(i.hendersonIds || []).includes(need)) out.push({ need, v: 'partial', ...(/^(?:易?感染(?:症)?)$/.test(m[0]) ? { supportOnly: true } : {}), hit: m[0] === '低血糖' ? (t.match(/低血糖(?:症状)?(?:あり|が出現|を認め|を起こ)/) || m)[0] : m[0], ref: '記録された症状と14項目の対応（参考）', id: i.id, fillOnly: true, tag: false, symptom: true }); }); });
+        // 「〜痛法」は症状ではなく方法の名前（読み取りの誤りで「自己調節鎮痛法」が「…頭痛法」になることがある）。症状の語として拾わない
+        const tSym = t.replace(/[一-龥ぁ-ん]{0,6}(?:頭痛|疼痛|腹痛|鎮痛|痛)法/g, ' ');
+        DISEASE_SYMPTOM_NEEDS.forEach(([re, ids]) => { const m = tSym.match(re); if (m && !SUF_DISEASE_NAME_ONLY.test(m[0]) && !(m[0] === '低血糖' && !/低血糖(?:症状)?(?:あり|が出現|を認め|を起こ|のため|により|で(?:搬送|受診|処置))/.test(t))) ids.forEach(need => { if (!(i.hendersonIds || []).includes(need)) out.push({ need, v: 'partial', ...(/^(?:易?感染(?:症)?)$/.test(m[0]) ? { supportOnly: true } : {}), hit: m[0] === '低血糖' ? (t.match(/低血糖(?:症状)?(?:あり|が出現|を認め|を起こ)/) || m)[0] : m[0], ref: '記録された症状と14項目の対応（参考）', id: i.id, fillOnly: true, tag: false, symptom: true }); }); });
       });
       return out;
     }
