@@ -76,13 +76,13 @@ test('関連図の「つながっていない項目」は、どの種類の線�
 
 test('欲求ごとの分析で、判定の材料が別の面にまたがるときは面を分けて書く', () => {
   const n2 = app.sufficiencySeparationNote(2, { verdict: 'met', facts: [{ text: '朝食全量摂取', pol: 'met' }, { text: '体重59.5kg(1か月で体重2.0kg減)', pol: '' }], now: [] });
-  assert.match(n2, /摂る力.*栄養状態.*別の面/);
+  assert.match(n2, /食事摂取能力.*栄養状態の面/);
   const n9 = app.sufficiencySeparationNote(9, { verdict: 'unknown', facts: [{ text: '点滴：末梢静脈ラインより滴下' }, { text: '挿入したもの：●Aライン' }], now: [{ text: '点滴：末梢静脈ラインより滴下' }] });
-  assert.match(n9, /危険因子の面.*安全対策の面/);
+  assert.match(n9, /危険が高まりやすい.*安全対策/);
   const n10 = app.sufficiencySeparationNote(10, { verdict: 'met', facts: [], now: [{ text: 'のどを示しながら、苦悶の表情', pol: 'met' }] });
-  assert.match(n10, /意思表示の方法の面.*必要なことを十分に/);
+  assert.match(n10, /身振りなどで意思を示す.*必要なことを十分に/);
   const n14 = app.sufficiencySeparationNote(14, { verdict: 'unmet', facts: [{ text: '呼吸訓練を促すと「やっぱりやらなくちゃいけないの?」と聞いてくる' }, { text: 'オリエンテーションを受ける' }], now: [] });
-  assert.match(n14, /知識.*意欲.*どれが関わるか/);
+  assert.match(n14, /知識面.*意欲面.*どれが影響/);
   assert.equal(app.sufficiencySeparationNote(9, { verdict: 'met', facts: [{ text: '点滴ライン' }, { text: 'ナースコールを手元に置く' }], now: [] }), '');
 });
 

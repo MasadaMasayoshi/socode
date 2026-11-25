@@ -1,7 +1,7 @@
 // 重点アセスメント：欲求ごとに、S・O（入院前／入院後）→ 情報の分析・解釈 → 統合 → 看護問題の明確化を一画面で書く。
 // S・Oは分類ボードの内容から自動で並べ、分析・解釈／統合／看護問題の明確化も、記録・充足判定・看護計画（関連図の看護問題）から自動で下書きする。手で直した欄は自動では上書きしない（myAssessments の追加項目に保存）。
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.278'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['18'] = 'v.280'; // Version stamp (scripts/stamp-version.js)
 
     const FOCUS_FIELDS = [
       { key: 'focusAnalysis', label: '情報の分析・解釈', ph: 'S・Oの情報から、なぜその状態なのか（原因・関連要因）、今後どうなりそうかを書きます。\n例：術後は疼痛（O-3）と荷重への不安（S-2）から、歩行を避けて活動量が低下している。' },
@@ -125,6 +125,16 @@
     // 関連図の上流のノードを、役割（原因・関連要因／症状・状態／実施中の介入）に分ける。介入や症状を「原因」として並べない。
     const FOCUS_INTERVENTION_RE = /鎮痛薬?|鎮痛剤|投与|内服|点滴|見守り|介助(?:で|下|により)|訓練|リハビリ(?!室)|移乗し|指導|ストッキング|ドレナージ/;
     const FOCUS_RESTRICT_RE = /安静|固定|制限|禁止|荷重|牽引|術式|麻酔|手術|カテーテル|ライン|ドレーン/;
+    // The outcome a risk problem warns of (e.g. 無気肺・肺炎), read from the future-risk node that leads to the problem on the relation map.
+    function focusRiskOutcome(cp, plan) {
+      try {
+        const node = focusMapNodeOf(cp, plan), map = cp.relationMap;
+        if (!node || !map) return '';
+        const byId = new Map(map.nodes.map(n => [n.id, n]));
+        const f = map.edges.filter(e => e.target === node.id).map(e => byId.get(e.source)).find(n => n && n.type === 'future_risk');
+        return f ? String(f.label).replace(/の可能性$/, '').replace(/\s*[（(].*$/, '') : '';
+      } catch (e) { return ''; }
+    }
     function focusMapChainRoles(cp, node) {
       const map = cp.relationMap; const out = { causes: [], symptoms: [], interventions: [] };
       if (!map || !node || !Array.isArray(map.edges)) return out;
@@ -276,9 +286,9 @@
         // When the reasoning step below already explains the same problem from the record, the map chain is not repeated.
         const byTopic = p => reasons.slice(0, 2).some(r => r.topic.plan.test(p.problem));
         const chains = established.filter(p => isHome(p) && !byTopic(p)).slice(0, 2).map(p => ({ p, ch: focusMapChainRoles(cp, focusMapNodeOf(cp, p)).causes })).filter(x => x.ch.length);
-        if (chains.length) para.push(chains.map(x => `${cl(x.p.problem, 30)}の背景には、${x.ch.slice().reverse().join('、')}がある`).join('。また、') + '。');
+        if (chains.length) para.push(chains.map(x => `${cl(x.p.problem, 30).replace(/リスク状態.*$/, '')}の危険因子として、${x.ch.slice().reverse().join('、')}が挙げられる`).join('。また、') + '。');
         const away = awayP;
-        if (away.length) para.push(`${away.map(p => `${cl(p.problem, 30)}は「${focusNeedName(focusHomeNeed(p))}」`).join('、')}の項で述べたとおりで、この欲求にも影響している。`);
+        if (away.length) para.push(`${away.map(p => `${cl(p.problem, 30)}は「${focusNeedName(focusHomeNeed(p))}」`).join('、')}の項で述べた状態が、この欲求にも関わっている。`);
         reasons.slice(0, 2).forEach(r => crNarrative(r, data.labels).forEach(x => para.push(x)));
         // Pain is read in the need whose function it disturbs (owner rule): outside 姿勢, where the pain itself is reasoned out,
         // one sentence says how pain affects this need, citing the records.
@@ -381,12 +391,12 @@
         established.filter(p => stat(p).kind !== 'risk').slice(0, 3).forEach(p => { if (p.note) para.push(`${cl(p.note, 60)}${focusLabelsOf(p.evidenceIds, data.labels)}ため、${cl(p.problem, 30)}が現在の問題である。`); });
         const riskP = established.filter(p => stat(p).kind === 'risk').slice(0, 3);
         const comp = typeof complicationCandidates === 'function' ? complicationCandidates(cp, needId, all.map(i => i.text).join(' ')).slice(0, 2) : [];
-        if (riskP.length || comp.length) para.push(`今後は${(() => { const rs = riskP.map(p => cl(p.problem, 30)); const root = t => String(t).replace(/リスク状態.*$|（.*$/, '').replace(/^.*の/, '').replace(/[・･]/g, '').slice(0, 4); const extra = comp.map(c => String(c).replace(/（.*$/, '')).filter(c => !rs.some(r => root(r) && c.replace(/[・･]/g, '').includes(root(r).replace(/[・･]/g, '')))); return [...rs, ...extra].filter((v, k, arr) => arr.indexOf(v) === k); })().join('、')}が起こるおそれがあるため、予防と早期発見のための観察を続ける。`);
+        if (riskP.length || comp.length) para.push(`今後は${(() => { const rs = riskP.map(p => focusRiskOutcome(cp, p) || cl(p.problem, 30)); const root = t => String(t).replace(/リスク状態.*$|（.*$/, '').replace(/^.*の/, '').replace(/[・･]/g, '').slice(0, 4); const extra = comp.map(c => String(c).replace(/（.*$/, '')).filter(c => !rs.some(r => root(r) && c.replace(/[・･]/g, '').includes(root(r).replace(/[・･]/g, '')))); const dom = t => /無気肺|肺炎|呼吸|肺/.test(t) ? 'r' : /イレウス|腸閉塞|消化管|縫合不全/.test(t) ? 'g' : /出血/.test(t) ? 'b' : /血栓|塞栓/.test(t) ? 'v' : /感染|創/.test(t) ? 'i' : ''; const all = [...rs, ...extra].filter((v, k, arr) => arr.indexOf(v) === k); return all.filter(t => !(/合併症$/.test(t) && dom(t) && all.some(o => o !== t && !/合併症$/.test(o) && dom(o) === dom(t)))); })().join('、')}を起こすおそれがある。予防と早期発見のため、観察を続ける。`);
         const life = preSet.concat(postAll).find(i => /階段|2階|二階|一人暮らし|独居|段差|エレベーター|布団をひ/.test(i.text) && !/痛/.test(i.text));
         if (life && verdict !== 'met') para.push(`退院後は「${cl(life.text, 40)}」${lab(life)}という生活環境に合わせて、安全な動作と移動の方法を身につける必要がある。`);
         // 7. 必要な看護
         const ops = [...new Set(established.flatMap(p => (p.op || []).slice(0, 1)).map(t => cl(t, 40).replace(/(?:を|について)?(?:観察|確認|測定|把握)(?:する)?$/, '')))].filter(Boolean).slice(0, 3);
-        if (ops.length && verdict !== 'met') para.push(`優先して${ops.join('、')}を観察し、本人の力で行える部分は見守り、できない部分を補う。`);
+        if (ops.length && verdict !== 'met') para.push(`優先して${ops.join('、')}を観察し、患者の自立度を確認したうえで、必要な部分に援助を行う。`);
         const lack = (dims || []).filter(d => d.state === 'none').map(d => d.label);
         if (lack.length && verdict !== 'unknown') para.push(`${lack.join('・')}の記録がないため、確認して判断を確かにする。`);
         if (candidates.length) para.push(`${candidates.map(p => cl(p.problem, 24)).join('、')}は、根拠となる記録がそろっておらず、確認が必要である。`);

@@ -57,6 +57,6 @@ test('術後の分析に、関連図で確かめられた要因が入る（記�
   const cp = mkText(fs.readFileSync(path.join(dir, f), 'utf8').replace(/\r\n?/g, '\n'));
   app.cpEnsureBuilt(cp);
   const t = app.sufficiencyAnalysis(cp, 1, 'postop');
-  assert.match(t, /につながる要因として、.*が考えられる/);
+  assert.match(t, /により、.*を起こすおそれがある/);
   assert.match(t, /SpO2は酸素を投与している間の値/);
 });

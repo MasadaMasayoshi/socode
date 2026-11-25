@@ -3,7 +3,7 @@
 // Evidence IDs require unique same-patient matches; snapshots detect changed/deleted/excluded cards.
 // Patient-scoped field/structural histories protect later dependent edits and confirmed targets.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.279'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['12'] = 'v.280'; // Version stamp (scripts/stamp-version.js)
 
     function formatCardTimestamp(value) {
       const d = value instanceof Date ? value : new Date(value);
@@ -2661,7 +2661,7 @@
       if (k === 'pain' && /痛(?:い|み)(?:が)?(?:強|つらい|辛い)|我慢できない/.test(ctx.text)) { s += 6; why.push('患者の痛みの訴え'); }
       if (k === 'anx' && /不安|心配/.test(ctx.text)) { s += 6; why.push('患者の不安の訴え'); }
       if (['act', 'mobility'].includes(k) && /安静|ベッド上|床上/.test(ctx.text)) { s -= 5; why.push('現在は安静度の指示がある'); }
-      return { score: s, reason: why.length ? why.join('・') + 'ため' + '、この順番にしました' : '記録上の緊急度から、この順番にしました' };
+      return { score: s, reason: why.length ? why.join('・') + 'ため' + '、この順番にしました' : '生命への影響や発生しやすさ、経過を踏まえた順番にしました' };
     }
     // Overlapping plans of one domain (e.g. unstable-glucose risk and ineffective self-management) keep their own goals, but an observation/care line that
     // is word-for-word identical to a line of a higher-priority plan of the same domain is written once (generated plans only; user edits are never touched).
@@ -3142,7 +3142,9 @@
         const v = labLatestValue(t, row.re);
         if (v === null) return;
         const pick = (o, wantMin) => { const a = o.M, b = o.F; if (a === undefined && b === undefined) return null; if (c.sex === 'M') return a; if (c.sex === 'F') return b; return wantMin ? Math.min(a, b) : Math.max(a, b); };
-        const lo = pick(row.lo, true), hi = pick(row.hi, false);
+        let lo = pick(row.lo, true), hi = pick(row.hi, false), recRange = false;
+        // v.280: the reference range written on the record itself (基準値: a〜b) is used before the common table — it is the range of the laboratory that measured the value.
+        try { const mm = t.match(row.re); const near = mm ? t.slice(mm.index, mm.index + mm[0].length + 70) : ''; const rr = near.match(/基準値\s*[:：]\s*(\d+(?:\.\d+)?)\s*[〜~～-]\s*(\d+(?:\.\d+)?)/); if (rr) { lo = Number(rr[1]); hi = Number(rr[2]); recRange = true; } } catch (e) { /* keep the table range */ }
         const dir = lo !== null && v < lo ? '低い' : hi !== null && v > hi ? '高い' : '';
         const u = row.unit ? ` ${row.unit}` : '';
         const rng = `${lo !== null ? lo : ''}${lo !== null && hi !== null ? '–' : ''}${hi !== null ? (lo === null ? '≤' : '') + hi : ''}${u}`;
@@ -3156,7 +3158,7 @@
         if (c.preg && row.ctx.preg) parts.push(row.ctx.preg);
         if (row.ctx.drug && row.ctx.drug[0].test(t)) parts.push(row.ctx.drug[1]);
         if (!parts.length) return;
-        out.push(`${row.key} ${v}：${who ? who + 'の' : ''}成人の共通基準範囲（${rng}）より${dir}。${parts.join('。')}${row.extra ? '（' + row.extra + '）' : ''}。基準範囲は病態で置き換えず、解釈の条件として扱う`);
+        out.push(`${row.key} ${v}：${who ? who + 'の' : ''}${recRange ? '記録の基準値' : '成人の共通基準範囲'}（${rng}）より${dir}。${parts.join('。')}${row.extra ? '（' + row.extra + '）' : ''}。基準範囲は病態で置き換えず、解釈の条件として扱う`);
       });
       return out;
     }
@@ -3270,13 +3272,20 @@
       return false;
     }
 
+    // v.280: the reason of the order is told as a judgement (生命への影響・発生しやすさ・経過を踏まえた優先).
+    function cpPriorityText(r) {
+      const t = String(r || '').replace(/ため、この順番にしました$/, '').replace(/から、この順番にしました$/, '').replace(/を踏まえた順番にしました$/, '').trim();
+      if (!t) return '';
+      return /[ことでる]$/.test(t) && !/を踏まえ/.test(t) ? `${t}ことから、優先して計画する` : `${t}を踏まえて優先する`;
+    }
     function cpRecSnip(cp, re, max = 36, skipRe = null) {
       const items = ((cp && cp.items) || []).filter(i => i && !i.deleted && !i.aiSuggested && !i.diseaseGeneral && i.text && i.type !== 'unnecessary');
       for (const i of items) {
         if (skipRe && skipRe.test(`${i.fieldLabel || ''}${i.text}`)) continue;
         const t = cpNorm(i.text).replace(/\s+/g, ' ');
         const m = t.match(new RegExp('[^。\\n、「」]{0,' + Math.floor(max / 2) + '}(?:' + re.source + ')[^。\\n、「」]{0,' + Math.floor(max / 2) + '}'));
-        if (m) return m[0].trim();
+        // v.280: the label 「予定術式」 and the scheduled-day note (入院翌々日) are not part of what the evidence says; the operation is quoted by its name.
+        if (m) return m[0].replace(/予定術式\s*[:：]?\s*/g, '').replace(/[（(][^）)]*(?:入院|翌|日)[^）)]*[）)]/g, '').replace(/\s*\+\s*/g, '・').trim();
       }
       return '';
     }
@@ -3934,7 +3943,7 @@
       return carePlanList(cp).filter(p => carePlanProvenance(cp, p).ok).map((p, k) => {
         const lines = [`#${k + 1} ${p.problem || '（無題）'}（${CARE_PLAN_STATUSES.find(s => s.key === p.status).label}）`];
         if (p.overlapNote) lines.push(`注：${p.overlapNote}`);
-        if (p.priorityReason && !p.orderLocked) lines.push(`順番の理由：${p.priorityReason.replace(/ため、この順番にしました$/, '')}`);
+        if (p.priorityReason && !p.orderLocked) lines.push(`順番の理由：${cpPriorityText(p.priorityReason)}`);
         if (p.relatedNeeds.length) lines.push(`関係する項目：${p.relatedNeeds.map(h => `${h}.${hendersonNameOf(h).replace(/^\d+\.\s*/, '')}`).join('・')}`);
         if (p.evidence && p.evidence.length) lines.push(`根拠データ：${p.evidence.join('／')}`);
         if (p.reasons && p.reasons.length) lines.push(`この患者に必要な理由：${p.reasons.map(r => `${r.about ? `（${r.about}）` : ''}${r.text}`).join('／')}`);
@@ -3979,7 +3988,7 @@
           return `<tr><td>${esc(formatMyDateTime(r.at))}${ach && ach.key ? `<br><b>${ach.label}</b>` : ''}</td><td>${done || '—'}</td><td>${esc(r.response) || '—'}</td><td>${esc(r.evaluation) || '—'}</td><td>${esc(r.revision) || '—'}</td></tr>`;
         }).join('')}</tbody></table>` : '';
         return `<h2>#${k + 1} ${esc(p.problem || '（無題）')}　<span style="font-weight:400;font-size:9pt;">［${esc(st ? st.label : '')}］</span></h2>
-<table style="break-inside:auto;"><tbody>${row('順番の理由', p.orderLocked ? '' : esc(String(p.priorityReason || '').replace(/ため、この順番にしました$/, '')))}${row('関係する項目', esc(needs))}${row('根拠データ', esc((p.evidence || []).join('／')))}${row('この患者に必要な理由', (p.reasons || []).map(r => `${r.about ? `（${esc(r.about)}）` : ''}${esc(r.text)}`).join('<br>'))}${(by => { const w = pair => pair && pair[1] ? row(esc(pair[0]), esc(pair[1])) : ''; return w(by.clarification) + row('長期目標', esc(p.goalLong)) + row('短期目標', esc(p.goalShort)) + w(by.indicators) + CARE_PLAN_SECTIONS.map(s => row(esc(s.label), list(p[s.key])) + w(by[s.key])).join('') + by.notes.map(([l, t]) => row(esc(l), esc(t))).join(''); })(cpDesignBy(p))}</tbody></table>
+<table style="break-inside:auto;"><tbody>${row('順番の理由', p.orderLocked ? '' : esc(cpPriorityText(p.priorityReason)))}${row('関係する項目', esc(needs))}${row('根拠データ', esc((p.evidence || []).join('／')))}${row('この患者に必要な理由', (p.reasons || []).map(r => `${r.about ? `（${esc(r.about)}）` : ''}${esc(r.text)}`).join('<br>'))}${(by => { const w = pair => pair && pair[1] ? row(esc(pair[0]), esc(pair[1])) : ''; return w(by.clarification) + row('長期目標', esc(p.goalLong)) + row('短期目標', esc(p.goalShort)) + w(by.indicators) + CARE_PLAN_SECTIONS.map(s => row(esc(s.label), list(p[s.key])) + w(by[s.key])).join('') + by.notes.map(([l, t]) => row(esc(l), esc(t))).join(''); })(cpDesignBy(p))}</tbody></table>
 ${recs.length ? `<div style="font-weight:700;margin:6pt 0 0;">実施・評価の記録</div>${recTable}` : ''}`;
       }).join('');
       const title = `${cp.title || ''}_看護計画`;

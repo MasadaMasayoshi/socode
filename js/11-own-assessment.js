@@ -1,7 +1,7 @@
 // Own assessment and reevaluation. Keep evidence, interpretation and prediction separate.
 // Field histories and delayed checks are patient/need-scoped; reject later conflicting edits.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.278'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['11'] = 'v.280'; // Version stamp (scripts/stamp-version.js)
 
     // ==========================================================================
 
@@ -324,6 +324,8 @@
       const head = String(i.text || '').normalize('NFKC').slice(0, 30);
       // 記録の先頭の見出しが「受け持ち前」「術前」のとき（手術当日の指示書に載っていても）術前の記録として扱う
       if (/^[<＜(（【\[]\s*[^>＞)）】\]]{0,20}(?:受け持ち前|術前|手術前)/.test(head)) return 'pre';
+      // v.280: pre-operative screening results (lung function, chest X-ray, ECG, blood type, infection and urine tests) are pre-operative even when the order sheet prints them under the operation-day heading.
+      if (/^[【\[]?\s*(?:呼吸機能|肺機能|[一1]秒率|%?\s*肺活量|胸部\s*[X✕×Ｘ]\s*[-ー]?\s*[線PＰ]|心電図|胃カメラ|上部消化管内視鏡|血液型|感染症|尿検査|腹部(?:エコー|超音波)|MRI)/.test(head) && !/術後\s*\d+\s*日|POD\s*\d|帰室/.test(ts)) return 'pre';
       if (/術後|POD\s*\d|手術(?:翌日|後)|術直後|帰室/.test(ts) || /^[【\[]?術後/.test(head)) return 'post';
       if (/手術当日|術中|手術日|入室|OP当日/.test(ts) && !/術後|帰室/.test(ts)) return 'op';
       if (/術前|手術前|入院時|入院日|入院当日/.test(ts) || /^[【\[]?術前/.test(head)) return 'pre';
@@ -598,7 +600,7 @@
     const SUFA_BASELINE = /入院前|普段|いつも|従来|もともと|自宅では|習慣|外来記録|\d+\s*(?:か月|ヶ月|年|週間)前/;
     const SUFA_RESTRICT = /絶飲食|絶食|禁食|飲水制限|安静|床上|臥床|禁止|制限|ベッド上|免荷|NPO/;
     const SUFA_VOCAB = {
-      1: /喫煙|禁煙|ブリンクマン|1秒率|肺活量|%VC|呼吸機能|挿管|麻酔|胸部|排痰|トライボール|呼吸訓練|脈拍|血圧/,
+      1: /喫煙|禁煙|ブリンクマン|1秒率|[一１]秒率|肺活量|%VC|呼吸機能|挿管|麻酔|胸部|排痰|トライボール|呼吸訓練|脈拍|血圧/,
       2: /体重|BMI|食欲|嘔気|嘔吐|むかつき|胃部|摂取|栄養|朝食|昼食|夕食|間食|義歯|嚥下|血糖|Alb|アルブミン|絶飲食|絶食|禁食/,
       3: /排便|排尿|便秘|下痢|尿量|腹部膨満|ガス|腸蠕動|カテーテル|ストーマ|緩下/,
       4: /ADL|安静|離床|歩行|体位|運動|筋力|疼痛|痛み|麻痺|ふらつ|転倒|床上|体動|寝返/,
@@ -614,7 +616,7 @@
       14: /理解|知識|説明|指導|オリエンテーション|学習|質問|訓練|練習|退院|セルフ|方法|目的/
     };
     // その欲求の状態を表さない記録（診断・術式・検診・薬の指示など）。事実として並べない
-    const SUFA_NOT_FACT = /[(（](?:一|ー|-|－|−)[)）]|沈渣|陰性|術式|予定術式|腫瘍|がんを指摘|精密検査|検診|入院の予定|胃カメラ|内視鏡|既往|通院|疼痛時指示|頓用|PCA|処方|がん家系/;
+    const SUFA_NOT_FACT = /特に[!！]?$|[(（](?:一|ー|-|－|−)[)）]|沈渣|陰性|術式|予定術式|腫瘍|がんを指摘|精密検査|検診|入院の予定|胃カメラ|内視鏡|既往|通院|疼痛時指示|頓用|PCA|処方|がん家系/;
     function sufficiencyRelevanceRe(needId) {
       const parts = [SUFA_VOCAB[needId], typeof SUF_MET_DOMAIN !== 'undefined' ? SUF_MET_DOMAIN[needId] : null, PC_REQUIRED[needId] ? PC_REQUIRED[needId][0][1] : null].filter(Boolean);
       return parts.length ? new RegExp(parts.map(r => r.source).join('|')) : null;
@@ -666,26 +668,26 @@
     function sufficiencySeparationNote(needId, ctx) {
       const F = ctx.facts || [], now = ctx.now || [], v = ctx.verdict;
       const has = (list, re) => list.filter(f => re.test(String(f.text)));
-      const first = (list, re, n = 30) => { const h = has(list, re)[0]; return h ? clauseClip(h.text, n) : ''; };
+      const first = (list, re, n = 30) => { const h = has(list, re)[0]; return h ? sufficiencyPlainClause(h.text, n) : ''; };
       if (needId === 2) {
         const nutr = F.filter(f => /体重[^。\n]{0,24}(?:減|低下)|(?:Alb|アルブミン)[^。\n]{0,12}(?:低|↓)|るい痩|低栄養|BMI[^。\n]{0,10}(?:低|18)/i.test(f.text));
         const intake = F.filter(f => /全量|[0-9]割|摂取|食べ/.test(f.text) && f.pol === 'met');
-        if (nutr.length && intake.length && v === 'met') return `食事を自分で摂る力（${clauseClip(intake[0].text, 24)}）と、栄養状態（${clauseClip(nutr[0].text, 30)}）は別の面として評価する。摂取できていても栄養が足りているとは限らないため、体重・Alb・摂取量の推移をみて栄養摂取が十分かを判断する。`;
-        if (nutr.length && v !== 'met') return `栄養状態の面では、${clauseClip(nutr[0].text, 30)}がみられる。食事を自分で摂る力とは別に、体重・Alb・摂取量の推移で評価する。`;
+        if (nutr.length && intake.length && v === 'met') return `食事摂取能力は保たれていると考えられる（${sufficiencyPlainClause(intake[0].text, 24)}）。一方、栄養状態の面では${sufficiencyPlainClause(nutr[0].text, 30)}がみられ、1回の食事摂取状況だけでは必要な栄養量が確保されているか判断できない。体重・Alb・摂取量の推移から、栄養摂取が十分かを評価する。`;
+        if (nutr.length && v !== 'met') return `栄養状態の面では、${sufficiencyPlainClause(nutr[0].text, 30)}がみられる。食事摂取能力とは別に、体重・Alb・摂取量の推移から評価する。`;
       }
       if (needId === 9) {
         const risks = F.filter(f => /点滴|ライン|ドレーン|カテーテル|チューブ|PCA|硬膜外|ふらつき|転倒|床上安静|創部|酸素/.test(f.text));
         const safety = F.filter(f => /ベッド柵|ナースコール|センサー|環境整備|見守り|手指衛生|滅菌|清潔操作|ベッド周囲|(?:ドレーン|ルート|チューブ|ライン)[^。\n]{0,6}固定を?(?:確認|整|行)/.test(f.text));
         if (risks.length && !safety.length && v !== 'met' && v !== 'unmet') {
         const names = [...new Set((now.some(f => risks.includes(f)) ? risks.filter(f => now.includes(f)) : risks).flatMap(f => String(f.text).match(/末梢静脈ライン|点滴|[A-ZＡ-Ｚ]ライン|[A-Za-z]-?line|中心静脈|[^、：:●\s]{0,6}ドレーン|硬膜外チューブ|膀胱留置カテーテル|尿道カテーテル|PCA|酸素[^、。]{0,6}|床上安静|ふらつき|創部/g) || []))].filter((x, _, a) => !(x === '点滴' && a.includes('末梢静脈ライン'))).slice(0, 4);
-        if (names.length) return `危険因子の面では、${names.join('、')}が記録で確認できる（転倒・感染・自己抜去などの危険を高める）。一方、安全対策の面では、これらへの対策（固定・ナースコールの位置・環境整備など）が実際に行われ十分かを示す記録がなく、安全が保たれているかは確認できていない。`;
+        if (names.length) return `${names.join('、')}があり、転倒・感染・自己抜去などの危険が高まりやすい状況にある。しかし、これらに対する安全対策（固定、ナースコールの位置、環境整備など）が行われ十分かを示す記録がなく、安全が保たれているかは判断できない。`;
         }
       }
       if (needId === 10) {
         const nonverbal = now.filter(f => f.pol === 'met' && /指|示し|うなず|頷|首を|短く|一言|ジェスチャ|筆談|表情|手を/.test(f.text));
         const strainRe = /苦悶(?:の表情|様)?|苦痛様(?:表情)?|顔をしかめ[^、。]{0,4}|短い返事|短く返事[^、。]{0,6}|声が出な[^、。]{0,3}|声を出せ[^、。]{0,3}|話せ(?:ない|ず)|ささやき|聞き取りにく[^、。]{0,3}/;
         const sm = now.map(f => String(f.text).match(strainRe)).find(Boolean);
-        if (nonverbal.length && v === 'met') return `意思表示の方法の面では、${clauseClip(nonverbal[0].text, 30)}という形で、気持ちや症状を伝えられている。一方、必要なことを十分に伝えられているかの面では、${sm ? `${sm[0]}がみられ、` : ''}痛み・要望・不安などを言葉や確認への応答で伝えられるかを、続けて確認する。`;
+        if (nonverbal.length && v === 'met') return `身振りなどで意思を示すことはできている（${sufficiencyPlainClause(nonverbal[0].text, 30)}）。ただし、${sm ? `${sm[0]}がみられ、` : ''}痛みや要望、不安などの必要なことを十分に伝えられているかは、まだ判断できない。言葉や確認への応答で伝えられるかを続けて確認する。`;
       }
       if (needId === 14 && (v === 'unmet' || v === 'conflict')) {
         const know = first(F, /オリエンテーション|説明を受け|説明を聞|理解|説明でき|パンフレット|資料/);
@@ -693,14 +695,43 @@
         const motive = first(F, /「[^」]*(?:やらなく|いや|嫌|面倒|必要|なぜ|どうして|本当|やりたく)[^」]*」|拒否|意欲|やる気|消極/);
         const anx = first(F, /不安|怖|心配|緊張/);
         const parts = [];
-        if (know) parts.push(`知識の面（${know}）`);
-        if (skill) parts.push(`技術・実施の面（${skill}）`);
-        if (motive && motive !== skill) parts.push(`意欲の面（${motive}）`);
-        if (anx) parts.push(`不安の面（${anx}）`);
+        if (know) parts.push(`知識面（${know}）`);
+        if (skill) parts.push(`技術面（${skill}）`);
+        if (motive && motive !== skill) parts.push(`意欲面（${motive}）`);
+        if (anx) parts.push(`不安面（${anx}）`);
         const missing = [!know && '知識（説明を理解できているか）', !skill && '技術（実際にできるか）', !motive && '意欲（取り組む気持ち）', !anx && '不安'].filter(Boolean);
-        if (parts.length) return `学びの面を分けると、${parts.join('、')}の記録がある。うまくできないという結果だけでは、知識不足・身体的に実施できる力・意欲・不安のどれが関わるかは決められないため、${missing.length ? `${missing.join('・')}は確認できていない。` : ''}それぞれを確かめる。`;
+        if (parts.length) return `${parts.join('、')}について記録がある。手技がうまくできないという結果だけでは、知識不足・身体機能・意欲・不安のどれが影響しているかは決められない。${missing.length ? `${missing.join('・')}は確認できていないため、` : ''}それぞれを分けて確かめる。`;
       }
       return '';
+    }
+    // v.280: a recorded line turned into a clause that reads as prose: record labels, bracketed headings and card numbers are removed and
+    // a note-style ending (「〜あり」「〜なし」「〜実施」) becomes a sentence ending. The meaning is not changed or added to.
+    function sufficiencyPlainClause(text, limit) {
+      let x = String(text || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
+      x = x.replace(/^(?:O|S)\s*[:：]\s*/, '');
+      x = x.replace(/^(?:手術当日|術後\d*日目|術前|入院時)?(?:術後指示|検温時状況|帰室時の状況|帰室時|訪室時)\s*[:：、]\s*/, '');
+      x = x.replace(/^\d{1,2}[:：]\d{2}\s*/, '');
+      x = x.replace(/【\s*(?:spo2|SpO2)\s*】/ig, 'SpO2 ').replace(/【\s*([^】]{1,8})\s*】/g, '$1：').replace(/：\s*：/g, '：').replace(/：\s*(?=[、。]|$)/g, '');
+      x = x.replace(/、\s*、+/g, '、').replace(/^[、\s]+|[、\s]+$/g, '');
+      x = x.replace(/^([^:：「」、。]{1,10})\s*[:：]\s*(?=\S)/, (m, a) => (/^(?:食事|排泄|排便|排尿|睡眠|清潔|体温|疼痛|呼吸|活動|安静度|症状|食生活|嗜好品)$/.test(a) ? `${a}は` : `${a}：`));
+      x = x.replace(/([^\s、]{2,}?)(時々|時折|少量|軽度|やや)\s*(?:あり|有り)$/, '$1が$2みられる').replace(/\s*(?:が|は)?\s*(?:あり|有り)$/, 'がみられる').replace(/\s*(?:が|は)?\s*(?:なし|無し)$/, 'はみられない').replace(/(?:を)?(?:実施|施行)$/, 'を実施している');
+      x = x.replace(/[。.]+$/, '');
+      return typeof clauseClip === 'function' && limit ? clauseClip(x, limit) : x;
+    }
+    // The patient in one sentence (age, sex, diagnosis, operation) for the opening of a post-operative analysis. Items are read from the relation map and the record; nothing is added.
+    function sufficiencyContextSentence(cp) {
+      try {
+        let b = {}; try { b = extractClinicalBasics(cp.sourceText || (cp.items || []).map(i => i.text).join('\n')) || {}; } catch (e) { b = {}; }
+        const m = cp.relationMap, nodes = (m && m.nodes) || [];
+        const dz = nodes.find(n => n.type === 'disease' || (n.type === 'patient_fact' && /がん|癌|腫瘍|肺炎|梗塞|骨折|心不全|糖尿病/.test(n.label)));
+        const sg = nodes.find(n => n.key === 'surgery' || /術(?:\(|（|$)|切除術|全摘術|形成術|固定術|置換術/.test(n.label) && n.type === 'treatment' && !/麻酔/.test(n.label));
+        const clean = t => String(t || '').replace(/[（(][^）)]*(?:入院|翌|日)[^）)]*[）)]/g, '').replace(/予定術式\s*[:：]?/g, '').replace(/\s*\+\s*/g, '・').trim();
+        const who = `${b.age ? `${b.age}歳` : ''}${b.sex === 'male' ? '男性' : b.sex === 'female' ? '女性' : ''}`;
+        const dxs = dz ? clean(dz.label).replace(/[（(][^）)]*[）)]/g, '') : '';
+        const op = sg ? clean(sg.label) : '';
+        if (!who && !dxs && !op) return '';
+        return `患者は${who ? who + 'で、' : ''}${dxs ? `${dxs}に対して` : ''}${op ? `${op}を受けている` : (dxs ? '治療中である' : '入院中である')}。`;
+      } catch (e) { return ''; }
     }
     function sufficiencyAnalysis(cp, needId, phaseKey) {
       const facts = sufficiencyFacts(cp, needId);
@@ -711,10 +742,14 @@
       const by = st => facts.filter(f => f.stage === st);
       const evSet = new Set((((ruleSufficiencyFor(cp)[needId] || {})[phaseKey]) || {}).evidence || []);
       const VITAL_ONLY = /^(?:血圧|脈拍|呼吸数|体温|SpO2|Spo2)[:：]/i;
-      const rankOf = f => (evSet.has(f.id) ? 0 : f.pol === 'unmet' ? 1 : f.pol === 'met' ? 2 : VITAL_ONLY.test(f.text) ? 4 : 3);
+      // key indicators that the reader expects to see for the need (lung function and SpO2 for 呼吸) come before incidental findings
+      const KEY_IND = { 1: /呼吸機能|[一1]秒率|肺活量|SpO2|Spo2/i, 3: /排便|排尿|尿量|排ガス/, 7: /体温|発熱|熱/ }[needId];
+      const rankOf = f => (evSet.has(f.id) ? 0 : f.pol === 'unmet' ? 1 : KEY_IND && KEY_IND.test(f.text) && !f.restrict ? 1 : f.pol === 'met' ? 2 : VITAL_ONLY.test(f.text) ? 4 : 3);
       const ordered = list => list.map((f, k) => ({ f, k })).sort((a, b) => rankOf(a.f) - rankOf(b.f) || a.k - b.k).map(x => x.f);
-      const show = (list, n = 3) => ordered(list).slice(0, n).map(f => `${f.quote ? '' : ''}${clauseClip(f.text, 46)}${f.ref ? `（${f.ref}）` : ''}`).join('、');
+      const sim = (a, b) => { const g = t => { const z = String(t).replace(/\s/g, ''); const o = new Set(); for (let k = 0; k < z.length - 1; k++) o.add(z.slice(k, k + 2)); return o; }; const A = g(a), B = g(b); if (!A.size || !B.size) return 0; let n = 0; A.forEach(x => { if (B.has(x)) n++; }); return n / Math.min(A.size, B.size); };
+      const show = (list, n = 3) => { const out = []; ordered(list).forEach(f => { if (out.length >= n) return; const c = sufficiencyPlainClause(f.text, 46); if (c && !out.some(o => sim(o, c) >= 0.6)) out.push(c); }); return out.join('、'); };
       const paras = [];
+      if (phaseKey === 'postop' && ![9, 11, 13].includes(needId)) { const ctxSentence = sufficiencyContextSentence(cp); if (ctxSentence) paras.push(ctxSentence); }
       const base = by('base'), pre = phaseKey === 'postop' ? by('preop') : [], now = by(cur);
       if (phaseKey !== 'pre' && base.length) paras.push(`入院前は、${show(base)}。`);
       if (pre.length) paras.push(`術前は、${show(pre)}。`);
@@ -782,7 +817,15 @@
           const ids = new Set((cp.items || []).filter(i => (i.hendersonIds || []).includes(needId)).map(i => i.id));
           const plan = focusPlansForNeed(cp, needId, ids).filter(p => { const h = focusHomeNeed(p); return h === needId && !(typeof cvProblemStatus === 'function' && cvProblemStatus(cp, p).kind === 'candidate'); })[0];
           const roles = plan ? focusMapChainRoles(cp, focusMapNodeOf(cp, plan)) : null;
-          if (roles && roles.causes.length) paras.push(`${clauseClip(plan.problem, 30)}につながる要因として、${roles.causes.slice().reverse().join('、')}が考えられる${/リスク/.test(plan.problem) ? '。現時点で、その状態が起きたと判断できる記録はない' : ''}。`);
+          if (roles && roles.causes.length) {
+            // v.280: told as a judgement — what is likely to happen because of which factors — not as a list of map labels. Only factors confirmed on the relation map are used.
+            const node = focusMapNodeOf(cp, plan);
+            const byIdN = new Map(((cp.relationMap && cp.relationMap.nodes) || []).map(x => [x.id, x]));
+            const outcome = node && cp.relationMap ? cp.relationMap.edges.filter(x => x.target === node.id).map(x => byIdN.get(x.source)).filter(x => x && x.type === 'future_risk').map(x => String(x.label).replace(/の可能性$/, '').replace(/\s*[（(].*$/, ''))[0] : '';
+            const why = roles.causes.slice().reverse().map(x => String(x).replace(/の可能性$/, '')).join('、');
+            if (/リスク/.test(plan.problem)) paras.push(`${why}により、${outcome || clauseClip(plan.problem, 30).replace(/リスク状態.*$/, '')}を起こすおそれがある。ただし、実際にそのような状態が起きているとは、現時点の記録からは判断できない。`);
+            else paras.push(`${why}が、${clauseClip(plan.problem, 30)}の背景にあると考えられる。`);
+          }
         }
       } catch (e) { /* 解釈は補助。失敗しても事実の分析は出す */ }
       if (now.length && !base.length && !pre.length) paras.push('入院前の記録がなく、以前の状態と比べて評価することはできない。');
@@ -1692,7 +1735,11 @@
 
         // 「現在」 means admission time when the card itself is dated after admission (入院時・術前): it is not a pre-admission habit then.
         if (phase === 'pre' && /^(?:現在|今回|今は|入院後|術後)/.test(p) && !/入院時|入院日|入院当日|術前|手術前/.test(String(item.timestamp || ''))) continue;
-        const r = sufficiencyClauseVerdict(p, needId, { speech });
+        let r = sufficiencyClauseVerdict(p, needId, { speech });
+        // v.280: a nod, a gesture, pointing or a very short reply shows that the patient can signal, not that the necessary communication is sufficient — verdict held (判定保留), never 充足.
+        if (needId === 10 && r.v === 'met' && /^(?:短く返事|返事|うなず|頷|(?:のど|喉|傷|腹|痛い所|部位)[^。、]{0,8}(?:を)?(?:示し|指さ|指差|指し)|ジェスチャー|筆談)/.test(String(r.hit || '')) && !/[「」]/.test(p)) r = { v: 'pending', hit: '非言語の意思表示', clause: p, kind: 'nonverbal' };
+        // v.280: not managing a manoeuvre (「維持できない」「うまく吸えない」) shows a skill still being acquired, not that the patient has not learned — knowledge, physical ability, motivation and anxiety are told apart, so the verdict is held.
+        if (needId === 14 && r.v === 'unmet' && /維持|うまく|吸え|上げ|できない|できず|難し/.test(p) && !/わから|分から|知らな|知りたくな|理解(?:でき|して)(?:ない|いな)|間違|誤|拒否|やりたくない|やらない|面倒|中断|聞いていない|覚えていない/.test(p) && !SUF_LEARN_PROBLEM.test(p)) r = { v: 'pending', hit: '手技の習得途中', clause: p, kind: 'skill' };
         if (r.v === 'unmet') {
           // A conditional (「〜ないと気持ちが悪い」) states a habit or value, not the present state.
           if (r.hit && p.includes(r.hit) && /(?:ないと|なければ|なくては|ないと、)\s*$/.test(p.slice(0, p.indexOf(r.hit)).slice(-8))) continue;
@@ -1704,7 +1751,7 @@
         }
         // For sleep, a clause about sleep itself (「眠れた」) is better evidence than a neighbouring clause that only mentions pain.
         if (r.v === 'met' && (!met || (needId === 5 && /眠|睡眠|寝/.test(p) && !/眠|睡眠|寝/.test(met.clause)))) met = { v: 'met', hit: r.hit, clause: p };
-        if (r.v === 'pending' && !pending) pending = { v: 'pending', hit: r.hit, clause: p };
+        if (r.v === 'pending' && !pending) pending = { v: 'pending', hit: r.hit, clause: p, ...(r.kind ? { kind: r.kind } : {}) };
       }
 
       if (!unmet && !met && needId === 10 && speech) {
@@ -2339,7 +2386,7 @@
           if (um.length && (um.some(x => x.r.severe) || um.length * 2 >= mt.length)) return { verdict: 'unmet', facts: facts(), reason: `${um.slice(0, 3).map(short).join('')}`, evidence: um.slice(0, 5).map(x => x.i.id), need: '' };
           if (mt.length) return { verdict: 'met', facts: facts(), reason: `${mt.slice(0, 3).map(short).join('')}`, evidence: mt.slice(0, 5).map(x => x.i.id), need: '' };
           const pending = rs.filter(x => x.r.v === 'pending');
-          if (pending.length) return { verdict: 'conflict', needsConfirmation: true, reason: need.id === 14 ? '説明・練習は実施されているが、理解の程度や自分で実施できるかの確認が必要' : need.id === 10 ? '不安や思いを言葉にできているが、伝達上の困りごとがないかは別に確認する必要がある' : need.id === 11 ? '価値観や希望を言葉にできているが、それが尊重され実践できているかは別に確認する必要がある' : '感染症検査の陰性結果は確認できるが、転倒など他の安全面は別に確認する必要がある', evidence: pending.slice(0, 5).map(x => x.i.id), need: '' };
+          if (pending.length) return { verdict: 'conflict', needsConfirmation: true, reason: need.id === 14 ? (pending.some(x => x.r && x.r.kind === 'skill') ? '練習の手技がまだ十分にできていないが、知識・身体機能・意欲・不安のどれが影響しているかを確認する必要がある' : '説明・練習は実施されているが、理解の程度や自分で実施できるかの確認が必要') : need.id === 10 ? (pending.every(x => x.r && x.r.kind === 'nonverbal') ? '短い返答や身振りで意思を示せているが、必要なことを十分に伝えられるかは別に確認する必要がある' : '不安や思いを言葉にできているが、伝達上の困りごとがないかは別に確認する必要がある') : need.id === 11 ? '価値観や希望を言葉にできているが、それが尊重され実践できているかは別に確認する必要がある' : '感染症検査の陰性結果は確認できるが、転倒など他の安全面は別に確認する必要がある', evidence: pending.slice(0, 5).map(x => x.i.id), need: '' };
           if (need.id === 11 && cards.some(i => /宗教|信仰|信条|祈|礼拝/.test(String(i.text || '')) && !/記載なし|情報なし|不明|未確認/.test(String(i.text || '')) && !SUF_NOT_CONFIRMED.test(String(i.text || '').normalize('NFKC')))) return { verdict: 'met', reason: '信仰による問題の記載なし', evidence: cards.slice(0, 3).map(i => i.id), need: '' };
           return { verdict: 'unknown', reason: '', evidence: [], need: cards.length ? `${label}の充足を判断できる直接の記録（${sufficiencyNeededInfo(need.id) || '実際の状態や自立度'}）がない` : `${label}の記録がない` };
         };
@@ -2359,6 +2406,19 @@
       try { sufficiencyStateOverrides(items, out, i => /^入院前/.test(String(i.timestamp || '')) || (Object.values(i.assessmentCols || {}).length > 0 && Object.values(i.assessmentCols).every(c => c === 'preadmission'))); } catch (e) { console.warn('Restriction check failed:', e); }
       try { sufficiencyScoreOverrides(items, out, i => /^入院前/.test(String(i.timestamp || '')) || (Object.values(i.assessmentCols || {}).length > 0 && Object.values(i.assessmentCols).every(c => c === 'preadmission')), sufficiencyAllRules, true, surgical ? (i => surgPhaseOf(i, cp)) : null, sufficiencyListRules); } catch (err) { console.warn('score/per-need rules failed:', err); }
       try { sufficiencyKnowledgeAttach(items, out, i => /^入院前/.test(String(i.timestamp || '')) || (Object.values(i.assessmentCols || {}).length > 0 && Object.values(i.assessmentCols).every(c => c === 'preadmission')), surgical ? (i => surgPhaseOf(i, cp)) : null); } catch (err) { console.warn('knowledge notes failed:', err); }
+      // v.280: ability to eat (a meal fully taken) and nutritional status (weight loss) are separate aspects — when both are on record and the verdict rests only on the intake, it is held (判定保留), not 充足.
+      try {
+        const nutrLoss = items.filter(i => !i.deleted && i.type !== 'unnecessary' && (i.hendersonIds || []).includes(2) && /体重[^。\n]{0,24}(?:減|低下)|(?:Alb|アルブミン)[^。\n]{0,12}(?:低|↓)|るい痩|低栄養/.test(String(i.text).normalize('NFKC')) && surgPhaseOf(i, cp) !== 'post');
+        if (nutrLoss.length && out[2]) ['pre', 'preop', 'postop'].forEach(k => {
+          const v = out[2][k];
+          if (v && v.verdict === 'met' && !(v.evidence || []).some(id => nutrLoss.some(i => i.id === id))) {
+          const byId = new Map(items.map(i => [i.id, i]));
+          const intakeIds = (v.evidence || []).filter(id => byId.has(id) && /全量|[0-9]割|摂取|食べ|常食|食事/.test(String(byId.get(id).text)) && !/基準値|U\/L|mg\/dL/.test(String(byId.get(id).text)));
+          const t40 = i => String(i.text).normalize('NFKC').replace(/\s+/g, ' ').slice(0, 40);
+          out[2][k] = { ...v, verdict: 'conflict', needsConfirmation: true, reason: '食事を摂れている記録はあるが、体重の減少などから栄養が足りているかは別に確認する必要がある', evidence: [...intakeIds.slice(0, 3), nutrLoss[0].id], facts: { for: intakeIds.slice(0, 3).map(id => ({ id, text: t40(byId.get(id)), kind: 'obs' })), against: [{ id: nutrLoss[0].id, text: t40(nutrLoss[0]), kind: 'obs' }] }, aspectHold: true };
+          }
+        });
+      } catch (e) { console.warn('Nutrition aspect check failed:', e); }
       // v.91: a 充足 verdict must rest on a recorded basis; without evidence it is 情報不足 (the need text is kept, only the verdict changes).
       Object.keys(out).forEach(n => Object.keys(out[n]).forEach(k => { const v = out[n][k]; if (v && v.verdict === 'met' && !(v.evidence || []).length) out[n][k] = { verdict: 'unknown', reason: '', evidence: [], need: v.need || '記録に基づく根拠がなく、満たされているか判断できない' }; }));
       return out;
@@ -2397,7 +2457,7 @@ if (typeof module !== 'undefined' && module.exports) {
     MY_ASSESSMENT_FIELDS,
     ensureMyAssessment, getMyAssessment, ruleSufficiencyFor, linkMyEvidenceIds, unlinkMyEvidenceId, setMyEvidenceIds,
     myAssessmentStatus, myAssessmentNeedsReview, confirmMyAssessmentEntry, restoreMyAssessmentFromHistory,
-    hasRuleSufficiency, sufficiencyAnalysis, sufficiencySeparationNote, sufficiencyFacts, sufficiencyNeededInfo, sufficiencyDimensions, sufficiencyDimensionLines, phaseVerdictOf, sufficiencyUiPhases, dischargePhaseOf, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, obstetricDailyFulfillment, sufficiencyScoreRules, sufficiencyPerNeedRules, sufficiencyScaleRules, sufficiencyLabRules, sufficiencyListRules, sufficiencyKnowledgeChecks, sufficiencyKnowledgeLine, SUF_LAB_NEEDS, SUF_COMBO_NEEDS, sufficiencyCauseHint, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, sufficiencyEvidenceState, fulfillmentAssessmentRows, complicationCandidates, patientContextFor, individualizedAssessment, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, sufficiencyMiniHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
+    hasRuleSufficiency, sufficiencyAnalysis, sufficiencyPlainClause, sufficiencyContextSentence, sufficiencySeparationNote, sufficiencyFacts, sufficiencyNeededInfo, sufficiencyDimensions, sufficiencyDimensionLines, phaseVerdictOf, sufficiencyUiPhases, dischargePhaseOf, isSurgicalPatient, surgPhaseOf, applySufficiencyReview, judgeSufficiencyByRules, obstetricDailyFulfillment, sufficiencyScoreRules, sufficiencyPerNeedRules, sufficiencyScaleRules, sufficiencyLabRules, sufficiencyListRules, sufficiencyKnowledgeChecks, sufficiencyKnowledgeLine, SUF_LAB_NEEDS, SUF_COMBO_NEEDS, sufficiencyCauseHint, sufficiencyCardVerdict, sufficiencyHasVerdict, sufficiencySentence, sufficiencyEvidenceState, fulfillmentAssessmentRows, complicationCandidates, patientContextFor, individualizedAssessment, parseSufficiencyJson, applySufficiencyResult, sufficiencyReasonHtml, sufficiencyPhaseHtml, sufficiencyPhaseText, sufficiencyHeaderHtml, phaseVerdictOf, sufficiencyTextOf, myAssessmentHasContent, getSufficiency, sufficiencyControlHtml, sufficiencySummaryHtml, sufficiencyMiniHtml, diffMyAssessmentVersions, reviewMyAssessment, buildMyAssessmentsText, buildMyAssessmentsPrintHtml,
     renderMyAssessmentRowHtml, evidencePickerCandidates, myAssessmentAlwaysShown
   });
   if (module.exports.__testHooks) Object.assign(module.exports.__testHooks, { flushMyAssessmentSaves, saveMyAssessmentsSoon });
