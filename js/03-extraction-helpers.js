@@ -1,7 +1,7 @@
 // Local record extraction. Preserve source wording, units, timestamps and admission context.
 // Headings supply context; narrative numbers are not automatically laboratory measurements.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.274'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['03'] = 'v.281'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -701,6 +701,36 @@
       if (!t || t === '日時不明') return '';
       const m = t.match(/^(.*?)\s*\d{1,2}:\d{2}$/);
       return m ? m[1].trim() : t;
+    }
+
+    // v.281: 受け持ちがいつからか（学生が患者を受け持ち始めた日）。記録に「術後1日目より受け持つ」「受持ち開始」と書かれていれば、
+    // その日を時系列（書き出しの日ごとの区切り）に出す。カードの種別は変えず、「不必要な情報」に振り分けられた行から日を読む。
+    function careStartOf(items) {
+      const dayRe = /((?:術後|入院|産褥|生後|手術後)?\s*\d+\s*日目|手術当日|入院当日)\s*(?:より|から)\s*(?:受け持|受持)/;
+      const startRe = /(?:受け持ち|受持ち?|受持)\s*(?:を)?開始/;
+      let fromText = '', fromStamp = '';
+      (items || []).forEach(i => {
+        if (!i || i.deleted) return;
+        const t = String(i.text || '').normalize('NFKC').replace(/\s+/g, '');
+        const m = t.match(dayRe);
+        if (m && !fromText) fromText = normalizeDayLabel(m[1]);
+        else if (startRe.test(t) && t.length <= 20 && !fromStamp) { const d = timestampDayPart(i.timestamp); if (d && !/^(?:術前|入院時|入院前|日時不明)$/.test(d)) fromStamp = d; }
+      });
+      const day = fromText || fromStamp;
+      return day ? { day, label: '受け持ち開始' } : null;
+    }
+    // 印は一つだけ出す。Oデータにその日の記録があればO側に、無いときだけS側に出す。
+    function careStartForS(items) {
+      const cs = careStartOf(items);
+      return cs && !(items || []).some(i => i.type === 'o' && !i.deleted && timestampDayPart(i.timestamp) === cs.day) ? cs : null;
+    }
+    // 受け持ち開始の印を、日付つきの記録の並びの中の、その日の最初の記録の前に入れる（その日の記録が無い一覧には入れない）。
+    function withCareStartMarker(list, careStart) {
+      if (!careStart || !Array.isArray(list) || !list.length) return list;
+      const k = list.findIndex(i => timestampDayPart(i.timestamp) === careStart.day);
+      if (k < 0) return list;
+      const marker = { id: 'care-start', type: list[k].type, timestamp: careStart.day, text: careStart.label, careStartMarker: true, hendersonIds: [] };
+      return [...list.slice(0, k), marker, ...list.slice(k)];
     }
 
     function timestampClockPart(ts) {

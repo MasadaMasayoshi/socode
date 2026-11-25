@@ -1,6 +1,6 @@
 // Japanese document exports. Preserve source/evidence distinctions and printable patient ownership.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.277'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['06'] = 'v.281'; // Version stamp (scripts/stamp-version.js)
     // ==========================================================================
 
     // ------------------------------------------------------------------------
@@ -329,13 +329,13 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       cp = { ...cp, items: sheetRecordItems(cp) };
       const items = cp.items || [];
       const dataTable = list => list.length === 0 ? '<p class="muted">（登録なし）</p>' :
-        `<table><colgroup><col style="width:15%"><col><col style="width:22%"></colgroup><thead><tr><th>日時</th><th>内容</th><th>タグ</th></tr></thead><tbody>${list.map(i => `<tr><td class="tm">${escapeHtml(i.timestamp && i.timestamp !== '日時不明' ? i.timestamp : '—')}</td><td>${printFieldLabel(i)}${escapeHtml(i.text)}</td><td class="tags">${escapeHtml(printTagNames(i)) || '<span class="muted">タグ未設定</span>'}</td></tr>`).join('')}</tbody></table>`;
+        `<table><colgroup><col style="width:15%"><col><col style="width:22%"></colgroup><thead><tr><th>日時</th><th>内容</th><th>タグ</th></tr></thead><tbody>${list.map(i => `<tr><td class="tm">${escapeHtml(i.timestamp && i.timestamp !== '日時不明' ? i.timestamp : '—')}</td><td>${printFieldLabel(i)}${escapeHtml(i.text)}</td><td class="tags">${i.careStartMarker ? '' : (escapeHtml(printTagNames(i)) || '<span class="muted">タグ未設定</span>')}</td></tr>`).join('')}</tbody></table>`;
       let n = 1;
       let body = printDocHead('看護アセスメント・記録整理シート', cp);
 
       const isMissingOnly = i => typeof isMissingInfoOnlyItem === 'function' && isMissingInfoOnlyItem(i);
-      if (on('s')) body += `<h2>${n++}. 主観的情報（Sデータ）</h2>` + dataTable(items.filter(i => i.type === 's' && !isMissingOnly(i)));
-      if (on('o')) body += `<h2>${n++}. 客観的情報（Oデータ）</h2>` + dataTable(items.filter(i => i.type === 'o' && !isMissingOnly(i)));
+      if (on('s')) body += `<h2>${n++}. 主観的情報（Sデータ）</h2>` + dataTable(withCareStartMarker(items.filter(i => i.type === 's' && !isMissingOnly(i)), careStartForS(items)));
+      if (on('o')) body += `<h2>${n++}. 客観的情報（Oデータ）</h2>` + dataTable(withCareStartMarker(items.filter(i => i.type === 'o' && !isMissingOnly(i)), careStartOf(items)));
       const missingOnly = items.filter(i => i.type !== 'unnecessary' && isMissingOnly(i));
       if (on('missing') && missingOnly.length) {
         const status = i => (typeof missingCheckStatus === 'function' ? ({ unchecked: '未確認', checked: '確認済み', na: '該当なし' })[missingCheckStatus(cp, i.id)] : '未確認');
@@ -645,12 +645,12 @@ ${ai ? `<div class="page-break"></div>${ai}` : ''}
       const isMissingOnly = i => typeof isMissingInfoOnlyItem === 'function' && isMissingInfoOnlyItem(i);
       if (on('s')) {
       out += plainSectionTitle('2. 主観的情報（Sデータ）');
-      out += plainList(cp.items.filter(i => i.type === 's' && !isMissingOnly(i)).map(formatLine));
+      out += plainList(withCareStartMarker(cp.items.filter(i => i.type === 's' && !isMissingOnly(i)), careStartForS(cp.items)).map(formatLine));
       }
 
       if (on('o')) {
       out += plainSectionTitle('3. 客観的情報（Oデータ）');
-      out += plainList(cp.items.filter(i => i.type === 'o' && !isMissingOnly(i)).map(formatLine));
+      out += plainList(withCareStartMarker(cp.items.filter(i => i.type === 'o' && !isMissingOnly(i)), careStartOf(cp.items)).map(formatLine));
       }
       const missingOnly = cp.items.filter(i => i.type !== 'unnecessary' && isMissingOnly(i));
       if (on('missing') && missingOnly.length) {
