@@ -82,7 +82,7 @@ test('欲求ごとの分析で、判定の材料が別の面にまたがると�
   const n10 = app.sufficiencySeparationNote(10, { verdict: 'met', facts: [], now: [{ text: 'のどを示しながら、苦悶の表情', pol: 'met' }] });
   assert.match(n10, /身振りなどで意思を示す.*必要なことを十分に/);
   const n14 = app.sufficiencySeparationNote(14, { verdict: 'unmet', facts: [{ text: '呼吸訓練を促すと「やっぱりやらなくちゃいけないの?」と聞いてくる' }, { text: 'オリエンテーションを受ける' }], now: [] });
-  assert.match(n14, /知識面.*意欲面.*どれが影響/);
+  assert.match(n14, /知識面.*意欲面.*整理する/);
   assert.equal(app.sufficiencySeparationNote(9, { verdict: 'met', facts: [{ text: '点滴ライン' }, { text: 'ナースコールを手元に置く' }], now: [] }), '');
 });
 

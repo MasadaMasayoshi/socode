@@ -4,7 +4,7 @@
 // Preserve relative time and manual layout; do not infer absolute dates or regenerate on open.
 // Evidence traversal terminates cycles and excludes other-patient/deleted cards.
 
-    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.279'; // Version stamp (scripts/stamp-version.js)
+    (window.APP_FILE_VERSIONS = window.APP_FILE_VERSIONS || {})['15'] = 'v.282'; // Version stamp (scripts/stamp-version.js)
 
     const RM_TYPES = [
 
@@ -1503,7 +1503,7 @@
       return n;
     }
 
-    const RM_NEG_AFTER = /^[^、。,，\n]{0,6}?(?:なし|無し|無い|ない|認めず|みられず|見られず|\(-\)|（-）|陰性|消失)/;
+    const RM_NEG_AFTER = /^[^、。,，\n]{0,6}?(?:なし|無し|無い|ない|なく|なかった|認めず|みられず|見られず|\(-\)|（-）|陰性|消失)/;
     // 列挙の後ろにまとめて付く否定（「口唇紅潮、咽頭発赤、腹部膨満は認めない」）は、列挙の全部にかかる。肯定の述語が途中に入る文はかからない。
     function rmNegatedInList(rest) {
       const sent = String(rest).split(/[。\n]/)[0];
